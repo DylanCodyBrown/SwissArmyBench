@@ -330,8 +330,8 @@ sag.blades(tag="sales")
 ```
 
 The Sandbox can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
-colourblind-safe first, every one readable by construction; import your own as a small JSON file. The
-PDF and the markdown export take it.
+colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
+one with the button beside the picker). The PDF and the markdown export take it.
 
 `sag.sandbox(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
 figure, a picture, a DataFrame's first rows, Markdown text or a file in the Sandbox; the same `key`

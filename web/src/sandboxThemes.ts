@@ -65,7 +65,8 @@ export async function loadThemes(): Promise<Themes> {
   return api<Themes>("/sandbox/themes");
 }
 
-/** The theme picker, Import theme… and Export theme, for the Sandbox's toolbar. */
+/** The theme picker, Import theme…, Export theme and, for a theme the user imported, Remove this theme:
+ *  the Sandbox's toolbar. The built-in themes cannot be removed. */
 export function themeControls(themes: Themes, changed: () => void): HTMLElement {
   const groups = new Map<string, SandboxTheme[]>();
   for (const t of themes.themes) groups.set(t.group, [...(groups.get(t.group) ?? []), t]);
@@ -106,6 +107,12 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
       ? button("Export theme", () => saveBlob(new Blob([JSON.stringify({ name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }, null, 2)], { type: "application/json" }), `${chosen.id}.theme.json`), { icon: "export", iconOnly: true, class: "ghost" })
       : null,
     chosen?.by_agent ? button("Keep this theme", () => void api("/sandbox/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => toast(e.message, "error")), { icon: "save", class: "ghost" }) : null,
+    chosen?.custom && !chosen.by_agent
+      ? button("Remove this theme", () => {
+          if (!confirm(`Remove the theme ${chosen.label}? The Sandbox goes back to following the app.`)) return;
+          void api(`/sandbox/themes/${encodeURIComponent(chosen.id)}`, "DELETE").then(changed, (e: Error) => toast(e.message, "error"));
+        }, { icon: "trash", iconOnly: true, class: "ghost", title: `Remove ${chosen.label} (a theme you imported)` })
+      : null,
     file,
   );
 }
