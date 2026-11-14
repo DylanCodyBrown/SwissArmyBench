@@ -36,8 +36,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
   `{{ name }}` filled from the kernel), the Analyze menu, the Sandbox, compare's diff and tie-out,
-  and To Python on analysis results (code queued for `sag.paste()` in Jupyter or IPython). Not built: M9 (sandbox), the VS Code extension and the
-  Jupyter display hook (the plan's "parallel extras").
+  and Copy code on analysis results (the analysis as Python, on the clipboard). Not built: M9 (sandbox)
+  and the Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
   notes go in [docs/ideas.md](docs/ideas.md).
 - **Data is sensitive.** Use only made-up data in tests, examples and screenshots. Keep the
@@ -128,7 +128,6 @@ src/swissarmygrid/
     catalog_loading.py   catalogs that load themselves in the background: on save, at start-up (not a
                          browser-window sign-in), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
-    handoff.py           code handed to the user's Python: To Python's queue, taken by sag.paste()
     connections.py       connections: the list, the forms, test before saving, password sources
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered
@@ -165,7 +164,7 @@ src/swissarmygrid/
     app.py               asks bootstrap for the services, mounts the routes behind the guard
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
-                         (datasets, grids, analysis, regression, timeseries, tieout, handoff, agent, cards, catalog, blades, relationships,
+                         (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, folders, workbench, table_cells). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
@@ -178,7 +177,6 @@ src/swissarmygrid/
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sag.load (a catalog), sag.blade (run a saved blade here), sag.blades
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sag.complete)
-  client/paste_client.py sag.paste: the code To Python queued, into the Jupyter cell or IPython prompt
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sag.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB
@@ -199,7 +197,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
                          aiPanel.ts is the Sandbox tab (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
-                         Open as grid and To Python (toPython.ts); analysisDialog.ts is its forms (odds, fit test, find
+                         Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
                          predictors, outliers; Fit test and Outliers are also in the Column row);
                          modelDialog.ts the regression and what-if; timeSeriesDialog.ts time series and
                          forecast (Plotly charts in the window); cheatSheets.ts each form's Data shape;

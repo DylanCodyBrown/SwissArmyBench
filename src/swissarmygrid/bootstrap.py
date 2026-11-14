@@ -58,7 +58,6 @@ from swissarmygrid.services.datasets import ConnectionTables, DatasetService
 from swissarmygrid.services.export import Exports
 from swissarmygrid.services.folders import Folders
 from swissarmygrid.services.grids import GridService
-from swissarmygrid.services.handoff import Handoff
 from swissarmygrid.services.inbox import Inbox
 from swissarmygrid.services.packs import Packs
 from swissarmygrid.services.processes import ProcessRegistry, Sessions
@@ -103,7 +102,6 @@ class Services:
     catalog_loading: CatalogLoading
     folders: Folders
     workbench: Workbench
-    handoff: Handoff
     models: Models
     finder: Finder
     packs: Packs
@@ -266,7 +264,6 @@ def bootstrap(
             secret_names=blades.environment_names,
             vault_environment=vault_environment,
         ),
-        handoff=Handoff(ws, verifier),
         models=models,
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),

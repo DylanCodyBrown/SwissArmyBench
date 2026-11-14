@@ -6,7 +6,7 @@
  *   Undo (drop the last step) · Clear · Edit steps (the full panel, in a tab of its own).
  *
  * The steps as code are the table's own read-only cell in the Workbench (docs/ideas.md, 2026-11-14):
- * Copy as SQL, Copy as Python and To Python left this strip, and were not moved anywhere.
+ * Copy as SQL and Copy as Python left this strip (the steps window's Code tab has them).
  */
 import { api, token } from "./api";
 import { button, clear, h, toast } from "./dom";

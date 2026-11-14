@@ -50,6 +50,19 @@ def test_the_analyze_menu_chains_odds_fit_predictors_and_outliers(
             "units, price go with amount", timeout=30000
         )
         expect(dialog).to_contain_text("order_id (every row a different whole number")
+        # Copy code: the analysis as Python on the clipboard (To Python and its queue are gone).
+        page.evaluate(
+            "() => { navigator.clipboard.writeText = async (text) => { window.__copied = text; }; }"
+        )
+        expect(dialog.get_by_role("button", name="To Python")).to_have_count(0)
+        dialog.get_by_role("button", name="Copy code").click()
+        page.wait_for_function("window.__copied !== undefined", timeout=30000)
+        copied = page.evaluate("window.__copied")
+        assert (
+            copied.startswith("from swissarmygrid import stats\n")
+            and "stats.predictors(\n    orders," in copied
+        )
+        expect(page.locator(".toast").last).to_have_text("Copied.")
         dialog.get_by_role("button", name="Open as grid").click()
         expect(page.locator(".tabs-row .tab-item", has_text="orders_predictors_amount")).to_be_visible(
             timeout=20000

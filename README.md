@@ -454,16 +454,9 @@ type the value), and cannot change, remove or run a blade.
 
 ## Code to your Python
 
-**To Python** (on an analysis result) hands code to Jupyter or Python in the
-terminal: it is copied to the clipboard and queued, and in Jupyter or IPython
-
-```python
-sag.paste()  # this cell becomes the code (Jupyter), or it waits at the prompt (IPython)
-```
-
-puts the newest in place, its imports first. Nothing runs until you run it. A grid's steps go as DuckDB
-code over your table by its own name, and only when the server ran that code and it matched the grid.
-The queue lives in memory (the last 20); the agent can never send code to your Python.
+**Copy code** (on an analysis result) copies the analysis as Python to the clipboard, its imports
+first: the grid's steps as checked DuckDB SQL over your table by its own name, then one
+`swissarmygrid.stats` call, the same code the window ran. Paste it into Jupyter or any Python.
 
 Tables your Python makes still show in the grid page's Open list: importing `swissarmygrid` in Jupyter
 or IPython starts the watcher (`sag.watch()` in a plain script).
@@ -471,14 +464,12 @@ or IPython starts the watcher (`sag.watch()` in a plain script).
 **SQL completion.** In Jupyter and IPython, Tab inside SQL (a string with a SELECT, FROM or JOIN, or a
 `%%sql` cell) offers the loaded catalogs' tables and columns; `orders.cu` Tab gives orders' columns.
 It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turns it off).
-**Script as:** right-click a catalog table for SELECT \*, SELECT the columns, or pandas over the
-blade's connection, copied and ready for `sag.paste()`.
 
 ## The agent commands: `sag` and the MCP server
 
 **The golden rule: everything you can do, the agent can do too** (172 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
-refreshed), packs and tangs, To Python, and the Workbench (open and save notebooks and scripts, start
+refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
 with two exceptions: its exports still wait for your Allow (and it cannot answer an approval), and no
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever

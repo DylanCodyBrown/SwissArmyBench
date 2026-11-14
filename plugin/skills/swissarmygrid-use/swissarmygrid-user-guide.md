@@ -143,7 +143,7 @@ Select one column, then **Outliers** in the Column row:
 
 Each form has a **Data shape** panel: a made-up table in the shape the analysis needs (long: one row per order, the category and the outcome as columns), one that does not work and why (already counted, wide with one column per month, numbers stored as text), tips, and a check of your grid ("region: 4 values: fine", "this table looks wide"). It can go to the Sandbox too.
 
-Every result has four buttons: **Send to Sandbox** (the result in words, as a note), **Open as grid** (the result's table as a new grid), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **To Python** (the analysis as Python for Jupyter or IPython: the grid's steps as checked SQL, then one `swissarmygrid.stats` call, the same code the window ran, so the numbers match; `sag.paste()` puts it in the cell).
+Every result has four buttons: **Send to Sandbox** (the result in words, as a note), **Open as grid** (the result's table as a new grid), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmygrid.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
 
 ### Auto width
 
@@ -501,15 +501,14 @@ H in a notebook's command mode.
 
 ## Code to your Python
 
-**To Python** (on any analysis result) hands code to Jupyter or Python in the terminal. It is copied to the clipboard and waits: in Jupyter, run `sag.paste()` in a cell and the cell becomes the code, its imports first; in IPython it waits at the prompt. Nothing runs until you run it. The last 20 wait in memory only; the agent can never send code to your Python.
+**Copy code** (on any analysis result) copies the analysis as Python to the clipboard, its imports first. Paste it into Jupyter or any Python; nothing runs until you run it.
 
 - **Drag from the blades page** into a cell or an editor: a blade gives its `sag.blade(...)` line, a table a first SELECT, a column its quoted name.
 - **Your tables are grids:** importing `swissarmygrid` in Jupyter or IPython lists the tables you make in the grid page's Open list. Open one and it's a grid; run the cell again and the grid refreshes.
 
-### SQL completion and Script as
+### SQL completion
 
 - **Completion:** in Jupyter or the IPython terminal (after `import swissarmygrid`), press Tab inside SQL, in a string holding a SELECT, FROM or JOIN, or in a `%%sql` cell, and the loaded catalogs' names come up: `ord` Tab gives tables and columns starting so, `orders.cu` Tab the columns of orders, `sales.ord` Tab the tables of sales. Columns of the tables the query names come first. It asks the running grid server and never starts one. `sag.complete()` turns it on by hand; `SWISSARMYGRID_COMPLETE=0` keeps it off.
-- **Script as** (like SSMS): right-click a table in the catalog for **SELECT \***, **SELECT the columns** (each by name, quoted for the source's own SQL) or **Python: pandas** (`pd.read_sql` over the connection of the blade the catalog came from). It is copied, and `sag.paste()` puts it in your cell.
 
 ## Limits
 

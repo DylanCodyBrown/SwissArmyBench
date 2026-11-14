@@ -542,18 +542,13 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         shutil.rmtree(root.parents[3])
 
 
-def test_script_as_from_the_right_click_waits_for_sag_paste(
-    browser: Browser, warehouse: str, server: dict[str, Any]
+def test_a_tables_right_click_opens_it_as_a_grid_and_scripts_nothing(
+    browser: Browser, warehouse: str
 ) -> None:
+    """Script as left the menu with To Python (2026-11-14): Open as grid is what it offers."""
     page = open_page(browser, warehouse)
     item(page, "sales").locator(":scope > .node").click()
     orders = item(page, "orders").locator(":scope > .node")
     orders.click(button="right")
-    menu = page.get_by_role("menu", name="Script orders as")
-    expect(menu.get_by_role("menuitem")).to_have_text(
-        ["Open as grid", "SELECT *", "SELECT the columns", "Python: pandas"]
-    )
-    menu.get_by_role("menuitem", name="SELECT the columns").click()
-    expect(page.locator(".toast").last).to_contain_text("sag.paste()")
-    taken = call(server, "POST", "/python/take")
-    assert taken["code"] == "SELECT\n    [order_id],\n    [placed at]\nFROM [sales].[orders];"
+    menu = page.get_by_role("menu", name="orders")
+    expect(menu.get_by_role("menuitem")).to_have_text(["Open as grid"])

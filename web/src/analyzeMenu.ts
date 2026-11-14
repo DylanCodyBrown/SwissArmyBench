@@ -6,12 +6,11 @@
  *                      selected columns (analysisDialog.ts)
  *   [SEND TO SANDBOX]  a report-style note and its chart, side by side (analysisCards.ts; POST cards)
  *   [OPEN AS GRID]     a tabular result as a new grid (PUT /datasets/{name}?new_grid=1, JSON rows)
- *   [TO PYTHON]        the analysis as Python for Jupyter or IPython: POST /grids/{id}/analysis-code,
- *                      then copied and queued for sag.paste() (toPython.ts)
+ *   [COPY CODE]        the analysis as Python for a notebook: POST /grids/{id}/analysis-code, then
+ *                      copied to the clipboard, imports first
  */
 import { api, grid } from "./api";
 import { analysisBlades, openBladesPage, runBladeAnalysis } from "./bladeAnalysis";
-import { toPython } from "./toPython";
 import type { SandboxCard } from "./analysisCards";
 import { button, h, icon, toast } from "./dom";
 import { state } from "./state";
@@ -93,7 +92,7 @@ export function tableName(...parts: string[]): string {
   return parts.map((p) => p.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")).filter(Boolean).join("_") || "result";
 }
 
-/** The buttons under a result: Send to Sandbox, Open as grid (when it has rows), To Python. */
+/** The buttons under a result: Send to Sandbox, Open as grid (when it has rows), Copy code. */
 export function resultButtons(actions: ResultActions): HTMLButtonElement[] {
   const out = [
     button("Send to Sandbox", () => void toSandbox(actions), { icon: "image" }),
@@ -103,7 +102,7 @@ export function resultButtons(actions: ResultActions): HTMLButtonElement[] {
     const result = actions.result;
     out.push(button("Show the math", () => void showTheMath(actions.analysis, result()), { icon: "steps", title: "Step by step, to the Sandbox" }));
   }
-  out.push(button("To Python", () => void toYourPython(actions), { icon: "code", title: "Copied for sag.paste()" }));
+  out.push(button("Copy code", () => void copyCode(actions), { icon: "copy", title: "This analysis as Python, for a notebook" }));
   return out;
 }
 
@@ -154,10 +153,15 @@ async function toGrid(actions: ResultActions): Promise<void> {
   }
 }
 
-async function toYourPython(actions: ResultActions): Promise<void> {
+/** The analysis as one cell of Python (its imports first), on the clipboard. */
+async function copyCode(actions: ResultActions): Promise<void> {
   try {
     const made = await api<{ code: string; imports: string[] }>(`${grid}/analysis-code`, "POST", { analysis: actions.analysis, body: actions.body });
-    await toPython(made.code, made.imports, `${actions.analysis.replace(/_/g, " ")} on ${datasetName()}`);
+    const text = made.imports.length ? [...made.imports, "", made.code].join("\n") : made.code;
+    await navigator.clipboard.writeText(text).then(
+      () => toast("Copied."),
+      () => toast("The browser blocked the clipboard.", "error"),
+    );
   } catch (e) {
     toast((e as Error).message, "error");
   }

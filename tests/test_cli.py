@@ -147,7 +147,6 @@ NOT_COMMANDS = {
     "/static": "page files",
     "/agent/context": "current_table",
     "/blades/{}/python": "its answer holds the saved password values for sag.blade: never the agent's",
-    "/python/take": "sag.paste() in the user's Python takes what python_send queued",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
     "/agent/blades": "the old propose-then-Allow door, for older clients; blades_create saves directly now",
     "/agent/blade-templates": "as /agent/blades; blades_templates reads /blades/templates",

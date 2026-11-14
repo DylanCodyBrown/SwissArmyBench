@@ -2576,38 +2576,6 @@ def workbench_environment_choose(a: dict[str, Any]) -> Any:
     return api.call("POST", "/workbench/environment", {"path": a["path"], "python": a["python"]})
 
 
-# ===== python: code queued for the user's Jupyter or IPython (To Python) =====
-
-
-@command(
-    "python_send",
-    "Queue code for the user's Jupyter or IPython: sag.paste() puts it in their cell",
-    req("code", "The Python."),
-    opt("imports", "Import lines it needs.", "list"),
-    opt("label", "What it is."),
-)
-def python_send(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST",
-        "/python/send",
-        {"code": a["code"], "imports": a.get("imports") or [], "label": a.get("label") or "From the agent"},
-    )
-
-
-@command("python_sent", "What was queued for the user's Python lately, newest first")
-def python_sent(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/python/sent")
-
-
-@command(
-    "python_grid_steps",
-    "Queue a grid's steps as checked DuckDB code for the user's Python",
-    req("grid", "The grid's id."),
-)
-def python_grid_steps(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/grids/{_q(a['grid'])}/python")
-
-
 # ===== packs: blades and tangs from a Claude Code plugin marketplace =====
 
 
@@ -2746,21 +2714,6 @@ def catalog_remove(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "catalog_script",
-    "Script a catalog table as SELECT *, SELECT the columns, or pandas over its blade's connection",
-    req("name", "The catalog."),
-    req("table", "The table."),
-    opt("schema", "Its schema."),
-    opt("database", "Its database."),
-    opt("script_as", "select_star, select_columns or pandas."),
-    opt("blade", "The blade whose connection pandas reads with."),
-)
-def catalog_script(a: dict[str, Any]) -> Any:
-    params = {k: a.get(k) for k in ("schema", "table", "database", "blade")} | {"as": a.get("script_as")}
-    return api.call("GET", f"/catalogs/{_q(a['name'])}/script", params=params)
-
-
-@command(
     "relationships_save_tang",
     "Save the current relationships as a tang (a shared .tang file)",
     req("name", "The tang's name."),
@@ -2871,7 +2824,6 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
-    ("python", "To Python: code queued for the user's Jupyter or IPython"),
     ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("compare", "Compare (two grids side by side)"),

@@ -1,4 +1,4 @@
-"""SwissArmyGrid: a local server that shows tabular data in live grids inside VS Code.
+"""SwissArmyGrid: a local server that shows tabular data in live grids in the browser.
 
 From a notebook, nothing to write beyond the import:
 
@@ -32,7 +32,6 @@ if TYPE_CHECKING:
     from swissarmygrid.client.blades_client import blade, blades, load
     from swissarmygrid.client.blades_client import blade as connection
     from swissarmygrid.client.completion import complete
-    from swissarmygrid.client.paste_client import paste
     from swissarmygrid.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
     from swissarmygrid.client.sandbox_client import sandbox
     from swissarmygrid.client.sql_cell import sql
@@ -49,7 +48,6 @@ __all__ = [
     "complete",
     "connection",
     "load",
-    "paste",
     "push",
     "sandbox",
     "sql",
@@ -67,7 +65,6 @@ _LAZY: dict[str, tuple[str, str]] = {
     "connection": ("swissarmygrid.client.blades_client", "blade"),
     "sql": ("swissarmygrid.client.sql_cell", "sql"),
     "sandbox": ("swissarmygrid.client.sandbox_client", "sandbox"),
-    "paste": ("swissarmygrid.client.paste_client", "paste"),
     "complete": ("swissarmygrid.client.completion", "complete"),
     "DatasetTooLargeError": ("swissarmygrid.client.push_client", "DatasetTooLargeError"),
     "ServerNotRunningError": ("swissarmygrid.client.push_client", "ServerNotRunningError"),

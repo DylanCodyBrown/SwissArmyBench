@@ -73,7 +73,7 @@ def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
             return error_response(error)
 
     async def code(request: Request) -> Response:
-        """The analysis as Python for the user's Jupyter or IPython (To Python; not the agent's)."""
+        """The analysis as Python for a notebook (the result's Copy code)."""
         try:
             grid, info = grids.find(request.path_params["grid_id"])
             body = await read_json(request)

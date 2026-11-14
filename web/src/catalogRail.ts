@@ -13,7 +13,6 @@ import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor
 import { openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
 import { button, clear, formatCount, h, recall, remember, showMenu, toast } from "./dom";
-import { toPython } from "./toPython";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -504,16 +503,11 @@ export function mountRail(host: RailHost): Rail {
     node.style.setProperty("--depth", String(depth)); // a custom property needs setProperty, not assignment
     item.append(node);
     if (data.kind === "table") {
-      // Script as (like SSMS's right-click): the server writes it, quoted for the source's own SQL.
       node.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const run = (kind: string): void => void scriptAs(data, kind);
-        showMenu(event.clientX, event.clientY, `Script ${data.table ?? "table"} as`, [
+        showMenu(event.clientX, event.clientY, data.table ?? "table", [
           ["rows", "Open as grid", () => void openTableAsGrid(current?.name ?? "", { schema: data.schema, table: data.table ?? "", database: current && current.databases > 1 ? data.database : undefined })],
-          ["sql", "SELECT *", () => run("select_star")],
-          ["columns", "SELECT the columns", () => run("select_columns")],
-          ["code", "Python: pandas", () => run("pandas")],
         ]);
       });
     }
@@ -528,20 +522,6 @@ export function mountRail(host: RailHost): Rail {
     }
     nodes.set(item, data);
     return item;
-  }
-
-  /** A table scripted as SQL or Python: copied, and queued for sag.paste() in Jupyter or IPython. */
-  async function scriptAs(data: NodeData, kind: string): Promise<void> {
-    if (!current || !data.table) return;
-    const catalogName = current.name;
-    const blade = blades.find((b) => b.name.toLowerCase() === catalogName.toLowerCase() && b.variable);
-    const params = { schema: data.schema, table: data.table, database: data.database, as: kind, blade: blade?.name ?? "" };
-    try {
-      const made = await api<{ code: string; imports: string[]; label: string; language: string }>(`${catalogPath(catalogName)}/script${query(params)}`);
-      await toPython(made.code, made.imports, `${data.table}: ${made.label}`);
-    } catch (error) {
-      toast((error as Error).message, "error");
-    }
   }
 
   function dragText(data: NodeData): string {

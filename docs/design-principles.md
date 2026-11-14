@@ -47,8 +47,8 @@ means, it fills it in.
 
 **2.3 Direct gestures where the thing is, a named command as well.** Drag, right-click and keys are
 shortcuts; every action also has a button or a palette entry.
-- Example: drag a connection into a cell; right-click a cell to send it to the Sandbox; Script as on
-  the catalog's right-click menu, also a command.
+- Example: drag a connection into a cell; right-click a cell to send it to the Sandbox; Open as grid
+  on a catalog table's right-click menu, also a command.
 - The owner (2026-11-13): "you can even right click an individual cell and send that value to the
   sandbox"
 

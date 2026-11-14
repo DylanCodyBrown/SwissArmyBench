@@ -221,19 +221,6 @@ def main() -> None:
                 sys.exit("The blades page's script is missing from the install.")
         print("Blades refresh, run with sag.blade, and sag.load fills a catalog.")
 
-        # Code handed to Python: queued by the page, taken by sag.paste().
-        sent = urllib.request.Request(
-            f"http://127.0.0.1:{info['port']}/python/send",
-            data=json.dumps({"code": "print('smoke')", "label": "smoke"}).encode(),
-            method="POST",
-            headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(sent, timeout=30) as response:  # noqa: S310 (fixed local URL)
-            if response.status != 200:
-                sys.exit("To Python did not queue the code.")
-        if sag.paste() != "print('smoke')":
-            sys.exit("sag.paste() did not take the queued code.")
-        print("To Python queues code and sag.paste() takes it.")
         pages_load_whole(info)
         workbench(info)
     finally:
