@@ -148,8 +148,6 @@ NOT_COMMANDS = {
     "/agent/context": "current_table",
     "/blades/{}/python": "its answer holds the saved password values for sag.blade: never the agent's",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
-    "/agent/blades": "the old propose-then-Allow door, for older clients; blades_create saves directly now",
-    "/agent/blade-templates": "as /agent/blades; blades_templates reads /blades/templates",
 }
 
 
@@ -777,7 +775,7 @@ def test_sag_saves_a_snapshot_to_a_file_and_prints_where(
     saved.unlink()
 
 
-# ===== blades: the agent proposes, the user allows =====
+# ===== blades: the agent saves them as the user does =====
 
 
 def test_the_agent_saves_a_blade_as_the_user_does_and_reads_it_back(live: Live) -> None:

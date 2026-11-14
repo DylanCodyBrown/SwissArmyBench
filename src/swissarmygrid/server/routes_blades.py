@@ -20,7 +20,7 @@ carries the saved password values (they never reach the agent):
   GET    /blades/analyses            the analysis blades, for the Analyze menu
   POST   /grids/{id}/blade-analysis  {"name", "columns", "env"}: run an analysis blade on the grid's rows
 
-The use cases are services/blades.py. (The agent's own narrow door, /agent/blades, is routes_agent.py.)
+The use cases are services/blades.py.
 """
 
 from __future__ import annotations

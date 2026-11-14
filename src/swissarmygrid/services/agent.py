@@ -4,11 +4,8 @@ The agent sees what the page shows: schemas, profiles, step values and rows, up 
 per read (one Excel sheet). Exports by an agent always wait for the user's click (a one-time ticket)
 and write only into the export folder.
 
-Blades (the owner, 2026-11-12: "make it possible for the agents through MCP to create blades"): the
-agent may list the blades (names, kinds, descriptions and tags; never their code or secrets), read the
-starter blades, and propose a new one. A proposal is saved only on the user's Allow, after they have
-seen its whole file, code included. The agent never sends a secret's value (the code says
-`secret("password")` and the user types it), never changes or removes a blade, and never runs one.
+Blades: the agent works them through the blades routes like the user (blades_create and the rest;
+the golden rule). The old propose-then-Allow door here was removed on 2026-11-14.
 
 The current table: the workspace page reports which grid tab is in front, and the agent reads a short
 summary of it (metadata only: the dataset, the row count, columns and types, steps, the selection
@@ -26,19 +23,17 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
-from swissarmygrid.domain import blades as blade_rules
-from swissarmygrid.domain.blades import Blade, BladeCodeError, Package, Template
 from swissarmygrid.domain.datasets import DatasetInfo, quote
 from swissarmygrid.domain.export import FORMATS
 from swissarmygrid.domain.grids import Grid
 from swissarmygrid.domain.sql_guard import guard
 from swissarmygrid.services.ports import AGENT, Notifier, SqlSession
 from swissarmygrid.services.profile import profile_column, profile_table
-from swissarmygrid.services.workspace import Conflict, NotFound, Refused, TimedOut, Workspace
+from swissarmygrid.services.workspace import Refused, TimedOut, Workspace
 from swissarmygrid.settings import EXCEL_MAX_ROWS
 
 # The most rows one agent read returns: as many as one Excel worksheet holds. The agent still
@@ -47,21 +42,6 @@ AGENT_ROW_CAP: int = EXCEL_MAX_ROWS
 APPROVAL_TIMEOUT_SECONDS: float = 180.0
 # How long the user's click on an export stays good for the export it approved.
 EXPORT_TICKET_SECONDS: float = 120.0
-# What an agent may send for a new blade: never `secrets` (values), `folder` or `path` (where it goes).
-AGENT_BLADE_FIELDS: tuple[str, ...] = (
-    "name",
-    "kind",
-    "code",
-    "variable",
-    "dialect",
-    "description",
-    "tags",
-    "catalog",
-    "vault_mapping",
-    "vault_all",
-    "env_names",
-    "template",
-)
 
 
 @dataclass
@@ -130,35 +110,16 @@ class Approvals:
         return self._pending.get(approval_id)
 
 
-class BladeShelf(Protocol):
-    """What the agent's door needs of the saved blades (adapters/blades.py)."""
-
-    def all(self) -> list[Blade]: ...
-
-    def get(self, name: str) -> Blade: ...
-
-    def save(self, data: Any, previous_name: str | None = None) -> Blade: ...
-
-    def pinned(self) -> set[str]: ...
-
-
 class AgentService:
     def __init__(
         self,
         ws: Workspace,
         approvals: Approvals,
         tickets: ExportTickets,
-        blades: BladeShelf,
-        templates: Sequence[Template],
-        packages: Callable[[str], list[Package]],
     ) -> None:
         self.ws = ws
         self.approvals = approvals
         self._tickets = tickets
-        self._blades = blades
-        self._templates = templates
-        # The packages a blade's code needs, each marked installed here or not (adapters/blade_run.py).
-        self._packages = packages
         # The grid tab in front, as the workspace page last reported it.
         self._active: str | None = None
         # What describe and profile found, by load (a dataset's name and serial) and column: an
@@ -379,100 +340,6 @@ class AgentService:
             "selected_rows": grid.selected,
         }
         return out
-
-    # ===== blades: the agent lists them and proposes new ones; the user's Allow saves one =====
-
-    def list_blades(self) -> dict[str, Any]:
-        """Names, kinds, descriptions and tags, so the agent can reuse a blade or pick a free name.
-        Never code, catalog commands or secrets."""
-        pinned = self._blades.pinned()
-        listed = [
-            {
-                "name": b.name,
-                "kind": b.kind,
-                "dialect": b.dialect if b.kind == "sql" else None,
-                "variable": b.variable,
-                "description": b.description,
-                "tags": b.tags,
-                "has_catalog": b.has_catalog,
-                "favourite": b.name.casefold() in pinned,
-                "use": f'{b.variable or "_"} = sag.blade("{b.name}")',
-            }
-            for b in self._blades.all()
-        ]
-        return {"blades": listed}
-
-    def blade_templates(self, wanted: str | None) -> dict[str, Any]:
-        """The starter blades (public examples, no user data): the list, or one in full by id."""
-        if wanted:
-            for template in self._templates:
-                if template.id == wanted:
-                    return template.to_json()
-            raise NotFound(f"No starter {wanted!r}; blades_templates lists them.")
-        return {
-            "templates": [
-                {"id": t.id, "label": t.label, "group": t.group, "kind": t.kind, "dialect": t.dialect}
-                for t in self._templates
-            ]
-        }
-
-    async def propose_blade(self, body: dict[str, Any]) -> dict[str, Any]:
-        """A new blade from the agent, saved only when the user allows it. The approval shows the
-        blade's whole .blade.py file, code included, and what it imports."""
-        ws = self.ws
-        if body.get("secrets"):
-            raise ValueError(
-                'An agent never sends a secret\'s value. Write secret("password") in the code; the user '
-                "types the value on the blade's save screen."
-            )
-        data = {key: body[key] for key in AGENT_BLADE_FIELDS if key in body}
-        blade = blade_rules.parse_blade(data)  # checks it all, saves nothing
-        try:
-            taken = self._blades.get(blade.name)
-        except KeyError:
-            taken = None
-        if taken is not None:
-            raise Conflict(
-                f"A blade named {taken.name} already exists, and an agent cannot change the user's "
-                "blades. Pick another name (blades_list shows the names)."
-            )
-        secret_names = sorted(blade.secrets) if blade.code else list(blade.env_names)
-        packages = self._packages(blade.code) if blade.code else []
-        missing = [p.pip for p in packages if not p.installed]
-        notes = ["Saving runs nothing. Its code runs on this computer whenever the blade is used."]
-        if secret_names:
-            notes.append(f"It asks for: {', '.join(secret_names)}. You type them on its save screen.")
-        if missing:
-            notes.append(f"Not installed here yet: {', '.join(missing)}.")
-        try:
-            settings = blade_rules.detect_settings(blade.code) if blade.code else []
-        except BladeCodeError:
-            settings = []
-        if settings:
-            notes.append(
-                "Settings in it: "
-                + "; ".join(
-                    f"{s.key} = {s.value}" + (" (a placeholder)" if s.placeholder else "") for s in settings
-                )
-                + "."
-            )
-        detail = "\n".join(notes) + "\n\n" + blade_rules.write_blade(blade.to_json())
-        if not await self.approvals.ask(blade.name, "save the new blade", detail):
-            raise Refused(
-                "The user declined (or did not answer within 3 minutes) this blade. It needs a page of "
-                "SwissArmyGrid open to answer."
-            )
-        saved = self._blades.save(data)
-        ws.audit.write("agent", "create_blade", saved.name)
-        await ws.live.broadcast({"type": "blades_changed"})
-        return {
-            "saved": saved.name,
-            "kind": saved.kind,
-            "use": f'{saved.variable or "_"} = sag.blade("{saved.name}")',
-            "secrets_to_type": secret_names,
-            "packages_missing": missing,
-            "note": "The user types any secrets on its save screen; Refresh loads its catalog.",
-        }
 
     # ===== exports =====
 

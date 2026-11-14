@@ -65,7 +65,7 @@ showWelcome();
 void rail.loadBlades().then(() => rail.loadCatalogs(openedWith.get("catalog") ?? undefined));
 connect((live) => {
   if (liveNote) liveNote.textContent = live ? "" : "Not connected to the server";
-  if (live) void loadApprovals(); // an agent's request (a new blade, say) asks here too
+  if (live) void loadApprovals(); // an agent's request (an export, say) asks here too
 }, { catalog: "1" });
 onNotice((notice) => {
   handleAgentNotice(notice);

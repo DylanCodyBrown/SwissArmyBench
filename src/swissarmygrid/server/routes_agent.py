@@ -12,9 +12,6 @@ are in services/agent.py; this file reads the requests and shapes the answers.
   GET  /agent/view-state/{grid_id}      the grid's steps, settings, row count, selection
   GET  /agent/read/{grid_id}?offset=&limit=   a window of the view as the user sees it
   POST /agent/export-approval/{grid_id}?format=   ask the user; their click gives a one-time ticket
-  GET  /agent/blades                    names, kinds, descriptions and tags (never code or secrets)
-  POST /agent/blades                    propose a new blade: saved only on the user's Allow
-  GET  /agent/blade-templates?id=       the starter blades
   POST /workspace/active                the page reports which grid tab is in front
   GET  /agent/context                   the current table: a short summary, no cell values
   POST /agent/inbox                     {kind, title, text, note}: the user sends their agent an error or code
@@ -135,29 +132,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
-    # ===== blades: the agent lists them and proposes new ones; the user's Allow saves one =====
-
-    async def list_blades(request: Request) -> Response:
-        try:
-            return json_response(agent.list_blades())
-        except Exception as error:
-            return error_response(error)
-
-    async def blade_templates(request: Request) -> Response:
-        """The starter blades (public examples, no user data): the list, or one in full by id."""
-        try:
-            return json_response(agent.blade_templates(request.query_params.get("id")))
-        except Exception as error:
-            return error_response(error)
-
-    async def propose_blade(request: Request) -> Response:
-        """A new blade from the agent, saved only when the user allows it."""
-        try:
-            body = await read_json_object(request, '{"name": "...", "kind": "sql", "code": "..."}')
-            return json_response(await agent.propose_blade(body))
-        except Exception as error:
-            return error_response(error)
-
     async def approve_export(request: Request) -> Response:
         """An agent export: always waits for the user's click (plan section 10a)."""
         try:
@@ -177,9 +151,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         Route("/agent/view-state/{grid_id}", view_state),
         Route("/agent/read/{grid_id}", read_grid),
         Route("/agent/export-approval/{grid_id}", approve_export, methods=["POST"]),
-        Route("/agent/blades", list_blades),
-        Route("/agent/blades", propose_blade, methods=["POST"]),
-        Route("/agent/blade-templates", blade_templates),
         Route("/workspace/active", set_active, methods=["POST"]),
         Route("/agent/context", current),
         Route("/agent/inbox", send_to_agent, methods=["POST"]),

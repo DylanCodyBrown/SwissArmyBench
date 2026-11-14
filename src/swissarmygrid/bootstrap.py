@@ -241,7 +241,7 @@ def bootstrap(
         codes=CodeService(ws, verifier),
         cards=Cards(ws, DashboardFiles(state_dir / "dashboards"), ThemeFiles(state_dir / "themes")),
         inbox=Inbox(ws),
-        agent=AgentService(ws, Approvals(live), tickets, blade_store, TEMPLATES, blade_run.needed),
+        agent=AgentService(ws, Approvals(live), tickets),
         sessions=Sessions(processes, store, live),
         catalogs=catalogs,
         blades=blades,

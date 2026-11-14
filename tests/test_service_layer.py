@@ -176,7 +176,7 @@ def test_an_approval_waits_for_the_users_answer(tmp_path: Any) -> None:
     ws = workspace(tmp_path, "orders", pages=pages)
     approvals = Approvals(pages)
     tickets = ExportTickets()
-    agent = AgentService(ws, approvals, tickets, blades=None, templates=[], packages=lambda code: [])  # type: ignore[arg-type]
+    agent = AgentService(ws, approvals, tickets)
     grids = GridService(ws, recipes=None)  # type: ignore[arg-type]
 
     async def scenario(answer: bool) -> Any:

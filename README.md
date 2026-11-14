@@ -445,12 +445,11 @@ the ten relationships of `examples/sample_store.py` (push its tables with
 The agent reads catalogs with `catalog_list`, `catalog_schemas`, `catalog_tables`, `catalog_columns`
 (with a first SELECT quoted for the source) and `catalog_search`.
 
-**The agent can make blades for you.** `blades_create` proposes one: a window opens on the page with
-the blade's whole file, code included, and it is saved only if you press **Allow** (the blades page,
-and the grid page show it). `blades_list` gives it your blades' names,
-descriptions and tags (so it can reuse one) and `blades_templates` the starters. It never sees an
-existing blade's code or any secret, never sends a password (it writes `secret("password")` and you
-type the value), and cannot change, remove or run a blade.
+**The agent can make blades for you.** `blades_create` saves one as you would on the save screen
+(the golden rule; the older window that asked you to Allow each new blade is gone). `blades_list` gives
+it your blades' names, descriptions and tags (so it can reuse one), `blades_get` one blade's code and
+`blades_templates` the starters. No answer it gets holds a password's value: it writes
+`secret("password")` and you type the value.
 
 ## Code to your Python
 

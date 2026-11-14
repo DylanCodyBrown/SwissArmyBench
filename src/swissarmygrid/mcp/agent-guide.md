@@ -256,23 +256,21 @@ A blade is the user's saved Python that loads something from outside Python (a d
 file, an API, a vault); in any Python, `conn = sag.blade("Warehouse")` runs it there.
 
 - `blades_list`: the user's blades (name, kind, description, tags, and the `sag.blade` line). Reuse one
-  before making another. You never see a blade's code or its secrets.
+  before making another. `blades_get` gives one's code; no answer holds a secret's value.
 - `blades_templates`: starters for 21 databases, files and vaults; `blades_templates(id=...)` gives one's
   code and catalog query. Start from the closest one.
-- `blades_create`: propose a new blade. The user sees its whole file, code included, and it is saved only
-  if they click Allow (they have 3 minutes; a page of SwissArmyGrid must be open). Write
+- `blades_create`: save a new blade, as the user does on the save screen. Write
   `secret("password")` where a password goes and never put a value in the code: the user types it on
   the blade's save screen. Give it a description and tags (the app it serves, say) so the user can
-  find it. A taken name is refused: you cannot change or remove the user's blades. Kind `analysis` is
+  find it. Kind `analysis` is
   the user's own analysis: `def analyze(df, columns): ...` over the grid's rows (a pandas DataFrame),
-  returning markdown, a DataFrame or a figure (or a list of them); once allowed it shows in their Analyze
-  menu. You never run it: they do.
-- After it is saved, tell the user which secrets to type (`secrets_to_type`) and which packages are
-  missing (`packages_missing`); a catalog query lets them press Refresh to load its catalog.
+  returning markdown, a DataFrame or a figure (or a list of them); it shows in their Analyze menu.
+- After it is saved, tell the user which secrets to type (`blades_inspect` names them and the packages
+  it needs); `blades_refresh` loads its catalog.
 
 ## What you can't do
 
-Read, change or run a blade (you may propose a new one), resolve an approval, shut the server down, read the audit log, push table contents (pass a path to `datasets_load`), or open a table from a
+Read a password's value, resolve an approval, shut the server down, read the audit log, push table contents (pass a path to `datasets_load`), or open a table from a
 user's Python session. The server refuses these for an agent, and they have no command. Page-only
 preferences (zoom, column widths, panel layout, theme) live in the user's browser, so no command
 reaches them.

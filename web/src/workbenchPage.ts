@@ -1010,7 +1010,7 @@ void rail.loadBlades().then(() => rail.loadCatalogs());
 connect((live) => {
   if (!live) return;
   refreshTablesSoon(); // what is open in the grid now
-  void loadApprovals(); // an agent's request (a new blade, say) asks here too
+  void loadApprovals(); // an agent's request (an export, say) asks here too
   if (document.hasFocus()) tellFocus();
 }, { catalog: "1", workbench: "1", window: WINDOW_ID });
 // The agent's workbench_window goes to the Workbench window the user was last in.
