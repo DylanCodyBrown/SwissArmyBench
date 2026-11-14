@@ -2,11 +2,11 @@
  * workbenchVariables.ts: the Workbench's Variables pane (top right, RStudio's Environment): what the
  * front document's kernel holds now. [WIRE]
  *
- *   CONNECTIONS AND BLADES   each by its name in code: open (and what it holds) or not yet
  *   YOUR VARIABLES           name, type, size (rows by columns, a length), a short look at the value;
- *                            a table has Open as grid; a column's heading sorts by it
+ *                            a table has Open as grid; a column's heading sorts by it. A connection or
+ *                            blade is here once a cell has opened it (the side bar lists them all)
  *   ENVIRONMENT              the variables vaults, secret blades and connection passwords use: set or
- *                            not set (their values never leave the kernel)
+ *                            not set (their values never leave the kernel). Only when there are some
  *
  * Read again after each run ends, and on Refresh. While code runs the kernel cannot answer: it says so.
  *
@@ -96,8 +96,10 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
       };
       return h("table", { class: "wb-vars-table small" }, h("thead", {}, h("tr", {}, ...head.map(heading))), h("tbody", {}, ...rows));
     };
-    const connections = last.connections.filter((c) => keep(c.name, c.connection, c.type));
-    const variables = last.variables
+    // A connection or blade a cell has opened is a variable like any other; one not opened yet is
+    // not listed here (the side bar lists them all).
+    const opened = last.connections.filter((c) => c.open).map((c) => ({ name: c.name, type: c.type, size: "", value: c.value, table: c.table }));
+    const variables = [...last.variables, ...opened]
       .filter((v) => keep(v.name, v.type))
       .sort((a, b) => {
         const by = sort.key === "size" ? sizeOf(a.size) - sizeOf(b.size) : a[sort.key].localeCompare(b[sort.key], undefined, { sensitivity: "base" });
@@ -106,21 +108,6 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
     const environment = last.environment.filter((e) => keep(e.name));
     clear(
       body,
-      h("h3", {}, "Connections and blades"),
-      connections.length
-        ? table(
-            ["Name", "Connection", "Value"],
-            connections.map((c) =>
-              h(
-                "tr",
-                { class: c.open ? "" : "not-open" },
-                h("td", {}, h("code", {}, c.name)),
-                h("td", {}, c.connection),
-                h("td", { title: c.value }, c.open ? `${c.type}: ${c.value}` : h("span", { class: "hint" }, c.value), c.table ? button("Open as grid", () => void openAsGrid(c.name), { icon: "export", iconOnly: true, class: "ghost" }) : null),
-              ),
-            ),
-          )
-        : h("p", { class: "hint" }, "No connections"),
       h("h3", {}, "Your variables"),
       variables.length
         ? table(
@@ -138,10 +125,12 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
             true,
           )
         : h("p", { class: "hint" }, wanted ? "No matches" : "No variables"),
-      h("h3", {}, "Environment"),
-      environment.length
-        ? table(["Variable", "In this kernel"], environment.map((e) => h("tr", {}, h("td", {}, h("code", {}, e.name)), h("td", {}, e.set ? "set" : h("span", { class: "hint" }, "not set")))))
-        : h("p", { class: "hint" }, "None"),
+      ...(environment.length
+        ? [
+            h("h3", {}, "Environment"),
+            table(["Variable", "In this kernel"], environment.map((e) => h("tr", {}, h("td", {}, h("code", {}, e.name)), h("td", {}, e.set ? "set" : h("span", { class: "hint" }, "not set"))))),
+          ]
+        : []),
     );
   };
 

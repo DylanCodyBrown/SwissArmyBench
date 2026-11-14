@@ -504,13 +504,17 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
     row = overlay.locator("tr", has_text="rainfall")
     expect(row).to_contain_text("2 × 2", timeout=15000)  # rows by columns (the whole words on hover)
     expect(row).to_contain_text("columns: city, rain_mm")
-    expect(overlay.locator("tr", has_text="Orders")).to_contain_text("opened when a cell first uses it")
+    # A connection no cell has opened is not listed here (the side bar lists them), and there is no
+    # Environment block when no variable of a vault or password is in play.
+    expect(overlay.get_by_role("heading", name="Connections and blades")).to_have_count(0)
+    expect(overlay.get_by_role("heading", name="Environment")).to_have_count(0)
+    expect(overlay.locator("tr", has_text="Orders")).to_have_count(0)
     # A cell that uses the connection opens it; the overlay reads again when the run ends.
     cell.locator(".monaco-editor").click()
     workbench.keyboard.press("Control+End")
     workbench.keyboard.type("\nlen(pd.read_csv(orders))")
     workbench.keyboard.press("Control+Enter")
-    expect(overlay.locator("tr", has_text="Orders")).to_contain_text("orders.csv", timeout=30000)
+    expect(overlay.locator("tr", has_text="orders")).to_contain_text("orders.csv", timeout=30000)
     # A table opens as a grid in the grid page.
     row.get_by_role("button", name="Open rainfall as a grid").click()
     expect(workbench.locator(".toast")).to_contain_text("rainfall is open as a grid", timeout=30000)

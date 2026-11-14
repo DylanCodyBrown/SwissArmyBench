@@ -5211,10 +5211,6 @@ dialog .field > .field-row > select {
   width: 62%;
 }
 
-.wb-vars-table tr.not-open td {
-  color: var(--muted);
-}
-
 .wb-vars-type {
   color: var(--muted);
   font-size: 0.9em;
