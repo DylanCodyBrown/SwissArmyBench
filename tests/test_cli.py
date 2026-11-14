@@ -311,7 +311,7 @@ def test_grids_datasets_and_files(live: Live, clients: str, tmp_path: Path) -> N
     assert run("agent_approvals") == {"pending": []}
     assert run("steps_save_recipe", grid=clients)["saved"]
     assert run("steps_save_recipe", grid=clients, delete=True)["deleted"] is True
-    code = run("steps_python", grid=clients, target="duckdb")
+    code = run("steps_python", grid=clients)
     assert code["verified"] is True and "code" in code
 
 

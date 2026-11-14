@@ -15,7 +15,7 @@ Row order is explicit. SQL relations have no order, so every stage carries a hid
 column and the final query sorts by it. Filters keep it; a sort step renumbers it; group-by
 orders groups by their keys; distinct keeps each row's first position.
 
-Reference semantics (the code generators in domain/codegen.py must reproduce all of these):
+Reference semantics (the copied query in domain/codegen.py must reproduce all of these):
 - SQL blanks: a blank never equals anything, so `not equals`, `not in` and range filters
   drop blank rows too.
 - Sorting puts blanks last in both directions; ties keep the previous order.

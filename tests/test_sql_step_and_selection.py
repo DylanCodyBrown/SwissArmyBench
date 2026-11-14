@@ -95,9 +95,8 @@ def test_sql_step_code_is_verified(client: TestClient) -> None:
         grid,
         [{"kind": "sql", "params": {"sql": "SELECT region, sum(amount) AS total FROM grid GROUP BY region"}}],
     )
-    for target in ("duckdb", "pandas", "plain"):
-        code = client.get(f"/grids/{grid}/code", params={"target": target}, headers=AUTH).json()
-        assert code["verified"], (target, code["difference"], code["code"])
+    code = client.get(f"/grids/{grid}/code", headers=AUTH).json()
+    assert code["verified"], (code["difference"], code["code"])
 
 
 def test_sql_step_reads_the_dataset_by_its_own_name(client: TestClient) -> None:
@@ -116,13 +115,9 @@ def test_sql_step_reads_the_dataset_by_its_own_name(client: TestClient) -> None:
     pasted = duckdb.sql(sql)
     assert pasted is not None and [list(r) for r in pasted.fetchall()] == rows
 
-    for target in ("duckdb", "pandas", "plain"):
-        code = client.get(f"/grids/{grid}/code", params={"target": target}, headers=AUTH).json()
-        assert code["verified"], (target, code["difference"], code["code"])
-        if target != "duckdb":
-            assert "'SELECT id, amount FROM orders WHERE amount > 50'" in code["code"]
-    pandas_code = client.get(f"/grids/{grid}/code", params={"target": "pandas"}, headers=AUTH).json()["code"]
-    assert 'con.register("orders", df)' in pandas_code and '"grid"' not in pandas_code
+    code = client.get(f"/grids/{grid}/code", headers=AUTH).json()
+    assert code["verified"], (code["difference"], code["code"])
+    assert "FROM orders WHERE amount > 50" in code["sql"] and '"grid"' not in code["sql"]
 
 
 def test_sql_step_order_rule_treats_the_dataset_name_like_grid(client: TestClient) -> None:

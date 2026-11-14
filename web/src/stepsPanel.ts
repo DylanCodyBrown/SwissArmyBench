@@ -13,7 +13,7 @@
  *          [STEP ERROR]      -> read-only, from state.info.step_error
  *          [CATEGORIZE INFO] -> read-only, from GET /grids/{id}/categorize-stats
  *          [ADD STEP MENU]   -> editStep(kind)
- *          [CODE TAB]        -> renderCode(target); the Copy buttons only when the code verified identical
+ *          [CODE TAB]        -> renderCode(); the Copy buttons only when the code verified identical
  *          [POP OUT]         -> window.open(?panel=steps); both windows follow the server
  */
 import { api, clientId, grid, gridId, query, token, type StepJson } from "./api";
@@ -23,7 +23,6 @@ import { state } from "./state";
 
 let inPopout = false;
 let tab: "steps" | "code" = "steps";
-let codeTarget: string | null = null;
 let counts: number[] = [];
 let dragFrom: number | null = null;
 let host: HTMLElement;
@@ -260,7 +259,6 @@ async function saveRecipe(): Promise<void> {
 }
 
 interface CodeResult {
-  target: string;
   code: string;
   sql: string;
   reads: string;
@@ -271,15 +269,8 @@ interface CodeResult {
 }
 
 /** What the user pastes into their own Python: one DuckDB query over their table by its variable
- * name ("Copy as SQL"), or `import duckdb` plus the one line that runs it ("Copy as Python").
- * pandas and plain Python are longer translations, offered second. */
+ * name ("Copy as SQL"), or `import duckdb` plus the one line that runs it ("Copy as Python"). */
 async function renderCode(body: HTMLElement): Promise<void> {
-  const targets: [string, string][] = [
-    ["duckdb", "DuckDB SQL"],
-    ["pandas", "pandas"],
-    ["plain", "Plain Python"],
-  ];
-  const picker = h("select", { "aria-label": "Language" });
   const status = h("span", { class: "hint" }, "Verifying…");
   const pre = h("pre", { class: "mono" });
   let result: CodeResult | null = null;
@@ -296,17 +287,13 @@ async function renderCode(body: HTMLElement): Promise<void> {
     icon: "copy",
   });
   copySql.hidden = copyPython.hidden = true;
-  body.append(h("div", { class: "code-view" }, h("div", { class: "code-toolbar" }, picker, copySql, copyPython, status), pre));
+  body.append(h("div", { class: "code-view" }, h("div", { class: "code-toolbar" }, copySql, copyPython, status), pre));
   try {
-    result = await api<CodeResult>(`${grid}/code${query({ target: codeTarget })}`);
+    result = await api<CodeResult>(`${grid}/code`);
     const shown = result;
-    for (const [v, label] of targets) picker.append(h("option", { value: v, selected: v === shown.target }, label));
-    picker.addEventListener("change", () => { codeTarget = picker.value; void render(); });
     pre.textContent = shown.code;
     if (shown.verified) {
-      copySql.hidden = shown.target !== "duckdb";
-      copyPython.hidden = false;
-      if (shown.target !== "duckdb") copyPython.classList.add("primary");
+      copySql.hidden = copyPython.hidden = false;
       clear(status, h("span", { class: "badge ok" }, icon("eye"), `Verified identical on ${formatCount(shown.rows_checked)} rows`));
     } else {
       clear(status, h("span", { class: "badge error" }, "Not verified"), " ", shown.difference ?? "");

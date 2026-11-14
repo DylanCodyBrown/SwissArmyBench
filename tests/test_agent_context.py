@@ -63,7 +63,7 @@ def test_the_commands_get_python_compare_and_close(
         json={"steps": [{"kind": "filter", "params": {"column": "region", "op": "eq", "value": "North"}}]},
         headers=AUTH,
     )
-    code = json.loads(execute("steps_python", {"grid": left, "target": "pandas"}))
+    code = json.loads(execute("steps_python", {"grid": left}))
     assert code["verified"] is True and "North" in code["code"] and "difference" not in code
     counts = json.loads(execute("compare_grids", {"left": left, "right": right, "keys": [["id", "id"]]}))[
         "counts"

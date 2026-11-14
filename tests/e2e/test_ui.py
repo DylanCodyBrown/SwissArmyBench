@@ -374,7 +374,9 @@ def test_copy_as_sql_and_python_run_on_the_users_own_table(
     window = open_steps(browser, orders_url)
     window.evaluate("() => { navigator.clipboard.writeText = async (text) => { window.__copied = text; }; }")
     window.get_by_role("button", name="Copy transformations as SQL or Python").click()
-    expect(window.locator(".code-view")).to_contain_text("Verified identical", timeout=30000)
+    expect(window.locator(".code-view").get_by_role("button", name="Copy as SQL")).to_be_visible(
+        timeout=30000
+    )
     window.locator(".code-view").get_by_role("button", name="Copy as SQL").click()
     window.wait_for_function("window.__copied !== undefined", timeout=30000)
     sql = window.evaluate("window.__copied")
@@ -396,13 +398,12 @@ def test_copy_as_sql_and_python_run_on_the_users_own_table(
     relation = duckdb.sql(sql)  # "Copy as SQL" is the same one query
     assert relation is not None and relation.df()["order_id"].tolist() == pasted["order_id"].tolist()
 
-    # The steps window's Code tab keeps every form, the longer pandas translation too.
+    # The steps window's Code tab shows the same DuckDB copy, and nothing else to pick from.
     view = window.locator(".code-view")
-    expect(view).to_contain_text("Verified identical", timeout=30000)
+    expect(view.get_by_role("button", name="Copy as SQL")).to_be_visible(timeout=30000)
     expect(window.locator(".steps-panel")).to_contain_text("Reads a pandas DataFrame named orders")
-    view.locator("select").select_option("pandas")
-    expect(window.locator(".code-view pre")).to_contain_text("orders_view = transform(orders)", timeout=30000)
-    expect(window.locator(".code-view")).to_contain_text("Verified identical", timeout=30000)
+    expect(view.locator("select")).to_have_count(0)
+    expect(view.locator("pre")).to_contain_text("orders_view = duckdb.sql(")
     window.close()
 
 

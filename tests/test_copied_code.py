@@ -323,7 +323,7 @@ CASES: dict[str, tuple[list[dict[str, Any]], dict[str, bool]]] = {
 
 
 def generate(
-    steps: list[dict[str, Any]], settings: dict[str, bool], target: str = "duckdb"
+    steps: list[dict[str, Any]], settings: dict[str, bool]
 ) -> tuple[dict[str, Any], list[str], list[list[Any]]]:
     connection = open_database("1GiB")
     store = DatasetStore(connection, 10**9, 10**9, 50)
@@ -334,7 +334,7 @@ def generate(
     cursor = connection.cursor()
     compiled = views.compile(cursor, info, parsed, view_settings)
     assert compiled.error is None, compiled.error
-    result = generate_code(cursor, views, info, parsed, view_settings, target)
+    result = generate_code(cursor, views, info, parsed, view_settings)
     expected = views.window(cursor, info, parsed, view_settings, 0, info.row_count)
     return result, [c.name for c in expected.columns], expected.rows
 
@@ -397,22 +397,6 @@ def test_copied_sql_is_one_query_over_the_users_table(name: str) -> None:
     assert relation is not None
     got_names, got = result_rows(relation.df())
     assert compare(got_names, got, names, rows).identical, sql
-
-
-@pytest.mark.parametrize("target", ["pandas", "plain"])
-@pytest.mark.parametrize(
-    "name", ["a realistic list", "clean text", "bucket numbers and dates", "distinct keeps first positions"]
-)
-def test_secondary_targets_also_transform_the_users_variable(name: str, target: str) -> None:
-    steps, settings = CASES[name]
-    result, names, rows = generate(steps, settings, target)
-    assert result["verified"], f"{result['difference']}\n\n{result['code']}"
-    assert result["code"].rstrip().endswith("orders_view = transform(orders)")
-    value = ORDERS.copy() if target == "pandas" else SOURCE.to_pylist()
-    namespace: dict[str, Any] = {"orders": value}
-    exec(compile(result["code"], "<pasted>", "exec"), namespace)  # noqa: S102 (generated code under test)
-    got_names, got = result_rows(namespace["orders_view"])
-    assert compare(got_names, got, names, rows).identical
 
 
 def test_without_pandas_beside_the_server_the_query_is_still_checked(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -483,7 +467,7 @@ def test_a_dataset_named_like_a_keyword_or_with_a_dash() -> None:
         steps = steps_from_json(
             [{"kind": "limit", "params": {"n": 50}}, {"kind": "sql", "params": {"sql": sql_text}}]
         )
-        result = generate_code(connection.cursor(), views, info, steps, ViewSettings(), None)
+        result = generate_code(connection.cursor(), views, info, steps, ViewSettings())
         assert result["verified"], f"{result['difference']}\n\n{result['code']}"
         assert result["variable"] == variable and f"{variable}_view = duckdb.sql(" in result["code"]
 
@@ -501,7 +485,7 @@ def test_code_route_offers_sql_and_python(client: TestClient) -> None:
     steps, _ = CASES["a realistic list"]
     assert client.post(f"/grids/{grid}/steps", json={"steps": steps}, headers=AUTH).status_code == 200
     body = client.get(f"/grids/{grid}/code", headers=AUTH).json()
-    assert body["target"] == "duckdb" and body["verified"], body
+    assert "target" not in body and body["verified"], body
     assert body["code"].startswith("import duckdb\n\norders_view = duckdb.sql(")
     assert body["sql"].strip() in body["code"]
     assert body["reads"] == "Reads a pandas DataFrame named orders and assigns the result to orders_view."
@@ -512,10 +496,6 @@ def test_code_route_offers_sql_and_python(client: TestClient) -> None:
     # The page's rows are JSON (dates as text); compare the other columns value by value.
     assert [[r[0], r[2], r[3]] for r in got] == [[r[0], r[2], r[3]] for r in rows]
     assert [r[1].date().isoformat() if r[1] else None for r in got] == [r[1] for r in rows]
-
-    # The agent's command returns both copies too.
-    python = client.get(f"/grids/{grid}/code", params={"target": "pandas"}, headers=AUTH).json()
-    assert python["verified"] and python["sql"] == body["sql"]
 
 
 def test_verifying_writes_nothing_and_reads_no_files(tmp_path: Path) -> None:

@@ -16,7 +16,7 @@
   POST   /grids/{id}/header-sort         {"keys": [["col", "asc"]], "gen": n}
   POST   /grids/{id}/sql                 {"sql": "..."} guarded; CREATE TABLE AS pins a new grid
   GET    /grids/{id}/export?format=&scope=&...      a download (or ?save=1 into the export folder)
-  GET    /grids/{id}/code?target=duckdb|pandas|plain   generated, verified Python
+  GET    /grids/{id}/code     the steps as one DuckDB query, verified against the grid
   POST   /grids/{id}/recipe              save this grid's steps for its dataset name
   DELETE /grids/{id}/recipe              forget the saved recipe
   POST   /grids/{id}/cancel              stop every query running for this grid
@@ -266,9 +266,7 @@ def routes(
     async def code(request: Request) -> Response:
         try:
             grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(
-                await codes.code(grid, info, request.query_params.get("target"), actor(request))
-            )
+            return json_response(await codes.code(grid, info, actor(request)))
         except Exception as error:
             return error_response(error)
 

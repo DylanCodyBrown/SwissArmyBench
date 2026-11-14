@@ -1,4 +1,4 @@
-"""Every golden case through the DuckDB, pandas and plain-Python generators (plan M4).
+"""Every golden case through the DuckDB generator (plan M4).
 
 The copied code runs exactly as copied, in a fresh namespace holding only the user's table under
 its variable name (here `golden`), and what it assigns (`golden_view`) must be exactly the case's
@@ -28,10 +28,6 @@ from tests.golden.tables import to_arrow
 # The use case, given its two ports: the verifier that runs the copy, and DuckDB's own grammar.
 generate_code = partial(code_service.generate_code, verifier=Verifier("1GiB"), grammar=duckdb_grammar())
 
-TARGETS = ["duckdb", "pandas", "plain"]
-# What each target's code reads: the DuckDB copy reads what was pushed (pandas here).
-VALUE = {"duckdb": "pandas", "pandas": "pandas", "plain": "records"}
-
 
 def run_as_pasted(code: str, variable: str, value: Any) -> tuple[list[str], list[list[Any]]]:
     """What the user does: paste into a Python that has only their table, run, read the result."""
@@ -40,25 +36,24 @@ def run_as_pasted(code: str, variable: str, value: Any) -> tuple[list[str], list
     return result_rows(namespace[f"{variable}_view"])
 
 
-def generate(case: Case, target: str, source_kind: str = "pandas") -> dict[str, Any]:
+def generate(case: Case, source_kind: str = "pandas") -> dict[str, Any]:
     connection = open_database("1GiB")
     store = DatasetStore(connection, 10**9, 10**9, 50)
     info = store.replace("golden", to_arrow(case.table), source_kind)
     views = ViewEngine(connection, 10**8)
     steps = steps_from_json(case.steps)
     settings = ViewSettings.from_json(case.settings)
-    return generate_code(connection.cursor(), views, info, steps, settings, target)
+    return generate_code(connection.cursor(), views, info, steps, settings)
 
 
-@pytest.mark.parametrize("target", TARGETS)
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
-def test_generator(case: Case, target: str) -> None:
-    result = generate(case, target)
+def test_generator(case: Case) -> None:
+    result = generate(case)
     assert result["verified"], f"{result['difference']}\n\n{result['code']}"
     assert result["note"] is None
 
     # And against the hand-written expectation, not just the engine.
-    names, rows = run_as_pasted(result["code"], "golden", user_value(VALUE[target], to_arrow(case.table)))
+    names, rows = run_as_pasted(result["code"], "golden", user_value("pandas", to_arrow(case.table)))
     keep = [names.index(c) for c in case.expected_columns]
     trimmed: list[list[Any]] = [[row[i] for i in keep] for row in rows]
     outcome = compare(
@@ -74,7 +69,7 @@ def test_generator(case: Case, target: str) -> None:
 def test_duckdb_copy_is_one_import_and_one_statement(case: Case) -> None:
     """`import duckdb` and `golden_view = duckdb.sql(<the SQL copy>).df()`, nothing else: no
     helper, no server name, no internal column, no pyarrow."""
-    result = generate(case, "duckdb")
+    result = generate(case)
     code, sql = result["code"], result["sql"]
     tree = ast.parse(code)
     assert len(tree.body) == 2, code
@@ -101,6 +96,6 @@ def test_duckdb_copy_is_one_import_and_one_statement(case: Case) -> None:
 )
 def test_duckdb_copy_ends_in_what_was_pushed(source_kind: str, call: str) -> None:
     case = next(c for c in CASES if len(c.steps) > 1)
-    result = generate(case, "duckdb", source_kind)
+    result = generate(case, source_kind)
     assert result["verified"], f"{result['difference']}\n\n{result['code']}"
     assert result["code"].rstrip().endswith('""")' + call), result["code"]

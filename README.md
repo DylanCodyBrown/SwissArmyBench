@@ -49,8 +49,7 @@ What a grid page does:
   Workbench): the view's steps, SQL steps included, as one DuckDB
   query over your own table by its variable name. **Copy as SQL** gives the query; **Copy as
   Python** gives `import duckdb` and one line, `orders_view = duckdb.sql("""...""").df()` (`.pl()`
-  for Polars, `.to_arrow_table()` for Arrow). Longer pandas and plain-Python translations are
-  there too. The copy is run exactly as copied, in a fresh namespace holding only your table,
+  for Polars, `.to_arrow_table()` for Arrow). The copy is run exactly as copied, in a fresh namespace holding only your table,
   and compared with the grid before it's offered; only verified code gets the Copy buttons.
 - **Relationships and tangs:** **Find relationships** works out how every open table joins, from
   the data: each join with its kind, the share of values that match, the orphans and why (names that

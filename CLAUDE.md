@@ -62,7 +62,7 @@ src/swissarmygrid/
     steps.py             steps -> SQL, each step in plain words, view settings
     grids.py             Grid, the registry, request generations, selections, windows, view keys
     sql_guard.py         what a SQL box, "+" tab or agent query may say
-    codegen.py           generated code: DuckDB, pandas, plain Python
+    codegen.py           generated code: the steps as one DuckDB query, and how it is pasted and run
     charts.py            chart spec validation, the aggregate query's text, Vega-Lite, Altair
     export.py            export options, provenance
     relationships.py     keys, the Key Finder's scoring, compare, relationship models, the ERD; tangs

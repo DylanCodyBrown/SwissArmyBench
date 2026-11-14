@@ -12,9 +12,6 @@ from __future__ import annotations
 from typing import Any
 
 from swissarmygrid.domain.codegen import (
-    TARGETS,
-    default_target,
-    generate_python,
     pasted_for,
     python_code,
     reads_text,
@@ -34,39 +31,27 @@ def generate_code(
     info: DatasetInfo,
     steps: list[Step],
     settings: ViewSettings,
-    target: str | None,
     *,
     verifier: CodeVerifier,
     grammar: SqlGrammar,
 ) -> dict[str, Any]:
-    """The code for `target` (DuckDB by default), checked: `verifier` runs exactly the copied text
-    and compares what it assigns with the grid's rows."""
-    target = target or default_target(info.source_kind)
-    if target not in TARGETS:
-        raise ValueError(f"target must be one of {', '.join(TARGETS)}.")
+    """The grid's steps as one DuckDB query, checked: `verifier` runs exactly the copied text and
+    compares what it assigns with the grid's rows."""
     compiled = views.compile(cursor, info, steps, settings)
     if compiled.error is not None:
         raise StepError(compiled.error.index, f"Fix this step first: {compiled.error.message}")
     sql = view_query(info, compiled, steps, settings, grammar.keywords)
-    if target == "duckdb":
-        code = python_code(sql, info.name, info.source_kind)
-    else:
-        # The columns entering each step, so generators can expand "*text" and check names.
-        stage_columns = [compiled.stages[i].columns for i in range(len(steps))]
-        code = generate_python(
-            target, info.name, info.columns, stage_columns, steps, settings, info.row_count
-        )
+    code = python_code(sql, info.name, info.source_kind)
     expected = views.window(cursor, info, steps, settings, 0, max(1, info.row_count))
-    pasted = pasted_for(target, info.name, info.source_kind, code, sql)
+    pasted = pasted_for(info.name, info.source_kind, code, sql)
     outcome = verifier.verify(pasted, cursor, info.table, [c.name for c in expected.columns], expected.rows)
     return {
-        "target": target,
         "code": code,
-        # The query alone ("Copy as SQL"); the DuckDB code runs exactly this text.
+        # The query alone ("Copy as SQL"); the code runs exactly this text.
         "sql": sql,
         "variable": pasted.variable,
         "result_variable": pasted.result,
-        "reads": reads_text(target, info.name, info.source_kind),
+        "reads": reads_text(info.name, info.source_kind),
         "verified": outcome.identical,
         "difference": outcome.message,
         "note": outcome.note,
@@ -82,7 +67,7 @@ class CodeService:
         self.ws = ws
         self._verifier = verifier
 
-    async def code(self, grid: Grid, info: DatasetInfo, target: str | None, who: str) -> dict[str, Any]:
+    async def code(self, grid: Grid, info: DatasetInfo, who: str) -> dict[str, Any]:
         ws = self.ws
 
         def make(cur: SqlSession) -> dict[str, Any]:
@@ -92,11 +77,10 @@ class CodeService:
                 info,
                 grid.steps,
                 grid.settings,
-                target,
                 verifier=self._verifier,
                 grammar=ws.grammar,
             )
 
         result = await ws.grid_query(grid, None, BACKGROUND, make)
-        ws.audit.write(who, "code", info.name, target=result["target"], verified=result["verified"])
+        ws.audit.write(who, "code", info.name, verified=result["verified"])
         return result

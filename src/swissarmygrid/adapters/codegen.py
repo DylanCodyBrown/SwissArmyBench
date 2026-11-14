@@ -3,7 +3,7 @@
 The user pastes the code into their own Python, where the only thing it can count on is their
 table, in a variable named after the dataset. So the check runs exactly that text, with `exec`,
 in a fresh namespace holding only that variable (rebuilt from the dataset as what was pushed: a
-pandas DataFrame, a Polars DataFrame, an Arrow table, a DuckDB relation, or a list of dicts), and
+pandas DataFrame, a Polars DataFrame, an Arrow table or a DuckDB relation), and
 reads back the variable the code assigns (`orders_view`). A copy that needs a server name, an
 internal column, a helper the user does not have, or a call to make it do anything fails here.
 
@@ -41,9 +41,7 @@ import pyarrow as pa
 from swissarmygrid.domain.codegen import Outcome, Pasted
 from swissarmygrid.services.ports import SqlSession
 
-_ALLOWED_IMPORTS: frozenset[str] = frozenset(
-    {"__future__", "datetime", "fnmatch", "typing", "pandas", "duckdb", "pyarrow", "polars"}
-)
+_ALLOWED_IMPORTS: frozenset[str] = frozenset({"duckdb"})
 
 _default_connection_lock = threading.Lock()
 _default_connection_ready = False
@@ -90,8 +88,6 @@ def user_value(kind: str, table: pa.Table) -> Any:
         return polars.from_arrow(table)
     if kind == "duckdb":
         return duckdb.from_arrow(table)
-    if kind == "records":
-        return table.to_pylist()
     return table
 
 
@@ -122,9 +118,6 @@ def run_pasted(
 
 def result_rows(value: Any) -> tuple[list[str], list[list[Any]]]:
     """Column names and rows of whatever the copy produced."""
-    if isinstance(value, list):
-        names = list(value[0].keys()) if value else []
-        return names, [list(r.values()) for r in value]
     module = type(value).__module__.split(".")[0]
     if module == "pandas":
         names = [str(c) for c in value.columns]

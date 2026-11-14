@@ -317,7 +317,6 @@ class Analysis:
                     info,
                     grid.steps,
                     grid.settings,
-                    "duckdb",
                     verifier=self._verifier,
                     grammar=ws.grammar,
                 )
