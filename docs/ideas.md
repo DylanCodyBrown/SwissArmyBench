@@ -788,8 +788,8 @@ web/src/workbenchTables.ts, the notebook and script views). Decided while buildi
   whose maker just moved in shows open, so the cell being worked in is not folded away.
 - **A link lands on** the table's read-only cell (the transformations), for a uses line; a note's link
   ("made at @cell7") on the maker.
-- **The pandas and plain-Python generators stay:** the steps window's Code tab and the agent's
-  `table_code` still offer them (a browser test checks the pandas one there). Open with Script as.
+- **The pandas and plain-Python generators stayed** at first, in the steps window's Code tab and the
+  agent's `steps_python`. They were removed later the same day (see "Cleanup, 2026-11-14" below).
 
 ## No confirmation labels: only states that need the user to act (2026-11-14, the owner's rule; built)
 
@@ -892,3 +892,101 @@ web/static/design.html, the notebook and script views). Decided while building; 
 Not built: HTML colouring inside a script's string; Plotly figures by name; expressions in the braces
 (`{{ total * 2 }}`); a design that reads the page's theme (it gets the app's text colour and a
 transparent background, and its own styles win); plain HTML saved with an output for GitHub to show.
+
+## Cleanup, 2026-11-14: what was removed and why (the owner's decisions; built)
+
+After a survey of the whole app for things nobody needs, the owner went through the findings one at a
+time. Each of these was his call. The rule behind most of them is principle 7.9 (show only what needs
+action) and the app's purpose (DuckDB SQL does the transforming).
+
+**Removed**
+
+1. **The pandas and plain-Python translations of a grid's steps.** The steps are copied as one DuckDB
+   query and nothing else. The two generators (about 650 lines) and the list-of-dicts paths of the
+   check that ran them are gone. The code route, the steps window's Code tab and `steps_python` lost
+   their `target` argument rather than keeping one that takes a single value: with one answer there is
+   nothing to choose. The DuckDB copy is still run exactly as copied and compared with the grid.
+2. **To Python, Script as and the `sag.paste()` queue.** The queue of code waiting for the user's
+   Python is gone: the page's part, the service and its routes, `sag.paste`, and the agent's
+   `python_send`, `python_sent` and `python_grid_steps`. The catalog's Script as went with it (its
+   route and `catalog_script`); a table's right-click keeps Open as grid. On an analysis result, To
+   Python is now **Copy code**: the same checked code, imports first, on the clipboard, and "Copied."
+   The agent still reads that code with `analyze_code`.
+3. **The old agent door for blades** (`/agent/blades`, `/agent/blade-templates`): the propose-then-Allow
+   window from before the golden rule. The agent saves blades as the user does. Approvals stay, for
+   exports.
+4. **Saved recipes.** Save recipe, its route, the port, the files' code, the silent re-apply when a
+   dataset of the same name arrived, and `steps_save_recipe`. A dataset's first grid always starts with
+   no steps. Recipe files already in a state folder are left alone and no longer read.
+5. **The ribbon's Cell row.** Keep these, Exclude these, View value and Copy are on the cell's
+   right-click menu, where they already were. The ribbon is Application, Table, Column (and Compare
+   while two grids are side by side).
+6. **The steps window's copy of the ribbon and its pop-out button.** The window (`?panel=steps`) shows
+   only the steps: the list, Add a SQL step and the Code tab. The panel's in-page mode (collapse to a
+   rail) had no caller since the grid took the whole page, so it went too.
+7. **Fit test and Outliers in the Column row.** They stay in the Analyze menu and on a column header's
+   right-click menu. The tour points at Analyze for both.
+8. **The refresh icon on each connection's row** in the catalog side bar. The one beside the catalog
+   picker stays, and so does Save and refresh the catalog on a blade's save screen.
+9. **Confirmation labels** (principle 7.9), each removed or shown only when it needs action:
+   "No steps" (the strip and the steps window); "live" (only "not live: push again" shows); the data
+   meter (only past 80% of the budget; Datasets always has the numbers); "v1" beside the title (the
+   version shows from 2 on); "catalog loaded"; "Kernel: ready" with its green dot, "This app's Python",
+   "Notebook" and "Python script" in the Workbench's status bar; the installed packages' chips and
+   "All installed" (only missing packages are listed, with Install; Copy install command stays, as it
+   is for the user's own Python); the "Verified identical on N rows" badge (the Copy buttons being
+   there say it; "Not verified" keeps its difference); and the toasts Saved, Closed X, Removed X,
+   Removed the X catalog, Blade folders saved, Applied X, Imported X (a relationship model) and
+   "X: now in Tables, at the top" (a second toast beside "X is open as a grid", which made a browser
+   test fail now and then).
+   **Kept, because they are real feedback:** "Copied.", "X is open as a grid.", "Sent to …", the
+   progress words of slow jobs, "updated to version N", "The agent changed this grid's view.", "Kernel
+   stopped", "Restarted", empty-list lines inside an opened window, analysis verdicts, the "Saved"
+   placeholder in a password box, and "Imported theme X" in the Sandbox.
+10. **The five old `agent_` reads, merged into the page's own commands.** What each could do that its
+    twin could not was moved first:
+    - `agent_read_grid` -> `row_read` with `format=csv` (the view as CSV, headed by its row count, up
+      to 1,048,576 rows a read);
+    - `agent_describe` and `agent_profile` -> `table_profile` with `dataset` in place of `grid`, for a
+      table with no grid (with `column`, that column's full profile); `column_profile` is unchanged;
+    - `agent_view_state` -> `tabs_get`, which now also gives `view_rows`, `selected_rows` and
+      `highlights`;
+    - `agent_query` -> `steps_run_sql`, which already ran one guarded SELECT where `grid` is the grid's
+      view and any open table can be read by name, so nothing was added. It needs a grid id (any grid;
+      `tabs_create_grid` gives one for a table with none), and unlike `agent_query` it also takes
+      CREATE TABLE ... AS SELECT, as the user's own SQL does (the golden rule).
+    `/agent/query` and `/agent/view-state` are gone; `/agent/read`, `/agent/describe` and
+    `/agent/profile` stay because `row_read` and `table_profile` use them. 183 commands.
+11. **The Variables pane's "Connections and blades" block** (the side bar lists them). A connection a
+    cell has opened shows under Your variables. The Environment block shows only when there are
+    variables of a vault, a secret blade or a password to list (no heading over "None"). The agent's
+    `workbench_variables` is unchanged: it is the only command that reads a kernel's variables, and it
+    still gives every connection (opened or not) and the environment names.
+
+**Added**
+
+12. **Remove this theme**, beside the Sandbox's theme picker while an imported theme is chosen (it asks
+    first). The agent could already do this (`sandbox_theme_remove`) and the page could not. The 20
+    built-in themes have no such button.
+
+**Kept on purpose** (the owner said so): the empty table cell's comment ("# rainfall: no transformations
+yet…"), all 20 Sandbox themes, and `push(start_server=…, open=…)` quietly accepted and ignored.
+
+**Also put right:** the package's first line said the grids live inside VS Code; CLAUDE.md said the VS
+Code extension was not built; `tabs_cancel`'s help named a Cancel button the page does not have; the
+README and the agent's guide still described the Allow window for a new blade, and gave old command
+counts.
+
+**What a user's own code or files could notice**
+
+- `sag.paste()` is gone (AttributeError). Nothing replaces it: paste from the clipboard.
+- A script calling the routes `/python/*`, `/grids/{id}/python`, `/grids/{id}/recipe`,
+  `/catalogs/{name}/script`, `/agent/blades`, `/agent/blade-templates`, `/agent/query` or
+  `/agent/view-state` gets 404. `/grids/{id}/code` ignores `target` and its answer has no `target`.
+- An agent set-up that names `agent_read_grid`, `agent_query`, `agent_describe`, `agent_profile`,
+  `agent_view_state`, `python_send`, `python_sent`, `python_grid_steps`, `catalog_script` or
+  `steps_save_recipe` (an allow-list, a prompt) names tools that no longer exist.
+- A saved recipe no longer comes back when its dataset is pushed again. The files are still in
+  `~/.swissarmygrid/recipes`.
+- `table_profile` takes `grid` as a named argument now (`sag table_profile --grid <id>`), since it can
+  take `dataset` instead.

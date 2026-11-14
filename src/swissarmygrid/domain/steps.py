@@ -73,7 +73,6 @@ _SMALLEST_INTEGER: int = -(2**127)
 _MAX_LIMIT: int = 2**63 - 1
 _RESERVED_MESSAGE: str = f"Column names may not start with {RESERVED_PREFIX!r} or be rowid, in any case."
 # Spaces, tabs and line breaks (plan section 7, "trim").
-TRIM_CHARACTERS: str = " \t\r\n"
 _TRIM_SQL: str = "(' ' || chr(9) || chr(13) || chr(10))"
 LIKE_ESCAPE: str = "!"
 

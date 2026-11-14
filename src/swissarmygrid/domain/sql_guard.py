@@ -279,14 +279,6 @@ def guard_step(text: str, grid_sql: str, dataset: str, grammar: SqlGrammar) -> s
         raise SqlRefused("The query is nested too deeply.") from error
 
 
-def step_query_text(text: str, dataset: str) -> str:
-    """The step's query as the generated code runs it (against the step's input registered
-    under the names it reads, see step_tables), with the same ORDER BY ALL rule as guard_step."""
-    body = text.strip().rstrip(";")
-    # The user's own query, written into their own code; the server never runs this text.
-    return body if keeps_order(body, dataset) else f"SELECT * FROM (\n{body}\n) ORDER BY ALL"  # noqa: S608
-
-
 def step_tables(text: str, dataset: str) -> list[str]:
     """The names a step's query reads its input by: `dataset`, `grid`, or both. The generated
     code registers the input under each, so the query runs there exactly as written."""

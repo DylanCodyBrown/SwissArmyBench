@@ -15,7 +15,7 @@
  *          [CODE TAB]        -> renderCode(); the Copy buttons only when the code verified identical
  */
 import { api, clientId, grid, query, type StepJson } from "./api";
-import { button, clear, formatCount, h, icon, toast } from "./dom";
+import { button, clear, formatCount, h, toast } from "./dom";
 import { KIND_LABELS, editStep } from "./stepForms";
 import { state } from "./state";
 
@@ -43,7 +43,7 @@ function scheduleRender(): void {
   });
 }
 
-export function showCode(): void {
+function showCode(): void {
   tab = "code";
   void render();
 }
