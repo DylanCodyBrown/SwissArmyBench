@@ -50,7 +50,6 @@ POSITION_NAMES: dict[str, list[str]] = {
 }
 MAX_PERIODS = 5_000
 MAX_SERIES = 6  # with a split, the most common values each get a line
-ANOMALY = 3.5
 ANOMALY_TS = (
     5.0  # a period's spreads from its neighbours: 1 false flag in 100 made-up series, a real spike scores 15+
 )

@@ -78,8 +78,3 @@ export function mountStepsStrip(element: HTMLElement): void {
   host.setAttribute("aria-label", "Steps");
   state.on("info", render);
 }
-
-/** For the grid page's tab switches: the strip shows the grid in front. */
-export function refreshStepsStrip(): void {
-  if (host) render();
-}

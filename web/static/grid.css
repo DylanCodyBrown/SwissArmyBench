@@ -358,44 +358,6 @@ textarea {
   background: var(--error-soft);
 }
 
-.brand-unused {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  margin-right: 6px;
-}
-
-.brand-unused {
-  padding-right: 12px;
-  border-right: 1px solid var(--border);
-}
-
-.brand strong {
-  font-size: 1.05em;
-  letter-spacing: 0.01em;
-}
-
-.brand .dataset-title {
-  overflow: hidden;
-  color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tool-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
-}
-
-.tool-group:first-of-type {
-  border-left: 0;
-  padding-left: 0;
-}
-
 .spacer {
   flex: 1;
 }
@@ -762,14 +724,6 @@ body.popout .steps-panel {
   background: var(--surface-2);
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
-}
-
-.step .grip {
-  color: var(--muted);
-  cursor: grab;
-  border: 0;
-  background: none;
-  padding: 0;
 }
 
 .step .text {
@@ -1410,19 +1364,6 @@ table.small td.num {
   background: var(--border-strong);
 }
 
-/* ===== SQL box ===== */
-
-.sql-box {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.sql-box[hidden] {
-  display: none;
-}
-
 .sql-editor {
   height: 150px;
   border-bottom: 1px solid var(--border);
@@ -1436,29 +1377,12 @@ table.small td.num {
   padding: 8px;
 }
 
-.sql-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-}
-
 .sql-status {
   color: var(--muted);
 }
 
 .sql-status.error {
   color: var(--error);
-}
-
-.result-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--accent);
-  background: var(--accent-soft);
 }
 
 /* ===== status bar ===== */
@@ -1777,18 +1701,6 @@ html {
   content: none;
 }
 
-.tool-group {
-  border-left: 0;
-  padding-left: 0;
-  margin-right: 8px;
-}
-
-.group-label {
-  color: var(--muted);
-  font-size: 0.92em;
-  margin-right: 2px;
-}
-
 .zoom-control .zoom-label {
   padding: 0 4px 0 8px;
   color: var(--muted);
@@ -1847,7 +1759,6 @@ html {
   text-align: center;
   z-index: 5;
 }
-
 
 /* Changed cells while previewing: a border and a marker, not only a tint. */
 .cell-changed::before {
@@ -2478,17 +2389,11 @@ button.link {
   background: var(--surface-2);
 }
 
-.kf-bar span,
-.kf-score {
+.kf-bar span {
   display: block;
   height: 100%;
   border-radius: 2px;
   background: var(--accent);
-}
-
-.kf-score {
-  height: 6px;
-  margin-bottom: 3px;
 }
 
 .kf-sample-body {
@@ -2550,10 +2455,6 @@ button.link {
   padding: 6px 10px 0;
   border-bottom: 1px solid var(--border);
   background: var(--steel-sheen, var(--surface-2)); /* brushed steel; the high contrast themes stay flat */
-}
-
-.tabbar.offline {
-  border-bottom-color: var(--error);
 }
 
 /* Tabs that don't fit wrap onto another row (up to 50 grids can be open), so every tab stays
@@ -2633,13 +2534,6 @@ button.link {
   min-width: 24px;
 }
 
-.tabbar-status {
-  padding-bottom: 8px;
-  color: var(--muted);
-  font-size: max(0.85em, 11px);
-  white-space: nowrap;
-}
-
 .workspace-empty {
   display: flex;
   flex-direction: column;
@@ -2704,7 +2598,6 @@ button.link {
   white-space: nowrap;
 }
 
-
 /* The shared scrollbar between two aligned grids (compare.ts). The grids' own vertical scrollbars
    hide while it shows; wheel scrolling still works in either grid. */
 /* AG Grid 36 scrolls rows in .ag-grid-viewport and draws its vertical bar in
@@ -2750,7 +2643,6 @@ button.link {
 .panes[data-aligned="on"] .pane + .center-scroll + .pane {
   border-left: 0;
 }
-
 
 /* The Analysis Sandbox lives in the Agent tab, so a grid tab gives the grid every row and
    column. The layout is pinned here, not left to --panel-size: setSize() writes a saved size
@@ -2839,7 +2731,6 @@ body.agent-view .titlebar {
   color: var(--muted);
   font-weight: 500;
 }
-
 
 /* Rows sharing the picked row's key, on both compared grids: an accent band, distinct from
    the selection tint, so the eye can run straight across. */
@@ -4074,16 +3965,6 @@ body.popout .app-row {
   height: 340px;
 }
 
-.ts-words {
-  margin: 4px 0 8px;
-  padding-left: 1.6em;
-  font-weight: 500;
-}
-
-.ts-words li + li {
-  margin-top: 2px;
-}
-
 .forecast-predictor {
   display: flex;
   gap: 8px;
@@ -5277,7 +5158,6 @@ html[data-theme="hc-dark"] .wb-outputs {
   white-space: pre-wrap;
 }
 
-
 /* A field's box with a button beside it (a path and its Browse…) takes the row's width. */
 dialog .field > .field-row {
   display: flex;
@@ -5392,7 +5272,6 @@ dialog .field > .field-row > select {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-
 
 /* The error panel (workbenchErrors.ts): Visual Studio's Exception Helper, in a run's output. */
 .wb-err {

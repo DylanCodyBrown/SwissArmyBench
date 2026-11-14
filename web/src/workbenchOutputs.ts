@@ -137,7 +137,6 @@ function drawLine(line: string, style: Style): Node[] {
 }
 
 /** Colour codes taken out (for a title, a copy, a search). */
-export const plainText = (value: string): string => value.replace(ESCAPE, "");
 
 /** Text with colour codes, drawn into a <pre> (a traceback, a whole stream at once). */
 function colouredText(value: string): DocumentFragment {

@@ -196,18 +196,6 @@ class ViewEngine:
         with self.reading(cursor, info, steps, settings, upto) as sql:
             return sql
 
-    def ordered_sql(
-        self,
-        cursor: SqlSession,
-        info: DatasetInfo,
-        steps: list[Step],
-        settings: ViewSettings,
-        upto: int | None = None,
-    ) -> str:
-        """reading() for a query run right away (see positioned_sql), in view order."""
-        with self.reading(cursor, info, steps, settings, upto, ordered=True) as sql:
-            return sql
-
     def step_counts(
         self,
         cursor: SqlSession,

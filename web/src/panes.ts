@@ -70,10 +70,6 @@ export function showGridView(): void {
   setView("grid");
 }
 
-export function viewingAgent(): boolean {
-  return view === "agent";
-}
-
 export function viewingErd(): boolean {
   return view === "erd";
 }

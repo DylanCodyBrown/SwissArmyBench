@@ -17,8 +17,6 @@ from starlette.routing import BaseRoute, Route
 from swissarmygrid.server.http import actor, error_response, json_response, read_json
 from swissarmygrid.services.packs import Packs
 
-_USERS_ONLY = "Packs are the user's: they write files that other people's computers run."
-
 
 def routes(packs: Packs) -> list[BaseRoute]:
     async def listing(request: Request) -> Response:

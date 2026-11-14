@@ -613,17 +613,6 @@ def odds(rows: list[tuple[str, int, int | None]], outcome: str | None = None) ->
     return result
 
 
-def odds_words(item: dict[str, Any], outcome: str) -> str:
-    """One value's odds in a sentence: "West: late 41% of the time, against 9% elsewhere: 7.0 times
-    the odds (5.8 to 8.4)"."""
-    rest = item.get("rest_rate")
-    elsewhere = f", against {rest:.0%} elsewhere" if rest is not None else ""
-    return (
-        f"{item['value']}: {outcome} {item['rate']:.0%} of the time{elsewhere}: "
-        f"{item['odds_ratio']:.2g} times the odds ({item['low']:.2g} to {item['high']:.2g})"
-    )
-
-
 # ===== find predictors =====
 
 STRONG_REDUNDANCY = 0.7  # two candidates this related say much the same thing

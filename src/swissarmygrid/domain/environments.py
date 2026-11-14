@@ -17,7 +17,6 @@ PYTHON_VERSIONS: tuple[str, ...] = ("3.13", "3.12", "3.11", "3.10")
 _PIP_NAME = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(\[[A-Za-z0-9,._-]{1,60}\])?([<>=!~]=?[A-Za-z0-9.*+!-]{1,40})?$"
 )
-_FOLDER_NAME = re.compile(r"^[A-Za-z0-9._ -]{1,64}$")
 
 
 @dataclass(frozen=True)
@@ -124,11 +123,6 @@ def check_request(body: Any) -> tuple[str, str | None, list[str]]:
 def is_full_path(path: str) -> bool:
     """A full path on Windows (C:\\…, \\\\server\\share) or elsewhere (/…), read from the text alone."""
     return bool(re.match(r"^(?:[A-Za-z]:[\\/]|\\\\|/)", path))
-
-
-def folder_name_ok(name: str) -> bool:
-    """A new environment's folder name: plain letters, digits, dots, dashes, spaces."""
-    return bool(_FOLDER_NAME.match(name))
 
 
 def import_lines(packages: list[str]) -> list[str]:

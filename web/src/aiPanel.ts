@@ -26,7 +26,7 @@
  *          [CARD ACTIONS]    pin / expand (zoom) / image / HTML / Altair / remove
  *          [CARD TABLE]      each card's table name -> read-only, from the card's grid
  */
-import { api, grid, gridId, gridPath, type ColumnInfo, type GridInfo, type Notice } from "./api";
+import { api, gridId, gridPath, type ColumnInfo, type GridInfo, type Notice } from "./api";
 import { contextOf, gridList, onAgentView } from "./panes";
 import { button, clear, formatCount, h, icon, isDateType, isNumericType, openDialog, recall, remember, toast } from "./dom";
 import { renderMarkdown } from "./markdown";
@@ -789,4 +789,3 @@ export function refreshPanel(): void {
 }
 
 // Used by tests and the toolbar to read the theme Monaco and charts follow.
-export const currentTheme = effectiveTheme;

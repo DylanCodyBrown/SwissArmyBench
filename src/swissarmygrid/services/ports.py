@@ -100,15 +100,6 @@ class Views(Protocol):
         upto: int | None = None,
     ) -> str: ...
 
-    def ordered_sql(
-        self,
-        cursor: SqlSession,
-        info: DatasetInfo,
-        steps: list[Step],
-        settings: ViewSettings,
-        upto: int | None = None,
-    ) -> str: ...
-
     def step_counts(
         self, cursor: SqlSession, info: DatasetInfo, steps: list[Step], settings: ViewSettings
     ) -> list[int]: ...

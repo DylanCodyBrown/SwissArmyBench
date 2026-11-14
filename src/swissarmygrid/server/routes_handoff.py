@@ -18,23 +18,17 @@ from swissarmygrid.server.http import actor, error_response, json_response, read
 from swissarmygrid.services.handoff import Handoff
 
 
-def _users_only(request: Request) -> None:
-    """The golden rule (2026-11-14): whatever the user can do, the agent can too."""
-
-
 def routes(handoff: Handoff) -> list[BaseRoute]:
     ws = handoff.ws
 
     async def send(request: Request) -> Response:
         try:
-            _users_only(request)
             return json_response(handoff.send(await read_json(request), actor(request)))
         except Exception as error:
             return error_response(error)
 
     async def grid_code(request: Request) -> Response:
         try:
-            _users_only(request)
             grid, info = ws.grid_and_info(request.path_params["grid_id"])
             return json_response(await handoff.grid_code(grid, info, actor(request)))
         except Exception as error:
@@ -42,7 +36,6 @@ def routes(handoff: Handoff) -> list[BaseRoute]:
 
     async def take(request: Request) -> Response:
         try:
-            _users_only(request)
             taken = handoff.take()
             return Response(status_code=204) if taken is None else json_response(taken)
         except Exception as error:
@@ -50,7 +43,6 @@ def routes(handoff: Handoff) -> list[BaseRoute]:
 
     async def sent(request: Request) -> Response:
         try:
-            _users_only(request)
             return json_response(handoff.recent())
         except Exception as error:
             return error_response(error)

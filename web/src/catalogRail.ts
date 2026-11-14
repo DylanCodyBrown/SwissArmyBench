@@ -550,14 +550,6 @@ export function mountRail(host: RailHost): Rail {
   }
 
   /** A first SELECT over a table, quoted for the dialect (as engine/catalog.py's select_sql). */
-  function selectFor(table: string, columns: string[]): string {
-    const dialect = current?.dialect ?? "other";
-    const picked = columns.length ? columns.map((c) => quoteName(c, dialect)).join(", ") : "*";
-    if (dialect === "sqlserver") return `SELECT TOP 100 ${picked}\nFROM ${table}`;
-    if (dialect === "oracle") return `SELECT ${picked}\nFROM ${table}\nFETCH FIRST 100 ROWS ONLY`;
-    return `SELECT ${picked}\nFROM ${table}\nLIMIT 100`;
-  }
-
   /** What a tree item gives when dragged: its name, or for a table a query over it. */
   function dragOf(data: NodeData, _item: HTMLElement): { text: string; imports: string[] } {
     return { text: dragText(data), imports: [] };

@@ -20,7 +20,7 @@ async function copied(text: string): Promise<boolean> {
   }
 }
 
-function told(sent: Sent, clipboard: boolean): void {
+function told(clipboard: boolean): void {
   toast(clipboard ? "Copied for sag.paste()." : "Queued for sag.paste().");
 }
 
@@ -28,7 +28,7 @@ function told(sent: Sent, clipboard: boolean): void {
 export async function toPython(code: string, imports: string[], label: string): Promise<void> {
   try {
     const sent = await api<Sent>("/python/send", "POST", { code, imports, label });
-    told(sent, await copied(sent.code));
+    told(await copied(sent.code));
   } catch (e) {
     toast((e as Error).message, "error");
   }

@@ -9,7 +9,7 @@ import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisC
 import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
 import { sendCards } from "./analyzeMenu";
 import { api, grid } from "./api";
-import { showMenu, toast, type MenuItem as Item } from "./dom";
+import { showMenu, toast } from "./dom";
 import { cellValue, copySelection, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
 import { openColumnProfile, profileToSandbox } from "./profileView";
 import { filterByCells, keepColumns, sortColumns } from "./ribbon";

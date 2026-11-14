@@ -1051,10 +1051,6 @@ export function setActiveView(view: GridView): void {
   selection = view.selection;
 }
 
-export function activeView(): GridView | null {
-  return active;
-}
-
 export const copySelection = (): Promise<void> => (active ? active.copySelection() : Promise.resolve());
 export const focusedCell = (): { row: number; column: string } | null => active?.focusedCell() ?? null;
 export const cellValue = (row: number, column: string): Promise<unknown> => (active ? active.cellValue(row, column) : Promise.resolve(undefined));

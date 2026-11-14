@@ -422,15 +422,6 @@ def duck_lower(text: str) -> str:
     return "".join(out)
 
 
-def duck_upper(text: str) -> str:
-    """Uppercase one character at a time, like DuckDB (ß becomes ẞ, not SS)."""
-    out = []
-    for ch in text:
-        up = ch.upper()
-        out.append(up if len(up) == 1 else ("ẞ" if ch == "ß" else ch))
-    return "".join(out)
-
-
 def normalize(value: str | None, settings: ViewSettings) -> str | None:
     if value is None:
         return None

@@ -6,10 +6,10 @@
  * a table or column its quoted name.
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
-import { connect, onNotice, openedWith, token } from "./api";
+import { connect, onNotice, openedWith } from "./api";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, tableDetails, watchTheme } from "./catalogRail";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h } from "./dom";
 
 watchTheme();
 

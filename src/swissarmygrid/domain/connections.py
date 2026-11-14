@@ -146,9 +146,6 @@ def dataset_name(text: str) -> str:
     return name or "table"
 
 
-MAX_OPEN_ROWS: int = 50_000_000
-
-
 def file_to_open(template: str | None, path: str, table: str) -> tuple[str, str | None]:
     """Which file (and sheet) a file connection's catalog table is: a CSV, Parquet or JSON connection is
     its one file; a workbook's tables are its sheets; a folder's are its files."""

@@ -49,8 +49,6 @@ from starlette.routing import BaseRoute, Route
 from swissarmygrid.server.http import actor, error_response, json_response, query_int, read_json
 from swissarmygrid.services.relationships import Compares, Finder, KeyFinder, Models
 
-_USERS_ONLY = "Tang files are the user's: save, export and import them in the Relationships window."
-
 
 def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) -> list[BaseRoute]:
     ws = keys.ws
