@@ -541,3 +541,27 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   tests: 2,070 passed, none skipped (2,017 before; 53 new). Not checked: Polars tables (Polars is not
   installed here; the output form is tested as text), JupyterLab folding the headings, VS Code folding
   the region, Windows paths in a load.
+- (2026-11-14) HTML cells (docs/ideas.md has the owner's decisions and what was decided while building),
+  and the owner's rule on confirmation labels applied to table cells and HTML cells. Checked in a real
+  browser: an HTML cell shows its HTML (coloured as HTML) while edited and its design when left, with
+  no Run; a click inside the design stays in the design; the pane's bottom edge drags and moves with
+  the arrow keys, and the height is saved (a notebook's cell metadata, a script's marker) and comes
+  back. The design's scripts run; from inside it a remote picture, stylesheet and script did not load,
+  fetch failed (to another site and to the app), a socket, a pop-up, a form, a link and a script's own
+  navigation reached nothing (a second web server on another port saw no request at all), and the
+  parent page, the token in its address, storage and cookies were closed to it. `{{ name }}` filled
+  from a real kernel: a number, hostile text shown as text (no element made, no script run), a
+  120-row table drawn as "first 50 of 120 rows", an unknown name as a plain marker, a number inside a
+  style attribute, hostile text left out of a tag and said, a table as rows inside a script. The cell
+  said Not run yet, nothing once run, "Out of date · total changed · last run" when the variable
+  changed, Out of date when its HTML changed and nothing again when the edit was undone, Not run since
+  opening on a saved file (with its last design), Not run yet after a restart. The uses line
+  `<!-- uses sales @cell4 -->` appeared when the table opened and did not make the cell out of date.
+  In a script: the design under the marker with the cell's lines put away, the lines back on a click
+  on the marker, Run file filling the names, the height written on the marker, and the file still
+  running as plain Python. Table cells: no "Up to date", "No steps yet" or "0 steps" anywhere.
+  Then: ruff, format, mypy (244 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,137 passed, none skipped (2,070 before; 67 new). Not checked: real Polars tables and real
+  matplotlib figures (neither is installed here: stand-ins with their methods are tested), plain
+  Jupyter or VS Code opening the files, Edge (the tests ran in this machine's Chromium), Firefox and
+  Safari (the frame's walls rest on the browser's sandbox and policy).
