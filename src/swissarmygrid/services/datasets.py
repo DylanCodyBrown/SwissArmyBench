@@ -3,7 +3,7 @@ listing and closing what is open.
 
 Every way in ends in `store_table`: store, pick a grid, tell the pages, write the audit log. A push
 reuses the dataset's first grid (that grid hot-reloads in place) unless a new one is asked for. The
-first grid on a dataset picks up a saved recipe for that name, if there is one.
+first grid on a dataset starts with no steps.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from swissarmygrid.domain.datasets import DatasetError, DatasetInfo, Opened, mib
 from swissarmygrid.domain.grids import Grid
 from swissarmygrid.domain.sql_guard import SqlRefused, guard
 from swissarmygrid.domain.table_cells import Origin
-from swissarmygrid.services.ports import BACKGROUND, INTERACTIVE, Recipes, SqlSession
+from swissarmygrid.services.ports import BACKGROUND, INTERACTIVE, SqlSession
 from swissarmygrid.services.processes import ProcessRegistry
 from swissarmygrid.services.table_cells import Origins
 from swissarmygrid.services.workspace import Conflict, NotFound, Refused, TimedOut, Workspace
@@ -50,14 +50,12 @@ class DatasetService:
     def __init__(
         self,
         ws: Workspace,
-        recipes: Recipes,
         reader: TableReader,
         processes: ProcessRegistry,
         own_file: Callable[[str], bool],
         on_shutdown: Callable[[], None],
     ) -> None:
         self.ws = ws
-        self._recipes = recipes
         self._reader = reader
         self._processes = processes
         # True for a path that is one of SwissArmyGrid's own files (adapters/state_files.py).
@@ -184,8 +182,7 @@ class DatasetService:
             }
         grid: Grid
         if new_grid or existing is None:
-            recipe = self._recipes.load(name) if existing is None else None
-            grid = ws.grids.create(name, *(recipe or ([], None)))
+            grid = ws.grids.create(name)
         else:
             grid = existing
         await ws.live.dataset_updated(name, info.version)
@@ -262,7 +259,7 @@ class DatasetService:
 
     def _refuse_own_file(self, path: str) -> None:
         """SwissArmyGrid's own files are not tables: the connection file (one line of JSON, so it
-        loaded as a table, token and all), the audit log, recipes: the state folder, except the
+        loaded as a table, token and all), the audit log: the state folder, except the
         export folder inside it (an export loaded back is a table)."""
         if self._own_file(path):
             raise Refused("That is one of the grid server's own files, not a table.")

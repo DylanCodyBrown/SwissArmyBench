@@ -565,16 +565,6 @@ def grid_code(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "steps_save_recipe",
-    "Save the grid's steps for its dataset name (no data is saved), or delete the saved recipe.",
-    req("grid", "Grid id."),
-    opt("delete", "Delete the saved recipe instead.", "bool"),
-)
-def grid_recipe(a: dict[str, Any]) -> Any:
-    return api.call("DELETE" if a.get("delete") else "POST", f"/grids/{_q(a['grid'])}/recipe")
-
-
-@command(
     "table_export",
     "Export the grid to the user's export folder. Waits for the user's approval click. Returns the saved path.",
     req("grid", "Grid id."),

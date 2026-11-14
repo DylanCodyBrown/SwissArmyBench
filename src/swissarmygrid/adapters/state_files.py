@@ -1,8 +1,7 @@
 """Everything SwissArmyGrid keeps in its own state folder (~/.swissarmygrid), and nothing else is
-written: the audit log, saved recipes and dashboards, the connection file and the model library's files.
+written: the audit log, saved dashboards, the connection file and the model library's files.
 
   the audit log        one JSON line per action, never a cell value
-  recipes              a grid's steps and settings, saved on the user's click, with no rows
   dashboards           a Sandbox saved on the user's click: its cards as drawn, the last 60 versions
   themes               Sandbox themes the user imported (colours only), one small file each
   the connection file  where the running server is, and its token (owner-only)
@@ -32,7 +31,6 @@ from swissarmygrid.domain.relationships import (
     tang_file_name,
     write_tang,
 )
-from swissarmygrid.domain.steps import Step, ViewSettings, steps_from_json
 
 # ===== the audit log =====
 # The audit log: one JSON line per action, never a cell value (plan section 6, rule 9).
@@ -91,73 +89,10 @@ class AuditLog:
         return newest_first[::-1]
 
 
-# ===== recipes =====
-# Recipes: a grid's steps and settings saved to a small file, with no rows (plan section 7).
-#
-# Saving is an explicit user action ("Save recipe"), because step parameters hold the values the
-# user typed (a filter on 'Acme', say), and the default posture writes nothing to disk. When a
-# dataset is pushed and gets its first grid, a saved recipe for that dataset name is applied
-# automatically; if a column it needs is missing, compilation marks the first broken step and
-# the grid stops there (shown in the steps panel).
-
-
-def _path(folder: Path, dataset: str) -> Path:
-    return folder / f"{validate_name(dataset)}.json"
-
-
-def save_recipe(folder: Path, dataset: str, steps: list[Step], settings: ViewSettings) -> Path:
-    folder.mkdir(parents=True, exist_ok=True)
-    path = _path(folder, dataset)
-    body: dict[str, Any] = {
-        "dataset": dataset,
-        "settings": settings.to_json(),
-        "steps": [s.to_json() for s in steps if not s.params.get("header")],
-    }
-    path.write_text(json.dumps(body, indent=2), encoding="utf-8")
-    return path
-
-
-def load_recipe(folder: Path, dataset: str) -> tuple[list[Step], ViewSettings] | None:
-    path = _path(folder, dataset)
-    if not path.exists():
-        return None
-    try:
-        body = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(body, dict):  # edited by hand into something else: ignore it
-            return None
-        return steps_from_json(body.get("steps", [])), ViewSettings.from_json(body.get("settings"))
-    except (ValueError, OSError):
-        return None
-
-
-def delete_recipe(folder: Path, dataset: str) -> bool:
-    path = _path(folder, dataset)
-    if path.exists():
-        path.unlink()
-        return True
-    return False
-
-
-class RecipeFiles:
-    """The recipes in one folder: what the service layer's `Recipes` port is here."""
-
-    def __init__(self, folder: Path) -> None:
-        self.folder = folder
-
-    def save(self, dataset: str, steps: list[Step], settings: ViewSettings) -> str:
-        return str(save_recipe(self.folder, dataset, steps, settings))
-
-    def load(self, dataset: str) -> tuple[list[Step], ViewSettings] | None:
-        return load_recipe(self.folder, dataset)
-
-    def delete(self, dataset: str) -> bool:
-        return delete_recipe(self.folder, dataset)
-
-
 # ===== saved dashboards =====
 # A dashboard is the Sandbox frozen on the user's Save: every card's text, size and place, and what a
-# chart or a query table showed (its points or rows), so it opens even when its tables are gone. Like a
-# recipe it is written only on that click; each Save under the same name adds a version.
+# chart or a query table showed (its points or rows), so it opens even when its tables are gone. It
+# is written only on that click; each Save under the same name adds a version.
 
 DASHBOARD_VERSIONS: int = 60
 

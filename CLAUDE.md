@@ -42,7 +42,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   notes go in [docs/ideas.md](docs/ideas.md).
 - **Data is sensitive.** Use only made-up data in tests, examples and screenshots. Keep the
   posture: 127.0.0.1 only, token on every data route, DuckDB locked (`adapters/database.py`),
-  nothing written to disk except explicit exports, saved recipes and dashboards, and the audit log.
+  nothing written to disk except explicit exports, saved dashboards, and the audit log.
 
 ## Layout
 
@@ -108,11 +108,11 @@ src/swissarmygrid/
                          files, Claude Code's install record read loosely, which plugins are switched off
 
   services/              the use cases, one service class per feature, given their ports
-    ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier, Recipes
+    ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
     workspace.py         Workspace (the ports every use case shares, grid lookups and queries) and the
                          outcomes Refused, NotFound, TimedOut, Conflict
     datasets.py          every way data arrives (push, file, paste, the "+" tab's query), list, close
-    grids.py             rows, counts, steps and step changes, highlights, the selection, recipes
+    grids.py             rows, counts, steps and step changes, highlights, the selection
     profile.py           column and table profiles, kept by view key
     analysis.py          the Analyze menu on a grid's view: run_* functions over any cursor (the same code
                          swissarmygrid.stats runs on a DataFrame), the Data shape check, the notebook code
@@ -153,7 +153,7 @@ src/swissarmygrid/
                          only: sag.blade uses it too); which packages this Python has
     codegen.py           runs copied code and compares it with the grid
     export.py            CSV, Excel and Parquet writers; the export folder
-    state_files.py       the audit log, recipes, saved dashboards and themes, the connection file, the model library
+    state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python

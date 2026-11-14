@@ -417,7 +417,7 @@ Origin; no telemetry, no update checks, no outbound calls.
 **11.2 Lock the engine.** The query engine cannot read or write files, reach the network or load
 extensions, and does not spill to disk; the app's own code does file work.
 
-**11.3 Nothing on disk without a click,** except a short, written list (exports, saved recipes and
+**11.3 Nothing on disk without a click,** except a short, written list (exports, saved
 dashboards, saved code and shared files, connections, user-saved documents, the audit log). Everything
 else stays in memory.
 

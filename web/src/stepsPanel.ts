@@ -143,11 +143,6 @@ async function render(): Promise<void> {
   if (info.steps.length) body.append(countLine(info.steps.length, true));
   body.append(
     ...(info.steps.length ? [] : [h("p", { class: "hint" }, "No steps")]),
-    h(
-      "div",
-      { class: "add-step" },
-      button("Save recipe", () => void saveRecipe(), { icon: "save", title: "For this dataset name" }),
-    ),
   );
   for (const [index, step] of info.steps.entries()) {
     if (step.kind === "categorize" && step.enabled !== false) void categorizeStats(index);
@@ -247,15 +242,6 @@ async function move(from: number, to: number): Promise<void> {
   steps.splice(to, 0, moved!);
   dragFrom = null;
   await state.saveSteps(steps).catch((e: Error) => toast(e.message, "error"));
-}
-
-async function saveRecipe(): Promise<void> {
-  try {
-    const result = await api<{ saved: string }>(`${grid}/recipe`, "POST");
-    toast(`Recipe saved (${result.saved}).`);
-  } catch (e) {
-    toast((e as Error).message, "error");
-  }
 }
 
 interface CodeResult {

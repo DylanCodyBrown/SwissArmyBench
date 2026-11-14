@@ -2,7 +2,7 @@
 
 A grid is a dataset seen through a list of steps. The use cases here open and close grids, read rows
 and counts in view order, change the steps (the whole list, or one change to one step), mark rows,
-measure a selection, and save the steps as a recipe. Each takes the grid and its dataset, which the
+and measure a selection. Each takes the grid and its dataset, which the
 door looks up first (`find`), so a missing grid is the first thing a caller hears about.
 """
 
@@ -22,7 +22,7 @@ from swissarmygrid.domain.steps import (
     steps_from_json,
     with_header_sort,
 )
-from swissarmygrid.services.ports import AGENT, BACKGROUND, INTERACTIVE, Recipes, SqlSession
+from swissarmygrid.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
 from swissarmygrid.services.workspace import NotFound, Workspace
 
 
@@ -38,9 +38,8 @@ def truncate(rows: list[list[Any]], limit: int) -> list[list[int]]:
 
 
 class GridService:
-    def __init__(self, ws: Workspace, recipes: Recipes) -> None:
+    def __init__(self, ws: Workspace) -> None:
         self.ws = ws
-        self._recipes = recipes
 
     def find(self, grid_id: str) -> tuple[Grid, DatasetInfo]:
         return self.ws.grid_and_info(grid_id)
@@ -399,13 +398,3 @@ class GridService:
         """The page reports how many rows are selected, for the agent's view of the grid."""
         grid.selected = int(body.get("count", 0)) if isinstance(body, dict) else 0
         return {"selected": grid.selected}
-
-    # ===== recipes =====
-
-    def save_recipe(self, grid: Grid, info: DatasetInfo, who: str) -> dict[str, Any]:
-        path = self._recipes.save(info.name, grid.steps, grid.settings)
-        self.ws.audit.write(who, "save_recipe", info.name)
-        return {"saved": path}
-
-    def delete_recipe(self, info: DatasetInfo) -> dict[str, Any]:
-        return {"deleted": self._recipes.delete(info.name)}

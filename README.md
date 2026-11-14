@@ -20,8 +20,7 @@ What a grid page does:
 - **Steps** (like Power Query's applied steps): filter, sort, choose and rename columns, group
   by, distinct, keep first rows, clean text, bucket, categorize and SQL. The grid has the whole
   page: a strip under its title counts the steps and offers Undo and Clear; **Edit steps** opens
-  Table Transformations in a tab of its own, where each step can be edited, turned off or reordered, with row counts as it goes. A step list can be saved as a
-  recipe.
+  Table Transformations in a tab of its own, where each step can be edited, turned off or reordered, with row counts as it goes.
 - **Cell viewer:** double-click a cell. JSON objects and arrays show as tables you can open one
   layer at a time, markdown is formatted, and long text wraps.
 - **Text matching** (the ribbon's Table row): Match case, Wildcards (`%` only, as in SQL LIKE),

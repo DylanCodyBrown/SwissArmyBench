@@ -2,7 +2,7 @@
 service layer (the book's bootstrap script).
 
 `bootstrap()` opens the locked database, starts the worker pool, and builds the stores (datasets,
-views, catalogs, blades), the state files (audit log, recipes, the model library), the live updates
+views, catalogs, blades), the state files (audit log, the model library), the live updates
 and the notebook. Each service gets these as its ports; no service or domain file imports an adapter.
 The doors (server/app.py and its route modules) are given the services and nothing else.
 """
@@ -35,7 +35,6 @@ from swissarmygrid.adapters.state_files import (
     AuditLog,
     DashboardFiles,
     ModelFiles,
-    RecipeFiles,
     ThemeFiles,
     is_own_file,
 )
@@ -146,7 +145,6 @@ def bootstrap(
         pins_file=state_dir / "blade_pins.json",
         packs=pack_files.blade_dirs,
     )
-    recipes = RecipeFiles(state_dir / "recipes")
     verifier = Verifier(settings.duckdb_memory_limit)
 
     async def run_blade(
@@ -192,7 +190,6 @@ def bootstrap(
     tickets = ExportTickets()  # the agent exports the user approved, not yet written
     datasets = DatasetService(
         ws,
-        recipes,
         table_reader,
         processes,
         own_file=lambda path: is_own_file(path, state_dir, export_dir),
@@ -231,7 +228,7 @@ def bootstrap(
         settings=settings,
         ws=ws,
         datasets=datasets,
-        grids=GridService(ws, recipes),
+        grids=GridService(ws),
         profiles=Profiles(ws),
         analysis=Analysis(ws, verifier),
         regression=Regression(ws),

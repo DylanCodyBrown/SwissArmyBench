@@ -306,8 +306,6 @@ def test_grids_datasets_and_files(live: Live, clients: str, tmp_path: Path) -> N
     assert run("datasets_close", name="more")["closed"] == "more"
     assert run("health")["status"] == "ok" and "processes" in run("datasets_python_sessions")
     assert run("agent_approvals") == {"pending": []}
-    assert run("steps_save_recipe", grid=clients)["saved"]
-    assert run("steps_save_recipe", grid=clients, delete=True)["deleted"] is True
     code = run("steps_python", grid=clients)
     assert code["verified"] is True and "code" in code
 
@@ -439,7 +437,7 @@ def test_the_terminal_front_end_parses_positional_flags_files_and_bare_switches(
         "steps_add",
         {"grid": "g1", "kind": "limit", "params": '{"n": 5}', "index": "0"},
     )
-    assert main.parse(["steps_save_recipe", "g1", "--delete"])[1] == {"grid": "g1", "delete": "true"}
+    assert main.parse(["table_export", "g1", "--overwrite"])[1] == {"grid": "g1", "overwrite": "true"}
     sql = tmp_path / "q.sql"
     sql.write_text("SELECT 1", encoding="utf-8")
     assert main.parse(["agent_query", "clients", f"@{sql}"])[1]["sql"] == "SELECT 1"

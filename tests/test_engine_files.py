@@ -1,21 +1,8 @@
-"""Recipe files edited by hand, and model notes that would break the ERD. Made-up data only."""
+"""Model notes that would break the ERD. Made-up data only."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
-from swissarmygrid.adapters.state_files import load_recipe
 from swissarmygrid.domain.relationships import mermaid_erd, parse_model
-
-
-@pytest.mark.parametrize("body", ["[]", '"text"', "3", '{"steps": {"kind": "sort"}}', "{", '{"settings": 1}'])
-def test_a_broken_recipe_file_is_ignored(tmp_path: Path, body: str) -> None:
-    # A file that is JSON but not an object raised AttributeError, which failed the push that
-    # tried to apply it.
-    (tmp_path / "orders.json").write_text(body, encoding="utf-8")
-    assert load_recipe(tmp_path, "orders") is None
 
 
 def test_a_note_with_line_breaks_stays_on_one_mermaid_line() -> None:

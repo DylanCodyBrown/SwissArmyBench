@@ -132,7 +132,7 @@ class Settings:
     worker_threads: int = 4
     # The browser files: index.html, grid.css, and build/ from `npm run build`.
     web_root: Path = field(default=_PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB)
-    # Where recipes and the audit log live (plan section 18, question 5: user folder for now).
+    # Where the audit log and the other state files live (plan section 18, question 5: user folder for now).
     state_dir: Path = field(default_factory=_state_dir)
     # Exports requested by an agent (MCP) land only here, never as a browser download.
     export_dir: Path = field(default_factory=lambda: _state_dir() / "exports")

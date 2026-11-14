@@ -4,7 +4,7 @@ behind the guard.
 Route modules, one per area, like ASP.NET controllers. Each is given its service (services/*.py)
 and does nothing but read the request, call the use case and shape the answer:
   routes_datasets.py       push, list, close, load a file, paste, the "+" tab; health and shutdown
-  routes_grids.py          rows, steps, profile, SQL, export, code, recipes for one grid
+  routes_grids.py          rows, steps, profile, SQL, export, code for one grid
   routes_analysis.py       the Analyze menu's analyses on one grid's view
   routes_regression.py     regression and what-if predictions
   routes_timeseries.py     time series and forecast

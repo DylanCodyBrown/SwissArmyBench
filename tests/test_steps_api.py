@@ -1,4 +1,4 @@
-"""Steps over HTTP: edit, header sort, preview, counts, errors, recipes, stale gens (M3)."""
+"""Steps over HTTP: edit, header sort, preview, counts, errors, stale gens (M3)."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def test_bad_step_shapes_are_400(client: TestClient) -> None:
     assert client.post(f"/grids/{grid}/steps", json={"steps": "no"}, headers=AUTH).status_code == 400
 
 
-def test_recipe_is_reapplied_and_column_drift_is_reported(tmp_path: Path) -> None:
+def test_a_repush_keeps_the_steps_and_column_drift_is_reported(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         grid = grid_id(push(client, "orders", ORDERS))
         set_steps(
@@ -110,20 +110,31 @@ def test_recipe_is_reapplied_and_column_drift_is_reported(tmp_path: Path) -> Non
                 {"kind": "sort", "params": {"keys": [["region", "asc"]]}},
             ],
         )
-        assert client.post(f"/grids/{grid}/recipe", headers=AUTH).status_code == 200
+        # Saved recipes are gone (2026-11-14): there is no route to save one.
+        assert client.post(f"/grids/{grid}/recipe", headers=AUTH).status_code in (404, 405)
         # Same session: a re-push keeps the grid's steps (qty > 2, then region A-Z).
         push(client, "orders", ORDERS)
         assert ids(client, grid) == [6, 1, 2, 5]
-    with make_client(tmp_path) as client:  # a new server process: recipe from disk
-        fresh = grid_id(push(client, "orders", ORDERS))
-        assert len(client.get(f"/grids/{fresh}", headers=AUTH).json()["steps"]) == 2
-        assert ids(client, fresh) == [6, 1, 2, 5]
         # Push without the region column: the sort step (index 1) is the first broken one.
         drifted = ORDERS.drop_columns(["region"])
         push(client, "orders", drifted)
-        described = client.get(f"/grids/{fresh}", headers=AUTH).json()
+        described = client.get(f"/grids/{grid}", headers=AUTH).json()
         assert described["step_error"]["index"] == 1
-        assert ids(client, fresh) == [1, 2, 5, 6]
+        assert ids(client, grid) == [1, 2, 5, 6]
+
+
+def test_a_recipe_file_left_from_an_older_version_is_not_read(tmp_path: Path) -> None:
+    """Recipe files already on a user's disk stay where they are and are no longer applied."""
+    with make_client(tmp_path) as client:
+        old = tmp_path / "state" / "recipes" / "orders.json"
+        old.parent.mkdir(parents=True, exist_ok=True)
+        old.write_text(
+            '{"dataset": "orders", "settings": {}, "steps": [{"kind": "limit", "params": {"n": 1}}]}',
+            encoding="utf-8",
+        )
+        grid = grid_id(push(client, "orders", ORDERS))
+        assert client.get(f"/grids/{grid}", headers=AUTH).json()["steps"] == []
+        assert old.exists()
 
 
 def test_stale_generation_is_refused(client: TestClient) -> None:

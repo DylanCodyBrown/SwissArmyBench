@@ -156,7 +156,7 @@ def told(ws: Workspace) -> list[dict[str, Any]]:
 
 def test_opening_a_grid_tells_the_pages_and_keeps_the_token_from_the_agent(tmp_path: Any) -> None:
     ws = workspace(tmp_path, "orders")
-    grids = GridService(ws, recipes=None)  # type: ignore[arg-type]
+    grids = GridService(ws)
 
     made = asyncio.run(grids.create("orders", "agent"))
 
@@ -177,7 +177,7 @@ def test_an_approval_waits_for_the_users_answer(tmp_path: Any) -> None:
     approvals = Approvals(pages)
     tickets = ExportTickets()
     agent = AgentService(ws, approvals, tickets)
-    grids = GridService(ws, recipes=None)  # type: ignore[arg-type]
+    grids = GridService(ws)
 
     async def scenario(answer: bool) -> Any:
         made = await grids.create("orders", "user")

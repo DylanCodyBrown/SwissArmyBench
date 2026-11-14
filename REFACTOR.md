@@ -24,10 +24,10 @@ command, client function and file format is the same.
 
 3. **One file per feature.** A feature has at most one file in each layer, named after it:
    `domain/<feature>.py`, `services/<feature>.py`, `adapters/<feature>.py`, `server/routes_<feature>.py`.
-   A feature with nothing to say in a layer has no file there (recipes have no rules of their own, so
-   no `domain/recipes.py`). Small things that belong together share a file rather than getting one
-   each: `adapters/state_files.py` is everything written under the state folder (recipes, the audit
-   log, the connection file, the model library).
+   A feature with nothing to say in a layer has no file there (the file chooser has no rules of its own, so
+   no `domain/folders.py`). Small things that belong together share a file rather than getting one
+   each: `adapters/state_files.py` is everything written under the state folder (the audit
+   log, saved dashboards, the connection file, the model library).
 
 `tests/test_architecture.py` checks all three: the depth, the import directions, the libraries each
 layer may load, and that the plain client imports nothing but the standard library with the server's
@@ -89,7 +89,7 @@ that feature's use cases. Two are in the domain, because compiling steps needs t
 | `Datasets` | `ports.py` | the open datasets: get, all, replace, close, a session | `adapters/datasets.DatasetStore` |
 | `Views` | `ports.py` | a grid's compiled view, windows, counts, the cached table | `adapters/views.ViewEngine` |
 | `Jobs` | `ports.py` | run a function on the worker pool at a priority | `adapters/database.PriorityWorkers` |
-| `Audit`, `Recipes` | `ports.py` | the audit log, saved recipes | `adapters/state_files.py` |
+| `Audit` | `ports.py` | the audit log | `adapters/state_files.py` |
 | `Notifier` | `ports.py` | tell the open pages; ask VS Code to show a grid | `adapters/live_updates.LiveUpdates` |
 | `CodeVerifier` | `ports.py` | run copied code and compare it with the grid | `adapters/codegen.Verifier` |
 | `TableReader` | `datasets.py` | bytes, files and pasted text to a table; a query's result as a table | the module `adapters/datasets.py` |

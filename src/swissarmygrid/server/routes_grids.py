@@ -17,8 +17,6 @@
   POST   /grids/{id}/sql                 {"sql": "..."} guarded; CREATE TABLE AS pins a new grid
   GET    /grids/{id}/export?format=&scope=&...      a download (or ?save=1 into the export folder)
   GET    /grids/{id}/code     the steps as one DuckDB query, verified against the grid
-  POST   /grids/{id}/recipe              save this grid's steps for its dataset name
-  DELETE /grids/{id}/recipe              forget the saved recipe
   POST   /grids/{id}/cancel              stop every query running for this grid
   POST   /grids/{id}/selection-stats     {"selection": ...} Count, Sum and Average of a selection
   POST   /grids/{id}/highlights          {"highlights": [...]} mark the rows matching conditions
@@ -270,17 +268,6 @@ def routes(
         except Exception as error:
             return error_response(error)
 
-    # ===== recipes =====
-
-    async def recipe(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            if request.method == "DELETE":
-                return json_response(grids.delete_recipe(info))
-            return json_response(grids.save_recipe(grid, info, actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     return [
         Route("/grids", list_grids),
         Route("/grids", create_grid, methods=["POST"]),
@@ -301,7 +288,6 @@ def routes(
         Route("/grids/{grid_id}/selection-stats", selection_stats, methods=["POST"]),
         Route("/grids/{grid_id}/export", export),
         Route("/grids/{grid_id}/code", code),
-        Route("/grids/{grid_id}/recipe", recipe, methods=["POST", "DELETE"]),
         Route("/grids/{grid_id}/highlights", set_highlights, methods=["POST"]),
         Route("/grids/{grid_id}/selection", set_selection, methods=["POST"]),
     ]

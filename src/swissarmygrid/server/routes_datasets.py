@@ -13,7 +13,7 @@
   POST   /datasets/{name}/query         {"sql": "SELECT ...", "replace": bool} the "+" tab's table
 
 A push reuses the dataset's first grid (that grid hot-reloads in place) unless new_grid=1.
-The first grid on a dataset picks up a saved recipe for that name, if there is one.
+The first grid on a dataset starts with no steps.
 """
 
 from __future__ import annotations
