@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmygrid.domain import environments as envs
-from swissarmygrid.domain import errors
+from swissarmygrid.domain import errors, html_cells
 from swissarmygrid.domain import notebooks as rules
 from swissarmygrid.domain.datasets import validate_name
 from swissarmygrid.services.workspace import Conflict, NotFound, Workspace
@@ -58,6 +58,8 @@ class Kernel(Protocol):
     async def inspect(self, code: str, offset: int) -> str: ...
 
     async def variables(self, env_names: list[str]) -> dict[str, Any] | None: ...
+
+    async def html_marks(self, names: list[str]) -> dict[str, Any] | None: ...
 
     async def grid(self, expression: str, name: str) -> str | None: ...
 
@@ -266,7 +268,9 @@ class Workbench:
         return kernel
 
     def execute(self, kernel_id: str, body: Any) -> AsyncIterator[dict[str, Any]]:
-        """Run code (kind code), a SQL cell (kind sql, its connection), a table's read-only cell (kind
+        """Run code (kind code), a SQL cell (kind sql, its connection), an HTML cell (kind html: `code`
+        is its HTML; each `{{ name }}` is filled from the kernel's variables and the design comes back
+        as the output), a table's read-only cell (kind
         table, with `table`: it starts from the original the user's code made, so running it again
         never transforms a transformed table) or a script file (kind file: `path` of a saved script,
         or `code` of an unsaved one, run with %run: its own __main__, __file__ and sys.argv, as
@@ -295,6 +299,10 @@ class Workbench:
             if not isinstance(table, str) or not table.isidentifier():
                 raise ValueError('A table\'s cell runs with {"kind": "table", "table": "its name", "code"}.')
             code = f"get_ipython().run_cell_magic('sag_table', {table!r}, {body['code']!r})"
+        elif kind == "html":
+            if len(body["code"]) > rules.MAX_CELL_CHARS:
+                raise ValueError("An HTML cell holds at most a million characters.")
+            code = f"get_ipython().run_cell_magic('sag_html', '', {body['code']!r})"
         elif kind == "sql":
             connection = body.get("connection")
             named = connection if isinstance(connection, str) else None
@@ -404,6 +412,36 @@ class Workbench:
         names = sorted(set(self._secret_names()) | self._vault_names)
         found = await self._kernel(kernel_id).variables(names)
         return {"busy": True} if found is None else found | {"busy": False}
+
+    # ===== HTML cells =====
+
+    @staticmethod
+    def html_fill(body: Any) -> dict[str, Any]:
+        """An HTML cell's design: its HTML with each `{{ name }}` filled from `values` (what the cell's
+        last run gave; none: every name shows as written, marked). Nothing runs; the filling is
+        domain/html_cells.py's, so data can never become markup or script."""
+        if not isinstance(body, dict) or not isinstance(body.get("html"), str):
+            raise ValueError('Send {"html": "...", "values": {name: value}} (values as a run gave them).')
+        if len(body["html"]) > rules.MAX_CELL_CHARS:
+            raise ValueError("An HTML cell holds at most a million characters.")
+        sent = body.get("values") or {}
+        if not isinstance(sent, dict) or not all(isinstance(v, dict) for v in sent.values()):
+            raise ValueError("values is {name: value}, as an HTML cell's run gave them.")
+        return html_cells.fill(body["html"], sent).to_json() | {"policy": html_cells.FRAME_POLICY}
+
+    async def html_marks(self, kernel_id: str, body: Any) -> dict[str, Any]:
+        """A mark of what each name would draw in an HTML cell now. The page compares it with the mark
+        from the cell's last run: a different mark, and the cell is out of date. `busy`: the kernel is
+        running code (or its Python has no package); ask again later."""
+        names = body.get("names") if isinstance(body, dict) else None
+        if (
+            not isinstance(names, list)
+            or len(names) > html_cells.MAX_NAMES
+            or not all(isinstance(n, str) and n.isidentifier() for n in names)
+        ):
+            raise ValueError('Send {"names": ["orders", "total"]}: the names an HTML cell asks for.')
+        found = await self._kernel(kernel_id).html_marks(names)
+        return {"busy": True, "marks": {}} if found is None else {"busy": False, "marks": found}
 
     async def grid(self, kernel_id: str, body: Any) -> dict[str, Any]:
         """Open a table as a grid: a variable {"name"}, or a cell's result {"output": n, "name"?}

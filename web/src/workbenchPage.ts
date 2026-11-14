@@ -562,12 +562,14 @@ function drawToolbar(): void {
       ? [
           button("Python", () => doc.notebook!.add("code"), { icon: "plus", title: "Add Python cell (B)" }),
           button("SQL", () => doc.notebook!.add("sql"), { icon: "sql", title: "Add SQL cell" }),
+          button("HTML", () => doc.notebook!.add("html"), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
           button("Markdown", () => doc.notebook!.add("markdown"), { icon: "edit", title: "Add Markdown cell" }),
           button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" }),
         ]
       : [
           button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" }),
           button("Run statement", () => void doc.script!.runSelection(), { icon: "play", title: "Run statement (Ctrl+Enter)" }),
+          button("HTML", () => void doc.script!.addHtml(), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
         ];
   clear(
     toolbar,
@@ -785,9 +787,9 @@ const tablesView = (): NotebookView | ScriptView => {
   if (!view) throw new Error("No notebook or script is in front.");
   return view;
 };
-const kindArg = (args: Record<string, unknown>): "code" | "sql" | "markdown" => {
+const kindArg = (args: Record<string, unknown>): "code" | "sql" | "html" | "markdown" => {
   const kind = text(args, "kind") ?? "code";
-  if (kind !== "code" && kind !== "sql" && kind !== "markdown") throw new Error('kind is "code", "sql" or "markdown".');
+  if (kind !== "code" && kind !== "sql" && kind !== "html" && kind !== "markdown") throw new Error('kind is "code", "sql", "html" or "markdown".');
   return kind;
 };
 const step = (by: 1 | -1): void => {
@@ -850,8 +852,8 @@ const COMMANDS: Command[] = [
   { id: "run.interrupt", group: "Run", title: "Interrupt", when: isCode, whyNot: "no notebook or script is in front", run: () => kernelOf().interrupt() },
   { id: "run.restart", group: "Run", title: "Restart the kernel", when: isCode, whyNot: "no notebook or script is in front", run: () => restartKernel(kernelOf()) },
   // Cells
-  { id: "cell.insertAbove", group: "Cell", title: "Insert a cell above", keys: "A", args: "kind: code, sql or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("above", kindArg(a), text(a, "source") ?? "") },
-  { id: "cell.insertBelow", group: "Cell", title: "Insert a cell below", keys: "B", args: "kind: code, sql or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("below", kindArg(a), text(a, "source") ?? "") },
+  { id: "cell.insertAbove", group: "Cell", title: "Insert a cell above", keys: "A", args: "kind: code, sql, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("above", kindArg(a), text(a, "source") ?? "") },
+  { id: "cell.insertBelow", group: "Cell", title: "Insert a cell below", keys: "B", args: "kind: code, sql, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("below", kindArg(a), text(a, "source") ?? "") },
   { id: "cell.select", group: "Cell", title: "Select a cell", args: "index (from 0); edit: true to put the cursor in it", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().select(num(a, "index") ?? 0, a.edit === true) },
   { id: "cell.delete", group: "Cell", title: "Delete the cell", keys: "D D", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().remove(num(a, "index")) },
   { id: "cell.undo", group: "Cell", title: "Undo a cell's delete or move", keys: "Z", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().undo() },
@@ -860,6 +862,8 @@ const COMMANDS: Command[] = [
   { id: "cell.toCode", group: "Cell", title: "Make it a Python cell", keys: "Y", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("code") },
   { id: "cell.toMarkdown", group: "Cell", title: "Make it a Markdown cell", keys: "M", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("markdown") },
   { id: "cell.toSql", group: "Cell", title: "Make it a SQL cell", keys: "S", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("sql") },
+  { id: "cell.toHtml", group: "Cell", title: "Make it an HTML cell", keys: "H", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("html") },
+  { id: "cell.edit", group: "Cell", title: "Edit the cell (an HTML or Markdown cell that shows as drawn)", keys: "Enter", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().editSelected() },
   { id: "cell.duplicate", group: "Cell", title: "Duplicate the cell", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().duplicate() },
   { id: "cell.clearOutput", group: "Cell", title: "Clear the cell's output", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().clearOutput(num(a, "index")) },
   { id: "cell.clearAll", group: "Cell", title: "Clear every output", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().clearAll() },
@@ -880,6 +884,39 @@ const COMMANDS: Command[] = [
   { id: "tables.runOutOfDate", group: "Tables", title: "Run every table's cell that is not up to date", when: isCode, whyNot: "no notebook or script is in front", run: async () => ({ ran: await tablesView().runOutOfDate(), tables: tablesView().tables().map((t) => ({ name: t.name, state: t.state })) }) },
   { id: "tables.fold", group: "Tables", title: "Fold the Tables group (or one table)", args: "table: one table (default: the whole group)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => tablesView().foldTables(true, text(a, "table")) },
   { id: "tables.unfold", group: "Tables", title: "Open the Tables group (or one table)", args: "table: one table (default: the group, one level)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => tablesView().foldTables(false, text(a, "table")) },
+  // HTML cells: a design drawn from the cell's HTML, its {{ names }} filled from the kernel
+  { id: "html.add", group: "HTML", title: "Add an HTML cell", args: "source: its HTML; height: its pane in pixels (default: the design's own)", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => {
+    const source = text(a, "source") ?? "";
+    const height = num(a, "height") ?? null;
+    if (current?.notebook) {
+      current.notebook.insert("below", "html", source);
+      const added = current.notebook.htmlCells().find((c) => c.index === current!.notebook!.selected());
+      if (added?.number != null && height !== null) current.notebook.resizeHtml(added.number, height);
+      // With HTML it shows its design at once; an empty one waits for typing.
+      if (source.trim()) current.notebook.commandMode();
+      return { document: current.title, cell: current.notebook.htmlCells().find((c) => c.index === current!.notebook!.selected()) ?? null };
+    }
+    await script().addHtml(source, height);
+    return { document: current!.title, cells: script().htmlCells() };
+  } },
+  { id: "html.list", agentOnly: true, group: "HTML", title: "The document's HTML cells: each one's HTML, names and state", when: isCode, whyNot: "no notebook or script is in front", run: () => ({ document: current!.title, cells: tablesView().htmlCells() }) },
+  { id: "html.run", group: "HTML", title: "Run an HTML cell: fill its names and draw it", args: "number: the cell's own number (default: every one not up to date)", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => ({ document: current!.title, cells: await tablesView().runHtml(num(a, "number")) }) },
+  { id: "html.resize", group: "HTML", title: "Size an HTML cell's pane", args: "number: the cell's own number; height: pixels (60 to 2000; without it: the design's own height)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    const number = num(a, "number");
+    if (number === undefined) throw new Error("Send the cell's number.");
+    tablesView().resizeHtml(number, num(a, "height") ?? null);
+    return { cell: number, height: num(a, "height") ?? null };
+  } },
+  { id: "html.edit", group: "HTML", title: "Open an HTML cell's HTML", args: "number: the cell's own number", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    const number = num(a, "number");
+    if (number === undefined) throw new Error("Send the cell's number.");
+    if (current?.notebook) {
+      const at = current.notebook.htmlCells().find((c) => c.number === number);
+      if (!at) throw new Error(`This notebook has no HTML cell ${number}.`);
+      current.notebook.select(at.index, true);
+    } else script().editHtml(number);
+    return { cell: number };
+  } },
   // Console
   { id: "console.focus", group: "Console", title: "Go to the console", keys: "Ctrl+2", when: isCode, whyNot: "no notebook or script is in front", run: () => layout.focus("console") },
   { id: "console.run", group: "Console", title: "Run code in the console", args: "code", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {

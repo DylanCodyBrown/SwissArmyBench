@@ -45,6 +45,8 @@ CLIENT_MODULES = (
     "swissarmygrid.client.kernel_connections",
     "swissarmygrid.client.kernel_variables",
     "swissarmygrid.client.watcher",
+    "swissarmygrid.client.table_cells",
+    "swissarmygrid.client.html_cells",
     "swissarmygrid.client.context_hook",
     "swissarmygrid.cli",
     "swissarmygrid.cli.api",
@@ -53,6 +55,7 @@ CLIENT_MODULES = (
     # What the client borrows from the layers: blades as text, and running one in this Python.
     "swissarmygrid.domain.blades",
     "swissarmygrid.domain.catalogs",
+    "swissarmygrid.domain.html_cells",
     "swissarmygrid.adapters.blade_run",
 )
 # Standard library modules that do I/O, start something or read the clock: not for the domain.

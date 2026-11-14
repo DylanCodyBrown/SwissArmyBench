@@ -22,6 +22,8 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   POST   /workbench/kernels/{id}/inspect    {"code", "offset"}: the signature and help of the name there
   GET    /workbench/kernels/{id}/variables  the Variables overlay (values of secrets never included)
   POST   /workbench/kernels/{id}/grid       {"name"}: open a table variable as a grid
+  POST   /workbench/html/fill               {"html", "values"}: an HTML cell's design, its names filled
+  POST   /workbench/kernels/{id}/html-marks {"names"}: a mark of what each name would draw now
   POST   /workbench/kernels/{id}/interrupt, /restart       DELETE /workbench/kernels/{id}
 """
 
@@ -149,6 +151,14 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
     async def variables(request: Request) -> Response:
         return json_response(await workbench.variables(request.path_params["kernel"]))
 
+    async def html_fill(request: Request) -> Response:
+        return json_response(workbench.html_fill(await read_json(request)))
+
+    async def html_marks(request: Request) -> Response:
+        return json_response(
+            await workbench.html_marks(request.path_params["kernel"], await read_json(request))
+        )
+
     async def grid(request: Request) -> Response:
         return json_response(await workbench.grid(request.path_params["kernel"], await read_json(request)))
 
@@ -183,6 +193,8 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
         Route("/workbench/kernels/{kernel}/inspect", safely(inspect), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/variables", safely(variables)),
         Route("/workbench/kernels/{kernel}/grid", safely(grid), methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/html-marks", safely(html_marks), methods=["POST"]),
+        Route("/workbench/html/fill", safely(html_fill), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/interrupt", safely(interrupt), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/restart", safely(restart), methods=["POST"]),
         Route("/workbench/kernels/{kernel}", safely(stop), methods=["DELETE"]),

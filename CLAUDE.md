@@ -34,7 +34,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   added with a form), the SQL cell (`%%sql <connection>`), the Workbench (notebooks, scripts,
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
-  left the grid's steps strip), the Analyze menu, the Sandbox, compare's diff and tie-out,
+  left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
+  `{{ name }}` filled from the kernel), the Analyze menu, the Sandbox, compare's diff and tie-out,
   and To Python on analysis results (code queued for `sag.paste()` in Jupyter or IPython). Not built: M9 (sandbox), the VS Code extension and the
   Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
@@ -88,12 +89,18 @@ src/swissarmygrid/
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
-    notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell) and scripts;
+    notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell, an HTML cell
+                         a %%html one with its pane's height in its metadata) and scripts;
                          each cell's number (never changes, never reused) and its part in the Tables group
     table_cells.py       every table's read-only cell: the names code makes, needs and uses; the uses
                          line (`# uses orders @cell3`); the Tables group's order and why a maker stays
                          put; a script's `# region Tables` and `# %% [7] [table] orders` markers; a
                          table's cell as text (its load, a small paste written out, its transformations)
+    html_cells.py        HTML cells: the `{{ name }}` names; a value as what goes into a design (escaped
+                         text, a table up to 50 rows, a picture); the filling, by where a name stands
+                         (among the words, in a <script>, in a tag), so data never becomes markup or
+                         script; a script's `# %% [7] [html] height=320` cell (the HTML as one string
+                         that does nothing); the design frame's Content-Security-Policy
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name); where a SQL error points
@@ -181,10 +188,12 @@ src/swissarmygrid/
   client/table_cells.py  a table's read-only cell run in the kernel (%%sag_table, %sag_run): it starts
                          from the original its maker made (a reference, never a copy), so a second run
                          changes nothing
+  client/html_cells.py   an HTML cell's names read in the kernel (%%sag_html): tables, figures and values
+                         told by their shape; the marks that say a variable changed
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (187 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (193 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -222,10 +231,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          cursor, cell links, a script's folds and marker notes),
                          workbenchTables.ts (every table's read-only cell: its state against the text it
                          last ran, the folded lines' words, the uses line); the Tables group, cell
-                         numbers and @cell links are drawn in workbenchNotebook.ts and workbenchScript.ts
+                         numbers and @cell links are drawn in workbenchNotebook.ts and workbenchScript.ts;
+                         workbenchHtml.ts (HTML cells: the design's pane that resizes, its sandboxed
+                         frame, the names filled by the server's rules, the out-of-date state)
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
-web/static/              index.html, grid.css (all theme tokens), build/ (gitignored)
+web/static/              index.html, grid.css (all theme tokens), build/ (gitignored); design.html is the
+                         page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
+                         over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
                          test_architecture.py (the layers, the depth, the plain client)
 tools/                   screenshots.py, vscode_check.py

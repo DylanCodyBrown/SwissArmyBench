@@ -2154,7 +2154,11 @@ def workbench_open(a: dict[str, Any]) -> Any:
     "workbench_save",
     "Save a notebook's cells or a script's text (refused if changed on disk since modified, unless force)",
     req("path", "An .ipynb or .py file."),
-    opt("cells", '[{"kind": "code" | "sql" | "markdown", "source", "connection"?, "outputs"?}]', "json"),
+    opt(
+        "cells",
+        '[{"kind": "code" | "sql" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',
+        "json",
+    ),
     opt("text", "A script's text."),
     opt("modified", "The modified time workbench_open gave.", "any"),
     opt("force", "Replace it even if it changed on disk.", "bool"),
@@ -2200,6 +2204,20 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
             )
         elif item.get("output_type") in ("execute_result", "display_data"):
             data = item.get("data", {})
+            cell = data.get("application/vnd.swissarmygrid.html-cell+json")
+            if isinstance(cell, dict):
+                # An HTML cell's run: the design with its names filled, and what filled it (the values
+                # go back to workbench_html_fill as they are; the marks to workbench_html_marks).
+                shown.append(
+                    {
+                        "design": str(data.get("text/html", ""))[:200_000],
+                        "missing": cell.get("missing", []),
+                        "notes": cell.get("notes", []),
+                        "marks": cell.get("marks", {}),
+                        "values": cell.get("values", {}),
+                    }
+                )
+                continue
             shown.append({"result": data.get("text/plain", ""), "kinds": sorted(data)})
         elif "input_request" in item:
             shown.append(
@@ -2231,10 +2249,10 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
 @command(
     "workbench_run",
     "Run code in a kernel (kind sql: a SQL cell on its connection; kind file: a script as python would; "
-    "kind table: a table's cell)",
+    "kind table: a table's cell; kind html: an HTML cell, its {{ names }} filled from the kernel)",
     req("kernel", "The kernel's id."),
-    opt("code", "Python; SQL with kind sql; an unsaved script's text with kind file."),
-    opt("kind", "code (default), sql, file or table."),
+    opt("code", "Python; SQL with kind sql; an unsaved script's text with kind file; HTML with kind html."),
+    opt("kind", "code (default), sql, file, table or html."),
     opt("connection", "A SQL cell's connection."),
     opt("table", "kind table: the table (its cell starts from the table as made, so a rerun is safe)."),
     opt("path", "kind file: a saved script to run (its __file__)."),
@@ -2346,6 +2364,69 @@ def workbench_table_run(a: dict[str, Any]) -> Any:
 )
 def workbench_cell_goto(a: dict[str, Any]) -> Any:
     return _window("cell.goTo", {"number": a["number"]})
+
+
+@command(
+    "workbench_html_add",
+    "Add an HTML cell to the front Workbench document: a design drawn from its HTML; {{ name }} in it "
+    "is filled from the kernel when the cell runs",
+    opt("source", "The cell's HTML."),
+    opt("height", "Its pane's height in pixels, 60 to 2000 (default: the design's own).", "int"),
+)
+def workbench_html_add(a: dict[str, Any]) -> Any:
+    return _window("html.add", {k: a[k] for k in ("source", "height") if a.get(k) is not None})
+
+
+@command(
+    "workbench_html_cells",
+    "The front Workbench document's HTML cells: number, HTML, names, height, and whether it needs a run",
+)
+def workbench_html_cells(a: dict[str, Any]) -> Any:
+    return _window("html.list", {})
+
+
+@command(
+    "workbench_html_run",
+    "Run an HTML cell in the front Workbench document: fill its names and draw it (default: every one "
+    "that needs a run)",
+    opt("number", "The cell's own number.", "int"),
+)
+def workbench_html_run(a: dict[str, Any]) -> Any:
+    return _window("html.run", {"number": a["number"]} if a.get("number") is not None else {})
+
+
+@command(
+    "workbench_html_resize",
+    "Size an HTML cell's pane in the front Workbench document (saved with the cell)",
+    req("number", "The cell's own number.", "int"),
+    opt("height", "Pixels, 60 to 2000 (without it: the design's own height).", "int"),
+)
+def workbench_html_resize(a: dict[str, Any]) -> Any:
+    args = {"number": a["number"]} | ({"height": a["height"]} if a.get("height") is not None else {})
+    return _window("html.resize", args)
+
+
+@command(
+    "workbench_html_fill",
+    "An HTML cell's design as text: its HTML with each {{ name }} filled from a run's values (nothing runs)",
+    req("html", "The cell's HTML."),
+    opt(
+        "values", "{name: value} from a run's output (default: none, so every name shows as written).", "json"
+    ),
+    values=True,
+)
+def workbench_html_fill(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/workbench/html/fill", {"html": a["html"], "values": a.get("values") or {}})
+
+
+@command(
+    "workbench_html_marks",
+    "A mark of what each name would draw in an HTML cell now (differs from a run's mark: out of date)",
+    req("kernel", "The kernel's id."),
+    req("names", 'The names, e.g. ["orders", "total"].', "json"),
+)
+def workbench_html_marks(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/html-marks", {"names": a["names"]})
 
 
 @command(

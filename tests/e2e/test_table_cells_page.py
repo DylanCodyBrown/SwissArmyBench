@@ -85,9 +85,10 @@ def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
 
     # The table has its cell at once, in a Tables group at the top.
     group = workbench.locator(".wb-tcell.role-tables")
-    expect(group).to_have_text(re.compile(r"Tables · 1 table · up to date"), timeout=20000)
+    # Only a state that needs the user to act is said: a table that is current is just its name.
+    expect(group).to_have_text(re.compile(r"^\s*[▸▾]?\s*Tables · 1 table\s*$"), timeout=20000)
     line = workbench.locator(".wb-tcell.role-table")
-    expect(line).to_contain_text("sales · no steps yet")
+    expect(line.locator(".wb-fold")).to_have_text(re.compile(r"^\s*[▸▾]?\s*sales\s*$"))
     cell = workbench.locator(".wb-tcell.role-transformations")
     maker = workbench.locator(".wb-cell.role-maker")
     # Made while working, the table shows open (the user's cell is not folded away under them); it
@@ -114,7 +115,7 @@ def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
     expect(maker).to_be_visible()
     expect(maker).to_contain_text("makes sales")
     expect(cell).to_contain_text("read-only: it follows the grid")
-    expect(cell.locator(".wb-table-state")).to_have_text("No steps yet")
+    expect(cell.locator(".wb-table-state")).to_be_hidden()
     # A step made in the grid rewrites the cell at once; nothing runs by itself.
     call(server, "POST", f"/grids/{grid}/steps", {"steps": OVER_15})
     expect(cell.locator(".view-lines")).to_contain_text('WHERE "amount" > 15', timeout=20000)
@@ -127,11 +128,9 @@ def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
     assert "x" not in source_of(server, number).split("\n")[0]
     assert source_of(server, number).startswith('import duckdb\n\nsales = duckdb.sql("""')
 
-    # Run: up to date, with the time. Twice gives the same table (it starts from what the maker made).
+    # Run: current, so it says nothing. Twice gives the same table (it starts from what the maker made).
     line.get_by_role("button", name="Run", exact=True).click()
-    expect(cell.locator(".wb-table-state")).to_have_text(
-        re.compile(r"^Up to date · last run \d\d:\d\d$"), timeout=60000
-    )
+    expect(cell.locator(".wb-table-state")).to_be_hidden(timeout=60000)
     cell.get_by_role("button", name="Run cell").click()
     expect(cell.locator(".wb-count")).to_have_text("[5]", timeout=60000)
     assert window(server, "console.run", code="print('rows', len(sales))") is not None
@@ -151,7 +150,7 @@ def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
     expect(workbench.get_by_role("button", name="Run tables: 1 out of date")).to_be_visible()
     # Undoing the change in the grid clears the yellow by itself: the text is what last ran.
     call(server, "POST", f"/grids/{grid}/steps", {"steps": OVER_15})
-    expect(cell.locator(".wb-table-state")).to_have_text(re.compile(r"^Up to date"), timeout=20000)
+    expect(cell.locator(".wb-table-state")).to_be_hidden(timeout=20000)
     expect(group).not_to_have_class(re.compile(r"\bstale\b"))
 
     # The group folds to one line; the agent reads the tables' state and runs a table's cell.
@@ -310,10 +309,10 @@ def test_a_saved_notebook_opens_folded_runs_top_to_bottom_and_keeps_its_numbers(
     # Run all: the maker makes the table, its cell transforms it once.
     workbench.get_by_role("button", name="Run all").click()
     expect(workbench.locator(".wb-cell").last.locator(".wb-stream")).to_have_text("rows 3\n", timeout=60000)
-    expect(cell.locator(".wb-table-state")).to_have_text(re.compile(r"^Up to date"))
+    expect(cell.locator(".wb-table-state")).to_be_hidden()
     # Opened as a grid again, the grid gets the file's steps back and the cell stays as it is.
     grid = open_as_grid(server, "sales")
-    expect(line).to_contain_text("sales · 1 step · up to date", timeout=20000)
+    expect(line.locator(".wb-fold")).to_have_text(re.compile(r"sales · 1 step\s*$"), timeout=20000)
     assert [s["kind"] for s in call(server, "GET", f"/grids/{grid}")["steps"]] == ["filter"]
     assert call(server, "GET", f"/grids/{grid}/count")["row_count"] == 3
     # A new cell gets a number never used before (the file says 9 comes next), and saving keeps them.
@@ -408,16 +407,17 @@ def test_a_scripts_tables_are_a_region_of_cells_the_editor_folds_and_draws(
     assert script_text(server) == before and line > 0
     workbench.keyboard.press("Control+Enter")
     # (The editor draws these words with spaces that do not break: \\s matches them.)
-    expect(lines).to_contain_text(
-        re.compile(r"grid\s·\sUp\sto\sdate\s·\slast\srun\s\d\d:\d\d"), timeout=60000
-    )
+    expect(lines).not_to_contain_text("Not run yet", timeout=60000)
+    expect(lines).not_to_contain_text(re.compile(r"Up\sto\sdate"))  # current: it says nothing
     # A grid change turns it yellow; the toolbar offers the run; the agent's command runs it.
     call(server, "POST", f"/grids/{grid}/steps", {"steps": OVER_25})
     expect(lines).to_contain_text("follows the grid · Out of date · last run", timeout=20000)
     expect(lines).to_contain_text("# region Tables 1 table · 1 out of date")
     expect(editor.locator(".wb-line-note.stale").first).to_be_visible()  # yellow
     workbench.get_by_role("button", name="Run tables: 1 out of date").click()
-    expect(lines).to_contain_text("# region Tables 1 table · up to date", timeout=60000)
+    expect(lines).not_to_contain_text("out of date", timeout=60000)
+    expect(lines).to_contain_text("# region Tables 1 table")
+    expect(lines).not_to_contain_text("up to date")
     expect(editor.locator(".wb-line-note.stale")).to_have_count(0)
     # Run file runs the table's cell the safe way too: the kernel holds two rows, the grid still holds
     # the four the maker made (a transformed table is never sent to the grid as new data).

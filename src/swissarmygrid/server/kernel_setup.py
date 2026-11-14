@@ -129,11 +129,13 @@ def setup() -> None:
     shell = _ipython()
     try:
         import swissarmygrid  # noqa: F401 (the watcher, the %%sql cells, sag.*)
+        from swissarmygrid.client.html_cells import install as html_cells
         from swissarmygrid.client.kernel_connections import install
         from swissarmygrid.client.table_cells import install as table_cells
 
         install(shell)
         table_cells(shell)  # %%sag_table: a table's read-only cell, safe to run again
+        html_cells(shell)  # %%sag_html: an HTML cell's names, filled from this Python
     except ImportError:
         pass
     _ordered_streams()

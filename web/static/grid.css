@@ -5727,3 +5727,147 @@ body.dropping-file::after {
   background: var(--warn-soft);
   color: var(--text);
 }
+
+/* ===== HTML cells (docs/ideas.md, 2026-11-14): the design drawn from a cell's HTML ===== */
+
+/* Two faces: the HTML while it is edited, the design when it is not. */
+.wb-cell:not(.kind-html) > .wb-design,
+.wb-cell.kind-html:not(.rendered) > .wb-design,
+.wb-cell.kind-html.rendered > .wb-editor {
+  display: none;
+}
+
+.wb-cell.kind-html .wb-cell-head {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.wb-cell.kind-html.stale {
+  border-left-color: var(--warn);
+}
+
+.wb-edit-html {
+  display: none;
+}
+
+.wb-cell.kind-html.rendered .wb-edit-html {
+  display: inline-flex;
+}
+
+.wb-design {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wb-design[hidden] {
+  display: none;
+}
+
+.wb-design-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.wb-design-bar[hidden],
+.wb-design-notes[hidden],
+.wb-design-run[hidden] {
+  display: none;
+}
+
+.wb-design-bar .spacer {
+  flex: 1;
+}
+
+.wb-design.stale > .wb-design-bar {
+  background: var(--warn-soft);
+}
+
+.wb-design-state {
+  padding: 1px 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.wb-design-state.outOfDate {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.wb-design-stage {
+  min-height: 60px;
+  overflow: hidden;
+}
+
+.wb-design-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+/* While its edge is dragged the frame lets the pointer through, or the drag would stop over it. */
+.wb-design.dragging .wb-design-frame {
+  pointer-events: none;
+}
+
+.wb-design-notes {
+  padding: 3px 10px;
+  border-top: 1px dashed var(--border);
+}
+
+/* The pane's bottom edge: drag it, or use the arrow keys. */
+.wb-design-grip {
+  position: relative;
+  flex: none;
+  height: 9px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.wb-design-grip::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: calc(50% - 16px);
+  width: 32px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.wb-design-grip:hover,
+.wb-design.dragging > .wb-design-grip,
+.wb-design-grip:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+}
+
+.wb-design-grip:hover::after,
+.wb-design.dragging > .wb-design-grip::after,
+.wb-design-grip:focus-visible::after {
+  background: var(--accent);
+}
+
+/* In a script the design sits between the lines, under its cell's marker. */
+.wb-design.in-script {
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.wb-design.in-script.stale {
+  border-left-color: var(--warn);
+}

@@ -32,8 +32,9 @@ export interface Done {
 /** What a run sends: code (Python, or SQL on a connection), or a file run as Python would run it. */
 export interface RunBody {
   code: string;
-  /** table: a table's read-only cell (with `table`: it starts from the table as its maker made it). */
-  kind?: "code" | "sql" | "file" | "table";
+  /** table: a table's read-only cell (with `table`: it starts from the table as its maker made it).
+   *  html: an HTML cell (`code` is its HTML; its names are filled from the kernel). */
+  kind?: "code" | "sql" | "file" | "table" | "html";
   table?: string;
   connection?: string | null;
   path?: string | null;

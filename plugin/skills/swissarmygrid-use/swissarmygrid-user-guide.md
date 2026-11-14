@@ -326,7 +326,8 @@ their own, run in an IPython kernel on this computer.
   table (a DataFrame as a cell's last line) has **Open as grid** under it: a cell ending in a variable
   (`orders`) opens as that name, anything else (`orders.head()`) as `out_` and its number, so the
   table itself is never replaced. Shift+Enter runs a cell and moves on. Escape leaves the editor for Jupyter's command
-  mode: A and B insert, D D deletes, Z brings it back, Y, M and S make a cell Python, Markdown or SQL.
+  mode: A and B insert, D D deletes, Z brings it back, Y, M, S and H make a cell Python, Markdown, SQL
+  or HTML.
   Each cell's More menu runs the cells above or below, duplicates, clears or hides the output.
 - **When code fails:** the error panel says what happened in plain words, where in your code (click
   to go there), and offers fixes with one click: use the close name, add the missing import, install
@@ -409,15 +410,17 @@ here: its code lives there.
 - **Nothing runs by itself.** A rewritten cell turns yellow: **Out of date · last run 10:42**, with
   **Run**. Run it and the variable holds the table as the grid shows it. Undo the change in the grid
   and the yellow clears by itself. Before its first run it says **Not run yet**; after a reload,
-  **Not run since opening**. The toolbar's **Run tables** runs every cell that is not up to date.
+  **Not run since opening**. A cell that is current says nothing: only a state that needs you to act
+  is shown. The toolbar's **Run tables** appears when a cell needs a run, and runs each one.
 - **Running it twice is safe.** The cell always starts from the table as your own cell made it, so a
   second run never transforms a table that is already transformed. Both are in memory while you work.
   Run all and Run file run it the same way. The saved file still runs from top to bottom as plain
   Python with no app: your cell makes the table, its cell transforms it once.
 - **All tables sit at the top, in a Tables group.** Each table is a group of its own: your cell that
   makes it, then its read-only cell, after the imports they need and after the tables it is made
-  from. A table folds to one line (**orders · 3 steps · up to date**) and the whole group to one
-  (**Tables · 4 tables · 1 out of date**, yellow when any is out of date). A file opens with the
+  from. A table folds to one line: its name, its steps when it has some, and its state only when it
+  needs you (**orders · 3 steps**, **orders · 3 steps · out of date**, **customers**). The whole group
+  folds to one (**Tables · 4 tables**; **Tables · 4 tables · 1 out of date**, yellow, when one is). A file opens with the
   group folded. In a notebook file the group is Markdown headings, which JupyterLab folds too; in a
   script it is `# region Tables` to `# endregion` around `# %% [7] [table] orders` and
   `# %% [8] [transformations] orders`, and Ctrl+Enter in a table's cell runs it.
@@ -433,6 +436,68 @@ here: its code lives there.
 - **The agent** reads every table's cell (`workbench_table_cells`), a document's tables and their
   state (`workbench_tables`), runs a table's cell (`workbench_table_run`) and goes to a cell by its
   number (`workbench_cell_goto`).
+
+### HTML cells: a design drawn from its HTML
+
+An HTML cell holds HTML and shows it as a design: a card, a screen mock-up, a page of a story told
+with your data. Add one with the toolbar's **HTML**, the kind picker in a cell's head, the palette, or
+H in a notebook's command mode.
+
+- **Two faces.** While you edit it, the cell shows its HTML, coloured as HTML. When you leave it
+  (click elsewhere, or Escape), it shows the design. Plain HTML draws by itself: no Run is needed. To
+  edit again, click the cell's head, its **Edit HTML** button, or press Enter on the selected cell. A
+  click inside the design goes to the design, so its own buttons work.
+- **The pane resizes.** Drag the design's bottom edge, or focus it and use the arrow keys (Shift for
+  bigger steps); a double-click or Enter fits the pane to the design again. The height is saved with
+  the cell.
+- **Scripts run inside the design, walled off.** The design is drawn in a frame of its own that is
+  not part of the app: it cannot reach the app, its token, the page's storage or your data. Nothing
+  loads from the internet: only what is inside the cell works (its own scripts and styles, and
+  pictures and fonts written into it as data addresses). A remote picture, stylesheet or script does
+  not load, and a script's `fetch()` fails. Links and forms go nowhere.
+- **Python data by name.** `{{ total }}` in the HTML is filled with the variable `total` from the
+  cell's kernel when the cell runs (Ctrl+Enter, its **Run**, Run all, Run file). Only a variable's
+  name: nothing else between the braces runs.
+  - A single value shows as its text.
+  - A table (a pandas or Polars DataFrame, an Arrow table, a DuckDB relation) shows as an HTML table
+    of its first 50 rows and 30 columns, and says so: *first 50 of 1,204 rows*.
+  - A matplotlib figure or a picture shows as an image.
+  - Inside a `<script>` a name becomes a JavaScript value: a number, a quoted text, or a table as a
+    list of rows (up to 1,000), ready for a chart: `const rows = {{ orders }};`.
+  - Inside a tag (an attribute) or a `<style>` only plain words and numbers go in (a width, a colour,
+    a class name); anything else is left out, and the cell says so under the design.
+  - A name the kernel does not hold shows as *{{ name }} not found* in the design. The design never
+    breaks on its data.
+
+  Data can never become markup or script: it is escaped where it is read.
+- **A cell with names needs a run,** and says so the way a table's cell does: **Not run yet**, **Not
+  run since opening**, or yellow **Out of date · last run 10:42** with **Run**, when its HTML changed
+  since its last run or a variable it names would now draw something else (*Out of date · total
+  changed*). Meanwhile the design keeps following your HTML, with the values of the last run. Undo an
+  edit and the yellow clears by itself. A cell that is current, and any plain HTML, says nothing.
+- **The uses line.** An HTML cell that asks for an open table starts with
+  `<!-- uses orders @cell3 -->`, kept by the app like the other cells' lines (in a script it is a
+  Python comment above the HTML: `# uses orders @cell3`).
+- **In the file.** In a notebook it is a code cell that starts with `%%html`, IPython's own cell
+  magic, so plain Jupyter draws it when run (there `{{ name }}` stays as written); its last filled
+  design is saved as the cell's output, and its height in the cell's metadata. In a script it is a
+  `# %% [7] [html] height=320` cell holding the HTML as one Python string that does nothing, so the
+  file still runs as plain Python:
+
+  ```python
+  # %% [7] [html] height=320
+  r"""
+  <h1>{{ total }} orders</h1>
+  """
+  ```
+
+  With the cursor in the cell its lines show; with the cursor elsewhere they are put away and the
+  design shows under the marker (click the marker line to edit). In a script the HTML is coloured as a
+  Python string. Run file fills the script's HTML cells once the file has run.
+- **The agent** adds an HTML cell (`workbench_html_add`), reads them and their state
+  (`workbench_html_cells`), runs one (`workbench_html_run`), sizes its pane (`workbench_html_resize`),
+  and can fill a design without the window (`workbench_run` with kind html, `workbench_html_fill`,
+  `workbench_html_marks`).
 
 ## Code to your Python
 

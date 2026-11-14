@@ -521,7 +521,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The golden rule (2026-11-14) gave the agent every user action: about 170 tools (45,000).
     # Every table's read-only cell (2026-11-14) added five: the tables' cells, arranging a document,
     # a document's tables and their state, running a table's cell, going to a cell by its number.
-    assert size < 46_000, f"the tool list is {size} characters"
+    # HTML cells (2026-11-14) added six: add one, list them, run one, size its pane, fill a design,
+    # the marks of its names.
+    assert size < 47_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

@@ -22,6 +22,12 @@
  *              each cell, and says each table's state beside its marker. Out of date is yellow;
  *              Ctrl+Enter in a table's cell runs it. Nothing runs by itself
  *   [USES]     a `# %%` cell that names a table starts with `# uses orders @cell8`, kept as they type
+ *   [HTML]     an HTML cell (docs/ideas.md, 2026-11-14; workbenchHtml.ts): `# %% [9] [html] height=320`,
+ *              then the HTML as one Python string that does nothing when the file runs. With the cursor
+ *              in the cell its lines show; with the cursor elsewhere they are put away and the design
+ *              shows under the marker, in a pane that resizes (the height is written on the marker).
+ *              `{{ name }}` is filled from the kernel when the cell runs (Ctrl+Enter in it, or Run
+ *              file); such a cell says Out of date when its HTML or a variable it names changes
  *
  * ROUTING: POST /workbench/statement {code, line}: the statement's lines
  *          POST /workbench/tables/arrange {kind: "script", text, tables, move}: the text as it should
@@ -35,9 +41,10 @@ import { type ConsoleView, loadEditors, type RunOrigin } from "./workbenchConsol
 import { pythonCompleter } from "./workbenchCompletion";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, yourFrame } from "./workbenchErrors";
 import type { Kernel } from "./workbenchKernel";
-import type { TableReport } from "./workbenchNotebook";
+import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runHtml, scriptBody } from "./workbenchHtml";
+import type { HtmlReport, TableReport } from "./workbenchNotebook";
 import type { ErrorHooks } from "./workbenchOutputs";
-import { groupLineText, type RunRecord, type TableInfo, type TableLine, tableLineText, tableState } from "./workbenchTables";
+import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, tableLineRest, tableState } from "./workbenchTables";
 
 export interface ScriptView {
   element: HTMLElement;
@@ -64,6 +71,30 @@ export interface ScriptView {
   goTo: (number: number) => boolean;
   foldTables: (folded: boolean, table?: string) => void;
   renameTable: (from: string, to: string) => void;
+  /** Add an HTML cell after the cursor's cell (at the end without one), with the cursor in it. */
+  addHtml: (source?: string, height?: number | null) => Promise<void>;
+  /** Its HTML cells and each one's state. */
+  htmlCells: () => HtmlReport[];
+  /** Run an HTML cell by its number (without one: every one that is not up to date). */
+  runHtml: (number?: number) => Promise<HtmlReport[]>;
+  /** Size an HTML cell's pane (null: the design's own height): written on its marker. */
+  resizeHtml: (number: number, height: number | null) => void;
+  /** The cursor into an HTML cell's lines, so they show. */
+  editHtml: (number: number) => void;
+}
+
+/** A script's HTML cell as the page holds it: its place in the outline, its design, its last run. */
+interface HtmlCell {
+  key: string;
+  cell: ScriptOutline["cells"][number];
+  pane: DesignPane;
+  run: HtmlRun | undefined;
+  notes: string[];
+  /** What the design was last drawn from. */
+  drawnFrom: string | null;
+  drawn: number;
+  /** The pane's height on screen, for the room the editor makes. */
+  room: number;
 }
 
 export interface ScriptFile {
@@ -122,6 +153,12 @@ export function scriptView(
   // A file that came with a Tables group: it starts folded, and its tables have not run since.
   const cameWithGroup = /^# ?region Tables\s*$/m.test(initial);
   let foldOnce = cameWithGroup;
+  // ===== HTML cells =====
+  const htmlCells = new Map<string, HtmlCell>();
+  let outlineVersion = -1; // the text version the outline describes (hidden lines are only set from a fresh one)
+  let laidOut = "";
+  let marksTimer: number | null = null;
+  const dark = (): boolean => theme().endsWith("dark");
   const stateOf = (line: TableLine) => tableState(line.code, records.get(line.name));
   const variableOf = (name: string): string => tableInfos.find((t) => t.name === name)?.variable ?? name.replace(/\W/g, "_");
   /** The line each table of the group folds at: its maker's marker, or its own cell's. */
@@ -148,9 +185,17 @@ export function scriptView(
       const state = line ? stateOf(line) : null;
       let words = "";
       if (line && state && cell.role === "transformations") {
-        const steps = state.kind !== "noSteps" && (starts.get(line.name) === cell.line || !cell.grouped) ? `${tableLineText(line, state).replace(`${line.name} · `, "").replace(` · ${state.short}`, "")} · ` : "";
-        words = `${steps}read-only: it follows the grid · ${state.label}${state.runnable ? " · Ctrl+Enter runs it" : ""}`;
-      } else if (line && state && cell.role === "maker" && cell.grouped) words = tableLineText(line, state).replace(`${line.name} · `, "");
+        const steps = (starts.get(line.name) === cell.line || !cell.grouped) && line.steps !== null && line.steps > 0 ? plural(line.steps, "step") : line.steps === null ? "not open in the grid" : "";
+        words = [steps, "read-only: it follows the grid", state.label, state.runnable ? "Ctrl+Enter runs it" : ""].filter(Boolean).join(" · ");
+      } else if (line && state && cell.role === "maker" && cell.grouped) words = tableLineRest(line, state);
+      const held = cell.kind === "html" ? [...htmlCells.values()].find((e) => e.cell === cell) : undefined;
+      if (held) {
+        const now = htmlStateOf(held);
+        const shown = !isActive(held) && held.cell.html !== null;
+        words = ["HTML", shown ? "click this line to edit" : held.cell.problem ? held.cell.problem : "the design shows when the cursor leaves", now.label, now.runnable ? "Ctrl+Enter runs it" : ""].filter(Boolean).join(" · ");
+        notes.push({ line: cell.line, text: words, tone: now.kind === "outOfDate" ? "stale" : "plain", marker: true });
+        continue;
+      }
       notes.push({ line: cell.line, text: words, tone: state?.kind === "outOfDate" && cell.table ? "stale" : "plain", marker: true });
     }
     editor.setLineNotes(notes);
@@ -167,7 +212,187 @@ export function scriptView(
       any = true;
     }
     if (any) draw();
+    // An HTML cell's names were that kernel's variables: it has not run in the new one.
+    for (const held of htmlCells.values()) {
+      if (!held.run || held.run.code === null) continue;
+      held.run = { ...held.run, code: null, at: null, changed: [] };
+      drawHtmlState(held);
+    }
   });
+  // A run ended: a variable an HTML cell names may have changed.
+  kernel.onState(() => {
+    if (kernel.state !== "idle") return;
+    if (marksTimer !== null) window.clearTimeout(marksTimer);
+    marksTimer = window.setTimeout(() => {
+      marksTimer = null;
+      void checkMarks();
+    }, 300);
+  });
+
+  // ===== HTML cells: each one's design under its marker while the cursor is elsewhere =====
+
+  const htmlStateOf = (held: HtmlCell): HtmlState => htmlState(held.cell.html ?? "", held.run);
+  /** The cursor is in the cell (and the editor has the keyboard): its lines show, not its design. */
+  const isActive = (held: HtmlCell): boolean => {
+    if (!editor?.hasFocus()) return false;
+    const line = editor.cursorLine();
+    return line >= held.cell.line && line <= Math.max(held.cell.html_end ?? held.cell.end, held.cell.line);
+  };
+
+  function drawHtmlState(held: HtmlCell): void {
+    held.pane.setState(htmlStateOf(held), held.cell.problem ? [held.cell.problem] : held.notes);
+    draw();
+  }
+
+  /** Draw a cell's design from its HTML as it is now, its names filled with what its last run gave. */
+  const drawDesign = async (held: HtmlCell): Promise<void> => {
+    const html = held.cell.html;
+    if (html === null || html === undefined) return drawHtmlState(held);
+    const mine = ++held.drawn;
+    let filled: { html: string; missing: string[]; notes: string[] };
+    try {
+      filled = await fillHtml(html, held.run?.values ?? {});
+    } catch {
+      filled = { html, missing: [], notes: ["The server is away: the design shows as written."] };
+    }
+    if (mine !== held.drawn) return;
+    held.notes = [...filled.missing.map((n) => `{{ ${n} }} was not found in the kernel.`), ...filled.notes];
+    held.drawnFrom = html;
+    held.pane.show(filled.html);
+    drawHtmlState(held);
+  };
+
+  /** The marker of an HTML cell with its pane's height on it (`height=320`), or without one. */
+  const writeHeight = (held: HtmlCell, height: number | null): void => {
+    if (!editor) return;
+    const lines = editor.value().split("\n");
+    const numbered = held.cell.number === null ? null : new RegExp(`^# ?%% \\[${held.cell.number}\\] \\[html\\]`);
+    const at = numbered ? lines.findIndex((l) => numbered.test(l)) : held.cell.line - 1;
+    const found = /^(# ?%%(?: \[\d+\])? \[html\])(?: height=\d+)?(.*)$/.exec(lines[at] ?? "");
+    if (!found) return;
+    lines[at] = `${found[1]}${height === null ? "" : ` height=${height}`}${found[2]}`;
+    editor.replaceText(lines.join("\n"));
+  };
+
+  /** Which lines are put away and which designs show, from the outline (only a fresh one: lines are
+   *  never hidden by an outline of an older text). */
+  function layoutHtml(): void {
+    if (!editor || outlineVersion !== version) return;
+    const zones: { id: string; afterLine: number; height: number; element: HTMLElement }[] = [];
+    const hidden: [number, number][] = [];
+    for (const held of htmlCells.values()) {
+      const cell = held.cell;
+      const active = isActive(held);
+      const drawn = cell.html !== null && cell.html !== undefined && cell.html.trim() !== "";
+      held.pane.element.hidden = active || (!drawn && !cell.problem);
+      if (active || (!drawn && !cell.problem)) continue;
+      zones.push({ id: held.key, afterLine: cell.line, height: held.room, element: held.pane.element });
+      // A cell that is not one string yet keeps its lines in view, to be mended.
+      if (drawn && (cell.html_end ?? 0) > cell.line) hidden.push([cell.line + 1, cell.html_end!]);
+    }
+    const now = JSON.stringify([zones.map((z) => [z.id, z.afterLine, z.height]), hidden]);
+    if (now === laidOut) return;
+    laidOut = now;
+    editor.setHidden(hidden);
+    editor.setZones(zones);
+    draw();
+  }
+
+  /** The HTML cells as the outline has them: each keeps its pane and its last run by its number. */
+  function syncHtml(): void {
+    const seen = new Set<string>();
+    let unnumbered = 0;
+    for (const cell of outline.cells) {
+      if (cell.kind !== "html") continue;
+      const key = cell.number !== null ? `n${cell.number}` : `u${unnumbered++}`;
+      seen.add(key);
+      let held = htmlCells.get(key);
+      if (!held) {
+        const made: HtmlCell = {
+          key,
+          cell,
+          run: undefined,
+          notes: [],
+          drawnFrom: null,
+          drawn: 0,
+          room: 200,
+          pane: designPane({ dark, height: cell.height ?? null, resized: (height) => writeHeight(made, height), run: () => void runHtmlCell(made) }),
+        };
+        made.pane.element.classList.add("in-script");
+        new ResizeObserver(() => {
+          const room = Math.ceil(made.pane.element.getBoundingClientRect().height);
+          if (room && room !== made.room) {
+            made.room = room;
+            layoutHtml();
+          }
+        }).observe(made.pane.element);
+        htmlCells.set(key, (held = made));
+      }
+      held.cell = cell;
+      if ((cell.height ?? null) !== held.pane.height() && !held.pane.element.classList.contains("dragging")) held.pane.setHeight(cell.height ?? null);
+      if (cell.html !== held.drawnFrom && cell.html !== null && cell.html !== undefined) void drawDesign(held);
+      else drawHtmlState(held);
+    }
+    for (const [key, held] of htmlCells) {
+      if (seen.has(key)) continue;
+      held.pane.dispose();
+      htmlCells.delete(key);
+    }
+    layoutHtml();
+  }
+
+  /** Run an HTML cell: plain HTML only draws; with names, each is read from the kernel's variables. */
+  const runHtmlCell = async (held: HtmlCell): Promise<boolean> => {
+    const html = held.cell.html;
+    if (html === null || html === undefined) {
+      console.note(held.cell.problem ?? "This HTML cell holds no HTML yet.");
+      return false;
+    }
+    if (!htmlNames(html).length) {
+      await drawDesign(held);
+      return true;
+    }
+    let said = "";
+    try {
+      const done = await runHtml(kernel, html, (item) => {
+        if (item.output_type === "error") said = `${String(item.ename ?? "Error")}: ${String(item.evalue ?? "")}`;
+      });
+      if (done.run) held.run = done.run;
+      else console.note(`The HTML cell did not run${said ? `: ${said}` : "."}`);
+      held.drawnFrom = null;
+      await drawDesign(held);
+      return done.ok;
+    } catch (e) {
+      console.note((e as Error).message);
+      return false;
+    }
+  };
+
+  const checkMarks = async (): Promise<void> => {
+    const ran = [...htmlCells.values()].filter((held) => held.run && held.run.code !== null);
+    if (!ran.length) return;
+    const changed = await changedNames(kernel, ran.map((held) => held.run!));
+    if (!changed) return;
+    for (const held of ran) {
+      const now = held.run ? changed.get(held.run) : undefined;
+      if (!held.run || !now || now.join("\n") === held.run.changed.join("\n")) continue;
+      held.run.changed = now;
+      drawHtmlState(held);
+    }
+  };
+
+  const htmlReport = (held: HtmlCell): HtmlReport => {
+    const now = htmlStateOf(held);
+    const html = held.cell.html ?? "";
+    return { number: held.cell.number, index: held.cell.line, html, names: htmlNames(html), state: now.kind, label: now.label, height: held.cell.height ?? null, notes: held.cell.problem ? [held.cell.problem] : held.notes };
+  };
+  const htmlByNumber = (number: number): HtmlCell => {
+    const held = [...htmlCells.values()].find((e) => e.cell.number === number);
+    if (!held) throw new Error(`This script has no HTML cell ${number}.`);
+    return held;
+  };
+  /** The HTML cell whose lines hold this line. */
+  const htmlAt = (line: number): HtmlCell | undefined => [...htmlCells.values()].find((e) => line >= e.cell.line && line <= Math.max(e.cell.html_end ?? e.cell.end, e.cell.line));
 
   const relevant = (): boolean => tableInfos.length > 0 || /^# ?(%%|region Tables)/m.test(editor ? editor.value() : text);
 
@@ -182,6 +407,8 @@ export function scriptView(
         editor.setOutline(null);
         draw();
       }
+      outlineVersion = version;
+      syncHtml();
       return;
     }
     const mine = ++asked;
@@ -199,9 +426,11 @@ export function scriptView(
         quietly = false;
       }
       outline = done.outline;
+      outlineVersion = version; // the text just written is the one the outline describes
       tableLines = done.tables;
       editor.setOutline(outline);
       draw();
+      syncHtml();
       if (foldOnce && outline.region) {
         foldOnce = false;
         // Once Monaco has the folds: each table, then the group (a file's group starts folded).
@@ -282,6 +511,8 @@ export function scriptView(
     const ok = await console.run({ code, kind: "file", path }, name ? `%run ${name}` : `# the script (${lines} line${lines === 1 ? "" : "s"}, not saved)`, { kind: "file", path });
     // The file ran to its end: so did its tables' cells (each the safe way, in the kernel).
     if (ok) for (const table of ran) records.set(table.name, { code: table.code, at: new Date(), opened: false });
+    // And its HTML cells' names are read from what the run left.
+    if (ok) for (const held of [...htmlCells.values()]) if (htmlNames(held.cell.html ?? "").length) await runHtmlCell(held);
     draw();
     if (ok) void arrange(true);
   };
@@ -302,6 +533,9 @@ export function scriptView(
     // In a table's read-only cell: its Run.
     const table = tableAt(line);
     if (table) return void (await runTable(table));
+    // In an HTML cell: its Run (its names filled, its design drawn).
+    const held = outlineVersion === version ? htmlAt(line) : undefined;
+    if (held) return void (await runHtmlCell(held));
     const found = await statementAt(line);
     if (found.start === null || found.end === null) {
       // A blank line or a comment: on to the next line with code.
@@ -343,11 +577,25 @@ export function scriptView(
     editor.onChange((change) => {
       text = editor!.value();
       version++;
+      for (const held of htmlCells.values()) if (held.run) drawHtmlState(held);
       if (!(applying && quietly)) changed();
       // The uses lines and the cells' places follow the typing, after a short pause (never an undo).
       if (!applying && !change.undo) typedSoon();
     });
     if (hooks.cursor) editor.onCursor(hooks.cursor);
+    // An HTML cell shows its lines while the cursor is in it, its design when it is not. Leaving a
+    // cell just typed in: the outline is asked for at once, not after the pause.
+    const moved = (): void => {
+      if (outlineVersion === version) return layoutHtml();
+      if (quiet !== null) {
+        window.clearTimeout(quiet);
+        quiet = null;
+        void arrange(false);
+      }
+    };
+    editor.onCursor(moved);
+    editor.onFocus(moved);
+    editor.onBlur(() => setTimeout(() => document.hasFocus() && moved(), 0));
     // A table's cell is read-only: it follows the grid.
     editor.onCursor((line) => editor!.setReadOnly(outline.cells.some((c) => c.role === "transformations" && line > c.line && line <= c.end)));
     if (cameWithGroup) for (const match of initial.matchAll(/^# ?%%(?: \[\d+\])? \[transformations\] ([A-Za-z_][\w-]*)/gm)) records.set(match[1]!, { code: null, at: null, opened: true });
@@ -442,6 +690,44 @@ export function scriptView(
       if (start === undefined) return;
       if (folded) editor.fold([start]);
       else editor.unfold(table ? [outline.region[0], start] : [start]);
+    },
+    addHtml: async (source = "", height = null) => {
+      if (!editor) throw new Error("The script's editor is not ready yet.");
+      const lines = editor.value().split("\n");
+      if (lines[lines.length - 1] === "") lines.pop();
+      const here = outlineVersion === version ? outline.cells.find((c) => editor!.cursorLine() >= c.line && editor!.cursorLine() <= c.end && !c.grouped) : undefined;
+      const at = here ? Math.min(here.end, lines.length) : lines.length;
+      // What follows it in the file is the user's Python: a plain marker keeps it a cell of its own.
+      const after = lines.slice(at);
+      const closing = after.some((l) => l.trim()) && !/^# ?%%/.test(after.find((l) => l.trim()) ?? "") ? ["# %%"] : [];
+      const marker = `# %% [html]${height === null ? "" : ` height=${Math.max(60, Math.min(2000, Math.round(height)))}`}`;
+      const body = scriptBody(source).replace(/\n$/, "").split("\n");
+      editor.replaceText([...lines.slice(0, at), marker, ...body, ...closing, ...after].join("\n") + "\n");
+      editor.focus();
+      editor.moveTo(at + 3); // the first line of the HTML
+      if (quiet !== null) window.clearTimeout(quiet);
+      quiet = null;
+      await arrange(true);
+    },
+    htmlCells: () => [...htmlCells.values()].sort((a, b) => a.cell.line - b.cell.line).map(htmlReport),
+    runHtml: async (number) => {
+      if (outlineVersion !== version) await arrange(false);
+      const some = number === undefined ? [...htmlCells.values()].filter((held) => htmlStateOf(held).runnable) : [htmlByNumber(number)];
+      for (const held of some) {
+        if (!(await runHtmlCell(held))) break;
+      }
+      return some.map(htmlReport);
+    },
+    resizeHtml: (number, height) => {
+      const held = htmlByNumber(number);
+      const size = height === null ? null : Math.max(60, Math.min(2000, Math.round(height)));
+      held.pane.setHeight(size);
+      writeHeight(held, size);
+    },
+    editHtml: (number) => {
+      const held = htmlByNumber(number);
+      editor?.focus();
+      editor?.moveTo(Math.min(held.cell.line + 1, held.cell.end));
     },
     renameTable: (from, to) => {
       const record = records.get(from);

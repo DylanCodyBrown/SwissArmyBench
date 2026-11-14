@@ -300,6 +300,17 @@ class Kernel:
         )
         return None if text is None else dict(json.loads(text))
 
+    async def html_marks(self, names: list[str]) -> dict[str, Any] | None:
+        """A mark of what each name would draw in an HTML cell now (client/html_cells.py). None while
+        the kernel is busy running code, or in a Python without the package."""
+        try:
+            text = await self.evaluate(
+                f"__import__('swissarmygrid.client.html_cells', fromlist=['marks']).marks({sorted(names)!r})"
+            )
+        except KernelError:
+            return None
+        return dict(json.loads(text)) if isinstance(text, str) else None
+
     async def error_detail(self) -> dict[str, Any] | None:
         """The last error, taken apart (client/kernel_errors.py): its chain, frames, the failing
         expression's values. None when the kernel cannot say (busy, or a Python without the helper)."""

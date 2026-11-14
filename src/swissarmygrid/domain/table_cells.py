@@ -30,6 +30,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
+from swissarmygrid.domain import html_cells
 from swissarmygrid.domain.codegen import output_call, python_string, variable_name
 from swissarmygrid.domain.datasets import Column, quote
 
@@ -112,8 +113,11 @@ def _sql_names(code: str) -> list[str]:
     return names
 
 
-def names_used(code: str, sql: bool = False) -> list[str]:
-    """Every real name the code holds, in the order of first use."""
+def names_used(code: str, sql: bool = False, html: bool = False) -> list[str]:
+    """Every real name the code holds, in the order of first use. In an HTML cell: the names it asks
+    to have filled (`{{ orders }}`)."""
+    if html:
+        return html_cells.names(code)
     return _sql_names(code) if sql else _python_names(code)
 
 
@@ -230,34 +234,51 @@ def facts(code: str) -> Facts:
 _USE = r"[A-Za-z_]\w*(?: @cell\d+)?"
 USES_PYTHON: re.Pattern[str] = re.compile(rf"^# uses {_USE}(?:, {_USE})*$")
 USES_SQL: re.Pattern[str] = re.compile(rf"^-- uses {_USE}(?:, {_USE})*$")
+# An HTML cell's: `<!-- uses orders @cell3 -->`.
+USES_HTML: re.Pattern[str] = re.compile(rf"^<!-- uses {_USE}(?:, {_USE})* -->$")
 
 
-def split_uses(source: str, sql: bool = False) -> tuple[str | None, str]:
+def split_uses(source: str, sql: bool = False, html: bool = False) -> tuple[str | None, str]:
     """A cell's source as (the app's own first line or None, the rest). Only a first line in exactly
     the app's format is the app's; any other comment is the user's."""
     first, newline, rest = source.partition("\n")
-    if (USES_SQL if sql else USES_PYTHON).match(first):
+    if (USES_HTML if html else USES_SQL if sql else USES_PYTHON).match(first):
         return first, rest if newline else ""
     return None, source
 
 
-def uses_line(source: str, tables: Mapping[str, int | None], sql: bool = False) -> str | None:
+def _uses_text(named: Sequence[str], tables: Mapping[str, int | None]) -> str:
+    return ", ".join(name if tables[name] is None else f"{name} @cell{tables[name]}" for name in named)
+
+
+def uses_line(
+    source: str, tables: Mapping[str, int | None], sql: bool = False, html: bool = False
+) -> str | None:
     """The line a cell with this source should start with: the tables it names, in the order it first
     names them, each with a link to that table's cell. None: it names no table."""
-    _, code = split_uses(source, sql)
-    named = [name for name in names_used(code, sql) if name in tables]
+    _, code = split_uses(source, sql, html)
+    named = [name for name in names_used(code, sql, html) if name in tables]
     if not named:
         return None
-    parts = [name if tables[name] is None else f"{name} @cell{tables[name]}" for name in named]
-    return ("-- uses " if sql else "# uses ") + ", ".join(parts)
+    if html:
+        return f"<!-- uses {_uses_text(named, tables)} -->"
+    return ("-- uses " if sql else "# uses ") + _uses_text(named, tables)
 
 
-def with_uses(source: str, tables: Mapping[str, int | None], sql: bool = False) -> str:
+def with_uses(source: str, tables: Mapping[str, int | None], sql: bool = False, html: bool = False) -> str:
     """`source` with its uses line as it should be: added, changed or taken away. Nothing else in the
     cell is touched."""
-    _, code = split_uses(source, sql)
-    line = uses_line(source, tables, sql)
+    _, code = split_uses(source, sql, html)
+    line = uses_line(source, tables, sql, html)
     return code if line is None else f"{line}\n{code}"
+
+
+def script_html_uses(source: str, tables: Mapping[str, int | None]) -> str | None:
+    """The uses line of a script's HTML cell: a Python comment above the string that holds the HTML,
+    naming the tables the HTML asks to have filled."""
+    held, _ = html_cells.read_script_body(split_uses(source)[1])
+    named = [name for name in html_cells.names(held or "") if name in tables]
+    return f"# uses {_uses_text(named, tables)}" if named else None
 
 
 # ===== the Tables group =====
@@ -268,7 +289,7 @@ class PlanCell:
     """A cell as the arrangement sees it. `number` never changes once given."""
 
     number: int | None
-    kind: str  # code, sql or markdown
+    kind: str  # code, sql, html or markdown
     source: str
     role: str = ""  # one of ROLES
     table: str | None = None
@@ -276,6 +297,8 @@ class PlanCell:
     fixed: bool = False  # a script's main code (before its first cell): it never moves
     title: str = ""  # a script marker's own words (`# %% Load the data`)
     uses: str | None = None  # the uses line it should start with (None: none)
+    html: bool = False  # a script's HTML cell: its lines hold the HTML as one Python string
+    height: int | None = None  # that cell's pane, in pixels
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -579,8 +602,10 @@ def arrange(
     final: list[PlanCell] = []
     for cell in out:
         own = cell.role == "" and id(cell) not in maker_ids and not cell.fixed
-        if own and cell.kind in ("code", "sql") and links:
-            cell = replace(cell, uses=uses_line(cell.source, links, cell.kind == "sql"))
+        if own and cell.html and links:
+            cell = replace(cell, uses=script_html_uses(cell.source, links))
+        elif own and cell.kind in ("code", "sql", "html") and links:
+            cell = replace(cell, uses=uses_line(cell.source, links, cell.kind == "sql", cell.kind == "html"))
         else:
             cell = replace(cell, uses=None)
         final.append(cell)
@@ -624,6 +649,7 @@ REGION_START: str = "# region Tables"
 REGION_END: str = "# endregion"
 _MARKER = re.compile(
     r"^# ?%%(?: \[(?P<number>\d+)\])?(?: \[(?P<role>table|transformations)\] (?P<table>[A-Za-z_][\w-]*))?"
+    r"(?: \[(?P<html>html)\](?: height=(?P<height>\d{1,5}))?)?"
     r"(?P<title>(?: .*)?)$"
 )
 _REGION_START = re.compile(r"^# ?region Tables\s*$")
@@ -677,7 +703,9 @@ def parse_script(text: str) -> Script:
                 current.source = _joined(body)
             role, table = _marker_role(found, True)
             number = int(found.group("number")) if found.group("number") else None
-            current = PlanCell(number, "code", "", role, table, True, title=found.group("title").strip())
+            # An HTML marker inside the group is kept as the user's own words.
+            words = ("[html] " if found.group("html") else "") + found.group("title").strip()
+            current = PlanCell(number, "code", "", role, table, True, title=words.strip())
             grouped.append(current)
             body = []
         if current is not None:
@@ -703,7 +731,15 @@ def parse_script(text: str) -> Script:
         # Outside the group only a table's own cell keeps a role; a maker there is found again.
         role = role if role == "transformations" else ""
         current = PlanCell(
-            number, "code", "", role, table if role else None, False, title=found.group("title").strip()
+            number,
+            "code",
+            "",
+            role,
+            table if role else None,
+            False,
+            title=found.group("title").strip(),
+            html=bool(found.group("html")) and not role,
+            height=html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
         )
         rest.append(current)
         body = []
@@ -730,6 +766,8 @@ def _marker_line(cell: PlanCell) -> str:
         parts.append(f"[transformations] {cell.table}")
     elif cell.role == "maker" and cell.table and cell.grouped:
         parts.append(f"[table] {cell.table}")
+    if cell.html:
+        parts.append("[html]" + (f" height={cell.height}" if cell.height is not None else ""))
     if cell.title:
         parts.append(cell.title)
     return " ".join(parts)
@@ -780,7 +818,8 @@ def arrange_script(text: str, specs: Sequence[TableSpec], move: bool = True) -> 
 
 def outline(text: str) -> dict[str, Any]:
     """Where a script's cells are, for the editor: each cell's marker line and last line (1-based), its
-    number, role and table, its first line of code; and the Tables group's first and last line."""
+    number, role and table, its first line of code; and the Tables group's first and last line. An
+    HTML cell also says the HTML its lines hold (or what is wrong with them) and its pane's height."""
     lines = text.split("\n")
     first = sum(1 for _ in _leading(lines))
     end = next((i for i, line in enumerate(lines) if i > first and _REGION_END.match(line)), None)
@@ -795,6 +834,14 @@ def outline(text: str) -> dict[str, Any]:
             current["end"] = last
             code = [b for b in lines[current["line"] : last] if b.strip() and not USES_PYTHON.match(b)]
             current["first"] = (code[0] if code else "").strip()[:160]
+            if current["kind"] == "html":
+                held, problem, taken = html_cells.script_string(_joined(lines[current["line"] : last]))
+                current["html"] = held
+                current["problem"] = problem
+                # The last line of the string that holds the HTML (the marker's own line: none).
+                current["html_end"] = current["line"] + taken
+                if held is not None:
+                    current["first"] = next((b.strip() for b in held.split("\n") if b.strip()), "")[:160]
             cells.append(current)
 
     for at, line in enumerate(lines, start=1):
@@ -817,6 +864,8 @@ def outline(text: str) -> dict[str, Any]:
             "role": role if inside or role == "transformations" else "",
             "table": table,
             "grouped": inside,
+            "kind": "html" if found.group("html") and not inside and not role else "code",
+            "height": html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
         }
     close(len(lines))
     return {"region": region, "cells": cells}

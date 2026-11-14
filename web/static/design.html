@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- The frame an HTML cell's design is drawn in (web/src/workbenchHtml.ts). It is loaded in a
+         sandbox that allows scripts but not the app's origin, so nothing here can reach the app, its
+         token, its storage or the user's data. This policy lets in only what is inside the cell: inline
+         scripts and styles, and data addresses for pictures and fonts. Nothing loads over the network.
+         The same words as domain/html_cells.py FRAME_POLICY (a test compares them). -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; form-action 'none'; base-uri 'none'" />
+    <title>Design</title>
+  </head>
+  <body>
+    <script>
+      // The Workbench hands the design over once; it replaces this page's content and keeps its policy.
+      addEventListener("message", function take(event) {
+        if (event.source !== parent || typeof event.data !== "string") return;
+        removeEventListener("message", take);
+        document.open();
+        document.write(event.data);
+        document.close();
+      });
+      parent.postMessage("sag-design-ready", "*");
+    </script>
+  </body>
+</html>

@@ -36,6 +36,11 @@ What a grid page does:
   Tables group that folds to one line. Every cell has a number that never changes, `@cell7` in a
   comment links to it, and a cell that names a table starts with `# uses orders @cell3`. A SQL step
   (Edit steps, Add a SQL step) is one guarded SELECT over the table entering it.
+- **HTML cells:** a notebook or script cell that holds HTML and shows it as a design in a pane that
+  resizes: the HTML while you edit it, the design when you leave it. Its scripts run walled off from
+  the app and nothing loads from the internet. `{{ total }}` is filled with a Python variable when
+  the cell runs (a value as text, a table as its first 50 rows); such a cell turns yellow (Out of
+  date · Run) when its HTML or a variable it names changes. In a notebook file it is a `%%html` cell.
 - **New table from a query:** the **+** after the last tab opens a SQL tray over a blank grid.
   A table name reads that table as its tab shows it (after its steps); Run turns the result into a
   table of its own, with every tool a pushed table has. The tray stays on the tab, so Run again

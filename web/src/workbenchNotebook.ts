@@ -1,14 +1,14 @@
 /**
- * workbenchNotebook.ts: a notebook in the Workbench: cells of Python, SQL on a connection, or Markdown,
- * run in the document's IPython kernel. [WIRE]
+ * workbenchNotebook.ts: a notebook in the Workbench: cells of Python, SQL on a connection, HTML or
+ * Markdown, run in the document's IPython kernel. [WIRE]
  *
- *   [CELL]     its kind (Python, SQL, Markdown); a SQL cell's connection; Run; More: run above, run
+ *   [CELL]     its kind (Python, SQL, HTML, Markdown); a SQL cell's connection; Run; More: run above, run
  *              below, insert above or below, duplicate, clear or hide its output; move up and down; delete
  *   [EDIT]     Shift+Enter runs and goes to the next cell (a new one after the last); Ctrl+Enter runs in
  *              place; Escape leaves the editor for command mode; a Markdown cell shows as text until
  *              double-clicked (or Enter)
  *   [COMMAND]  Jupyter's keys on the selected cell: Enter edits; A and B insert above and below; D D
- *              deletes; Y, M and S make it Python, Markdown or SQL; J and K (or Down and Up) move the
+ *              deletes; Y, M, S and H make it Python, Markdown, SQL or HTML; J and K (or Down and Up) move the
  *              selection; Z undoes a delete or move; Shift+Enter and Ctrl+Enter run
  *   [OUTPUTS]  as the run streams them (workbenchOutputs.ts), kept with the cell and saved with it; a
  *              box when the code asks for a line (input()); a word when the kernel stopped or restarted
@@ -27,6 +27,12 @@
  *              the group. A changed cell turns yellow (Out of date · Run); nothing runs by itself
  *   [USES]     one of the user's cells that names a table starts with `# uses orders @cell3`, kept by
  *              the app as they type
+ *   [HTML]     an HTML cell (docs/ideas.md, 2026-11-14; workbenchHtml.ts) has two faces: its HTML in the
+ *              editor while it is being edited, the design when it is not. It draws by itself when the
+ *              editor is left; `{{ name }}` is filled from the kernel when the cell runs, and such a
+ *              cell turns yellow (Out of date · Run) when its HTML or a variable it names changes. A
+ *              click inside the design goes to the design (its buttons work): the cell's head, its Edit
+ *              button or Enter open the HTML
  *
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
@@ -39,8 +45,9 @@ import { loadEditors } from "./workbenchConsole";
 import { pythonCompleter, sqlCompleter } from "./workbenchCompletion";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
+import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
-import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, withUses } from "./workbenchTables";
+import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
 
 /** A SQL cell's first line as the kernel runs it (domain/notebooks.py sql_line). */
 export function sqlLine(connection: string | null): string {
@@ -48,7 +55,7 @@ export function sqlLine(connection: string | null): string {
   return /\s/.test(connection) ? `%%sql '${connection.replace(/'/g, "'\"'\"'")}'` : `%%sql ${connection}`;
 }
 
-export type CellKind = "code" | "sql" | "markdown";
+export type CellKind = "code" | "sql" | "html" | "markdown";
 export interface CellData {
   kind: CellKind;
   source: string;
@@ -64,6 +71,25 @@ export interface CellData {
   grouped?: boolean;
   /** A transformations cell's steps as the grid holds them. */
   steps?: unknown[] | null;
+  /** An HTML cell's pane, in pixels (null: the design's own height). */
+  height?: number | null;
+}
+
+/** An HTML cell, with its state: for the agent. */
+export interface HtmlReport {
+  /** The cell's own number. */
+  number: number | null;
+  /** A notebook cell's place, from 0 (a script: its marker's line). */
+  index: number;
+  html: string;
+  /** The names it asks to have filled. */
+  names: string[];
+  state: HtmlState["kind"];
+  label: string;
+  /** The pane's saved height (null: the design's own). */
+  height: number | null;
+  /** What the design shows instead of a name's value, and why. */
+  notes: string[];
 }
 
 /** A table of the notebook, with its cell's state: for the folded lines and the agent. */
@@ -72,7 +98,7 @@ export interface TableReport extends TableLine {
   label: string;
 }
 
-interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | "grouped" | "steps"> {
+interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | "grouped" | "steps" | "height"> {
   number: number;
   role: string;
   table: string | null;
@@ -94,13 +120,23 @@ interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | 
   connectionPicker: HTMLSelectElement;
   /** Give it the keyboard once its editor exists, unless the focus went elsewhere meanwhile. */
   wantsFocus: boolean;
+  /** An HTML cell's design (null: a heading). */
+  design: DesignPane | null;
+  /** What an HTML cell's last run gave. */
+  htmlRun: HtmlRun | undefined;
+  /** What the design left out, and the names the kernel does not hold. */
+  htmlNotes: string[];
+  /** Counts the design's drawings: an older one that answers late is dropped. */
+  drawn: number;
 }
 
 /** What Undo puts back. */
 type Undo = { kind: "delete"; data: CellData; at: number; filler: Cell | null } | { kind: "move"; cell: Cell; from: number };
 
-const LANGUAGE: Record<CellKind, "python" | "sql" | "markdown"> = { code: "python", sql: "sql", markdown: "markdown" };
-const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", markdown: "Markdown" };
+const LANGUAGE: Record<CellKind, "python" | "sql" | "markdown" | "html"> = { code: "python", sql: "sql", markdown: "markdown", html: "html" };
+const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", html: "HTML", markdown: "Markdown" };
+const KINDS: CellKind[] = ["code", "sql", "html", "markdown"];
+const usesForm = (kind: CellKind): UsesForm => (kind === "sql" ? "sql" : kind === "html" ? "html" : "python");
 const empty = (kind: CellKind = "code", connection: string | null = null): CellData => ({ kind, source: "", connection, outputs: [], execution_count: null });
 
 export interface NotebookView {
@@ -149,6 +185,15 @@ export interface NotebookView {
   foldTables: (folded: boolean, table?: string) => void;
   /** A table was renamed in the grid. */
   renameTable: (from: string, to: string) => void;
+  /** Its HTML cells and each one's state. */
+  htmlCells: () => HtmlReport[];
+  /** Run an HTML cell by its number: fill its names from the kernel and draw it (without a number:
+   *  every one that is not up to date). The cells as they are after. */
+  runHtml: (number?: number) => Promise<HtmlReport[]>;
+  /** Size an HTML cell's pane (null: the design's own height). */
+  resizeHtml: (number: number, height: number | null) => void;
+  /** Open the selected cell's code (an HTML or Markdown cell that shows as drawn). */
+  editSelected: () => void;
 }
 
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
@@ -234,6 +279,104 @@ export function notebookView(
     setTimeout(() => cell.editor?.focus(), 0);
   };
 
+  // ===== HTML cells: the design, its state, its run =====
+
+  /** An HTML cell's HTML without the app's own first line (so that line never makes it out of date). */
+  const htmlOf = (cell: Cell): string => withUses(sourceOf(cell), null, "html");
+  const htmlStateOf = (cell: Cell): HtmlState => htmlState(htmlOf(cell), cell.htmlRun);
+
+  const drawHtmlState = (cell: Cell): void => {
+    if (!cell.design) return;
+    const state = htmlStateOf(cell);
+    cell.design.setState(state, cell.htmlNotes);
+    cell.element.classList.toggle("stale", cell.kind === "html" && state.kind === "outOfDate");
+  };
+
+  /** Draw the design from the cell's HTML as it is now, its names filled with what its last run gave. */
+  const drawDesign = async (cell: Cell): Promise<void> => {
+    if (!cell.design) return;
+    const html = sourceOf(cell);
+    const mine = ++cell.drawn;
+    let filled: { html: string; missing: string[]; notes: string[] };
+    try {
+      filled = await fillHtml(html, cell.htmlRun?.values ?? {});
+    } catch {
+      filled = { html, missing: [], notes: ["The server is away: the design shows as written."] }; // names unfilled
+    }
+    if (mine !== cell.drawn || cell.kind !== "html") return;
+    cell.htmlNotes = [...filled.missing.map((n) => `{{ ${n} }} was not found in the kernel.`), ...filled.notes];
+    cell.design.show(filled.html);
+    drawHtmlState(cell);
+  };
+
+  const showDesign = (cell: Cell): void => {
+    cell.element.classList.add("rendered");
+    void drawDesign(cell);
+  };
+
+  const editHtml = (cell: Cell): void => {
+    cell.element.classList.remove("rendered");
+    // At once, so what is typed next goes into the HTML; again once the editor has its size.
+    cell.editor?.layout();
+    if (cell.editor) cell.editor.focus();
+    else focusEditor(cell);
+    setTimeout(() => cell.editor?.layout(), 0);
+  };
+
+  /** Run an HTML cell: plain HTML only draws; with names, each is read from the kernel's variables. */
+  const runHtmlCell = async (cell: Cell): Promise<boolean> => {
+    const html = cell.source;
+    cell.area.set([]);
+    if (!html.trim()) return true;
+    if (!htmlNames(html).length) {
+      showDesign(cell);
+      return true;
+    }
+    cell.count.textContent = "[*]";
+    cell.element.classList.add("running");
+    try {
+      const done = await runHtml(kernel, html, (item) => {
+        if (!item.input_request) cell.area.add(item);
+      });
+      cell.area.finish();
+      cell.execution_count = done.execution_count;
+      cell.count.textContent = !done.ok ? "[!]" : done.execution_count ? `[${done.execution_count}]` : "[ ]";
+      cell.element.classList.toggle("failed", !done.ok);
+      if (done.run) cell.htmlRun = { ...done.run, code: withUses(html, null, "html") };
+      edited();
+      showDesign(cell);
+      return done.ok;
+    } catch (e) {
+      cell.area.finish();
+      cell.area.notice((e as Error).message, "error");
+      cell.count.textContent = "[!]";
+      return false;
+    } finally {
+      cell.element.classList.remove("running");
+    }
+  };
+
+  const htmlReport = (cell: Cell): HtmlReport => {
+    const state = htmlStateOf(cell);
+    return { number: cell.number, index: indexOf(cell), html: sourceOf(cell), names: htmlNames(sourceOf(cell)), state: state.kind, label: state.label, height: cell.design?.height() ?? null, notes: cell.htmlNotes };
+  };
+
+  /** After a run: which HTML cells name a variable that would now draw something else. */
+  let marksTimer: number | null = null;
+  const checkMarks = async (): Promise<void> => {
+    const ran = cells.filter((c) => c.kind === "html" && c.htmlRun && c.htmlRun.code !== null);
+    if (!ran.length) return;
+    const changed = await changedNames(kernel, ran.map((c) => c.htmlRun!));
+    if (!changed) return;
+    for (const cell of ran) {
+      const run = cell.htmlRun;
+      const now = run ? changed.get(run) : undefined;
+      if (!run || !now || now.join("\n") === run.changed.join("\n")) continue;
+      run.changed = now;
+      drawHtmlState(cell);
+    }
+  };
+
   const run = async (cell: Cell): Promise<boolean> => {
     if (cell.editor) cell.source = cell.editor.value();
     for (const c of cells) c.editor?.setProblems([]); // the last failure's marks describe code that ran before
@@ -243,6 +386,7 @@ export function notebookView(
       return true;
     }
     if (cell.role === "transformations") return runTransformations(cell);
+    if (cell.kind === "html") return runHtmlCell(cell);
     if (!cell.source.trim()) return true;
     cell.area.set([]);
     cell.element.classList.remove("output-hidden");
@@ -295,10 +439,26 @@ export function notebookView(
   const setKind = (cell: Cell, kind: CellKind): void => {
     if (cell.kind === kind) return;
     if (cell.kind === "markdown" && cell.element.classList.contains("rendered")) editMarkdown(cell);
+    // The uses line changes its form with the kind (`# uses` in Python, `<!-- uses -->` in HTML): the
+    // old one goes, and the next arrangement writes the new one.
+    const bare = withUses(sourceOf(cell), null, usesForm(cell.kind));
+    if (bare !== sourceOf(cell)) {
+      if (cell.editor) cell.editor.replaceText(bare);
+      cell.source = bare;
+    }
+    const wasHtml = cell.kind === "html";
     cell.kind = kind;
     cell.kindPicker.value = kind;
-    cell.element.classList.remove("kind-code", "kind-sql", "kind-markdown");
+    cell.element.classList.remove("kind-code", "kind-sql", "kind-markdown", "kind-html", "stale");
     cell.element.classList.add(`kind-${kind}`);
+    if (wasHtml || kind === "html") {
+      // Its outputs were the other kind's: an HTML cell keeps a design, not a run's output.
+      cell.element.classList.remove("rendered");
+      cell.area.set([]);
+      cell.htmlRun = undefined;
+      cell.htmlNotes = [];
+      setTimeout(() => cell.editor?.layout(), 0);
+    }
     cell.connectionPicker.hidden = kind !== "sql";
     if (kind === "sql" && !cell.connection) cell.connection = connections()[0] ?? null;
     // The box shows the connection the cell runs on (it is drawn again on focus; once showed the
@@ -307,6 +467,7 @@ export function notebookView(
     cell.editor?.setLanguage(LANGUAGE[kind]);
     relabel();
     edited();
+    typedSoon();
   };
 
   const cellMenu = (cell: Cell, anchor: HTMLElement): void => {
@@ -443,7 +604,7 @@ export function notebookView(
     });
     const view = h("div", { class: "wb-markdown-view" });
     const count = h("span", { class: "wb-count" }, data.execution_count ? `[${data.execution_count}]` : "[ ]");
-    const kindPicker = h("select", { "aria-label": "Cell kind" }, ...(["code", "sql", "markdown"] as CellKind[]).map((k) => h("option", { value: k, selected: k === data.kind }, KIND_NAMES[k]))) as HTMLSelectElement;
+    const kindPicker = h("select", { "aria-label": "Cell kind" }, ...KINDS.map((k) => h("option", { value: k, selected: k === data.kind }, KIND_NAMES[k]))) as HTMLSelectElement;
     const connectionPicker = h("select", { "aria-label": "Connection", class: "wb-connection", title: "Connection" }) as HTMLSelectElement;
     const fillConnections = (): void => {
       const names = connections();
@@ -462,6 +623,16 @@ export function notebookView(
     const status = role === "transformations" ? h("span", { class: "wb-table-state", role: "status" }) : null;
     const bar = isHeading(role) ? h("div", { class: "wb-group-bar" }) : null;
     const runButton = button("Run cell", () => void run(cell), { icon: "play", iconOnly: true, class: "ghost", title: "Run cell (Ctrl+Enter)" });
+    // An HTML cell that shows its design: back to its HTML.
+    const editButton = button("Edit HTML", () => edit(cell), { icon: "edit", iconOnly: true, class: "ghost wb-edit-html", title: "Edit the HTML (Enter)" });
+    const design = isHeading(role)
+      ? null
+      : designPane({
+          dark,
+          height: data.kind === "html" ? (data.height ?? null) : null,
+          resized: () => edited(),
+          run: () => void run(cell),
+        });
     const head =
       role === "transformations"
         ? h("div", { class: "wb-cell-head" }, numberLabel, count, part, h("span", { class: "spacer" }), status, runButton, button("Delete cell", () => removeCell(cell), { icon: "trash", iconOnly: true, class: "ghost wb-delete-table" }))
@@ -474,6 +645,7 @@ export function notebookView(
             connectionPicker,
             part,
             h("span", { class: "spacer" }),
+            editButton,
             runButton,
             button("Move up", () => moveCell(cell, -1), { icon: "up", iconOnly: true, class: "ghost" }),
             button("Move down", () => moveCell(cell, 1), { icon: "down", iconOnly: true, class: "ghost" }),
@@ -484,7 +656,7 @@ export function notebookView(
     // cell of the user's.
     const element = bar
       ? h("section", { class: `wb-tcell wb-heading role-${role}`, tabindex: -1, role: "listitem" }, bar)
-      : h("section", { class: `${role === "transformations" ? "wb-tcell role-transformations" : "wb-cell"} kind-${data.kind}`, tabindex: -1, role: "listitem" }, head, editorHost, view, area.element, hiddenNote);
+      : h("section", { class: `${role === "transformations" ? "wb-tcell role-transformations" : "wb-cell"} kind-${data.kind}`, tabindex: -1, role: "listitem" }, head, editorHost, view, design?.element ?? null, area.element, hiddenNote);
     const cell: Cell = {
       kind: data.kind,
       source: data.source,
@@ -506,6 +678,10 @@ export function notebookView(
       bar,
       status,
       part,
+      design,
+      htmlRun: data.kind === "html" ? runFromOutputs(data.outputs) : undefined,
+      htmlNotes: [],
+      drawn: 0,
     };
     self = cell;
     // A table's cell that came with the file (or a reload) has not run since.
@@ -533,6 +709,23 @@ export function notebookView(
     element.addEventListener("dblclick", () => {
       if (cell.kind === "markdown" && element.classList.contains("rendered")) editMarkdown(cell);
     });
+    // An HTML cell that shows its design: a click on the cell itself (its head, not a button, and not
+    // the design, whose clicks are the design's own) opens its HTML.
+    element.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (cell.kind !== "html" || !element.classList.contains("rendered")) return;
+      if (target.closest(".wb-design, button, select, a, input")) return;
+      editHtml(cell);
+    });
+    // Left: it draws by itself. (Another window in front is not leaving: the HTML stays open.)
+    editorHost.addEventListener("focusout", () => {
+      setTimeout(() => {
+        if (cell.kind !== "html" || element.classList.contains("rendered") || !cells.includes(cell)) return;
+        const now = document.activeElement as HTMLElement | null;
+        if (!document.hasFocus() || (now && (editorHost.contains(now) || now.closest(".context-view, .monaco-menu, .overflowingContentWidgets")))) return;
+        if (sourceOf(cell).trim()) showDesign(cell);
+      }, 0);
+    });
     if (role === "transformations") kindPicker.hidden = true;
     void loadEditors().then((m) => {
       if (!cells.includes(cell)) return; // deleted before its editor loaded
@@ -543,7 +736,7 @@ export function notebookView(
         grow: true,
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
-        placeholder: cell.kind === "sql" ? "SQL" : undefined,
+        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "html" ? "HTML" : undefined,
         // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog.
         complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "code" ? python(text, offset) : Promise.resolve([])),
         help: (text, offset) => (cell.kind === "code" ? kernel.help(text, offset) : Promise.resolve("")),
@@ -560,12 +753,15 @@ export function notebookView(
         // The uses line follows the typing, after a short pause (never an undo: that would undo the undo).
         if (!change.undo && !isApp(cell.role)) typedSoon();
         if (cell.role === "transformations") redraw();
+        if (cell.kind === "html") drawHtmlState(cell);
       });
       if (hooks.cursor) cell.editor.onCursor(hooks.cursor);
       if (cell.wantsFocus) focusEditor(cell);
     });
     if (cell.kind === "markdown" && cell.source.trim()) showMarkdown(cell);
-    else area.set(data.outputs);
+    else if (cell.kind === "html") {
+      if (cell.source.trim()) showDesign(cell);
+    } else area.set(data.outputs);
     cells.splice(at, 0, cell);
     list.insertBefore(element, list.children[at] ?? null);
     relabel();
@@ -599,11 +795,12 @@ export function notebookView(
   const edit = (cell: Cell): void => {
     select(cell);
     if (cell.kind === "markdown" && cell.element.classList.contains("rendered")) editMarkdown(cell);
+    else if (cell.kind === "html" && cell.element.classList.contains("rendered")) editHtml(cell);
     else focusEditor(cell);
   };
 
   const next = (cell: Cell): void => {
-    const following = cells[indexOf(cell) + 1] ?? make(empty(cell.kind === "markdown" ? "code" : cell.kind, cell.connection), cells.length);
+    const following = cells[indexOf(cell) + 1] ?? make(empty(cell.kind === "markdown" || cell.kind === "html" ? "code" : cell.kind, cell.connection), cells.length);
     select(following);
     following.element.scrollIntoView({ block: "nearest" });
     focusEditor(following);
@@ -640,13 +837,15 @@ export function notebookView(
     kind: c.kind,
     source: sourceOf(c),
     connection: c.kind === "sql" ? c.connection : null,
-    outputs: c.kind === "markdown" ? [] : c.area.outputs(),
+    // An HTML cell keeps its last run's output: the filled design (what plain Jupyter shows) and the values.
+    outputs: c.kind === "markdown" ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
     execution_count: c.execution_count,
     number: c.number,
     role: c.role,
     table: c.table,
     grouped: c.grouped,
     steps: c.role === "transformations" ? c.steps : null,
+    height: c.kind === "html" ? (c.design?.height() ?? null) : null,
   });
 
   const removeCell = (cell: Cell): void => {
@@ -661,6 +860,7 @@ export function notebookView(
     const data = dataOf(cell);
     cells.splice(at, 1);
     cell.editor?.dispose();
+    cell.design?.dispose();
     cell.element.remove();
     // The last cell gone: an empty one in its place (Undo takes it away again if still empty).
     const filler = cells.length ? null : make(empty(), 0);
@@ -743,6 +943,7 @@ export function notebookView(
     } else if (plain && key === "y" && !isApp(cell.role)) setKind(cell, "code");
     else if (plain && key === "m" && !isApp(cell.role)) setKind(cell, "markdown");
     else if (plain && key === "s" && !isApp(cell.role)) setKind(cell, "sql");
+    else if (plain && !e.shiftKey && key === "h" && !isApp(cell.role)) setKind(cell, "html");
     else if (plain && key === "z") undo();
     else if (plain && (key === "j" || e.key === "ArrowDown")) {
       const below = cells.slice(at + 1).find((c) => !c.element.hidden); // a folded group's cells are passed over
@@ -833,6 +1034,7 @@ export function notebookView(
       } else if (cell.role === "transformations" && cell.status) {
         const state = states.get(cell.table)!;
         cell.status.textContent = state.label;
+        cell.status.hidden = !state.label; // a cell that is current says nothing
         cell.status.className = `wb-table-state ${state.kind}`;
         cell.element.classList.toggle("stale", state.kind === "outOfDate");
         cell.element.classList.toggle("closed", !infoOf(cell.table));
@@ -846,7 +1048,7 @@ export function notebookView(
    *  on screen when the line above it comes or goes. */
   const applyUses = (cell: Cell, line: string | null): void => {
     const current = sourceOf(cell);
-    const next = withUses(current, line, cell.kind === "sql");
+    const next = withUses(current, line, usesForm(cell.kind));
     if (next === current) return;
     if (!cell.editor) {
       cell.source = next;
@@ -931,7 +1133,7 @@ export function notebookView(
   /** Ask the server for the notebook as it should be. `move` false while the user types: nothing is
    *  added or moved, only the tables' cells and the uses lines follow. */
   const arrange = async (move: boolean): Promise<void> => {
-    const relevant = tableInfos.length > 0 || cells.some((c) => c.role !== "") || cells.some((c) => c.kind !== "markdown" && withUses(sourceOf(c), null, c.kind === "sql") !== sourceOf(c));
+    const relevant = tableInfos.length > 0 || cells.some((c) => c.role !== "") || cells.some((c) => c.kind !== "markdown" && withUses(sourceOf(c), null, usesForm(c.kind)) !== sourceOf(c));
     if (!relevant) return;
     const mine = ++asked;
     const at = version;
@@ -970,6 +1172,29 @@ export function notebookView(
       any = true;
     }
     if (any) redraw();
+    // An HTML cell's names were that kernel's variables: it has not run in the new one.
+    for (const cell of cells) {
+      if (cell.kind !== "html" || !cell.htmlRun || cell.htmlRun.code === null) continue;
+      cell.htmlRun = { ...cell.htmlRun, code: null, at: null, changed: [] };
+      drawHtmlState(cell);
+    }
+  });
+  // A run ended: a variable an HTML cell names may have changed.
+  kernel.onState(() => {
+    if (kernel.state !== "idle") return;
+    if (marksTimer !== null) window.clearTimeout(marksTimer);
+    marksTimer = window.setTimeout(() => {
+      marksTimer = null;
+      void checkMarks();
+    }, 300);
+  });
+  // A click inside a design goes to the design; its cell is the selected one from then on.
+  window.addEventListener("blur", () => {
+    setTimeout(() => {
+      const frame = document.activeElement;
+      const cell = frame instanceof HTMLIFrameElement ? cells.find((c) => c.element.contains(frame)) : undefined;
+      if (cell) select(cell);
+    }, 0);
   });
 
   for (const data of initial.length ? initial : [empty()]) make(data, cells.length);
@@ -1093,6 +1318,24 @@ export function notebookView(
       const record = records.get(from);
       if (record) records.set(to, record);
       records.delete(from);
+    },
+    htmlCells: () => cells.filter((c) => c.kind === "html").map(htmlReport),
+    runHtml: async (number) => {
+      const some = number === undefined ? cells.filter((c) => c.kind === "html" && htmlStateOf(c).runnable) : cells.filter((c) => c.kind === "html" && c.number === number);
+      if (number !== undefined && !some.length) throw new Error(`This notebook has no HTML cell ${number}.`);
+      for (const cell of some) {
+        if (!(await run(cell))) break;
+      }
+      return some.map(htmlReport);
+    },
+    resizeHtml: (number, height) => {
+      const cell = cells.find((c) => c.kind === "html" && c.number === number);
+      if (!cell?.design) throw new Error(`This notebook has no HTML cell ${number}.`);
+      cell.design.setHeight(height);
+      edited();
+    },
+    editSelected: () => {
+      if (selected) edit(selected);
     },
   };
 }

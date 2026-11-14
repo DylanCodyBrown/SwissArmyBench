@@ -1,7 +1,7 @@
 /**
  * lazy/codeEditor.ts: the Monaco editor for the Workbench (a notebook's cells, a script). [WIRE]
  *
- * Python, SQL or Markdown; the theme follows the page. A cell editor grows with its text (no
+ * Python, SQL, HTML or Markdown; the theme follows the page. A cell editor grows with its text (no
  * scrollbar of its own); a script's fills its pane. Drop text on it (a connection's line, a table's
  * name from the left panel) and it lands where it was dropped: Monaco's own drop.
  */
@@ -10,6 +10,25 @@ import * as monaco from "monaco-editor";
 (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
   getWorker: () => new Worker("/static/build/editor.worker.js", { type: "module" }),
 };
+
+// HTML is coloured by Monaco's own grammar (the tags, and the CSS and JavaScript inside them). Its
+// language service would need a worker of its own, which this page does not ship: it is switched off.
+monaco.html.htmlDefaults.setModeConfiguration({
+  completionItems: false,
+  hovers: false,
+  documentSymbols: false,
+  links: false,
+  documentHighlights: false,
+  rename: false,
+  colors: false,
+  foldingRanges: false,
+  diagnostics: false,
+  selectionRanges: false,
+  documentFormattingEdits: false,
+  documentRangeFormattingEdits: false,
+});
+
+export type EditorLanguage = "python" | "sql" | "markdown" | "html";
 
 const THEMES: Record<string, string> = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
 
@@ -50,7 +69,24 @@ export interface CellLinks {
 /** A script's cells, for folding and drawing (domain/table_cells.py outline). Lines are 1-based. */
 export interface ScriptOutline {
   region: [number, number] | null;
-  cells: { number: number | null; line: number; end: number; role: string; table: string | null; grouped: boolean; first: string }[];
+  cells: {
+    number: number | null;
+    line: number;
+    end: number;
+    role: string;
+    table: string | null;
+    grouped: boolean;
+    first: string;
+    /** html: an HTML cell (its lines hold the HTML as one Python string). */
+    kind?: "code" | "html";
+    /** An HTML cell's HTML (null: its lines are not one string yet; `problem` says why). */
+    html?: string | null;
+    problem?: string | null;
+    /** The last line of the string that holds the HTML. */
+    html_end?: number;
+    /** Its pane's saved height (null: the design's own). */
+    height?: number | null;
+  }[];
 }
 
 /** What a script's editor draws beside its Tables group: the words after a line, and its colour. */
@@ -72,7 +108,7 @@ const CELL_LINK = /@cell(\d+)\b/g;
 /** Where a line's comment starts (0-based column; -1: it has none). Python's `#`, SQL's `--`; a
  *  Markdown cell is all words. A `#` inside a quoted text on the line is not a comment. */
 function commentStart(line: string, language: string): number {
-  if (language === "markdown") return 0;
+  if (language === "markdown" || language === "html") return 0;
   const mark = language === "sql" ? "--" : "#";
   let quote = "";
   for (let i = 0; i < line.length; i++) {
@@ -334,6 +370,7 @@ export interface CodeEditor {
   onCursor: (listener: (line: number, column: number) => void) => void;
   /** Gets the keyboard focus (a notebook knows which cell is being edited). */
   onFocus: (listener: () => void) => void;
+  onBlur: (listener: () => void) => void;
   hasFocus: () => boolean;
   /** Show a failed run's problems (squiggles, end-of-line messages); [] clears them. */
   setProblems: (list: Problem[]) => void;
@@ -341,7 +378,11 @@ export interface CodeEditor {
   applyFix: (fix: Problem["fixes"][number], near: number) => boolean;
   /** The cursor to a line and column, scrolled into view, with the focus. */
   reveal: (line: number, column?: number) => void;
-  setLanguage: (language: "python" | "sql" | "markdown") => void;
+  setLanguage: (language: EditorLanguage) => void;
+  /** Panes drawn between lines (a script's HTML cells as designs): each after its line, at its height. */
+  setZones: (zones: Zone[]) => void;
+  /** Lines not shown (a script's HTML cell while its design shows): first and last line of each run. */
+  setHidden: (ranges: [number, number][]) => void;
   focus: () => void;
   setTheme: (theme: string) => void;
   /** Told of every change; `undo`: it was an undo or a redo (the app does not answer those with edits). */
@@ -350,8 +391,17 @@ export interface CodeEditor {
   dispose: () => void;
 }
 
+/** A pane between a script's lines. */
+export interface Zone {
+  id: string;
+  /** The line it comes after (1-based). */
+  afterLine: number;
+  height: number;
+  element: HTMLElement;
+}
+
 export interface CodeEditorOptions {
-  language: "python" | "sql" | "markdown";
+  language: EditorLanguage;
   value: string;
   theme: string;
   /** Grow with the text (a notebook cell); otherwise fill the host (a script). */
@@ -413,7 +463,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   const model = editor.getModel();
   if (model && (options.complete || options.help || options.cellLinks)) {
     completers.set(model, { complete: options.complete, help: options.help });
-    for (const language of ["python", "sql", "markdown"]) register(language);
+    for (const language of ["python", "sql", "markdown", "html"]) register(language);
   }
   // Cell links: drawn as links, followed on a plain click.
   const linkMarks = editor.createDecorationsCollection([]);
@@ -443,6 +493,8 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     });
   }
   const notes = editor.createDecorationsCollection([]);
+  const zones = new Map<string, { zoneId: string; zone: monaco.editor.IViewZone; widget: monaco.editor.IOverlayWidget; element: HTMLElement }>();
+  const hiddenBy = { name: "sag-html-cells" };
   const keys = options.keys ?? {};
   // The run keys come first, even with the suggestion list open (it would take Ctrl+Enter for itself):
   // the list closes and the code runs.
@@ -630,6 +682,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     },
     onCursor: (listener) => void editor.onDidChangeCursorPosition((e) => listener(e.position.lineNumber, e.position.column)),
     onFocus: (listener) => void editor.onDidFocusEditorText(listener),
+    onBlur: (listener) => void editor.onDidBlurEditorText(listener),
     hasFocus: () => editor.hasTextFocus(),
     setProblems: (list) => {
       const model = editor.getModel();
@@ -677,6 +730,55 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       const model = editor.getModel();
       if (model) monaco.editor.setModelLanguage(model, language);
       editor.updateOptions({ wordWrap: language === "markdown" ? "on" : "off" });
+    },
+    setZones: (list) => {
+      const wanted = new Map(list.map((z) => [z.id, z]));
+      editor.changeViewZones((accessor) => {
+        for (const [id, held] of zones) {
+          if (wanted.has(id) && wanted.get(id)!.element === held.element) continue;
+          accessor.removeZone(held.zoneId);
+          editor.removeOverlayWidget(held.widget);
+          zones.delete(id);
+        }
+        for (const z of list) {
+          const held = zones.get(z.id);
+          if (held) {
+            if (held.zone.afterLineNumber !== z.afterLine || held.zone.heightInPx !== z.height) {
+              held.zone.afterLineNumber = z.afterLine;
+              held.zone.heightInPx = z.height;
+              accessor.layoutZone(held.zoneId);
+            }
+            continue;
+          }
+          // The zone makes the room; the pane itself is laid over it, so it takes the pointer.
+          const place = (): void => {
+            const info = editor.getLayoutInfo();
+            z.element.style.left = `${info.contentLeft}px`;
+            z.element.style.width = `${Math.max(120, info.contentWidth - info.verticalScrollbarWidth - 12)}px`;
+          };
+          const zone: monaco.editor.IViewZone = {
+            afterLineNumber: z.afterLine,
+            heightInPx: z.height,
+            domNode: document.createElement("div"),
+            showInHiddenAreas: true,
+            onDomNodeTop: (top) => {
+              z.element.style.top = `${top}px`;
+              place();
+            },
+          };
+          z.element.style.position = "absolute";
+          const widget: monaco.editor.IOverlayWidget = { getId: () => `sag.zone.${own}.${z.id}`, getDomNode: () => z.element, getPosition: () => null };
+          editor.addOverlayWidget(widget);
+          zones.set(z.id, { zoneId: accessor.addZone(zone), zone, widget, element: z.element });
+        }
+      });
+    },
+    setHidden: (ranges) => {
+      // Monaco's own way of not showing lines (folding uses it too, under its own name).
+      (editor as unknown as { setHiddenAreas: (ranges: monaco.IRange[], source: unknown) => void }).setHiddenAreas(
+        ranges.filter(([from, to]) => to >= from).map(([from, to]) => new monaco.Range(from, 1, to, 1)),
+        hiddenBy,
+      );
     },
     focus: () => editor.focus(),
     setTheme: (theme) => monaco.editor.setTheme(THEMES[theme] ?? "vs"),

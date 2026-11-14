@@ -6,8 +6,10 @@
  *              DuckDB query whose result is the table's own name
  *   [ARRANGE]  a document with its Tables group as it should be (POST /workbench/tables/arrange): the
  *              rules are the server's (domain/table_cells.py); the page applies what comes back
- *   [STATE]    a table's cell compares its text with the text it last ran: up to date, out of date
- *              (yellow, with Run), not run yet, not run since opening. Nothing runs by itself
+ *   [STATE]    a table's cell compares its text with the text it last ran. Only a state that needs
+ *              the user to act is said (the owner, 2026-11-14: no confirmation labels): out of date
+ *              (yellow, with Run), not run yet, not run since opening. A cell that is current says
+ *              nothing. Nothing runs by itself
  *   [USES]     the one line the app keeps at the top of a cell that names a table
  */
 import { api } from "./api";
@@ -49,7 +51,7 @@ export interface TableLine {
 
 export interface ArrangedCell {
   number: number;
-  kind: "code" | "sql" | "markdown";
+  kind: "code" | "sql" | "html" | "markdown";
   source: string;
   role: string;
   table: string | null;
@@ -74,9 +76,9 @@ export type TableStateKind = "upToDate" | "outOfDate" | "notRun" | "notRunSinceO
 
 export interface TableState {
   kind: TableStateKind;
-  /** "Out of date · last run 10:42". */
+  /** "Out of date · last run 10:42". Empty: nothing needs doing, so nothing is said. */
   label: string;
-  /** Short, for a folded line: "out of date". */
+  /** Short, for a folded line: "out of date" (empty: nothing to say). */
   short: string;
   /** Run would change the variable. */
   runnable: boolean;
@@ -94,31 +96,34 @@ export function runsSomething(code: string): boolean {
 export function tableState(code: string, record: RunRecord | undefined): TableState {
   const ran = record?.code ?? null;
   const when = record?.at ? ` · last run ${clock(record.at)}` : "";
-  if (ran !== null && ran === code) return { kind: "upToDate", label: `Up to date${when}`, short: "up to date", runnable: false };
+  if (ran !== null && ran === code) return { kind: "upToDate", label: "", short: "", runnable: false };
   if (ran !== null) return { kind: "outOfDate", label: `Out of date${when}`, short: "out of date", runnable: true };
-  if (!runsSomething(code)) return { kind: "noSteps", label: "No steps yet", short: "no steps yet", runnable: false };
+  if (!runsSomething(code)) return { kind: "noSteps", label: "", short: "", runnable: false };
   if (record?.opened) return { kind: "notRunSinceOpening", label: "Not run since opening", short: "not run since opening", runnable: true };
   return { kind: "notRun", label: "Not run yet", short: "not run yet", runnable: true };
 }
 
 export const plural = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
-/** A table's folded line: "orders · 3 steps · up to date". */
+/** A table's folded line: its name, its steps when it has some, and its state only when that needs
+ *  the user to act: "orders · 3 steps", "orders · 3 steps · out of date", "customers". */
 export function tableLineText(line: TableLine, state: TableState): string {
-  const steps = line.steps === null ? "not open in the grid" : plural(line.steps, "step");
-  // "0 steps · no steps yet" said it twice: a table with no steps says it once.
-  if (state.kind === "noSteps") return `${line.name} · ${state.short}`;
-  return `${line.name} · ${steps} · ${state.short}`;
+  const steps = line.steps === null ? "not open in the grid" : line.steps > 0 ? plural(line.steps, "step") : "";
+  return [line.name, steps, state.short].filter(Boolean).join(" · ");
 }
 
-/** The group's folded line: "Tables · 4 tables · 1 out of date". */
+/** The words after a table's name on its folded line ("" when there are none). */
+export function tableLineRest(line: TableLine, state: TableState): string {
+  return tableLineText(line, state).slice(line.name.length).replace(/^ · /, "");
+}
+
+/** The group's folded line: "Tables · 4 tables", and "Tables · 4 tables · 1 out of date" when one is. */
 export function groupLineText(states: TableState[]): { text: string; stale: boolean } {
   const stale = states.filter((s) => s.kind === "outOfDate").length;
   const waiting = states.filter((s) => s.kind === "notRun" || s.kind === "notRunSinceOpening").length;
   const parts = ["Tables", plural(states.length, "table")];
   if (stale) parts.push(`${stale} out of date`);
   else if (waiting) parts.push(`${waiting} not run`);
-  else parts.push("up to date");
   return { text: parts.join(" · "), stale: stale > 0 };
 }
 
@@ -126,13 +131,17 @@ export function groupLineText(states: TableState[]): { text: string; stale: bool
 const USE = "[A-Za-z_]\\w*(?: @cell\\d+)?";
 const USES_PYTHON = new RegExp(`^# uses ${USE}(?:, ${USE})*$`);
 const USES_SQL = new RegExp(`^-- uses ${USE}(?:, ${USE})*$`);
+const USES_HTML = new RegExp(`^<!-- uses ${USE}(?:, ${USE})* -->$`);
+
+/** How a cell writes its uses line: a Python comment, a SQL one, or an HTML one. */
+export type UsesForm = "python" | "sql" | "html";
 
 /** A cell's source with its uses line as it should be: added, changed or taken away. Only a first
  *  line in exactly the app's format is ever touched. */
-export function withUses(source: string, line: string | null, sql: boolean): string {
+export function withUses(source: string, line: string | null, form: UsesForm): string {
   const at = source.indexOf("\n");
   const first = at < 0 ? source : source.slice(0, at);
-  const own = (sql ? USES_SQL : USES_PYTHON).test(first);
+  const own = (form === "html" ? USES_HTML : form === "sql" ? USES_SQL : USES_PYTHON).test(first);
   const rest = own ? (at < 0 ? "" : source.slice(at + 1)) : source;
   return line === null ? rest : `${line}\n${rest}`;
 }
@@ -140,7 +149,7 @@ export function withUses(source: string, line: string | null, sql: boolean): str
 /** The first line of a cell's code, for a link's hover (not the app's uses line). */
 export function firstLine(source: string): string {
   for (const line of source.split("\n")) {
-    if (line.trim() && !USES_PYTHON.test(line) && !USES_SQL.test(line)) return line.trim().slice(0, 160);
+    if (line.trim() && !USES_PYTHON.test(line) && !USES_SQL.test(line) && !USES_HTML.test(line)) return line.trim().slice(0, 160);
   }
   return "";
 }

@@ -1,10 +1,12 @@
 """The Workbench's documents: notebooks (.ipynb, so Jupyter and VS Code open them too) and scripts (.py).
 Pure rules: no I/O. Plans/workbench-and-connections.plan.md.
 
-A notebook here is a list of cells, each code (Python), sql (run on a connection) or markdown, with
-the outputs a run gave (kept as nbformat's own output records). In the file, a SQL cell is a code cell
-that starts with its `%%sql <connection>` line (any Jupyter with SwissArmyGrid runs it as it is), marked
-so the Workbench opens it as a SQL cell again.
+A notebook here is a list of cells, each code (Python), sql (run on a connection), html (a design:
+domain/html_cells.py) or markdown, with the outputs a run gave (kept as nbformat's own output records).
+In the file, a SQL cell is a code cell that starts with its `%%sql <connection>` line (any Jupyter with
+SwissArmyGrid runs it as it is), marked so the Workbench opens it as a SQL cell again. An HTML cell is a
+code cell that starts with `%%html`, IPython's own cell magic, so plain Jupyter draws it when run; the
+height of its pane is kept in the cell's metadata.
 
 Every cell has a number that never changes (docs/ideas.md, 2026-11-14): given when the cell is made,
 never reused or shifted when cells move or go. It is kept in the cell's metadata, with the cell's part
@@ -21,13 +23,16 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmygrid.domain.html_cells import check_height
+
 MAX_CELLS: int = 2_000
 MAX_CELL_CHARS: int = 1_000_000
 MAX_OUTPUTS_PER_CELL: int = 200
-KINDS: tuple[str, ...] = ("code", "sql", "markdown")
+KINDS: tuple[str, ...] = ("code", "sql", "html", "markdown")
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
 MAX_STEPS_CHARS: int = 200_000
 _SQL_LINE = re.compile(r"^%%(?:sql|sag)\b(?!_)")
+_HTML_LINE = re.compile(r"^%%html\b")
 
 
 class NotebookError(ValueError):
@@ -36,8 +41,8 @@ class NotebookError(ValueError):
 
 @dataclass
 class Cell:
-    kind: str  # code, sql or markdown
-    source: str  # a SQL cell's query, without its %%sql line
+    kind: str  # code, sql, html or markdown
+    source: str  # a SQL cell's query, without its %%sql line; an HTML cell's HTML, without %%html
     connection: str | None = None  # a SQL cell's connection (None: the %sql_connect one)
     outputs: list[dict[str, Any]] = field(default_factory=list)
     execution_count: int | None = None
@@ -48,6 +53,8 @@ class Cell:
     # A transformations cell's steps as the grid holds them, so the grid gets them back when the
     # table is opened again.
     steps: list[Any] | None = None
+    # An HTML cell's pane, in pixels (None: the design's own height).
+    height: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -61,6 +68,7 @@ class Cell:
             "table": self.table,
             "grouped": self.grouped,
             "steps": self.steps,
+            "height": self.height,
         }
 
     def marks(self) -> dict[str, Any]:
@@ -68,6 +76,10 @@ class Cell:
         kept: dict[str, Any] = {}
         if self.kind == "sql":
             kept |= {"kind": "sql", "connection": self.connection}
+        if self.kind == "html":
+            kept["kind"] = "html"
+            if self.height is not None:
+                kept["height"] = self.height
         if self.number is not None:
             kept["number"] = self.number
         if self.role:
@@ -92,6 +104,8 @@ def code_of(cell: Cell) -> str:
     """What the kernel runs for the cell (markdown runs nothing)."""
     if cell.kind == "sql":
         return f"{sql_line(cell.connection)}\n{cell.source}"
+    if cell.kind == "html":
+        return f"%%html\n{cell.source}"
     return cell.source if cell.kind == "code" else ""
 
 
@@ -122,6 +136,8 @@ def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:
     cell.grouped = marks.get("grouped") is True
     if isinstance(marks.get("steps"), list) and cell.role == "transformations":
         cell.steps = marks["steps"]
+    if cell.kind == "html":
+        cell.height = check_height(marks.get("height"))
     return cell
 
 
@@ -173,6 +189,8 @@ def read_document(text: str) -> tuple[list[Cell], int]:
                 except ValueError:
                     named = words[1] if len(words) > 1 else None
                 cell = Cell("sql", rest, named or None)
+            elif _HTML_LINE.match(first):
+                cell = Cell("html", rest)
             else:
                 cell = Cell("code", source)
             outputs = raw.get("outputs")
@@ -198,7 +216,9 @@ def read_cells(sent: Any) -> list[Cell]:
     cells: list[Cell] = []
     for raw in sent:
         if not isinstance(raw, dict) or raw.get("kind") not in KINDS:
-            raise NotebookError('Each cell is {"kind": "code", "sql" or "markdown", "source": "..."}.')
+            raise NotebookError(
+                'Each cell is {"kind": "code", "sql", "html" or "markdown", "source": "..."}.'
+            )
         source = raw.get("source", "")
         if not isinstance(source, str) or len(source) > MAX_CELL_CHARS:
             raise NotebookError("A cell's source is text of at most a million characters.")
@@ -233,6 +253,7 @@ def read_cells(sent: Any) -> list[Cell]:
                 table or None,
                 raw.get("grouped") is True,
                 steps,
+                check_height(raw.get("height")) if raw["kind"] == "html" else None,
             )
         )
     return cells

@@ -705,8 +705,8 @@ should be code behind in the read only cell using duck db." Decided:
   its own: the user's cell that made it (still theirs, editable) and its read-only transformations
   cell, moved together, so the file still runs top to bottom. The group orders itself: the imports the
   tables need first, then each table after the tables it is made from (a join after its two sides).
-  Collapsed, a table is one line ("orders · 3 steps · up to date"); the whole group collapses to one
-  line ("Tables · 4 tables · 1 out of date"), so the user works on their script without scrolling past
+  Collapsed, a table is one line ("orders · 3 steps"; see the rule on confirmation labels below);
+  the whole group collapses to one line ("Tables · 4 tables · 1 out of date"), so the user works on their script without scrolling past
   transformations. It **starts collapsed** when a file opens, and the line turns yellow when any table
   inside is out of date. In a .ipynb the groups are markdown headings ("Tables", one per table), which
   JupyterLab also folds; in a script they are `# region Tables` / `# endregion` (VS Code folds them)
@@ -790,3 +790,105 @@ web/src/workbenchTables.ts, the notebook and script views). Decided while buildi
   ("made at @cell7") on the maker.
 - **The pandas and plain-Python generators stay:** the steps window's Code tab and the agent's
   `table_code` still offer them (a browser test checks the pandas one there). Open with Script as.
+
+## No confirmation labels: only states that need the user to act (2026-11-14, the owner's rule; built)
+
+The owner, on the table cells' screenshots: "The first screenshot you said up to date. This is an
+example of useless information. We only care if things are out of date. Confirmation labels is bad app
+design." (docs/design-principles.md has the principle.) Applied to table cells and HTML cells:
+
+- **Gone:** "Up to date" (and "last run 10:42" on its own), "No steps yet", "0 steps". A cell that is
+  current shows no badge and no state word, in a notebook cell's head, a table's folded line, the
+  Tables group's line, an HTML cell's bar and a script's marker notes.
+- **Still shown, because they need action:** "Out of date · last run HH:MM" with Run (yellow), "Not run
+  yet", "Not run since opening", "not open in the grid", and errors.
+- **Folded lines.** A table with no steps is its name alone ("customers"); with steps it keeps the
+  count, which is about its content ("orders · 3 steps"). The group: "Tables · 4 tables", and
+  "Tables · 4 tables · 1 out of date" (yellow) only when one is.
+- The toolbar's Run tables still appears only when a cell needs a run. The agent still reads each
+  cell's state by name (`upToDate`, `outOfDate`...): only the screen stays quiet.
+
+## HTML cells: a design drawn from its HTML (2026-11-14, the owner's request and decisions; built)
+
+The owner: "A new type of notebook and python cell called a html cell. Where html can be used to render
+designs in a resizable pane. And any html entered just auto renders. So when you click into the cell you
+see code but when it's not active you see a rendered design. This can allow rapid prototyping or story
+telling." Decided by the owner:
+
+- **A new cell kind, HTML,** in notebooks and scripts, beside Python, SQL and Markdown.
+- **Two faces.** Active, it shows its HTML in the editor with HTML colouring; not active, the design.
+- **It renders by itself** when the cell is left; plain HTML needs no Run.
+- **A resizable pane:** drag its bottom edge, or the keyboard; the height is saved in the file.
+- **In a .ipynb** it is a code cell starting with `%%html` (IPython's own cell magic). **In a script**
+  it is a `# %% [html]` cell holding the HTML in a Python string.
+- **JavaScript runs, walled off:** a sandboxed frame that allows scripts but not the app's origin.
+- **Nothing loads from the internet:** the frame's policy allows only what is inside the cell.
+- **Python data by name:** `{{ name }}` is filled from the cell's kernel when the cell runs; a value as
+  escaped text, a table as an HTML table with a row cap. A cell with names uses the table cells'
+  "Out of date · last run HH:MM · Run" state; an unknown name is a plain marker; the uses line applies.
+
+Built on 2026-11-14 (domain/html_cells.py, client/html_cells.py, web/src/workbenchHtml.ts,
+web/static/design.html, the notebook and script views). Decided while building; confirm or change:
+
+- **How the cell opens.** A click inside the design goes to the design, so a prototype's own buttons
+  and scripts work. The HTML opens from the cell's head (a click anywhere on it), its Edit HTML button,
+  Enter on the selected cell, or the agent's command. The design shows again when the editor is left
+  (a click elsewhere, Escape, a run); switching to another window is not leaving. An empty cell stays
+  open.
+- **The command-mode key is H** (Y, M and S were taken; Jupyter's own H shows its key list, which this
+  app has in the palette).
+- **A script's form: a string by itself.** `# %% [7] [html] height=320`, then `r"""`, the HTML on its
+  own lines, `"""`. A statement that is only a string does nothing when Python runs it and makes no
+  name; it needs no import, so the file runs anywhere. It is written raw (as typed) whenever Python can
+  hold it that way, with `'''` when the HTML has `"""`, and escaped only when it has both. A string
+  given a name (`card = """..."""`) is read as the HTML too. Python after the string, in the same
+  cell, stays in view; the toolbar's HTML button closes the cell with a plain `# %%` when code follows.
+- **A script's two faces.** One editor holds the whole script, so: with the cursor in the cell its
+  lines show; with the cursor elsewhere they are put away and the design is drawn under the marker
+  line, which says "HTML · click this line to edit". **Limit: in a script the HTML is coloured as a
+  Python string, not as HTML** (the notebook's editor colours it as HTML).
+- **The height:** a notebook keeps it in the cell's metadata (`swissarmygrid.height`); a script on the
+  marker (`height=320`). Without one the pane takes the design's own height (up to 640); limits 60 to
+  2,000 pixels. A double-click on the edge (or Enter) goes back to the design's own height.
+- **How the frame is walled off.** The design is drawn in a frame loaded from the app's own static
+  page (`/static/design.html`), sandboxed with scripts allowed and nothing else: no same origin (so no
+  token, storage, cookies or parent page), no pop-ups, no forms, no top navigation. That page carries
+  the policy `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:;
+  font-src data:; media-src data:; form-action 'none'; base-uri 'none'`. It is a page of its own, not
+  text written into the Workbench page, because a frame made from text inherits the Workbench's own
+  policy, which (rightly) allows no inline script. Leaving the frame for another site is refused by the
+  Workbench's existing `frame-src 'self'`. Checked in a browser: a remote picture, stylesheet and script
+  do not load; fetch, a socket, a pop-up, a form, a link and a script's own navigation reach nothing.
+- **Where a name stands decides what goes in** (so data can never become markup or script):
+  among the words, escaped text, a table, or a picture; inside a `<script>`, a JavaScript literal (a
+  number, a quoted text, a table as a list of rows); inside a tag or a `<style>`, plain words and
+  numbers only (anything else is left out and said under the design); inside a comment, nothing. The
+  reading of the HTML follows the browser's own rules and errs to the stricter part.
+- **Only a variable's name** goes between the braces: no expression, no attribute, nothing runs.
+- **Caps:** a table among the words shows its first 50 rows and 30 columns and says so ("first 50 of
+  1,204 rows"); inside a `<script>` it is its first 1,000 rows; a text is cut at 10,000 characters, a
+  table's cell at 200; a picture over 3 MB is left out with a note.
+- **Pictures are in:** a matplotlib figure (saved as PNG) and anything that gives a PNG of itself
+  (`_repr_png_`: a PIL image, an IPython Image) become an image from a data address, which the frame's
+  policy allows. Plotly figures are not (they need their library, which the frame cannot load).
+- **Out of date covers the variables too.** A run keeps a short mark of what each name drew. After
+  any run in the document ends, the cell's names are marked again in the kernel; a different mark, and
+  the cell says "Out of date · total changed · last run 10:42". The mark is of what the design would
+  draw (a table's first 1,000 rows), so a change further down a long table is not seen.
+- **While out of date the design still follows the HTML,** filled with the values of the last run (a
+  name added since shows as written, marked). The values travel with the run's output.
+- **Saved with the notebook:** the cell's last run is its output (the filled design as `text/html`,
+  what plain Jupyter and GitHub show, and the values beside it), so a file opened again shows the
+  design as it was, and says "Not run since opening". Plain HTML saves no output.
+- **Run file fills a script's HTML cells after the file has run,** from the variables it left (the
+  string itself does nothing in Python). Ctrl+Enter in the cell runs it alone.
+- **The uses line:** `<!-- uses orders @cell3 -->` as the first line of a notebook's HTML cell (it fits
+  the existing rule: only a first line in exactly that form is the app's, and it never makes the cell
+  out of date). In a script it is the Python comment form above the string, so the HTML stays as typed.
+- **The agent** (the golden rule): `workbench_html_add`, `workbench_html_cells`, `workbench_html_run`,
+  `workbench_html_resize` in the window; `workbench_run` with kind html, `workbench_html_fill` and
+  `workbench_html_marks` without one. The window's palette has the same under HTML.
+
+Not built: HTML colouring inside a script's string; Plotly figures by name; expressions in the braces
+(`{{ total * 2 }}`); a design that reads the page's theme (it gets the app's text colour and a
+transparent background, and its own styles win); plain HTML saved with an output for GitHub to show.
