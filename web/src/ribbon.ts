@@ -1,15 +1,13 @@
 /**
  * ribbon.ts: the transformation toolbar, grouped the way Excel's ribbon is. [WIRE + EXPORT]
  *
- * Three groups, each named for what its tools act on, so it is always clear what a button
- * will change:
+ * Two groups, each named for what its tools act on, so it is always clear what a button
+ * will change (the cell's tools are on its right-click menu, cellMenu.ts):
  *   TABLE   the whole view: text matching, filter, sort, choose columns, group, distinct, SQL,
  *           profile, Key Finder, export
  *   COLUMN  the selected column(s): click a header (or select cells) first. The group's
  *           caption names them. Sort, filter, rename, remove, keep, clean, bucket, categorize,
  *           group by, profile
- *   CELL    the selected cell(s) in one column: keep or exclude rows with those values, view
- *           the value, copy
  *   COMPARE  (only while two grids are side by side) the keys, outer / anti join, cross
  *           compare, stop: compare.ts lines the two grids up row for row
  * Every transformation still lands as a step in Table Transformations, so it can be turned
@@ -18,20 +16,18 @@
  * ROUTING: [TABLE TOOLS]   -> openTextMatching() / editStep(kind) / openTableProfile() /
  *                             openKeyFinderWindow() / openExport()
  *          [COLUMN TOOLS]  -> sortColumns() / editStep(kind, preset) / keepColumns() / onProfile()
- *          [CELL TOOLS]    -> filterByCells(keep) / viewCell() / copySelection()
  *          [COMPARE TOOLS] -> openCompareDialog() / changeCompare({mode, anti_side}) / stopCompare()
  *          [GROUP CAPTIONS]-> read-only, derived from gridView.selection + the active cell (+ the compare)
  *          (re-drawn on state "grid-selection" and "info")
  */
 import { button, clear, h, isDateType, isNumericType, isTextType, openDialog, toast } from "./dom";
 import { changeCompare, currentCompare, onCompareChange, stopCompare, type CompareInfo } from "./compare";
-import { openFitTest, openOutliers } from "./analysisDialog";
 import { analyzeButton } from "./analyzeMenu";
 import { openCompareDialog } from "./compareDialog";
 import { openTieOut } from "./tieOutDialog";
 import { openExport } from "./exportDialog";
 import { openKeyFinderWindow } from "./keyFinder";
-import { autoSizeColumns, cellValue, copySelection, focusedCell, selectedValues, selection, viewCell, viewColumns } from "./gridView";
+import { autoSizeColumns, cellValue, focusedCell, selectedValues, selection, viewColumns } from "./gridView";
 import { onSplitChange, splitPair } from "./panes";
 import { openTableProfile } from "./profileView";
 import { openRelationships } from "./relationshipsDialog";
@@ -43,7 +39,7 @@ import { gridZoom, onThemeChange, stepZoom } from "./theme";
 let host: HTMLElement;
 let onProfile: (column: string) => void = () => {};
 
-export function mountRibbon(element: HTMLElement, openColumnProfile: (column: string) => void, popout = false): void {
+export function mountRibbon(element: HTMLElement, openColumnProfile: (column: string) => void): void {
   host = element;
   onProfile = openColumnProfile;
   state.on("grid-selection", render);
@@ -51,7 +47,6 @@ export function mountRibbon(element: HTMLElement, openColumnProfile: (column: st
   onCompareChange(render);
   onSplitChange(render);
   onThemeChange(render); // a theme or zoom step can change what the rows draw
-  if (popout) host.classList.add("popout-ribbon");
   render();
   // A window resize can make a row wrap (or room to spare): fold again, on width changes only.
   let width = 0;
@@ -94,7 +89,7 @@ function targetColumns(): string[] {
   return [];
 }
 
-/** The one column the Cell tools act on, with the rows they cover, or a reason they can't. */
+/** The one column the cell menu's Keep these and Exclude these act on, with the rows they cover, or a reason they can't. */
 function targetCells(): { column: string; single: { row: number } | null } | string {
   if (selection.kind === "cells") {
     if (selection.columns.length !== 1) return "Select cells in one column.";
@@ -109,7 +104,7 @@ function targetCells(): { column: string; single: { row: number } | null } | str
 }
 
 /** One toolbar row: its label (and what it acts on) in a fixed column at the left, its tools
- * to the right, so the three rows line up like a form. */
+ * to the right, so the rows line up like a form. */
 function group(name: string, caption: string, ...tools: (HTMLElement | null)[]): HTMLElement {
   return h(
     "div",
@@ -150,10 +145,7 @@ function render(): void {
   const noColumn = cols.length ? false : "Select a column first.";
   const needOne = one ? false : cols.length ? "Select one column." : "Select a column first.";
   const textCols = cols.filter((c) => isTextType(type(c)));
-  const cells = targetCells();
-  const cellReason = typeof cells === "string" ? cells : false;
   const colCaption = cols.length ? (cols.length <= 2 ? cols.join(", ") : `${cols.slice(0, 2).join(", ")} +${cols.length - 2}`) : "";
-  const cellCaption = typeof cells === "string" ? "" : cells.single ? `row ${cells.single.row + 1} of ${cells.column}` : `${selection.rowCount(Infinity)} cells of ${cells.column}`;
 
   clear(
     host,
@@ -191,16 +183,6 @@ function render(): void {
       tool("Categorize…", "tag", () => editStep("categorize", undefined, { column: one }), { disabled: needOne }),
       tool("Group by…", "group", () => editStep("group_by", undefined, { keys: cols }), { disabled: noColumn }),
       tool("Profile", "profile", () => one && onProfile(one), { disabled: needOne }),
-      tool("Fit test…", "fit", () => void openFitTest(cols), { disabled: noColumn, title: "Chi-square test" }),
-      tool("Outliers…", "outliers", () => one && void openOutliers(one), { disabled: needOne }),
-    ),
-    group(
-      "Cell",
-      cellCaption,
-      tool("Keep these", "filter", () => void filterByCells(true), { disabled: cellReason }),
-      tool("Exclude these", "exclude", () => void filterByCells(false), { disabled: cellReason, title: "Blank rows drop too" }),
-      tool("View value", "eye", () => viewCell(), { disabled: typeof cells === "string" || !cells.single ? "Select one cell." : false }),
-      tool("Copy", "copy", () => void copySelection(), { disabled: selection.kind === "none" && !focusedCell() ? "Select something first." : false, title: "Copy (Ctrl+C)" }),
     ),
     compareGroup(),
   );
@@ -306,7 +288,10 @@ export async function keepColumns(keep: string[]): Promise<void> {
 /** Keep (or exclude) rows whose value in the column is one of the selected cells' values. */
 export async function filterByCells(keep: boolean): Promise<void> {
   const cells = targetCells();
-  if (typeof cells === "string") return;
+  if (typeof cells === "string") {
+    toast(cells); // the ribbon's greyed-out button said this; the menu says it when chosen
+    return;
+  }
   const column = viewColumns().find((c) => c.name === cells.column);
   if (!column) return;
   const values = cells.single ? [await cellValue(cells.single.row, cells.column)] : selectedValues(cells.column);

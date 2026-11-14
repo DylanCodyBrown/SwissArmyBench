@@ -33,7 +33,7 @@ The page has these parts:
 - **Tab bar.** The Agent tab comes first and cannot be closed. Each open grid has its own tab after it, and the + after the last tab starts a new table from a query (see below).
 - **Title.** The dataset name and its version. A new push to the same dataset raises the version. Beside it, the **steps strip**: how many steps the grid has, with Undo (the last step), Clear and Edit steps. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: **Settings**, **Blades and catalog**, **Notebook** and **Tour** (the question mark): a one-minute tour of every word SwissArmyGrid uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
-- **Ribbon.** Three rows, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. **Cell** works on the selected cells. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
+- **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
 - **Status bar.** The row count, the selection summary and the memory meter.
@@ -68,7 +68,7 @@ Scrolling sideways is free: the view stops wherever you leave it, even in the mi
 
 The Table row holds the tools for the whole view: matching, Filter, Sort, Choose columns, Rename, Group by, Distinct rows, Keep first rows, Clean text, Auto width, Profile, Key Finder, Relationships, Export and the zoom control.
 
-The Column row acts on the selected column. It has Sort A to Z and Z to A, Filter, Rename, Auto width, Remove, Keep only, Clean text, Bucket, Categorize, Group by, Profile, Fit test and Outliers. The Cell row keeps or excludes rows with the selected cell's value, shows the full value and copies.
+The Column row acts on the selected column. It has Sort A to Z and Z to A, Filter, Rename, Auto width, Remove, Keep only, Clean text, Bucket, Categorize, Group by and Profile; Fit test and Outliers for a column are in the Analyze menu and on the column header's right-click menu. Right-click a cell to keep or exclude rows with the selected cell's value, see the full value or copy.
 
 ### Filter steps
 

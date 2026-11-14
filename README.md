@@ -476,7 +476,7 @@ that Python can, as yours can. The audit log (Settings) names everything it did.
 Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 95 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
-Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (the Cell row),
+Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
 `steps_add` and `steps_apply_sql` (Table Transformations), `compare_create`, `sandbox_add`,
 `relationships_set`, `erd_draw`, and `agent_read_grid` / `agent_events` for what only an agent has. The
 registry is ordered the same way, and `commands` returns the catalog grouped by area. Two front ends

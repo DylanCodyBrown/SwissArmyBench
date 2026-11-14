@@ -1,10 +1,10 @@
 /**
- * stepsPanel.ts: the Table Transformations panel (applied steps) and its Code tab
+ * stepsPanel.ts: the Table Transformations window (applied steps) and its Code tab
  * (plan sections 7, 9, 10). [WIRE]
- * It sits on the right of the grid and collapses to a slim labelled rail; the choice is remembered.
+ * It shows only in a window of its own (?panel=steps, opened by the strip's Edit steps), and holds
+ * only the steps: the step list, Add a SQL step and the Code tab. The grid's page has the ribbon.
  *
- * ROUTING: [COLLAPSE TOGGLE]                 -> setCollapsed() (workspace data-steps="open" | "collapsed")
- *          [ADD SQL STEP]    -> editStep("sql") (a SQL step's own form)
+ * ROUTING: [ADD SQL STEP]    -> editStep("sql") (a SQL step's own form)
  *          [COPY AS SQL OR PYTHON]           -> showCode() (the Code tab: the verified query + Copy as SQL / Python)
  *          [STEP ROW]        click text -> state.setPreview(i + 1); click again -> full view
  *          [ON/OFF BOX]      -> toggle(i)        [DRAG GRIP] -> drop(from, to)
@@ -12,34 +12,23 @@
  *          [ROW COUNTS]      -> read-only, from GET /grids/{id}/step-counts
  *          [STEP ERROR]      -> read-only, from state.info.step_error
  *          [CATEGORIZE INFO] -> read-only, from GET /grids/{id}/categorize-stats
- *          [ADD STEP MENU]   -> editStep(kind)
  *          [CODE TAB]        -> renderCode(); the Copy buttons only when the code verified identical
- *          [POP OUT]         -> window.open(?panel=steps); both windows follow the server
  */
-import { api, clientId, grid, gridId, query, token, type StepJson } from "./api";
-import { button, clear, formatCount, h, icon, recall, remember, toast } from "./dom";
+import { api, clientId, grid, query, type StepJson } from "./api";
+import { button, clear, formatCount, h, icon, toast } from "./dom";
 import { KIND_LABELS, editStep } from "./stepForms";
 import { state } from "./state";
 
-let inPopout = false;
 let tab: "steps" | "code" = "steps";
 let counts: number[] = [];
 let dragFrom: number | null = null;
 let host: HTMLElement;
-// The workspace carries data-steps, which the stylesheet turns into the panel's width. Null in the pop-out.
-let workspace: HTMLElement | null = null;
 
-export function mountStepsPanel(element: HTMLElement, popout: boolean): void {
+export function mountStepsPanel(element: HTMLElement): void {
   host = element;
-  inPopout = popout;
   // Switching tabs announces both: one render (and one step-counts request), not two.
   state.on("info", scheduleRender);
   state.on("preview", scheduleRender);
-  if (!popout) {
-    workspace = element.closest<HTMLElement>(".workspace");
-    if (workspace) workspace.dataset.steps = recall("steps.mode") === "collapsed" ? "collapsed" : "open";
-    return;
-  }
   document.body.classList.add("popout");
 }
 
@@ -54,17 +43,6 @@ function scheduleRender(): void {
   });
 }
 
-function isCollapsed(): boolean {
-  return workspace?.dataset.steps === "collapsed";
-}
-
-function setCollapsed(collapsed: boolean): void {
-  if (!workspace) return;
-  workspace.dataset.steps = collapsed ? "collapsed" : "open";
-  remember("steps.mode", collapsed ? "collapsed" : "open");
-  void render();
-}
-
 export function showCode(): void {
   tab = "code";
   void render();
@@ -73,30 +51,7 @@ export function showCode(): void {
 async function render(): Promise<void> {
   const info = state.info;
   if (!info || !host) return;
-  const collapsed = isCollapsed();
-  const header = h(
-    "div",
-    { class: "panel-header" },
-    h("h2", { id: "steps-title" }, "Table Transformations"),
-    button("Pop out the transformations panel", popOut, { icon: "popout", iconOnly: true, class: "ghost" }),
-    // Last, at the right edge, where the panel collapses to. The pop-out window has no grid beside it to make room for.
-    inPopout
-      ? null
-      : h(
-          "span",
-          { class: "collapse-toggle" },
-          button(collapsed ? "Open the transformations panel" : "Collapse the transformations panel", () => setCollapsed(!collapsed), {
-            icon: collapsed ? "collapse" : "expand",
-            iconOnly: true,
-            class: "ghost",
-          }),
-          collapsed ? h("span", { class: "rail-label" }, "Table Transformations") : null,
-        ),
-  );
-  if (collapsed) {
-    clear(host, header);
-    return;
-  }
+  const header = h("div", { class: "panel-header" }, h("h2", { id: "steps-title" }, "Table Transformations"));
   const body = h("div", { class: "panel-body" });
   clear(
     host,
@@ -290,11 +245,4 @@ async function renderCode(body: HTMLElement): Promise<void> {
     status.textContent = (e as Error).message;
     status.className = "status-error";
   }
-}
-
-function popOut(): void {
-  const page = `/g/${encodeURIComponent(gridId)}`;
-  const url = `${page}?panel=steps#token=${encodeURIComponent(token)}`;
-  const win = window.open(url, `steps-${page}`, "width=440,height=820");
-  if (!win) toast("The browser blocked the pop-out window.", "error");
 }

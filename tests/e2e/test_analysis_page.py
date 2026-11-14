@@ -18,10 +18,18 @@ def test_fit_test_then_outliers_within_each_vendor_shown_as_a_step(
     url = push_client.push(invoices(), name="invoices", new_grid=True)
     page = open_grid(browser, url, width=1440)
     try:
+
+        def header_menu(column: str, entry: str) -> None:
+            """Fit test and Outliers are on the column's right-click menu (and in Analyze)."""
+            page.locator(f".ag-header-cell[col-id='{column}'] .sag-header-name").click(button="right")
+            page.get_by_role("menuitem", name=entry).click()
+
         column_row = page.locator(".ribbon .ribbon-group").nth(1)
+        for gone in ("Fit test…", "Outliers…"):
+            expect(column_row.get_by_role("button", name=gone)).to_have_count(0)
         page.locator(".ag-header-cell[col-id='amount'] .sag-header-name").click()
         page.locator(".ag-header-cell[col-id='typed'] .sag-header-name").click(modifiers=["Control"])
-        column_row.get_by_role("button", name="Fit test…").click()
+        header_menu("typed", "Fit test…")
         dialog = page.locator("dialog")
         expect(dialog.get_by_label("Expected spread")).to_have_value("benford")  # number columns
         cards = dialog.locator(".analysis-card")
@@ -32,8 +40,7 @@ def test_fit_test_then_outliers_within_each_vendor_shown_as_a_step(
         expect(cards.nth(1).locator(".fit-row:not(.head)")).to_have_count(9)  # the nine first digits
         dialog.get_by_role("button", name="Close").last.click()
 
-        page.locator(".ag-header-cell[col-id='unit_cost'] .sag-header-name").click()
-        column_row.get_by_role("button", name="Outliers…").click()
+        header_menu("unit_cost", "Outliers…")
         dialog = page.locator("dialog")
         expect(dialog.locator(".analysis-verdict")).to_contain_text("3 of 6,000 values", timeout=20000)
         dialog.get_by_label("Within each").select_option("vendor")
@@ -46,8 +53,7 @@ def test_fit_test_then_outliers_within_each_vendor_shown_as_a_step(
 
         page.locator(".steps-strip").get_by_role("button", name="Undo").first.click()
         expect(page.locator("#status")).to_contain_text("of 6,000", timeout=20000)
-        page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
-        column_row.get_by_role("button", name="Outliers…").click()
+        header_menu("region", "Outliers…")
         dialog = page.locator("dialog")
         expect(dialog.get_by_label("Look at")).to_have_value("frequency")  # a text column
         expect(dialog.locator(".analysis-verdict")).to_contain_text("1 rarer", timeout=20000)

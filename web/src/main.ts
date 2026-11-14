@@ -6,7 +6,7 @@
  * tab, SQL box, status bar) is shared and shows the active grid. /g/<id> opens the page on that grid, /workspace on
  * the last one used.
  *
- * COMPOSES: panes (tabs, panes, split) · gridView + selection (one per grid) · ribbon (Table / Column / Cell tools) ·
+ * COMPOSES: panes (tabs, panes, split) · gridView + selection (one per grid) · ribbon (Table / Column tools) ·
  *           stepsPanel + stepForms (applied steps) · aiPanel (the Analysis Sandbox) ·
  *           agentAccess (agent activity in Settings, approval popups) · stepsStrip · exportDialog ·
  *           erdView (the ERD tab) · queryTab (the "+" tab: a new table from a query) ·
@@ -15,7 +15,7 @@
  * ROUTING:  [TITLE]            -> read-only, the dataset name and version (centered, large)
  *           [SETTINGS]         the Application row (above the ribbon) -> settingsWindow.openSettings()
  *                              (theme, header profiles, what the agent may see)
- *           [RIBBON]           Table / Column / Cell tools -> ribbon.ts (Profile, Key Finder, Export in Table)
+ *           [RIBBON]           Table / Column tools -> ribbon.ts (Profile, Key Finder, Export in Table)
  *           [TRANSFORMATIONS]  -> read-only placement: the panel is always shown (it can still pop out)
  *           [ZOOM]   on the ribbon's Table row; Ctrl+= / Ctrl+- / Ctrl+0 here -> stepZoom() / setGridZoom(1)
  *           [PREVIEW BANNER] -> state.setPreview(null)
@@ -134,7 +134,7 @@ async function startSingle(): Promise<void> {
   activate(single);
   const info = await single.load();
   const stepsHost = $("#steps-panel");
-  mountStepsPanel(stepsHost, popout);
+  if (popout) mountStepsPanel(stepsHost);
   connect((live, again) => {
     setLive(live);
     if (again) void single.load().catch(() => undefined); // changes made while the socket was down
@@ -155,8 +155,9 @@ async function startSingle(): Promise<void> {
   document.title = `Table Transformations · ${info.dataset}`;
   $(".tabbar").remove();
   $(".titlebar").remove();
-  // The pop-out has no grid, so only the Table tools have anything to act on.
-  mountRibbon($(".ribbon"), () => undefined, true);
+  // The steps window shows only the steps: no ribbon of its own (the grid's page has it).
+  $(".app-row").remove();
+  $(".ribbon").remove();
   $(".statusbar").remove();
   document.body.append(stepsHost);
   $(".workspace").remove();

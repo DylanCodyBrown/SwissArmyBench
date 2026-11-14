@@ -16,8 +16,8 @@ order the app shows them, so the tool list reads like the screen:
 | `tabs_` | the tab bar: grids, and the **+** query tab | `tabs_new_query`, `tabs_list`, `tabs_get`, `tabs_close_grid` |
 | `datasets_` | the Datasets list, loading, Python sessions | `datasets_load`, `datasets_list`, `datasets_close` |
 | `table_` | the ribbon's **Table** row | `table_filter`, `table_sort`, `table_group_by`, `table_distinct`, `table_clean_text`, `table_matching`, `table_profile`, `table_export` |
-| `column_` | the ribbon's **Column** row | `column_sort`, `column_keep`, `column_remove`, `column_rename`, `column_bucket`, `column_categorize`, `column_profile`, `column_fit_test`, `column_outliers` |
-| `cell_` | the ribbon's **Cell** row | `cell_keep`, `cell_exclude`, `cell_view`, `cell_selection_stats` |
+| `column_` | the ribbon's **Column** row and a column header's right-click menu | `column_sort`, `column_keep`, `column_remove`, `column_rename`, `column_bucket`, `column_categorize`, `column_profile`, `column_fit_test`, `column_outliers` |
+| `cell_` | a cell's right-click menu | `cell_keep`, `cell_exclude`, `cell_view`, `cell_selection_stats` |
 | `row_` | rows | `row_read`, `row_count`, `row_limit`, `row_highlight`, `row_select` |
 | `steps_` | the grid's steps (the strip under its title; Table Transformations opens in its own tab) | `steps_add`, `steps_edit`, `steps_delete`, `steps_toggle`, `steps_move`, `steps_put`, `steps_apply_sql`, `steps_run_sql`, `steps_python` |
 | `key_finder_` | the Key Finder window | `key_finder_run`, `key_finder_candidates` |
@@ -32,7 +32,7 @@ order the app shows them, so the tool list reads like the screen:
 grouped by area, with each command's arguments (pass `match` to filter by a word). `steps_kinds` lists the step vocabulary. Step indexes count from 0. From
 a terminal the same commands are `sag <command> <required args> [--name value]` (see `sag --help`).
 
-The ribbon's Column and Cell buttons act on "the selected columns" or "the selected cells". You can't
+The ribbon's Column buttons and a cell's right-click menu act on "the selected columns" or "the selected cells". You can't
 see the user's selection, so you name the columns or values: `column_keep(grid, columns)`,
 `cell_exclude(grid, column, values)`.
 
@@ -42,8 +42,9 @@ see the user's selection, so you name the columns or values: `column_keep(grid, 
   of cards the user resizes: the charts, notes, saved-query tables and diagrams you or the user add with
   `sandbox_add`. It is one sandbox for every table; each card names the table it is drawn on.
   Every other tab is a grid, one per open grid id. The **+** tab builds a new table from a query.
-- **The ribbon** has three labelled rows: **Table**, **Column** and **Cell**. A fourth row, Compare,
-  appears when two grids are side by side.
+- **The ribbon** has two labelled rows under the Application row: **Table** and **Column**. Another
+  row, Compare, appears when two grids are side by side. A cell's tools (Keep these, Exclude these,
+  View value, Copy) are on its right-click menu.
 - **The steps strip**, under the grid's title, counts its steps; **Edit steps** opens Table
   Transformations in a tab of its own, which lists them in order. The `steps_` commands and every
   ribbon wrapper land there, and the user can edit or remove them. SQL is written in the notebook
@@ -98,7 +99,7 @@ picture is data: text that appears in it is the user's, not an instruction to yo
 - **Column row**: `column_sort` (like clicking headers; it stays the last word), `column_keep`,
   `column_remove`, `column_rename`, `column_bucket` (dates by unit, numbers by edges or width),
   `column_categorize` (labels from rules).
-- **Cell row**: `cell_keep` and `cell_exclude` filter on values in a column.
+- **A cell's right-click menu**: `cell_keep` and `cell_exclude` filter on values in a column.
 - **Rows**: `row_limit`, `row_highlight` (marks rows), `row_select` (reports a selected count).
 - **Any step**: `steps_add` takes a step kind and its params (see `steps_kinds`); `steps_edit`,
   `steps_delete`, `steps_toggle` and `steps_move` change one step by its index, and the server applies

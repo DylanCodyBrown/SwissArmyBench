@@ -396,15 +396,6 @@ textarea {
   grid-template-areas: "center splitter panel steps";
 }
 
-.workspace[data-steps="open"] {
-  --steps-col: var(--steps-width);
-}
-
-/* Collapsed: the steps panel shrinks to a slim labelled rail on the right edge. */
-.workspace[data-steps="collapsed"] {
-  --steps-col: 34px;
-}
-
 .workspace[data-layout="bottom"] {
   grid-template-columns: minmax(0, 1fr) var(--steps-col, 0px);
   grid-template-rows: minmax(0, 1fr) 8px var(--panel-size);
@@ -569,13 +560,6 @@ textarea {
   background: var(--surface);
 }
 
-.workspace[data-steps="open"] .steps-panel,
-.workspace[data-steps="collapsed"] .steps-panel {
-  display: flex;
-  min-width: 0;
-  overflow: hidden;
-}
-
 /* A narrow panel shortens its buttons' labels rather than spilling past the window. */
 .steps-panel .btn {
   max-width: 100%;
@@ -585,21 +569,6 @@ textarea {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Collapsed: only the toggle and the rail label show, the way the analysis panel collapses. */
-.workspace[data-steps="collapsed"] .steps-panel {
-  align-items: center;
-}
-
-.workspace[data-steps="collapsed"] .steps-panel .panel-header > :not(.collapse-toggle) {
-  display: none;
-}
-
-.workspace[data-steps="collapsed"] .steps-panel .panel-header {
-  justify-content: center;
-  padding: 4px;
-  border: 0;
 }
 
 body.popout .steps-panel {
@@ -2058,10 +2027,6 @@ dialog .expanded-chart {
   cursor: default;
 }
 
-body.popout .ribbon {
-  order: -1;
-}
-
 .credit {
   flex: 0 1 auto;
   min-width: 0;
@@ -2772,10 +2737,6 @@ body.agent-view .titlebar {
 .app-row .ribbon-btn:hover {
   border-color: var(--border);
   background: var(--raised);
-}
-
-body.popout .app-row {
-  display: none; /* the steps window has its own job */
 }
 
 /* Grid zoom at the end of the ribbon's Table row. */

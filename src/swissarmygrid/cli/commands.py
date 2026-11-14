@@ -2,7 +2,7 @@
 
 The grid page has buttons; this has commands. Each command is named for the part of the app it
 works on, then the action: `tabs_new_query` (the + tab), `table_filter` (the ribbon's Table row),
-`column_keep` (the Column row), `cell_exclude` (the Cell row), `steps_add` (the Table
+`column_keep` (the Column row), `cell_exclude` (a cell's right-click menu), `steps_add` (the Table
 Transformations panel), `compare_create`, `sandbox_add`. The prefix is the area, so a flat tool
 list sorts itself into the app's layout; AREAS below lists them in the order the app shows them.
 Some commands are composites of several server handlers that match one button on the page
@@ -1505,7 +1505,7 @@ def compare_grids(a: dict[str, Any]) -> Any:
 
 # ===== the ribbon's buttons: one command each, filed under the row they sit on =====
 #
-# These are thin wrappers over the steps the Table, Column and Cell rows add. The page's buttons act
+# These are thin wrappers over the steps the Table and Column rows and a cell's right-click menu add. The page's buttons act
 # on "the selected column(s)" or "the selected cells", which only the browser knows; an agent names
 # the columns or values instead, so each wrapper takes them as arguments.
 
@@ -1867,7 +1867,7 @@ def row_limit(a: dict[str, Any]) -> Any:
 
 @command(
     "cell_keep",
-    "Keep only rows with these values in a column (the Cell row's Keep these).",
+    "Keep only rows with these values in a column (the cell's right-click Keep these).",
     req("grid", "Grid id."),
     req("column", "Column name."),
     req("values", 'The values to keep, e.g. ["east", "west"].', "json"),
@@ -1880,7 +1880,7 @@ def cell_keep(a: dict[str, Any]) -> Any:
 
 @command(
     "cell_exclude",
-    "Drop rows with these values in a column (the Cell row's Exclude these).",
+    "Drop rows with these values in a column (the cell's right-click Exclude these).",
     req("grid", "Grid id."),
     req("column", "Column name."),
     req("values", "The values to drop.", "json"),
@@ -1920,7 +1920,7 @@ def app_snapshot(a: dict[str, Any]) -> Any:
 # ===== the app's layout: which area each command belongs to =====
 #
 # The name's prefix is the area, in the order the app shows them: the tab bar, the datasets, the
-# ribbon's Table / Column / Cell rows, the Table Transformations panel, the Key Finder, the
+# ribbon's Table and Column rows, a cell's right-click menu, the Table Transformations panel, the Key Finder, the
 # Relationships dialog and ERD tab, compare, the Agent tab's sandbox, then what only an agent sees.
 # The catalog groups by area, and so does the MCP's tool list.
 
@@ -2803,7 +2803,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("datasets", "Datasets: loading, closing, Python sessions"),
     ("table", "Ribbon, Table row"),
     ("column", "Ribbon, Column row"),
-    ("cell", "Ribbon, Cell row"),
+    ("cell", "A cell's right-click menu"),
     ("analyze", "Ribbon, Table row: the Analyze menu (odds, predictors, regression, time series, forecast)"),
     ("row", "Rows"),
     ("steps", "Table Transformations panel and SQL box"),

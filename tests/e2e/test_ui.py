@@ -457,6 +457,11 @@ def test_popout_steps_window(browser: Browser, orders_url: str) -> None:
     page.goto(f"{path}?panel=steps#{fragment}")
     expect(page.locator(".steps-panel .step.source")).to_be_visible(timeout=15000)
     assert page.title().startswith("Table Transformations · ")
+    # Only the steps: no copy of the ribbon, and no button to pop out a window that already is one.
+    expect(page.locator(".ribbon")).to_have_count(0)
+    expect(page.locator(".app-row")).to_have_count(0)
+    expect(page.get_by_role("button", name="Pop out the transformations panel")).to_have_count(0)
+    expect(page.get_by_role("button", name="Add a SQL step")).to_be_visible()
 
 
 # ===== SQL box =====
@@ -1180,14 +1185,30 @@ def test_clicking_off_the_grid_clears_a_select_all(browser: Browser, orders_url:
     expect(page.locator(".statusbar")).not_to_contain_text("All selected")
 
 
-def test_cell_tool_keeps_rows_with_the_selected_value(browser: Browser, orders_url: str) -> None:
+def test_the_cells_right_click_keeps_rows_with_the_selected_value(browser: Browser, orders_url: str) -> None:
+    """The ribbon has no Cell row (2026-11-14): its four tools are on the cell's right-click menu."""
     page = open_grid(browser, orders_url)
+    expect(page.locator(".ribbon .ribbon-caption strong")).to_have_text(["Table", "Column"])
+    for gone in ("Keep these", "Exclude these", "View value", "Copy"):
+        expect(page.locator(".ribbon").get_by_role("button", name=gone, exact=True)).to_have_count(0)
     page.locator(row_cell(0, "product")).click()
-    expect(page.locator(".ribbon .ribbon-caption").nth(2)).to_contain_text("row 1 of product")
-    page.get_by_role("button", name="Keep these").click()
+    page.locator(row_cell(0, "product")).click(button="right")
+    menu = page.get_by_role("menu")
+    expect(menu.get_by_role("menuitem")).to_have_text(
+        [
+            "Send value to Sandbox",
+            "Send the row to Sandbox",
+            "Keep these",
+            "Exclude these",
+            "View value",
+            "Copy",
+        ]
+    )
+    menu.get_by_role("menuitem", name="Keep these").click()
     expect(page.locator("#status")).to_contain_text("of 1,250")
     page.locator(row_cell(0, "region")).click()
-    page.get_by_role("button", name="Exclude these").click()
+    page.locator(row_cell(0, "region")).click(button="right")
+    page.get_by_role("menuitem", name="Exclude these").click()
     expect(page.locator("#status")).to_contain_text("of 833")  # Widget and North: 417 rows go
 
 

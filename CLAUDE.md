@@ -198,7 +198,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          aiPanel.ts is the Sandbox tab (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
-                         predictors, outliers; Fit test and Outliers are also in the Column row);
+                         predictors, outliers; Fit test and Outliers are also on a column header's right-click menu);
                          modelDialog.ts the regression and what-if; timeSeriesDialog.ts time series and
                          forecast (Plotly charts in the window); cheatSheets.ts each form's Data shape;
                          analysisCards.ts every result as Sandbox cards (a report-style note and a chart);

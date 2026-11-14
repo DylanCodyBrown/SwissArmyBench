@@ -15,7 +15,7 @@
 import { api, clientId, gridPath, type GridInfo, type Settings, type StepJson } from "./api";
 
 // "selection" = the status bar's numbers changed (also scrolling); "grid-selection" = what
-// is selected changed (the toolbar's Column and Cell tools follow it).
+// is selected changed (the toolbar's Column tools follow it).
 type Topic = "info" | "preview" | "selection" | "grid-selection" | "view" | "preview-marks";
 
 /** Excel's status bar over the selection, from the server (server/selection.py). */

@@ -76,7 +76,8 @@ lives, it is in the wrong place.
 **3.3 Group actions by what they act on, and name the group.** Application-wide, then the whole table,
 then the selected column, then the selected cell; a row that only makes sense sometimes appears only
 then.
-- Example: the ribbon's Application, Table, Column and Cell rows; Compare only while two grids are side
+- Example: the ribbon's Application, Table and Column rows (a cell's tools are on its right-click
+  menu); Compare only while two grids are side
   by side.
 - The owner (2026-11-13): "Just put all those app level commands in another row above tables call
   Application"
