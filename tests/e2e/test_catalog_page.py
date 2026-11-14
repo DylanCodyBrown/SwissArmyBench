@@ -191,14 +191,21 @@ def test_a_refresh_asks_for_a_secret_blade_value_and_never_keeps_it(
     }
     call(server, "POST", "/blades", blade)
     page = open_page(browser, warehouse)
-    page.locator(".blade-item", has_text="Ovens").get_by_role("button", name="Refresh catalog").click()
+    # A blade's row has no refresh of its own (2026-11-14): its save screen refreshes, and the one
+    # beside the catalog picker refreshes the catalog shown.
+    row = page.locator(".blade-item", has_text="Ovens")
+    expect(row.get_by_role("button", name="Refresh catalog")).to_have_count(0)
+    row.locator(".blade-name").click()
+    page.get_by_role("button", name="Save and refresh the catalog").click()
     dialog = page.locator("dialog")
     expect(dialog).to_contain_text("OVEN_PASSWORD")
     dialog.get_by_label("OVEN_PASSWORD").fill("proof-42")
     dialog.get_by_role("button", name="Run").click()
-    expect(page.locator(".toast").last).to_contain_text("Ovens: 1 tables")
+    picker = page.locator("select[aria-label='Catalog']")
+    expect(picker.locator("option", has_text="Ovens")).to_have_count(1, timeout=20000)
     # Never kept: the next refresh asks again.
-    page.locator(".blade-item", has_text="Ovens").get_by_role("button", name="Refresh catalog").click()
+    picker.select_option("Ovens")
+    page.get_by_role("button", name="Refresh", exact=True).click()
     expect(page.locator("dialog")).to_contain_text("OVEN_PASSWORD")
     page.close()
 

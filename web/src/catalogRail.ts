@@ -337,9 +337,6 @@ export function mountRail(host: RailHost): Rail {
         ),
         blade.source === "folder" ? h("span", { class: "blade-file", title: blade.path ?? "" }, "file") : null,
         blade.source === "pack" ? h("span", { class: "blade-file blade-pack", title: `${blade.pack ?? ""}, read-only` }, "pack") : null,
-        blade.has_catalog
-          ? button("Refresh catalog", () => void refresh(blade.name), { icon: "play", iconOnly: true, class: "ghost", title: `Refresh ${blade.name}'s catalog` })
-          : null,
         button(blade.connection ? "Copy the sag.connection line" : "Copy the sag.blade line", () => copy(line, "the line"), { icon: "copy", iconOnly: true, class: "ghost", title: line }),
       );
       bladeList.append(item);
