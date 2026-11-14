@@ -960,6 +960,18 @@ export function notebookView(
     }, 600);
   }
 
+  // A kernel that starts (again) or stops holds no table any more: no cell has run in it.
+  kernel.onState(() => {
+    if (kernel.state !== "starting" && kernel.state !== "off") return;
+    let any = false;
+    for (const [name, record] of records) {
+      if (record.code === null) continue;
+      records.set(name, { code: null, at: null, opened: record.opened });
+      any = true;
+    }
+    if (any) redraw();
+  });
+
   for (const data of initial.length ? initial : [empty()]) make(data, cells.length);
   building = false;
   redraw();

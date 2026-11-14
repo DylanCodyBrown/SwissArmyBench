@@ -677,7 +677,7 @@ An agent drove every area of the app in a browser with made-up data against two 
 
 Bugs: fix all 11 (Workbench: SQL error panel "s.notes is not iterable", new SQL cell's connection box; Connections: empty-Name Test message, stale "Not installed" note on a vault; Compare and relationships: Diff jump scrolls only the left, Find relationships includes closed tables and both directions of a pair, Key Finder crowns ship_date over order_date, compare lost on reload, wrong key pre-ticked; Server: stop lingers and crashes on open long-polls). Kernels of a closed Workbench window stop a minute after it closes.
 
-## Every table has a read-only cell: its transformations in DuckDB SQL (2026-11-14, the owner's calls)
+## Every table has a read-only cell: its transformations in DuckDB SQL (2026-11-14, the owner's calls; built)
 
 Replaces an Apply-button idea from the same day (dropped: a button far from the grid, a "did I press
 it?" state, and a notebook that no longer held its own transformations). The owner: "Transformations
@@ -726,8 +726,67 @@ should be code behind in the read only cell using duck db." Decided:
 - **The copy buttons go:** Copy as SQL, Copy as Python and To Python leave the steps strip and are not
   moved anywhere; the table's cell is the code. (Open: the catalog's Script as also queues code for
   sag.paste; whether it stays.)
+- **The uses line** (the owner, 2026-11-14). When one of the user's own cells (a notebook cell, or a
+  script's `# %%` cell) names an open table, the app keeps one comment line at the top of that cell:
+  `# uses orders @cell3, customers @cell5`. Each link goes to that table's read-only cell. The line
+  follows the typing after a short pause, never moves the cursor or the text, and goes when the cell
+  uses no table any more. Only that first line, recognised exactly by its format, is ever changed.
+  Real Python names only: not in a string or a comment, not part of a longer name (`orders_2026`),
+  not an attribute (`x.orders`). A table's own cell, its maker cell and Markdown cells get no line;
+  a `%%sql` cell gets `-- uses orders @cell3`. It is saved in the file as an ordinary comment.
 
-Proposed, not yet asked: cells that use an out-of-date table get a quieter mark; the grid's steps strip
-and the Variables pane say "Out of date in <notebook> · Run" too; the agent can read what is out of date
-and run a table's cell (the golden rule). Limit: a notebook in plain Jupyter or a script in another
-editor cannot be written live, and with the copy buttons gone the grid has no way into it.
+Proposed, not yet asked (not built): cells that use an out-of-date table get a quieter mark; the grid's
+steps strip and the Variables pane say "Out of date in <notebook> · Run" too. Built with the rest, by
+the golden rule: the agent reads what is out of date and runs a table's cell. Limit: a notebook in plain
+Jupyter or a script in another editor cannot be written live, and with the copy buttons gone the grid has
+no way into it (the steps window's Code tab still copies the query).
+
+Built on 2026-11-14 (domain/table_cells.py, services/table_cells.py, client/table_cells.py,
+web/src/workbenchTables.ts, the notebook and script views). Decided while building; confirm or change:
+
+- **Which tables get a cell, and where.** A table is open when it has a tab in the grid. Its cell goes
+  into the document whose kernel sent it; else a document that already holds its cell (its file); else,
+  for a table no Python made (a file, a paste, a connection, a "+" tab's query), the document in front.
+  A table sent by a Python outside the Workbench (Jupyter, a script in another editor, `sag.push` from
+  a terminal) gets no cell: its code lives where the app cannot write (the limit above). Once a
+  document has a table it keeps it; a table closed in the grid keeps its cell in the file ("not open in
+  the grid"), and only then can the cell be deleted.
+- **The maker** is the first of the user's cells that gives the table's name a value without reading
+  it (found by reading the code with Python's own parser, not by watching runs), so a later
+  `orders = orders.dropna()` is not the maker. A table whose name no cell sets (made in the console,
+  a result opened as a grid) has a note in its cell instead of a load.
+- **When a maker moves.** It moves with the imports it needs when those are in a cell of imports only.
+  It stays put, listed with its reason, when it needs a name another of the user's cells makes
+  (`it needs make_dates`), when a cell above it sets a name it also sets, when it needs a table that
+  stays put, or when it is in a script's main code. Cells move only at calm moments (a table opened
+  or closed, a cell run, a file opened), never while typing.
+- **A script's main code is not a cell.** The code before the first `# %%` (all of a script without
+  markers) never moves and has no number; the plain `# %%` after `# endregion` closes the group, and
+  the main code follows it. A table made there is listed as "made in the script's main code" and its
+  cell goes after that code. Marker form: `# %% [7] [table] orders Load the orders` (number, part,
+  then the user's own words). A script's cell numbers continue from the highest in the file when it
+  is opened again (a notebook keeps its count in its metadata, so there a number is never reused).
+- **A load for each origin.** A file: `duckdb.read_csv / read_parquet / read_json(path).df()`, a
+  workbook `pd.read_excel(path, sheet_name=...)` (the server reads files with Arrow, so a column's
+  type can differ in small ways). A connection: `sag.sql("Name", "<the query it was opened with>")`.
+  A "+" tab: its query. **A paste: written out as one typed `VALUES` query when it has at most 200
+  rows, 50 columns and 20,000 characters; else a note** saying to export it to a file and open that.
+  A file dropped on the page (the browser gives no path) gets a note.
+- **No steps: nothing to run.** The cell is one comment line; with steps it is `import duckdb` and the
+  one statement. A sort made by clicking a header is a way of looking and stays out of the cell. A step
+  that cannot run is said in the cell instead of a query that fails.
+- **Safe to repeat, and not sent back.** The kernel keeps a reference to what was sent to the grid
+  under each name; the Workbench runs a table's cell as `%%sag_table orders`, which puts that original
+  back under the name first. The watcher sees the changed variable is the cell's own result and does
+  not send it; when the maker ran again just before the cell did, it sends the new original instead.
+  Run file (`%sag_run`) and a script's Run to here, Run from here and selections run a table's cell
+  the same way. Run as plain Python elsewhere, the file makes the table and transforms it once.
+- **A reopened file's steps.** A notebook keeps each table cell's steps in the cell's metadata, and a
+  grid opened with no steps for a table whose cell came with the file gets them back. A script has no
+  such place: there the cell is rewritten to the grid's (empty) steps when its table is opened again.
+- **Folding.** A file's group starts folded; a group made while working shows its tables, and a table
+  whose maker just moved in shows open, so the cell being worked in is not folded away.
+- **A link lands on** the table's read-only cell (the transformations), for a uses line; a note's link
+  ("made at @cell7") on the maker.
+- **The pandas and plain-Python generators stay:** the steps window's Code tab and the agent's
+  `table_code` still offer them (a browser test checks the pandas one there). Open with Script as.

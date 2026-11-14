@@ -31,7 +31,7 @@ Without Python: the folder button beside + opens a file (CSV, Parquet, JSON, Arr
 The page has these parts:
 
 - **Tab bar.** The Agent tab comes first and cannot be closed. Each open grid has its own tab after it, and the + after the last tab starts a new table from a query (see below).
-- **Title.** The dataset name and its version. A new push to the same dataset raises the version. Beside it, the **steps strip**: how many steps the grid has, with Undo (the last step), Clear, Edit steps, Copy as SQL, Copy as Python and To Python.
+- **Title.** The dataset name and its version. A new push to the same dataset raises the version. Beside it, the **steps strip**: how many steps the grid has, with Undo (the last step), Clear and Edit steps. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: **Settings**, **Blades and catalog**, **Notebook** and **Tour** (the question mark): a one-minute tour of every word SwissArmyGrid uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Three rows, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. **Cell** works on the selected cells. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
@@ -82,9 +82,9 @@ Each step there has a checkbox to switch it off, a pencil to edit it and a trash
 
 ### SQL: in the notebook
 
-SQL is written where your Python is: Jupyter, or Python in the terminal. A grid's steps go there too. **To Python** on the steps strip gives them as DuckDB code over your table by its own name (`orders_view = duckdb.sql("""SELECT ... FROM orders WHERE ...""").df()`), checked against the grid: it is copied, and `sag.paste()` in Jupyter or IPython puts it in the cell (see Code to your Python). Running it gives the same rows as the grid.
+SQL is written where your Python is: the Workbench, Jupyter, or Python in the terminal. A grid's steps are there too: every table has a read-only cell in its Workbench notebook or script that holds the steps as one DuckDB query over your table by its own name (`orders = duckdb.sql("""SELECT ... FROM orders WHERE ...""").df()`). The cell follows the grid by itself; see The Workbench.
 
-**Copy as SQL** and **Copy as Python** on the strip give the same one query, or one line of DuckDB in Python, for any other Python. Both are run on a copy of your table and matched with the grid before they're copied.
+For any other Python, the steps window (**Edit steps**) still has a Code tab: **Copy as SQL** and **Copy as Python** there give the same one query, run on a copy of your table and matched with the grid before they're copied.
 
 A SQL step is still one step among the others: in Edit steps, **Add a SQL step** takes one SELECT over the table entering it, read as `grid` or by the table's name. Anything else is refused, and the strip names the broken step.
 
@@ -343,6 +343,10 @@ their own, run in an IPython kernel on this computer.
   the source (Escape puts it away). Ctrl+1 to Ctrl+3 (and F6) move between the panes.
 - **After a reload** the open documents and their unsaved text come back (kept in the window, not on
   disk).
+- **Every cell has a number that never changes:** `#7` in a notebook cell's head (beside the run count
+  `[3]`), `# %% [7]` on a script's cell marker. It is given when the cell is made and never given
+  again, wherever the cell moves. Write `@cell7` in a comment and it is a link: a click goes to cell 7,
+  a hover shows its first line. Outside the Workbench it is a plain comment.
 - **The agent** works the Workbench as you do: it opens, runs and saves files and kernels, and its
   `workbench_window` tool runs any palette command in the window you were last in (`documents` says
   what is open, `commands` lists them all).
@@ -388,9 +392,51 @@ Settings lists the agent's activity: what it asked for, newest first. It never i
 
 ![The save screen for a new PostgreSQL blade: its code, the variable it makes, its password field (kept in the computer's vault) and the missing psycopg package with an Install button.](images/21-blade-save.png)
 
+### Every table has its own cell
+
+A table open in the grid has a read-only cell in the notebook or script it belongs to: the one whose
+kernel sent it to the grid. A table no Python made (a file, a paste, a connection, a "+" tab's query)
+goes to the document in front, and its cell starts with its load (the file read again, the
+connection's query, a small paste written out; a paste over 200 rows or a file dropped on the page
+gets a note instead). A table sent from a Python outside the Workbench (Jupyter, VS Code) has no cell
+here: its code lives there.
+
+- **Only the transformations are in it,** as one DuckDB query whose result is the table's own name:
+  `orders = duckdb.sql("""SELECT ... FROM orders ...""").df()`, in the form the table had (a pandas
+  DataFrame, a Polars one, an Arrow table). Your own cell that made the table stays yours.
+- **You change it in the grid, never by typing.** A step added, changed or removed in the grid
+  rewrites the cell at once. A sort made by clicking a header is a way of looking and stays out.
+- **Nothing runs by itself.** A rewritten cell turns yellow: **Out of date · last run 10:42**, with
+  **Run**. Run it and the variable holds the table as the grid shows it. Undo the change in the grid
+  and the yellow clears by itself. Before its first run it says **Not run yet**; after a reload,
+  **Not run since opening**. The toolbar's **Run tables** runs every cell that is not up to date.
+- **Running it twice is safe.** The cell always starts from the table as your own cell made it, so a
+  second run never transforms a table that is already transformed. Both are in memory while you work.
+  Run all and Run file run it the same way. The saved file still runs from top to bottom as plain
+  Python with no app: your cell makes the table, its cell transforms it once.
+- **All tables sit at the top, in a Tables group.** Each table is a group of its own: your cell that
+  makes it, then its read-only cell, after the imports they need and after the tables it is made
+  from. A table folds to one line (**orders · 3 steps · up to date**) and the whole group to one
+  (**Tables · 4 tables · 1 out of date**, yellow when any is out of date). A file opens with the
+  group folded. In a notebook file the group is Markdown headings, which JupyterLab folds too; in a
+  script it is `# region Tables` to `# endregion` around `# %% [7] [table] orders` and
+  `# %% [8] [transformations] orders`, and Ctrl+Enter in a table's cell runs it.
+- **A maker that cannot move stays where it is.** When your cell needs something your code defines
+  further down (a function, a variable), or sits in a script's main code (before its first `# %%`),
+  the table's cells stay there, and the Tables group lists it with a link:
+  *orders is made at @cell7 (it needs make_dates)*.
+- **The uses line.** One of your own cells that names a table starts with one line the app keeps:
+  `# uses orders @cell3, customers @cell5` (`-- uses ...` in a SQL cell). Each link goes to that
+  table's read-only cell. The line follows your typing after a short pause and goes when the cell
+  names no table any more; nothing else in your cell is ever touched. It is saved as an ordinary
+  comment.
+- **The agent** reads every table's cell (`workbench_table_cells`), a document's tables and their
+  state (`workbench_tables`), runs a table's cell (`workbench_table_run`) and goes to a cell by its
+  number (`workbench_cell_goto`).
+
 ## Code to your Python
 
-**To Python** (on any analysis result, and on the steps strip) hands code to Jupyter or Python in the terminal. It is copied to the clipboard and waits: in Jupyter, run `sag.paste()` in a cell and the cell becomes the code, its imports first; in IPython it waits at the prompt. Nothing runs until you run it. The last 20 wait in memory only; the agent can never send code to your Python.
+**To Python** (on any analysis result) hands code to Jupyter or Python in the terminal. It is copied to the clipboard and waits: in Jupyter, run `sag.paste()` in a cell and the cell becomes the code, its imports first; in IPython it waits at the prompt. Nothing runs until you run it. The last 20 wait in memory only; the agent can never send code to your Python.
 
 - **Drag from the blades page** into a cell or an editor: a blade gives its `sag.blade(...)` line, a table a first SELECT, a column its quoted name.
 - **Your tables are grids:** importing `swissarmygrid` in Jupyter or IPython lists the tables you make in the grid page's Open list. Open one and it's a grid; run the cell again and the grid refreshes.

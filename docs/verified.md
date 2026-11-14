@@ -524,3 +524,20 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   is out_<n>, so `rainfall.describe()` no longer replaced `rainfall`), a notebook's console is a title
   bar until used, and a new notebook has the cursor in its first cell. Then: ruff, format, mypy (233
   files), the TypeScript check, and the whole suite with the browser tests (2,017 passed).
+- (2026-11-14) Every table has a read-only cell (docs/ideas.md has the spec and what was decided while
+  building). Checked against a running server and a real kernel: a table's cell is the grid's steps as
+  one DuckDB query whose result is the table's own name; run three times it gives the grid's rows each
+  time; the kernel's watcher did not send the cell's result back (the grid kept its four rows and
+  showed three), sent the maker's new data when the maker ran again, and sent the new original when the
+  maker and the cell both ran before it looked; a script run as a file ran its table cell the same safe
+  way, and the same file run as plain Python made the table and transformed it once. A small paste is
+  written out and reads back the same; a file's cell reads the file again in a Python of its own. In
+  the browser: the Tables group in a notebook and in a script (folded when a file opens, yellow when a
+  cell is out of date, clear again when the grid change is undone), a maker that stays put with its
+  link, cell numbers kept through a save, `@cell` links (click and hover), the uses line kept while
+  typing with the cursor where it was and no edit after an undo, a saved notebook's steps given back
+  to a grid opened again, and the steps strip without Copy as SQL, Copy as Python and To Python.
+  Then: ruff, format, mypy (240 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,070 passed, none skipped (2,017 before; 53 new). Not checked: Polars tables (Polars is not
+  installed here; the output form is tested as text), JupyterLab folding the headings, VS Code folding
+  the region, Windows paths in a load.

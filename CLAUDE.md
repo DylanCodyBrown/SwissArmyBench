@@ -32,8 +32,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
   added with a form), the SQL cell (`%%sql <connection>`), the Workbench (notebooks, scripts,
-  completion, per-notebook environments), the Analyze menu, the Sandbox, compare's diff and tie-out,
-  and To Python (code queued for `sag.paste()` in Jupyter or IPython). Not built: M9 (sandbox), the VS Code extension and the
+  completion, per-notebook environments), every table's read-only cell there (its transformations as
+  one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
+  left the grid's steps strip), the Analyze menu, the Sandbox, compare's diff and tie-out,
+  and To Python on analysis results (code queued for `sag.paste()` in Jupyter or IPython). Not built: M9 (sandbox), the VS Code extension and the
   Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
   notes go in [docs/ideas.md](docs/ideas.md).
@@ -86,7 +88,12 @@ src/swissarmygrid/
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
-    notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell) and scripts
+    notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell) and scripts;
+                         each cell's number (never changes, never reused) and its part in the Tables group
+    table_cells.py       every table's read-only cell: the names code makes, needs and uses; the uses
+                         line (`# uses orders @cell3`); the Tables group's order and why a maker stays
+                         put; a script's `# region Tables` and `# %% [7] [table] orders` markers; a
+                         table's cell as text (its load, a small paste written out, its transformations)
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name); where a SQL error points
@@ -119,6 +126,8 @@ src/swissarmygrid/
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
+    table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
+                         query); a document's Tables group arranged; where each table came from
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
@@ -150,7 +159,7 @@ src/swissarmygrid/
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, handoff, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, folders, workbench). Every route serves
+                         processes, snapshots, packs, connections, folders, workbench, table_cells). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmygrid`
@@ -167,10 +176,15 @@ src/swissarmygrid/
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sag.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB
   client/sandbox_client.py sag.sandbox: a figure, picture, table or text as a Sandbox card (duck-typed)
+  client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
+                         (never a table cell's own result: the grid would apply its steps twice)
+  client/table_cells.py  a table's read-only cell run in the kernel (%%sag_table, %sag_run): it starts
+                         from the original its maker made (a reference, never a copy), so a second run
+                         changes nothing
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (182 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (187 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -204,7 +218,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          colours, `\r`, caps, input boxes), workbenchErrors.ts (the error panel: Visual
                          Studio's Exception Helper; squiggles, hover cards and Ctrl+. fixes in the editor),
                          workbenchCompletion.ts, workbenchEnvironment.ts,
-                         workbenchVariables.ts, lazy/codeEditor.ts (Monaco)
+                         workbenchVariables.ts, lazy/codeEditor.ts (Monaco: line edits that keep the
+                         cursor, cell links, a script's folds and marker notes),
+                         workbenchTables.ts (every table's read-only cell: its state against the text it
+                         last ran, the folded lines' words, the uses line); the Tables group, cell
+                         numbers and @cell links are drawn in workbenchNotebook.ts and workbenchScript.ts
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/static/              index.html, grid.css (all theme tokens), build/ (gitignored)
@@ -240,6 +258,9 @@ started from `swissarmygrid.exe` is running.
 - Starlette's TestClient sends `Host: testserver` on WebSockets; pass `Host: 127.0.0.1:<port>`.
 - The e2e fixture gives each test its own grid (`new_grid=True`) and closes it; a plain re-push
   would reuse the first grid with every earlier test's steps.
+- In a notebook the app's own cells (a Tables heading's line, a table's read-only cell) are
+  `.wb-tcell`; `.wb-cell` is a cell of the user's. A browser test that counts `.wb-cell` counts
+  the user's cells only.
 - `npm run build` writes source maps (development); `build.py` uses `build:release`
   without them, and the wheel bundles `web/static` as `swissarmygrid/web_static`.
 - DuckDB quirks the engine depends on are listed in docs/verified.md (LIKE escape, case

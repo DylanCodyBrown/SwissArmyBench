@@ -157,6 +157,18 @@ export function scriptView(
     hooks.tablesChanged?.();
   };
 
+  // A kernel that starts (again) or stops holds no table any more: no cell has run in it.
+  kernel.onState(() => {
+    if (kernel.state !== "starting" && kernel.state !== "off") return;
+    let any = false;
+    for (const [name, record] of records) {
+      if (record.code === null) continue;
+      records.set(name, { code: null, at: null, opened: record.opened });
+      any = true;
+    }
+    if (any) draw();
+  });
+
   const relevant = (): boolean => tableInfos.length > 0 || /^# ?(%%|region Tables)/m.test(editor ? editor.value() : text);
 
   /** Ask the server for the script as it should be, and where its cells are. `move` false while the

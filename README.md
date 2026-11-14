@@ -19,9 +19,8 @@ What a grid page does:
   (keep or exclude rows with the selected values, view, copy).
 - **Steps** (like Power Query's applied steps): filter, sort, choose and rename columns, group
   by, distinct, keep first rows, clean text, bucket, categorize and SQL. The grid has the whole
-  page: a strip under its title counts the steps and offers Undo, Clear, Copy as SQL / Python and
-  To Python; **Edit steps** opens Table Transformations in a tab of its own, where each step can
-  be edited, turned off or reordered, with row counts as it goes. A step list can be saved as a
+  page: a strip under its title counts the steps and offers Undo and Clear; **Edit steps** opens
+  Table Transformations in a tab of its own, where each step can be edited, turned off or reordered, with row counts as it goes. A step list can be saved as a
   recipe.
 - **Cell viewer:** double-click a cell. JSON objects and arrays show as tables you can open one
   layer at a time, markdown is formatted, and long text wraps.
@@ -29,15 +28,20 @@ What a grid page does:
   Trim, Empty = blank.
 - **Column profile:** a popup from the Column row's Profile: statistics and value counts; click a
   value to filter on it. **Auto width** fits every column (Table row) or the selected ones.
-- **SQL lives in your Python** (DuckDB SQL does the transforming): **To Python** hands a grid's steps
-  to Jupyter or IPython as DuckDB code over your table by its own name, checked against the grid:
-  copied, and `sag.paste()` puts it in the cell. A SQL step (Edit steps, Add a SQL step) is one
-  guarded SELECT over the table entering it.
+- **SQL lives in your Python** (DuckDB SQL does the transforming): **every table has a read-only cell**
+  in the Workbench notebook or script it belongs to, holding the grid's steps as one DuckDB query
+  whose result is the table's own name (`orders = duckdb.sql("""...""").df()`). The cell follows the
+  grid by itself and turns yellow (Out of date · Run) when the steps change; nothing runs by itself,
+  and running it twice never transforms a table twice. All tables sit at the top of the file in a
+  Tables group that folds to one line. Every cell has a number that never changes, `@cell7` in a
+  comment links to it, and a cell that names a table starts with `# uses orders @cell3`. A SQL step
+  (Edit steps, Add a SQL step) is one guarded SELECT over the table entering it.
 - **New table from a query:** the **+** after the last tab opens a SQL tray over a blank grid.
   A table name reads that table as its tab shows it (after its steps); Run turns the result into a
   table of its own, with every tool a pushed table has. The tray stays on the tab, so Run again
   rebuilds the table in place, and its own steps apply to the new rows.
-- **Copy transformations as SQL or Python:** the view's steps, SQL steps included, as one DuckDB
+- **Copy transformations as SQL or Python** (the steps window's Code tab, for a Python outside the
+  Workbench): the view's steps, SQL steps included, as one DuckDB
   query over your own table by its variable name. **Copy as SQL** gives the query; **Copy as
   Python** gives `import duckdb` and one line, `orders_view = duckdb.sql("""...""").df()` (`.pl()`
   for Polars, `.to_arrow_table()` for Arrow). Longer pandas and plain-Python translations are
@@ -446,7 +450,7 @@ type the value), and cannot change, remove or run a blade.
 
 ## Code to your Python
 
-**To Python** (on an analysis result, or the grid's steps strip) hands code to Jupyter or Python in the
+**To Python** (on an analysis result) hands code to Jupyter or Python in the
 terminal: it is copied to the clipboard and queued, and in Jupyter or IPython
 
 ```python
