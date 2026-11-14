@@ -1105,10 +1105,7 @@ export function notebookView(
       // A group made while working shows its tables (a file's group starts folded).
       if (!hadGroup && !building && cells.some((c) => c.role === "tables")) groupFolded = false;
       // A cell the user was just working in is not folded away under them: its table shows open.
-      if (movedIn.length && !building) {
-        for (const name of movedIn) unfolded.add(name);
-        toast(`${movedIn.join(", ")}: now in Tables, at the top.`);
-      }
+      if (movedIn.length && !building) for (const name of movedIn) unfolded.add(name);
     }
     for (const a of done.cells) {
       const cell = byNumber(a.number);

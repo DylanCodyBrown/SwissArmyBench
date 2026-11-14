@@ -252,7 +252,6 @@ export async function editBladeFolders(onDone: () => void): Promise<void> {
     button("Save", () => {
       void api("/blades/folders", "PUT", { folders: mine }).then(() => {
         close();
-        toast("Blade folders saved.");
         onDone();
       }, (error: Error) => toast(error.message, "error"));
     }, { class: "primary", icon: "save" }),

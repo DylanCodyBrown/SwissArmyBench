@@ -135,7 +135,6 @@ function catalogWord(c: Connection): HTMLElement | null {
   const state = c.catalog_state?.state;
   if (state === "loading") return h("span", { class: "hint" }, "loading catalog…");
   if (state === "failed") return h("span", { class: "status-error", title: c.catalog_state?.error ?? "" }, "catalog not loaded");
-  if (c.catalog_loaded) return h("span", { class: "hint" }, "catalog loaded");
   return null;
 }
 

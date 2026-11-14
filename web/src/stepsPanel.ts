@@ -96,9 +96,6 @@ async function render(): Promise<void> {
   });
   body.append(list);
   if (info.steps.length) body.append(countLine(info.steps.length, true));
-  body.append(
-    ...(info.steps.length ? [] : [h("p", { class: "hint" }, "No steps")]),
-  );
   for (const [index, step] of info.steps.entries()) {
     if (step.kind === "categorize" && step.enabled !== false) void categorizeStats(index);
   }
@@ -234,8 +231,9 @@ async function renderCode(body: HTMLElement): Promise<void> {
     const shown = result;
     pre.textContent = shown.code;
     if (shown.verified) {
+      // Checked and the same: the Copy buttons say so by being there. Only a difference is words.
       copySql.hidden = copyPython.hidden = false;
-      clear(status, h("span", { class: "badge ok" }, icon("eye"), `Verified identical on ${formatCount(shown.rows_checked)} rows`));
+      clear(status);
     } else {
       clear(status, h("span", { class: "badge error" }, "Not verified"), " ", shown.difference ?? "");
     }

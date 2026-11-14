@@ -30,7 +30,8 @@ function render(): void {
   }
   const on = info.steps.filter((s) => s.enabled !== false && !s.params.header);
   const last = info.steps.length - 1;
-  const label = on.length === 0 ? "No steps" : on.length === 1 ? "1 step" : `${on.length} steps`;
+  // No words when there are none (principle 7.9): a count of zero is not something to act on.
+  const label = on.length === 0 ? "" : on.length === 1 ? "1 step" : `${on.length} steps`;
   // Opened from a connection with fewer rows than it holds: said plainly, beside the table, with the rest
   // one click away (the owner's call, 2026-11-14).
   const opened = info.opened;
@@ -54,7 +55,7 @@ function render(): void {
           button("Load all rows", () => void loadAll(), { icon: "import", class: "ghost" }),
         )
       : null,
-    h("span", { class: "steps-count", title: on.map((s, i) => `${i + 1}. ${s.description ?? s.kind}`).join("\n") || "No steps" }, label),
+    label ? h("span", { class: "steps-count", title: on.map((s, i) => `${i + 1}. ${s.description ?? s.kind}`).join("\n") }, label) : null,
     info.step_error ? h("span", { class: "status-error" }, `Step ${info.step_error.index + 1}: ${info.step_error.message}`) : null,
     button("Undo the last step", () => void state.saveSteps(info.steps.slice(0, last)).catch((e: Error) => toast(e.message, "error")), {
       icon: "back",

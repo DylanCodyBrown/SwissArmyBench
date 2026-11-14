@@ -570,21 +570,26 @@ export async function editBlade(
     }
     // Packages the code needs, and which are missing from SwissArmyGrid's Python.
     clear(packagesHost);
-    const packages = found?.packages ?? [];
-    if (packages.length) {
-      const missing = packages.filter((p) => !p.installed).map((p) => p.pip);
+    // Only what is missing is listed, with Install (principle 7.9): an installed package needs nothing.
+    const missingPackages = (found?.packages ?? []).filter((p) => !p.installed);
+    const missing = missingPackages.map((p) => p.pip);
+    if (missing.length) {
       packagesHost.append(
         h(
           "div",
           { class: "chips" },
-          ...packages.map((p) =>
-            h(
-              "span",
-              { class: `chip ${p.installed ? "installed" : "missing"}`, title: p.guessed ? "Guessed name" : p.module },
-              `${p.pip}${p.installed ? " ✓" : " missing"}`,
-            ),
-          ),
+          ...missingPackages.map((p) => h("span", { class: "chip missing", title: p.guessed ? "Guessed name" : p.module }, `${p.pip} missing`)),
         ),
+      );
+    }
+    // The command for the user's own Python is offered whatever is installed here.
+    const copyCommand = found?.install_yours
+      ? button("Copy install command", () => {
+          void navigator.clipboard.writeText(found.install_yours ?? "").then(() => toast("Copied."));
+        }, { icon: "copy", class: "ghost" })
+      : null;
+    if (missing.length || copyCommand) {
+      packagesHost.append(
         h(
           "div",
           { class: "row-actions" },
@@ -592,12 +597,8 @@ export async function editBlade(
             ? button(`Install ${missing.join(", ")}`, () => {
                 void install(missing).then((ok) => ok && void inspect());
               }, { class: "primary", icon: "plus" })
-            : h("span", { class: "hint" }, "All installed"),
-          found?.install_yours
-            ? button("Copy install command", () => {
-                void navigator.clipboard.writeText(found.install_yours ?? "").then(() => toast("Copied."));
-              }, { icon: "copy", class: "ghost" })
             : null,
+          copyCommand,
         ),
       );
     }
@@ -811,10 +812,7 @@ export async function editBlade(
       button("Cancel", close, { class: "ghost" }),
       button("Remove", () => {
         close();
-        void api(path(target), "DELETE").then(() => {
-          toast(`Removed ${target}.`);
-          onClosed();
-        }, (error: Error) => toast(error.message, "error"));
+        void api(path(target), "DELETE").then(onClosed, (error: Error) => toast(error.message, "error"));
       }, { class: "danger" }),
     );
   }

@@ -3,9 +3,9 @@
  *
  * ROUTING: [ROWS SHOWN]     -> read-only, from the grid's displayed range and row count
  *          [SELECTION]      -> read-only, from state.selection (Excel's Count, Average, Sum)
- *          [MEMORY METER]   -> read-only, from the budget; warns at 80% with an icon
+ *          [MEMORY METER]   -> read-only, from the budget; shown only past 80% of it (the Datasets list has the numbers)
  *          [DATASETS]       -> openDatasets(): every dataset with its size and a Close button
- *          [LIVE]           -> setLive()
+ *          [LIVE]           -> setLive(): words only while the page is not live
  */
 import { api, type Budget } from "./api";
 import { $, button, clear, formatCount, h, toast } from "./dom";
@@ -83,9 +83,15 @@ function render(): void {
 }
 
 export function renderMeter(budget: Budget): void {
+  // Shown only when there is something to do about it (principle 7.9): Datasets always has the numbers.
+  meter.hidden = !budget.warn;
+  if (!budget.warn) {
+    clear(meter);
+    return;
+  }
   const share = budget.total_bytes ? budget.used_bytes / budget.total_bytes : 0;
-  meter.className = `meter ${budget.warn ? "warn" : ""}`;
-  meter.title = budget.warn ? "Over 80% of the data budget is in use." : "Memory used by datasets";
+  meter.className = "meter warn";
+  meter.title = "Over 80% of the data budget is in use.";
   clear(
     meter,
     h("span", { class: "meter-bar", role: "meter", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(share * 100)), "aria-label": "Data budget used" }, h("span", { style: { width: `${Math.min(100, share * 100)}%` } })),
@@ -95,8 +101,9 @@ export function renderMeter(budget: Budget): void {
 
 export function setLive(on: boolean): void {
   if (!live) return; // the pop-out windows have no status bar
-  live.textContent = on ? "● live" : "○ not live: push again";
+  live.textContent = on ? "" : "○ not live: push again";
   live.className = on ? "" : "off";
+  live.hidden = on;
 }
 
 async function openDatasets(): Promise<void> {
@@ -127,7 +134,7 @@ async function openDatasets(): Promise<void> {
               button(`Close ${d.name}`, () => {
                 if (!confirm(`Close dataset ${d.name}? Its grids close too; nothing is saved.`)) return;
                 void api(`/datasets/${encodeURIComponent(d.name)}`, "DELETE")
-                  .then(() => { toast(`Closed ${d.name}.`); closePop(); })
+                  .then(closePop)
                   .catch((e: Error) => toast(e.message, "error"));
               }, { icon: "trash", iconOnly: true, class: "ghost" }),
             ),

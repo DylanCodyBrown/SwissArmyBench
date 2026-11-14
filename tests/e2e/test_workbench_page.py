@@ -50,6 +50,17 @@ def seen_by_server(server: dict[str, Any], folder: Path) -> None:
         time.sleep(0.1)
 
 
+def wait_until(done: Any, seconds: float = 60) -> None:
+    """Wait for something the page no longer says in words (a catalog that has loaded, say)."""
+    import time
+
+    for _ in range(int(seconds * 10)):
+        if done():
+            return
+        time.sleep(0.1)
+    raise AssertionError("It did not happen in time.")
+
+
 def test_a_connection_is_added_with_a_form_tested_and_saved(
     browser: Browser, orders_url: str, server: dict[str, Any], orders_csv: Path
 ) -> None:
@@ -72,7 +83,8 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     expect(page.locator(".connection-list")).to_contain_text('sag.connection("orders")')
     # Its catalog loads itself in the background (no Refresh pressed) and the list says so when it lands.
     row = page.locator(".connection-row", has_text="orders")
-    expect(row).to_contain_text("catalog loaded", timeout=60000)
+    wait_until(lambda: call(server, "GET", "/connections")["connections"][0]["catalog_loaded"])
+    expect(row.locator(".pack-title .hint, .pack-title .status-error")).to_have_count(0)  # loaded: no words
     # Drawn again as it landed, once: one list, one set of buttons.
     expect(page.locator("dialog .dialog-foot").get_by_role("button", name="Close")).to_have_count(1)
     expect(page.locator(".connection-row")).to_have_count(1)
@@ -250,7 +262,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     workbench.keyboard.press("Control+Enter")
     frame = second.frame_locator("iframe.wb-html")
     expect(frame.locator("td").last).to_have_text("20.0", timeout=60000)
-    expect(workbench.locator(".wb-status .wb-state")).to_contain_text("ready")
+    expect(workbench.locator(".wb-status .wb-state")).to_have_count(0)  # a ready kernel says nothing
     # Save as… through the file chooser; the file is a notebook Jupyter reads.
     workbench.get_by_role("button", name="Save", exact=True).click()
     folder = workbench.locator(".file-chooser input[aria-label=Folder]")

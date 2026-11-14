@@ -319,8 +319,9 @@ def test_a_saved_notebook_opens_folded_runs_top_to_bottom_and_keeps_its_numbers(
     workbench.locator(".wb-cell").last.click()
     workbench.get_by_role("button", name="Python", exact=True).click()
     expect(workbench.locator(".wb-cell").last.locator(".wb-number")).to_have_text("#9")
-    workbench.keyboard.press("Control+s")
-    expect(workbench.locator(".toast", has_text="Saved")).to_be_visible(timeout=20000)
+    with workbench.expect_response(lambda r: "/workbench/save" in r.url, timeout=20000):
+        workbench.keyboard.press("Control+s")
+    expect(workbench.locator(".toast", has_text="Saved")).to_have_count(0)  # the tab's dot going says it
     saved = json.loads(book.read_text(encoding="utf-8"))
     marks = [c["metadata"].get("swissarmygrid", {}) for c in saved["cells"]]
     assert [m.get("number") for m in marks] == [4, 1, 5, 2, 6, 3, 9]
@@ -435,8 +436,9 @@ def test_a_scripts_tables_are_a_region_of_cells_the_editor_folds_and_draws(
     expect(editor.locator(".view-lines")).to_contain_text("# %% [4] [transformations] sales")  # opened again
     expect(workbench.locator(".wb-status")).to_contain_text(f"Line {line - 2},")
     # Saved, the file runs as plain Python with no app, and opens folded the next time.
-    workbench.keyboard.press("Control+s")
-    expect(workbench.locator(".toast", has_text="Saved")).to_be_visible(timeout=20000)
+    with workbench.expect_response(lambda r: "/workbench/save" in r.url, timeout=20000):
+        workbench.keyboard.press("Control+s")
+    expect(workbench.locator(".toast", has_text="Saved")).to_have_count(0)  # the tab's dot going says it
     namespace: dict[str, Any] = {}
     exec(compile(script.read_text(encoding="utf-8"), str(script), "exec"), namespace)  # noqa: S102 (the made-up script)
     assert len(namespace["sales"]) == 2

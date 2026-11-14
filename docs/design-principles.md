@@ -162,7 +162,7 @@ title on the left and icon actions on the right, resized from its corner (or the
 draws refitted to its size.
 
 **5.9 The status bar.** One line, 30px high, numbers in tabular figures: the row count, the selection's
-count, sum and average, the memory meter. On a tab without a table it names the tab.
+count, sum and average, and the memory meter only past 80% of the budget. On a tab without a table it names the tab.
 
 **5.10 The command palette.** Ctrl+Shift+P opens a filtered list of every command, each showing its
 keys; Enter runs it. It reads the same list as the keys and the agent (see 8.3).

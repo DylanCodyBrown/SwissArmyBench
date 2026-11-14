@@ -26,17 +26,17 @@ Without Python: the folder button beside + opens a file (CSV, Parquet, JSON, Arr
 
 ## The workspace
 
-![The workspace: the tab bar, the title with its steps strip, the three ribbon rows, the grid and the status bar.](images/01-workspace.png)
+![The workspace: the tab bar, the title with its steps strip, the ribbon rows, the grid and the status bar.](images/01-workspace.png)
 
 The page has these parts:
 
 - **Tab bar.** The Agent tab comes first and cannot be closed. Each open grid has its own tab after it, and the + after the last tab starts a new table from a query (see below).
-- **Title.** The dataset name and its version. A new push to the same dataset raises the version. Beside it, the **steps strip**: how many steps the grid has, with Undo (the last step), Clear and Edit steps. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
+- **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has, with Undo (the last step), Clear and Edit steps. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: **Settings**, **Blades and catalog**, **Notebook** and **Tour** (the question mark): a one-minute tour of every word SwissArmyGrid uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
-- **Status bar.** The row count, the selection summary and the memory meter.
+- **Status bar.** The row count and the selection summary. The memory meter shows only once the data is past 80% of its budget (**Datasets** always has the numbers), and "not live: push again" only when the page has lost the server.
 
 ### Settings
 
@@ -364,7 +364,7 @@ their own, run in an IPython kernel on this computer.
 
 ### Catalogs load themselves
 
-A connection's catalog (its tables and columns, for the side bar's tree and the SQL cell's suggestions) loads in the background: when you save the connection, when SwissArmyGrid starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…**, **catalog loaded**, or **catalog not loaded** (hover for why). A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
+A connection's catalog (its tables and columns, for the side bar's tree and the SQL cell's suggestions) loads in the background: when you save the connection, when SwissArmyGrid starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
 
 ## What the agent may see
 

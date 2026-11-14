@@ -441,7 +441,6 @@ export function mountRail(host: RailHost): Rail {
             const target = current;
             if (!target) return;
             void api(catalogPath(target.name), "DELETE").then(() => {
-              toast(`Removed the ${target.name} catalog.`);
               current = null;
               void loadCatalogs();
             }, (error: Error) => toast(error.message, "error"));

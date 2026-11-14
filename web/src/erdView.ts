@@ -115,7 +115,6 @@ async function sharedModels(open: Set<string>): Promise<HTMLElement | null> {
 async function applyShared(name: string): Promise<void> {
   try {
     await api(`/relationships/library/${encodeURIComponent(name)}`, "POST");
-    toast(`Applied ${name}.`);
   } catch (e) {
     toast((e as Error).message, "error");
   }
@@ -126,7 +125,6 @@ async function importModel(file: HTMLInputElement): Promise<void> {
   if (!picked) return;
   try {
     await api("/relationships", "POST", { model: JSON.parse(await picked.text()) as unknown });
-    toast(`Imported ${picked.name}.`);
   } catch (e) {
     toast(`Could not import ${picked.name}: ${(e as Error).message}`, "error");
   } finally {

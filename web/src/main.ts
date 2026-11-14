@@ -59,7 +59,8 @@ const keysWindow = panelParam === "keys";
 /** The dataset name is the page's title: centered and large, in its own row. */
 function title(): void {
   const info = state.info!;
-  clear($("#grid-title"), info.dataset, h("span", { class: "version", title: `Version ${info.version} of ${info.dataset}` }, `v${info.version}`));
+  // The version shows once there has been a second push: "v1" says nothing to act on.
+  clear($("#grid-title"), info.dataset, info.version > 1 ? h("span", { class: "version", title: `Version ${info.version} of ${info.dataset}` }, `v${info.version}`) : null);
 }
 
 const pasting = new Set<string>();

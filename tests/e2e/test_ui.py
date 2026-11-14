@@ -195,7 +195,7 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
     page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles")).uncheck()
     page.keyboard.press("Escape")
     expect(page.locator(".sag-header-stats")).to_have_count(0)
-    expect(page.locator("#live")).to_contain_text("live")
+    expect(page.locator("#live")).to_be_hidden()  # live says nothing; only "not live" is words
     wait_for_cell(page, 0, "note", "(blank)")  # blanks carry text, not just color
 
 
@@ -257,7 +257,7 @@ def test_steps_add_filter_preview_toggle_and_delete(browser: Browser, orders_url
     # Turn the step off there: the grid page follows the server.
     steps.get_by_label("Step 1 on").uncheck()
     expect(page.locator("#status")).to_contain_text("of 5,000")
-    expect(page.locator(".steps-strip .steps-count")).to_have_text("No steps")
+    expect(page.locator(".steps-strip .steps-count")).to_have_count(0)  # no steps, no words
     steps.get_by_role("button", name="Delete step 1").click()
     expect(steps.locator(".step-list .step")).to_have_count(1)  # only the source remains
     # Undo on the strip drops the last step.
@@ -421,7 +421,7 @@ def test_the_grid_has_the_whole_page_and_its_steps_open_in_their_own_tab(
     right_edge = panel_box["x"] if panel_box and panel_box["width"] > 0 else 1920
     assert grid_box["x"] + grid_box["width"] >= right_edge - 20
     strip = page.locator(".steps-strip")
-    expect(strip.locator(".steps-count")).to_have_text("No steps")
+    expect(strip.locator(".steps-count")).to_have_count(0)  # no steps, no words
     expect(strip.get_by_role("button", name="Undo the last step")).to_be_disabled()
     with page.context.expect_page() as opened:
         strip.get_by_role("button", name="Edit steps").click()
@@ -892,7 +892,7 @@ def test_repush_hot_reloads_and_keeps_sort(browser: Browser, server: dict[str, A
 
 def test_datasets_popover_and_memory_meter(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
-    expect(page.locator(".meter")).to_contain_text("MiB of")
+    expect(page.locator(".meter")).to_be_hidden()  # shown only past 80% of the budget
     page.get_by_role("button", name="Datasets").click()
     expect(page.locator(".popover table")).to_contain_text("orders")
 
@@ -1390,7 +1390,7 @@ def test_workspace_shows_grids_as_tabs(browser: Browser, server: dict[str, Any])
     active = page.locator(".pane.active")
     expect(active.locator(".ag-row[row-index='0'] .ag-cell[col-id='code']")).to_have_text("X", timeout=20000)
     expect(page.locator("#grid-title")).to_contain_text("tab_two")
-    expect(page.locator(".steps-strip .steps-count")).to_have_text("No steps")
+    expect(page.locator(".steps-strip .steps-count")).to_have_count(0)  # no steps, no words
     expect(page).to_have_title("tab_two")
 
     # A push while the workspace is open arrives as a new, active tab (no new window).
@@ -1960,13 +1960,15 @@ def test_the_page_reconnects_when_its_live_socket_drops(
     context.add_init_script(SOCKET_KEEPER)
     page = context.new_page()
     page.goto(orders_url)
-    expect(page.locator("#live")).to_have_text(re.compile("^● live"), timeout=15000)
+    # Live says nothing (only "not live" is words), so the socket itself says when it is open.
+    page.wait_for_function("window.__sockets.some(s => s.readyState === 1)", timeout=15000)
+    expect(page.locator("#live")).to_be_hidden()
     page.evaluate("window.__sockets.forEach(s => s.close())")
     expect(page.locator("#live")).to_contain_text("not live")
     # A grid opened while the socket is down still arrives once it is back.
     grid = call(server, "POST", "/grids", {"dataset": "orders"})["grid"]
     try:
-        expect(page.locator("#live")).to_have_text(re.compile("^● live"), timeout=15000)
+        expect(page.locator("#live")).to_be_hidden(timeout=15000)
         expect(page.locator(f".tab-item[data-grid='{grid}']")).to_be_visible(timeout=10000)
     finally:
         call(server, "DELETE", f"/grids/{grid}")
@@ -2032,7 +2034,7 @@ def test_ctrl_click_on_the_only_selected_header_selects_nothing(browser: Browser
 
 def test_a_narrow_window_has_no_sideways_page_scroll(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url, width=420, height=760)
-    expect(page.locator(".steps-strip .steps-count")).to_be_visible(timeout=15000)
+    expect(page.locator(".steps-strip").get_by_role("button", name="Edit steps")).to_be_visible(timeout=15000)
     assert page.evaluate("document.documentElement.scrollWidth") <= 420
     grid = page.locator(".pane.active .grid-host").bounding_box()
     assert grid is not None and grid["width"] > 200  # most of the width stays with the grid

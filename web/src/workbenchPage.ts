@@ -431,8 +431,7 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     if (first && doc.python) void api("/workbench/environment", "POST", { path: saved.path, python: doc.python }).catch(() => undefined);
     doc.title = baseName(saved.path);
     doc.dirty = false;
-    drawTabs();
-    toast("Saved");
+    drawTabs(); // the tab's dot goes: that is the word for "saved"
     remember();
     void refreshHome();
   };
@@ -482,7 +481,8 @@ function recentMenu(anchor: HTMLElement): void {
 
 // ===== toolbar =====
 
-const STATE_WORDS: Record<string, string> = { off: "not started", starting: "starting…", idle: "ready", busy: "running…" };
+// A kernel that is ready says nothing (principle 7.9): only the states that explain a wait, or need a click.
+const STATE_WORDS: Record<string, string> = { off: "not started", starting: "starting…", busy: "running…" };
 
 function folderOf(path: string | null): string {
   if (!path) return homeFolder;
@@ -595,20 +595,23 @@ async function restartKernel(kernel: Kernel): Promise<boolean> {
   return did;
 }
 
-/** The status bar: the kernel, the runs waiting, the environment, the cursor. */
+/** The status bar: the kernel while it is not ready, the runs waiting, an environment of the notebook's
+ *  own, the cursor. What is as expected (a ready kernel, this app's Python, the kind of file) is not said. */
 function drawStatus(): void {
   const doc = current;
   const kernel = doc?.kernel;
   const python = doc?.python ?? pythons[0]?.python ?? "";
-  const env = !doc?.python || doc.python === pythons[0]?.python ? "This app's Python" : python.replace(/[\\/](bin[\\/]python[\d.]*|Scripts[\\/]python\.exe)$/i, "").split(/[\\/]/).filter(Boolean).slice(-2).join("/");
+  const env = !doc?.python || doc.python === pythons[0]?.python ? "" : python.replace(/[\\/](bin[\\/]python[\d.]*|Scripts[\\/]python\.exe)$/i, "").split(/[\\/]/).filter(Boolean).slice(-2).join("/");
   clear(
     layout.status,
     kernel
-      ? h("span", { class: `wb-state ${kernel.state}` }, h("span", { class: "wb-dot", "aria-hidden": "true" }), `Kernel: ${STATE_WORDS[kernel.state]}`, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "")
+      ? STATE_WORDS[kernel.state]
+        ? h("span", { class: `wb-state ${kernel.state}` }, h("span", { class: "wb-dot", "aria-hidden": "true" }), `Kernel: ${STATE_WORDS[kernel.state]}`, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "")
+        : null
       : h("span", { class: "hint" }, doc ? "No kernel" : "Nothing open"),
-    kernel ? h("span", { title: python }, env) : null,
+    kernel && env ? h("span", { title: python }, env) : null,
     doc?.kind === "script" || doc?.kind === "notebook" ? h("span", {}, `Line ${cursor.line}, column ${cursor.column}`) : null,
-    doc ? h("span", {}, doc.kind === "notebook" ? "Notebook" : doc.kind === "script" ? "Python script" : doc.kind === "blade" ? "Blade" : "Explorer") : null,
+    doc?.kind === "blade" || doc?.kind === "table" ? h("span", {}, doc.kind === "blade" ? "Blade" : "Explorer") : null,
   );
 }
 

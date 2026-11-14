@@ -4340,10 +4340,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   color: var(--warn);
 }
 
-.wb-state.idle {
-  color: var(--ok);
-}
-
 .wb-tabs {
   display: flex;
   flex: none;
@@ -4617,10 +4613,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   border-radius: 50%;
   background: var(--muted);
   vertical-align: middle;
-}
-
-.wb-state.idle .wb-dot {
-  background: var(--ok);
 }
 
 .wb-state.busy .wb-dot,
