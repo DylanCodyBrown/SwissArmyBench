@@ -315,7 +315,16 @@ one in the tour.
 "Key Finder · orders").
 - The owner (2026-11-13): "The words Swiss army grid should appear nowhere in the app."
 
-**7.9 Numbers read well.** Identifiers get no thousands separators; chart ticks do; results are rounded
+**7.9 Show only what needs action. No confirmation labels.** A state is shown when the user should do
+something about it: out of date, not run yet, an error, a limit reached. "Up to date", "No steps yet",
+"0 issues", "All good", a badge on a cell that is fine: these are noise that teaches people to stop
+reading the marks. Silence means fine; the yellow line, the badge or the button appears only when there
+is something to do, and goes when it is done (a Run tables button that exists only while a table is out
+of date). Counts that describe content stay ("orders · 3 steps"); a count of zero goes.
+- The owner (2026-11-14): "The first screenshot you said up to date. This is an example of useless
+  information. We only care if things are out of date. Confirmation labels is bad app design"
+
+**7.10 Numbers read well.** Identifiers get no thousands separators; chart ticks do; results are rounded
 to four significant figures; plurals are right ("1 blade").
 
 ## 8. Interaction patterns
@@ -494,6 +503,8 @@ Run this against every new screen or feature.
    for.
 5. Are the words plain and full? Buttons verbs in sentence case, "…" when they open a form? Messages say
    what happened, once?
+   Is any label only confirming that things are fine ("up to date", "no issues", "0 steps")? Remove it:
+   show a state only when it needs action.
 6. Is the product's name on the screen? It should not be.
 7. Are all colours tokens? Does it read well in light, dark, both high contrast themes and forced
    colours, with marks that carry an icon or a word as well as colour?
