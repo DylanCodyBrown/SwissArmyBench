@@ -357,13 +357,6 @@ SENSIBLE: dict[str, Factory] = {
     "sandbox_code": lambda s: {"card": s.card(s.scratch_grid())},
     "app_snapshot": lambda s: {"area": "ribbon", "out": str(s.tmp / "snap.png")},
     "agent_events": lambda s: {"seconds": 1, "limit": 1},
-    "agent_describe": lambda s: {"dataset": "customers"},
-    "agent_profile": lambda s: {"dataset": "customers", "column": "customer_name"},
-    "agent_query": lambda s: {
-        "dataset": "customers",
-        "sql": "SELECT count(*) AS n, sum(status_code) AS s FROM grid",
-    },
-    "agent_read_grid": lambda s: {"grid": s.scratch_grid(), "limit": 5},
 }
 
 # Arguments named the same mean the same thing in every command.
@@ -492,7 +485,7 @@ def test_every_registry_command_gets_arguments() -> None:
 def test_the_agent_reads_the_values_it_is_shown(sweep: Sweep) -> None:
     """Reads come back with the store's values, and steps with the values the user typed."""
     try:
-        answered, text = call("agent_read_grid", {"grid": sweep.grids["customers"], "limit": 5})
+        answered, text = call("row_read", {"grid": sweep.grids["customers"], "end": 5, "format": "csv"})
         assert answered and "rows_returned: 5" in text and "<untrusted-data" in text
         _, step_text = call("tabs_get", {"grid": sweep.scratch_grid()})
         assert USER_TYPED in step_text

@@ -28,13 +28,16 @@ CLIENTS = pa.table(
 
 
 def agent_query(client: TestClient, sql: str, dataset: str = "clients") -> Any:
-    return client.post("/agent/query", json={"dataset": dataset, "sql": sql}, headers=AGENT)
+    """The agent's SQL: the SQL box's route on a grid of the dataset (steps_run_sql)."""
+    grids = client.get("/grids", headers=AGENT).json()["grids"]
+    grid = next(g["grid"] for g in grids if g["dataset"] == dataset)
+    return client.post(f"/grids/{grid}/sql", json={"sql": sql}, headers=AGENT)
 
 
 def test_the_agent_sees_everything_without_asking(client: TestClient) -> None:
     push(client, "clients", CLIENTS)
     body = agent_query(client, "SELECT client, balance FROM grid").json()
-    assert body["row_cap"] == 1_048_576 and body["capped"] is False
+    assert body["cap"] == 1_048_576 and body["capped"] is False
     assert body["rows"][0] == ["Acme Corp", 100.0]
     assert "privacy_level" not in body and "masked" not in body
     profile = client.get("/agent/profile/clients", params={"column": "client"}, headers=AGENT).json()
@@ -95,7 +98,7 @@ def test_the_policy_routes_are_gone(client: TestClient) -> None:
 
 def test_the_guide_command_onboards_an_agent() -> None:
     text = json.loads(execute("guide"))["markdown"]
-    assert text.startswith("# SwissArmyGrid") and "read_grid" in text
+    assert text.startswith("# SwissArmyGrid") and "row_read" in text
     assert "privacy level" not in text.lower()
 
 
@@ -145,7 +148,8 @@ def test_injection_text_only_comes_back_as_delimited_data(
         return response.json()
 
     monkeypatch.setattr(api, "call", fake_call)
-    text = execute("agent_query", {"dataset": "clients", "sql": "SELECT client FROM grid"})
+    grid = client.get("/grids", headers=AGENT).json()["grids"][0]["grid"]
+    text = execute("steps_run_sql", {"grid": grid, "sql": "SELECT client FROM grid"})
     start, end = text.index("<untrusted-data"), text.index("</untrusted-data>")
     assert INJECTION in text[start:end]
     assert INJECTION not in text[:start] + text[end:]
@@ -161,16 +165,18 @@ def test_view_state_highlights_and_selection(client: TestClient) -> None:
         headers=AUTH,
     )
     client.post(f"/grids/{grid}/selection", json={"count": 2}, headers=AUTH)
-    state = client.get(f"/agent/view-state/{grid}", headers=AGENT).json()
-    assert state["selected_rows"] == 2
+    state = client.get(f"/grids/{grid}", headers=AGENT).json()  # what tabs_get reads
+    assert state["selected_rows"] == 2 and state["highlights"] == 0
     (step,) = state["steps"]
     assert step["kind"] == "filter" and step["params"] == {"column": "client", "op": "ne", "value": "Globex"}
+    assert client.get(f"/agent/view-state/{grid}", headers=AGENT).status_code == 404  # merged into tabs_get
     marked = client.post(
         f"/grids/{grid}/highlights",
         json={"highlights": [{"column": "balance", "op": "gt", "value": 50, "label": "large"}]},
         headers=AGENT,
     )
     assert marked.status_code == 200
+    assert client.get(f"/grids/{grid}", headers=AGENT).json()["highlights"] == 1
     rows = client.get(f"/grids/{grid}/rows", headers=AUTH).json()
     assert rows["highlighted"] == [[0, "large"]]
     bad = client.post(
@@ -189,7 +195,7 @@ def test_every_agent_action_is_audited(tmp_path: Path) -> None:
         agent_query(client, "SELECT client FROM grid")
     audit = [json.loads(x) for x in (tmp_path / "state" / "audit.log").read_text().splitlines()]
     agent_actions = [e["action"] for e in audit if e["actor"] == "agent"]
-    assert agent_actions[:3] == ["describe", "query", "query"]
+    assert agent_actions[:3] == ["describe", "sql", "sql"]
     assert "Acme" not in json.dumps(audit)
 
 
@@ -224,10 +230,14 @@ def test_refusals_reach_the_agent_with_their_reason(
     with pytest.raises(Exception) as caught:
         asyncio.run(
             mcp_server.server.call_tool(
-                "agent_query", {"dataset": "clients", "sql": "CREATE TABLE t AS SELECT * FROM grid"}
+                "steps_run_sql",
+                {
+                    "grid": client.get("/grids", headers=AGENT).json()["grids"][0]["grid"],
+                    "sql": "DROP TABLE t",
+                },
             )
         )
-    assert "only run SELECT" in str(caught.value)
+    assert "Only SELECT" in str(caught.value)
     with pytest.raises(Exception) as bad_chart:
         asyncio.run(
             mcp_server.server.call_tool(

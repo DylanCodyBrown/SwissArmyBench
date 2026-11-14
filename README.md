@@ -465,7 +465,7 @@ It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turn
 
 ## The agent commands: `sag` and the MCP server
 
-**The golden rule: everything you can do, the agent can do too** (172 commands, each an MCP tool):
+**The golden rule: everything you can do, the agent can do too** (183 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
@@ -473,19 +473,19 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 95 of
+Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 183 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
 `steps_add` and `steps_apply_sql` (Table Transformations), `compare_create`, `sandbox_add`,
-`relationships_set`, `erd_draw`, and `agent_read_grid` / `agent_events` for what only an agent has. The
+`relationships_set`, `erd_draw`, and `agent_context` / `agent_events` for what only an agent has. The
 registry is ordered the same way, and `commands` returns the catalog grouped by area. Two front ends
 run it:
 
 - `swissarmygrid-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
-  the whole tool list is about 5,000 tokens for 95 tools (a test holds it under a budget). `guide` and
+  the whole tool list is about 11,000 tokens for 183 tools (a test holds it under a budget). `guide` and
   `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
 - `sag` is the same commands in a terminal (standard library only, in the plain wheel):
@@ -502,10 +502,10 @@ html-to-image and uploads the picture, and the server hands it to the agent with
 The MCP returns it as image content; `sag app_snapshot` saves it and prints the path. It shows real
 cell values, and each one is written to the audit log.
 
-The ribbon's Column and Cell buttons act on the selected columns or cells, which only the browser
+The ribbon's Column buttons and a cell's right-click menu act on the selected columns or cells, which only the browser
 knows, so their commands take the column names or values as arguments.
 
-`agent_read_grid` returns the grid's view as CSV. The agent picks `offset` and `limit` (up to
+`row_read` with `format=csv` returns the grid's view as CSV. The agent picks `start` and `end` (up to
 1,048,576 rows, an Excel sheet, per read), and every read starts with the view's total `row_count`,
 which the step commands report too. An agent export always waits for the user's click: the export
 route writes an agent's file only against the one-time ticket that click gives.

@@ -5,8 +5,8 @@ loaded. A SELECT answers with rows, up to as many as an Excel sheet holds; CREAT
 SELECT pins its result as a new dataset. Every statement goes through the guard (domain/sql_guard.py)
 and stops when it runs past the query timeout or the user cancels.
 
-(The "+" tab's query, which builds a table from the open tables, is in services/datasets.py; the
-agent's query is in services/agent.py. All three use the same guard.)
+(The "+" tab's query, which builds a table from the open tables, is in services/datasets.py. Both
+use the same guard. The agent runs its SQL here too, with steps_run_sql.)
 """
 
 from __future__ import annotations

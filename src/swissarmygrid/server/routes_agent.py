@@ -6,11 +6,9 @@ are in services/agent.py; this file reads the requests and shapes the answers.
 
   GET  /agent/approvals                 the questions waiting for the user
   POST /agent/approvals/{id}            the user's answer (refused for the agent)
-  GET  /agent/describe/{dataset}        schema, counts and the profile of every column
-  GET  /agent/profile/{dataset}?column= one column's profile
-  POST /agent/query                     {"dataset"|"grid", "sql"} one SELECT
-  GET  /agent/view-state/{grid_id}      the grid's steps, settings, row count, selection
-  GET  /agent/read/{grid_id}?offset=&limit=   a window of the view as the user sees it
+  GET  /agent/describe/{dataset}        schema, counts and a line a column, for a table with no grid
+  GET  /agent/profile/{dataset}?column= one column's profile there (table_profile with `dataset`)
+  GET  /agent/read/{grid_id}?offset=&limit=   a window of the view, up to 1,048,576 rows (row_read as CSV)
   POST /agent/export-approval/{grid_id}?format=   ask the user; their click gives a one-time ticket
   POST /workspace/active                the page reports which grid tab is in front
   GET  /agent/context                   the current table: a short summary, no cell values
@@ -28,7 +26,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, read_json, read_json_object
+from swissarmygrid.server.http import actor, error_response, json_response, read_json
 from swissarmygrid.services.agent import AgentService
 from swissarmygrid.services.inbox import Inbox
 
@@ -70,18 +68,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
-    async def query(request: Request) -> Response:
-        try:
-            body = await read_json_object(request, '{"dataset": name, "sql": "SELECT ... FROM grid"}')
-            try:
-                answer = await agent.query(body)
-            except duckdb.Error as error:
-                return Response(f"DuckDB: {error}", status_code=400)
-            # Up to 1,048,576 rows: the same byte limit as the SQL box's answer.
-            return json_response(answer, max_bytes=ws.settings.max_sql_response_bytes)
-        except Exception as error:
-            return error_response(error)
-
     async def read_grid(request: Request) -> Response:
         """A window of the grid's view as the user sees it, always with the view's row count."""
         try:
@@ -95,13 +81,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
             if "capped" not in answer:  # nothing to read at that offset: the counts alone
                 return json_response(answer)
             return json_response(answer, max_bytes=ws.settings.max_sql_response_bytes)
-        except Exception as error:
-            return error_response(error)
-
-    async def view_state(request: Request) -> Response:
-        try:
-            grid, info = ws.grid_and_info(request.path_params["grid_id"])
-            return json_response(await agent.view_state(grid, info))
         except Exception as error:
             return error_response(error)
 
@@ -147,8 +126,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         Route("/agent/approvals/{approval_id}", resolve_approval, methods=["POST"]),
         Route("/agent/describe/{dataset}", describe),
         Route("/agent/profile/{dataset}", profile),
-        Route("/agent/query", query, methods=["POST"]),
-        Route("/agent/view-state/{grid_id}", view_state),
         Route("/agent/read/{grid_id}", read_grid),
         Route("/agent/export-approval/{grid_id}", approve_export, methods=["POST"]),
         Route("/workspace/active", set_active, methods=["POST"]),

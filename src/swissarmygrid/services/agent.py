@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 import secrets
-import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
@@ -30,10 +29,9 @@ from typing import Any
 from swissarmygrid.domain.datasets import DatasetInfo, quote
 from swissarmygrid.domain.export import FORMATS
 from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.sql_guard import guard
 from swissarmygrid.services.ports import AGENT, Notifier, SqlSession
 from swissarmygrid.services.profile import profile_column, profile_table
-from swissarmygrid.services.workspace import Refused, TimedOut, Workspace
+from swissarmygrid.services.workspace import Refused, Workspace
 from swissarmygrid.settings import EXCEL_MAX_ROWS
 
 # The most rows one agent read returns: as many as one Excel worksheet holds. The agent still
@@ -189,58 +187,6 @@ class AgentService:
         ws.audit.write("agent", "profile", info.name, column=column.name)
         return result
 
-    def _dataset_for(self, body: dict[str, Any]) -> tuple[DatasetInfo, Grid | None]:
-        grid_id = body.get("grid")
-        if isinstance(grid_id, str):
-            grid, info = self.ws.grid_and_info(grid_id)
-            return info, grid
-        name = body.get("dataset")
-        found = self.ws.store.get(name) if isinstance(name, str) else None
-        if found is None:
-            raise LookupError("Name an open dataset (or grid).")
-        return found, self.ws.grids.first_for(found.name)
-
-    async def query(self, body: dict[str, Any]) -> dict[str, Any]:
-        """One SELECT over the open tables; `grid` is the named grid's view."""
-        ws = self.ws
-        info, grid = self._dataset_for(body)
-        text = body.get("sql")
-        if not isinstance(text, str):
-            raise ValueError('Send {"dataset": name, "sql": "SELECT ... FROM grid"}.')
-        cap = AGENT_ROW_CAP
-
-        def execute(cur: Any) -> tuple[list[str], list[list[Any]]]:
-            grid_sql: Callable[..., str]
-            if grid is not None:
-                compiled = ws.compiled(cur, grid, info)
-                grid_sql = compiled.sql
-            else:
-                grid_sql = lambda: f"SELECT * FROM {info.table}"  # noqa: E731
-            guarded = guard(text, {i.name for i in ws.store.all()}, grid_sql, grammar=ws.grammar)
-            if guarded.kind != "select":
-                raise ValueError("Agents may only run SELECT queries; use steps_save_result to pin.")
-            timer = threading.Timer(ws.settings.query_timeout_seconds, cur.interrupt)
-            timer.start()
-            try:
-                result = cur.execute(guarded.sql)
-                names = [d[0] for d in result.description or []]
-                fetched = [list(r) for r in result.fetchmany(cap + 1)]
-            finally:
-                timer.cancel()
-            return names, fetched
-
-        try:
-            names, rows = await ws.workers.run(AGENT, lambda: execute(ws.store.cursor()))
-        except ws.interrupted:
-            raise TimedOut(
-                f"The query was stopped: it ran past {ws.settings.query_timeout_seconds:.0f} seconds."
-            ) from None
-        capped = len(rows) > cap
-        rows = rows[:cap]
-        ws.audit.write("agent", "query", info.name, query=text, rows=len(rows))
-        await ws.live.broadcast({"type": "agent_query", "dataset": info.name, "sql": text, "rows": len(rows)})
-        return {"columns": names, "rows": rows, "capped": capped, "row_cap": cap}
-
     async def read_grid(self, grid: Grid, info: DatasetInfo, offset: int, limit: int) -> dict[str, Any]:
         """A window of the grid's view as the user sees it, always with the view's row count.
 
@@ -274,27 +220,6 @@ class AgentService:
         rows = await ws.grid_query(grid, None, AGENT, read)
         ws.audit.write("agent", "read", info.name, grid=grid.id, rows=len(rows))
         return out | {"rows": rows, "capped": limit > cap}
-
-    async def view_state(self, grid: Grid, info: DatasetInfo) -> dict[str, Any]:
-        ws = self.ws
-        try:
-            row_count: int | None = await ws.grid_query(
-                grid,
-                None,
-                AGENT,
-                lambda cur: ws.views.row_count(cur, info, grid.steps, grid.settings, None),
-            )
-        except ws.engine_error:
-            row_count = None  # the view fails to compute; the steps show which one
-        return {
-            "grid": grid.id,
-            "dataset": info.name,
-            "steps": [s.to_json() for s in grid.steps],
-            "settings": grid.settings.to_json(),
-            "row_count": row_count,
-            "selected_rows": grid.selected,
-            "highlights": len(grid.highlights),
-        }
 
     # ===== the current table =====
 

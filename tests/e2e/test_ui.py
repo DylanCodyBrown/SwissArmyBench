@@ -841,7 +841,7 @@ def test_closing_the_approval_window_declines_the_request(
 def test_agent_activity_in_settings(browser: Browser, orders_url: str, server: dict[str, Any]) -> None:
     page = open_grid(browser, orders_url)
     sql = "SELECT count(*) AS activity_check FROM grid"
-    call(server, "POST", "/agent/query", {"dataset": "orders", "sql": sql}, agent=True)
+    call(server, "POST", f"/grids/{grid_of(orders_url)}/sql", {"sql": sql}, agent=True)
     page.get_by_role("button", name="Settings").click()
     dialog = page.locator("dialog")
     expect(dialog.locator(".activity li").first).to_contain_text(sql)  # newest first

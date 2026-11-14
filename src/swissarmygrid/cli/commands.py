@@ -99,7 +99,7 @@ def _q(value: Any) -> str:
 
 
 def _csv(columns: list[str], rows: list[list[Any]]) -> str:
-    import csv  # only agent_read_grid needs it
+    import csv  # only row_read's CSV form needs it
     import io
 
     out = io.StringIO()
@@ -337,59 +337,34 @@ def events(a: dict[str, Any]) -> Any:
 # ===== reading data =====
 
 
-@command(
-    "agent_describe",
-    "Schema, row count, duplicate rows and a per-column profile of a dataset.",
-    req("dataset", "Dataset name."),
-    values=True,
-)
-def describe_dataset(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/agent/describe/{_q(a['dataset'])}")
+# ===== the page's own value routes =====
 
 
 @command(
-    "agent_profile",
-    "Full profile of one column of a dataset (counts, blanks, distinct, statistics, histogram, top values).",
-    req("dataset", "Dataset name."),
-    req("column", "Column name."),
-    values=True,
-)
-def profile_dataset(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/agent/profile/{_q(a['dataset'])}", params={"column": a["column"]})
-
-
-@command(
-    "agent_query",
-    "Run one read-only SQL query (DuckDB). `grid` is the dataset's current grid view; any dataset by name works. "
-    "At most 1,048,576 rows come back.",
-    req("dataset", "The dataset `grid` refers to."),
-    req("sql", "One SELECT."),
-    values=True,
-)
-def query(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/agent/query", {"dataset": a["dataset"], "sql": a["sql"]})
-
-
-@command(
-    "agent_view_state",
-    "A grid's steps, settings, selection size and row count.",
+    "row_read",
+    "A window of a grid's rows exactly as the page draws them (what the user sees, after its steps), with "
+    "highlight marks. format=csv gives the same rows as CSV, headed by the view's total row_count: the "
+    "compact form for reading many rows (up to 1,048,576 in one read; the default form gives 1,000).",
     req("grid", "Grid id."),
+    opt("start", "First row (default 0).", "int"),
+    opt("end", "End row, exclusive (default start+100).", "int"),
+    opt("upto", "Show the table entering this step index instead of the final view (not with csv).", "int"),
+    opt("format", "csv for CSV text; omit for the page's own shape."),
     values=True,
 )
-def view_state(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/agent/view-state/{_q(a['grid'])}")
-
-
-@command(
-    "agent_read_grid",
-    "Read a grid's view (what the user sees, after its steps) as CSV; always starts with the total row_count. "
-    "At most 1,048,576 rows per read.",
-    req("grid", "Grid id."),
-    opt("limit", "Rows to read (default 100).", "int"),
-    opt("offset", "First row (default 0).", "int"),
-)
-def read_grid(a: dict[str, Any]) -> Any:
-    limit, offset = int(a.get("limit") or 100), int(a.get("offset") or 0)
+def grid_rows(a: dict[str, Any]) -> Any:
+    if a.get("format") in (None, ""):
+        return api.call(
+            "GET", f"/grids/{_q(a['grid'])}/rows", params={k: a.get(k) for k in ("start", "end", "upto")}
+        )
+    if a["format"] != "csv":
+        raise CommandError("format is csv, or left out.")
+    if a.get("upto") is not None:
+        raise CommandError("format=csv reads the final view; leave upto out.")
+    offset = int(a.get("start") or 0)
+    limit = int(a["end"]) - offset if a.get("end") is not None else 100
+    if limit < 0:
+        raise CommandError("Need start <= end.")
     result = api.call("GET", f"/agent/read/{_q(a['grid'])}", params={"limit": limit, "offset": offset})
     summary = {
         "grid": a["grid"],
@@ -400,29 +375,11 @@ def read_grid(a: dict[str, Any]) -> Any:
         "row_cap": result["row_cap"],
     }
     if result.get("capped"):
-        summary["note"] = f"limit {limit} is above the cap of {result['row_cap']} rows per read."
+        summary["note"] = f"{limit} rows is above the cap of {result['row_cap']} rows per read."
     header = "\n".join(f"{k}: {v}" for k, v in summary.items())
     return (
         f'{header}\n{DATA_NOTE}\n<untrusted-data source={json.dumps(result["dataset"])} format="csv">\n'
         f"{_defuse(_csv(result['columns'], result['rows']))}</untrusted-data>"
-    )
-
-
-# ===== the page's own value routes =====
-
-
-@command(
-    "row_read",
-    "A window of a grid's rows exactly as the page draws them, with highlight marks.",
-    req("grid", "Grid id."),
-    opt("start", "First row (default 0).", "int"),
-    opt("end", "End row, exclusive (default start+100).", "int"),
-    opt("upto", "Show the table entering this step index instead of the final view.", "int"),
-    values=True,
-)
-def grid_rows(a: dict[str, Any]) -> Any:
-    return api.call(
-        "GET", f"/grids/{_q(a['grid'])}/rows", params={k: a.get(k) for k in ("start", "end", "upto")}
     )
 
 
@@ -440,16 +397,25 @@ def grid_cell(a: dict[str, Any]) -> Any:
 
 @command(
     "table_profile",
-    "Profile of the grid's view (every column, or one with `column`): the page's Profile button.",
-    req("grid", "Grid id."),
+    "Profile of the grid's view (every column, or one with `column`): the page's Profile button. For a "
+    "table with no grid, give `dataset` instead: its schema, row count, duplicate rows and a line a column "
+    "(or one column's full profile with `column`), over the rows as loaded.",
+    opt("grid", "Grid id (this, or dataset)."),
     opt("column", "One column; omit for the whole table."),
     opt("upto", "Profile the table entering this step index.", "int"),
+    opt("dataset", "A dataset's name, for a table with no grid."),
     values=True,
 )
 def grid_profile(a: dict[str, Any]) -> Any:
-    return api.call(
-        "GET", f"/grids/{_q(a['grid'])}/profile", params={k: a.get(k) for k in ("column", "upto")}
-    )
+    if a.get("grid"):
+        return api.call(
+            "GET", f"/grids/{_q(a['grid'])}/profile", params={k: a.get(k) for k in ("column", "upto")}
+        )
+    if not a.get("dataset"):
+        raise CommandError("Give a grid, or a dataset for a table with no grid.")
+    if a.get("column"):
+        return api.call("GET", f"/agent/profile/{_q(a['dataset'])}", params={"column": a["column"]})
+    return api.call("GET", f"/agent/describe/{_q(a['dataset'])}")
 
 
 @command(
@@ -476,9 +442,10 @@ def selection_stats(a: dict[str, Any]) -> Any:
 
 @command(
     "steps_run_sql",
-    "Run SQL in the grid's SQL box. A SELECT returns rows; CREATE TABLE <name> AS SELECT ... "
-    "pins the result as a new dataset with its own grid. `grid` is the view.",
-    req("grid", "Grid id."),
+    "Run one guarded SQL statement (DuckDB) over the open tables. A SELECT returns rows (at most 1,048,576); "
+    "CREATE TABLE <name> AS SELECT ... pins the result as a new dataset with its own grid. `grid` is this "
+    "grid's view (after its steps); any open table by its name reads that table's rows as loaded.",
+    req("grid", "Grid id: the view `grid` means in the SQL."),
     req("sql", "One SELECT, or CREATE TABLE name AS SELECT ..."),
     opt("upto", "While editing step N, `grid` is the table entering that step.", "int"),
     values=True,
@@ -508,11 +475,17 @@ def create_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_get",
-    "A grid in full: columns and types, every step (with ids), settings, step error.",
+    "A grid in full: columns and types, every step (with ids), settings, step error, the view's row count "
+    "(view_rows; row_count is the dataset's), how many rows are selected and how many highlight rules it has.",
     req("grid", "Grid id."),
 )
 def get_grid(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/grids/{_q(a['grid'])}")
+    described = api.call("GET", f"/grids/{_q(a['grid'])}")
+    try:
+        view_rows = api.call("GET", f"/grids/{_q(a['grid'])}/count")["row_count"]
+    except CommandError:
+        view_rows = None  # the view fails to compute; step_error says which step
+    return described | {"view_rows": view_rows}
 
 
 @command("tabs_close_grid", "Close a grid's tab (the dataset stays open).", req("grid", "Grid id."))
@@ -545,7 +518,11 @@ def categorize_stats(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/grids/{_q(a['grid'])}/categorize-stats", params={"step": a["step"]})
 
 
-@command("tabs_cancel", "Stop the queries running on a grid (the page's Cancel).", req("grid", "Grid id."))
+@command(
+    "tabs_cancel",
+    "Stop every query now running for a grid: its rows, counts, profiles, SQL and exports.",
+    req("grid", "Grid id."),
+)
 def cancel(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/grids/{_q(a['grid'])}/cancel")
 
@@ -848,7 +825,7 @@ _FORMATS: dict[str, Any] = {
         "image": {"body": "data:image/png;base64,...", "or": "file: a PNG, JPEG, GIF, WebP or SVG you saved"},
         "vegalite": {"note": "From the user's own Python (Altair) only; the agent draws with chart."},
     },
-    "data": "Read tables with the table tools (columns, profiles, agent_query). A chart card, or a plotly "
+    "data": "Read tables with the table tools (columns, profiles, steps_run_sql). A chart card, or a plotly "
     "or echarts card with sql (FROM grid, or its table's name: the grid as shown), computes on the grid "
     "itself (first 5,000 rows), follows its steps, and big "
     "data never passes through you. Use key to replace a card you made before.",
@@ -2819,7 +2796,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("compare", "Compare (two grids side by side)"),
     ("sandbox", "Agent tab: Analysis Sandbox"),
     ("app", "The page itself: snapshots"),
-    ("agent", "What the agent sees: reads, approvals, live events"),
+    ("agent", "What only the agent has: the table in front, the inbox, approvals, live events"),
 )
 HELP_COMMANDS = frozenset({"guide", "commands", "health"})
 

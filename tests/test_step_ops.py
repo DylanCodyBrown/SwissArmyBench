@@ -53,7 +53,7 @@ def user_steps(client: TestClient, gid: str) -> list[dict[str, Any]]:
 
 def test_every_agent_view_of_the_steps_shows_their_values(client: TestClient) -> None:
     gid = user_grid(client)
-    for path in (f"/grids/{gid}", f"/agent/view-state/{gid}", "/agent/context"):
+    for path in (f"/grids/{gid}", "/agent/context"):
         answer = client.get(path, headers=AGENT)
         assert answer.status_code == 200, answer.text
         assert SECRET in answer.text, path

@@ -183,10 +183,10 @@ def test_read_grid_pages_and_always_gives_the_row_count(
     grid = grid_id(push(client, "orders", ORDERS))
     monkeypatch.setattr(api, "call", fake_call(client))
 
-    none = tool("agent_read_grid", {"grid": grid, "limit": 5, "offset": 50})
+    none = tool("row_read", {"grid": grid, "start": 50, "end": 55, "format": "csv"})
     assert "row_count: 10" in none and "rows_returned: 0" in none
 
-    text = tool("agent_read_grid", {"grid": grid, "limit": 3, "offset": 2})
+    text = tool("row_read", {"grid": grid, "start": 2, "end": 5, "format": "csv"})
     assert "row_count: 10" in text and "rows_returned: 3" in text
     body = text.split('format="csv">\n', 1)[1].split("</untrusted-data>")[0]
     assert list(csv.reader(io.StringIO(body))) == [
@@ -196,7 +196,7 @@ def test_read_grid_pages_and_always_gives_the_row_count(
         ["5", "North", "50.0"],
     ]
 
-    capped = tool("agent_read_grid", {"grid": grid, "limit": 5000})
+    capped = tool("row_read", {"grid": grid, "end": 5000, "format": "csv"})
     assert "rows_returned: 10" in capped
 
 
@@ -223,12 +223,12 @@ def test_duckdb_errors_reach_the_agent_in_full(client: TestClient, monkeypatch: 
     grid = grid_id(push(client, "orders", ORDERS))
     monkeypatch.setattr(api, "call", fake_call(client))
     failed = client.post(
-        "/agent/query",
-        json={"grid": grid, "sql": "SELECT count(*) FROM grid WHERE CAST(region AS INTEGER) > 0"},
+        f"/grids/{grid}/sql",
+        json={"sql": "SELECT count(*) FROM grid WHERE CAST(region AS INTEGER) > 0"},
         headers=AGENT,
     )
     assert failed.status_code == 400 and "North" in failed.text and failed.text.startswith("DuckDB:")
     steps(client, grid, [{"kind": "sql", "params": {"sql": "SELECT CAST(region AS INTEGER) AS n FROM grid"}}])
     with pytest.raises(Exception) as caught:
-        tool("agent_read_grid", {"grid": grid})
+        tool("row_read", {"grid": grid, "format": "csv"})
     assert "North" in str(caught.value)

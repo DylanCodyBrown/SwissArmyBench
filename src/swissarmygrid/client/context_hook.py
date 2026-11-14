@@ -38,7 +38,7 @@ def summary(context: dict[str, Any]) -> str:
     view_rows = active.get("view_rows")
     lines = [
         "SwissArmyGrid: the table the user has in front of them (no cell values; read rows with "
-        "the swissarmygrid MCP tools, e.g. agent_read_grid).",
+        "the swissarmygrid MCP tools, e.g. row_read).",
         f"- grid {active['grid']} on dataset {active['dataset']}: "
         f"{view_rows if view_rows is not None else '?'} rows in the view of {active['dataset_rows']}",
         f"- columns: {shown}",

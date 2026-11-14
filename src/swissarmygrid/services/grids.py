@@ -103,6 +103,9 @@ class GridService:
             "steps": steps,
             "step_error": step_error,
             "settings": grid.settings.to_json(),
+            # What the page last reported as selected, and how many highlight rules mark rows.
+            "selected_rows": grid.selected,
+            "highlights": len(grid.highlights),
             "gen": grid.gen,
             "budget": self.ws.budget(),
         }

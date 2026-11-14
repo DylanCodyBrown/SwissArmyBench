@@ -36,15 +36,11 @@ def test_audit_limit_is_checked_and_bounded(lenient: TestClient, limit: str) -> 
 
 
 @pytest.mark.parametrize("body", [b"[]", b"null", b"1", b'"x"'])
-@pytest.mark.parametrize(
-    ("path", "headers"),
-    [("/agent/query", AGENT)],
-)
-def test_a_body_that_is_not_an_object_is_a_400(
-    lenient: TestClient, path: str, headers: dict[str, str], body: bytes
-) -> None:
-    push(lenient, "clients", TABLE)
-    response = lenient.post(path, content=body, headers=headers | {"Content-Type": "application/json"})
+def test_a_body_that_is_not_an_object_is_a_400(lenient: TestClient, body: bytes) -> None:
+    gid = grid_id(push(lenient, "clients", TABLE))
+    response = lenient.post(
+        f"/grids/{gid}/sql", content=body, headers=AGENT | {"Content-Type": "application/json"}
+    )
     assert response.status_code == 400, response.text
 
 
@@ -149,7 +145,7 @@ def test_agent_reads_are_capped_in_bytes_like_the_sql_box(tmp_path: Path) -> Non
         gid = grid_id(push(c, "wide", wide))
         read = c.get(f"/agent/read/{gid}?limit=2000", headers=AGENT)
         assert read.status_code == 413 and "fewer rows" in read.text
-        query = c.post("/agent/query", json={"dataset": "wide", "sql": "SELECT * FROM grid"}, headers=AGENT)
+        query = c.post(f"/grids/{gid}/sql", json={"sql": "SELECT * FROM grid"}, headers=AGENT)
         assert query.status_code == 413
         assert c.get(f"/agent/read/{gid}?limit=10", headers=AGENT).status_code == 200
 

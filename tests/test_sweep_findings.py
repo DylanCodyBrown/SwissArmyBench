@@ -34,9 +34,7 @@ def test_a_malformed_step_is_an_error_on_the_step_not_a_broken_grid(
     assert client.get(f"/grids/{gid}/export", params={"format": "csv"}, headers=AUTH).status_code == 200
 
 
-@pytest.mark.parametrize(
-    "path", ["/agent/query", "/grids/{g}/sql", "/datasets/q/query", "/grids/{g}/step-ops"]
-)
+@pytest.mark.parametrize("path", ["/grids/{g}/sql", "/datasets/q/query", "/grids/{g}/step-ops"])
 def test_an_unclosed_quote_is_a_plain_answer(client: TestClient, path: str) -> None:
     """sqlglot's tokenizer error is not a ParseError, so it escaped as a 500, and in a SQL step it
     escaped the step compiler, breaking every read of the grid."""
