@@ -565,3 +565,30 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   matplotlib figures (neither is installed here: stand-ins with their methods are tested), plain
   Jupyter or VS Code opening the files, Edge (the tests ran in this machine's Chromium), Firefox and
   Safari (the frame's walls rest on the browser's sandbox and policy).
+- (2026-11-14) The cleanup (docs/ideas.md, "Cleanup, 2026-11-14", has each decision). Checked in a
+  real browser: the steps window's Code tab shows the one DuckDB copy with Copy as SQL and Copy as
+  Python and no language picker, and no "Verified identical" badge; the steps window has no ribbon
+  and no pop-out button; the ribbon's rows are Table and Column, and a cell's right-click menu keeps
+  rows by the selected value (Keep these, Exclude these); Fit test and Outliers open from a column
+  header's right-click menu; an analysis result's Copy code puts `from swissarmygrid import stats`
+  and the call on the clipboard and says "Copied."; a catalog table's right-click offers Open as
+  grid alone; a blade's row has no refresh icon, its save screen refreshes its catalog (asking for a
+  secret each time) and the icon beside the picker refreshes it again; the strip says nothing with no
+  steps, the status bar has no "live" (and says "not live" when the socket closes) and no meter, a
+  connection's row says nothing once its catalog has loaded, a ready kernel shows no state, Ctrl+S
+  saves with no toast; the Variables pane has no Connections and blades block and no empty
+  Environment, and shows a connection once a cell has opened it; an imported Sandbox theme is removed
+  with the button beside the picker, and a built-in theme has no such button; an agent's export
+  still opens the approval popup. Over HTTP: a recipe file left in the state folder is not applied
+  and not deleted; the removed routes answer 404; `row_read` as CSV, `table_profile` on a dataset
+  with no grid argument, `tabs_get` with the view's row count and `steps_run_sql` by table name give
+  what the five old `agent_` commands gave.
+  Then: ruff, format, mypy (238 files), the TypeScript check, and the whole suite with the browser
+  tests: 1,994 passed, none skipped (2,137 before: the pandas and plain-Python runs of every golden
+  case, and the tests of the queue, the old blade door, Script as and recipes went with what they
+  tested; a few were added). Lines: `src` 37,667 to 36,189; `web/src` 21,896 to 21,744.
+  Not checked: Edge (the tests ran in this machine's Chromium); the guide's screenshots, which still
+  show the Cell row and the old labels (they were not retaken). One browser test fails now and then
+  and did before this work (4 of 12 runs at bf17b95, alone): the HTML cell's "undoing the edit
+  clears it by itself". Undo there works only when pressed straight after Edit HTML; a moment later
+  the editor no longer undoes the edit, so the cell stays out of date. It passed in the final run.
