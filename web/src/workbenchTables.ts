@@ -106,6 +106,8 @@ export const plural = (n: number, word: string): string => `${n.toLocaleString()
 /** A table's folded line: "orders · 3 steps · up to date". */
 export function tableLineText(line: TableLine, state: TableState): string {
   const steps = line.steps === null ? "not open in the grid" : plural(line.steps, "step");
+  // "0 steps · no steps yet" said it twice: a table with no steps says it once.
+  if (state.kind === "noSteps") return `${line.name} · ${state.short}`;
   return `${line.name} · ${steps} · ${state.short}`;
 }
 

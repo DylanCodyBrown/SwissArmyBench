@@ -87,7 +87,7 @@ def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
     group = workbench.locator(".wb-tcell.role-tables")
     expect(group).to_have_text(re.compile(r"Tables · 1 table · up to date"), timeout=20000)
     line = workbench.locator(".wb-tcell.role-table")
-    expect(line).to_contain_text("sales · 0 steps · no steps yet")
+    expect(line).to_contain_text("sales · no steps yet")
     cell = workbench.locator(".wb-tcell.role-transformations")
     maker = workbench.locator(".wb-cell.role-maker")
     # Made while working, the table shows open (the user's cell is not folded away under them); it

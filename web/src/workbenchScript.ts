@@ -148,7 +148,7 @@ export function scriptView(
       const state = line ? stateOf(line) : null;
       let words = "";
       if (line && state && cell.role === "transformations") {
-        const steps = starts.get(line.name) === cell.line || !cell.grouped ? `${tableLineText(line, state).replace(`${line.name} · `, "").replace(` · ${state.short}`, "")} · ` : "";
+        const steps = state.kind !== "noSteps" && (starts.get(line.name) === cell.line || !cell.grouped) ? `${tableLineText(line, state).replace(`${line.name} · `, "").replace(` · ${state.short}`, "")} · ` : "";
         words = `${steps}read-only: it follows the grid · ${state.label}${state.runnable ? " · Ctrl+Enter runs it" : ""}`;
       } else if (line && state && cell.role === "maker" && cell.grouped) words = tableLineText(line, state).replace(`${line.name} · `, "");
       notes.push({ line: cell.line, text: words, tone: state?.kind === "outOfDate" && cell.table ? "stale" : "plain", marker: true });
