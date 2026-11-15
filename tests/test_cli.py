@@ -148,6 +148,7 @@ NOT_COMMANDS = {
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
     "/agent/context": "current_table",
+    "/beta/page-errors": "a page's own error report (page plumbing): app_beta_log reads them",
     "/blades/{}/python": "its answer holds the saved password values for sab.blade: never the agent's",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
@@ -549,7 +550,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # document back to the main window, and the panels' switches (read and set).
     # The starter pack (2026-11-15) added four: list it, copy a starter as your own, a snippet's form
     # (or its filled text), and inserting one into a cell.
-    assert size < 55_000, f"the tool list is {size} characters"
+    # Beta mode (2026-11-15) added five: the switch, the log, the notes, clear and export the zip.
+    assert size < 56_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}
@@ -887,3 +889,36 @@ def test_blades_install_sends_its_packages_as_the_server_reads_them(live: Live) 
     nothing is installed here."""
     with pytest.raises(CommandError, match="Name 1 to 20 packages"):
         execute("blades_install", {"packages": ["not a package name!"]})
+
+
+def test_the_agent_reads_and_switches_beta_mode(live: Live, tmp_path: Path) -> None:
+    """The golden rule for beta mode: the agent turns it off and on, reads the log and the notes the
+    user left (never a note's picture), exports the zip and clears it."""
+    element = {"role": "button", "name": "Filter…"}
+    live.user(
+        "POST", "/beta/notes", {"text": "The Filter button does nothing", "page": "grid", "element": element}
+    )
+    assert run("app_beta_mode")["on"] is True
+    notes = run("app_beta_notes")["notes"]
+    assert [n["text"] for n in notes] == ["The Filter button does nothing"]
+    assert run("app_beta_log", kind="note", since="1h")["events"][0]["element"]["name"] == "Filter…"
+    assert run("app_beta_mode", on=False)["on"] is False
+    assert run("app_beta_log", kind="note")["on"] is False  # the files stay until cleared
+    assert run("app_beta_mode", on=True)["on"] is True
+    made = run("app_beta_log_export", path=str(tmp_path / "beta.zip"))
+    assert made["notes"] == 1 and made["pictures"] == 0 and (tmp_path / "beta.zip").is_file()
+    assert run("app_beta_log_clear")["removed"] >= 1
+    assert run("app_beta_notes")["notes"] == []
+
+
+def test_a_kernel_that_dies_is_in_the_beta_log_with_its_exit_code(live: Live, tmp_path: Path) -> None:
+    kernel = run("workbench_kernel_start", path=str(tmp_path / "x.py"))["kernel"]
+    execute("workbench_run", dict(kernel=kernel, code="import os; os._exit(3)"))
+    other = run("workbench_kernel_start", path=str(tmp_path / "y.py"))["kernel"]
+    run("workbench_kernel", kernel=other, action="stop")
+    said = [(e["event"], e.get("exit_code")) for e in run("app_beta_log", kind="process")["events"]]
+    assert ("start", None) in said and ("crash", 3) in said and said[-1][0] == "end"
+    assert all(
+        set(e) <= {"time", "id", "kind", "process", "event", "exit_code", "seconds", "reason"}
+        for e in run("app_beta_log", kind="process")["events"]
+    )

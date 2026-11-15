@@ -139,7 +139,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, projects",
-    "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data",
+    "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
 }
 
 
@@ -2678,6 +2678,50 @@ def app_panels(a: dict[str, Any]) -> Any:
     if a.get("set") is not None:
         return api.call("PUT", "/panels", a["set"])
     return api.call("GET", "/panels")
+
+
+# ===== beta mode: the beta log and the notes (redacted: no data, SQL, code, secrets or paths) =====
+
+
+@command(
+    "app_beta_mode",
+    "Beta mode: the beta log and right-click notes (kept across restarts); `on` sets it",
+    opt("on", "true or false; none: read it.", "bool"),
+)
+def app_beta_mode(a: dict[str, Any]) -> Any:
+    if a.get("on") is not None:
+        return api.call("PUT", "/beta", {"on": a["on"]})
+    return api.call("GET", "/beta")
+
+
+@command(
+    "app_beta_log",
+    "The beta log, newest last: errors and stacks, slow requests, processes, page errors, notes",
+    opt("kind", "e.g. error,page (start stop error refused slow process page note)."),
+    opt("since", '"30m", "2h", "7d".'),
+    opt("limit", "Default 200.", "int"),
+)
+def app_beta_log(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/beta/log", params={k: a.get(k) for k in ("kind", "since", "limit")})
+
+
+@command("app_beta_notes", "The user's beta notes: words, element, panels, last actions")
+def app_beta_notes(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/beta/notes")
+
+
+@command("app_beta_log_clear", "Clear the beta log, notes and pictures")
+def app_beta_log_clear(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", "/beta/log")
+
+
+@command(
+    "app_beta_log_export",
+    "The beta log and notes as one zip (yours without the pictures)",
+    req("path", "A .zip path."),
+)
+def app_beta_log_export(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/beta/export", {"path": a["path"]})
 
 
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")

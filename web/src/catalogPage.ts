@@ -9,6 +9,7 @@ import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { connect, onNotice, openedWith } from "./api";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
+import { betaMark, mountBeta } from "./betaNotes";
 import { button, clear, h } from "./dom";
 
 watchTheme();
@@ -31,6 +32,8 @@ function openEditor(name: string | null): void {
     editing = false;
     rail.editorClosed();
     showWelcome();
+mountBeta("catalog");
+document.querySelector(".cat-top")?.append(betaMark());
   };
   const saved = (savedName: string): void => {
     editing = false; // saved: nothing to lose, so a click in the tree shows what was clicked again

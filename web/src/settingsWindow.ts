@@ -11,11 +11,14 @@
  *           what they change: gridView.ts CornerHeader. The zoom is the Application row's.)
  *          [PANELS]               a switch for each panel of the Workbench and the grid page -> panels.ts
  *                                 (the server's, for every window; all on again at each start)
+ *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
+ *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
  *          [CLOSE]                -> close()
  *          [AGENT ACCESS]         -> agentAccess.agentAccessSection()  (agent activity)
  */
 import { agentAccessSection } from "./agentAccess";
+import { betaSection } from "./betaNotes";
 import { button, h, openDialog, toast } from "./dom";
 import { loadPanels, panelList, setPanel } from "./panels";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
@@ -98,6 +101,7 @@ export function openSettings(): void {
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     panelsSection(),
+    betaSection(),
     h(
       "fieldset",
       { class: "fieldset" },

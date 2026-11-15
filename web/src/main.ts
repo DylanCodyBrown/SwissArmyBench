@@ -36,6 +36,7 @@ import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, h, toast } from "./dom";
 import { renderKeyFinder } from "./keyFinder";
 import { settingsButton } from "./settingsWindow";
+import { mountBeta } from "./betaNotes";
 import { loadPanels } from "./panels";
 import { connectionsButton } from "./connectionsWindow";
 import { tourButton } from "./tour";
@@ -175,6 +176,11 @@ async function start(): Promise<void> {
     document.body.append(h("p", { class: "status-error", style: { padding: "16px" } }, "No token in the address. Open the full grid URL."));
     return;
   }
+  // Beta mode (the beta log and Leave a note…): on every window of this page; nothing while it is off.
+  mountBeta("grid", {
+    window: popout ? "steps" : keysWindow ? "keys" : "main",
+    tabs: () => [`front:${document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid"}`, ...Array.from(document.querySelectorAll(".tabs-row [role=tab]"), () => "tab")],
+  });
   if (popout || keysWindow) {
     await startSingle();
     return;

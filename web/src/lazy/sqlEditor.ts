@@ -25,6 +25,24 @@ export interface SqlEditor {
   dispose: () => void;
 }
 
+
+/** Beta mode's "Leave a note…" in the editor's own right-click menu. The page (betaNotes.ts, another
+ *  bundle) puts its hook on globalThis while beta mode is on; the item shows only then. */
+interface NoteHook {
+  on: () => boolean;
+  open: (target: Element) => void;
+}
+const noteHook = (): NoteHook | undefined => (globalThis as { sabLeaveNote?: NoteHook }).sabLeaveNote;
+
+function addNoteAction(editor: monaco.editor.IStandaloneCodeEditor, host: HTMLElement): void {
+  const shown = editor.createContextKey<boolean>("sabBetaNotes", false);
+  // A right button pressed: the menu that follows shows the item only while beta mode is on.
+  editor.onMouseDown((e) => {
+    if (e.event.rightButton) shown.set(noteHook()?.on() === true);
+  });
+  editor.addAction({ id: "sab.leaveNote", label: "Leave a note…", contextMenuGroupId: "9_beta", contextMenuOrder: 1, precondition: "sabBetaNotes", run: () => noteHook()?.open(host.querySelector(".monaco-editor") ?? host) });
+}
+
 export function createSqlEditor(host: HTMLElement, initial: string, onRun: () => void, theme: string): SqlEditor {
   if (!registered) {
     registered = true;
@@ -55,6 +73,7 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
     ariaLabel: "SQL query",
   });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, onRun);
+  addNoteAction(editor, host);
   return {
     value: () => editor.getValue(),
     setValue: (text) => editor.setValue(text),

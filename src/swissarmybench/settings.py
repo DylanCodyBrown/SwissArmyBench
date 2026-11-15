@@ -136,6 +136,11 @@ class Settings:
     # The Key Finder's search for the most distinct column combination reads the grid's first
     # rows only, so a large table answers in seconds.
     key_finder_unique_rows: int = 400_000
+    # The beta log (domain/beta_log.py): a request slower than this to answer is logged; the log keeps
+    # about this many days and bytes (the oldest part goes first).
+    beta_slow_seconds: float = 2.0
+    beta_log_days: int = 7
+    beta_log_bytes: int = 20 * MIB
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4

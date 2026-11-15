@@ -8,6 +8,7 @@
  *          [LIVE]           -> setLive(): words only while the page is not live
  */
 import { api, type Budget } from "./api";
+import { betaMark } from "./betaNotes";
 import { clear, formatCount, h } from "./dom";
 import { showTables } from "./openMenu";
 import { displayedRange, shownTotal } from "./gridView";
@@ -24,7 +25,7 @@ export function mountBottomBar(host: HTMLElement): void {
   selection = h("span", { "aria-live": "polite" });
   meter = h("button", { type: "button", class: "meter", onclick: () => showTables() });
   live = h("span", { id: "live" });
-  clear(host, rows, selection, h("span", { class: "grow" }), meter, live, h("span", { class: "credit" }, "Created by Dylan Brown"));
+  clear(host, rows, selection, h("span", { class: "grow" }), meter, live, betaMark(), h("span", { class: "credit" }, "Created by Dylan Brown"));
   state.on("selection", render);
   state.on("info", render);
   onAgentView(render);

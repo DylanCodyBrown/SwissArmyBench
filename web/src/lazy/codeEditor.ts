@@ -439,6 +439,23 @@ export interface CodeEditorOptions {
   sendToAgent?: (what: { text: string; startLine: number; endLine: number; problem: Problem | null }, withQuestion: boolean) => void;
 }
 
+/** Beta mode's "Leave a note…" in the editor's own right-click menu. The page (betaNotes.ts, another
+ *  bundle) puts its hook on globalThis while beta mode is on; the item shows only then. */
+interface NoteHook {
+  on: () => boolean;
+  open: (target: Element) => void;
+}
+const noteHook = (): NoteHook | undefined => (globalThis as { sabLeaveNote?: NoteHook }).sabLeaveNote;
+
+function addNoteAction(editor: monaco.editor.IStandaloneCodeEditor, host: HTMLElement): void {
+  const shown = editor.createContextKey<boolean>("sabBetaNotes", false);
+  // A right button pressed: the menu that follows shows the item only while beta mode is on.
+  editor.onMouseDown((e) => {
+    if (e.event.rightButton) shown.set(noteHook()?.on() === true);
+  });
+  editor.addAction({ id: "sab.leaveNote", label: "Leave a note…", contextMenuGroupId: "9_beta", contextMenuOrder: 1, precondition: "sabBetaNotes", run: () => noteHook()?.open(host.querySelector(".monaco-editor") ?? host) });
+}
+
 export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions): CodeEditor {
   const editor = monaco.editor.create(host, {
     value: options.value,
@@ -559,6 +576,8 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     editor.addAction({ id: "sab.sendToAgent", label: "Send to the agent", contextMenuGroupId: "0_agent", contextMenuOrder: 1, run: () => send(false) });
     editor.addAction({ id: "sab.sendToAgentAsk", label: "Send to the agent with a question…", contextMenuGroupId: "0_agent", contextMenuOrder: 2, run: () => send(true) });
   }
+
+  addNoteAction(editor, host);
 
   const fit = (): void => {
     if (!options.grow) return;

@@ -84,7 +84,10 @@ def test_compare_with_on_a_tabs_right_click_ticks_the_key_unique_on_both_sides(
         tab = page.locator(".tab-item[data-grid]").filter(has_text=re.compile("^cmp_menu$"))
         tab.click(button="right")
         menu = page.get_by_role("menu")
-        expect(menu.get_by_role("menuitem")).to_have_text(["Compare with…", "Rename", "Close"])
+        # (and beta mode's Leave a note…, last, while it is on: test_beta_notes_page.py)
+        expect(menu.get_by_role("menuitem")).to_have_text(
+            ["Compare with…", "Rename", "Close", "Leave a note…"]
+        )
         page.keyboard.press("Escape")
         expect(menu).to_have_count(0)
 

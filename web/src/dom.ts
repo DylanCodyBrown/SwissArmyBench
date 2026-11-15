@@ -297,9 +297,26 @@ export const formatCount = (n: number): string => grouping.format(n);
  * be used now: it shows disabled, with that reason as its tooltip. */
 export type MenuItem = [string, string, () => void, string?] | "-";
 
+/** What every right-click menu adds at its end while beta mode is on ("Leave a note…": betaNotes.ts),
+ * read as the menu is drawn; null when beta mode is off. */
+export interface MenuExtra {
+  icon: string;
+  label: string;
+  run: () => void;
+}
+let menuExtras: (() => MenuExtra[]) | null = null;
+
+export function setMenuExtras(extras: (() => MenuExtra[]) | null): void {
+  menuExtras = extras;
+}
+
+export const extraMenuItems = (): MenuExtra[] => menuExtras?.() ?? [];
+
 /** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
 export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
   document.querySelector(".menu")?.remove();
+  const extra = extraMenuItems().map((e): MenuItem => [e.icon, e.label, e.run]);
+  if (extra.length) items = items.length ? [...items, "-", ...extra] : extra;
   const menu = h(
     "div",
     { class: "menu context-menu", role: "menu", "aria-label": label },

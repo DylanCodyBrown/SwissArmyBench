@@ -66,6 +66,7 @@ import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { openSettings } from "./settingsWindow";
+import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
@@ -955,6 +956,9 @@ function topEntries(): MenuEntry[] {
     null,
     { label: "Commands…", icon: "steps", keys: "Ctrl+Shift+P", run: () => openPalette() },
     { label: "Settings…", icon: "cog", run: () => openSettings() },
+    null,
+    betaOn() ? { label: "Turn beta mode off", icon: "exclude", run: () => void setBeta(false) } : { label: "Turn beta mode on", icon: "check", run: () => void setBeta(true) },
+    { label: "Export beta log…", icon: "export", run: () => void exportBetaLog() },
   ];
 }
 
@@ -1054,7 +1058,7 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), consoleToggle, variablesToggle);
+layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), betaMark(), consoleToggle, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -1733,6 +1737,9 @@ const COMMANDS: Command[] = [
   { id: "commands", agentOnly: true, group: "Help", title: "Every command and its arguments", run: () => allCommands().map((c) => ({ id: c.id, title: c.title, group: c.group, keys: c.keys ?? null, args: c.args ?? null, available: c.when ? c.when() : true })) },
 ];
 registerCommands(COMMANDS);
+registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
+// Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
+mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
 // What is sent to the agent or the Sandbox names the document it came from.
 setDocumentName(() => current?.title ?? "the Workbench");
 

@@ -1,8 +1,8 @@
 # Approvals and privacy
 
 Everything runs on the user's computer: the server listens on 127.0.0.1 only, every data route needs
-its token, and nothing is written to disk but explicit exports, saved files and dashboards, and the
-audit log. You can do whatever the user can, with two exceptions: answering approvals, and reading a
+its token, and nothing is written to disk but explicit exports, saved files and dashboards, the
+audit log and, in beta mode, the beta log. You can do whatever the user can, with two exceptions: answering approvals, and reading a
 password.
 
 ## What waits for the user's Allow
@@ -30,3 +30,16 @@ password.
   did what, never cell values); Settings shows the user your activity.
 - Keep the data on the machine: open or filter a grid for the user rather than pasting rows into the
   chat. Give the table, the filter and the row count behind each number.
+
+## Beta mode: the beta log and the notes
+- One switch, `app_beta_mode(on=...)`, kept across restarts (SWISSARMYBENCH_BETA=1 or 0 wins). On, the
+  server logs errors with their stacks, slow requests (the route's pattern), kernel, Streamlit, blade
+  and catalog processes, page errors, and the notes the user leaves with right-click, Leave a note….
+- Redacted before it is written: no cell values, SQL, code, secrets or full paths (`~`); tables and
+  columns are `table#1`, `col#3`; quoted text and long numbers are `‹…›`. A note's own words are the
+  user's, as typed.
+- `app_beta_log(kind, since, limit)` reads events ("error,page", "2h"); `app_beta_notes` the notes,
+  each with its element, panels, last actions and the server errors before it. Read a note's
+  `server_errors` ids in the log to see the stack. A picture is named only; it is in the zip.
+- `app_beta_log_export(path)` saves the zip (yours leaves the pictures out); `app_beta_log_clear`
+  empties it. Off, nothing is logged and the menu item is gone; the files stay until cleared.

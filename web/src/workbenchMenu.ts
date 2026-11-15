@@ -6,7 +6,7 @@
  *   back to its button; a click outside closes it. An entry with nothing to act on is disabled and
  *   its tooltip says why (design principle 5.1)
  */
-import { h, icon } from "./dom";
+import { extraMenuItems, h, icon } from "./dom";
 
 export interface MenuItem {
   label: string;
@@ -37,6 +37,9 @@ export function closeMenu(): void {
 export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[], options: { align?: "left" | "right"; above?: boolean } = {}): HTMLElement {
   closeMenu();
   document.querySelector(".menu")?.remove(); // another module's menu
+  // Opened by a right-click (a tab's menu): beta mode's "Leave a note…" at its end.
+  const extra = extraMenuItems();
+  if (extra.length) entries = [...entries, null, ...extra.map((e): MenuItem => ({ label: e.label, icon: e.icon, run: e.run }))];
   const menu = h("div", { class: "menu wb-menu", role: "menu", "aria-label": label });
   let lastWasLine = true;
   for (const entry of entries) {

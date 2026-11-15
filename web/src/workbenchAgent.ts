@@ -12,7 +12,7 @@
  * ROUTING: POST /agent/inbox {kind, title, text, note}
  */
 import { api } from "./api";
-import { button, h, openDialog, toast } from "./dom";
+import { button, extraMenuItems, h, openDialog, toast } from "./dom";
 import type { ErrorDetail } from "./workbenchErrors";
 
 export interface AgentItem {
@@ -91,6 +91,7 @@ export function codeItem(where: string, what: { text: string; problem: { message
 /** A small menu at the pointer (right-click): each choice runs and the menu goes. */
 export function contextMenu(event: MouseEvent, items: { label: string; run: () => void }[]): void {
   event.preventDefault();
+  items = [...items, ...extraMenuItems()];
   document.querySelector(".menu")?.remove();
   const menu = h("div", { class: "menu", role: "menu" }, ...items.map((i) => h("button", { type: "button", role: "menuitem", onclick: () => { menu.remove(); i.run(); } }, i.label)));
   document.body.append(menu);

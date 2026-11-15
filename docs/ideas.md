@@ -2136,3 +2136,38 @@ Planned:
     minted from a service account key in the vault (RS256, through `cryptography` when present).
   - A preset fills the form (the URL pattern, the auth type, the header names), then reads the OpenAPI
     document if the host has one, or the endpoints are added by hand.
+## Beta mode: the beta log and notes (the owner, 2026-11-15)
+
+"After the beta release I will probably have a whole host of things to fix or I don't like. So let's build
+in a log that I can dump back to you that doesn't expose data but lets you have enough info to fix issues
+the server runs into. Also give me a temporary ability to right click anything in the app and leave a note
+on that visual that saves to the log so you can trace what was the issue and I can tell you what is wrong."
+
+And: "Make it so we can turn off beta mode easily and turn it back on at any point if we need this level of
+testing down the road."
+
+Decided:
+- **A new thing on disk, the owner's call for the beta:** `~/.swissarmybench/logs/beta-<day>-<part>.jsonl`,
+  one JSON line per event, about 7 days or 20 MB kept, pictures in `logs/pictures/`. Written by a thread of
+  its own from a queue (a full queue drops the event), at most 600 events a minute (then a "dropped" line).
+- **Never in it:** cell values, SQL, code, secrets, environment values, file contents, full paths. Messages
+  are redacted (quoted text, numbers of five digits or more, e-mail addresses, key=value secrets, long
+  tokens, DuckDB's `LINE 1:` echo; the home folder is `~`, a path's folders and file name hidden, its
+  extension kept); table and column names are `table#n`, `col#n`, the mapping in memory only. The
+  server's frames are file:line and function names. A note's element never keeps a cell's or an editor's
+  words (the page sends none; the server drops them again for data roles and places).
+- **Kept as typed:** a note's own words (the user's message to the developer). The picture only when ticked.
+- **One switch, Beta mode,** for the log and the notes together (two switches were not worth it). It
+  lasts across restarts in `beta.json` (unlike the panels); `SWISSARMYBENCH_BETA=1` or `0` wins, and then
+  the switch is locked. Off: nothing written, no "Leave a note…", no listener on any page; the files
+  stay until Clear the log, so they can still be exported. On again: at once, no restart.
+- **The default is ON for 0.0.1.** The release after the beta flips ONE constant:
+  `BETA_MODE_DEFAULT` in `src/swissarmybench/domain/beta_log.py` (a saved choice and the variable still win).
+- **The agent** reads the same redacted log (`app_beta_log`, `app_beta_notes`), switches beta mode
+  (`app_beta_mode`), clears it and exports the zip (`app_beta_log_export`: its zip leaves the notes'
+  pictures out; only the user's export carries them). A note itself is the user's own words, typed in the
+  page: no command leaves one (tests/test_cli.py NOT_COMMANDS lists the page's error report route).
+- **Slow** is 2 seconds to the first byte (`Settings.beta_slow_seconds`); routes that wait on purpose (a
+  snapshot, a window's answer, a kernel's start, a new environment, an export's Allow) are not slow.
+- **Open:** a value the user's own code puts unquoted into an exception message ("cannot parse Globex")
+  is not recognised as data; DuckDB and Python quote values, which the redaction hides.
