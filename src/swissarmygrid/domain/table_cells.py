@@ -777,6 +777,27 @@ def _body(source: str) -> list[str]:
     return (source[:-1] if source.endswith("\n") else source).split("\n")
 
 
+# A script cell's name is its marker's own words (`# %% [7] Region filter`), as VS Code and Jupytext
+# show them. Words that would read as the marker's own grammar (`[html]`, `[3]`, `height=300`, or a
+# backslash) are written after a backslash, which reading takes off again.
+_GRAMMAR = re.compile(r"^(?:\[(?:\d+|table|transformations|html|streamlit)\]|height=\d|\\)")
+
+
+def marker_words(name: str | None) -> str:
+    """A cell's name as its marker line holds it."""
+    if not name:
+        return ""
+    return f"\\{name}" if _GRAMMAR.match(name) else name
+
+
+def marker_name(words: str) -> str | None:
+    """A cell's name from its marker line's own words (None: it has none)."""
+    said = words.strip()
+    if said.startswith("\\") and _GRAMMAR.match(said[1:]):
+        said = said[1:]
+    return said or None
+
+
 def _marker_line(cell: PlanCell) -> str:
     parts = ["# %%"]
     if cell.number is not None:
@@ -839,7 +860,7 @@ def arrange_script(text: str, specs: Sequence[TableSpec], move: bool = True) -> 
 
 def outline(text: str) -> dict[str, Any]:
     """Where a script's cells are, for the editor: each cell's marker line and last line (1-based), its
-    number, role and table, its first line of code; and the Tables group's first and last line. An
+    number, role and table, its name, its first line of code; and the Tables group's first and last line. An
     HTML cell also says the HTML its lines hold (or what is wrong with them) and its pane's height.
     A Python cell that calls Streamlit has the kind "streamlit" here: the editor shows it live."""
     lines = text.split("\n")
@@ -888,6 +909,8 @@ def outline(text: str) -> dict[str, Any]:
             "grouped": inside,
             "kind": "html" if found.group("html") == "html" and not inside and not role else "code",
             "height": html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
+            # The cell's name: its marker's own words (none for the Tables group's cells).
+            "name": None if inside or role else marker_name(found.group("title")),
         }
     close(len(lines))
     # A Python cell that calls Streamlit is shown live in its cell (domain/streamlit_use.py).

@@ -88,6 +88,8 @@ class ProjectFiles(Protocol):
 
     def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]: ...
 
+    def names(self, folder: str) -> list[str]: ...
+
     def relative(self, folder: str, path: str) -> str | None: ...
 
     def zip(self, path: str, files: dict[str, str]) -> tuple[str, list[str]]: ...
@@ -127,6 +129,7 @@ class App:
     # A document's Python cells (their numbers in order, their code) and the ones that call Streamlit.
     order: list[int] = field(default_factory=list)
     codes: dict[int, str] = field(default_factory=dict)
+    names: dict[int, str] = field(default_factory=dict)  # the cells that have a name of their own
     live: list[int] = field(default_factory=list)
     # Every cell of the document, as the window holds it (only a project's data.ipynb sends them).
     every: list[DataCell] | None = None
@@ -162,6 +165,7 @@ class Linked:
     """A canvas's linked cells as they are now."""
 
     cells: dict[str, dict[int, str]] = field(default_factory=dict)  # by file: its Python cells' code
+    names: dict[str, dict[int, str]] = field(default_factory=dict)  # by file: its cells' own names
     missing: dict[str, str] = field(default_factory=dict)  # a file that cannot be read, and why
     unsaved: list[str] = field(default_factory=list)  # the files an open document holds changes of
     python: str | None = None  # the first linked file's own Python
@@ -169,11 +173,17 @@ class Linked:
     def code(self, key: Key) -> str | None:
         return self.cells.get(key[0], {}).get(key[1])
 
+    def name(self, key: Key) -> str | None:
+        return self.names.get(key[0], {}).get(key[1])
 
-def _cells(sent: Any) -> list[tuple[int, str]]:
+
+def _cells(sent: Any) -> tuple[list[tuple[int, str]], dict[int, str]]:
+    """The Python cells a window sends ({"cell", "code", "name"?}): (number, code) in order, and
+    the names the cells have."""
     if not isinstance(sent, list) or len(sent) > rules.MAX_PIECES:
-        raise StreamlitError('Send the Python cells as a list: [{"cell": 4, "code": "..."}].')
+        raise StreamlitError('Send the Python cells as a list: [{"cell": 4, "code": "...", "name"?}].')
     found: list[tuple[int, str]] = []
+    names: dict[int, str] = {}
     seen: set[int] = set()
     for raw in sent:
         cell = raw.get("cell") if isinstance(raw, dict) else None
@@ -182,9 +192,15 @@ def _cells(sent: Any) -> list[tuple[int, str]]:
             raise StreamlitError("Each cell is named by its own number, once.")
         if not isinstance(code, str) or len(code) > notebooks.MAX_CELL_CHARS:
             raise StreamlitError("A cell's code is text of at most a million characters.")
+        try:
+            name = notebooks.check_name(raw.get("name"))
+        except notebooks.NotebookError as error:
+            raise StreamlitError(str(error)) from None
         seen.add(cell)
         found.append((cell, code))
-    return found
+        if name:
+            names[cell] = name
+    return found, names
 
 
 def _name(path: str) -> str:
@@ -273,7 +289,7 @@ class StreamlitApps:
                 app.title = _name(full)
                 app.python = self._environment_of(full)
                 try:
-                    self._take(app, rules.document_cells(full, text))
+                    self._take(app, rules.document_cells(full, text), rules.document_names(full, text))
                 except notebooks.NotebookError as error:
                     raise StreamlitError(str(error)) from None
         self._apps[app.id] = app
@@ -283,15 +299,18 @@ class StreamlitApps:
             del self._apps[app.id]
             raise
         self.ws.audit.write(who, "open_streamlit_app", app.title)
+        if app.live:
+            await self._cells_changed()
         return self._state(app)
 
     @staticmethod
-    def _take(app: App, cells: list[tuple[int, str]]) -> bool:
-        """A document's Python cells as they are now (true: a cell's code changed)."""
+    def _take(app: App, cells: list[tuple[int, str]], names: dict[int, str]) -> bool:
+        """A document's Python cells as they are now (true: a cell's code or name changed)."""
         codes = dict(cells)
-        changed = codes != app.codes
+        changed = codes != app.codes or names != app.names
         app.order = [cell for cell, _ in cells]
         app.codes = codes
+        app.names = names
         app.live = rules.live_cells(cells)
         return changed
 
@@ -328,7 +347,7 @@ class StreamlitApps:
                 for raw in body["every"][: notebooks.MAX_CELLS]
                 if isinstance(raw, dict)
             ]
-        return self._take(app, _cells(body["cells"])) if "cells" in body else False
+        return self._take(app, *_cells(body["cells"])) if "cells" in body else False
 
     async def _tell_canvases(self, document: App) -> None:
         """A document's cells changed: each canvas that links to it may be out of date now."""
@@ -366,8 +385,11 @@ class StreamlitApps:
         app = self._app(app_id)
         if not isinstance(body, dict):
             raise StreamlitError('Send {"cells": [{"cell": 4, "code": "..."}]}.')
+        before = self._pane_mark(app)
         if self._update(app, body):
             await self._tell_canvases(app)
+        if self._pane_mark(app) != before:
+            await self._cells_changed()
         return self._state(app)
 
     # ===== tables =====
@@ -416,6 +438,7 @@ class StreamlitApps:
             held = self._open_document(document)
             if held is not None:
                 found.cells[document] = dict(held.codes)
+                found.names[document] = dict(held.names)
                 if held.unsaved:
                     found.unsaved.append(document)
                 python = held.python
@@ -423,6 +446,7 @@ class StreamlitApps:
                 try:
                     text, full, _ = self._read(document)
                     found.cells[document] = dict(rules.document_cells(full, text))
+                    found.names[document] = rules.document_names(full, text)
                 except FileNotFoundError:
                     found.missing[document] = f"{document} is missing"
                     continue
@@ -451,7 +475,8 @@ class StreamlitApps:
                 code = linked.code(block.key)
                 if code is not None and block.key not in pieces:
                     where = _where(block.document, block.cell)
-                    pieces[block.key] = PieceCode(block.cell, rules.piece_name(code, block.cell), code, where)
+                    name = rules.cell_title(code, block.cell, linked.name(block.key))
+                    pieces[block.key] = PieceCode(block.cell, name, code, where)
         found = {
             (doc, cell): rules.facts(code)
             for doc, cells in linked.cells.items()
@@ -467,7 +492,9 @@ class StreamlitApps:
 
     def _piece_codes(self, app: App) -> dict[int, PieceCode]:
         return {
-            cell: PieceCode(cell, rules.piece_name(app.codes[cell], cell), app.codes[cell])
+            cell: PieceCode(
+                cell, rules.cell_title(app.codes[cell], cell, app.names.get(cell)), app.codes[cell]
+            )
             for cell in app.live
         }
 
@@ -514,7 +541,7 @@ class StreamlitApps:
             pieces.append(
                 {
                     "cell": cell,
-                    "name": rules.piece_name(code, cell),
+                    "name": rules.cell_title(code, cell, app.names.get(cell)),
                     "makes": list(mine.makes),
                     "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in named],
                     "tables": named,
@@ -598,6 +625,68 @@ class StreamlitApps:
 
     async def _changed(self, app: App) -> None:
         await self.ws.live.broadcast({"type": "streamlit_changed", "app": app.id})
+
+    # ===== the Streamlit cells pane: every cell that calls Streamlit, by document =====
+
+    @staticmethod
+    def _pane_mark(app: App) -> str:
+        """What the pane shows of a document: its live cells' names and code."""
+        return json.dumps(
+            [app.title, app.document, [[c, app.names.get(c), app.codes[c]] for c in app.live]], default=str
+        )
+
+    async def _cells_changed(self) -> None:
+        await self.ws.live.broadcast({"type": "streamlit_cells"})
+
+    def _pane_entry(self, document: str | None, cell: int, code: str, name: str | None) -> dict[str, Any]:
+        mine = rules.facts(code)
+        tables = rules.tables_named(code, self._tables())
+        return {
+            "cell": cell,
+            "name": rules.cell_title(code, cell, name),
+            "named": bool(name),
+            "where": f"{_name(document)} @cell{cell}" if document else f"@cell{cell}",
+            "makes": list(mine.makes),
+            "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in tables],
+            "tables": tables,
+        }
+
+    def pane(self, folder: str | None = None) -> dict[str, Any]:
+        """The Streamlit cells pane: every Python cell that calls Streamlit, grouped by document. From
+        each open notebook and script (as its window holds it, saved or not), and, with `folder` (an
+        open project's), from the project's notebooks and scripts on disk that no window holds."""
+        documents: list[dict[str, Any]] = []
+        seen: list[str] = []
+        for app in self._apps.values():
+            if app.canvas or not app.live:
+                continue
+            if app.document:
+                if any(rules.same_file(app.document, d) for d in seen):
+                    continue
+                seen.append(app.document)
+            cells = [self._pane_entry(app.document, c, app.codes[c], app.names.get(c)) for c in app.live]
+            documents.append({"document": app.document, "title": app.title, "open": True, "cells": cells})
+        if folder:
+            try:
+                names = self._project.names(folder)
+            except (FileNotFoundError, OSError):
+                names = []
+            for name in projects.project_files(names):
+                path = self._project.path(folder, name)
+                if rules.is_app(name) or any(rules.same_file(path, d) for d in seen):
+                    continue
+                try:
+                    text, full, _ = self._read(path)
+                    codes = rules.document_cells(full, text)
+                    named = rules.document_names(full, text)
+                except (FileNotFoundError, OSError, ValueError):
+                    continue  # a file that cannot be read has nothing to list
+                live = set(rules.live_cells(codes))
+                cells = [self._pane_entry(full, c, code, named.get(c)) for c, code in codes if c in live]
+                if cells:
+                    seen.append(full)
+                    documents.append({"document": full, "title": name, "open": False, "cells": cells})
+        return {"documents": documents}
 
     # ===== a canvas's pages and blocks =====
 
@@ -918,6 +1007,8 @@ class StreamlitApps:
         if app is not None:
             await self._stop(app)
             await self._changed(app)
+            if app.live:
+                await self._cells_changed()
 
     async def kernel_stopped(self, kernel_id: str) -> None:
         """A document's kernel stopped: its Streamlit process stops with it."""

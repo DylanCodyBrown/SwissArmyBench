@@ -307,6 +307,75 @@ def test_a_linked_files_python_cells_are_the_ones_a_block_can_name() -> None:
     assert rules.document_cells("/work/s.py", "x = 1\n# %%\ny = 2\n# %% [3] Named\nz = 3\n") == [(3, "z = 3")]
 
 
+# ===== named cells (the owner, 2026-11-15): a label; the number stays the cell's identity =====
+
+
+def test_a_notebook_cells_name_is_kept_in_its_metadata_both_ways() -> None:
+    cells = [
+        notebooks.Cell("code", FILTER, name="Region [filter] #1"),
+        notebooks.Cell("markdown", "# Notes", name="Read me"),
+        notebooks.Cell("code", TOTAL),
+    ]
+    text = notebooks.write_notebook(cells)
+    held = json.loads(text)["cells"]
+    # Where plain Jupyter keeps it: the cell's own metadata, beside its number.
+    assert held[0]["metadata"]["swissarmygrid"] == {"number": 1, "name": "Region [filter] #1"}
+    assert held[1]["metadata"]["swissarmygrid"]["name"] == "Read me"
+    assert "name" not in held[2]["metadata"]["swissarmygrid"]
+    read, _ = notebooks.read_document(text)
+    assert [(c.number, c.name) for c in read] == [(1, "Region [filter] #1"), (2, "Read me"), (3, None)]
+    assert rules.document_names("/work/sales.ipynb", text) == {1: "Region [filter] #1"}  # Python cells
+    # As the window sends it: checked, one line; "" is no name.
+    sent = notebooks.read_cells([{"kind": "code", "source": "x = 1", "name": "  Total  "}])
+    assert sent[0].name == "Total" and sent[0].to_json()["name"] == "Total"
+    assert notebooks.read_cells([{"kind": "code", "source": "", "name": ""}])[0].name is None
+    for bad in ("two\nlines", "x" * 81, 7):
+        with pytest.raises(notebooks.NotebookError, match="one line"):
+            notebooks.read_cells([{"kind": "code", "source": "", "name": bad}])
+    # An old file (no names) opens as it did; a name another tool wrote too long is dropped.
+    old = text.replace('"name": "Region [filter] #1"', '"name": "' + "y" * 90 + '"')
+    assert notebooks.read_document(old)[0][0].name is None
+    assert notebooks.read_document(notebooks.write_notebook([notebooks.Cell("code", "1")]))[0][0].name is None
+
+
+def test_a_script_cells_name_is_its_markers_own_words_both_ways() -> None:
+    # Words that would read as the marker's own grammar are written after a backslash.
+    for name, words in [
+        ("Region filter", "Region filter"),
+        ("Sales #1 [by region]", "Sales #1 [by region]"),
+        ("[html] report", "\\[html] report"),
+        ("[3] three", "\\[3] three"),
+        ("height=300 box", "\\height=300 box"),
+        ("\\back", "\\\\back"),
+    ]:
+        assert table_cells.marker_words(name) == words
+        assert table_cells.marker_name(f" {words} ") == name
+    assert table_cells.marker_words(None) == "" and table_cells.marker_name("  ") is None
+    script = (
+        "import streamlit as st\n\n"
+        f"# %% [4] Region filter\n{FILTER}\n\n"
+        f"# %% [5] height=300 \\[html] total\n{TOTAL}\n\n"
+        "# %% [6] [html] Report\nhtml = '<b>hi</b>'\n\n"
+        "# %% [7]\nx = 1\n"
+    )
+    assert rules.document_names("/work/sales.py", script) == {4: "Region filter", 5: "[html] total"}
+    outline = table_cells.outline(script)
+    assert [(c["number"], c["kind"], c["height"], c["name"]) for c in outline["cells"]] == [
+        (4, "streamlit", None, "Region filter"),
+        (5, "streamlit", 300, "[html] total"),
+        (6, "html", None, "Report"),
+        (7, "code", None, None),
+    ]
+    # Arranged again, the marker lines are as they were: the names, the kinds, the heights.
+    assert table_cells.arrange_script(script, [])[0] == script
+
+
+def test_a_named_cell_is_called_by_its_name_on_a_canvas() -> None:
+    assert rules.cell_title(FILTER, 4, "Pick a region") == "Pick a region"
+    assert rules.cell_title(FILTER, 4, None) == "Region filter"  # the first comment line, as before
+    assert rules.cell_title("", 9) == "Cell 9"
+
+
 # ===== pages and the grid =====
 
 

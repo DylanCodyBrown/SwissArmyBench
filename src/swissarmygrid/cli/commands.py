@@ -2634,6 +2634,26 @@ def workbench_cell_paste(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "workbench_cell_name",
+    "Name a cell of the front document (its number stays its identity)",
+    req("number", "The cell's own number.", "int"),
+    opt("name", "One line (without it: no name)."),
+)
+def workbench_cell_name(a: dict[str, Any]) -> Any:
+    return _window("cell.name", {"number": a["number"], "name": a.get("name") or ""})
+
+
+@command(
+    "streamlit_cells",
+    "Every Python cell that calls Streamlit, by document (the Streamlit cells pane)",
+    opt("folder", "A project's folder: its files on disk too."),
+)
+def streamlit_cells(a: dict[str, Any]) -> Any:
+    folder = f"?folder={_q(a['folder'])}" if a.get("folder") else ""
+    return api.call("GET", "/streamlit/cells" + folder)
+
+
+@command(
     "workbench_live_cells",
     "The front document's cells that call Streamlit (shown live): makes, reads, state",
 )

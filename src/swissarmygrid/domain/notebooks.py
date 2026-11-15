@@ -19,6 +19,10 @@ goes, the code and the height stay. Pages once kept in a notebook's metadata
 (`swissarmygrid.streamlit.pages`) are not read and not written: an app is a file of its own now
 (domain/streamlit_cells.py).
 
+Any cell may have a name (the owner, 2026-11-15): a short label of one line, kept in the cell's
+metadata (`swissarmygrid.name`), so plain Jupyter keeps it. The number stays the cell's identity: a
+name changes nothing that links to the cell.
+
 Every cell has a number that never changes (docs/ideas.md, 2026-11-14): given when the cell is made,
 never reused or shifted when cells move or go. It is kept in the cell's metadata, with the cell's part
 in the Tables group (domain/table_cells.py): the group's heading, a table's heading, the user's cell
@@ -44,6 +48,7 @@ KINDS: tuple[str, ...] = ("code", "sql", "dax", "html", "markdown")
 # What an older file or window may still call a Python cell that draws with Streamlit.
 _OLD_STREAMLIT: str = "streamlit"
 _OLD_STREAMLIT_LINE = re.compile(r"^# ?%% \[streamlit\]\s*$")
+MAX_NAME: int = 80  # a cell's name: one line
 MAX_CONNECTION_CHARS: int = 200  # a DAX cell's is a connection, a slash and a dataset's name
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
 MAX_STEPS_CHARS: int = 200_000
@@ -74,6 +79,7 @@ class Cell:
     steps: list[Any] | None = None
     # An HTML cell's pane, or a Python cell's that is shown live, in pixels (None: the usual height).
     height: int | None = None
+    name: str | None = None  # the cell's own label (None: it has none); the number stays its identity
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -88,6 +94,7 @@ class Cell:
             "grouped": self.grouped,
             "steps": self.steps,
             "height": self.height,
+            "name": self.name,
         }
 
     def marks(self) -> dict[str, Any]:
@@ -109,7 +116,18 @@ class Cell:
             kept["grouped"] = True
         if self.steps is not None and self.role == "transformations":
             kept["steps"] = self.steps
+        if self.name:
+            kept["name"] = self.name
         return kept
+
+
+def check_name(value: Any) -> str | None:
+    """A cell's name as sent: one line of at most MAX_NAME characters (None or "": no name)."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or "\n" in value or "\r" in value or len(value.strip()) > MAX_NAME:
+        raise NotebookError(f"A cell's name is one line of at most {MAX_NAME} characters.")
+    return value.strip() or None
 
 
 def sql_line(connection: str | None) -> str:
@@ -164,6 +182,10 @@ def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:
         cell.steps = marks["steps"]
     if cell.kind in ("html", "code"):
         cell.height = check_height(marks.get("height"))
+    try:
+        cell.name = check_name(marks.get("name"))
+    except NotebookError:  # a name another tool wrote too long: the cell opens without it
+        cell.name = None
     return cell
 
 
@@ -291,6 +313,7 @@ def read_cells(sent: Any) -> list[Cell]:
                 raw.get("grouped") is True,
                 steps,
                 check_height(raw.get("height")) if raw["kind"] in ("html", "code") else None,
+                check_name(raw.get("name")),
             )
         )
     return cells

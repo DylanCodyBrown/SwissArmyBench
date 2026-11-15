@@ -230,6 +230,58 @@ def test_opening_a_notebook_marks_the_cells_that_call_streamlit(
     assert "pages" not in opened
 
 
+def test_the_streamlit_cells_pane_lists_every_cell_that_calls_streamlit_by_name(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, _ = served
+    project = tmp_path / "sales"
+    project.mkdir()
+    named = [{"cell": 1, "code": "import pandas as pd"}, {"cell": 4, "code": FILTER, "name": "Pick a region"}]
+    # An open notebook (its window sends the names with the cells), saved or not.
+    opened = _open(
+        client, document=str(project / "mockups.ipynb"), cells=[*named, {"cell": 5, "code": TOTAL}]
+    )
+    assert [p["name"] for p in opened["pieces"]] == ["Pick a region", "Total"]
+    # A notebook of the project's on disk that no window holds; and one with no cell that calls Streamlit.
+    on_disk = project / "more.ipynb"
+    on_disk.write_text(
+        notebooks.write_notebook(
+            [notebooks.Cell("code", "x = 1"), notebooks.Cell("code", 'st.write("hi")', name="Hello")]
+        )
+    )
+    (project / "plain.py").write_text("# %% [1] Just Python\nx = 1\n")
+    pane = _ok(client.get("/streamlit/cells", headers=AUTH, params={"folder": str(project)}))
+    assert [(d["title"], d["open"], Path(d["document"]).name) for d in pane["documents"]] == [
+        ("sales.ipynb", True, "mockups.ipynb"),
+        ("more.ipynb", False, "more.ipynb"),
+    ]
+    assert [
+        (c["cell"], c["name"], c["named"], c["where"], c["makes"], c["tables"], c["reads"])
+        for c in pane["documents"][0]["cells"]
+    ] == [
+        (4, "Pick a region", True, "mockups.ipynb @cell4", ["region"], ["orders"], []),
+        (5, "Total", False, "mockups.ipynb @cell5", [], ["orders"], ["region"]),
+    ]
+    assert [(c["cell"], c["name"]) for c in pane["documents"][1]["cells"]] == [(2, "Hello")]
+    # Without a project: the open documents only. The agent lists the same.
+    assert len(_ok(client.get("/streamlit/cells", headers=AGENT))["documents"]) == 1
+    # A name changes nothing a link holds: the canvas's block is called by it.
+    canvas = _canvas(client)["app"]
+    placed = _ok(
+        client.post(
+            f"/streamlit/apps/{canvas}/pages", headers=AUTH, json={"document": str(on_disk), "cell": 2}
+        )
+    )
+    assert [(b["cell"], b["name"]) for b in placed["pages"][0]["blocks"]] == [(2, "Hello")]
+    renamed = [*named[:1], {"cell": 4, "code": FILTER, "name": "Region"}, {"cell": 5, "code": TOTAL}]
+    state = _ok(client.put(f"/streamlit/apps/{opened['app']}", headers=AUTH, json={"cells": renamed}))
+    assert state["pieces"][0]["name"] == "Region"
+    bad = [{"cell": 4, "code": FILTER, "name": "two\nlines"}]
+    assert (
+        client.put(f"/streamlit/apps/{opened['app']}", headers=AUTH, json={"cells": bad}).status_code == 400
+    )
+
+
 # ===== the canvas: blocks are links to cells =====
 
 

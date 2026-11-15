@@ -3,6 +3,8 @@ golden rule: every action here has its command).
 
   GET    /streamlit/apps                        the open apps: a canvas for each open Streamlit app,
                                                 one for each open notebook or script
+  GET    /streamlit/cells?folder=               the Streamlit cells pane: every Python cell that calls
+                                                Streamlit, by document (and the project's files)
   POST   /streamlit/apps   {"path"} | {"title", "cells", ...} | {"canvas": true, "pages", ...}: open one
   GET    /streamlit/apps/{app}                  a canvas: its pages, blocks and their state; a
                                                 document's: its live cells
@@ -50,6 +52,9 @@ def routes(apps: StreamlitApps) -> list[BaseRoute]:
 
     async def listing(request: Request) -> Response:
         return json_response(apps.listing())
+
+    async def pane(request: Request) -> Response:
+        return json_response(apps.pane(request.query_params.get("folder") or None))
 
     async def open_app(request: Request) -> Response:
         return json_response(await apps.open(await body_of(request), actor(request)))
@@ -123,6 +128,7 @@ def routes(apps: StreamlitApps) -> list[BaseRoute]:
     block = "/streamlit/apps/{app}/pages/{page}/blocks/{block}"
     return [
         Route("/streamlit/apps", safely(listing)),
+        Route("/streamlit/cells", safely(pane)),
         Route("/streamlit/apps", safely(open_app), methods=["POST"]),
         Route("/streamlit/apps/{app}", safely(state)),
         Route("/streamlit/apps/{app}", safely(sync), methods=["PUT"]),

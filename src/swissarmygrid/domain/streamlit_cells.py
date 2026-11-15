@@ -244,6 +244,25 @@ def document_cells(path: str, text: str) -> list[tuple[int, str]]:
     ]
 
 
+def document_names(path: str, text: str) -> dict[int, str]:
+    """The names a notebook's or script's Python cells have (a notebook's metadata, a script's marker
+    words), by the cell's own number. A cell without a name is not listed."""
+    if notebooks.kind_of(path) == "notebook":
+        cells, _ = notebooks.read_document(text)
+        return {c.number: c.name for c in cells if c.kind == "code" and c.number is not None and c.name}
+    return {
+        c.number: name
+        for c in table_cells.parse_script(text).cells
+        if c.number is not None and not c.fixed and not c.html and (name := table_cells.marker_name(c.title))
+    }
+
+
+def cell_title(code: str, number: int, name: str | None = None) -> str:
+    """What a cell is called on a canvas and in the Streamlit cells pane: its own name, else its first
+    comment line or first line of code (`piece_name`)."""
+    return name or piece_name(code, number)
+
+
 # ===== pages and the blocks placed on them =====
 
 
