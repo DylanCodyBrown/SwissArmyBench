@@ -1728,6 +1728,11 @@ export function notebookView(
       presenting = on ?? !presenting;
       list.classList.toggle("presenting", presenting);
       if (presenting) for (const c of cells) if (c.kind === "markdown" && !c.element.classList.contains("rendered")) showMarkdown(c);
+      // A code cell shows only what it drew: one that drew nothing is left out of the document.
+      for (const c of cells) {
+        const drew = !!c.area.element.textContent?.trim() || !!c.area.element.querySelector("img, svg, iframe, canvas, table");
+        c.element.classList.toggle("present-empty", presenting && c.kind !== "markdown" && c.kind !== "html" && !c.live && !drew);
+      }
       return presenting;
     },
     element: list,

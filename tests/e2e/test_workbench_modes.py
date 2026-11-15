@@ -392,6 +392,8 @@ def test_script_mode_run_settings_run_as_scheduled_and_history(
     window(server, "run.primary")
     expect(history.locator(".wb-runs tbody tr")).to_have_count(2, timeout=30000)
     expect(history.locator(".wb-runs tbody tr").first).to_contain_text("Run file")
+    history.locator(".wb-runs tbody tr").nth(1).click()
+    expect(history.locator(".wb-run-detail")).to_contain_text("Run as scheduled")
     shot(page, "script-history")
     page.context.close()
 

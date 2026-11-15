@@ -5856,6 +5856,7 @@ body.wb-dragging-tab * {
 
 .wb-cells {
   display: grid;
+  align-content: start; /* a list in a grid cell of its own (a mode's panel open) keeps its rows tight */
   gap: 10px;
   max-width: 1100px;
   margin: 0 auto;
@@ -7633,7 +7634,7 @@ body.panel-off-grid-status .statusbar {
   background: var(--bg);
 }
 
-.app-row {
+.pp-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -7703,7 +7704,7 @@ body.panel-off-grid-status .statusbar {
   border-radius: 6px;
 }
 
-.app-colour input[type="color"] {
+.pp-row.app-colour input[type="color"] {
   width: 44px;
   height: 26px;
   padding: 0 2px;
@@ -7933,8 +7934,16 @@ body.panel-off-grid-status .statusbar {
   display: none;
 }
 
-.wb-cells.presenting .wb-cell.kind-code:not(:has(.wb-outputs > *)) {
+.wb-cells.presenting .wb-cell.present-empty {
   display: none;
+}
+
+.wb-cells.presenting .wb-cell,
+.wb-cells.presenting .wb-outputs {
+  min-height: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
 }
 
 .wb-cells.presenting .wb-cell {
@@ -8129,12 +8138,6 @@ body.panel-off-grid-status .statusbar {
   font-weight: 600;
 }
 
-.dict-columns td:last-child {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-}
 
 .dict-input {
   width: 100%;
@@ -8254,4 +8257,31 @@ body.panel-off-grid-status .statusbar {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The selected block's row leaves room under it for its wiring's label (its width, the names it makes). */
+.cv-row:has(.cv-block.selected) {
+  margin-bottom: 30px;
+}
+
+.cv-wire-label {
+  margin-top: 2px;
+}
+
+.app-feeds .link {
+  color: var(--fg);
+}
+
+.dict-from > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+/* A narrow group keeps more of its document: its side panel is narrower. */
+@container (max-width: 900px) {
+  .wb-doc-body.mode-open.mode-side {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
 }

@@ -244,7 +244,7 @@ export function drawRunHistory(body: HTMLElement, path: string | null, runAgain:
         run.sources.length
           ? h("div", { class: "wb-run-sources" }, h("h3", { class: "app-heading" }, "Variables"), ...run.sources.map((s) => h("div", { class: "wb-run-source-row" }, h("span", { class: "mono" }, s.name), h("span", {}, s.words))))
           : null,
-        h("div", { class: "wb-run-log" }, h("h3", { class: "app-heading" }, "Log"), h("pre", { class: "mono" }, ...run.log.map((line) => h("div", { class: /Error|Traceback|^\s*File "/.test(line) && failed(run) ? "wb-log-bad" : "" }, line)))),
+        !run.log.length ? null : h("div", { class: "wb-run-log" }, h("h3", { class: "app-heading" }, "Log"), h("pre", { class: "mono" }, ...run.log.map((line) => h("div", { class: /Error|Traceback|^\s*File "/.test(line) && failed(run) ? "wb-log-bad" : "" }, line)))),
       ),
     );
     clear(body, h("div", { class: "wb-history" }, list, detail));
@@ -323,7 +323,7 @@ export function drawDictionary(host: HTMLElement, tables: DictionaryTable[], cho
               h("td", { class: "mono" }, c.name),
               h("td", {}, c.type),
               h("td", {}, field(c.description, `${c.name}'s description`, c.name)),
-              h("td", {}, icon(/^Step \d+$/.test(c.comes_from) ? "steps" : "file"), h("span", {}, c.comes_from)),
+              h("td", { class: "dict-from" }, h("span", {}, icon(/^Step \d+$/.test(c.comes_from) ? "steps" : "file"), h("span", {}, c.comes_from))),
             ),
           ),
         ),

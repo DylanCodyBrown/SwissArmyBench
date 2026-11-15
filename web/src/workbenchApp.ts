@@ -43,7 +43,7 @@ function stepper(label: string, shown: string, down: (() => void) | null, up: ((
   const plus = button(`More ${label.toLowerCase()}`, () => up?.(), { icon: "plus", iconOnly: true, class: "ghost" });
   minus.disabled = !down;
   plus.disabled = !up;
-  return h("div", { class: "app-row" }, h("span", { class: "app-label" }, label), h("span", { class: "app-stepper", role: "group", "aria-label": label }, minus, h("output", { class: "app-step-value" }, shown), plus));
+  return h("div", { class: "pp-row" }, h("span", { class: "app-label" }, label), h("span", { class: "app-stepper", role: "group", "aria-label": label }, minus, h("output", { class: "app-step-value" }, shown), plus));
 }
 
 const section = (title: string, ...children: (HTMLElement | null)[]): HTMLElement => h("section", { class: "app-section" }, h("h3", { class: "app-heading" }, title), ...children);
@@ -88,8 +88,8 @@ function drawBlock(body: HTMLElement, canvas: CanvasView, host: AppHost, block: 
     section(
       "Source cell",
       source,
-      block.makes.length ? h("div", { class: "app-row" }, h("span", { class: "app-label" }, "Makes"), h("span", { class: "app-chips" }, ...block.makes.map(chip))) : null,
-      block.reads.length || block.tables.length ? h("div", { class: "app-row" }, h("span", { class: "app-label" }, "Reads"), h("span", { class: "app-chips" }, ...[...block.tables, ...block.reads].map(chip))) : null,
+      block.makes.length ? h("div", { class: "pp-row" }, h("span", { class: "app-label" }, "Makes"), h("span", { class: "app-chips" }, ...block.makes.map(chip))) : null,
+      block.reads.length || block.tables.length ? h("div", { class: "pp-row" }, h("span", { class: "app-label" }, "Reads"), h("span", { class: "app-chips" }, ...[...block.tables, ...block.reads].map(chip))) : null,
     ),
     feeds.length
       ? section(
@@ -123,7 +123,7 @@ function drawSettings(body: HTMLElement, canvas: CanvasView, host: AppHost): voi
     input.addEventListener("change", () => void canvas.setSettings({ colours: { [key]: input.value } }));
     return h(
       "div",
-      { class: `app-row app-colour${chosen ? "" : " unset"}` },
+      { class: `pp-row app-colour${chosen ? "" : " unset"}` },
       h("span", { class: "app-label" }, label),
       input,
       chosen ? button(`${label}: the theme's own`, () => void canvas.setSettings({ colours: { [key]: null } }), { icon: "close", iconOnly: true, class: "ghost" }) : null,
@@ -139,7 +139,7 @@ function drawSettings(body: HTMLElement, canvas: CanvasView, host: AppHost): voi
       "Logo",
       h(
         "div",
-        { class: "app-row" },
+        { class: "pp-row" },
         logo,
         button("Browse…", () => void host.chooseLogo().then((path) => (path ? canvas.setSettings({ logo: path }) : false)), { class: "ghost" }),
       ),

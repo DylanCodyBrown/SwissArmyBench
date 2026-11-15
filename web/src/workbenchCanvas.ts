@@ -525,11 +525,12 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       if (!el) continue;
       const t = at(el);
       const tx = x(t.left + t.width / 2);
-      const above = t.bottom <= s.top + 2;
-      const ty = above ? y(t.bottom) : y(t.top);
-      const bend = Math.max(30, Math.abs(ty - sy) / 2);
+      // A block in the same row (or above) is reached from below, the arrow pointing up into it.
+      const beside = t.top < s.bottom - 2;
+      const ty = beside ? y(t.bottom) + 4 : y(t.top) - 2;
+      const bend = beside ? 34 : Math.max(30, Math.abs(ty - sy) / 2);
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M${sx},${sy} C${sx},${sy + bend} ${tx},${above ? ty + bend : ty - bend} ${tx},${ty}`);
+      path.setAttribute("d", `M${sx},${sy} C${sx},${sy + bend} ${tx},${beside ? ty + bend : ty - bend} ${tx},${ty}`);
       path.setAttribute("marker-end", "url(#cv-arrow)");
       path.dataset.to = target.id;
       svg.append(path);
