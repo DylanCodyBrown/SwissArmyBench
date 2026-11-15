@@ -18,6 +18,9 @@ from swissarmygrid.services.workspace import Conflict, NotFound, Workspace
 MAX_KERNELS: int = 12
 # How long a kernel outlives the Workbench window that started it (a reload or a slip keeps it a minute).
 ORPHAN_SECONDS: float = 60.0
+# A document moving to another Workbench window (handoffs): how long it waits to be taken.
+HANDOFF_SECONDS: float = 120.0
+MAX_HANDOFFS: int = 20
 
 
 class Documents(Protocol):
@@ -117,6 +120,8 @@ class Workbench:
         # The Workbench window that started each kernel, and since when that window has been gone.
         self._owner: dict[str, str] = {}
         self._gone_since: dict[str, float] = {}
+        # Documents moving between Workbench windows, by their one-time id (memory only).
+        self._handoffs: dict[str, dict[str, Any]] = {}
 
     # ===== files =====
 
@@ -359,6 +364,88 @@ class Workbench:
                 yield item
 
         return run()
+
+    # ===== a document moving to another Workbench window (the owner, 2026-11-15) =====
+    #
+    # A tab popped out (or moved back) MOVES: its unsaved text, its cell numbers and its kernel go with
+    # it, and the window it leaves closes its tab once the other has taken it. Never two live copies.
+    # The document is the page's own state (its cells or text, its pages, its name), kept here only
+    # until the other window takes it: memory, a few minutes at most.
+
+    def _expire_handoffs(self) -> None:
+        now = self._now()
+        for key, old in list(self._handoffs.items()):
+            if now - old["made"] > HANDOFF_SECONDS:
+                del self._handoffs[key]
+
+    def _handoff(self, handoff_id: str) -> dict[str, Any]:
+        self._expire_handoffs()
+        held = self._handoffs.get(handoff_id)
+        if held is None:
+            raise NotFound("That document is no longer on its way to another window: move it again.")
+        return held
+
+    async def hand_off(self, body: Any) -> dict[str, Any]:
+        """A document on its way to another window: {"document": the page's state of it, "kernel"?:
+        its running kernel, "to"?: a window's id (that window is told to take it; without it, the
+        window opened for it takes it by the id)}. Its one-time id."""
+        if not isinstance(body, dict) or not isinstance(body.get("document"), dict):
+            raise ValueError('Send {"document": {...}, "kernel"?, "to"?}.')
+        if body["document"].get("kind") not in ("notebook", "script", "app"):
+            raise ValueError("Only a notebook, a script or a Streamlit app moves to another window.")
+        kernel = body.get("kernel")
+        if kernel is not None and (not isinstance(kernel, str) or kernel not in self._running):
+            raise NotFound("That kernel is not running: move the document without it.")
+        to = body.get("to")
+        if to is not None and (not isinstance(to, str) or not 0 < len(to) <= 64):
+            raise ValueError("to is a Workbench window's id.")
+        self._expire_handoffs()
+        if len(self._handoffs) >= MAX_HANDOFFS:
+            raise Conflict("Too many documents are on their way between windows: wait a moment.")
+        handoff_id = tokens.token_urlsafe(12)
+        self._handoffs[handoff_id] = {
+            "document": body["document"],
+            "kernel": kernel,
+            "to": to,
+            "made": self._now(),
+            "taken": False,
+        }
+        if to is not None:
+            await self.ws.live.broadcast({"type": "workbench_handoff", "id": handoff_id, "to": to})
+        return {"id": handoff_id}
+
+    def take_handoff(self, handoff_id: str, body: Any) -> dict[str, Any]:
+        """The window that takes the document: {"window": its id}. The document, and its kernel, now
+        that window's (it stops a minute after that window is gone, as any other)."""
+        held = self._handoff(handoff_id)
+        window = body.get("window") if isinstance(body, dict) else None
+        if not isinstance(window, str) or not 0 < len(window) <= 64:
+            raise ValueError('Send {"window": the Workbench window\'s id}.')
+        if held["taken"]:
+            raise Conflict("Another window took that document already.")
+        if held["to"] is not None and held["to"] != window:
+            raise Conflict("That document is on its way to another window.")
+        held["taken"] = True
+        kernel = held["kernel"] if held["kernel"] in self._running else None
+        if kernel is not None:
+            self._owner[kernel] = window
+            self._gone_since.pop(kernel, None)
+        return {"document": held["document"], "kernel": kernel}
+
+    def handoff(self, handoff_id: str) -> dict[str, Any]:
+        """Whether the document was taken (the window it leaves closes its tab then)."""
+        held = self._handoff(handoff_id)
+        if held["taken"]:
+            del self._handoffs[handoff_id]
+            return {"taken": True}
+        return {"taken": False}
+
+    def cancel_handoff(self, handoff_id: str) -> dict[str, Any]:
+        """No window took it: it stays where it was. False when it was taken meanwhile."""
+        held = self._handoffs.pop(handoff_id, None)
+        if held is not None and held["taken"]:
+            return {"cancelled": False}
+        return {"cancelled": True}
 
     async def stop_orphans(self, open_windows: set[str]) -> list[str]:
         """Stop each kernel whose Workbench window has been gone (closed, or reloaded into a new one)

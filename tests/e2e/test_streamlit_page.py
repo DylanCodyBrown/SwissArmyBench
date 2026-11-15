@@ -514,6 +514,79 @@ def test_named_cells_show_in_the_streamlit_cells_pane_and_drag_onto_a_canvas(
     workbench.close()
 
 
+def test_a_tab_pops_out_with_its_unsaved_text_and_kernel_and_a_cell_drops_across_windows(
+    browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
+) -> None:
+    book = tmp_path / "sales.ipynb"
+    saved_notebook(server, book, None, ["x = 41", TOTAL])
+    first = open_window(browser, server, book)
+    cells = first.locator(".wb-cell")
+    # The kernel holds a value; the notebook has a change that is not saved (a cell's name).
+    cells.nth(0).locator(".monaco-editor").click()
+    first.keyboard.press("Control+Enter")
+    expect(cells.nth(0).locator(".wb-count")).to_have_text("[1]", timeout=LONG)
+    assert window(server, "cell.name", number=2, name="Total by region") == {
+        "cell": 2,
+        "name": "Total by region",
+    }
+    expect(first.locator(".wb-tab").nth(0)).to_contain_text("●")
+    # Pop the tab out from its right-click menu: the popped window is a page of its own.
+    with first.context.expect_page() as opened:
+        first.locator(".wb-tab").nth(0).click(button="right")
+        first.get_by_role("menuitem", name="Open in its own window").click()
+    second = opened.value
+    expect(second.locator(".wb-tab")).to_have_count(1, timeout=20000)
+    # It MOVED: gone from the first window, here with its change and its numbers.
+    expect(first.locator(".wb-tab")).to_have_count(0, timeout=20000)
+    expect(second.locator(".wb-tab").nth(0)).to_contain_text("sales.ipynb")
+    expect(second.locator(".wb-tab").nth(0)).to_contain_text("●")
+    moved = second.locator(".wb-cell")
+    expect(moved.nth(1).locator(".wb-cell-name")).to_have_value("Total by region")
+    expect(moved.nth(1).locator(".wb-number")).to_have_text("#2")
+    expect(moved.nth(0).locator(".wb-count")).to_have_text("[1]")  # its outputs and counts came too
+    # The same kernel, still running: what it holds is there.
+    moved.nth(1).locator(".monaco-editor").click()
+    second.keyboard.press("Control+a")
+    second.keyboard.insert_text("x + 1")
+    second.keyboard.press("Control+Enter")
+    expect(moved.nth(1).locator(".wb-outputs .wb-text")).to_have_text("42", timeout=LONG)
+    # The popped window has the Data panel and its Streamlit cells pane, like any Workbench window.
+    expect(second.locator(".wb-st")).to_be_visible()
+    # A cell dropped onto a canvas in the other window. (Playwright cannot drag between two pages:
+    # the drop is sent with the same data a cell's drag carries.)
+    first.get_by_role("button", name="Start an app").click()
+    board = first.locator(".cv-board")
+    expect(board).to_be_visible()
+    link = {"document": str(book), "cell": 1, "title": "sales.ipynb"}
+    board.evaluate(
+        """(board, link) => {
+          const data = new DataTransfer();
+          data.setData("application/x-swissarmygrid-cell", JSON.stringify(link));
+          const box = board.getBoundingClientRect();
+          for (const type of ["dragover", "drop"]) {
+            const at = { clientX: box.left + 40, clientY: box.top + 40 };
+            const event = { dataTransfer: data, bubbles: true, cancelable: true, ...at };
+            board.dispatchEvent(new DragEvent(type, event));
+          }
+        }""",
+        link,
+    )
+    expect(first.locator(".cv-block")).to_have_count(1, timeout=20000)
+    expect(first.locator(".cv-block .cv-block-where")).to_have_text("sales.ipynb @cell1")
+    # Each window keeps its own groups: the canvas here, the notebook there.
+    expect(first.locator(".wb-tab")).to_have_count(1)
+    expect(first.locator(".wb-tab").nth(0)).to_contain_text("Untitled app")
+    # Moved back to the main window (the agent's command, sent to the window in front of the user).
+    second.bring_to_front()
+    second.evaluate("() => window.dispatchEvent(new Event('focus'))")
+    with_back = window(server, "doc.moveToMain")
+    assert with_back["window"] == "main"
+    expect(first.locator(".wb-tab", has_text="sales.ipynb")).to_have_count(1, timeout=20000)
+    expect(second.locator(".wb-tab")).to_have_count(0)
+    second.close()
+    first.close()
+
+
 def test_a_project_opens_with_its_data_first(
     browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
 ) -> None:

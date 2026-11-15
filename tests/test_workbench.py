@@ -912,6 +912,53 @@ def test_a_closed_windows_kernels_stop_a_minute_later(client: TestClient) -> Non
         client.delete(f"/workbench/kernels/{agents['kernel']}", headers=AUTH)
 
 
+def test_a_document_moves_to_another_window_with_its_running_kernel(client: TestClient) -> None:
+    """A tab popped out (or moved back): the document goes to the window that takes it, once, and its
+    kernel runs on as that window's. Never two copies: the window it leaves hears it was taken."""
+    ctx = client.app.state.ctx  # type: ignore[attr-defined]
+    kernel = client.post("/workbench/kernels", json={"window": "window-a"}, headers=AUTH).json()["kernel"]
+    try:
+        assert run(client, kernel, "x = 41")[-1]["done"]["ok"] is True
+        document: dict[str, Any] = {
+            "kind": "notebook",
+            "path": None,
+            "title": "Untitled notebook 1",
+            "dirty": True,
+            "cells": [],
+        }
+        made = client.post("/workbench/handoffs", json={"document": document, "kernel": kernel}, headers=AUTH)
+        assert made.status_code == 200, made.text
+        handoff = made.json()["id"]
+        assert client.get(f"/workbench/handoffs/{handoff}", headers=AUTH).json() == {"taken": False}
+        taken = client.post(f"/workbench/handoffs/{handoff}/take", json={"window": "window-b"}, headers=AUTH)
+        assert taken.json() == {"document": document, "kernel": kernel}
+        again = client.post(f"/workbench/handoffs/{handoff}/take", json={"window": "window-c"}, headers=AUTH)
+        assert again.status_code == 409  # taken once
+        assert client.get(f"/workbench/handoffs/{handoff}", headers=AUTH).json() == {"taken": True}
+        assert client.get(f"/workbench/handoffs/{handoff}", headers=AUTH).status_code == 404  # done with
+        # The kernel kept its variables, and is window-b's now: window-a gone stops nothing.
+        assert run(client, kernel, "x + 1")[0]["data"]["text/plain"] == "42"
+        portal = client.portal
+        assert portal is not None
+        clock = ctx.workbench._now
+        ctx.workbench._now = lambda: clock() + 61
+        assert portal.call(ctx.workbench.stop_orphans, {"window-b"}) == []
+        ctx.workbench._now = clock
+        # Moved back to a named window: only that window takes it. Not taken: it stays where it was.
+        back = client.post("/workbench/handoffs", json={"document": document, "to": "window-a"}, headers=AUTH)
+        wrong = client.post(
+            f"/workbench/handoffs/{back.json()['id']}/take", json={"window": "window-c"}, headers=AUTH
+        )
+        assert wrong.status_code == 409
+        assert client.delete(f"/workbench/handoffs/{back.json()['id']}", headers=AUTH).json() == {
+            "cancelled": True
+        }
+        for bad in ({"document": {"kind": "blade"}}, {"document": document, "kernel": "nope"}, {}):
+            assert client.post("/workbench/handoffs", json=bad, headers=AUTH).status_code in (400, 404)
+    finally:
+        client.delete(f"/workbench/kernels/{kernel}", headers=AUTH)
+
+
 def test_a_busy_reader_loses_none_of_what_a_kernel_prints(tmp_path: Path) -> None:
     """6,000 lines printed while nothing reads them (this process busy elsewhere) all arrive, and
     the run ends: ZeroMQ's default limit of 1,000 waiting messages once dropped the rest."""

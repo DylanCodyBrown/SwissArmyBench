@@ -2679,10 +2679,15 @@ def workbench_live_resize(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_pop_out",
-    "Move the front (saved) document into a Workbench window of its own",
+    "Move the front document (unsaved text, kernel) into a Workbench window of its own",
 )
 def workbench_pop_out(a: dict[str, Any]) -> Any:
     return _window("doc.popOut", {})
+
+
+@command("workbench_move_back", "Move the front document of a popped-out window back to the main window")
+def workbench_move_back(a: dict[str, Any]) -> Any:
+    return _window("doc.moveToMain", {})
 
 
 @command(

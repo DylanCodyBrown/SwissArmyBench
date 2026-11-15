@@ -418,17 +418,86 @@ function projectEntries(): MenuEntry[] {
   ];
 }
 
-/** Move a saved document into a Workbench window of its own (so a canvas can sit on another screen). */
-async function popOut(doc: Doc): Promise<{ path: string }> {
-  if (!doc.path || doc.dirty) {
-    if (!(await save(doc)) || !doc.path) throw new Error("Save the document first: its own window opens it from its file.");
+// ----- a document MOVES to another Workbench window (the owner, 2026-11-15) -----
+// Popped out into a window of its own, or moved back to the main window: its unsaved text, its cell
+// numbers, its outputs and its running kernel go with it, and this window's tab closes once the other
+// has taken it (the server holds it on the way: /workbench/handoffs). Never two live copies.
+
+/** The window this one was popped out of, and so on back to the first: "the main window". */
+const MAIN_WINDOW: string = openedWith.get("main") ?? WINDOW_ID;
+const isMainWindow = (): boolean => MAIN_WINDOW === WINDOW_ID;
+const moves = (doc: Doc): boolean => !!(doc.notebook || doc.script || doc.canvas);
+
+/** A document as it moves: everything the window holds of it. */
+function movingState(doc: Doc): Remembered & { title: string } {
+  return {
+    kind: doc.notebook ? "notebook" : doc.canvas ? "app" : "script",
+    path: doc.path,
+    title: doc.title,
+    modified: doc.modified,
+    dirty: doc.dirty,
+    python: doc.python,
+    ...(doc.notebook ? { cells: doc.notebook.cells(), next_cell: doc.notebook.nextCell() } : doc.canvas ? { pages: doc.canvas.pages() } : { text: doc.script!.text() }),
+  };
+}
+
+/** Hand a document to another window (`to`: a window's id; null: a new window, opened for it). Its
+ *  tab here closes once that window has taken it; if none does, it stays. */
+async function moveOut(doc: Doc, to: string | null): Promise<{ title: string; window: "new" | "main" }> {
+  if (!moves(doc)) throw new Error("Only a notebook, a script or a Streamlit app moves to another window.");
+  const kernel = doc.kernel?.id ?? null;
+  const { id } = await api<{ id: string }>("/workbench/handoffs", "POST", { document: movingState(doc), kernel, to });
+  if (to === null) {
+    const hash = new URLSearchParams({ token, take: id, fresh: "1", main: MAIN_WINDOW }).toString();
+    const opened = window.open(`/workbench#${hash}`, `swissarmygrid-workbench-${Date.now()}`, "popup,width=1200,height=800");
+    if (!opened) {
+      await api(`/workbench/handoffs/${id}`, "DELETE").catch(() => undefined);
+      throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
+    }
   }
-  const path = doc.path;
-  const hash = new URLSearchParams({ token, open: path, fresh: "1" }).toString();
-  const opened = window.open(`/workbench#${hash}`, `swissarmygrid-workbench-${Date.now()}`, "popup,width=1200,height=800");
-  if (!opened) throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
-  close(doc);
-  return { path };
+  doc.element.classList.add("moving"); // nothing typed here now: it is on its way
+  const until = Date.now() + (to === null ? 30000 : 8000);
+  while (Date.now() < until) {
+    await new Promise((done) => setTimeout(done, 250));
+    const state = await api<{ taken: boolean }>(`/workbench/handoffs/${id}`).catch(() => ({ taken: false }));
+    if (!state.taken) continue;
+    doc.kernel?.release(); // it runs on, the other window's now
+    close(doc, true);
+    return { title: doc.title, window: to === null ? "new" : "main" };
+  }
+  const cancelled = await api<{ cancelled: boolean }>(`/workbench/handoffs/${id}`, "DELETE").catch(() => ({ cancelled: true }));
+  if (!cancelled.cancelled) {
+    doc.kernel?.release();
+    close(doc, true);
+    return { title: doc.title, window: to === null ? "new" : "main" };
+  }
+  doc.element.classList.remove("moving");
+  throw new Error(to === null ? `The new window did not take ${doc.title}: it stays here.` : `The main Workbench window is not open: ${doc.title} stays here.`);
+}
+
+/** Pop a document out into a Workbench window of its own (so it can sit on another screen). */
+const popOut = (doc: Doc): Promise<{ title: string; window: "new" | "main" }> => moveOut(doc, null);
+
+/** A popped-out window's document back to the main window. */
+function moveToMain(doc: Doc): Promise<{ title: string; window: "new" | "main" }> {
+  if (isMainWindow()) throw new Error("This is the main Workbench window.");
+  return moveOut(doc, MAIN_WINDOW);
+}
+
+/** Take a document another window handed to this one: as it was there, its kernel still running. */
+async function takeDocument(id: string): Promise<void> {
+  const taken = await api<{ document: Remembered & { title: string }; kernel: string | null }>(`/workbench/handoffs/${id}/take`, "POST", { window: WINDOW_ID });
+  const r = taken.document;
+  const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified) : openScript(r.path, r.text ?? "", r.modified);
+  if (!r.path && r.title) doc.title = r.title;
+  doc.python = r.python;
+  if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmygrid: true });
+  doc.dirty = r.dirty;
+  if (taken.kernel && doc.kernel) doc.kernel.adopt(taken.kernel, r.python ?? "");
+  show(doc);
+  drawTabs();
+  drawStatus();
+  remember();
 }
 
 const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => toast(e.message, "error"));
@@ -597,8 +666,9 @@ function focused(doc: Doc | null): void {
   drawPane(); // the marks are the canvas page's in front
 }
 
-function close(doc: Doc): void {
-  if (doc.dirty && !confirm(`${doc.title} has changes that are not saved. Close it anyway?`)) return;
+function close(doc: Doc, moved = false): void {
+  // (A document that moved to another window took its changes with it.)
+  if (!moved && doc.dirty && !confirm(`${doc.title} has changes that are not saved. Close it anyway?`)) return;
   doc.kernel?.stop();
   doc.streamlit?.close(); // its Streamlit process and temporary folder go with it
   doc.canvas?.close();
@@ -638,6 +708,12 @@ const groups = mountGroups<Doc>({
   plus: (anchor) => void openMenu(anchor, "New tab", newEntries(anchor)),
   changed: () => remember(),
   tabMade: (doc, element) => {
+    // Right-click: the tab's moves between windows, and Close.
+    element.addEventListener("contextmenu", (e) => {
+      if (!moves(doc)) return;
+      e.preventDefault();
+      openMenu(element, "Tab menu", [...moveEntries(doc), null, { label: "Close", icon: "close", run: () => close(doc) }]);
+    });
     // A cell dropped on a Streamlit app's tab goes to the end of its current page.
     element.addEventListener("dragover", (e) => {
       if (!doc.canvas || !e.dataTransfer?.types.includes(CELL_DRAG)) return;
@@ -906,10 +982,20 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
         ]
       : []),
     null,
-    ...(doc.path !== undefined && (doc.notebook || doc.script || doc.canvas) ? [{ label: "Open in its own window", icon: "popout", run: () => void popOut(doc).catch((e: Error) => toast(e.message, "error")) }] : []),
+    ...moveEntries(doc),
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "right") },
     { label: "Split down", icon: "splitDown", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "down") },
     { label: "Close", icon: "close", run: () => close(doc) },
+  ];
+}
+
+/** A tab's moves between windows (its "…" menu and its right-click menu). */
+function moveEntries(doc: Doc): MenuEntry[] {
+  if (!moves(doc)) return [];
+  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+  return [
+    { label: "Open in its own window", icon: "popout", run: guarded(() => popOut(doc)) },
+    ...(isMainWindow() ? [] : [{ label: "Move to the main window", icon: "back", run: guarded(() => moveToMain(doc)) }]),
   ];
 }
 
@@ -1394,7 +1480,8 @@ const COMMANDS: Command[] = [
     if (!doc) throw new Error("No open document matches.");
     show(doc);
   } },
-  { id: "doc.popOut", group: "Documents", title: "Open the document in its own window", when: saves, whyNot: "nothing that saves is in front", run: () => popOut(current!) },
+  { id: "doc.popOut", group: "Documents", title: "Open the document in its own window", when: () => !!current && moves(current), whyNot: "no notebook, script or Streamlit app is in front", run: () => popOut(current!) },
+  { id: "doc.moveToMain", group: "Documents", title: "Move the document to the main window", when: () => !!current && moves(current) && !isMainWindow(), whyNot: "this is the main window, or nothing that moves is in front", run: () => moveToMain(current!) },
   { id: "doc.next", group: "Documents", title: "Next document", keys: "Ctrl+Alt+PageDown", run: () => step(1) },
   { id: "doc.previous", group: "Documents", title: "Previous document", keys: "Ctrl+Alt+PageUp", run: () => step(-1) },
   // Run
@@ -1692,6 +1779,8 @@ window.addEventListener("focus", tellFocus);
 onNotice((notice) => {
   handleAgentNotice(notice);
   // The agent's workbench_window: a command run here, as the palette would, and answered.
+  // A document moved back to this (the main) window from one it was popped out into.
+  if (notice.type === "workbench_handoff" && (notice as unknown as { to: string }).to === WINDOW_ID) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => toast(e.message, "error"));
   if (notice.type === "workbench_command") void answerAgent(notice as unknown as { id: string; command: string; args?: Record<string, unknown> });
   if (notice.type === "catalogs_changed") {
     void rail.loadCatalogs();
@@ -1744,5 +1833,8 @@ void Promise.all([
   void (fresh ? Promise.resolve(false) : restore()).then(() => {
     const wanted = openedWith.get("open"); // the address as opened (the page clears it once the token is read)
     if (wanted) void open(wanted);
+    // A document popped out of another window: this window was opened to take it.
+    const handed = openedWith.get("take");
+    if (handed) void takeDocument(handed).catch((e: Error) => toast(e.message, "error"));
   });
 });

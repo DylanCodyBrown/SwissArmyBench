@@ -25,6 +25,8 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   POST   /workbench/html/fill               {"html", "values"}: an HTML cell's design, its names filled
   POST   /workbench/kernels/{id}/html-marks {"names"}: a mark of what each name would draw now
   POST   /workbench/kernels/{id}/interrupt, /restart       DELETE /workbench/kernels/{id}
+  POST   /workbench/handoffs  {"document", "kernel"?, "to"?}   a document moving to another window
+  GET    /workbench/handoffs/{id}  taken yet?   POST .../take {"window"}   DELETE: not taken, it stays
 """
 
 from __future__ import annotations
@@ -174,6 +176,18 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
         await workbench.stop(request.path_params["kernel"])
         return json_response({"ok": True})
 
+    async def hand_off(request: Request) -> Response:
+        return json_response(await workbench.hand_off(await read_json(request)))
+
+    async def handoff(request: Request) -> Response:
+        return json_response(workbench.handoff(request.path_params["handoff"]))
+
+    async def take_handoff(request: Request) -> Response:
+        return json_response(workbench.take_handoff(request.path_params["handoff"], await read_json(request)))
+
+    async def cancel_handoff(request: Request) -> Response:
+        return json_response(workbench.cancel_handoff(request.path_params["handoff"]))
+
     return [
         Route("/workbench/home", safely(home)),
         Route("/workbench/open", safely(open_document), methods=["POST"]),
@@ -198,4 +212,8 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
         Route("/workbench/kernels/{kernel}/interrupt", safely(interrupt), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/restart", safely(restart), methods=["POST"]),
         Route("/workbench/kernels/{kernel}", safely(stop), methods=["DELETE"]),
+        Route("/workbench/handoffs", safely(hand_off), methods=["POST"]),
+        Route("/workbench/handoffs/{handoff}", safely(handoff)),
+        Route("/workbench/handoffs/{handoff}/take", safely(take_handoff), methods=["POST"]),
+        Route("/workbench/handoffs/{handoff}", safely(cancel_handoff), methods=["DELETE"]),
     ]

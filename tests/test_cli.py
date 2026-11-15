@@ -150,6 +150,9 @@ NOT_COMMANDS = {
     "/agent/context": "current_table",
     "/blades/{}/python": "its answer holds the saved password values for sag.blade: never the agent's",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
+    "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
+    "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
+    "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",
 }
 
 
@@ -542,7 +545,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # remove; blocks: place, change, remove). Nine more tools in the same budget: the words are shorter.
     # A Power BI workspace (2026-11-15) added two: a workspace's datasets, and adding a DAX cell.
     # A connection from your own Python (2026-11-15) added three: save (or test), its variables, its tables.
-    assert size < 53_500, f"the tool list is {size} characters"
+    # The canvas's review (2026-11-15) added five: naming a cell, the Streamlit cells pane, moving a
+    # document back to the main window, and the panels' switches (read and set).
+    assert size < 54_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

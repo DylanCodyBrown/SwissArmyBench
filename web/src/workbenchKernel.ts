@@ -181,6 +181,19 @@ export class Kernel {
     return true;
   }
 
+  /** A running kernel that came with a document from another window: this one's now. */
+  adopt(id: string, python: string): void {
+    this.id = id;
+    this.python = python;
+    this.set("idle");
+  }
+
+  /** Let go of the kernel without stopping it (its document moved to another window). */
+  release(): void {
+    this.id = null;
+    this.set("off");
+  }
+
   /** Stop it (the document closed). `leaving`: the window is closing, so the request must outlive it. */
   stop(leaving = false): void {
     if (!this.id) return;

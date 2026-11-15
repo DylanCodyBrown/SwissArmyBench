@@ -7189,3 +7189,9 @@ body.dropping-file::after {
 .wb-st .wb-data-list {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* A document on its way to another Workbench window: nothing more is typed here. */
+.wb-doc-body.moving {
+  opacity: 0.55;
+  pointer-events: none;
+}
