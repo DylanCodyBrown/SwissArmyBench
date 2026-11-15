@@ -10,10 +10,11 @@
 import { api, ApiError } from "./api";
 import { append, button, clear, h, openDialog, toast } from "./dom";
 import { exportBlades } from "./bladeLibrary";
+import { copyAsOwn } from "./starters";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
-export type BladeKind = "sql" | "other" | "vault" | "secret" | "analysis";
+export type BladeKind = "sql" | "other" | "vault" | "secret" | "analysis" | "snippet";
 
 export interface BladeSummary {
   name: string;
@@ -33,8 +34,14 @@ export interface BladeSummary {
   /** A favourite on this computer: listed first. */
   pinned: boolean;
   /** "folder": its own .blade.py file in a blade folder (`path`); "saved": kept by the app; "pack":
-   * from an installed Claude Code plugin (a marketplace), read-only. */
-  source: "saved" | "folder" | "pack";
+   * from an installed Claude Code plugin (a marketplace), read-only; "starter": the built-in starter pack,
+   * read-only (Copy as your own). */
+  source: "saved" | "folder" | "pack" | "starter";
+  /** Its family in the starter pack (kept on a copy); a snippet's language and the name a Streamlit
+   * piece gives its cell. */
+  family?: string;
+  language?: string;
+  cell_name?: string;
   pack?: string | null; // the pack's label (sales@team-blades 1a2b3c), for a pack blade
   path: string | null;
   /** A database or file blade is a connection, listed apart (connectionsWindow.ts). */
@@ -53,6 +60,8 @@ interface BladeDetail extends BladeSummary {
   catalog: CatalogCommand | null;
   vault_mapping: { env: string; secret: string }[];
   inspect?: Inspection;
+  /** A snippet's placeholders (domain/snippets.py). */
+  placeholders?: { name: string; label: string; kind: string }[];
 }
 
 interface Package {
@@ -154,6 +163,7 @@ const KIND_LABELS: Record<BladeKind, string> = {
   vault: "Vault",
   secret: "Secret",
   analysis: "Analysis",
+  snippet: "Snippet",
 };
 
 /** What a new analysis blade starts from: the rows in, markdown and a table out. */
@@ -365,6 +375,10 @@ interface Draft {
   template: string | null;
   description: string;
   tags: string;
+  /** A snippet's: dax, html or streamlit; the name a Streamlit piece gives its cell; its family. */
+  language: string;
+  cellName: string;
+  family: string;
 }
 
 function draftFrom(detail: BladeDetail | null, template: Template | null, kind: BladeKind): Draft {
@@ -383,6 +397,9 @@ function draftFrom(detail: BladeDetail | null, template: Template | null, kind: 
       template: detail.template,
       description: detail.description ?? "",
       tags: (detail.tags ?? []).join(", "),
+      language: detail.language || "dax",
+      cellName: detail.cell_name ?? "",
+      family: detail.family ?? "",
     };
   }
   return {
@@ -399,6 +416,9 @@ function draftFrom(detail: BladeDetail | null, template: Template | null, kind: 
     template: template?.id ?? null,
     description: "",
     tags: "",
+    language: "dax",
+    cellName: "",
+    family: "",
   };
 }
 
@@ -470,6 +490,10 @@ export async function editBlade(
   });
 
   async function inspect(): Promise<void> {
+    if (draft.kind === "snippet") {
+      renderInspection(); // text for a cell: nothing to read as Python
+      return;
+    }
     if (!draft.code.trim()) {
       inspection = null;
       renderInspection();
@@ -489,7 +513,8 @@ export async function editBlade(
 
   /** The code's settings: one field each; a finished change is written into the code by the server. */
   function renderSettings(): void {
-    const settings = draft.kind === "secret" ? [] : (inspection?.settings ?? []);
+    // A starter's settings are changed on its copy (Copy as your own), not here.
+    const settings = draft.kind === "secret" || detail?.source === "starter" ? [] : (inspection?.settings ?? []);
     settingsHost.hidden = !settings.length;
     clear(
       settingsHost,
@@ -524,6 +549,14 @@ export async function editBlade(
 
   function renderInspection(): void {
     renderSettings();
+    if (draft.kind === "snippet") {
+      // Its placeholders, as the form will ask for them: <<measure>>, <<date column>>.
+      const names = [...new Set([...draft.code.matchAll(/<<\s*([a-z][a-z0-9_ ]{0,39}?)\s*(?::[^<>\n]*)?>>/g)].map((m) => m[1]!))];
+      clear(madeHost, names.length ? h("div", { class: "chips" }, h("span", { class: "hint" }, "Asks for"), ...names.map((n) => h("span", { class: "chip" }, n))) : null);
+      clear(secretsHost);
+      clear(packagesHost);
+      return;
+    }
     const found = inspection;
     if (found?.error) {
       clear(madeHost, h("span", { class: "warning-text" }, found.error));
@@ -618,9 +651,23 @@ export async function editBlade(
       dialect.addEventListener("change", () => (draft.dialect = dialect.value));
       kindHost.append(h("label", {}, h("span", {}, "SQL dialect"), dialect));
     }
+    if (draft.kind === "snippet") kindHost.append(snippetEditor());
     if (draft.kind === "vault") kindHost.append(mappingEditor());
     if (draft.kind === "secret") kindHost.append(secretNamesEditor());
     if (draft.kind === "sql" || draft.kind === "other") kindHost.append(catalogEditor());
+  }
+
+  /** A snippet's language, and for a Streamlit piece the name its cell takes when it is dropped. */
+  function snippetEditor(): HTMLElement {
+    const language = h("select", { "aria-label": "Language" }, ...([["dax", "DAX"], ["html", "HTML"], ["streamlit", "Streamlit"]] as const).map(([value, label]) => h("option", { value, selected: draft.language === value }, label))) as HTMLSelectElement;
+    const cellName = h("input", { type: "text", value: draft.cellName, maxlength: "120", "aria-label": "Its cell's name", spellcheck: "false" });
+    const named = h("label", { hidden: draft.language !== "streamlit" }, h("span", {}, "Its cell's name"), cellName);
+    language.addEventListener("change", () => {
+      draft.language = language.value;
+      named.hidden = draft.language !== "streamlit";
+    });
+    cellName.addEventListener("input", () => (draft.cellName = cellName.value));
+    return h("div", { class: "form-grid" }, h("label", {}, h("span", {}, "Language"), language), named);
   }
 
   function mappingEditor(): HTMLElement {
@@ -755,6 +802,10 @@ export async function editBlade(
       out.env_names = draft.envNames.split(/[\s,]+/).filter(Boolean);
       return out;
     }
+    if (draft.family) out.family = draft.family;
+    if (draft.kind === "snippet") {
+      return { ...out, code: draft.code, language: draft.language, cell_name: draft.cellName.trim() };
+    }
     out.code = draft.code;
     out.variable = draft.variable;
     if (draft.kind === "sql") out.dialect = draft.dialect;
@@ -768,6 +819,15 @@ export async function editBlade(
   }
 
   let savedName = name;
+  // A starter (the built-in pack) is read-only: Copy as your own makes the user's copy and opens it.
+  const starter = detail?.source === "starter";
+  codeBox.readOnly = starter;
+  async function copyStarter(of: string): Promise<void> {
+    const made = await copyAsOwn(of);
+    if (!made) return;
+    onSaved(made);
+    await editBlade(host, made, null, "other", onSaved, onClosed);
+  }
   // A pack's blade is read-only here: saving makes a copy of your own (named "<name> copy" unless
   // renamed first); the pack itself changes in its repository.
   let fromPack = Boolean(detail?.pack);
@@ -826,7 +886,9 @@ export async function editBlade(
   append(
     sections,
     h("label", {}, h("span", {}, "Name"), nameInput),
-    detail?.pack
+    starter
+      ? h("p", { class: "warning-text" }, `${detail?.family ?? ""} starter: read-only`.trim())
+      : detail?.pack
       ? h(
           "p",
           { class: "warning-text" },
@@ -838,14 +900,19 @@ export async function editBlade(
     h("label", {}, h("span", {}, "Description"), descriptionInput),
     h("label", {}, h("span", {}, "Tags"), tagsInput),
     name ? null : whereLabel,
-    h("div", {}, h("div", { class: "hint" }, "Kind"), kinds),
+    detail?.source === "starter" ? null : h("div", {}, h("div", { class: "hint" }, "Kind"), kinds),
     settingsHost,
     codeFieldset,
     kindHost,
     h(
       "div",
       { class: "row-actions" },
-      ...(detail?.pack
+      ...(starter && detail
+        ? [
+            button("Copy as your own", () => void copyStarter(detail.name), { class: "primary", icon: "copy" }),
+            detail.kind === "snippet" ? null : button("Test", () => void runBlade(detail.name, "test").then((a) => a && say("It works.", "ok")), { icon: "check" }),
+          ]
+        : detail?.pack
         ? [
             button("Save a copy", () => void save("close"), { class: "primary", icon: "copy" }),
             button("Test", () => void runBlade(detail.name, "test").then((a) => a && say("It works.", "ok")), { icon: "check" }),
@@ -858,7 +925,7 @@ export async function editBlade(
           ]),
       button("Cancel", onClosed, { class: "ghost" }),
       name ? button("Export", () => void exportBlades(savedName ?? name), { icon: "export", class: "ghost", title: "Download as .blade.py" }) : null,
-      name && !detail?.path ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,
+      name && !detail?.path && !starter ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,
     ),
     status,
   );

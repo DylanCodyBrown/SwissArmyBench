@@ -368,6 +368,9 @@ export interface CodeEditor {
   setLineNotes: (notes: LineNote[]) => void;
   /** A new line as Enter makes it (keeping the indent). */
   insertNewline: () => void;
+  /** Put text in as one edit (undone at once): where a point on the editor is (a drop), else at the
+   *  cursor, over what is selected. */
+  insertAt: (text: string, x?: number, y?: number) => void;
   /** The cursor at the very end of the text. */
   atEnd: () => boolean;
   /** The cursor's offset into the text. */
@@ -674,6 +677,16 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       );
     },
     insertNewline: () => editor.trigger("keyboard", "type", { text: "\n" }),
+    insertAt: (text, x, y) => {
+      const model = editor.getModel();
+      if (!model) return;
+      // Where it was dropped (a point on the editor), else the cursor (or what is selected).
+      const dropped = x !== undefined && y !== undefined ? editor.getTargetAtClientPoint(x, y)?.position : null;
+      const range = dropped ? new monaco.Range(dropped.lineNumber, dropped.column, dropped.lineNumber, dropped.column) : (editor.getSelection() ?? new monaco.Range(1, 1, 1, 1));
+      editor.pushUndoStop();
+      editor.executeEdits("snippet", [{ range, text, forceMoveMarkers: true }]);
+      editor.pushUndoStop();
+    },
     atEnd: () => {
       const model = editor.getModel();
       const at = editor.getPosition();

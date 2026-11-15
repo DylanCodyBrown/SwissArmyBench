@@ -12,7 +12,8 @@ import { api, errorText, query } from "./api";
 import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor";
 import { importRelationships, openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
-import { button, clear, formatCount, h, recall, remember, showMenu, toast } from "./dom";
+import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
+import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -275,14 +276,84 @@ export function mountRail(host: RailHost): Rail {
 
   // ===== blades =====
 
+  let startersAsked: Promise<unknown> | null = null;
   async function loadBlades(): Promise<void> {
+    // The starters come with the app and do not change while it runs: asked once, beside the first list.
+    startersAsked ??= starters().then((found) => (starterFamilies = found), () => undefined);
     try {
-      blades = (await api<{ blades: BladeSummary[] }>("/blades")).blades;
+      [blades] = await Promise.all([api<{ blades: BladeSummary[] }>("/blades").then((r) => r.blades), startersAsked]);
     } catch (error) {
       toast((error as Error).message, "error");
       blades = [];
     }
     renderBlades();
+  }
+
+  // The built-in starter pack, by family, after the user's own blades; each family folds (remembered
+  // in this browser), and a search opens the families it finds something in.
+  let starterFamilies: { family: string; blades: StarterSummary[] }[] = [];
+  const openFamilies = new Set<string>((recall("starters.open") ?? "").split("|").filter(Boolean));
+
+  function starterItem(starter: StarterSummary): HTMLElement {
+    const snippet = starter.kind === "snippet";
+    const language = starter.language ?? "streamlit";
+    const line = snippet ? starter.name : bladeLine({ name: starter.name, kind: starter.kind as BladeSummary["kind"], variable: starter.variable });
+    return h(
+      "li",
+      {
+        class: "blade-item starter-item",
+        draggable: "true",
+        "data-starter": starter.name,
+        "aria-current": starter.name === selectedBlade ? "true" : undefined,
+        title: `${starter.description}${snippet ? "" : `\n${line}`}`,
+        ondragstart: (event: DragEvent) => {
+          event.dataTransfer?.setData("text/plain", line);
+          if (snippet) event.dataTransfer?.setData(SNIPPET_DRAG, JSON.stringify({ name: starter.name, language }));
+          else event.dataTransfer?.setData("application/x-sab-blade", JSON.stringify({ name: starter.name, kind: starter.kind, line }));
+          if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+        },
+        oncontextmenu: (event: MouseEvent) => {
+          event.preventDefault();
+          showMenu(event.clientX, event.clientY, starter.name, [
+            ["copy", "Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made)))],
+            ["edit", "Open", () => openBlade(starter.name)],
+            ...(snippet ? [] : [["code", "Copy the sab.blade line", () => copy(line, "the line")] as MenuItem]),
+          ]);
+        },
+      },
+      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, snippet ? { dax: "DAX", html: "HTML", streamlit: "Streamlit" }[language] : "Python"),
+      h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
+      button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
+    );
+  }
+
+  function renderStarters(): void {
+    const searching = bladeSearch.value.trim() !== "" || bladeTag !== null;
+    const families = starterFamilies.map((f) => ({ family: f.family, shown: f.blades.filter((b) => bladeMatches(b)) })).filter((f) => f.shown.length);
+    if (!families.length) return;
+    bladeList.append(h("li", { class: "blade-group" }, h("span", {}, "Starters")));
+    for (const { family, shown } of families) {
+      const open = searching || openFamilies.has(family);
+      const toggle = h(
+        "button",
+        {
+          type: "button",
+          class: "starter-family",
+          "aria-expanded": String(open),
+          onclick: () => {
+            if (openFamilies.has(family)) openFamilies.delete(family);
+            else openFamilies.add(family);
+            remember("starters.open", [...openFamilies].join("|"));
+            renderBladeList();
+          },
+        },
+        icon(open ? "down" : "forward"),
+        h("span", {}, family),
+        h("span", { class: "hint" }, String(shown.length)),
+      );
+      bladeList.append(h("li", { class: "starter-family-row", "data-family": family }, toggle));
+      if (open) for (const starter of shown) bladeList.append(starterItem(starter));
+    }
   }
 
   // The blades list: a search (names, descriptions, tags), tag chips to narrow it, favourites first.
@@ -298,7 +369,7 @@ export function mountRail(host: RailHost): Rail {
   const bladeTags = h("div", { class: "chips blade-tags", role: "group", "aria-label": "Tags" });
   const bladeList = h("ul", { class: "blade-list", "aria-label": "Saved blades" });
 
-  function bladeMatches(blade: BladeSummary): boolean {
+  function bladeMatches(blade: { name: string; description?: string; tags?: string[] }): boolean {
     const tags = blade.tags ?? [];
     if (bladeTag && !tags.some((t) => t.toLowerCase() === bladeTag)) return false;
     const text = bladeSearch.value.trim().toLowerCase();
@@ -382,7 +453,8 @@ export function mountRail(host: RailHost): Rail {
       );
       bladeList.append(item);
     }
-    if (!shown.length && blades.length) bladeList.append(h("li", { class: "empty" }, "No blade matches."));
+    renderStarters();
+    if (!shown.length && blades.length && !bladeList.querySelector(".starter-item")) bladeList.append(h("li", { class: "empty" }, "No blade matches."));
   }
 
   function renderBlades(): void {
@@ -399,7 +471,7 @@ export function mountRail(host: RailHost): Rail {
         button("New blade", () => void newBlade(), { icon: "plus", class: "ghost" }),
       ),
       // The list always shows (its Connections heading has Add connection); the search only once there is something to search.
-      blades.length
+      blades.length || starterFamilies.length
         ? h("div", {}, bladeSearch, bladeTags, bladeList)
         : h("div", {}, bladeList, h("p", { class: "empty" }, "No blades")),
     );

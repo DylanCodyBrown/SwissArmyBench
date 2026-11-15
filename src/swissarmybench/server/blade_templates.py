@@ -340,6 +340,9 @@ class PowerBI:
         conn.dataset("Sales model").cursor()   runs DAX on it, as a database's cursor runs SQL
         conn.cursor(dataset="Sales model")     the same
         conn.cursor()                          the workspace's one dataset (refused when it has several)
+        conn.url                               the workspace's address in Power BI's REST API
+        conn.access_token()                    this sign-in's token for that API (for actions such as
+                                               a refresh: the starter pack's Power BI blades)
     """
 
     def __init__(self, workspace_id, sign_in):
@@ -349,10 +352,14 @@ class PowerBI:
         self.found = None
         self.datasets()  # signs in and reaches the workspace now: Test means it
 
-    def ask(self, path, body, what):
+    def access_token(self):
+        """The token, signed in again when it has five minutes or less to run."""
         if time.time() > self.expires - 300:
             self.token, self.expires = self.sign_in()
-        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        return self.token
+
+    def ask(self, path, body, what):
+        headers = {"Authorization": f"Bearer {self.access_token()}", "Content-Type": "application/json"}
         return ask(self.url + path, None if body is None else json.dumps(body).encode(), headers, what)
 
     def datasets(self):

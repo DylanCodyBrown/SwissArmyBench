@@ -1579,7 +1579,7 @@ data.py export"**.
   but zipped as its file (Save as says so). A project does not remember which Python it runs in beyond
   each notebook's own.
 
-## A starter pack of blades (2026-11-15, the owner's calls)
+## A starter pack of blades (2026-11-15, the owner's calls; built)
 
 "Can we preload a bunch of useful blades for calling the powerbi workspace like refresh dataset/dataflow,
 get refresh status, and other useful blades, as well as some excel and flat file based blades for
@@ -1618,6 +1618,80 @@ data and tables." Decided:
   The user guide gets "Learning Streamlit with the starter pieces": one page built from five pieces, then
   every piece by what it is for.
 - Built after the Power BI per-workspace work is merged (the Power BI actions use that connection).
+
+**Built (2026-11-15), on its own branch (`starter-pack`). Changed since the call above:** there is no
+Streamlit kind of cell any more, so the Streamlit pieces are snippets for a **Python** cell, and a piece
+dropped into a notebook names its cell (it then shows by name in the Streamlit cells pane, ready for a
+canvas). 78 starters: Power BI 13, Excel 12, Files 3, DAX 11, HTML 10, Streamlit 29. Decided while
+building (each can be changed):
+
+- **Where the pack lives:** `src/swissarmybench/starters/*.blade.py`, inside the wheel, read as a pack
+  (the label "Swiss Army Bench starters"), so a new version brings its own. It is **listed apart**
+  (`/blades/starters`, the blade list's **Starters**, a line a family that folds, remembered in the
+  browser; a search opens the families it finds something in), not in `/blades` or `sab.blades()`: the
+  user's list, the Data panel's Variables and the agent's `blades_list` stay the user's own. It is
+  **found by name** after the user's saved, folder and pack blades, so `sab.blade("Excel add sheet")`
+  works anywhere, and a blade of the user's with the same name wins.
+- **Read-only, Copy as your own:** saving or removing a starter is refused in plain words; its page
+  shows "<family> starter: read-only", no kind picker and no settings, with **Copy as your own** (also
+  the copy button on its row, its right-click menu and `blades_copy`). The copy is "<name> copy" (then
+  "copy 2"), as a pack's Save a copy is named, or a name given; it keeps the family, and the copy opens.
+- **A Python starter makes one function**, the blade's variable, documented in its first lines with the
+  call that uses it: Power BI actions give back a small dict (a list or a history a DataFrame), Excel
+  functions the workbook's path (so steps chain), split CSV the new files' paths. Each file holds its
+  family's shared helpers itself (a starter copied as your own must stand alone); a test keeps the
+  shared part the same in every file of the family.
+- **Power BI actions sign in through the connection:** `sab.connection(WORKSPACE)` (the setting, found
+  on the save screen like any; "Finance" as in these docs), or a dataset named with its connection
+  (`refresh("Finance/Sales model")`, as the app names datasets), or `workspace=`. The connection's code
+  now documents `conn.url` and a new `conn.access_token()` (the token, signed in again near its end);
+  a connection saved before it is read by its `sign_in`/`token` fields. Signing in waits for the first
+  call. Power BI's refusals become `PowerBIActionError` with its own message and what usually causes
+  the status. Refresh and wait follows its own refresh by Power BI's request id.
+- **Excel safety:** an edit saves the workbook in place (that is its job); a sheet or a file is never
+  replaced without `overwrite=True`, and Write table refuses to write over cells that hold values.
+  Autofit measures each value's text (Excel's own autofit needs Excel running).
+- **Snippet, a blade kind:** text with placeholders `<<name>>`, `<<name: default>>`, and defaults made
+  of others (`<<name: by_{column}>>`). Chosen over `{{measure}}` because the HTML cell's own
+  `{{ name }}` must stay in a snippet as written, and because the app already reads `<...>` in code as
+  "still to fill in". **What a placeholder asks for is read from its last word** (table, column, measure,
+  name; a number when its default is one; else text), a column goes with the table of its first words
+  (`date column` with `date table`), a name or a label follows its column (`by_region`, Region). In its
+  file a snippet is one Python string, `snippet = r"""..."""`, so a blade file stays Python; in the app
+  its code is the text.
+- **A value is written for the place it stands in** (domain/snippets.py reads the snippet as its
+  language does): in DAX the quote that closes the place is doubled (`'` in a table, `]` in a column or
+  measure, `"` in text); in Python a string's inside is escaped (braces doubled in an f-string); bare in
+  code only a name or a number goes in; HTML is escaped, and inside an HTML cell's `{{ }}` only a name.
+  A line break is refused. The rules are the server's (`/blades/{name}/snippet`); the page's form only
+  asks.
+- **The form** (dropped on a cell of its language, or the cell's More: **Insert a snippet…**, or the
+  palette): one field a placeholder, its choices from the DAX cell's dataset (the loaded catalog's
+  tables, columns and measures; a measure picked moves the measure's table with it) or the open tables
+  and their columns, likely ones first by name (a date table, a date column, an amount). Insert puts the
+  text where it was dropped, or at the cursor. A snippet on a cell of another language is refused ("An
+  HTML snippet goes in an HTML cell."); dropped between cells, it makes a cell of its kind. A Streamlit
+  piece fills an empty Python cell, else makes one below; it names a cell that has no name, from its
+  header's `cell_name` (`<<label>> filter`: "Region filter"). In a script (by the palette or the agent)
+  a snippet is a new cell: DAX and HTML as their cells are, a piece as `# %% Region filter`.
+- **Streamlit pieces: a filter makes one name, the rows its pick leaves** (`by_region`), not the value
+  picked: a display reads a table, so any display follows any filter, and filters chain (the date range
+  reads `by_region` and makes `in_dates`). The sidebar panel makes several: the rows and each pick. A
+  name that starts with `_` is a piece's own; the Streamlit cells pane and the canvas now say what a
+  cell makes without those and without `st` and `pd` (the run order still counts every name). Each
+  piece imports Streamlit itself, so it runs as it is under `streamlit run` and Streamlit's AppTest.
+  Widgets carry `key="<name>_pick"`, with the reason beside them.
+- **The agent** (the golden rule): `blades_starters`, `blades_copy`, `blades_snippet` (a snippet's
+  blanks and choices, or its filled text) and `workbench_snippet_insert` (the window's
+  `snippet.insert`; with `values`, no form). 232 commands; the tool list's budget is 55,000 characters.
+- **Also:** the pip package names left domain/blades.py for domain/packages.py (re-exported), to keep
+  the domain file under 1,500 lines.
+- **Open:** a real Power BI tenant (the stand-in answers as the REST reference documents; a service
+  principal may only refresh with NoNotification, and only a dataset's owner may change its
+  parameters, as there). A dataflow's refresh status is its transactions; Power BI documents no
+  "latest" for it. The DAX snippets are checked to fill and to pair their brackets and quotes, not run
+  against a model. The HTML snippets mix colours with `color-mix()` (Edge and Chrome 111 and later).
+  The map piece's background comes from the internet in the browser; its dots draw without it.
 
 ## The Workbench redesign (2026-11-15, the owner's calls; built)
 

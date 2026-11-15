@@ -48,7 +48,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   cells, the Data panel's Streamlit cells pane, tabs that pop out into windows of their own (and move
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start), the
   Analyze menu, the Sandbox, compare's diff and tie-out,
-  and Copy code on analysis results (the analysis as Python, on the clipboard). Not built: M9 (sandbox)
+  Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
+  (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells). Not built: M9 (sandbox)
   and the Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
   notes go in [docs/ideas.md](docs/ideas.md).
@@ -93,6 +94,9 @@ src/swissarmybench/
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
                          placeholders, suggestions, written back), Blade, parse_blade, Template
+    snippets.py          snippets (a blade kind): text for a cell with <<name>> placeholders, what each asks
+                         for (read from its name), a value written safely for where it stands (DAX, Python, HTML)
+    packages.py          the pip packages a blade's imports need (re-exported by blades.py)
     stats.py             the shared statistics: chi-square, t, F and normal distributions, effect sizes
     analysis.py          the Analyze menu's math and query text: the fit test (Benford, Nigrini), outliers
                          (amount fences, frequency on two scales), odds (ratios, Woolf's range), buckets,
@@ -225,6 +229,8 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
+  starters/              the built-in starter pack (78 read-only .blade.py: Power BI, Excel, Files, DAX, HTML,
+                         Streamlit), listed apart, found by name, Copy as your own (tests/test_starters*.py)
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
@@ -244,7 +250,7 @@ src/swissarmybench/
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (228 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (232 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -269,6 +275,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          connectionsWindow.ts is the Application row's Connections (a form per type);
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;
+                         starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
+                         its form and the Insert a snippet… picker;
                          fileChooser.ts picks real paths. The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
                          status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,

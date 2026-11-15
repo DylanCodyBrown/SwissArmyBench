@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import python_connections
+from swissarmybench.domain import python_connections, snippets
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
     Blade,
@@ -34,6 +34,7 @@ from swissarmybench.domain.blades import (
     install_command,
     pip_name,
 )
+from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
@@ -50,6 +51,8 @@ class Blades(Protocol):
     problems: list[dict[str, str]]
 
     def all(self) -> list[Blade]: ...
+
+    def starters(self) -> list[Blade]: ...
 
     def get(self, name: str) -> Blade: ...
 
@@ -148,7 +151,9 @@ class BladeService:
             "description": blade.description,
             "tags": blade.tags,
             "pinned": blade.name.casefold() in favourites,
-            "source": "pack" if blade.pack else "folder" if blade.path else "saved",
+            "source": blade.source,
+            "family": blade.family,
+            "language": blade.language,
             "pack": blade.pack,
             "path": blade.path,
             "updated_at": blade.updated_at,
@@ -236,7 +241,9 @@ class BladeService:
     def details(self, name: str) -> dict[str, Any]:
         blade = self._blades.get(name)
         details = blade.to_json() | self.summary(blade)
-        if blade.code:
+        if blade.code and blade.kind == "snippet":
+            details["placeholders"] = [p.to_json() for p in snippets.placeholders(blade.code)]
+        elif blade.code:
             details["inspect"] = self.inspect(blade.code, blade.template, blade.name)
         return details
 
@@ -280,6 +287,8 @@ class BladeService:
         blade = self._blades.get(name)
         if mode == "catalog" and not blade.has_catalog:
             raise BladeError(f"{blade.name} has no catalog command. Open it and add one under Catalog.")
+        if blade.kind == "snippet":
+            raise BladeError(f"{blade.name} is a snippet: text for a cell, with nothing to run.")
         if mode == "test" and blade.kind == "secret":
             raise BladeError("A secret blade has no code to test; its values are typed when used.")
         return blade
@@ -499,6 +508,119 @@ class BladeService:
                 "command": install_command(packages, self._python),
             }
         return True, {"ok": True, "output": tail}
+
+    # ===== the starter pack, copies, and snippets =====
+
+    def starters(self) -> dict[str, Any]:
+        """The built-in starter pack, by family (Power BI, Excel, Files, DAX, HTML, Streamlit): each
+        blade's summary, a snippet's language and placeholders, and the sab.blade line of the others."""
+        families: dict[str, list[dict[str, Any]]] = {}
+        everything = self._blades.all()
+        pinned = self._blades.pinned()
+        for blade in self._blades.starters():
+            entry = self.summary(blade, everything, pinned) | {"family": blade.family}
+            if blade.kind == "snippet":
+                entry |= {
+                    "language": blade.language,
+                    "cell_name": blade.cell_name,
+                    "placeholders": [p.to_json() for p in snippets.placeholders(blade.code)],
+                }
+            families.setdefault(blade.family or "Other", []).append(entry)
+        return {
+            "pack": rules.STARTERS,
+            "families": [{"family": name, "blades": found} for name, found in families.items()],
+        }
+
+    async def copy(self, name: str, new_name: Any, who: str) -> dict[str, Any]:
+        """A starter's (or any pack's) blade copied as the user's own, to change freely: named
+        `new_name`, else "<name> copy" (then "<name> copy 2"...). The pack's own stays as it is, and a new
+        version of the app never touches the copy."""
+        blade = self._blades.get(name)
+        taken = {b.name.casefold() for b in self._blades.all()}
+        wanted = new_name.strip() if isinstance(new_name, str) and new_name.strip() else f"{blade.name} copy"
+        if not (isinstance(new_name, str) and new_name.strip()) and wanted.casefold() in taken:
+            wanted = _free_name(wanted, taken)
+        data = blade.to_json()
+        for key in ("path", "pack", "source", "created_at", "updated_at"):
+            data.pop(key, None)
+        data["name"] = wanted
+        saved = self._blades.save(data)
+        self.ws.audit.write(who, "copy_blade", saved.name, of=blade.name)
+        await self.ws.live.broadcast({"type": "blades_changed"})
+        return self.summary(saved)
+
+    async def snippet(self, name: str, dataset: str | None = None) -> dict[str, Any]:
+        """A snippet, for its form: its text, language, the cell it goes into, its placeholders, and
+        what each may be (`options`): a DAX snippet's from the dataset's loaded catalog (`dataset`, as
+        `Finance/Sales model`), the others' from the open tables (by their names in code)."""
+        blade = self._blades.get(name)
+        if blade.kind != "snippet":
+            raise BladeError(f"{blade.name} is not a snippet.")
+        options: dict[str, Any] = (
+            await self._dataset_options(dataset or "") if blade.language == "dax" else self._table_options()
+        )
+        return {
+            "name": blade.name,
+            "language": blade.language,
+            "family": blade.family,
+            "description": blade.description,
+            "cell": snippets.CELL_KIND[blade.language],
+            "cell_words": snippets.CELL_WORDS[blade.language],
+            "cell_name": blade.cell_name,
+            "text": blade.code,
+            "placeholders": [p.to_json() for p in snippets.placeholders(blade.code)],
+            "options": options,
+        }
+
+    def fill_snippet(self, name: str, values: Any) -> dict[str, Any]:
+        """A snippet with its placeholders filled ({"<placeholder>": "value"}): the text to insert, and
+        for a Streamlit piece the name its cell takes."""
+        blade = self._blades.get(name)
+        if blade.kind != "snippet":
+            raise BladeError(f"{blade.name} is not a snippet.")
+        if not isinstance(values, dict):
+            raise BladeError('Send the values as {"values": {"measure": "Total Sales", ...}}.')
+        try:
+            text = snippets.fill(blade.code, blade.language, values)
+            given = snippets.resolved(blade.code, blade.language, values)
+        except snippets.SnippetError as error:
+            raise BladeError(str(error)) from None
+        streamlit = blade.language == "streamlit"
+        named = snippets.cell_name(blade.cell_name, given, blade.name) if streamlit else None
+        return {"name": blade.name, "language": blade.language, "text": text, "cell_name": named}
+
+    def _table_options(self) -> dict[str, Any]:
+        """The open tables, by their names in code, each with its columns."""
+        tables = [
+            {"name": variable_name(info.name), "columns": [c.name for c in info.columns], "measures": []}
+            for info in self.ws.store.all()
+        ]
+        return {"tables": tables}
+
+    async def _dataset_options(self, dataset: str) -> dict[str, Any]:
+        """A Power BI dataset's tables, each with its columns and measures, from its loaded catalog
+        (nothing when the catalog is not loaded: the form then takes what is typed)."""
+        connection, _, schema = dataset.partition("/")
+        if not connection or connection.casefold() not in self._catalogs.loaded_names():
+            return {"tables": [], "dataset": dataset}
+        try:
+            if not schema:
+                found = await self._catalogs.schema_names(connection) or []
+                schema = str(found[0].get("schema") or "") if found else ""
+            listed = await self._catalogs.tables(connection, schema, None, 0, 200)
+            tables = []
+            for row in listed["tables"]:
+                columns = (await self._catalogs.columns(connection, schema, row["table"], None))["columns"]
+                tables.append(
+                    {
+                        "name": row["table"],
+                        "columns": [c["column"] for c in columns if not str(c["type"]).startswith("measure")],
+                        "measures": [c["column"] for c in columns if str(c["type"]).startswith("measure")],
+                    }
+                )
+        except (LookupError, ValueError):
+            return {"tables": [], "dataset": dataset}
+        return {"tables": tables, "dataset": dataset}
 
     # ===== favourites, blade folders, export and import (portable blades) =====
 

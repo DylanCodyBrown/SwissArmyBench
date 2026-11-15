@@ -1280,6 +1280,40 @@ def blades_import(a: dict[str, Any]) -> Any:
     return api.call("POST", "/blades/import", body)
 
 
+@command(
+    "blades_starters",
+    "The built-in starter pack by family (Power BI, Excel, Files, DAX, HTML, Streamlit): read-only blades "
+    "and snippets",
+)
+def blades_starters(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/blades/starters")
+
+
+@command(
+    "blades_copy",
+    "Copy a starter (or a pack's blade) as the user's own",
+    req("name", "The starter."),
+    opt("new_name", "The copy's name (default: <name> copy)."),
+)
+def blades_copy(a: dict[str, Any]) -> Any:
+    body = {"name": a["new_name"]} if a.get("new_name") else {}
+    return api.call("POST", f"/blades/{_q(a['name'])}/copy", body)
+
+
+@command(
+    "blades_snippet",
+    "A snippet's placeholders and their choices; with values, its filled text",
+    req("name", "The snippet."),
+    opt("values", '{"placeholder": "value"}', "json"),
+    opt("dataset", "A DAX snippet's dataset (Finance/Sales model), for its choices."),
+)
+def blades_snippet(a: dict[str, Any]) -> Any:
+    if a.get("values") is not None:
+        return api.call("POST", f"/blades/{_q(a['name'])}/snippet", {"values": a["values"]})
+    query = f"?dataset={_q(a['dataset'])}" if a.get("dataset") else ""
+    return api.call("GET", f"/blades/{_q(a['name'])}/snippet{query}")
+
+
 @command("blades_analyses", "The user's own analyses (analysis blades) the Analyze menu offers")
 def blades_analyses(a: dict[str, Any]) -> Any:
     return api.call("GET", "/blades/analyses")
@@ -2530,6 +2564,19 @@ def workbench_html_add(a: dict[str, Any]) -> Any:
 )
 def workbench_dax_add(a: dict[str, Any]) -> Any:
     return _window("cell.addDax", {k: a[k] for k in ("dataset", "source") if a.get(k) is not None})
+
+
+@command(
+    "workbench_snippet_insert",
+    "Insert a filled snippet into the front Workbench document: DAX or HTML into a cell of its kind, a "
+    "Streamlit piece as a named Python cell",
+    req("name", "The snippet."),
+    opt("values", '{"placeholder": "value"} (default: each one\'s own)', "json"),
+    opt("number", "The cell's own number (default: a new cell, or the selected one).", "int"),
+)
+def workbench_snippet_insert(a: dict[str, Any]) -> Any:
+    args = {k: a[k] for k in ("name", "values", "number") if a.get(k) is not None}
+    return _window("snippet.insert", args)
 
 
 @command(

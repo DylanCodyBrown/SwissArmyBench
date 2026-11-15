@@ -277,6 +277,12 @@ file, an API, a vault); in any Python, `conn = sab.blade("Warehouse")` runs it t
   returning markdown, a DataFrame or a figure (or a list of them); it shows in their Analyze menu.
 - After it is saved, tell the user which secrets to type (`blades_inspect` names them and the packages
   it needs); `blades_refresh` loads its catalog.
+- `blades_starters`: the built-in starter pack by family (Power BI actions, Excel and file functions,
+  DAX, HTML and Streamlit snippets), read-only. A Python starter makes one function: run it in a
+  Workbench kernel (`refresh = sab.blade("Power BI refresh dataset")`, `refresh("Finance/Sales model")`).
+  `blades_copy` makes one the user's own to change. A snippet goes into a cell with
+  `workbench_snippet_insert` (its `values` fill the `<<placeholders>>`; `blades_snippet` lists them and
+  their choices); a Streamlit piece becomes a named Python cell, ready for a canvas.
 
 ## What you can't do
 

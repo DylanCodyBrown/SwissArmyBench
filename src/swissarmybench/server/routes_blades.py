@@ -18,6 +18,10 @@ carries the saved password values (they never reach the agent):
   GET    /blades/export?names=       several (or all) as a zip of them
   POST   /blades/import              review what files hold (nothing saved or run), then apply choices
   GET    /blades/analyses            the analysis blades, for the Analyze menu
+  GET    /blades/starters            the built-in starter pack, by family (read-only)
+  POST   /blades/{name}/copy         {"name"}: a starter's (or a pack's) blade copied as the user's own
+  GET    /blades/{name}/snippet      a snippet for its form: text, placeholders, options (?dataset=)
+  POST   /blades/{name}/snippet      {"values"}: the snippet filled, ready to insert
   POST   /grids/{id}/blade-analysis  {"name", "columns", "env"}: run an analysis blade on the grid's rows
 
 The use cases are services/blades.py.
@@ -228,6 +232,32 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    # ===== the starter pack, copies, snippets =====
+
+    async def starters(request: Request) -> Response:
+        try:
+            return json_response(blades.starters())
+        except Exception as error:
+            return error_response(error)
+
+    async def copy(request: Request) -> Response:
+        try:
+            body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
+            new_name = body.get("name") if isinstance(body, dict) else None
+            return json_response(await blades.copy(request.path_params["name"], new_name, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def snippet(request: Request) -> Response:
+        try:
+            name = request.path_params["name"]
+            if request.method == "POST":
+                body = await read_json_object(request, '{"values": {"measure": "Total Sales"}}')
+                return json_response(blades.fill_snippet(name, body.get("values", {})))
+            return json_response(await blades.snippet(name, request.query_params.get("dataset")))
+        except Exception as error:
+            return error_response(error)
+
     async def install(request: Request) -> Response:
         """Install packages into Swiss Army Bench's own Python, where Refresh runs, on the user's click."""
         try:
@@ -248,6 +278,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades/fill", fill_settings, methods=["POST"]),
         Route("/blades/install", install, methods=["POST"]),
         Route("/blades/analyses", analyses),
+        Route("/blades/starters", starters),
         Route("/grids/{grid_id}/blade-analysis", analyze, methods=["POST"]),
         Route("/blades/{name}", get_blade),
         Route("/blades/{name}", save_blade, methods=["PUT"]),
@@ -258,4 +289,6 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades/{name}/python", python),
         Route("/blades/{name}/pin", pin, methods=["PUT"]),
         Route("/blades/{name}/export", export_one),
+        Route("/blades/{name}/copy", copy, methods=["POST"]),
+        Route("/blades/{name}/snippet", snippet, methods=["GET", "POST"]),
     ]

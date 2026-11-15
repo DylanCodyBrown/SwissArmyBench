@@ -23,6 +23,10 @@ PLUGIN_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")  # Claude Code plugin nam
 MARKETPLACE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 RESERVED = frozenset({"claude-plugins-official", "claude-code-marketplace", "anthropic-marketplace"})
 BLADES_FOLDER = "blades"
+# The built-in pack every install has (src/swissarmybench/starters/): read-only, Copy as your own, and
+# brought up to date by each new version of the app. Its families, in the order the blade list shows.
+STARTERS = "Swiss Army Bench starters"
+FAMILIES: tuple[str, ...] = ("Power BI", "Excel", "Files", "DAX", "HTML", "Streamlit")
 TANGS_FOLDER = "tangs"
 
 

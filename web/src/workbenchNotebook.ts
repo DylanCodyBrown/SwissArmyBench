@@ -50,6 +50,7 @@ import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
+import { draggedSnippet, type FilledSnippet, fillSnippet, pickSnippet, refusal, SNIPPET_CELL, SNIPPET_DRAG, type SnippetLanguage } from "./starters";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { loadEditors } from "./workbenchConsole";
 import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
@@ -247,6 +248,11 @@ export interface NotebookView {
   editName: () => void;
   /** The place (from 0) of the cell with this number, or -1. */
   indexOfNumber: (number: number) => number;
+  /** Insert a snippet, filled with `values` (the agent's): into the cell numbered `number`, else the
+   *  selected one of its kind, else a new one. Which cell took it. */
+  insertSnippet: (name: string, values: Record<string, unknown>, number?: number) => Promise<{ cell: number; kind: CellKind; name: string | null }>;
+  /** The palette's Insert a snippet…: pick one for the selected cell's language, fill its form. */
+  insertSnippetHere: () => void;
 }
 
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
@@ -636,6 +642,7 @@ export function notebookView(
       item("Insert a cell above", () => insertAt(at(), cell.kind === "markdown" ? "code" : cell.kind)),
       item("Insert a cell below", () => insertAt(at() + 1, cell.kind === "markdown" ? "code" : cell.kind)),
       item("Name…", () => editName(cell)),
+      ...(snippetLanguage(cell) ? [item("Insert a snippet…", () => void insertSnippetInto(cell))] : []),
       item("Copy", () => void copy(cell)),
       item("Paste below", () => void paste(cell)),
       item("Duplicate", () => duplicate(cell)),
@@ -907,6 +914,23 @@ export function notebookView(
       head.addEventListener("dragend", () => element.classList.remove("dragging"));
     }
     element.addEventListener("focusin", () => select(cell));
+    // A snippet dragged from the blade list: taken before the editor's own drop (which would paste
+    // its name), filled by its form, then put where it was dropped.
+    element.addEventListener("dragover", (e) => {
+      if (!e.dataTransfer?.types.includes(SNIPPET_DRAG)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      element.classList.add("snippet-over");
+    }, true);
+    element.addEventListener("dragleave", () => element.classList.remove("snippet-over"));
+    element.addEventListener("drop", (e) => {
+      const snippet = draggedSnippet(e.dataTransfer);
+      element.classList.remove("snippet-over");
+      if (!snippet) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void dropSnippet(cell, snippet, e.clientX, e.clientY);
+    }, true);
     element.addEventListener("dblclick", () => {
       if (cell.kind === "markdown" && element.classList.contains("rendered")) editMarkdown(cell);
     });
@@ -1087,6 +1111,71 @@ export function notebookView(
     input.select();
   };
 
+  // ===== snippets: text for a cell, from the starter pack or the user's own (starters.ts) =====
+
+  /** The language of the snippets a cell of this kind takes (none: Markdown, SQL, the app's cells). */
+  const snippetLanguage = (cell: Cell): SnippetLanguage | null =>
+    isApp(cell.role) ? null : cell.kind === "dax" ? "dax" : cell.kind === "html" ? "html" : cell.kind === "code" ? "streamlit" : null;
+
+  /** Put a filled snippet into a cell, where it was dropped or at the cursor (an empty cell takes it
+   *  whole). A Streamlit piece names the cell it goes into, unless it has a name. */
+  const putSnippet = (cell: Cell, filled: FilledSnippet, x?: number, y?: number): void => {
+    if (!sourceOf(cell).trim()) {
+      if (cell.editor) cell.editor.setValue(filled.text);
+      else cell.source = filled.text;
+    } else if (cell.editor) {
+      cell.editor.insertAt(filled.text, x, y);
+    } else {
+      cell.source = `${cell.source.replace(/\n*$/, "")}\n${filled.text}`;
+    }
+    if (filled.cell_name && !cell.name) setName(cell, filled.cell_name);
+    select(cell);
+    edited();
+    typedSoon();
+    if (cell.kind === "html" && !cell.editor?.hasFocus()) showDesign(cell);
+  };
+
+  /** A snippet dropped on a cell (or the list, `cell` null: a new cell of its kind at the end). A cell
+   *  of another language refuses it; a Streamlit piece on a Python cell that holds code makes a cell
+   *  of its own below it. */
+  const dropSnippet = async (cell: Cell | null, snippet: { name: string; language: SnippetLanguage }, x?: number, y?: number): Promise<void> => {
+    const no = cell ? refusal(snippet.language, cell.kind) ?? (isApp(cell.role) ? "This cell follows the grid: drop it on a cell of yours." : null) : null;
+    if (no) return toast(no, "error");
+    const filled = await fillSnippet(snippet.name, cell?.kind === "dax" ? cell.connection : null);
+    if (!filled) return;
+    const kind = SNIPPET_CELL[filled.language];
+    const own = !cell || (filled.language === "streamlit" && sourceOf(cell).trim());
+    const target = own ? insertAt(cell ? indexOf(cell) + 1 : cells.length, kind) : cell;
+    putSnippet(target, filled, own ? undefined : x, own ? undefined : y);
+  };
+
+  /** A cell's menu: Insert a snippet… (the snippets of its language), filled, at the cursor. */
+  const insertSnippetInto = async (cell: Cell): Promise<void> => {
+    const language = snippetLanguage(cell);
+    if (!language) return;
+    const name = await pickSnippet(language);
+    if (name) await dropSnippet(cell, { name, language });
+  };
+
+  /** The agent's (workbench_snippet_insert): filled with `values` (each placeholder's own otherwise),
+   *  into the cell numbered `number`, else the selected cell when it is of the snippet's kind (an empty
+   *  one for a Streamlit piece), else a new cell of its kind below the selected one. */
+  const insertSnippet = async (name: string, values: Record<string, unknown>, number?: number): Promise<{ cell: number; kind: CellKind; name: string | null }> => {
+    const filled = await api<FilledSnippet>(`/blades/${encodeURIComponent(name)}/snippet`, "POST", { values });
+    const kind = SNIPPET_CELL[filled.language];
+    let cell = number === undefined ? selected : byNumber(number);
+    if (number !== undefined) {
+      if (!cell || isApp(cell.role)) throw new Error(`This notebook has no cell ${number} of yours.`);
+      const no = refusal(filled.language, cell.kind);
+      if (no) throw new Error(no);
+    }
+    if (!cell || cell.kind !== kind || isApp(cell.role) || (number === undefined && filled.language === "streamlit" && sourceOf(cell).trim())) {
+      cell = insertAt(selected ? indexOf(selected) + 1 : cells.length, kind);
+    }
+    putSnippet(cell, filled);
+    return { cell: cell.number, kind: cell.kind, name: cell.name };
+  };
+
   // ===== a cell's link: dragged onto a canvas, or copied (docs/ideas.md, the Streamlit canvas) =====
 
   const linkOf = (cell: Cell): { document: string | null; cell: number; title: string } => {
@@ -1190,6 +1279,16 @@ export function notebookView(
   };
 
   // Command mode: Jupyter's keys on the selected cell when the focus is on the cell, not its editor.
+  // A snippet dropped between or after the cells: a new cell of its kind at the end.
+  list.addEventListener("dragover", (e) => {
+    if (e.dataTransfer?.types.includes(SNIPPET_DRAG)) e.preventDefault();
+  });
+  list.addEventListener("drop", (e) => {
+    const snippet = draggedSnippet(e.dataTransfer);
+    if (!snippet) return;
+    e.preventDefault();
+    void dropSnippet(null, snippet);
+  });
   list.addEventListener("keydown", (e) => {
     const target = e.target as HTMLElement;
     if (!target.matches(".wb-cell, .wb-tcell") || !selected) return;
@@ -1639,5 +1738,10 @@ export function notebookView(
       edited();
     },
     indexOfNumber: (number) => cells.findIndex((c) => c.number === number),
+    insertSnippet,
+    insertSnippetHere: () => {
+      if (!selected || !snippetLanguage(selected)) return toast("Select a Python, DAX or HTML cell of yours first.", "error");
+      void insertSnippetInto(selected);
+    },
   };
 }

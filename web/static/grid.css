@@ -7230,3 +7230,51 @@ body.panel-off-grid-status .statusbar {
   font-size: 0.86em;
   font-weight: 600;
 }
+
+/* a snippet dragged over a cell of the Workbench; the Insert a snippet list */
+.wb-cell.snippet-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.snippet-list {
+  display: grid;
+  gap: 2px;
+  max-height: 50vh;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.snippet-choice {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.snippet-choice:hover,
+.snippet-choice:focus-visible {
+  background: var(--row-hover);
+}
+
+.snippet-choice-name {
+  font-weight: 600;
+}
+
+.snippet-fields {
+  margin-bottom: 6px;
+}
+
+/* In the flyout the blades have the panel to themselves: the list takes the height there is. */
+.wb-flyout .blade-list {
+  max-height: calc(100vh - 230px);
+}

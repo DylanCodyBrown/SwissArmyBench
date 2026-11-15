@@ -131,6 +131,9 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # set up sys.path before importing, and hold long command lines.
 "tools/**" = ["S603", "S607", "S110", "E402", "E501"]
 "build.py" = ["S603", "S607"]
+# The starter pack: its Power BI blades reach the REST API at the address their workspace connection holds,
+# and a snippet's lines (DAX, HTML, a piece for a Python cell) are kept as the cell will hold them.
+"src/swissarmybench/starters/**" = ["S310", "E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]
 

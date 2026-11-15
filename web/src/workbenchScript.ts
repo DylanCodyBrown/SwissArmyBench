@@ -83,6 +83,8 @@ export interface ScriptView {
   addHtml: (source?: string, height?: number | null) => Promise<void>;
   /** Add a DAX cell after the cell at the cursor: `# %% [dax]` over one sab.dax() call, plain Python. */
   addDax: (dataset: string, source?: string) => Promise<void>;
+  /** Add a Python cell after the cursor's cell, named on its marker (a Streamlit piece, say). */
+  addCode: (source: string, name?: string) => Promise<void>;
   /** Its HTML cells and each one's state. */
   htmlCells: () => HtmlReport[];
   /** Run an HTML cell by its number (without one: every one that is not up to date). */
@@ -874,6 +876,22 @@ export function scriptView(
       editor.replaceText([...lines.slice(0, at), marker, ...body, ...closing, ...after].join("\n") + "\n");
       editor.focus();
       editor.moveTo(at + 3); // the first line of the HTML
+      if (quiet !== null) window.clearTimeout(quiet);
+      quiet = null;
+      await arrange(true);
+    },
+    addCode: async (source, name = "") => {
+      if (!editor) throw new Error("The script's editor is not ready yet.");
+      const lines = editor.value().split("\n");
+      if (lines[lines.length - 1] === "") lines.pop();
+      const here = outlineVersion === version ? outline.cells.find((c) => editor!.cursorLine() >= c.line && editor!.cursorLine() <= c.end && !c.grouped) : undefined;
+      const at = here ? Math.min(here.end, lines.length) : lines.length;
+      const after = lines.slice(at);
+      const closing = after.some((l) => l.trim()) && !/^# ?%%/.test(after.find((l) => l.trim()) ?? "") ? ["# %%"] : [];
+      // The name is the marker's own words (written after a backslash when it would read as its grammar).
+      const marker = withMarkerName("# %%", cleanName(name));
+      editor.replaceText([...lines.slice(0, at), marker, ...source.replace(/\n$/, "").split("\n"), ...closing, ...after].join("\n") + "\n");
+      editor.reveal(at + 2, 1);
       if (quiet !== null) window.clearTimeout(quiet);
       quiet = null;
       await arrange(true);
