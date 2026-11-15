@@ -108,7 +108,8 @@ What a grid page does:
   Allow. Settings lists its activity and has a copyable prompt that installs the MCP in any agent.
 - **Connections** (the Application row's **Connections**): your databases and files. Add one with a
   form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a Power BI dataset, read with DAX;
-  a CSV, workbook, Parquet or JSON file, or a folder of them), its password kept in the system keyring, **Test connection** before
+  a CSV, workbook, Parquet or JSON file, or a folder of them; or your own Python, for anything
+  else), its password kept in the system keyring, **Test connection** before
   saving. Then `conn = sag.connection("Warehouse")` in any Python, or a whole SQL cell on it:
   `%%sql Warehouse` in Jupyter or IPython.
 - **Blades and the catalog** (its own tab, from **Blades and catalog** in the Application row): a **blade** is any
@@ -300,6 +301,25 @@ passed off as whole. The tenant must allow the Execute Queries request (the admi
 Execute Queries REST API**) and, for an app registration, service principals to use the Power BI APIs;
 the sign-in needs Read and Build permission on the dataset. Not yet run against a real tenant: it is
 tested against a stand-in on this computer.
+
+A **connection made of your own Python** (**Python (your own code)**, under Your own code) reaches
+anything Python can: an internal web service, a vendor's library, your own files. Its form has three
+code boxes. **Connect** makes `conn`, any object. **List the tables** returns its catalog: a list of
+dicts or a DataFrame with `table` and `column`, and optionally `schema`, `type` and `description`.
+**Read a table** returns a table's rows given `conn`, `schema`, `table` and `limit` (`None` means
+all): a DataFrame, an Arrow table or a list of dicts, or `(rows, total)` so the grid can say how many
+rows the source holds. The form finds every environment variable the boxes read
+(`os.environ["X"]`, `os.environ.get("X")`, `os.getenv("X")`, `secret("X")`) and asks where each comes
+from: this computer's environment, saved on this computer, a key vault's entry, or a plain value that
+is no secret. The code is not changed: the values are set as environment variables before it runs, so
+the same code runs unchanged where those names are set some other way (an Azure Function's settings).
+**Test connection** runs the three boxes and shows the first table's first rows. The catalog, Open as
+grid, the preview and Load all rows then work as for a database. In a notebook:
+
+```python
+api = sag.connection("Orders API")  # what Connect made
+orders = sag.read("Orders API", "orders")  # a table, by your Read a table box
+```
 
 A **key vault** (Azure Key Vault, AWS Secrets Manager or Parameter Store, Google Secret Manager,
 HashiCorp, 1Password, a `.env` file, the operating system's vault) is a connection whose secrets become
@@ -493,7 +513,7 @@ It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turn
 
 ## The agent commands: `sag` and the MCP server
 
-**The golden rule: everything you can do, the agent can do too** (188 commands, each an MCP tool):
+**The golden rule: everything you can do, the agent can do too** (191 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
@@ -501,7 +521,7 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 188 of
+Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 191 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
@@ -513,7 +533,7 @@ run it:
 - `swissarmygrid-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
-  the whole tool list is about 11,000 tokens for 188 tools (a test holds it under a budget). `guide` and
+  the whole tool list is about 11,000 tokens for 191 tools (a test holds it under a budget). `guide` and
   `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
 - `sag` is the same commands in a terminal (standard library only, in the plain wheel):

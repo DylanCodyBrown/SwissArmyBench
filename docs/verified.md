@@ -714,3 +714,49 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   ones read (Table, Name, DataType; FromTable, FromColumn, ToTable, ToColumn, FromCardinality,
   ToCardinality, CrossFilteringBehavior, IsActive), which are from memory of Microsoft's pages; how
   the real service marks an answer cut at 15 MB; Microsoft's sign-in window itself; Edge.
+- (2026-11-15) A connection from your own Python (docs/ideas.md has the decisions). Made-up data
+  only: a tiny web service on 127.0.0.1 (tests/orders_service.py: `http.server`, two made-up tables as
+  JSON, answering only to a made-up API key).
+  **The variables** (tests/test_python_connections.py, 36 tests): `os.environ["X"]`,
+  `os.environ.get("X")`, `os.getenv("X")` and `secret("X")` are each found by name, also `environ` and
+  `getenv` imported from os and os under another name; a name built with an f-string or at run time, a
+  name in a comment or a string, a variable that is set and not read, and another object's `.get` are
+  not. Names come from all three boxes, once; a box that is not Python yet gives none. A source is
+  checked (a name the code never reads, a vault with no secret named, a name given twice are refused).
+  **The catalog's shape:** a list of dicts and a DataFrame, with table and column alone or with
+  schema, type and description; a string, other column names, no rows, a row with no table or no
+  column, and code that fails each say what is wrong, the line included.
+  **Read a table:** a list of dicts, a DataFrame, an Arrow table and a dict of columns arrive typed;
+  `(rows, total)` gives the count; code that ignores the limit has its first rows kept and its count
+  known; fewer rows than the limit need no count; a tuple of two rows is rows.
+  **The portable file** round trips the three boxes, the mapping and Rows to open, byte for byte; a
+  file written before loads as it did; a value saved on this computer is never in the file.
+  **Secrets:** a key in an error from either box is starred out; no answer (the list, the form, the
+  blade, the export, a Test, a refused Test with a wrong key) and nothing in the state folder holds
+  the key; the agent is refused what `sag.connection` is given.
+  **Through the real child process:** the starter's own three boxes over the web service, the URL a
+  plain value and the key an entry of a made-up vault: Test (2 tables, 3 columns, the first 20 of 30
+  rows), a missing variable named before the code runs, a vault that is gone, Save, the list, the form
+  again, `connections/{name}/tables`, Refresh, the catalog's schemas and columns, the preview, Open as
+  grid (10 of 30, the note's numbers), Load all rows (30, no note), the saved connection's Test. Also
+  the key saved on this computer, and both variables from this computer's environment. Over a live
+  server: `sag.connection` gives `conn` with only this connection's variables set, and `sag.read`
+  reads a table with a limit and a schema.
+  **In a browser** (one test, tests/e2e/test_python_connection_page.py): the type under Your own code,
+  three boxes in the Workbench's editor, the List and Read boxes typed in, the two variables found,
+  one a plain value and one picked from the vault's entries, Test showing rows, Save, the row's own
+  Test, the catalog tree, a table's columns with descriptions, its first rows and its `sag.read` line,
+  Open as grid with "First 10 of 30 rows", and Load all rows.
+  Then: ruff, format, mypy (252 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,142 passed, none skipped (2,095 before; 47 new: 36 in tests/test_python_connections.py,
+  1 browser test, 10 new cases of the existing sweeps over the three new
+  commands). 191 commands (188 before: connections_python_save, connections_python_variables,
+  connections_python_tables).
+  Three earlier whole runs each had one failure in a test this work does not touch, while other test
+  runs loaded the machine (load average 6 to 9); each passes alone:
+  `test_outputs_keep_up_with_many_prints_colours_and_progress_bars` (twice; 6,000 prints inside 30
+  seconds) and the Power BI page test (once; a 404 from the stand-in after its ids were typed).
+  Not checked: Edge (the tests ran in this machine's Chromium); a real key vault (a made-up one in
+  plain Python stands in); a real vendor library or web service; code pasted from the clipboard into
+  the editor (the test types unindented lines); a connection whose `conn` is a DB-API connection in a
+  SQL cell (the SQL cell's own tests cover any `.cursor()`; none was written for this type).

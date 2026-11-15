@@ -666,3 +666,16 @@ def test_in_a_notebook_the_connection_is_conn_and_a_table_is_read(
     finally:
         os.environ.pop("ORDERS_API_KEY", None)
         os.environ.pop("ORDERS_API_URL", None)
+
+
+def test_a_table_opened_from_it_is_loaded_again_by_sag_read() -> None:
+    from swissarmygrid.domain.table_cells import Origin, load_code
+
+    again = rules.read_call("Orders API", "api", "orders")
+    assert again == "sag.read('Orders API', 'orders', schema='api')"
+    assert rules.read_call("Orders API", "", "orders") == "sag.read('Orders API', 'orders')"
+    origin = Origin("connection", connection="Orders API", code=again)
+    assert load_code("orders", origin, "connection", None, 30) == (
+        ["import swissarmygrid as sag"],
+        "orders = sag.read('Orders API', 'orders', schema='api')",
+    )
