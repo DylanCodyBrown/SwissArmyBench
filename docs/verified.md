@@ -1118,3 +1118,48 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 - **Not checked:** a real Power BI tenant (Microsoft's documented shapes only), the DAX snippets run
   against a real model, the map piece's background (it is fetched from the internet), Edge itself,
   Windows paths in the Excel and file functions.
+
+## Text cells on the canvas: Markdown and HTML cells on a Streamlit page (2026-11-15)
+
+- **The rules** (`tests/test_streamlit_cells.py`, `tests/test_html_cells.py`): a Markdown cell written
+  as `st.markdown`, an HTML cell as `st.html` with `unsafe_allow_javascript=True` only when it holds a
+  `<script>` the browser would run (not one in a comment or a `<textarea>`); their `{{ names }}` as
+  reads, so a page with the text first and the filter last runs the filter first and links "reads
+  region"; a text cell never live in its own cell; `sab_text` never in requirements.txt, and
+  `streamlit>=1.52` once a block runs a script; the export's and the saved pages' copy of the filler
+  only when a block names a value, and the README's line; an old app file (SwissArmyGrid's key) read,
+  and a text block adding nothing to the file. The escaping: `</script><b>*x*</b>` (and links,
+  backticks, `$`, `:red[...]`) is text in Markdown (every mark escaped, markup as references, one
+  line) and in HTML (escaped by where it stands); inside code only plain words; a table alone on its
+  line as a pipe table; on a page, a name no block makes says "not found". In a Mermaid block a value
+  is Mermaid text (its `"]`, `-->`, `%%{init}%%`, `;` in full-width forms).
+- **Streamlit 1.67** (the throwaway environment): `st.html(body, *, width, unsafe_allow_javascript)` is
+  the signature; the parameter first appears in 1.52.0 (checked in the wheels of 1.45 to 1.55).
+- **The real Streamlit under AppTest** (`test_the_real_streamlit_fills_a_markdown_and_an_html_block_
+  from_a_filter`): a canvas placed by the agent's commands with a filter, a total, a Markdown block
+  reading `region` and `total`, and an HTML block with a script; the live page in its temporary folder:
+  "Sales in East … **140**", picking West gives "Sales in West … **250**", the HTML block's body
+  `<b>250</b> in West` and `window.sabTotal = 250;` with `unsafe_allow_javascript` true, the hostile
+  value as text in both; the export's page (`sab_text.py` beside `app.py`, `streamlit>=1.52`, the README's
+  line) and the saved project's page (`sab_text.py` in the zip) run alone the same way.
+- **The window's cells and the pane** (FakeRunner): a window's Markdown and HTML cells (`kind`) and a
+  script's HTML cell's lines (`form: "script"`) listed under Text with what they read; the canvas's
+  blocks with their `kind`; Play writes `sab_text.py` beside the page.
+- **Starters:** 88 (Markdown 10); each Markdown snippet fills with its defaults, reads exactly the names
+  its description says, holds no HTML and nothing from outside, and is `st.markdown` on a page. A typed
+  value's marks are escaped; inside a code span it goes as typed (no backtick); inside `{{ }}` only a name.
+- **Browser (this machine's Chromium; `tests/e2e/test_text_cells_page.py`, 3 tests):** a Markdown cell's
+  `{{ total }}` filled after Run all (`**480**`, the hostile note shown as text, no `b`/`em`/`script`
+  made of it), Out of date · total changed after the console changes it, Run gives 512; the HTML cell's
+  design filled the same; the Streamlit cells pane's Text heading with both, marked T; both dragged from
+  the pane onto a new canvas and the Python cell by its number onto the app's tab; Play shows the
+  Markdown and the KPI card live (with Streamlit). A Markdown starter (KPI sentence) inserted from the
+  cell's menu, its typed `*` escaped, the cell drawn with "Not run yet"; a Markdown snippet refused in a
+  Python cell. A ```mermaid flowchart drawn as SVG (two nodes), a broken one saying "This diagram could
+  not be drawn: Parse error on line 3 …", and a name in a diagram (`East --> West`) drawn as one label.
+- **The whole suite** with the browser tests in Chromium and SWISSARMYBENCH_STREAMLIT_PYTHON set: 2,536
+  passed, 2 skipped (the two Streamlit starter tests want openpyxl in that environment). `ruff check`,
+  `ruff format --check`, `mypy`, `npm run typecheck` and `npm run build` clean.
+- **Not checked:** Edge itself; a Mermaid diagram on a Streamlit page (it stays a code block there);
+  a picture named in a Markdown cell; Jupyter's own rendering of the escaped Markdown (CommonMark's
+  rules, which the Workbench now follows for backslashes and references).
