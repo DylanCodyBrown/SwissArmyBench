@@ -26,6 +26,7 @@ import re
 from typing import Any
 
 from swissarmygrid.domain.stats import chi_square_p, effect_words
+from swissarmygrid.domain.steps import type_family
 
 __all__ = ["chi_square_p", "effect_words"]  # also here: the fit test's own words
 
@@ -50,6 +51,82 @@ NIGRINI: dict[int, tuple[tuple[float, str], ...]] = {
 
 class AnalysisError(ValueError):
     """An analysis that cannot be run as asked. The message says why, and what to do instead."""
+
+
+# ===== identifiers: the one rule =====
+#
+# An identifier names a row or points at one (order_id, a customer key, an invoice number): summing,
+# averaging or modelling it means nothing. A column is one by its name, or because every row holds a
+# different whole number or text. Dates and numbers with decimals are never identifiers: a measure
+# may well never repeat. Every place that asks "is this an identifier?" asks here: what an analysis
+# form starts on, the predictors a regression starts with, find predictors' skipped columns.
+
+IDENTIFIER_WORDS = frozenset({"id", "ids", "key", "uuid", "guid"})
+# Words that make a *number* column a code and not a measure (as text such a column is a label).
+CODE_WORDS = frozenset({"number", "no", "num", "nr", "code", "zip", "postcode", "phone"})
+IDENTIFIER_MIN_ROWS = 20  # fewer filled rows than this: every row being different says nothing
+IDENTIFIER_SAMPLE_ROWS = 10_000  # form_defaults' callers count this many of a view's rows
+
+
+def _name_words(name: str) -> list[str]:
+    """A column name as lower-case words: split at anything that is not a letter or digit, and where
+    camelCase turns (orderId, OrderID)."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", name)
+    return [w.lower() for w in re.split(r"[^A-Za-z0-9]+", spaced) if w]
+
+
+def every_row_different(duckdb_type: str, filled: int | None, distinct: int | None) -> bool:
+    """Whole numbers or text, with no value twice among more than IDENTIFIER_MIN_ROWS filled rows."""
+    if filled is None or distinct is None or filled <= IDENTIFIER_MIN_ROWS or distinct != filled:
+        return False
+    family = type_family(duckdb_type)
+    return family == "text" or (family == "number" and "INT" in duckdb_type.upper())
+
+
+def is_identifier(
+    name: str, duckdb_type: str, filled: int | None = None, distinct: int | None = None
+) -> bool:
+    """Is this column an identifier: by its name (its last word is id, key, uuid or guid; for a
+    number column also number, no, code, zip...), or by its values (every_row_different)? `filled` and
+    `distinct` are its counts of non-blank and of different values, when known."""
+    family = type_family(duckdb_type)
+    if family not in ("number", "text"):
+        return False
+    words = _name_words(name)
+    last = words[-1] if words else ""
+    if last in IDENTIFIER_WORDS or (family == "number" and last in CODE_WORDS):
+        return True
+    return every_row_different(duckdb_type, filled, distinct)
+
+
+def identifier_counts_query(relation: str, columns: list[tuple[str, str]]) -> tuple[list[str], str]:
+    """(the columns whose values could make them identifiers, the query counting each one's filled
+    and different values over the relation's first IDENTIFIER_SAMPLE_ROWS rows: two numbers a column,
+    in order). No such column: no query."""
+    enough = IDENTIFIER_MIN_ROWS + 1
+    names = [name for name, kind in columns if every_row_different(kind, enough, enough)]
+    if not names:
+        return [], ""
+    parts = ", ".join(f"count({quote(n)}), count(DISTINCT {quote(n)})" for n in names)
+    return names, f"SELECT {parts} FROM (SELECT * FROM {relation} LIMIT {IDENTIFIER_SAMPLE_ROWS})"
+
+
+def form_defaults(columns: list[tuple[str, str]], counts: dict[str, tuple[int, int]]) -> dict[str, Any]:
+    """What an analysis form starts on, from the view's (name, type) columns and each one's (filled,
+    different) counts where known: the identifiers, the first number column that is not one (`number`),
+    the column a form with any column starts on (`column`: that number, else the first column that is
+    not an identifier, else the first), and a regression's starting predictors (every column but the
+    identifiers; the form leaves out its target)."""
+    ids = [name for name, kind in columns if is_identifier(name, kind, *counts.get(name, (None, None)))]
+    rest = [(name, kind) for name, kind in columns if name not in ids]
+    number = next((name for name, kind in rest if type_family(kind) == "number"), None)
+    first = rest[0][0] if rest else (columns[0][0] if columns else None)
+    return {
+        "identifiers": ids,
+        "number": number,
+        "column": number or first,
+        "predictors": [name for name, _ in rest],
+    }
 
 
 # ===== Benford's law =====

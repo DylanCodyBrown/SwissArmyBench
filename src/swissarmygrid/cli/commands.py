@@ -1795,6 +1795,17 @@ def analyze_shape(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "analyze_defaults",
+    "What the analysis forms start on in this grid's view: its identifier columns (by name, or every row "
+    "a different whole number or text), the first number column that is not one, and a regression's "
+    "starting predictors. Never analyse an identifier as a measure.",
+    req("grid", "Grid id."),
+)
+def analyze_defaults(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/grids/{_q(a['grid'])}/analysis-defaults")
+
+
+@command(
     "analyze_time_series",
     "A metric per period from a date column: trend, season in words, periods that stand out (with a step "
     "showing their rows), steps in the level, memory, growth.",

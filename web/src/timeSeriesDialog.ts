@@ -10,7 +10,7 @@
  *                  own trend, or a value): the forecast with 80% and 95% ranges, and the held-back check
  */
 import { forecastCards, forecastFigure, timeSeriesCards, timeSeriesFigure, type ForecastResult, type TimeSeriesResult } from "./analysisCards";
-import { datasetName, registerAnalysis, resultButtons, tableName } from "./analyzeMenu";
+import { datasetName, formDefaults, registerAnalysis, resultButtons, tableName } from "./analyzeMenu";
 import { api, grid } from "./api";
 import { button, clear, h, isDateType, isNumericType, markStaleOnChange, openDialog, toast } from "./dom";
 import { selection, viewColumns } from "./gridView";
@@ -44,13 +44,16 @@ interface SeriesForm {
 }
 
 /** Date, metric, total and period: the fields both windows share. */
-function seriesForm(given: Record<string, unknown>): SeriesForm {
+function seriesForm(given: Record<string, unknown>, identifiers: string[]): SeriesForm {
   const columns = viewColumns();
   const dates = columns.filter((c) => isDateType(c.type)).map((c): [string, string] => [c.name, c.name]);
   const numbers = columns.filter((c) => isNumericType(c.type)).map((c): [string, string] => [c.name, c.name]);
-  const picked = selection.targetColumns();
-  const date = h("select", { "aria-label": "Date column" }, ...options(dates, String(given.date ?? picked.find((p) => dates.some(([d]) => d === p)) ?? dates[0]?.[0] ?? "")));
-  const metric = h("select", { "aria-label": "Metric" }, ...options([["", "(row count)"], ...numbers], String(given.metric ?? picked.find((p) => numbers.some(([n]) => n === p)) ?? numbers[0]?.[0] ?? "")));
+  // Decision 6: the metric starts on the row count. A number column whose header the user selected
+  // is their pick, unless it is an identifier.
+  const picked = selection.kind === "columns" ? selection.targetColumns().filter((p) => !identifiers.includes(p)) : [];
+  const pickedDate = selection.targetColumns();
+  const date = h("select", { "aria-label": "Date column" }, ...options(dates, String(given.date ?? pickedDate.find((p) => dates.some(([d]) => d === p)) ?? dates[0]?.[0] ?? "")));
+  const metric = h("select", { "aria-label": "Metric" }, ...options([["", "(row count)"], ...numbers], String(given.metric ?? picked.find((p) => numbers.some(([n]) => n === p)) ?? "")));
   const total = h("select", { "aria-label": "Total" }, ...options([["sum", "Sum"], ["avg", "Average"]], String(given.total ?? "sum")));
   const period = h("select", { "aria-label": "Period" }, ...options([["day", "Day"], ["week", "Week"], ["month", "Month"], ["quarter", "Quarter"], ["year", "Year"]], String(given.period ?? "month")));
   const sync = (): void => {
@@ -74,7 +77,7 @@ export async function openTimeSeries(given: Record<string, unknown> = {}): Promi
     foot.append(button("Close", close));
     return;
   }
-  const form = seriesForm(given);
+  const form = seriesForm(given, (await formDefaults()).identifiers);
   const split = h("select", { "aria-label": "One line per" }, ...options([["", "(one line)"], ...viewColumns().filter((c) => !isNumericType(c.type) && !isDateType(c.type)).map((c): [string, string] => [c.name, c.name])]));
   const results = h("div", { class: "analysis-results" });
   const actions = h("span", { class: "analysis-actions" });
@@ -120,7 +123,7 @@ export async function openForecast(given: Record<string, unknown> = {}): Promise
     foot.append(button("Close", close));
     return;
   }
-  const form = seriesForm(given);
+  const form = seriesForm(given, (await formDefaults()).identifiers);
   const horizon = h("input", { type: "number", min: "1", max: "120", value: String(given.horizon ?? 12), size: 4, "aria-label": "Periods ahead" });
   const rows = viewColumns()
     .filter((c) => isNumericType(c.type))

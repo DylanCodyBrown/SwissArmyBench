@@ -3,7 +3,8 @@
  * (Plans/analyze-menu.plan.md).
  *
  *   [ANALYZE ▾]        Odds, Fit test, Find predictors, Outliers: each opens its form, filled from the
- *                      selected columns (analysisDialog.ts)
+ *                      selected columns (analysisDialog.ts), else from formDefaults(): never an
+ *                      identifier column
  *   [SEND TO SANDBOX]  a report-style note and its chart, side by side (analysisCards.ts; POST cards)
  *   [OPEN AS GRID]     a tabular result as a new grid (PUT /datasets/{name}?new_grid=1, JSON rows)
  *   [COPY CODE]        the analysis as Python for a notebook: POST /grids/{id}/analysis-code, then
@@ -164,6 +165,28 @@ async function copyCode(actions: ResultActions): Promise<void> {
     );
   } catch (e) {
     toast((e as Error).message, "error");
+  }
+}
+
+/** What the forms start on in this view (GET analysis-defaults; the rule is domain/analysis.py's). */
+export interface FormDefaults {
+  /** Identifier columns: by name, or every row a different whole number or text. */
+  identifiers: string[];
+  /** The first number column that is not an identifier. */
+  number: string | null;
+  /** The column a form with any column starts on. */
+  column: string | null;
+  /** A regression's starting predictors: every column but the identifiers. */
+  predictors: string[];
+}
+
+/** Never an identifier as a default. If the server cannot say, the forms start as they did before. */
+export async function formDefaults(): Promise<FormDefaults> {
+  try {
+    return await api<FormDefaults>(`${grid}/analysis-defaults`);
+  } catch {
+    const columns = state.info?.columns ?? [];
+    return { identifiers: [], number: null, column: columns[0]?.name ?? null, predictors: columns.map((c) => c.name) };
   }
 }
 

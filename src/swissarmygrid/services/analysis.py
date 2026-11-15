@@ -235,6 +235,18 @@ def run_shape(cur: SqlSession, relation: str, view: Columns, body: dict[str, Any
     return {"notes": A.shape_notes(analysis, rows, columns, [str(s) for s in selected])}
 
 
+def run_defaults(cur: SqlSession, relation: str, view: Columns) -> dict[str, Any]:
+    """form_defaults for a view: the columns whose values could make them identifiers (whole numbers
+    and text) are counted over its first IDENTIFIER_SAMPLE_ROWS rows, in one pass."""
+    columns = [(c.name, c.type) for c in view]
+    counted, query = A.identifier_counts_query(relation, columns)
+    counts: dict[str, tuple[int, int]] = {}
+    if query:
+        row = cur.execute(query).fetchone() or ()
+        counts = {name: (int(row[2 * i]), int(row[2 * i + 1])) for i, name in enumerate(counted)}
+    return A.form_defaults(columns, counts)
+
+
 RUNS: dict[str, Callable[[SqlSession, str, Columns, dict[str, Any]], dict[str, Any]]] = {
     "shape": run_shape,
     "outliers": run_outliers,
@@ -298,6 +310,12 @@ class Analysis:
         )
         self.ws.audit.write(who, analysis, info.name, column=body.get("column") or body.get("target"))
         return dict(result)
+
+    async def defaults(self, grid: Grid, info: DatasetInfo, who: str) -> dict[str, Any]:
+        """What the analysis forms start on in this view (domain/analysis.py form_defaults): never an
+        identifier. Whole-number and text columns are counted over the view's first rows."""
+        result: dict[str, Any] = await self._on_view(grid, info, who, run_defaults)
+        return result
 
     async def code(
         self, analysis: str, grid: Grid, info: DatasetInfo, body: dict[str, Any]
@@ -486,9 +504,9 @@ def _skip_reason(column: Column, filled: int, distinct: int) -> str | None:
         return "a date: use Time series"
     if family not in ("number", "text", "boolean"):
         return f"a {column.type.lower()} column cannot be grouped"
-    if family == "text" and distinct == filled and filled > 20:
-        return "every row different: an identifier, not a predictor"
-    if family == "number" and distinct == filled and filled > 20 and "INT" in column.type.upper():
+    if A.every_row_different(column.type, filled, distinct):  # the one identifier rule
+        if family == "text":
+            return "every row different: an identifier, not a predictor"
         return "every row a different whole number: probably an identifier"
     if family == "text" and distinct > A.MAX_CATEGORIES:
         return f"more than {A.MAX_CATEGORIES} different values: group them first (Categorize)"

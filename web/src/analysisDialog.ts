@@ -13,7 +13,7 @@
  */
 import { api, grid } from "./api";
 import { amountCards, fitCards, frequencyCards, oddsCards, predictorsCards } from "./analysisCards";
-import { datasetName, registerAnalysis, resultButtons, tableName } from "./analyzeMenu";
+import { datasetName, formDefaults, registerAnalysis, resultButtons, tableName } from "./analyzeMenu";
 import { cheatSheet } from "./cheatSheets";
 import { openRegression } from "./modelDialog";
 import "./timeSeriesDialog"; // registers Time series and Forecast in the Analyze menu
@@ -112,6 +112,8 @@ const EXPECTED: [string, string][] = [
 ];
 
 export async function openFitTest(columns: string[], expectedKind?: string): Promise<void> {
+  // Nothing selected: the first number column that is not an identifier.
+  if (!columns.length) columns = [(await formDefaults()).column].filter((c): c is string => c !== null);
   const { body, foot, close } = openDialog("Fit test", true);
   const chosen = h("select", { multiple: true, size: 4, "aria-label": "Columns to test" }, ...columnOptions().map(([v, text]) => h("option", { value: v, selected: columns.includes(v) }, text)));
   const picked = (): string[] => [...chosen.selectedOptions].map((o) => o.value);
@@ -273,6 +275,7 @@ interface FrequencyResult {
 }
 
 export async function openOutliers(column?: string): Promise<void> {
+  column ??= (await formDefaults()).column ?? undefined;
   const { body, foot, close } = openDialog("Outliers", true);
   const which = select("Column", columnOptions(), column ?? viewColumns()[0]?.name ?? "", () => {
     const numeric = isNumericType(columnType(which.value));
@@ -438,6 +441,7 @@ const OPS: [string, string][] = [
 ];
 
 export async function openOdds(column?: string): Promise<void> {
+  column ??= (await formDefaults()).column ?? undefined;
   const { body, foot, close } = openDialog("Odds", true);
   const which = select("Column", columnOptions(), column ?? viewColumns()[0]?.name ?? "");
   const buckets = h("input", { type: "number", min: "2", max: "20", size: 4, placeholder: "auto", "aria-label": "Buckets for a number column" });
@@ -575,6 +579,7 @@ interface PredictorsResult {
 }
 
 export async function openPredictors(target?: string): Promise<void> {
+  target ??= (await formDefaults()).column ?? undefined;
   const { body, foot, close } = openDialog("Find predictors", true);
   const which = select("Target", columnOptions(), target ?? viewColumns()[0]?.name ?? "", () => rebuild());
   const buckets = h("input", { type: "number", min: "2", max: "20", size: 4, placeholder: "4", "aria-label": "Buckets for number columns" });

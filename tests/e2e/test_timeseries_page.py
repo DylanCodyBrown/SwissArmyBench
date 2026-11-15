@@ -23,6 +23,11 @@ def test_time_series_reads_the_series_and_hands_over_to_forecast(
         page.get_by_role("menuitem", name="Time series…").click()
         dialog = page.locator("dialog")
         words = dialog.locator(".analysis-summary")
+        # The window starts on the row count (never on a column picked for the user), already read.
+        expect(dialog.get_by_label("Metric")).to_have_value("")
+        expect(words).to_contain_text("rows went from", timeout=30000)
+        dialog.get_by_label("Metric").select_option("amount")
+        dialog.get_by_role("button", name="Read", exact=True).click()
         expect(words).to_contain_text("December run", timeout=30000)
         expect(words).to_contain_text("spike 2021-06-01")
         expect(dialog.locator(".analysis-chart .main-svg").first).to_be_visible(timeout=20000)
@@ -35,8 +40,11 @@ def test_time_series_reads_the_series_and_hands_over_to_forecast(
         dialog.get_by_role("button", name="Forecast", exact=True).click()
         expect(dialog.locator(".analysis-results tbody tr")).to_have_count(3, timeout=20000)
         dialog.get_by_role("button", name="Close").last.click()
+        # A number column whose header is selected is the user's own pick: the window opens on it.
+        page.locator(".ag-header-cell[col-id='amount'] .sag-header-name").click()
         page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Analyze").click()
         page.get_by_role("menuitem", name="Time series…").click()
+        expect(page.locator("dialog").get_by_label("Metric")).to_have_value("amount")
         page.locator("dialog").get_by_role("button", name="Show these rows").click(timeout=30000)
         expect(page.locator("#status")).to_contain_text("of 4", timeout=20000)
     finally:

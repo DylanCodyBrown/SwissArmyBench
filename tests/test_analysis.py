@@ -442,3 +442,80 @@ def test_the_data_shape_check_spots_wide_tables_identifiers_and_benford_ranges(c
         f"/grids/{order_grid}/shape-check", json={"analysis": "fit_test", "columns": ["amount"]}, headers=AUTH
     ).json()
     assert any("orders of magnitude: suits a Benford test" in n["text"] for n in amounts["notes"])
+
+
+# ===== what a form starts on: never an identifier =====
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["id", "ID", "order_id", "orderId", "OrderID", "customer key", "row_uuid", "Guid", "account-id"],
+)
+def test_a_column_named_like_an_identifier_is_one(name: str) -> None:
+    assert A.is_identifier(name, "BIGINT") and A.is_identifier(name, "VARCHAR")
+
+
+@pytest.mark.parametrize("name", ["invoice_number", "account_no", "zip_code", "Phone Number", "store_nr"])
+def test_a_number_column_named_like_a_code_is_an_identifier(name: str) -> None:
+    assert A.is_identifier(name, "INTEGER")
+    assert not A.is_identifier(name, "VARCHAR")  # as text it is a label: its values decide
+
+
+@pytest.mark.parametrize(
+    "name", ["paid", "valid", "idea", "keyboard", "monkey", "width", "amount", "grid", "number_of_units"]
+)
+def test_a_name_that_only_holds_the_letters_is_not_an_identifier(name: str) -> None:
+    assert not A.is_identifier(name, "BIGINT")
+
+
+def test_every_row_different_makes_whole_numbers_and_text_identifiers_but_not_measures() -> None:
+    assert A.is_identifier("ticket", "BIGINT", filled=500, distinct=500)
+    assert A.is_identifier("email", "VARCHAR", filled=500, distinct=500)
+    assert not A.is_identifier("ticket", "BIGINT", filled=500, distinct=499)
+    assert not A.is_identifier("price", "DOUBLE", filled=500, distinct=500)  # a measure may never repeat
+    assert not A.is_identifier("price", "DECIMAL(10,2)", filled=500, distinct=500)
+    assert not A.is_identifier("day", "DATE", filled=500, distinct=500)
+    assert not A.is_identifier("units", "INTEGER", filled=12, distinct=12)  # too few rows to tell
+    assert not A.is_identifier("order_id", "DATE")  # a date is never one, whatever its name
+
+
+def test_the_forms_defaults_skip_identifiers() -> None:
+    columns = [
+        ("order_id", "BIGINT"),
+        ("ticket", "BIGINT"),
+        ("region", "VARCHAR"),
+        ("units", "INTEGER"),
+        ("price", "DOUBLE"),
+        ("day", "DATE"),
+    ]
+    counts = {"ticket": (500, 500), "units": (500, 40), "region": (500, 4), "order_id": (500, 480)}
+    found = A.form_defaults(columns, counts)
+    assert found == {
+        "identifiers": ["order_id", "ticket"],
+        "number": "units",
+        "column": "units",
+        "predictors": ["region", "units", "price", "day"],
+    }
+    # No number column that is not an identifier: the first other column, and no number.
+    only = A.form_defaults([("id", "BIGINT"), ("region", "VARCHAR")], {})
+    assert only["number"] is None and only["column"] == "region"
+    # Nothing but identifiers: the first column, since a form needs one.
+    assert A.form_defaults([("id", "BIGINT")], {})["column"] == "id"
+
+
+def test_a_grids_form_defaults_follow_its_view(client: TestClient, orders_grid: str) -> None:
+    found = client.get(f"/grids/{orders_grid}/analysis-defaults", headers=AGENT)
+    assert found.status_code == 200, found.text
+    assert found.json() == {
+        "identifiers": ["order_id"],
+        "number": "units",
+        "column": "units",
+        "predictors": ["region", "office", "size", "units", "price", "late", "amount"],
+    }
+    # A step that leaves units out: the view's next number column.
+    client.post(
+        f"/grids/{orders_grid}/steps",
+        json={"steps": [{"kind": "columns", "params": {"keep": ["order_id", "region", "price", "amount"]}}]},
+        headers=AUTH,
+    )
+    assert client.get(f"/grids/{orders_grid}/analysis-defaults", headers=AUTH).json()["number"] == "price"

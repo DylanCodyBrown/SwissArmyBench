@@ -11,7 +11,7 @@
  */
 import { regressionCards, type RegressionResult } from "./analysisCards";
 import { openOutliers } from "./analysisDialog";
-import { datasetName, registerAnalysis, resultButtons, showTheMath, tableName } from "./analyzeMenu";
+import { datasetName, formDefaults, registerAnalysis, resultButtons, showTheMath, tableName } from "./analyzeMenu";
 import { api, grid } from "./api";
 import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDialog, toast } from "./dom";
 import { selection, viewColumns } from "./gridView";
@@ -44,6 +44,12 @@ registerAnalysis("fit", "Regression…", () => {
 });
 
 export async function openRegression(target?: string, predictors: string[] = [], outcomeValues?: string): Promise<void> {
+  // Decisions 6 and 7: the target starts on the first number column that is not an identifier, and
+  // every column but the target and the identifiers starts ticked (until a box is touched).
+  const defaults = await formDefaults();
+  target ??= defaults.number ?? defaults.column ?? undefined;
+  const given = predictors.length > 0;
+  let touched = false;
   const { body, foot, close } = openDialog("Regression", true);
   const columns = viewColumns();
   const which = h("select", { "aria-label": "Target" }, ...columns.map((c) => h("option", { value: c.name, selected: c.name === target }, c.name)));
@@ -59,12 +65,13 @@ export async function openRegression(target?: string, predictors: string[] = [],
     yesNo.disabled = !numeric;
     outcomeRow.hidden = !yesNo.checked;
     const ticked = new Set(boxes().filter((b) => b.checked).map((b) => b.value));
-    if (!ticked.size) predictors.forEach((p) => ticked.add(p));
+    if (given && !ticked.size) predictors.forEach((p) => ticked.add(p));
+    if (!given && !touched) defaults.predictors.forEach((p) => ticked.add(p));
     clear(
       pool,
       h("legend", {}, "Predictors"),
       ...columns.filter((c) => c.name !== which.value).map((c) => {
-        const box = h("input", { type: "checkbox", value: c.name, checked: ticked.has(c.name) });
+        const box = h("input", { type: "checkbox", value: c.name, checked: ticked.has(c.name), onchange: () => (touched = true) });
         return h("label", {}, box, h("span", {}, c.name));
       }),
     );

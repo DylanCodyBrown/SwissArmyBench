@@ -20,7 +20,10 @@
   POST /grids/{id}/analysis-code {"analysis", "body"} -> {"code", "imports"}: the analysis as Python for
                               the notebook (the steps as checked SQL, then the swissarmygrid.stats call)
 
-Both read; the agent may run them (cell values come back, so its tools mark them as data).
+  GET  /grids/{id}/analysis-defaults -> {"identifiers", "number", "column", "predictors"}: what the forms
+                              start on in this view, never an identifier (domain/analysis.py)
+
+All read; the agent may run them (cell values come back, so its tools mark them as data).
 """
 
 from __future__ import annotations
@@ -83,7 +86,16 @@ def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    async def defaults(request: Request) -> Response:
+        """What the analysis forms start on in this view: never an identifier."""
+        try:
+            grid, info = grids.find(request.path_params["grid_id"])
+            return json_response(await analysis.defaults(grid, info, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
     return [
+        Route("/grids/{grid_id}/analysis-defaults", defaults),
         Route("/grids/{grid_id}/fit-test", fit_test, methods=["POST"]),
         Route(
             "/grids/{grid_id}/outliers",
