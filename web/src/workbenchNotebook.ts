@@ -1048,7 +1048,8 @@ export function notebookView(
     // Right-click the cell (its head, its output; the editor has its own menu): Lineage, approvals.
     element.addEventListener("contextmenu", (e) => {
       const at = e.target as HTMLElement;
-      if (at.closest(".monaco-editor, input, textarea, select, iframe") || window.getSelection()?.toString()) return;
+      // An error panel, the editor, a box have menus of their own; selected text keeps the browser's.
+      if (e.defaultPrevented || at.closest(".monaco-editor, .wb-err, input, textarea, select, iframe") || window.getSelection()?.toString()) return;
       e.preventDefault();
       select(cell);
       const items: MenuItem[] = [];

@@ -2797,14 +2797,11 @@ def workbench_lineage(a: dict[str, Any]) -> Any:
 @command(
     "workbench_lineage_show",
     "Show the lineage overlay in the Workbench: a cell of the front document, or a block of its canvas",
-    opt("number", "The cell's own number (default: the selected cell)."),
+    opt("number", "The cell's own number (default: the selected cell).", "int"),
     opt("block", "Or a block's id on the front canvas's page."),
 )
 def workbench_lineage_show(a: dict[str, Any]) -> Any:
-    args = {k: a[k] for k in ("number", "block") if a.get(k) is not None}
-    if "number" in args:
-        args["number"] = int(args["number"])
-    return _window("lineage.open", args)
+    return _window("lineage.open", {k: a[k] for k in ("number", "block") if a.get(k) is not None})
 
 
 @command(

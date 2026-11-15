@@ -173,7 +173,9 @@ def test_notes_on_a_workbench_tab_a_canvas_block_and_the_editor_then_beta_mode_o
         expect(page.locator(".wb-status .beta-mark")).to_be_hidden()
         assert call(server, "GET", "/beta")["on"] is False
         block.locator(".cv-block-name").click(button="right")
-        expect(page.locator(".menu")).to_have_count(0)
+        # The block's own menu (Lineage) stays; its beta item goes.
+        expect(page.get_by_role("menuitem", name="Lineage")).to_be_visible()
+        expect(page.get_by_role("menuitem", name="Leave a note…")).to_have_count(0)
         page.keyboard.press("Escape")
         tabs.nth(0).click()
         editor.click(button="right")

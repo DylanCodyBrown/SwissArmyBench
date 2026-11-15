@@ -1292,3 +1292,55 @@ and `role-${role}` counted as used); identical function bodies in two modules.
 - (2026-11-15) The whole suite after merging Beta mode: 2,622 passed, 9 skipped, 1 failed: the chart click by date
   (`test_chart_clicks_filter_by_date_by_heatmap_cell_and_never_by_a_whole_line`), which then passed 3 of 3 alone: a
   timing failure under the whole suite's load, not a bug. Browser tests are not part of the release workflow.
+
+## Lineage with values, and approved outputs (2026-11-15)
+
+- **The graph's rules** (`tests/test_lineage.py`, 28 tests with the HTTP ones): the nearest maker above;
+  flow order (makers first, ties in file order); `@cell` links as dotted edges; a cycle of links ends; a
+  table's read-only cell back through each grid step to its file, or to its user's maker cell; an open
+  table no document holds as the grid's own; a SQL cell's connection and `-> name`; `sab.sql("Shop")`
+  and `pd.read_parquet(r"C:\data\rates.parquet")` as sources; a widget cell as a controller; a Markdown
+  cell's `{{ names }}`; `from data import x` into data.ipynb; a canvas page's first placed maker; the
+  Mermaid labels escaped (`"`, `<b>`, `#` as `#quot;`, `#lt;b#gt;`, `#35;`).
+- **Values over HTTP** (FakeRunner): a grid step's rows and its change from the step before (6 → 3,
+  −3); a table's first rows; a window's error on the cell where the flow broke; a canvas block's flow
+  (the grid's table, the filter on the page, the total); the page's notes read back as values (the
+  filter's "West", the total's KeyError); a project's cell traced into data.ipynb; the agent's command
+  marked as the user's data.
+- **The real Streamlit 1.67 under AppTest** (`test_the_real_streamlit_runs_the_canvas_...`): the live
+  page writes `lineage-p1.json` beside itself with the filter's choice ("West"); `sab_lineage.py` is
+  only in the live folder, never in an export or the saved pages.
+- **Mermaid 11.4.1** (the bundled one, `htmlLabels: false`, strict): `<br/>` in a quoted label draws
+  separate lines of SVG text; a node is `g.node` with an id ending `flowchart-n3-<k>`, which is how a
+  click finds it; `class n3 notebook` and `class n3 target` add both classes; `[( )]`, `[/ /]`,
+  `[[ ]]`, `{{ }}` and `> ]` draw the source, step, table, controller and text shapes.
+- **pandas' HTML** (the venv's pandas): a DataFrame's `_repr_html_` read by `html.parser` as its header
+  row (the index's empty corner first) and body rows; a frame cut for display says `500 rows × 2
+  columns` in a `<p>`, read as its shape.
+- **IPython 9.18** for the headless run: `InteractiveShell.instance()`, `transform_cell` for magics,
+  `display_formatter.format(value)` for the value a cell ends with, `capture_output(display=True)` for
+  displays; `clear_instance()` after, so the test process keeps no shell.
+- **Approvals** (`tests/test_approvals.py`, 19 tests): a snapshot's text, table, shape (500 rows kept to
+  50), picture and error; addresses and run counts make no difference; a changed cell and a lost row
+  said exactly; columns added and removed; 40 changed values capped at 20 and counted; a text diff; an
+  error where there was none; an approval without rows still tells a change; the module imports only the
+  standard library and nothing of the package; kept in the cell's metadata both ways; Save as's zip
+  keeps the marks and shapes only (no "East" in it); the headless run passes, fails with a report, exits
+  1 from the command line, and a failing cell is exit 1 too.
+- **Browser (this machine's Chromium; `tests/e2e/test_lineage_page.py`, 3 tests):** a cell's lineage
+  from its head's right-click: four Mermaid nodes, the cards in flow order beside their nodes, "6 rows
+  × 2 columns", "−4 rows", "West", "260"; a click marks the card and its node; the kernel's values
+  changed by code run elsewhere reach the cards ("145", "East", "−3 rows"); a double-click goes to the
+  cell; the palette's command opens it again. A canvas block's lineage after Play: the grid's orders,
+  the filter on the page ("East", marked page), and the filter changed on the same page in another tab
+  ("West") reaching the open overlay. An output approved, the same run silent, a different run amber
+  with "-total 390" and "+total 400", saved in the cell's metadata, approved again, removed by the agent.
+- **The whole suite** with Chromium and the Streamlit environment: 2,682 passed, 5 failed, 9 skipped;
+  three were this branch's and are fixed (a block's right-click menu with beta mode off; the error
+  panel's own right-click menu; `workbench_lineage_show`'s number typed), one passed again in the rerun
+  (`test_chart_clicks_filter_by_date_...`), and `test_an_agent_snapshot_follows_what_the_user_has_done`
+  fails only in the full run and passes alone.
+- **Not checked:** Windows; a Plotly or Altair figure's thumbnail (shown as "a chart": no picture
+  without kaleido or vl-convert); the State panel (wb-modes) driving the cards (it reruns the page, the
+  path checked here); the layout of a flow of more than a few dozen nodes; the one-script export's
+  inlined check (that branch is not merged).

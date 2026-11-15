@@ -42,7 +42,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmybench.domain import html_cells, notebooks, projects
+from swissarmybench.domain import approvals, html_cells, notebooks, projects
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
@@ -1250,8 +1250,8 @@ class StreamlitApps:
 
     @staticmethod
     def _for_zip(path: str, text: str) -> str:
-        """A notebook or script as it goes into a zip: a pasted table's rows taken out and a notebook's
-        outputs dropped (no rows leave)."""
+        """A notebook or script as it goes into a zip: a pasted table's rows taken out, a notebook's
+        outputs dropped and its approvals kept as their marks and shapes only (no rows leave)."""
         if notebooks.kind_of(path) != "notebook":
             return projects.script_without_rows(text)
         cells, following = notebooks.read_document(text)
@@ -1260,6 +1260,8 @@ class StreamlitApps:
             cell.source = data.source
             cell.outputs = []
             cell.execution_count = None
+            if cell.approved is not None:
+                cell.approved = approvals.without_rows(cell.approved)
         return notebooks.write_notebook(cells, next_number=following)
 
     # ===== save as: the project as one zip =====

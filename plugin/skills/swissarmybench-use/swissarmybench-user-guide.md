@@ -678,6 +678,38 @@ H in a notebook's command mode.
   and can fill a design without the window (`workbench_run` with kind html, `workbench_html_fill`,
   `workbench_html_marks`).
 
+### Lineage: where a value comes from
+
+Right-click a block on a Streamlit app's canvas, a notebook cell (its head or its output, or a line of
+its code) or a line of a script, and choose **Lineage**. An overlay shows how that cell's values are
+made, all the way back to the data:
+
+- **On the right, the flow** as a chart, top to bottom: the file or connection a table came from, each
+  of its grid steps, its read-only cell, the cells that read it (a filter is a six-sided shape), and the
+  cell you asked about last. A link written as `# @cell7` is a dotted line. In a project, a name your
+  notebook imports from `data` goes back into data.ipynb.
+- **On the left, one card per step**, beside its place in the flow: a table's rows and columns, its
+  first rows, and how many rows it gained or lost from the step before; a value as it is; a chart as a
+  small picture; an error in red where the flow broke. A block on the page is marked **page**.
+- The values come from the notebook's kernel (run the cells first), from the grid, and, while the app
+  plays, from the page itself: choose another region on the page and the cards follow.
+- Click a card or a node to mark both; double-click (or Enter) to go to that cell. Escape closes it.
+
+### Approved outputs: the notebook checks itself
+
+Right-click a cell's output and choose **Approve the output** (or More: Approve the output). The
+output is kept in the notebook. When a later run gives something different, the cell says **⚠ Changed
+since approved** in amber, with what changed: the lines of text, a table's rows and columns, and the
+values that differ. **Approve this output** makes the new output the approved one; **Remove the
+approval** in the menu takes it away. The approvals are saved in the notebook file.
+
+To check a notebook without the app (a scheduled run, a build): run
+
+    python -m swissarmybench.client.standalone sales.ipynb --check-approved
+
+It runs every cell in the notebook's own folder and ends with exit code 1 and a report naming each
+cell that failed or whose output changed.
+
 ### Streamlit apps: a canvas of blocks linked to cells
 
 Build a Streamlit app from the Python cells of your notebooks and scripts, and their Markdown and HTML
