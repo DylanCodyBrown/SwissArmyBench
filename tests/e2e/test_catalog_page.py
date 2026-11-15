@@ -98,7 +98,7 @@ def test_the_keyboard_walks_the_tree(browser: Browser, warehouse: str) -> None:
 
 def test_search_finds_a_column_and_opens_the_tree_at_it(browser: Browser, warehouse: str) -> None:
     page = open_page(browser, warehouse)
-    page.get_by_role("searchbox").fill("placed")
+    page.get_by_role("searchbox", name="Search the catalog").fill("placed")
     hit = page.locator(".cat-tree button", has_text="orders.placed at")
     expect(hit).to_be_visible()
     hit.click()
@@ -107,7 +107,7 @@ def test_search_finds_a_column_and_opens_the_tree_at_it(browser: Browser, wareho
     )
     expect(page.locator("#detail h2")).to_contain_text("orders")
     # A table past the first page of its schema is revealed too.
-    page.get_by_role("searchbox").fill("table_650")
+    page.get_by_role("searchbox", name="Search the catalog").fill("table_650")
     page.locator(".cat-tree button", has_text="schema_2.table_650").click()
     expect(page.locator('[role="treeitem"][aria-selected="true"] > .node > .node-label')).to_have_text(
         "table_650"

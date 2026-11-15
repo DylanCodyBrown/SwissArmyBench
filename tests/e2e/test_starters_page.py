@@ -275,6 +275,25 @@ def test_a_streamlit_piece_names_its_cell_shows_in_the_pane_and_goes_on_a_canvas
     workbench.close()
 
 
+def test_in_a_script_a_snippet_is_a_cell_of_its_own(
+    browser: Browser, server: dict[str, Any], orders: None
+) -> None:
+    workbench = open_window(browser, server)
+    window(server, "file.newScript")
+    expect(workbench.locator(".wb-script-editor .monaco-editor")).to_be_visible(timeout=20000)
+    window(
+        server,
+        "snippet.insert",
+        name="Streamlit toggle filter",
+        values={"table": "orders", "flag column": "region"},
+    )
+    window(server, "snippet.insert", name="HTML badge", values={})
+    text = window(server, "doc.read")["text"]
+    assert re.search(r"^# %% (\[\d+\] )?Only shipped switch$", text, re.MULTILINE), text
+    assert "only_region = orders[" in text and re.search(r"^# %% (\[\d+\] )?\[html\]", text, re.MULTILINE)
+    workbench.close()
+
+
 # The user guide's page (docs/user-guide.md, "Learning Streamlit with the starter pieces").
 GUIDE: list[tuple[str, dict[str, str]]] = [
     ("Streamlit selectbox filter", {"table": "orders", "column": "region", "name": "by_region"}),

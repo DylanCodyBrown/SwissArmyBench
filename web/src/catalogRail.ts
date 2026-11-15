@@ -276,17 +276,15 @@ export function mountRail(host: RailHost): Rail {
 
   // ===== blades =====
 
+  let startersAsked: Promise<unknown> | null = null;
   async function loadBlades(): Promise<void> {
+    // The starters come with the app and do not change while it runs: asked once, beside the first list.
+    startersAsked ??= starters().then((found) => (starterFamilies = found), () => undefined);
     try {
-      blades = (await api<{ blades: BladeSummary[] }>("/blades")).blades;
+      [blades] = await Promise.all([api<{ blades: BladeSummary[] }>("/blades").then((r) => r.blades), startersAsked]);
     } catch (error) {
       toast((error as Error).message, "error");
       blades = [];
-    }
-    try {
-      starterFamilies = await starters();
-    } catch {
-      starterFamilies = [];
     }
     renderBlades();
   }
