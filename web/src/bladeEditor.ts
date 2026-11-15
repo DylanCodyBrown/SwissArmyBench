@@ -38,7 +38,7 @@ export interface BladeSummary {
   pack?: string | null; // the pack's label (sales@team-blades 1a2b3c), for a pack blade
   path: string | null;
   /** A database or file blade is a connection, listed apart (connectionsWindow.ts). */
-  connection?: "database" | "file" | null;
+  connection?: "database" | "file" | "vault" | "python" | null;
   /** A connection's variable in the Workbench (Sales DB -> sales_db). */
   code_name?: string | null;
 }

@@ -28,7 +28,9 @@ from typing import Any
 import pyarrow.ipc as ipc
 
 from swissarmygrid.adapters.blades import BladeStore
+from swissarmygrid.domain import python_connections
 from swissarmygrid.domain.blades import Blade
+from swissarmygrid.domain.connections import TEST_ROWS
 
 _MAX_ANSWER_BYTES: int = 512 * 1024 * 1024
 
@@ -52,9 +54,23 @@ def payload(
             writer.write_table(extra["table"])
         encoded = base64.b64encode(sink.getvalue()).decode("ascii")
         rows = {"rows": encoded, "columns": extra.get("columns", [])}
+    # A connection from the user's own Python: its Read a table box, its plain values, the names saved
+    # on this computer; each vault it maps runs first, with only this connection's entries.
+    python: dict[str, Any] | None = None
+    if blade.template == python_connections.TEMPLATE and blade.kind == "other":
+        python = {
+            "read": blade.read_command,
+            "set": python_connections.plain_values(blade.variables),
+            "keyring": python_connections.keyring_names(blade.variables),
+            # mode "read": which table, and how many rows (None: every row)
+            "place": (extra or {}).get("place"),
+            "limit": (extra or {}).get("limit"),
+        }
+    mapped = python_connections.vault_jobs(blade.variables, store.get, store.saved_secrets)
     return {
         **rows,
-        "mode": mode,  # "catalog", "test", "rows", "queries", "datasets", "names" or "analysis"
+        "python": python,
+        "mode": mode,  # "catalog", "test", "rows", "queries", "datasets", "names", "analysis" or "read"
         "label": blade.name,
         "kind": blade.kind,
         "code": blade.code,
@@ -74,7 +90,8 @@ def payload(
                 "secrets": store.saved_secrets(v),
             }
             for v in vaults
-        ],
+        ]
+        + mapped,
         "env": typed,
         # mode "rows": a table's rows (a SELECT and its COUNT in the source's own SQL); none: a file
         # connection, whose answer is the file it reaches.
@@ -186,9 +203,11 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
     from swissarmygrid.adapters.blade_run import (
         BladeRunError,
         close_quietly,
+        list_tables,
         run_catalog,
         run_code,
         run_vault,
+        set_variables,
     )
 
     if job["mode"] == "load":
@@ -207,6 +226,13 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
                 bool(vault.get("every")),
             )
             hidden.update({f"vault:{k}": v for k, v in values.items()})
+        python = job.get("python")
+        if python:
+            catalog_code = (job.get("catalog") or {}).get("command")
+            reads = python_connections.env_reads(job["code"], catalog_code, python.get("read"))
+            set_variables(reads, python["set"], python["keyring"], secrets, job["label"])
+        if job["mode"] == "read":
+            return _read(job, hidden)
         if job["mode"] == "names":
             return _names(job, secrets)
         if job["mode"] == "rows":
@@ -226,11 +252,14 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
             return _analysis(value, job)
         try:
             if job["mode"] == "test":
-                return _tested(value)
+                return _python_tested(value, names, job, hidden) if python else _tested(value)
             catalog = job["catalog"]
-            columns, rows = run_catalog(
-                value, names, catalog["language"], catalog["command"], hidden, job["label"]
-            )
+            if python:
+                columns, rows = list_tables(names, catalog["command"], hidden, job["label"])
+            else:
+                columns, rows = run_catalog(
+                    value, names, catalog["language"], catalog["command"], hidden, job["label"]
+                )
             return {"columns": columns, "rows": rows}
         finally:
             close_quietly(value)
@@ -295,6 +324,102 @@ def _datasets(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         return {"datasets": [{"name": str(d["name"]), "id": str(d["id"])} for d in lister()]}
     finally:
         close_quietly(value)
+
+
+# ===== a connection from the user's own Python: Read a table, and its Test =====
+
+
+def read_result(result: Any, total: int | None, limit: int | None) -> tuple[Any, int | None]:
+    """What Read a table returned as a typed Arrow table of at most `limit` rows, and how many rows
+    the source holds when that is known: it said so (`(rows, total)`), or it ignored the limit and
+    returned them all. A DataFrame, an Arrow table, a list of dicts: whatever push accepts."""
+    from swissarmygrid.adapters.blade_run import BladeRunError
+    from swissarmygrid.client.push_client import _to_arrow
+
+    if isinstance(result, list) and not result:
+        raise BladeRunError("Read a table returned no rows, so there is nothing to show.")
+    if isinstance(result, list) and not all(isinstance(row, dict) for row in result):
+        raise BladeRunError(
+            f"Read a table returned a list that is not all dicts. Return {python_connections.READ_SHAPE}."
+        )
+    try:
+        table = _to_arrow(result)
+    except (TypeError, ValueError) as error:
+        raise BladeRunError(
+            f"Read a table returned a {type(result).__name__}. Return {python_connections.READ_SHAPE}. "
+            f"({error})"
+        ) from None
+    kept, total = python_connections.read_total(table.num_rows, limit, total)
+    return (table.slice(0, kept) if kept < table.num_rows else table), total
+
+
+def _arrow_answer(table: Any) -> str:
+    sink = io.BytesIO()
+    with ipc.new_stream(sink, table.schema) as writer:
+        writer.write_table(table)
+    return base64.b64encode(sink.getvalue()).decode("ascii")
+
+
+def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
+    """A table's rows for Open as grid and the preview: Connect, then Read a table."""
+    from swissarmygrid.adapters.blade_run import BladeRunError, close_quietly, read_table, run_code
+
+    python = job.get("python") or {}
+    if not python.get("read"):
+        raise BladeRunError(f"{job['label']} has no Read a table: open the connection and fill it in.")
+    place = python.get("place") or {}
+    value, names = run_code(job["code"], job["variable"], secrets, job["label"])
+    try:
+        limit = python.get("limit")
+        result, total = read_table(
+            names,
+            python["read"],
+            str(place.get("schema") or ""),
+            str(place.get("table") or ""),
+            limit,
+            secrets,
+            job["label"],
+        )
+        table, total = read_result(result, total, limit)
+    finally:
+        close_quietly(value)
+    return {"arrow": _arrow_answer(table), "total": total}
+
+
+def _plain(value: Any) -> Any:
+    """A cell as JSON holds it: text for what JSON has no word for, nothing for a missing number."""
+    if value is None or isinstance(value, bool | int | str):
+        return value
+    if isinstance(value, float):
+        return value if value == value and abs(value) != float("inf") else None
+    return str(value)
+
+
+def _python_tested(value: Any, names: dict[str, Any], job: dict[str, Any], secrets: dict[str, str]) -> Any:
+    """Test, for the user's own Python: Connect ran; then List the tables; then the first table's first
+    rows by Read a table. Each box that is filled in is run, and the first to fail says so."""
+    from swissarmygrid.adapters.blade_run import list_tables, read_table
+
+    made = _tested(value)
+    command = (job.get("catalog") or {}).get("command")
+    if "error" in made or not command:
+        return made
+    columns, rows = list_tables(names, command, secrets, job["label"])
+    made |= {"tables": python_connections.table_count(columns, rows), "columns": len(rows)}
+    read = (job.get("python") or {}).get("read")
+    if not read:
+        return made
+    schema, table = python_connections.first_table(columns, rows)
+    result, total = read_table(names, read, schema, table, TEST_ROWS, secrets, job["label"])
+    arrow, total = read_result(result, total, TEST_ROWS)
+    made["preview"] = {
+        "table": table,
+        "schema": schema,
+        "columns": [str(c) for c in arrow.column_names],
+        "rows": [[_plain(v) for v in row.values()] for row in arrow.to_pylist()],
+        "total": total,
+    }
+    return made
 
 
 def _queries(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:

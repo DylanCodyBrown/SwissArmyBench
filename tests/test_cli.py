@@ -539,7 +539,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # the designer) and the app by its id (open, read, sync, run, address, stop, close, install,
     # export; pages: add, change, remove; pieces: push, place, remove).
     # A Power BI workspace (2026-11-15) added two: a workspace's datasets, and adding a DAX cell.
-    assert size < 52_000, f"the tool list is {size} characters"
+    # A connection from your own Python (2026-11-15) added three: save (or test), its variables, its tables.
+    assert size < 53_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

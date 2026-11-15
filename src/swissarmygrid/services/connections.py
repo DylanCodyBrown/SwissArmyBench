@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
 from swissarmygrid.domain import connections as rules
-from swissarmygrid.domain import powerbi
+from swissarmygrid.domain import powerbi, python_connections
 from swissarmygrid.domain.blades import Blade, BladeError, Template
 from swissarmygrid.domain.catalogs import count_sql, select_sql
 from swissarmygrid.domain.datasets import Opened
@@ -46,7 +46,7 @@ class ConnectionService:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
         variable and the secret's name in the vault, never a value), each with what it is."""
         labels = {t.id: t.label for t in self._templates}
-        order = {"database": 0, "file": 1, "vault": 2}
+        order = {"database": 0, "file": 1, "python": 2, "vault": 3}
         found = []
         for b in self._blades.listing()["blades"]:
             kind = rules.connection_kind(str(b["kind"]), b.get("template"))
@@ -70,8 +70,22 @@ class ConnectionService:
         out = []
         for t in self._templates:
             if rules.is_connection(t.kind, t.id):
-                out.append(rules.form(t.to_json(), self._blades.inspect(t.code, t.id)))
+                form = rules.form(t.to_json(), self._blades.inspect(t.code, t.id))
+                own = rules.connection_kind(t.kind, t.id) == "python"
+                reads = self._reads(t.code, t.catalog_command, t.read_command) if own else {"reads": []}
+                out.append(form | reads)
         return {"types": out}
+
+    def _reads(self, code: str, tables: str | None, read: str | None) -> dict[str, Any]:
+        """A form's environment variables: the ones its boxes read (the user's own Python only)."""
+        return {"reads": self._blades.variables_read(code, tables, read)["variables"]}
+
+    def variables(self, body: Any) -> dict[str, Any]:
+        """The environment variables the three boxes read, as the form is typed: `{"code", "tables",
+        "read"}` -> `{"variables": [{"name", "required", "secret", "set"}]}`. Names only; nothing runs."""
+        if not isinstance(body, dict):
+            raise ValueError('Send {"code": "...", "tables": "...", "read": "..."}.')
+        return self._blades.variables_read(body.get("code"), body.get("tables"), body.get("read"))
 
     def details(self, name: str) -> dict[str, Any]:
         """A saved connection as the form shows it to change: its own code's fields and passwords."""
@@ -83,7 +97,9 @@ class ConnectionService:
         template = {
             "id": blade.template or "",
             "label": next((t.label for t in self._templates if t.id == blade.template), blade.dialect),
-            "group": {"database": "Databases", "file": "Files"}.get(kind, "Vaults"),
+            "group": {"database": "Databases", "file": "Files", "python": "Your own code"}.get(
+                kind, "Vaults"
+            ),
             "kind": blade.kind,
             "dialect": blade.dialect,
             "variable": blade.variable or "",
@@ -94,24 +110,31 @@ class ConnectionService:
             "vault_mapping": [{"env": e, "secret": v} for e, v in blade.vault_mapping.items()],
             "vault_all": blade.vault_all,
             "row_limit": blade.row_limit,
+            "read": {"command": blade.read_command} if blade.read_command else None,
+            "variables": python_connections.sources_json(blade.variables),
             "sign_ins": next(
                 (t.to_json()["sign_ins"] for t in self._templates if t.id == blade.template), []
             ),
         }
-        return rules.form(template, inspected) | {
-            "name": blade.name,
-            "description": blade.description,
-            "tags": blade.tags,
-            "summary": self._blades.summary(blade),
-        }
+        reads = self._reads(blade.code, blade.catalog_command, blade.read_command)
+        return (
+            rules.form(template, inspected)
+            | (reads if kind == "python" else {"reads": []})
+            | {
+                "name": blade.name,
+                "description": blade.description,
+                "tags": blade.tags,
+                "summary": self._blades.summary(blade),
+            }
+        )
 
     def _check(self, body: Any) -> None:
         if not isinstance(body, dict):
             raise BladeError("Send the connection as a JSON object.")
         if not rules.is_connection(str(body.get("kind", "")), body.get("template")):
             raise BladeError(
-                "A connection is made from a database, file or key vault starter. Other code is saved "
-                "as a blade."
+                "A connection is made from a database, file or key vault starter, or from your own "
+                'Python (template "python"). Other code is saved as a blade.'
             )
 
     async def save(self, body: Any, previous: str | None) -> dict[str, Any]:
@@ -256,6 +279,20 @@ class ConnectionService:
         if not place["table"]:
             raise ValueError("Name the table to open.")
         limit = None if every else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
+        if kind == "python":
+            # The user's own Python reads it (Read a table): the first rows, and the count it gave.
+            answer = await self._blades.read(blade, place, limit, body)
+            table, total = answer["table"], answer.get("total")
+            shown = int(table.num_rows)
+            opened = (
+                Opened(blade.name, place["database"], place["schema"], place["table"], shown, int(total))
+                if limit is not None and isinstance(total, int) and total > shown
+                else None
+            )
+            again = python_connections.read_call(blade.name, place["schema"], place["table"])
+            dataset = rules.dataset_name(place["table"])
+            stored = await self._tables.store(dataset, table, who, opened, blade.name, code=again)
+            return stored | {"shown": shown, "total": total}
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
         count = (
             None if every else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
@@ -296,12 +333,31 @@ class ConnectionService:
             return await self._tables.peek(path, sheet, rules.PREVIEW_ROWS)
         if not place["table"]:
             raise ValueError("Name the table to preview.")
+        if kind == "python":
+            read = (await self._blades.read(blade, place, rules.PREVIEW_ROWS, body))["table"]
+            return {"columns": list(read.column_names), "rows": [list(r.values()) for r in read.to_pylist()]}
         sql = select_sql(
             blade.dialect, place["database"], place["schema"], place["table"], [], rules.PREVIEW_ROWS
         )
         within = place["schema"] if blade.dialect == powerbi.DIALECT else ""
         table = (await self._blades.rows(blade, sql, None, body, within))["table"]
         return {"columns": list(table.column_names), "rows": [list(r.values()) for r in table.to_pylist()]}
+
+    async def tables(self, name: str, body: Any, who: str) -> dict[str, Any]:
+        """A connection from the user's own Python: run its List the tables now, load the catalog it
+        returns, and answer the tables it named, each with its columns."""
+        blade = self._blades.get(name)
+        if rules.connection_kind(blade.kind, blade.template) != "python":
+            raise BladeError(
+                f"{blade.name} is not a connection from your own Python: its tables are in its catalog."
+            )
+        if not blade.has_catalog:
+            raise BladeError(f"{blade.name} has no List the tables: open the connection and fill it in.")
+        answer = await self._blades.listed(blade, body, who)
+        return {
+            "catalog": answer["catalog"],
+            "tables": python_connections.tables_json(answer["columns"], answer["rows"]),
+        }
 
     # ===== a Power BI workspace: its datasets, and a dataset's own relationships into the model =====
 
@@ -406,6 +462,7 @@ class Tables(Protocol):
         connection: str = "",
         sql: str = "",
         dax: bool = False,
+        code: str = "",
     ) -> dict[str, Any]: ...
 
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]: ...

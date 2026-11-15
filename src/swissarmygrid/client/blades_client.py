@@ -4,6 +4,8 @@
     conn = sag.blade("Warehouse")                                     # a saved blade, run here
     sag.blade("Azure vault")        # a vault blade: sets its environment variables, gives their names
     sag.blade("Warehouse login")    # a secret blade: asks for any value this Python does not have yet
+    api = sag.connection("Orders API")                                # a connection (the same, by its name)
+    orders = sag.read("Orders API", "orders")       # a table, by a connection's own Read a table
 
 A blade's code runs in this Python, so its driver must be installed here; a missing one is named with
 the command that installs it. Secret values never print: a vault or secret blade hands back the
@@ -20,7 +22,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from swissarmygrid.adapters.blade_run import BladeRunError, run_code, run_vault
+from swissarmygrid.adapters.blade_run import BladeRunError, read_table, run_code, run_vault, set_variables
 from swissarmygrid.client.push_client import (
     _arrow_bytes,
     _prepared_frame,
@@ -30,6 +32,7 @@ from swissarmygrid.client.push_client import (
     ensure_server,
 )
 from swissarmygrid.domain.blades import missing_module_hint
+from swissarmygrid.domain.python_connections import env_reads
 
 _TIMEOUT_SECONDS: float = 300.0
 
@@ -127,10 +130,15 @@ def blade(name: str) -> Any:
     blades first run the vault blades and ask for the secret-blade values their code needs.
     """
     spec = _call("GET", f"/blades/{_quote(name)}/python")
-    label = str(spec["name"])
     if spec["kind"] == "secret":
-        _ask(list(spec["env_names"]), label)
+        _ask(list(spec["env_names"]), str(spec["name"]))
         return list(spec["env_names"])
+    return _made(spec)[0]
+
+
+def _made(spec: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+    """Run what the server gave for a blade: what it makes, and every name its code made."""
+    label = str(spec["name"])
     try:
         for vault in spec.get("vaults", []):
             every = bool(vault.get("every"))
@@ -140,19 +148,44 @@ def blade(name: str) -> Any:
         for env, source in spec.get("typed", {}).items():
             _ask([env], source)
         if spec["kind"] == "vault":
-            return sorted(
-                run_vault(
-                    spec["code"],
-                    spec["variable"],
-                    spec["vault_mapping"],
-                    spec["secrets"],
-                    label,
-                    bool(spec.get("vault_all")),
-                )
+            values = run_vault(
+                spec["code"],
+                spec["variable"],
+                spec["vault_mapping"],
+                spec["secrets"],
+                label,
+                bool(spec.get("vault_all")),
             )
-        value, _ = run_code(spec["code"], spec["variable"], spec["secrets"], label)
+            return sorted(values), {}
+        python = spec.get("python")
+        if python:
+            # A connection from your own Python: its variables are set here as they are in the app
+            # (the vaults above gave theirs), so its code runs unchanged.
+            reads = env_reads(spec["code"], python.get("tables"), python.get("read"))
+            set_variables(reads, python["set"], python["keyring"], spec["secrets"], label)
+        return run_code(spec["code"], spec["variable"], spec["secrets"], label)
     except BladeRunError as error:
         if error.missing_module:
             raise ImportError(missing_module_hint(error.missing_module)) from None
         raise
-    return value
+
+
+def read(connection: str, table: str, schema: str = "", limit: int | None = None) -> Any:
+    """A table's rows from a connection made of your own Python, by its Read a table box, run in this
+    Python: `sag.read("Orders API", "orders")`. What that box returns (a DataFrame, a list of dicts...);
+    `limit` rows, or every row."""
+    spec = _call("GET", f"/blades/{_quote(connection)}/python")
+    command = (spec.get("python") or {}).get("read")
+    if not command:
+        raise ValueError(
+            f"{spec['name']} has no Read a table box: sag.read is for a connection made of your own "
+            "Python. For a database, use sag.sql(connection, query)."
+        )
+    _, names = _made(spec)
+    try:
+        rows, _ = read_table(names, command, schema, table, limit, spec["secrets"], str(spec["name"]))
+    except BladeRunError as error:
+        if error.missing_module:
+            raise ImportError(missing_module_hint(error.missing_module)) from None
+        raise
+    return rows

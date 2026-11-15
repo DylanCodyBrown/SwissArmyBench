@@ -204,9 +204,11 @@ export function schemaDetails(label: string, catalog: string, dialect: string, s
  * (main area or dialog). */
 export function tableDetails(view: TableView): HTMLElement[] {
   const dax = view.dialect === "dax";
-  const first = dax ? "EVALUATE" : "SELECT";
+  // A connection from the user's own Python has no SQL: its first line reads the table by its own code.
+  const own = view.dialect === "python";
+  const first = dax ? "EVALUATE" : own ? "line" : "SELECT";
   const measures = view.columns.filter((c) => c.type.startsWith("measure")).length;
-  const counted = dax && measures ? `${view.columns.length - measures} columns, ${measures} measure${measures === 1 ? "" : "s"} · DAX` : `${view.columns.length} columns · ${dax ? "DAX" : view.dialect}`;
+  const counted = dax && measures ? `${view.columns.length - measures} columns, ${measures} measure${measures === 1 ? "" : "s"} · DAX` : `${view.columns.length} columns · ${dax ? "DAX" : own ? "Python" : view.dialect}`;
   const rows = view.columns.map((c) =>
     h(
       "tr",
@@ -228,9 +230,9 @@ export function tableDetails(view: TableView): HTMLElement[] {
       { class: "row-actions" },
       button("Open as grid", () => void openTableAsGrid(view.catalog, { schema: view.schema, table: view.table, database: view.database }, dax), { icon: "rows", class: "primary" }),
       button("Copy the name", () => copy(view.name, "the name"), { icon: "copy" }),
-      button(`Copy the ${first}`, () => copy(view.select, `the ${first}`), { icon: "sql" }),
+      button(`Copy the ${first}`, () => copy(view.select, `the ${first}`), { icon: own ? "code" : "sql" }),
     ),
-    h("pre", { class: "code-box", "aria-label": `A first ${first}` }, view.select),
+    h("pre", { class: "code-box", "aria-label": own ? "The line that reads it" : `A first ${first}` }, view.select),
     h(
       "table",
       { class: "columns-table" },
@@ -365,7 +367,7 @@ export function mountRail(host: RailHost): Rail {
           pressed: blade.pinned,
         }),
         blade.connection
-          ? h("span", { class: `blade-kind ${blade.connection === "database" ? "sql" : "other"}` }, { database: "Database", file: "File", vault: "Key vault" }[blade.connection] ?? "File")
+          ? h("span", { class: `blade-kind ${blade.connection === "database" ? "sql" : "other"}` }, { database: "Database", file: "File", vault: "Key vault", python: "Python" }[blade.connection] ?? "File")
           : h("span", { class: `blade-kind ${blade.kind}` }, kindLabel(blade.kind)),
         h(
           "span",
@@ -810,14 +812,18 @@ export function mountRail(host: RailHost): Rail {
       toast((error as Error).message, "error");
       return;
     }
+    // A connection from the user's own Python: no SELECT, the line that reads the table in a notebook.
+    const text = (value: string): string => JSON.stringify(value);
+    const own = blades.find((b) => b.name.toLowerCase() === current!.name.toLowerCase())?.connection === "python";
+    const line = `sag.read(${text(current.name)}, ${text(data.table)}${data.schema ? `, schema=${text(data.schema)}` : ""})`;
     host.showTable({
       catalog: current.name,
       table: data.table,
       kind: data.tableKind ?? "table",
       where: `${schemaLabel(data)} in ${current.name}`,
       name: qualified({ database: data.database, schema: data.schema, table: data.table }),
-      select: answer.select,
-      dialect: answer.dialect,
+      select: own ? line : answer.select,
+      dialect: own ? "python" : answer.dialect,
       columns: answer.columns,
       focusColumn,
       schema: data.schema,

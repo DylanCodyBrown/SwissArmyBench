@@ -1253,6 +1253,68 @@ building, and still so except where the block above changed it (marked):
   the datasets list names a dataset the sign-in may not query is not known either: such a one would
   show with the error mark.
 
+## A connection from your own Python (2026-11-15, the owner's request; built)
+
+"I want a new feature to build a connection from raw python. With env variables mapping, and boxes to
+supply the python table from the connection to feed the catalog." Built as a connection type,
+**Python (your own code)**. Decided:
+
+- **Where it is:** its own group, **Your own code**, in Add connection, between Files and Key vaults,
+  and under the same heading in the list. It is not a database (no dialect, no SQL), and "Other" on
+  the blades page already means code that is not a connection.
+- **Three boxes, one connection.** **Connect** makes `conn`, any object. **List the tables** returns
+  the catalog for `conn`. **Read a table** returns a table's rows. Each box is the Workbench's Python
+  editor, with one short line saying what it gives back. It is saved as one blade (kind `other`,
+  template `python`): Connect is the blade's code, List the tables its catalog command, and Read a
+  table and the variables are two new fields. The starter is a small web service client, standard
+  library only, so it runs as it is once its two variables have values.
+- **The variables are found, not typed.** Every name the three boxes read through `os.environ["X"]`,
+  `os.environ.get("X")`, `os.getenv("X")` or `secret("X")` is found with ast, as the boxes are typed
+  (also `environ` and `getenv` imported from os). A name built at run time (an f-string) is not one.
+- **Each variable's source:** this computer's environment (the default: the code as it is), saved on
+  this computer (the keyring), a key vault's entry (the same vault and entry pickers as a password),
+  or a plain value for a name that is no secret (a URL, a region). The user marks which by choosing
+  the source; a plain value is kept with the connection and written to its portable file, a secret's
+  value never is.
+- **The code is never changed.** A database's password is renamed in its code to point at a vault.
+  Here the mapping is kept beside the code and the values are set as environment variables before the
+  code runs (the vault runs first, with only this connection's entries), in the child process and in
+  `sag.connection`. So the same code runs unchanged in an Azure Function whose settings hold those
+  names. A variable the code cannot run without that has no value is named before the code fails on it.
+- **The catalog's shape:** a list of dicts or a DataFrame, one row per column: `table`, `column`, and
+  optionally `schema`, `type`, `description`. An INFORMATION_SCHEMA result's names work too. Another
+  shape says what is missing ("This has no table and no column (it has: name, columns)"). An empty box
+  means no catalog. It loads itself like any connection's catalog.
+- **The count comes back with the rows: `(rows, total)`.** One box, not two: a second box would make a
+  second request and could disagree with the first. Read a table is given `conn`, `schema`, `table`
+  and `limit` (None means all) and returns a DataFrame, an Arrow table, a list of dicts (whatever push
+  accepts), or `(rows, total)`. Code that ignores `limit` and returns every row is also right: the
+  app keeps the first rows and knows the count. With no count and exactly `limit` rows the grid shows
+  no note, since nothing says there are more.
+- **Rows to open** is on this form too (10,000 unless set), as on a database's.
+- **Test connection** runs Connect, then List the tables, then the first table's first 20 rows, and
+  shows them; the first box to fail says which box and which line. A saved connection's **Test** shows
+  the same rows under its row in the list.
+- **In notebooks:** `sag.connection("Orders API")` gives `conn` (and the connection is a variable by
+  its name in every Workbench kernel, like the others). `sag.read("Orders API", "orders")` reads a
+  table with the connection's own Read a table box; a table opened from the catalog has that line as
+  its read-only cell's load, and the catalog page shows it where a database shows a first SELECT.
+  **A SQL cell needed no wiring:** `%%sql` already runs on anything with `.cursor()`, so it works when
+  `conn` is a DB-API connection and says plainly when it is not. Nothing was added that guesses at
+  other SQL-like methods.
+- **The portable file** gains two sections, `[read]` (the Read a table box) and `[variables]`
+  (`ORDERS_API_KEY = { from = "vault", vault = "Team vault", secret = "orders-api-key" }`), beside
+  the `[catalog]` it already had. Files written before load as they did.
+- **The agent** (the golden rule): `connections_python_save` (new, changed, or `test=true` to only
+  run it), `connections_python_variables` (the names the boxes read), `connections_python_tables`
+  (run List the tables now); reading a table is `connections_preview_table` and
+  `connections_open_table`, as for any connection. 191 commands.
+- **Also fixed:** a saved connection's form did not carry its Rows to open, so editing a database
+  connection showed the box empty and saving cleared it.
+- **Open:** the Python editor in the form has no completion (it is the Workbench's editor without a
+  kernel). A person's pasted, indented code is kept as pasted; the browser test types unindented lines
+  because the editor indents typed lines itself.
+
 ## Streamlit cells (2026-11-15, the owner's calls; built)
 
 "I also use the app to develop streamlit applications. So it would be cool if we could create a

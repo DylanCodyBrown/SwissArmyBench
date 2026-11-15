@@ -225,6 +225,7 @@ def test_inspect_templates_and_install_checks(client: TestClient) -> None:
         "Databases",
         "Files",
         "Vaults",
+        "Your own code",  # a connection made of the user's own Python
         "Other",
         "Analyses",
     }

@@ -32,8 +32,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
   added with a form; a Power BI workspace, its datasets read with DAX, a dataset's relationships
-  imported), the SQL cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`,
-  `sag.dax`), the Workbench (notebooks, scripts,
+  imported; a connection made of the user's own Python, its environment variables mapped), the SQL
+  cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`, `sag.dax`), the
+  Workbench (notebooks, scripts,
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
@@ -93,6 +94,10 @@ src/swissarmygrid/
     proofs.py            Show the math: each analysis result as a step-by-step proof (markdown)
     themes.py            the Sandbox's 20 themes and imported ones, every colour made readable (WCAG)
     diff.py              compare's diff mode: which cells differ (tolerance, trim, case), as SQL and Python
+    python_connections.py a connection from the user's own Python (three boxes: Connect, List the tables,
+                         Read a table): the environment variables its code reads (found with ast), where
+                         each comes from (environment, keyring, a vault's entry, a plain value), the
+                         catalog's shape, what Read returned ((rows, total), the limit)
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
@@ -190,11 +195,12 @@ src/swissarmygrid/
                          127.0.0.1 only, ended with the server (Streamlit is never the app's dependency)
     streamlit_proxy.py   the live Streamlit pages passed through this server under the app's own secret
                          (its websocket too), so a page's frame policy stays `frame-src 'self'`
-    blade_templates.py   the 39 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
+    blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
   client/push_client.py  push(), ensure_server()
-  client/blades_client.py sag.load (a catalog), sag.blade (run a saved blade here), sag.blades
+  client/blades_client.py sag.load (a catalog), sag.blade (run a saved blade here), sag.blades, sag.read (a
+                         table by a Python connection's own Read a table box)
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sag.complete)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sag.sql: a database in its own SQL,
@@ -211,7 +217,7 @@ src/swissarmygrid/
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (212 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (215 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -234,6 +240,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (catalogPage.ts, static/catalog.html); bladeEditor.ts is the save screen;
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
                          connectionsWindow.ts is the Application row's Connections (a form per type);
+                         pythonConnectionForm.ts is its form for Python (your own code): three code
+                         boxes and the environment variables they read;
                          fileChooser.ts picks real paths. The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition), workbenchLayout.ts (RStudio's panes: source,
                          console, Variables; splitters; the status bar; F1 help as a card; pictures go
@@ -266,7 +274,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
                          test_architecture.py (the layers, the depth, the plain client),
                          powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
-                         workspace of three made-up datasets)
+                         workspace of three made-up datasets), orders_service.py (a made-up web service
+                         on 127.0.0.1, for a Python connection)
 tools/                   screenshots.py, vscode_check.py
 plugin/                  the swissarmygrid plugin: skills/swissarmygrid-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)

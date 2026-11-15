@@ -1059,6 +1059,51 @@ session.headers["Authorization"] = "Bearer " + secret("token")""",
     ),
 )
 
+# ===== a connection from your own Python (domain/python_connections.py) =====
+# Three boxes: Connect makes `conn`; List the tables returns its catalog; Read a table returns a
+# table's rows. The starter is a made-up web service's client, standard library only, so it runs
+# as it is once its two variables have values.
+
+PYTHON_CONNECT = """import json
+import os
+import urllib.request
+
+
+class Api:
+    def __init__(self, url, key):
+        self.url, self.key = url.rstrip("/"), key
+
+    def get(self, path):
+        request = urllib.request.Request(self.url + path, headers={"X-Api-Key": self.key})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+
+
+conn = Api(os.environ["ORDERS_API_URL"], os.environ["ORDERS_API_KEY"])"""
+
+PYTHON_TABLES = """[
+    {"schema": "api", "table": table["name"], "column": column["name"], "type": column["type"]}
+    for table in conn.get("/tables")
+    for column in table["columns"]
+]"""
+
+PYTHON_READ = """found = conn.get(f"/tables/{table}/rows" + (f"?limit={limit}" if limit else ""))
+found["rows"], found["total"]"""
+
+PYTHON: tuple[Template, ...] = (
+    Template(
+        "python",
+        "Python (your own code)",
+        "Your own code",
+        "other",
+        PYTHON_CONNECT,
+        "conn",
+        catalog_language="python",
+        catalog_command=PYTHON_TABLES,
+        read_command=PYTHON_READ,
+    ),
+)
+
 # ===== your own analyses (the Analyze menu) =====
 # A function of the grid's rows (a pandas DataFrame, as the grid shows them) and, if it takes a second
 # argument, the selected columns. It returns markdown, a table, a figure, or a list or dict of them.
@@ -1121,5 +1166,5 @@ def analyze(df: pd.DataFrame) -> dict:
     ),
 )
 
-TEMPLATES: tuple[Template, ...] = (*DATABASES, *FILES, *VAULTS, *OTHER, *ANALYSES)
+TEMPLATES: tuple[Template, ...] = (*DATABASES, *FILES, *PYTHON, *VAULTS, *OTHER, *ANALYSES)
 BY_ID: dict[str, Template] = {t.id: t for t in TEMPLATES}

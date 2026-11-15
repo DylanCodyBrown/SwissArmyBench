@@ -22,6 +22,7 @@ from typing import Any, Protocol
 
 from swissarmygrid.domain import blades as rules
 from swissarmygrid.domain import connections as connection_rules
+from swissarmygrid.domain import python_connections
 from swissarmygrid.domain.analysis import whole_view_queries
 from swissarmygrid.domain.blades import (
     Blade,
@@ -218,7 +219,16 @@ class BladeService:
             names.update(blade.vault_mapping)
             names.update(blade.env_names)
             names.update(blade.secrets)
+            names.update(read.name for read in blade.env_reads)  # a connection from the user's own Python
         return sorted(names)
+
+    def variables_read(self, code: Any, tables: Any, read: Any) -> dict[str, Any]:
+        """The environment variables a connection's three boxes read, by a name written in them: each
+        with whether the code cannot run without it, whether it reads like a secret, and whether this
+        computer's environment has it (never its value). Nothing runs."""
+        boxes = [box if isinstance(box, str) else None for box in (code, tables, read)]
+        found = python_connections.env_reads(*boxes)
+        return {"variables": [r.to_json() | {"set": r.name in self._environ} for r in found]}
 
     def templates(self) -> dict[str, Any]:
         return {"templates": [t.to_json() for t in self._templates]}
@@ -288,6 +298,10 @@ class BladeService:
     async def refresh(self, blade: Blade, body: Any, who: str = "user") -> dict[str, Any]:
         """Run it and its catalog command in a child process; load the catalog. `who`: "user", or
         "app" for a catalog that loads itself (services/catalog_loading.py)."""
+        return {"catalog": (await self.listed(blade, body, who))["catalog"]}
+
+    async def listed(self, blade: Blade, body: Any, who: str = "user") -> dict[str, Any]:
+        """Refresh, with what the catalog command returned: {"catalog", "columns", "rows"}."""
         typed = self._typed_values(blade, body)
         answer = await self._run_blade(blade, "catalog", typed)
         info = await self._catalogs.load_from_blade(
@@ -295,7 +309,15 @@ class BladeService:
         )
         self.ws.audit.write(who, "refresh_blade", blade.name)
         await self._catalogs.blade_refreshed()
-        return {"catalog": info.to_json()}
+        return {"catalog": info.to_json(), "columns": answer["columns"], "rows": answer["rows"]}
+
+    async def read(
+        self, blade: Blade, place: Mapping[str, str], limit: int | None, body: Any
+    ) -> dict[str, Any]:
+        """A table's rows by a connection's own Read a table (its Python, given conn, schema, table and
+        limit), run in a child process as Refresh is: {"table", "total"}."""
+        typed = self._typed_values(blade, body)
+        return await self._run_blade(blade, "read", typed, {"place": dict(place), "limit": limit})
 
     async def test(self, blade: Blade, body: Any) -> dict[str, Any]:
         """Run it in a child process: does it work?"""
@@ -419,7 +441,19 @@ class BladeService:
         Python asks (the token is the user's; the agent is refused)."""
         blade = self._blades.get(name)
         vaults, typed = self._blades.providers(blade)
+        python: dict[str, Any] | None = None
+        if connection_kind(blade.kind, blade.template) == "python":
+            # A connection from the user's own Python: its other two boxes, its plain values and the
+            # names saved on this computer (their values are among the secrets below).
+            python = {
+                "tables": blade.catalog_command,
+                "read": blade.read_command,
+                "set": python_connections.plain_values(blade.variables),
+                "keyring": python_connections.keyring_names(blade.variables),
+            }
+        mapped = python_connections.vault_jobs(blade.variables, self._blades.get, self._blades.saved_secrets)
         return {
+            "python": python,
             "name": blade.name,
             "kind": blade.kind,
             "code": blade.code,
@@ -439,7 +473,8 @@ class BladeService:
                     "secrets": self._blades.saved_secrets(v),
                 }
                 for v in vaults
-            ],
+            ]
+            + mapped,
         }
 
     async def install(self, packages: Any) -> tuple[bool, dict[str, Any]]:

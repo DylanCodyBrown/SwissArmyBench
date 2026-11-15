@@ -382,8 +382,11 @@ class ConnectionTables:
         connection: str = "",
         sql: str = "",
         dax: bool = False,
+        code: str = "",
     ) -> dict[str, Any]:
-        origin = Origin("connection", connection=connection or None, sql=sql or None, dax=dax)
+        origin = Origin(
+            "connection", connection=connection or None, sql=sql or None, dax=dax, code=code or None
+        )
         result = await self._datasets.store_table(
             name, table, "connection", True, who, opened=opened, origin=origin
         )
