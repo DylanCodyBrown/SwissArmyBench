@@ -25,6 +25,7 @@ from swissarmybench import __version__
 from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
+from swissarmybench.adapters.apis import ApiFiles, SpecSource
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
@@ -56,6 +57,7 @@ from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.apis import Apis
 from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
 from swissarmybench.services.catalog_loading import CatalogLoading
@@ -111,6 +113,7 @@ class Services:
     catalogs: CatalogService
     blades: BladeService
     connections: ConnectionService
+    apis: Apis
     catalog_loading: CatalogLoading
     folders: Folders
     workbench: Workbench
@@ -296,6 +299,15 @@ def bootstrap(
         arrange=table_cells.arrange,
         approvals=approvals,
     )
+    connections = ConnectionService(
+        blades,
+        TEMPLATES,
+        on_saved=catalog_loading.saved,
+        catalog_state=catalog_loading.state,
+        tables=ConnectionTables(datasets),
+        models=models,
+        catalogs=catalogs,
+    )
     return Services(
         settings=settings,
         ws=ws,
@@ -314,15 +326,9 @@ def bootstrap(
         sessions=Sessions(processes, store, live),
         catalogs=catalogs,
         blades=blades,
-        connections=ConnectionService(
-            blades,
-            TEMPLATES,
-            on_saved=catalog_loading.saved,
-            catalog_state=catalog_loading.state,
-            tables=ConnectionTables(datasets),
-            models=models,
-            catalogs=catalogs,
-        ),
+        connections=connections,
+        # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
+        apis=Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder),
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=Workbench(

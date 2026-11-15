@@ -14,6 +14,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_catalog.py        catalogs (a source's names and types)
   routes_blades.py         blades (saved code that loads): the user's alone
   routes_connections.py    connections (database and file blades, seen apart): the user's alone
+  routes_apis.py           Add API: an OpenAPI document or a form made into API_<name>.py and a connection
   routes_folders.py        the page's file chooser: a folder's contents, the user's alone
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
@@ -48,6 +49,7 @@ from swissarmybench.bootstrap import bootstrap
 from swissarmybench.server import (
     routes_agent,
     routes_analysis,
+    routes_apis,
     routes_beta_log,
     routes_blades,
     routes_cards,
@@ -168,6 +170,7 @@ def create_app(
             *routes_catalog.routes(ctx.catalogs),
             *routes_blades.routes(ctx.blades),
             *routes_connections.routes(ctx.connections, ctx.blades, ctx.catalog_loading),
+            *routes_apis.routes(ctx.apis),
             *routes_folders.routes(ctx.folders),
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),

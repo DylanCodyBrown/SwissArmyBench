@@ -2204,6 +2204,47 @@ def connections_python_tables(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/connections/{_q(a['name'])}/tables", {})
 
 
+# ----- Add API: an OpenAPI document or a form, made into API_<name>.py and a Python connection -----
+
+
+@command(
+    "connections_api_choices",
+    "Add API's auth types with their settings, and its presets (Azure Function App, AWS Lambda, Google)",
+)
+def connections_api_choices(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/apis/choices")
+
+
+_API_KEYS = ("spec_url", "spec_path", "spec", "form", "name", "base_url", "auth", "folder")
+
+
+@command(
+    "connections_api_add",
+    "Add API: write API_<name>.py (one method per operation) and save its Python connection; "
+    "preview=true writes nothing (operations, variables, what changes)",
+    opt("preview", "Only say what it would do.", "bool"),
+    opt("spec_url", "The OpenAPI document's address (2.0 or 3.x)."),
+    opt("spec_path", "Its file."),
+    opt("spec", "Its text."),
+    opt(
+        "form",
+        'Instead: {"base_url", "endpoints": [{"method", "path", "parameters": "status, id*", "table": true}]}.',
+        "json",
+    ),
+    opt("name", "Default: the document's title."),
+    opt("base_url", "Over the document's."),
+    opt("auth", '{"type": "api_key", "in": "header", "name": "x-functions-key"}.', "json"),
+    opt("folder", "The project's (beside data.py); default: the Workbench's."),
+    opt("variables", "Sources, as connections_python_save.", "json"),
+    opt("secrets", '{"NAME": "value"}: keyring values.', "json"),
+    opt("row_limit", "Rows to open.", "int"),
+)
+def connections_api_add(a: dict[str, Any]) -> Any:
+    keys = _API_KEYS if a.get("preview") else (*_API_KEYS, "variables", "secrets", "row_limit")
+    body = {k: a[k] for k in keys if a.get(k) is not None}
+    return api.call("POST", "/apis/preview" if a.get("preview") else "/apis", body)
+
+
 @command("connections_vaults", "The vault blades a password can come from, with their entries (names only)")
 def connections_vaults(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections/vaults")
