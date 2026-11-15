@@ -23,7 +23,8 @@
  * ROUTING: /streamlit/apps/{app}... (routes_streamlit.py); the `streamlit_changed` notice
  */
 import { agentApi, api, ApiError } from "./api";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h, icon, toast } from "./dom";
+import { kindIcon, kindOfPath } from "./kindColours";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages } from "./workbenchStreamlit";
 
@@ -423,7 +424,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     const menu = h(
       "div",
       { class: "menu", role: "menu", "aria-label": "Move to another page" },
-      ...state!.pages.filter((p) => p.id !== page.id).map((p) => h("button", { type: "button", role: "menuitem", onclick: () => { menu.remove(); void change(`/pages/${page.id}/blocks/${block.id}`, "PATCH", { page: p.id }); } }, `Move to ${p.name}`)),
+      ...state!.pages.filter((p) => p.id !== page.id).map((p) => h("button", { type: "button", role: "menuitem", class: "km-app", onclick: () => { menu.remove(); void change(`/pages/${page.id}/blocks/${block.id}`, "PATCH", { page: p.id }); } }, `Move to ${p.name}`)),
     );
     document.body.append(menu);
     const box = anchor.getBoundingClientRect();
@@ -444,7 +445,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     const element = h(
       "article",
       {
-        class: `cv-block ${block.missing ? "gone" : ""} ${stale ? "stale" : ""}`,
+        // A left edge in its source document's kind colour (notebook blue, script green).
+        class: `cv-block km-${kindOfPath(block.document) ?? "notebook"} ${block.missing ? "gone" : ""} ${stale ? "stale" : ""}`,
         role: "listitem",
         tabindex: 0,
         draggable: "true",
@@ -463,7 +465,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
         button(`Take ${name} off the page`, () => void change(path, "DELETE"), { icon: "close", iconOnly: true, class: "ghost cv-remove" }),
       ),
       // A cell that is gone has no name: its title is already where it was.
-      block.name === null ? null : h("div", { class: "hint cv-block-where", title: block.document }, block.where),
+      block.name === null ? null : h("div", { class: "hint cv-block-where", title: block.document }, icon(kindIcon(kindOfPath(block.document), block.document)), h("span", {}, block.where)),
       partsOf(block) ? h("div", { class: "cv-block-parts" }, partsOf(block)) : null,
       block.missing ? h("div", { class: "cv-block-missing", role: "alert" }, block.missing) : null,
       block.problem ? h("div", { class: "cv-block-missing", role: "alert" }, `Not whole Python yet: ${block.problem}`) : null,

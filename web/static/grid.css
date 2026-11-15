@@ -40,6 +40,9 @@ html[data-theme="light"] {
   --focus-width: 2px;
   --cat-1: #c8102e; --cat-2: #3b6e96; --cat-3: #17722f; --cat-4: #a3248f;
   --cat-5: #6a5c00; --cat-6: #0a7c86; --cat-7: #5b4bb7; --cat-8: #57606a;
+  /* Kind colours: app pages violet, notebooks blue, scripts green (domain/kind_colours.py holds the
+     same; Settings may choose others). A thin edge or a mark beside the icon, never a background. */
+  --kind-app: #7b3fc4; --kind-notebook: #1f63b0; --kind-script: #2b7238;
 }
 
 html[data-theme="dark"] {
@@ -73,6 +76,7 @@ html[data-theme="dark"] {
   --focus-width: 2px;
   --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
   --cat-5: #e3b341; --cat-6: #39c5cf; --cat-7: #a99cf0; --cat-8: #b1bac4;
+  --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
 }
 
 /* High contrast themes aim for 7:1 text, thick always-visible focus, strong borders. */
@@ -107,6 +111,7 @@ html[data-theme="hc-light"] {
   --focus-width: 3px;
   --cat-1: #0033a0; --cat-2: #8a3b00; --cat-3: #005c00; --cat-4: #7a0066;
   --cat-5: #4d4000; --cat-6: #004d57; --cat-7: #9e0000; --cat-8: #2b2b2b;
+  --kind-app: #5a1a9e; --kind-notebook: #0a4a94; --kind-script: #0d5a1d;
 }
 
 html[data-theme="hc-dark"] {
@@ -140,6 +145,7 @@ html[data-theme="hc-dark"] {
   --focus-width: 3px;
   --cat-1: #8cc8ff; --cat-2: #ffb870; --cat-3: #7dff7d; --cat-4: #ff9ae0;
   --cat-5: #ffd400; --cat-6: #6ff1ff; --cat-7: #ff9a9a; --cat-8: #e0e0e0;
+  --kind-app: #d4bfff; --kind-notebook: #a3cdff; --kind-script: #8ff09a;
 }
 
 /* Before theme.ts runs (or if it never does), follow the system. */
@@ -149,6 +155,7 @@ html[data-theme="hc-dark"] {
     --bg: #121518; --surface: #191d22; --surface-2: #21272d; --raised: #21272d;
     --fg: #e8ecef; --muted: #a2acb6; --border: #343c45; --border-strong: #707b86;
     --accent: #ff6b73; --accent-fg: #1c0a0c; --accent-soft: #3d1c21; --focus: #c4ccd4;
+    --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
   }
 }
 
@@ -5024,16 +5031,85 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   scrollbar-width: none;
 }
 
-.mark-notebook {
+/* Kind colours (kindColours.ts): app pages violet, notebooks blue, scripts green; a blade or a catalog
+   table plain. Always a thin edge or a mark beside the kind's icon, never a background. */
+.mark-app,
+.km-app {
+  --kc: var(--kind-app);
+}
+
+.mark-notebook,
+.km-notebook {
+  --kc: var(--kind-notebook);
+}
+
+.mark-script,
+.km-script {
+  --kc: var(--kind-script);
+}
+
+.mark-plain {
   --kc: var(--muted);
 }
 
-.mark-data {
-  --kc: var(--cat-2);
+/* The group wears its front document's colour: a band along its top. */
+.wb-group[data-mark="app"] {
+  --gk: var(--kind-app);
 }
 
-.mark-page {
-  --kc: var(--accent);
+.wb-group[data-mark="notebook"] {
+  --gk: var(--kind-notebook);
+}
+
+.wb-group[data-mark="script"] {
+  --gk: var(--kind-script);
+}
+
+.wb-group[data-mark] > .wb-gstrip {
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--gk, transparent) 70%, transparent);
+}
+
+.wb-menu .km-app svg,
+.wb-menu .km-notebook svg,
+.wb-menu .km-script svg {
+  color: var(--kc);
+}
+
+.wb-menu .km-app,
+.wb-menu .km-notebook,
+.wb-menu .km-script {
+  box-shadow: inset 2px 0 0 var(--kc);
+}
+
+.kind-colours {
+  display: grid;
+  gap: 6px;
+}
+
+.kind-colour {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 3px solid var(--kc);
+}
+
+.kind-colour-icon {
+  display: flex;
+  color: var(--kc);
+}
+
+.kind-colour-name {
+  min-width: 8em;
+}
+
+.kind-colour input[type="color"] {
+  width: 44px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
 }
 
 .wb-tab {
@@ -7378,4 +7454,66 @@ body.panel-off-grid-status .statusbar {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* ===== Kind colours in the Data panel (kindColours.ts): a project's files by kind, the Streamlit cells
+   pane by each cell's source document (a left edge, the heading and the @cell mark) ===== */
+.wb-file.km-app svg,
+.wb-file.km-notebook svg,
+.wb-file.km-script svg {
+  color: var(--kc);
+}
+
+.wb-st-doc .wb-st-doc-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kc, var(--muted));
+}
+
+.wb-st-doc .wb-st-cell {
+  box-shadow: inset 3px 0 0 var(--kc, var(--border));
+}
+
+.wb-st-where {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--kc, var(--muted));
+}
+
+.wb-st-where svg,
+.wb-st-doc-name svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* A canvas block: a left edge in its source document's kind colour, its `doc @cellN` in that colour. */
+.cv-block.km-notebook,
+.cv-block.km-script,
+.cv-block.km-app {
+  box-shadow: inset 3px 0 0 var(--kc);
+}
+
+.cv-block-where {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--kc);
+}
+
+.cv-block-where svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.menu .km-app::before {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  margin-right: 6px;
+  background: var(--kind-app);
+  content: "";
+  vertical-align: -2px;
 }

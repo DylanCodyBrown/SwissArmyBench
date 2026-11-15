@@ -19,6 +19,8 @@ export interface MenuItem {
   title?: string;
   /** A small muted label over the entries after it. */
   heading?: boolean;
+  /** A document's kind colour on its icon (kindColours.ts): "app", "notebook", "script". */
+  mark?: string;
 }
 
 /** null: a line between entries. */
@@ -58,6 +60,7 @@ export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[
       {
         type: "button",
         role: "menuitem",
+        class: entry.mark ? `km-${entry.mark}` : undefined,
         disabled: entry.disabled,
         title: entry.title,
         "aria-keyshortcuts": entry.keys,

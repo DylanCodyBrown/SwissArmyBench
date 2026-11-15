@@ -20,6 +20,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
+  routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
@@ -56,6 +57,7 @@ from swissarmybench.server import (
     routes_datasets,
     routes_folders,
     routes_grids,
+    routes_kind_colours,
     routes_packs,
     routes_panels,
     routes_processes,
@@ -174,6 +176,7 @@ def create_app(
             *routes_streamlit.routes(ctx.streamlit),
             *routes_projects.routes(ctx.projects),
             *routes_panels.routes(ctx.panels),
+            *routes_kind_colours.routes(ctx.kind_colours),
             *routes_beta_log.routes(ctx.beta),
             *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),

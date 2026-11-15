@@ -2,9 +2,10 @@
  * workbenchGroups.ts: the Workbench's tab groups, after Visual Studio Code's editor groups (the
  * redesign of 2026-11-15: "Should be able to arrange and add as many tabs as you want"). [FUNCTION + WIRE]
  *
- *   [KINDS]    every tab has a kind (registerTabKind): an icon and a thin colour mark on its top edge.
- *              Data (blue: a notebook named data.ipynb), Notebook (steel grey: notebooks and scripts),
- *              App page (red: registered by the app pages when they come). A kind with `start` is
+ *   [KINDS]    every tab has a kind (registerTabKind): an icon and a thin colour mark on its top edge,
+ *              in its kind colour (kindColours.ts: app pages violet, notebooks blue, scripts green;
+ *              data.ipynb is a notebook with the data's own icon; a blade or a table plain). The group
+ *              wears its front document's colour as a band along its top. A kind with `start` is
  *              offered by a group's "+" and by the empty state
  *   [GROUPS]   any number of groups, side by side or stacked, each one row of tabs over the document in
  *              front. The focused group's row ends with that document's controls (the page draws them);
@@ -22,7 +23,8 @@ import { button, h, icon } from "./dom";
 
 // ===== kinds =====
 
-export type Mark = "data" | "notebook" | "page";
+/** The kind colour a tab wears (kindColours.ts); "plain": none (a blade, a catalog table). */
+export type Mark = "app" | "notebook" | "script" | "plain";
 
 export interface TabKind {
   /** "notebook", "data", "script", "blade", "explorer"; the app pages add "page". */
@@ -248,7 +250,8 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
     const el = tabEl(tab);
     const kind = tabKind(host.kindOf(tab));
     const on = group.active === tab;
-    el.className = `tab-item wb-tab mark-${kind?.mark ?? "notebook"}${on ? " active" : ""}`;
+    el.className = `tab-item wb-tab mark-${kind?.mark ?? "plain"}${on ? " active" : ""}`;
+    if (on) group.el.dataset.mark = kind?.mark ?? "plain";
     el.dataset.kind = kind?.id ?? host.kindOf(tab);
     el.setAttribute("aria-selected", String(on));
     el.tabIndex = on ? 0 : -1;
@@ -269,6 +272,7 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
   }
 
   function drawTabs(group: Group<T>): void {
+    if (!group.active) delete group.el.dataset.mark;
     const els = group.tabs.map((t) => paint(t, group));
     const now = [...group.tabsEl.children];
     if (now.length !== els.length || now.some((el, i) => el !== els[i])) group.tabsEl.replaceChildren(...els);
@@ -533,7 +537,7 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
     const kind = tabKind(host.kindOf(tab));
     const lifted = tabEl(tab);
     lifted.classList.add("lifted");
-    const ghost = h("div", { class: `wb-tab-ghost mark-${kind?.mark ?? "notebook"}`, "aria-hidden": "true" }, icon(kind?.icon ?? "code"), h("span", {}, tab.title));
+    const ghost = h("div", { class: `wb-tab-ghost mark-${kind?.mark ?? "plain"}`, "aria-hidden": "true" }, icon(kind?.icon ?? "code"), h("span", {}, tab.title));
     document.body.append(ghost);
     document.body.classList.add("wb-dragging-tab");
     const marker = h("div", { class: "wb-tab-insert", "aria-hidden": "true" });

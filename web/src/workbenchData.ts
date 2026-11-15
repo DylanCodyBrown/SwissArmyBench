@@ -17,6 +17,7 @@
  *   [FILES]      at the bottom, folded: a project's files. Hidden until a project exists (setFiles)
  *   [COLLAPSE]   the arrow (or Ctrl+B) folds the panel to a narrow bar; remembered in this browser
  */
+import { type Kind, kindIcon, kindOfPath } from "./kindColours";
 import type { BladeSummary } from "./bladeEditor";
 import { DROP_TYPE } from "./catalogRail";
 import { button, h, icon } from "./dom";
@@ -255,6 +256,9 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     if (!blades.length) bladeList.append(h("li", { class: "wb-data-empty" }, "No blades"));
   }
 
+  /** A pane document's kind (its file's, else a notebook: an unsaved script says so by its title). */
+  const sourceKind = (d: PaneDocument): Kind => kindOfPath(d.document ?? d.title) ?? "notebook";
+
   // ----- the Streamlit cells pane: the cells that call Streamlit, then (under Text) the Markdown and
   // HTML cells, which go on a page too (docs/ideas.md, text cells on the canvas, 2026-11-15)
   function drawStreamlit(): void {
@@ -294,7 +298,8 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
             h("span", { class: "wb-data-label" }, c.name),
             on ? h("span", { class: "wb-st-placed", title: "On the canvas page in front", "aria-label": "On the canvas page in front" }, icon("check")) : null,
           ),
-          h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
+          // Its source document's kind colour and icon beside the @cell (notebook blue, script green).
+          h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, icon(kindIcon(sourceKind(d), d.document)), `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
         ),
       );
     };
@@ -304,8 +309,8 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
         const texts = d.cells.filter((c) => c.kind === "markdown" || c.kind === "html");
         return h(
           "div",
-          { class: "wb-st-doc" },
-          h("div", { class: "wb-st-doc-name", title: d.document ?? d.title }, d.title),
+          { class: `wb-st-doc km-${sourceKind(d)}` },
+          h("div", { class: "wb-st-doc-name", title: d.document ?? d.title }, icon(kindIcon(sourceKind(d), d.document)), h("span", {}, d.title)),
           live.length ? h("ul", { class: "wb-data-list", "aria-label": d.title }, ...live.map((c) => item(d, c))) : null,
           texts.length ? h("div", { class: "wb-st-text-head" }, "Text") : null,
           texts.length ? h("ul", { class: "wb-data-list wb-st-texts", "aria-label": `${d.title}: text` }, ...texts.map((c) => item(d, c))) : null,
@@ -326,7 +331,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
       ...files.files.map((f) =>
         h(
           "li",
-          { class: `wb-file${f.derived ? " derived" : ""}` },
+          { class: `wb-file${f.derived ? " derived" : ""}${kindOfPath(f.path) ? ` km-${kindOfPath(f.path)}` : ""}` },
           f.open
             ? h("button", { type: "button", class: "link wb-file-open", onclick: () => f.open?.() }, f.icon ? icon(f.icon) : null, h("span", {}, f.path))
             : h("span", { class: "wb-file-name" }, f.icon ? icon(f.icon) : null, h("span", {}, f.path)),

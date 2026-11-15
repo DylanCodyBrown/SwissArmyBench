@@ -65,6 +65,7 @@ import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, 
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
+import { kindIcon, kindOfPath, loadKindColours } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { setDocumentName } from "./workbenchAgent";
@@ -361,7 +362,7 @@ function listProject(): void {
   if (!project) return void data.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
-    const file = { path: name, icon: name.toLowerCase().endsWith(APP_ENDING) ? "page" : name.toLowerCase().endsWith(".py") ? "code" : "notebook", open: () => void open(path) };
+    const file = { path: name, icon: kindIcon(kindOfPath(name), name), open: () => void open(path) };
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
@@ -706,6 +707,11 @@ function drawTabs(): void {
   drawTop();
 }
 
+/** A document's kind colour (kindColours.ts): app pages violet, notebooks blue, scripts green. */
+function docMark(doc: Doc): "app" | "notebook" | "script" | undefined {
+  return doc.kind === "app" ? "app" : doc.kind === "notebook" ? "notebook" : doc.kind === "script" ? "script" : undefined;
+}
+
 /** A document's kind of tab: Data (a notebook named data.ipynb), Notebook, Script, App page (a
  *  Streamlit app's canvas), Blade, Table. */
 function kindOf(doc: Doc): string {
@@ -714,12 +720,14 @@ function kindOf(doc: Doc): string {
   return doc.kind === "table" ? "explorer" : doc.kind;
 }
 
-registerTabKind({ id: "data", label: "Data", icon: "sql", mark: "data" });
+// Kind colours (kindColours.ts): app pages violet, notebooks blue (data.ipynb too, with the data's own
+// icon), scripts green; a blade or a catalog table wears none.
+registerTabKind({ id: "data", label: "Data", icon: "sql", mark: "notebook" });
 registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
-registerTabKind({ id: "script", label: "Script", icon: "code", mark: "notebook", start: { label: "New script", run: () => void openScript(null, "", null) } });
-registerTabKind({ id: "page", label: "App page", icon: "page", mark: "page", start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } });
-registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "notebook" });
-registerTabKind({ id: "explorer", label: "Table", icon: "rows", mark: "notebook" });
+registerTabKind({ id: "script", label: "Script", icon: "code", mark: "script", start: { label: "New script", run: () => void openScript(null, "", null) } });
+registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } });
+registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "plain" });
+registerTabKind({ id: "explorer", label: "Table", icon: "rows", mark: "plain" });
 
 const groups = mountGroups<Doc>({
   kindOf,
@@ -858,7 +866,7 @@ function recentMenu(anchor: HTMLElement): void {
     anchor,
     "Recent files",
     recent.length
-      ? recent.map((r) => ({ label: baseName(r.path), title: r.exists ? r.path : `${r.path} (missing)`, disabled: !r.exists, run: () => void open(r.path) }))
+      ? recent.map((r) => ({ label: baseName(r.path), icon: kindIcon(kindOfPath(r.path), r.path), mark: kindOfPath(r.path) ?? undefined, title: r.exists ? r.path : `${r.path} (missing)`, disabled: !r.exists, run: () => void open(r.path) }))
       : [{ label: "No recent files", heading: true }],
     { align: anchor.closest(".wb-top") ? "right" : "left" },
   );
@@ -1017,9 +1025,10 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
 function moveEntries(doc: Doc): MenuEntry[] {
   if (!moves(doc)) return [];
   const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+  const mark = docMark(doc);
   return [
-    { label: "Open in its own window", icon: "popout", run: guarded(() => popOut(doc)) },
-    ...(isMainWindow() ? [] : [{ label: "Move to the main window", icon: "back", run: guarded(() => moveToMain(doc)) }]),
+    { label: "Open in its own window", icon: "popout", mark, run: guarded(() => popOut(doc)) },
+    ...(isMainWindow() ? [] : [{ label: "Move to the main window", icon: "back", mark, run: guarded(() => moveToMain(doc)) }]),
   ];
 }
 
@@ -1346,7 +1355,7 @@ function drawEmpty(): void {
   layout.empty(none);
   layout.status.hidden = none;
   if (!none || empty.childElementCount) return;
-  const app = tabKinds().find((k) => k.mark === "page" && k.start);
+  const app = tabKinds().find((k) => k.mark === "app" && k.start);
   clear(
     empty,
     h("div", { class: "wb-empty-choice" }, h("span", { class: "wb-empty-icon" }, icon("notebook")), button("Start a notebook", () => void openNotebook(null, [], null), { icon: "plus", class: "primary" })),
@@ -1876,6 +1885,7 @@ onPanels(() => {
 
 void Promise.all([
   loadPanels(),
+  loadKindColours(),
   refreshHome(),
   loadConnections(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),

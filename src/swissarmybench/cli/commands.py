@@ -2680,6 +2680,17 @@ def app_panels(a: dict[str, Any]) -> Any:
     return api.call("GET", "/panels")
 
 
+@command(
+    "app_kind_colours",
+    "Kind colours (app, notebook, script; kept across restarts); with set, choose (null: default)",
+    opt("set", '{"app": "#7b3fc4", "script": null}', "json"),
+)
+def app_kind_colours(a: dict[str, Any]) -> Any:
+    if a.get("set") is not None:
+        return api.call("PUT", "/kind-colours", a["set"])
+    return api.call("GET", "/kind-colours")
+
+
 # ===== beta mode: the beta log and the notes (redacted: no data, SQL, code, secrets or paths) =====
 
 

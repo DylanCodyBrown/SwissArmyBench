@@ -40,6 +40,7 @@ from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
+    JsonFile,
     ModelFiles,
     ThemeFiles,
     is_own_file,
@@ -68,6 +69,7 @@ from swissarmybench.services.export import Exports
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
+from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
@@ -126,6 +128,7 @@ class Services:
     streamlit: StreamlitApps
     projects: Projects
     panels: Panels
+    kind_colours: KindColours
     beta: BetaLog
     live: LiveUpdates
     workers: PriorityWorkers
@@ -346,6 +349,7 @@ def bootstrap(
         workbench_window=WorkbenchWindow(ws),
         table_cells=table_cells,
         panels=Panels(ws),
+        kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
         beta=beta,
         streamlit=streamlit,
         projects=Projects(
