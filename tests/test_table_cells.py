@@ -11,9 +11,9 @@ from typing import Any
 import duckdb
 import pytest
 
-from swissarmygrid.domain import table_cells as tc
-from swissarmygrid.domain.datasets import Column
-from swissarmygrid.domain.table_cells import PlanCell, TableSpec
+from swissarmybench.domain import table_cells as tc
+from swissarmybench.domain.datasets import Column
+from swissarmybench.domain.table_cells import PlanCell, TableSpec
 
 # ===== names =====
 
@@ -462,8 +462,8 @@ def test_a_table_no_code_made_starts_with_its_load() -> None:
     shop = load(
         tc.Origin("connection", connection="Shop", sql="SELECT * FROM sales LIMIT 1000"), "connection"
     )
-    assert 'sales = sag.sql(\'Shop\', """\nSELECT * FROM sales LIMIT 1000\n""")' in shop
-    assert shop.startswith("import swissarmygrid as sag\nimport duckdb\n")
+    assert 'sales = sab.sql(\'Shop\', """\nSELECT * FROM sales LIMIT 1000\n""")' in shop
+    assert shop.startswith("import swissarmybench as sab\nimport duckdb\n")
     query = load(tc.Origin("query", sql="SELECT region FROM orders"), "sql_result")
     assert 'sales = duckdb.sql("""\nSELECT region FROM orders\n""").df()\n\nsales = duckdb.sql(' in query
     # What the app cannot load says so, plainly, and still holds the transformations.
@@ -524,7 +524,7 @@ def test_the_cell_text_has_its_imports_once(runs: int) -> None:
 
 
 def test_a_notebook_keeps_cell_numbers_and_never_gives_one_twice() -> None:
-    from swissarmygrid.domain import notebooks
+    from swissarmybench.domain import notebooks
 
     cells = [
         notebooks.Cell("markdown", "# Tables", number=7, role="tables", grouped=True),
@@ -567,7 +567,7 @@ def test_a_notebook_keeps_cell_numbers_and_never_gives_one_twice() -> None:
     assert [c.number for c in notebooks.read_notebook(json.dumps(copied))] == [7, 4, 9, 12, 13]
     # In the file the headings are Markdown, so JupyterLab folds the group too.
     assert json.loads(text)["cells"][0]["cell_type"] == "markdown"
-    assert json.loads(text)["cells"][0]["metadata"]["swissarmygrid"] == {
+    assert json.loads(text)["cells"][0]["metadata"]["swissarmybench"] == {
         "number": 7,
         "role": "tables",
         "grouped": True,

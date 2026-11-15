@@ -13,8 +13,8 @@ import pyarrow.ipc as ipc
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.server.app import create_app
-from swissarmygrid.settings import Settings
+from swissarmybench.server.app import create_app
+from swissarmybench.settings import Settings
 
 PORT = 8765
 TOKEN = "test-token"
@@ -26,17 +26,17 @@ ARROW = "application/vnd.apache.arrow.stream"
 
 @pytest.fixture(autouse=True, scope="session")
 def no_folder_in_the_real_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
-    """The app makes its own folder (SwissArmyGrid in the home folder) the first time it is needed.
+    """The app makes its own folder (SwissArmyBench in the home folder) the first time it is needed.
     In tests that folder is a temporary one, for every server a test starts (in this process or its own)."""
     import os
 
-    before = os.environ.get("SWISSARMYGRID_WORKBENCH_DIR")
-    os.environ["SWISSARMYGRID_WORKBENCH_DIR"] = str(tmp_path_factory.mktemp("home") / "SwissArmyGrid")
+    before = os.environ.get("SWISSARMYBENCH_WORKBENCH_DIR")
+    os.environ["SWISSARMYBENCH_WORKBENCH_DIR"] = str(tmp_path_factory.mktemp("home") / "SwissArmyBench")
     yield
     if before is None:
-        os.environ.pop("SWISSARMYGRID_WORKBENCH_DIR", None)
+        os.environ.pop("SWISSARMYBENCH_WORKBENCH_DIR", None)
     else:
-        os.environ["SWISSARMYGRID_WORKBENCH_DIR"] = before
+        os.environ["SWISSARMYBENCH_WORKBENCH_DIR"] = before
 
 
 def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
@@ -45,8 +45,8 @@ def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
         export_dir=tmp_path / "exports",
         # Never this machine's own Claude Code plugins: a test lays out its own packs here.
         claude_dir=overrides.pop("claude_dir", tmp_path / "claude"),
-        # Never this machine's own SwissArmyGrid folder: the app makes it the first time it is needed.
-        workbench_dir=overrides.pop("workbench_dir", tmp_path / "home" / "SwissArmyGrid"),
+        # Never this machine's own SwissArmyBench folder: the app makes it the first time it is needed.
+        workbench_dir=overrides.pop("workbench_dir", tmp_path / "home" / "SwissArmyBench"),
         max_total_bytes=overrides.pop("max_total_bytes", 512 * 1024 * 1024),
         # Catalogs loading themselves start child processes: off unless a test is about them.
         auto_load_catalogs=overrides.pop("auto_load_catalogs", False),

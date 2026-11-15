@@ -1,7 +1,7 @@
 """Catalogs (plan decision 17), readable by the agent (names and types, never values):
 
   GET    /catalogs                                  every loaded catalog
-  PUT    /catalogs/{name}?dialect=                  load one (sag.load): Arrow or split JSON, like a push
+  PUT    /catalogs/{name}?dialect=                  load one (sab.load): Arrow or split JSON, like a push
   DELETE /catalogs/{name}
   GET    /catalogs/{name}/schemas
   GET    /catalogs/{name}/tables?schema=&database=&offset=&limit=
@@ -21,8 +21,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, query_int, read_body
-from swissarmygrid.services.catalogs import CatalogService
+from swissarmybench.server.http import actor, error_response, json_response, query_int, read_body
+from swissarmybench.services.catalogs import CatalogService
 
 _ARROW_STREAM: str = "application/vnd.apache.arrow.stream"
 

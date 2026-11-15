@@ -11,9 +11,9 @@ import duckdb
 import pyarrow as pa
 import pytest
 
-from swissarmygrid.adapters.catalogs import CatalogStore
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.domain.catalogs import CatalogError, select_sql
+from swissarmybench.adapters.catalogs import CatalogStore
+from swissarmybench.adapters.database import open_database
+from swissarmybench.domain.catalogs import CatalogError, select_sql
 
 INFORMATION_SCHEMA = pa.table(
     {

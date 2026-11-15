@@ -17,8 +17,8 @@ default connection). What it cannot: a variable inside a function, a script that
 process stopped at a debugger breakpoint (the debugger freezes this thread too). `push` still covers those.
 
 Starts by itself when IPython is running (Jupyter, the IPython terminal, the interactive window), because
-importing swissarmygrid there is already the choice to use the grid. In a plain script call `sag.watch()`.
-SWISSARMYGRID_WATCH=0 switches it off everywhere and =1 turns it on everywhere.
+importing swissarmybench there is already the choice to use the grid. In a plain script call `sab.watch()`.
+SWISSARMYBENCH_WATCH=0 switches it off everywhere and =1 turns it on everywhere.
 
 Standard library only. Pandas, Arrow, DuckDB and the like are recognised by their class names, so
 nothing here imports them.
@@ -40,9 +40,10 @@ from dataclasses import dataclass
 from time import monotonic
 from typing import Any
 
-from swissarmygrid.client import push_client, table_cells
+from swissarmybench.client import push_client, table_cells
+from swissarmybench.renamed import env
 
-log = logging.getLogger("swissarmygrid.watcher")
+log = logging.getLogger("swissarmybench.watcher")
 
 _NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 # Names IPython puts in the user namespace.
@@ -317,7 +318,7 @@ class Watcher:
             ("scan", self._scan_loop),
             ("listen", self._listen_loop),
         ):
-            thread = threading.Thread(target=target, name=f"swissarmygrid-{name}", daemon=True)
+            thread = threading.Thread(target=target, name=f"swissarmybench-{name}", daemon=True)
             thread.start()
             self._threads.append(thread)
 
@@ -513,9 +514,9 @@ def _in_ipython() -> bool:
 
 
 def autostart() -> None:
-    """Called when swissarmygrid is imported. Starts the watcher in Jupyter, IPython or the interactive
+    """Called when swissarmybench is imported. Starts the watcher in Jupyter, IPython or the interactive
     window, where importing the package is already the decision to use the grid; never in the server, the
-    MCP or a test run. SWISSARMYGRID_WATCH=0 or 1 overrides."""
-    mode = os.environ.get("SWISSARMYGRID_WATCH", "")
+    MCP or a test run. SWISSARMYBENCH_WATCH=0 or 1 overrides."""
+    mode = env("SWISSARMYBENCH_WATCH", "")
     if mode == "1" or (mode != "0" and _in_ipython()):
         start()

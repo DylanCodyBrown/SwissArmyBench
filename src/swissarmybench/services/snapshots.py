@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 
-from swissarmygrid.services.workspace import Conflict, Workspace
+from swissarmybench.services.workspace import Conflict, Workspace
 
 # The page areas an agent may ask for: what the page's own elements are called.
 AREAS: tuple[str, ...] = ("app", "ribbon", "grid", "steps", "sandbox")
@@ -50,8 +50,8 @@ class Snapshots:
             raise ValueError("scale must be 1 or 2.")
         if not ws.live.page_open():
             raise Conflict(
-                "No SwissArmyGrid page is open to draw the snapshot. Ask the user to open the "
-                "SwissArmyGrid tab in VS Code."
+                "No Swiss Army Bench page is open to draw the snapshot. Ask the user to open the "
+                "Swiss Army Bench tab in VS Code."
             )
         snapshot_id = secrets.token_hex(6)
         waiting: Answer = asyncio.get_running_loop().create_future()
@@ -69,7 +69,7 @@ class Snapshots:
         except TimeoutError:
             raise SnapshotUnanswered(
                 f"The page did not answer within {timeout:.0f} seconds. "
-                "It draws only while its tab is visible: ask the user to bring the SwissArmyGrid "
+                "It draws only while its tab is visible: ask the user to bring the Swiss Army Bench "
                 "tab to the front."
             ) from None
         finally:

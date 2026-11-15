@@ -11,7 +11,7 @@ from typing import Any
 import pyarrow as pa
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
 
 

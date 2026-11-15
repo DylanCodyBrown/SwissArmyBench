@@ -189,7 +189,7 @@ function foldingRanges(model: monaco.editor.ITextModel): monaco.languages.Foldin
 }
 // Each editor's problems from its last failed run (cleared by the next edit or run).
 const problems = new WeakMap<monaco.editor.ITextModel, Problem[]>();
-const PROBLEMS = "sag-run";
+const PROBLEMS = "sab-run";
 
 function rangeOf(model: monaco.editor.ITextModel, p: Problem): monaco.Range {
   const last = Math.min(Math.max(p.endLine, p.line), model.getLineCount());
@@ -457,7 +457,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     tabSize: 4,
     insertSpaces: true,
     dropIntoEditor: { enabled: true },
-    // Suggestions as you type, inside strings too (a connection's name in sag.connection("…"), SQL in a string).
+    // Suggestions as you type, inside strings too (a connection's name in sab.connection("…"), SQL in a string).
     quickSuggestions: { other: true, comments: false, strings: true },
     wordBasedSuggestions: "currentDocument",
     fixedOverflowWidgets: true,
@@ -500,7 +500,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   }
   const notes = editor.createDecorationsCollection([]);
   const zones = new Map<string, { zoneId: string; zone: monaco.editor.IViewZone; widget: monaco.editor.IOverlayWidget; element: HTMLElement }>();
-  const hiddenBy = { name: "sag-html-cells" };
+  const hiddenBy = { name: "sab-html-cells" };
   const keys = options.keys ?? {};
   // The run keys come first, even with the suggestion list open (it would take Ctrl+Enter for itself):
   // the list closes and the code runs.
@@ -519,7 +519,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   // Monaco's addCommand goes into one keybinding service shared by every editor on the page: without a
   // key of this editor's own in the condition, the console's Enter ran in a notebook cell (the newlines
   // typed there vanished), and the last cell's Escape answered for every cell.
-  const own = `sagEditor${++editorCount}`;
+  const own = `sabEditor${++editorCount}`;
   editor.createContextKey(own, true);
   if (keys.f5) editor.addCommand(monaco.KeyCode.F5, keys.f5, own);
   if (keys.f1) editor.addCommand(monaco.KeyCode.F1, keys.f1, own);
@@ -553,8 +553,8 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       if (!problem && !text.trim()) return; // a blank line, nothing selected: nothing to send
       options.sendToAgent!({ text, startLine: range.startLineNumber, endLine: range.endLineNumber, problem }, withQuestion);
     };
-    editor.addAction({ id: "sag.sendToAgent", label: "Send to the agent", contextMenuGroupId: "0_agent", contextMenuOrder: 1, run: () => send(false) });
-    editor.addAction({ id: "sag.sendToAgentAsk", label: "Send to the agent with a question…", contextMenuGroupId: "0_agent", contextMenuOrder: 2, run: () => send(true) });
+    editor.addAction({ id: "sab.sendToAgent", label: "Send to the agent", contextMenuGroupId: "0_agent", contextMenuOrder: 1, run: () => send(false) });
+    editor.addAction({ id: "sab.sendToAgentAsk", label: "Send to the agent with a question…", contextMenuGroupId: "0_agent", contextMenuOrder: 2, run: () => send(true) });
   }
 
   const fit = (): void => {
@@ -635,7 +635,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       });
       const wasReadOnly = editor.getOption(monaco.editor.EditorOption.readOnly);
       if (wasReadOnly) editor.updateOptions({ readOnly: false });
-      editor.executeEdits("sag-tables", edits, selections.length ? selections : undefined);
+      editor.executeEdits("sab-tables", edits, selections.length ? selections : undefined);
       if (wasReadOnly) editor.updateOptions({ readOnly: true });
       // The line the cursor is on stays where it was on screen (a script scrolls by the lines added above).
       const now = editor.getPosition();
@@ -724,7 +724,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       const line = Math.min(Math.max(1, near), model.getLineCount());
       const edit = fixEdit(model, new monaco.Range(line, 1, line, model.getLineMaxColumn(line)), fix) ?? (fix.kind === "replace" ? fixEdit(model, model.getFullModelRange(), fix) : null);
       if (!edit) return false;
-      editor.executeEdits("sag-fix", [{ range: monaco.Range.lift(edit.range), text: edit.text }]);
+      editor.executeEdits("sab-fix", [{ range: monaco.Range.lift(edit.range), text: edit.text }]);
       return true;
     },
     reveal: (line, column = 1) => {
@@ -773,7 +773,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
             },
           };
           z.element.style.position = "absolute";
-          const widget: monaco.editor.IOverlayWidget = { getId: () => `sag.zone.${own}.${z.id}`, getDomNode: () => z.element, getPosition: () => null };
+          const widget: monaco.editor.IOverlayWidget = { getId: () => `sab.zone.${own}.${z.id}`, getDomNode: () => z.element, getPosition: () => null };
           editor.addOverlayWidget(widget);
           zones.set(z.id, { zoneId: accessor.addZone(zone), zone, widget, element: z.element });
         }

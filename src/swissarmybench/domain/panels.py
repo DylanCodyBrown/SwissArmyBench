@@ -1,9 +1,9 @@
 """The panels Settings can turn off (the owner, 2026-11-15: "add app level settings with a option to
-hide or turn panels off if wanted by the user they default on every time sag is opened").
+hide or turn panels off if wanted by the user they default on every time sab is opened").
 
 Each panel has a switch, on unless the user turns it off. A panel turned off is gone (not folded).
 The switches are the server's, in memory: shared by every window, kept through a reload, and every
-one on again when SwissArmyGrid starts. Pure rules, no I/O.
+one on again when Swiss Army Bench starts. Pure rules, no I/O.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class PanelError(ValueError):
 
 
 def defaults() -> dict[str, bool]:
-    """Every panel on: how SwissArmyGrid starts."""
+    """Every panel on: how Swiss Army Bench starts."""
     return dict.fromkeys(IDS, True)
 
 

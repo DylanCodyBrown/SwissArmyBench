@@ -32,15 +32,17 @@ _ASK_SECONDS: float = 8.0
 _MAX_MATCHES: int = 300
 _MAX_HELP: int = 6_000
 _IDLE_POLL_SECONDS: float = 0.5
-# Run quietly once a kernel is ready: the package (sag.*, the %%sql cells, tables as grids) when that
-# Python has it. A Python without it still runs code; the Workbench says how to add it.
+# Run quietly once a kernel is ready: the package (sab.*, the %%sql cells, tables as grids) when that
+# Python has it. A Python without it still runs code; the Workbench says how to add it. `sag` is its old
+# alias (before the rename to Swiss Army Bench), kept for one release so an old notebook's cells still run.
 _SETUP = (
     "try:\n"
-    "    import swissarmygrid as sag\n"
-    "    from swissarmygrid.server.kernel_setup import setup as _sag_setup\n"
+    "    import swissarmybench as sab\n"
+    "    sag = sab\n"
+    "    from swissarmybench.server.kernel_setup import setup as _sab_setup\n"
     "\n"
-    "    _sag_setup()\n"
-    "    del _sag_setup\n"
+    "    _sab_setup()\n"
+    "    del _sab_setup\n"
     "except ImportError:\n"
     "    pass\n"
 )
@@ -51,7 +53,7 @@ class KernelError(ValueError):
 
 
 def check_python(python: str) -> dict[str, Any]:
-    """Whether a Python can run a kernel: its version, and whether it has ipykernel and swissarmygrid."""
+    """Whether a Python can run a kernel: its version, and whether it has ipykernel and swissarmybench."""
     try:
         path = Path(python).expanduser()
         there = path.is_file()
@@ -63,7 +65,7 @@ def check_python(python: str) -> dict[str, Any]:
         "import sys, importlib.util as u;"
         "print(sys.version.split()[0]);"
         "print(bool(u.find_spec('ipykernel')));"
-        "print(bool(u.find_spec('swissarmygrid')))"
+        "print(bool(u.find_spec('swissarmybench')))"
     )
     try:
         done = subprocess.run(  # noqa: S603 (a Python the user chose, asked three fixed questions)
@@ -78,7 +80,7 @@ def check_python(python: str) -> dict[str, Any]:
         "python": str(path),
         "version": lines[0],
         "ipykernel": lines[1] == "True",
-        "swissarmygrid": lines[2] == "True",
+        "swissarmybench": lines[2] == "True",
     }
 
 
@@ -315,7 +317,7 @@ class Kernel:
         """The Variables overlay: the user's variables, the connections, the environment's names
         (client/kernel_variables.py). None while the kernel is busy running code."""
         text = await self.evaluate(
-            "__import__('swissarmygrid.client.kernel_variables', fromlist=['snapshot'])"
+            "__import__('swissarmybench.client.kernel_variables', fromlist=['snapshot'])"
             f".snapshot({sorted(env_names)!r})"
         )
         return None if text is None else dict(json.loads(text))
@@ -325,7 +327,7 @@ class Kernel:
         the kernel is busy running code, or in a Python without the package."""
         try:
             text = await self.evaluate(
-                f"__import__('swissarmygrid.client.html_cells', fromlist=['marks']).marks({sorted(names)!r})"
+                f"__import__('swissarmybench.client.html_cells', fromlist=['marks']).marks({sorted(names)!r})"
             )
         except KernelError:
             return None
@@ -336,7 +338,7 @@ class Kernel:
         expression's values. None when the kernel cannot say (busy, or a Python without the helper)."""
         try:
             text = await self.evaluate(
-                "__import__('swissarmygrid.client.kernel_errors', fromlist=['detail']).detail()"
+                "__import__('swissarmybench.client.kernel_errors', fromlist=['detail']).detail()"
             )
         except KernelError:
             return None
@@ -348,10 +350,10 @@ class Kernel:
         its address. A variable is kept current from then on, and has its own read-only cell
         (client/table_cells.py); a result is sent as it is."""
         if expression == name:
-            helper = "__import__('swissarmygrid.client.table_cells', fromlist=['open_grid'])"
+            helper = "__import__('swissarmybench.client.table_cells', fromlist=['open_grid'])"
             url = await self.evaluate(f"{helper}.open_grid({name!r})")
         else:
-            url = await self.evaluate(f"__import__('swissarmygrid').push({expression}, name={name!r})")
+            url = await self.evaluate(f"__import__('swissarmybench').push({expression}, name={name!r})")
         return None if url is None else str(url)
 
     async def interrupt(self) -> None:
@@ -402,7 +404,7 @@ async def start(python: str, folder: str | None, environ: dict[str, str]) -> Ker
         # named by a full path in a private folder (a relative name would be read from the kernel's
         # working folder, the document's, and the server's own: two places). Windows has no such
         # transport; there its ports listen on 127.0.0.1 and every message is signed.
-        sockets = tempfile.mkdtemp(prefix="swissarmygrid-kernel-")
+        sockets = tempfile.mkdtemp(prefix="swissarmybench-kernel-")
         manager.transport = "ipc"
         manager.ip = os.path.join(sockets, "kernel")
     manager._kernel_spec = KernelSpec(  # one kernel's command: this Python, no kernelspec file needed
@@ -412,9 +414,9 @@ async def start(python: str, folder: str | None, environ: dict[str, str]) -> Ker
         env={},
     )
     cwd = folder if folder and os.path.isdir(folder) else str(Path.home())
-    if not found["swissarmygrid"]:
+    if not found["swissarmybench"]:
         # This Python lacks the package: lend it a copy (the plain client) on its import path.
-        from swissarmygrid.server.environments import client_path
+        from swissarmybench.server.environments import client_path
 
         environ = environ | {
             "PYTHONPATH": os.pathsep.join(p for p in (client_path(), environ.get("PYTHONPATH", "")) if p)
@@ -440,12 +442,12 @@ class Launcher:
     def create_environment(
         self, folder: str, version: str | None, packages: list[str]
     ) -> AsyncIterator[dict[str, Any]]:
-        from swissarmygrid.server import environments
+        from swissarmybench.server import environments
 
         return environments.create(folder, version, packages)
 
     def beside(self, folder: str) -> str | None:
-        from swissarmygrid.server import environments
+        from swissarmybench.server import environments
 
         return environments.beside(folder)
 

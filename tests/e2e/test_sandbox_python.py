@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""sag.sandbox from Python: a card of no table (badged "Python"), an Altair-style Vega-Lite chart drawn
+"""sab.sandbox from Python: a card of no table (badged "Python"), an Altair-style Vega-Lite chart drawn
 from its inline data, a key that replaces a card in place, and a table of its own rows."""
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any
 import pyarrow as pa
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client, sandbox_client
+from swissarmybench.client import push_client, sandbox_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 
 SPEC = {

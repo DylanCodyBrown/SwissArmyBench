@@ -366,9 +366,9 @@ def read_total(returned: int, limit: int | None, total: int | None) -> tuple[int
 
 
 def read_call(connection: str, schema: str, table: str) -> str:
-    """The Python that reads the table again in a notebook: sag.read('Orders API', 'orders')."""
+    """The Python that reads the table again in a notebook: sab.read('Orders API', 'orders')."""
     where = f", schema={schema!r}" if schema else ""
-    return f"sag.read({connection!r}, {table!r}{where})"
+    return f"sab.read({connection!r}, {table!r}{where})"
 
 
 def tables_json(columns: list[str], rows: list[list[Any]]) -> list[dict[str, Any]]:

@@ -67,8 +67,8 @@ def test_the_choices_match_columns_ignoring_case_and_suggest_a_few_valued_text_c
 
 
 def test_identifier_columns_are_not_suggested_as_totals() -> None:
-    from swissarmygrid.domain.datasets import Column
-    from swissarmygrid.domain.tieout import Pair, suggest
+    from swissarmybench.domain.datasets import Column
+    from swissarmybench.domain.tieout import Pair, suggest
 
     names = ("customer_id", "InvoiceNo", "CustomerID", "zip_code", "amount", "paid", "idle_days")
     pairs = [Pair(Column(n, "BIGINT"), Column(n, "BIGINT")) for n in names]

@@ -12,8 +12,8 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-from swissarmygrid.domain.regression import Z95, t_quantile
-from swissarmygrid.domain.stats import normal_quantile
+from swissarmybench.domain.regression import Z95, t_quantile
+from swissarmybench.domain.stats import normal_quantile
 
 MAX_ROWS: int = 40  # table rows in a proof; the rest are summed and said so
 

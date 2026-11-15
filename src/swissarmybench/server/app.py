@@ -43,8 +43,8 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from swissarmygrid.bootstrap import bootstrap
-from swissarmygrid.server import (
+from swissarmybench.bootstrap import bootstrap
+from swissarmybench.server import (
     routes_agent,
     routes_analysis,
     routes_blades,
@@ -68,8 +68,12 @@ from swissarmygrid.server import (
     routes_workbench,
     streamlit_proxy,
 )
-from swissarmygrid.server.security import WEBSOCKET_SUBPROTOCOL, LocalOnlyGuard
-from swissarmygrid.settings import Settings
+from swissarmybench.server.security import (
+    OLD_WEBSOCKET_SUBPROTOCOL,
+    WEBSOCKET_SUBPROTOCOL,
+    LocalOnlyGuard,
+)
+from swissarmybench.settings import Settings
 
 # How often the server looks for Python sessions that stopped reporting.
 PRUNE_EVERY_SECONDS: float = 10.0
@@ -89,9 +93,8 @@ def create_app(
     async def live(websocket: WebSocket) -> None:
         # Echo our subprotocol only when the client offered it (browsers do; others may not).
         offered: list[str] = websocket.scope.get("subprotocols", [])
-        await websocket.accept(
-            subprotocol=WEBSOCKET_SUBPROTOCOL if WEBSOCKET_SUBPROTOCOL in offered else None
-        )
+        ours = [p for p in (WEBSOCKET_SUBPROTOCOL, OLD_WEBSOCKET_SUBPROTOCOL) if p in offered]
+        await websocket.accept(subprotocol=ours[0] if ours else None)
         ctx.live.add(
             websocket,
             websocket.query_params.get("grid"),

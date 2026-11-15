@@ -1,8 +1,8 @@
-# REFACTOR.md: SwissArmyGrid in the Cosmic Python style
+# REFACTOR.md: Swiss Army Bench in the Cosmic Python style
 
 The Python code, rearranged after "Architecture Patterns with Python" (Percival and Gregory): a domain
 with no I/O, a service layer of use cases that take their dependencies as arguments, adapters at the
-edges, and one composition root. What the product does is unchanged: every route, MCP tool, `sag`
+edges, and one composition root. What the product does is unchanged: every route, MCP tool, `sab`
 command, client function and file format is the same.
 
 ## The three rules, and how the layout meets them
@@ -18,8 +18,8 @@ command, client function and file format is the same.
    `bootstrap.py` is the composition root: the one place that builds the concrete adapters and hands
    them to the services. `server/app.py` asks it for the services and gives each route module its own.
 
-2. **No more than three deep.** Every module is `src/swissarmygrid/<file>.py` or
-   `src/swissarmygrid/<folder>/<file>.py`; there are three layers. Entry points (HTTP routes, `sag`,
+2. **No more than three deep.** Every module is `src/swissarmybench/<file>.py` or
+   `src/swissarmybench/<folder>/<file>.py`; there are three layers. Entry points (HTTP routes, `sab`,
    MCP, the push client) are adapters, as the owner's rule says.
 
 3. **One file per feature.** A feature has at most one file in each layer, named after it:
@@ -36,7 +36,7 @@ packages blocked.
 ### Why `server/` as well as `adapters/`
 
 Three things outside the layout pin `server/`:
-- `python -m swissarmygrid.server` is how the VS Code extension, the README and the tests start the
+- `python -m swissarmybench.server` is how the VS Code extension, the README and the tests start the
   server, so `server/__main__.py` stays.
 - `tests/test_client_install.py` asserts that nothing outside `server/` may start a process or open a
   browser. So the adapters that start one stay there: the
@@ -44,12 +44,12 @@ Three things outside the layout pin `server/`:
 - The HTTP door is its own kind of adapter (a driving one). Keeping it apart from the driven adapters
   (`adapters/`) reads better than thirty files in one folder.
 
-`client/`, `cli/` and `mcp/` keep their names for the same reason: `swissarmygrid.client` is public
-(`from swissarmygrid.client import push`), and the three script entry points name them.
+`client/`, `cli/` and `mcp/` keep their names for the same reason: `swissarmybench.client` is public
+(`from swissarmybench.client import push`), and the three script entry points name them.
 
 ### The plain client
 
-`swissarmygrid/__init__.py`, `client/*`, `cli/*` and the files they import
+`swissarmybench/__init__.py`, `client/*`, `cli/*` and the files they import
 (`domain/blades.py`, `domain/catalogs.py`, `adapters/blade_run.py`) use the standard library only.
 `domain/__init__.py`, `adapters/__init__.py` and `services/__init__.py` import nothing. The
 architecture test imports each of them in a clean interpreter where `duckdb`, `pyarrow`, `pandas`,
@@ -199,7 +199,7 @@ of its own, a service class in `services/<feature>.py` built in `bootstrap.py`, 
   failed in the first full run on this machine, before any change (two SQL cells where the test
   expects one), and passes when its file is run alone: it is timing-sensitive here (Chromium in place
   of Edge). It is not touched.
-- `cli/commands.py` (1,583 lines) is the one registry every MCP tool and `sag` command is generated
+- `cli/commands.py` (1,583 lines) is the one registry every MCP tool and `sab` command is generated
   from: names, descriptions and arguments. It is a little over the size guide, and splitting it would
   put the registry in several places for no gain; its text is part of the behaviour that must not
   change. It is untouched. `cli/`, `mcp/` and `client/` are otherwise as they were, apart from import

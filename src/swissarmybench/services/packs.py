@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from swissarmygrid.domain.blades import Blade, file_name, write_blade
-from swissarmygrid.domain.packs import BLADES_FOLDER, TANGS_FOLDER, Pack, PackError, scaffold
-from swissarmygrid.domain.relationships import Model, tang_file_name, write_tang
-from swissarmygrid.services.workspace import NotFound, Workspace
+from swissarmybench.domain.blades import Blade, file_name, write_blade
+from swissarmybench.domain.packs import BLADES_FOLDER, TANGS_FOLDER, Pack, PackError, scaffold
+from swissarmybench.domain.relationships import Model, tang_file_name, write_tang
+from swissarmybench.services.workspace import NotFound, Workspace
 
 
 class PackFiles(Protocol):

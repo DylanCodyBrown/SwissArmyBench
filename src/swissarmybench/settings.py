@@ -15,6 +15,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from swissarmybench.renamed import env, home_state_folder, workbench_folder
+
 MIB: int = 1024 * 1024
 GIB: int = 1024 * MIB
 
@@ -49,28 +51,28 @@ def physical_memory_bytes() -> int:
 
 
 def _state_dir() -> Path:
-    override = os.environ.get("SWISSARMYGRID_STATE")
-    return Path(override) if override else Path.home() / ".swissarmygrid"
+    override = env("SWISSARMYBENCH_STATE")
+    return Path(override) if override else home_state_folder()
 
 
 def _workbench_dir() -> Path:
-    """The user's own folder for notebooks and scripts: SwissArmyGrid in the home folder (made the first
-    time it is needed); SWISSARMYGRID_WORKBENCH_DIR overrides it (tests, so none lands in a real home)."""
-    override = os.environ.get("SWISSARMYGRID_WORKBENCH_DIR")
-    return Path(override) if override else Path.home() / "SwissArmyGrid"
+    """The user's own folder for notebooks and scripts: SwissArmyBench in the home folder (made the first
+    time it is needed); SWISSARMYBENCH_WORKBENCH_DIR overrides it (tests, so none lands in a real home)."""
+    override = env("SWISSARMYBENCH_WORKBENCH_DIR")
+    return Path(override) if override else workbench_folder()
 
 
 def _claude_dir() -> Path:
-    """Claude Code's folder, where installed plugins (packs) live: SWISSARMYGRID_CLAUDE_DIR (tests),
+    """Claude Code's folder, where installed plugins (packs) live: SWISSARMYBENCH_CLAUDE_DIR (tests),
     else Claude Code's own CLAUDE_CONFIG_DIR, else ~/.claude."""
-    override = os.environ.get("SWISSARMYGRID_CLAUDE_DIR") or os.environ.get("CLAUDE_CONFIG_DIR")
+    override = env("SWISSARMYBENCH_CLAUDE_DIR") or os.environ.get("CLAUDE_CONFIG_DIR")
     return Path(override) if override else Path.home() / ".claude"
 
 
 def _default_dataset_cap() -> int:
     """1 GiB per dataset (room for Excel's 1,048,576 rows on a wide table), or
-    SWISSARMYGRID_MAX_DATASET_MB when set; always within the total budget."""
-    override = os.environ.get("SWISSARMYGRID_MAX_DATASET_MB", "")
+    SWISSARMYBENCH_MAX_DATASET_MB when set; always within the total budget."""
+    override = env("SWISSARMYBENCH_MAX_DATASET_MB", "")
     return int(override) * MIB if override.isdigit() and int(override) > 0 else GIB
 
 

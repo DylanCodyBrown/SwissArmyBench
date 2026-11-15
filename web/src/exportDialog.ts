@@ -126,5 +126,5 @@ export function openExport(): void {
       error.textContent = e instanceof ApiError ? e.message : String(e);
     }
   };
-  foot.append(button("Cancel", close), button("Save to export folder", () => void exportNow(true), { icon: "save", title: "~\\.swissarmygrid\\exports" }), button("Download", () => void exportNow(false), { icon: "export", class: "primary" }));
+  foot.append(button("Cancel", close), button("Save to export folder", () => void exportNow(true), { icon: "save", title: "~\\.swissarmybench\\exports" }), button("Download", () => void exportNow(false), { icon: "export", class: "primary" }));
 }

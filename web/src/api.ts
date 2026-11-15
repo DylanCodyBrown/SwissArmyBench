@@ -120,7 +120,7 @@ export const openedWith: URLSearchParams = new URLSearchParams(location.hash.sli
 /** Read from the URL fragment once, then removed from the address bar (so it is not on screen
  * or in a screenshot) and kept in this tab's session storage so a reload still works. */
 export const token: string = (() => {
-  const key = `swissarmygrid.token.${location.pathname}`;
+  const key = `swissarmybench.token.${location.pathname}`;
   const fromUrl = new URLSearchParams(location.hash.slice(1)).get("token");
   let found = fromUrl ?? "";
   try {
@@ -247,7 +247,7 @@ export function connect(onState: (live: boolean, again: boolean) => void, who: R
   const open = (): void => {
     // ?grid= tells the server which grid this page shows (?workspace=1: a tab bar that shows every
     // grid), so a push knows its grid is on screen and opens no new window.
-    const socket = new WebSocket(`ws://${location.host}/ws?${new URLSearchParams(who).toString()}`, ["swissarmygrid", token]);
+    const socket = new WebSocket(`ws://${location.host}/ws?${new URLSearchParams(who).toString()}`, ["swissarmybench", token]);
     let live = false;
     socket.addEventListener("open", () => {
       live = true;

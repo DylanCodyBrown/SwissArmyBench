@@ -17,8 +17,8 @@ TABLE = pa.table({"client": ["Acme", "Globex"], "balance": [1.0, 2.0]})
 @pytest.fixture
 def lenient(tmp_path: Path) -> Any:
     """A client that reports a server error as a 500 response instead of raising it."""
-    from swissarmygrid.server.app import create_app
-    from swissarmygrid.settings import Settings
+    from swissarmybench.server.app import create_app
+    from swissarmybench.settings import Settings
 
     settings = Settings(state_dir=tmp_path / "state", export_dir=tmp_path / "exports")
     with TestClient(create_app(PORT, TOKEN, settings), base_url=BASE, raise_server_exceptions=False) as c:
@@ -46,8 +46,8 @@ def test_a_body_that_is_not_an_object_is_a_400(lenient: TestClient, body: bytes)
 
 def test_the_agent_can_stop_the_server_as_the_user_can(tmp_path: Path) -> None:
     stopped: list[bool] = []
-    from swissarmygrid.server.app import create_app
-    from swissarmygrid.settings import Settings
+    from swissarmybench.server.app import create_app
+    from swissarmybench.settings import Settings
 
     settings = Settings(state_dir=tmp_path / "state", export_dir=tmp_path / "exports")
     app = create_app(PORT, TOKEN, settings, on_shutdown=lambda: stopped.append(True))
@@ -57,7 +57,7 @@ def test_the_agent_can_stop_the_server_as_the_user_can(tmp_path: Path) -> None:
 
 
 def test_json_bodies_are_capped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("swissarmygrid.server.http.MAX_JSON_BODY_BYTES", 1024)
+    monkeypatch.setattr("swissarmybench.server.http.MAX_JSON_BODY_BYTES", 1024)
     with make_client(tmp_path) as c:
         gid = grid_id(push(c, "clients", TABLE))
         big = b'{"steps": [], "pad": "' + b"x" * 4096 + b'"}'
@@ -93,8 +93,8 @@ def test_a_page_that_stops_reading_never_holds_up_a_broadcast(monkeypatch: pytes
     import json as json_module
     import time
 
-    from swissarmygrid.adapters import live_updates
-    from swissarmygrid.adapters.live_updates import LiveUpdates
+    from swissarmybench.adapters import live_updates
+    from swissarmybench.adapters.live_updates import LiveUpdates
 
     monkeypatch.setattr(live_updates, "SEND_TIMEOUT_SECONDS", 0.2)
     live = LiveUpdates()
@@ -121,7 +121,7 @@ def test_jsonable_keeps_its_meaning_on_the_fast_path() -> None:
     from decimal import Decimal
     from uuid import UUID
 
-    from swissarmygrid.server.http import jsonable
+    from swissarmybench.server.http import jsonable
 
     rows = [
         [1, 2**53 - 1, 2**53, -(2**60), 1.5, float("nan"), float("inf"), None, True, "x"],
@@ -160,7 +160,7 @@ def test_a_job_that_raises_stop_iteration_still_answers() -> None:
     # A future refuses StopIteration, and the request awaiting it never answered.
     import asyncio
 
-    from swissarmygrid.adapters.database import PriorityWorkers
+    from swissarmybench.adapters.database import PriorityWorkers
 
     workers = PriorityWorkers(1)
 

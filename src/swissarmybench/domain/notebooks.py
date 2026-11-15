@@ -5,7 +5,7 @@ A notebook here is a list of cells, each code (Python), sql (run on a connection
 dataset of a Power BI workspace), html (a design: domain/html_cells.py) or markdown, with the outputs
 a run gave (kept as nbformat's own output records).
 In the file, a SQL cell is a code cell that starts with its `%%sql <connection>` line (any Jupyter with
-SwissArmyGrid runs it as it is), marked so the Workbench opens it as a SQL cell again. A DAX cell (the
+Swiss Army Bench runs it as it is), marked so the Workbench opens it as a SQL cell again. A DAX cell (the
 owner, 2026-11-15: "a new kind of cell, a DAX cell") is the same with `%%dax <connection>/<dataset>`:
 `%%dax Finance/Sales model`. An HTML cell is a
 code cell that starts with `%%html`, IPython's own cell magic, so plain Jupyter draws it when run; the
@@ -16,11 +16,11 @@ Streamlit is shown live in its cell (domain/streamlit_use.py), and its pane's he
 metadata too. A notebook saved when there was such a kind (a code cell marked `"kind": "streamlit"`,
 its first line the comment `# %% [streamlit]`) opens with that cell as a Python cell: the marker line
 goes, the code and the height stay. Pages once kept in a notebook's metadata
-(`swissarmygrid.streamlit.pages`) are not read and not written: an app is a file of its own now
+(`swissarmybench.streamlit.pages`) are not read and not written: an app is a file of its own now
 (domain/streamlit_cells.py).
 
 Any cell may have a name (the owner, 2026-11-15): a short label of one line, kept in the cell's
-metadata (`swissarmygrid.name`), so plain Jupyter keeps it. The number stays the cell's identity: a
+metadata (`swissarmybench.name`), so plain Jupyter keeps it. The number stays the cell's identity: a
 name changes nothing that links to the cell.
 
 Every cell has a number that never changes (docs/ideas.md, 2026-11-14): given when the cell is made,
@@ -38,7 +38,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmygrid.domain.html_cells import check_height
+from swissarmybench.domain.html_cells import check_height
 
 APP_SUFFIX: str = ".stapp.json"  # a Streamlit app's file (domain/streamlit_cells.py)
 MAX_CELLS: int = 2_000
@@ -52,7 +52,8 @@ MAX_NAME: int = 80  # a cell's name: one line
 MAX_CONNECTION_CHARS: int = 200  # a DAX cell's is a connection, a slash and a dataset's name
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
 MAX_STEPS_CHARS: int = 200_000
-_SQL_LINE = re.compile(r"^%%(?:sql|sag)\b(?!_)")
+# %%sag: the SQL cell's own magic before the rename to Swiss Army Bench, still read (renamed.py).
+_SQL_LINE = re.compile(r"^%%(?:sql|sab|sag)\b(?!_)")
 _DAX_LINE = re.compile(r"^%%dax\b")
 _HTML_LINE = re.compile(r"^%%html\b")
 
@@ -98,7 +99,7 @@ class Cell:
         }
 
     def marks(self) -> dict[str, Any]:
-        """What the file keeps about the cell beside its text (the notebook's `swissarmygrid` metadata)."""
+        """What the file keeps about the cell beside its text (the notebook's `swissarmybench` metadata)."""
         kept: dict[str, Any] = {}
         if self.kind in ("sql", "dax"):
             kept |= {"kind": self.kind, "connection": self.connection}
@@ -165,9 +166,23 @@ def _lines(text: str) -> list[str]:
     return text.splitlines(keepends=True)
 
 
+# The notebook's and each cell's own metadata key; SwissArmyGrid's, before the rename, is still read (an
+# old notebook keeps its cell numbers, names and kinds) and written over with the new one on save.
+OWN_KEY: str = "swissarmybench"
+OLD_KEY: str = "swissarmygrid"
+
+
+def _own(raw: dict[str, Any]) -> Any:
+    """What the file keeps under this app's key in `raw`'s metadata: the new key, else the old one."""
+    metadata = raw.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        return None
+    return metadata[OWN_KEY] if OWN_KEY in metadata else metadata.get(OLD_KEY)
+
+
 def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:
     """A cell with what the file keeps about it: its number and its part in the Tables group."""
-    marks = (raw.get("metadata") or {}).get("swissarmygrid")
+    marks = _own(raw)
     if not isinstance(marks, dict):
         return cell
     number = marks.get("number")
@@ -229,7 +244,8 @@ def read_document(text: str) -> tuple[list[Cell], int]:
             cells.append(_marked(Cell("markdown", source), raw))
         elif kind == "code":
             first, _, rest = source.partition("\n")
-            marked = (raw.get("metadata") or {}).get("swissarmygrid", {}).get("kind")
+            own = _own(raw)
+            marked = own.get("kind") if isinstance(own, dict) else None
             dax = bool(_DAX_LINE.match(first)) or (marked == "dax" and not _SQL_LINE.match(first))
             if dax or _SQL_LINE.match(first) or marked == "sql":
                 words = first.split(None, 1)
@@ -258,7 +274,7 @@ def read_document(text: str) -> tuple[list[Cell], int]:
             cells.append(_marked(cell, raw))
         elif kind == "raw":
             cells.append(_marked(Cell("markdown", source), raw))
-    kept = (data.get("metadata") or {}).get("swissarmygrid")
+    kept = _own(data)
     counted = kept.get("next_cell") if isinstance(kept, dict) else None
     return cells, number_cells(cells, counted if isinstance(counted, int) and counted > 0 else 1)
 
@@ -331,7 +347,7 @@ def write_notebook(
     out: list[dict[str, Any]] = []
     for i, cell in enumerate(cells):
         marks = cell.marks()
-        metadata = {"swissarmygrid": marks} if marks else {}
+        metadata = {OWN_KEY: marks} if marks else {}
         base: dict[str, Any] = {"id": f"cell-{i + 1}", "metadata": metadata}
         if cell.kind == "markdown":
             out.append(base | {"cell_type": "markdown", "source": _lines(cell.source)})
@@ -350,7 +366,7 @@ def write_notebook(
         "metadata": {
             "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
             "language_info": {"name": "python", "version": python_version},
-            "swissarmygrid": own,
+            OWN_KEY: own,
         },
         "nbformat": 4,
         "nbformat_minor": 5,

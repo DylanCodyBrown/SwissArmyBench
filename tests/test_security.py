@@ -8,8 +8,8 @@ from starlette.routing import WebSocketRoute
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from swissarmygrid.server.app import create_app
-from swissarmygrid.server.security import WEBSOCKET_SUBPROTOCOL, LocalOnlyGuard
+from swissarmybench.server.app import create_app
+from swissarmybench.server.security import WEBSOCKET_SUBPROTOCOL, LocalOnlyGuard
 
 PORT = 8765
 TOKEN = "test-token"

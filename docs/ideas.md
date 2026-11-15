@@ -124,7 +124,7 @@ that haven't been folded back into it yet.
 
 The owner's report: copied SQL and Python "never was the actual transformation script that would
 work to transform the source table back in the ENV". Reproduced: the DuckDB copy only defined
-`transform(con, rel)` (pyarrow, a `__sag_ord` column, a table registered as `source`), so pasting
+`transform(con, rel)` (pyarrow, a `__sab_ord` column, a table registered as `source`), so pasting
 it computed nothing and calling it on the user's DataFrame failed; the pandas and plain copies
 also only defined `transform()` with helpers and imports. Verification ran them against an Arrow
 relation, not the user's variable, so they were marked verified anyway.
@@ -162,7 +162,7 @@ relation, not the user's variable, so they were marked verified anyway.
 "The agent tab should be renamed to sandbox ... every single image output to land in the sandbox ...
 more visual analytics languages ... dynamically size those graphs ... like a container ... savable
 dashboards that ... open up with the workspace." The owner's choices: images come from Python (the
-agent's or the user's draws the figure and sends the picture; SwissArmyGrid never runs agent code, so
+agent's or the user's draws the figure and sends the picture; Swiss Army Bench never runs agent code, so
 no milestone 9); Plotly, Graphviz (DOT) and Apache ECharts besides Vega-Lite and Mermaid; the page part
 first, the server part once the Cosmic Python refactor has landed.
 
@@ -178,7 +178,7 @@ first, the server part once the Cosmic Python refactor has landed.
   graphic layer and the data view, and draws tooltips as text.
 - **Done (server, 2026-11-13):** cards of no table (`POST /cards`: notes, figures, pictures, a table of
   its own rows; badged Python, Agent or Sandbox; they stay when grids close; the Sandbox's Add note
-  makes one); `key` replaces a card in place, keeping its size and order; `sag.sandbox` (duck-typed,
+  makes one); `key` replaces a card in place, keeping its size and order; `sab.sandbox` (duck-typed,
   standard library only); a `vegalite` card for Altair, **refused from the agent** (Vega compiles its
   expressions and the page allows that; the agent has the checked `chart`), its data inline (any url or
   href refused, so it fetches nothing); `sandbox_formats` and `sandbox_add` with `file`, `key`, `size`
@@ -202,13 +202,13 @@ first, the server part once the Cosmic Python refactor has landed.
   tools are available to build graphs and charts"; "an agent can push rendered markdown ... resizable
   like a text box"; "no gaps in MCP tools ... the agents will need to understand what they are looking
   at, what's available and what data they can plot with". The design:
-  - **`sag.sandbox(thing, title=None, *, key=None, size=None, kind=None)`** in Python (standard library
+  - **`sab.sandbox(thing, title=None, *, key=None, size=None, kind=None)`** in Python (standard library
     only; it duck-types what it is given): a matplotlib or seaborn figure (`savefig`, PNG), a Plotly
     figure (`to_json`), an Altair chart (`to_dict`, drawn as Vega-Lite), a graphviz `Digraph`/`Source`
     (`.source`), a PIL image, PNG/JPEG/SVG bytes or a file path, a DataFrame (a table card, first rows),
     Markdown text (a note), and Mermaid, DOT or ECharts text with `kind=`. Explicit, not every image:
     the script decides what is worth showing. **`key=`** names a card, so running a cell again
-    replaces its card instead of adding another. Returns the card's id. `sag sandbox ...` in the
+    replaces its card instead of adding another. Returns the card's id. `sab sandbox ...` in the
     terminal does the same for files.
   - **Cards not tied to a table:** a card from Python or the agent may belong to no grid ("Python").
   - **The agent's tools:** `sandbox_formats` (every card kind, its exact format, limits, a small
@@ -224,7 +224,7 @@ first, the server part once the Cosmic Python refactor has landed.
     `dataset.source`, Plotly columns by name). Big data never passes through the agent, and the card
     follows the table's steps.
   - **Sizes on the server**, so a dashboard is the same in every browser; notes size like a text box.
-  - **Saved dashboards:** the Sandbox is saved to disk as it changes and reopens when SwissArmyGrid
+  - **Saved dashboards:** the Sandbox is saved to disk as it changes and reopens when Swiss Army Bench
     starts; named dashboards save and open (`sandbox_save`, `sandbox_open`); once workspaces exist
     (plan phase 1), each workspace opens with its own. A card drawn from a table that is not open
     says so, and draws when the table is pushed again.
@@ -294,18 +294,18 @@ marketplace-reference, manifest-reference, install, loading, org):
   each person still installs once; only managed settings install automatically.
 
 The design:
-- **A pack** is a plugin with `blades/` and `tangs/` (and, if wanted, the SwissArmyGrid skill and MCP
-  server). SwissArmyGrid finds installed, enabled packs and lists their blades and tangs with the pack
+- **A pack** is a plugin with `blades/` and `tangs/` (and, if wanted, the Swiss Army Bench skill and MCP
+  server). Swiss Army Bench finds installed, enabled packs and lists their blades and tangs with the pack
   and version; read-only (the installed copy is replaced on update): Save a copy into your own blades or
   a blade folder.
 - **Collaboration is Git:** clone the marketplace repository, add the clone as a blade folder (already
   works), save blades and tangs there, commit, pull request, merge; teammates update.
-- **`sag pack new`** scaffolds a marketplace repository (marketplace.json, one pack, README with the
-  commands); **Add to pack** copies chosen blades and tangs into a pack folder. SwissArmyGrid's own
+- **`sab pack new`** scaffolds a marketplace repository (marketplace.json, one pack, README with the
+  commands); **Add to pack** copies chosen blades and tangs into a pack folder. Swiss Army Bench's own
   repository may become a marketplace with an example pack on the made-up store.
 - **Trust:** a pack blade is the marketplace maintainers' code, trusted as installing any plugin is;
   it runs only when used, and always shows its pack.
-- **Built as designed**, and this repository is now a marketplace (`swissarmygrid`: the skill and the
+- **Built as designed**, and this repository is now a marketplace (`swissarmybench`: the skill and the
   agent tools; `sample-store`: the example pack). Decisions made on the way: the pack routes and the
   Packs window are the user's (the agent cannot list or change packs); Add to pack writes only into a
   pack inside the blade folders, keeps existing files unless asked to replace, and New marketplace
@@ -324,7 +324,7 @@ my coworkers have no way of knowing: share relationships in the same way we can 
 
 - **The name is the owner's: tangs.** A saved set of relationships is a tang (the part of a blade that
   anchors it into the handle). The `.tang` file is JSON that must start with
-  `"swissarmygrid": "tang", "format": 1`, so no other JSON file is taken for one, and a newer format is
+  `"swissarmybench": "tang", "format": 1`, so no other JSON file is taken for one, and a newer format is
   refused by name.
 - **Shared like blades, through the same folders:** the blade folders are searched for `.tang` files
   (four levels deep, hidden folders and environments skipped), so one team folder carries both. Save as
@@ -375,7 +375,7 @@ a new blade it will suggest what variables to enter."
   included), what it imports that isn't installed, and that its code runs whenever the blade is used.
   Saving runs nothing. An unanswered request is declined after 3 minutes.
 - **What the agent still can't do:** read an existing blade's code, catalog command or secret status
-  (`blades_list` gives names, kinds, descriptions, tags and the `sag.blade` line); send a secret's value
+  (`blades_list` gives names, kinds, descriptions, tags and the `sab.blade` line); send a secret's value
   (refused; the code says `secret("password")`); choose a blade folder (ignored, so a blade lands in the
   app); replace, change, remove, refresh, test or run a blade. A taken name is refused before the user is
   asked.
@@ -388,7 +388,7 @@ a new blade it will suggest what variables to enter."
 "a format or frontmatter" to tell blades from other Python, "descriptions and tags", and "pin blades
 to favorite".
 
-- **The frontmatter is a comment block**, `# /// swissarmygrid-blade` ... `# ///` holding TOML, the
+- **The frontmatter is a comment block**, `# /// swissarmybench-blade` ... `# ///` holding TOML, the
   same shape as Python's inline script metadata (PEP 723), so a blade file stays a runnable, lintable
   Python file and Git diffs read well. It must open the file: a header further down does not count,
   so a file that merely mentions the marker is never taken for a blade.
@@ -523,7 +523,7 @@ analysis where I can find the liars within a column, by frequency or amount."
 
 "Strip marimo: it's heavy and not well adopted. Jupyter and Python in the terminal." The notebook tab,
 its blade rail, the /marimo proxy, the notebook cookie and the marimo dependency are gone. To notebook
-became **To Python**: the code is copied and queued (in memory, the last 20) and `sag.paste()` in
+became **To Python**: the code is copied and queued (in memory, the last 20) and `sab.paste()` in
 Jupyter or IPython puts it in the cell (set_next_input, replacing the cell that ran it) or at the
 prompt; plain Python prints it. The agent can't queue code (it would land in the user's kernel). The
 grid's automatic code-behind for notebook tables went with the tab; To Python is a click. Lost:
@@ -531,12 +531,12 @@ dropping a blade straight into a cell (drag gives its text instead) and Save as 
 
 ## The name off the screens (2026-11-13, the owner's request)
 
-"The words Swiss army grid should appear nowhere in the app." Gone from every page title (the browser
+"The words Swiss Army Bench should appear nowhere in the app." Gone from every page title (the browser
 tab names the grid in front: "orders", "Key Finder · orders"), the Application row's caption, the
 bottom bar's credit (now "Created by Dylan Brown"), the Sandbox's empty state, the markdown export and
 chart HTML footers, generated code's header comments, and the messages the page shows. Kept, because
-changing them breaks installs or stored data: the package, `import swissarmygrid as sag`, the
-`swissarmygrid` and `swissarmygrid-mcp` commands, the `~/.swissarmygrid` folder, the vault's service
+changing them breaks installs or stored data: the package, `import swissarmybench as sab`, the
+`swissarmybench` and `swissarmybench-mcp` commands, the `~/.swissarmybench` folder, the vault's service
 name for blade secrets, browser storage keys, and the Parquet provenance key. The MCP server and its
 agent guide still use the name (the agent's view, not the app's); to confirm.
 
@@ -668,7 +668,7 @@ An agent drove every area of the app in a browser with made-up data against two 
 12. Driver: an Install button beside the "not installed" note in the Connections form; the form updates when done; the command stays visible. **Built (round 3).**
 13. Vault picker: "Entry in the vault" lists the vault's secrets by name (read in the background); picking one applies it. **Built (round 3).**
 14. Database forms: Server, Port, Catalog/Database; then User and Password; then Certificate file and Trust server certificate together. Same order on every database form. Label the password box. **Built (round 3).**
-15. First save: create the SwissArmyGrid folder in the home folder the first time it is needed. **Built (round 3).**
+15. First save: create the Swiss Army Bench folder in the home folder the first time it is needed. **Built (round 3).**
 16. Workbench: Open as grid on every table output (DataFrame, SQL result); in a notebook the console starts as a thin bar and grows when used or dragged; New notebook puts the cursor in the first cell. (Variables icon unchanged.) **Built (rounds 1 and 2).**
 17. Steps: Ctrl+Z undoes the last step, Ctrl+Y / Ctrl+Shift+Z redoes; the strip counts a header sort as a step; hovering "N steps" lists the steps in plain words, each with a remove ×. (No recipes list.) **Built (round 3).**
 18. Keyboard: Ctrl+Shift+P command palette on the grid page (every grid-page action); Enter / F2 on a cell opens the value viewer. (No Alt+G, no access keys.) **Built (round 3).**
@@ -723,7 +723,7 @@ checked). Decided while building; confirm or change:
   comes from", "Password"); then encrypt, the certificate file and Trust server certificate.
 - **15. First save.** The folder is made when the file chooser first looks at it (the Workbench's Save
   and Open start there), as well as on a save into it. Only that folder is ever made.
-  `SWISSARMYGRID_WORKBENCH_DIR` sets it, for tests.
+  `SWISSARMYBENCH_WORKBENCH_DIR` sets it, for tests.
 - **17. Steps.** Undo takes back **the last change to the steps**, whatever it was (a step added,
   removed, edited, switched off or moved, the steps cleared, a header sort, a step a chart or a
   tie-out added), 100 changes deep, for each grid; a new change ends what can be redone. The strip's
@@ -810,7 +810,7 @@ should be code behind in the read only cell using duck db." Decided:
   original and the transformed table are both in memory while working.
 - **The copy buttons go:** Copy as SQL, Copy as Python and To Python leave the steps strip and are not
   moved anywhere; the table's cell is the code. (Open: the catalog's Script as also queues code for
-  sag.paste; whether it stays.)
+  sab.paste; whether it stays.)
 - **The uses line** (the owner, 2026-11-14). When one of the user's own cells (a notebook cell, or a
   script's `# %%` cell) names an open table, the app keeps one comment line at the top of that cell:
   `# uses orders @cell3, customers @cell5`. Each link goes to that table's read-only cell. The line
@@ -832,7 +832,7 @@ web/src/workbenchTables.ts, the notebook and script views). Decided while buildi
 - **Which tables get a cell, and where.** A table is open when it has a tab in the grid. Its cell goes
   into the document whose kernel sent it; else a document that already holds its cell (its file); else,
   for a table no Python made (a file, a paste, a connection, a "+" tab's query), the document in front.
-  A table sent by a Python outside the Workbench (Jupyter, a script in another editor, `sag.push` from
+  A table sent by a Python outside the Workbench (Jupyter, a script in another editor, `sab.push` from
   a terminal) gets no cell: its code lives where the app cannot write (the limit above). Once a
   document has a table it keeps it; a table closed in the grid keeps its cell in the file ("not open in
   the grid"), and only then can the cell be deleted.
@@ -853,7 +853,7 @@ web/src/workbenchTables.ts, the notebook and script views). Decided while buildi
   is opened again (a notebook keeps its count in its metadata, so there a number is never reused).
 - **A load for each origin.** A file: `duckdb.read_csv / read_parquet / read_json(path).df()`, a
   workbook `pd.read_excel(path, sheet_name=...)` (the server reads files with Arrow, so a column's
-  type can differ in small ways). A connection: `sag.sql("Name", "<the query it was opened with>")`.
+  type can differ in small ways). A connection: `sab.sql("Name", "<the query it was opened with>")`.
   A "+" tab: its query. **A paste: written out as one typed `VALUES` query when it has at most 200
   rows, 50 columns and 20,000 characters; else a note** saying to export it to a file and open that.
   A file dropped on the page (the browser gives no path) gets a note.
@@ -861,10 +861,10 @@ web/src/workbenchTables.ts, the notebook and script views). Decided while buildi
   one statement. A sort made by clicking a header is a way of looking and stays out of the cell. A step
   that cannot run is said in the cell instead of a query that fails.
 - **Safe to repeat, and not sent back.** The kernel keeps a reference to what was sent to the grid
-  under each name; the Workbench runs a table's cell as `%%sag_table orders`, which puts that original
+  under each name; the Workbench runs a table's cell as `%%sab_table orders`, which puts that original
   back under the name first. The watcher sees the changed variable is the cell's own result and does
   not send it; when the maker ran again just before the cell did, it sends the new original instead.
-  Run file (`%sag_run`) and a script's Run to here, Run from here and selections run a table's cell
+  Run file (`%sab_run`) and a script's Run to here, Run from here and selections run a table's cell
   the same way. Run as plain Python elsewhere, the file makes the table and transforms it once.
 - **A reopened file's steps.** A notebook keeps each table cell's steps in the cell's metadata, and a
   grid opened with no steps for a table whose cell came with the file gets them back. A script has no
@@ -932,7 +932,7 @@ web/static/design.html, the notebook and script views). Decided while building; 
   lines show; with the cursor elsewhere they are put away and the design is drawn under the marker
   line, which says "HTML · click this line to edit". **Limit: in a script the HTML is coloured as a
   Python string, not as HTML** (the notebook's editor colours it as HTML).
-- **The height:** a notebook keeps it in the cell's metadata (`swissarmygrid.height`); a script on the
+- **The height:** a notebook keeps it in the cell's metadata (`swissarmybench.height`); a script on the
   marker (`height=320`). Without one the pane takes the design's own height (up to 640); limits 60 to
   2,000 pixels. A double-click on the edge (or Enter) goes back to the design's own height.
 - **How the frame is walled off.** The design is drawn in a frame loaded from the app's own static
@@ -991,8 +991,8 @@ action) and the app's purpose (DuckDB SQL does the transforming).
    check that ran them are gone. The code route, the steps window's Code tab and `steps_python` lost
    their `target` argument rather than keeping one that takes a single value: with one answer there is
    nothing to choose. The DuckDB copy is still run exactly as copied and compared with the grid.
-2. **To Python, Script as and the `sag.paste()` queue.** The queue of code waiting for the user's
-   Python is gone: the page's part, the service and its routes, `sag.paste`, and the agent's
+2. **To Python, Script as and the `sab.paste()` queue.** The queue of code waiting for the user's
+   Python is gone: the page's part, the service and its routes, `sab.paste`, and the agent's
    `python_send`, `python_sent` and `python_grid_steps`. The catalog's Script as went with it (its
    route and `catalog_script`); a table's right-click keeps Open as grid. On an analysis result, To
    Python is now **Copy code**: the same checked code, imports first, on the clipboard, and "Copied."
@@ -1064,7 +1064,7 @@ counts.
 
 **What a user's own code or files could notice**
 
-- `sag.paste()` is gone (AttributeError). Nothing replaces it: paste from the clipboard.
+- `sab.paste()` is gone (AttributeError). Nothing replaces it: paste from the clipboard.
 - A script calling the routes `/python/*`, `/grids/{id}/python`, `/grids/{id}/recipe`,
   `/catalogs/{name}/script`, `/agent/blades`, `/agent/blade-templates`, `/agent/query` or
   `/agent/view-state` gets 404. `/grids/{id}/code` ignores `target` and its answer has no `target`.
@@ -1072,8 +1072,8 @@ counts.
   `agent_view_state`, `python_send`, `python_sent`, `python_grid_steps`, `catalog_script` or
   `steps_save_recipe` (an allow-list, a prompt) names tools that no longer exist.
 - A saved recipe no longer comes back when its dataset is pushed again. The files are still in
-  `~/.swissarmygrid/recipes`.
-- `table_profile` takes `grid` as a named argument now (`sag table_profile --grid <id>`), since it can
+  `~/.swissarmybench/recipes`.
+- `table_profile` takes `grid` as a named argument now (`sab table_profile --grid <id>`), since it can
   take `dataset` instead.
 
 ## Power BI workspaces, DAX cells, and a real-world test bed (2026-11-15, the owner's calls; the connection and the DAX cell built)
@@ -1124,7 +1124,7 @@ What it is now (docs/verified.md has what was checked):
   `conn.dataset("Sales model").cursor()` runs DAX on it (`conn.cursor(dataset="Sales model")` is the
   same); `conn.cursor()` with no dataset is the workspace's one dataset, refused with their names when
   it has several. Two datasets with one name are told apart by the start of their ids.
-- **A dataset is named after its connection: `Finance/Sales model`.** A DAX cell, `sag.dax()`, the
+- **A dataset is named after its connection: `Finance/Sales model`.** A DAX cell, `sab.dax()`, the
   agent's commands and a table's source in the Diagram all say it that way. No connection's name has
   a slash, so the first slash always splits the two.
 - **The catalog** is the workspace, then each dataset (the schema level), then its tables, then their
@@ -1161,15 +1161,15 @@ What it is now (docs/verified.md has what was checked):
     `%%sql`, with the same options (`-> name`, `--grid`). Its result is a DataFrame, handled exactly
     as a SQL cell's.
   - **In a script it is plain Python under a marker:** `# %% [dax]`, then
-    `result = sag.dax("Finance/Sales model", """EVALUATE ...""")`. SQL has no cell form in a script
-    either (it is `sag.sql(...)` in Python), so this mirrors it: the file runs as it is, anywhere.
-  - `sag.dax("Finance/Sales model", "EVALUATE ...")` in Python. `sag.sql` on a dataset still works
-    (the same call underneath); the docs teach `sag.dax`. A table opened from a dataset has
-    `sag.dax(...)` as its cell's load.
+    `result = sab.dax("Finance/Sales model", """EVALUATE ...""")`. SQL has no cell form in a script
+    either (it is `sab.sql(...)` in Python), so this mirrors it: the file runs as it is, anywhere.
+  - `sab.dax("Finance/Sales model", "EVALUATE ...")` in Python. `sab.sql` on a dataset still works
+    (the same call underneath); the docs teach `sab.dax`. A table opened from a dataset has
+    `sab.dax(...)` as its cell's load.
   - **Old cells:** a `%%sql Finance/Sales model` cell opens as a DAX cell (the slash says so), and so
     does a SQL cell whose connection is a Power BI one (a notebook saved when the connection was one
     dataset).
-  - **Refused:** a DAX cell or `sag.dax` that names only the workspace (`Finance`) when it has several
+  - **Refused:** a DAX cell or `sab.dax` that names only the workspace (`Finance`) when it has several
     datasets, with a short message naming them. A workspace of one dataset needs no dataset named.
   - **No uses line on a DAX cell.** `Sales` in DAX is the dataset's table, never the open table Sales
     in the kernel, so the app writes no `-- uses` line there.
@@ -1279,7 +1279,7 @@ supply the python table from the connection to feed the catalog." Built as a con
 - **The code is never changed.** A database's password is renamed in its code to point at a vault.
   Here the mapping is kept beside the code and the values are set as environment variables before the
   code runs (the vault runs first, with only this connection's entries), in the child process and in
-  `sag.connection`. So the same code runs unchanged in an Azure Function whose settings hold those
+  `sab.connection`. So the same code runs unchanged in an Azure Function whose settings hold those
   names. A variable the code cannot run without that has no value is named before the code fails on it.
 - **The catalog's shape:** a list of dicts or a DataFrame, one row per column: `table`, `column`, and
   optionally `schema`, `type`, `description`. An INFORMATION_SCHEMA result's names work too. Another
@@ -1295,8 +1295,8 @@ supply the python table from the connection to feed the catalog." Built as a con
 - **Test connection** runs Connect, then List the tables, then the first table's first 20 rows, and
   shows them; the first box to fail says which box and which line. A saved connection's **Test** shows
   the same rows under its row in the list.
-- **In notebooks:** `sag.connection("Orders API")` gives `conn` (and the connection is a variable by
-  its name in every Workbench kernel, like the others). `sag.read("Orders API", "orders")` reads a
+- **In notebooks:** `sab.connection("Orders API")` gives `conn` (and the connection is a variable by
+  its name in every Workbench kernel, like the others). `sab.read("Orders API", "orders")` reads a
   table with the connection's own Read a table box; a table opened from the catalog has that line as
   its read-only cell's load, and the catalog page shows it where a database shows a first SELECT.
   **A SQL cell needed no wiring:** `%%sql` already runs on anything with `.cursor()`, so it works when
@@ -1359,7 +1359,7 @@ streamlit cell in the notebook so I can build streamlit widgets/pages from the d
   agent's `workbench_run_notebook` leave its lines out and run the app once instead. So a piece sees
   the open tables and the names other pieces make, and nothing else of the kernel (the owner's rule).
 - **Pages are saved inside the notebook file** (to confirm): in its metadata
-  (`swissarmygrid.streamlit.pages`: each page's id, name and pieces, a piece by its cell's number
+  (`swissarmybench.streamlit.pages`: each page's id, name and pieces, a piece by its cell's number
   with its width and height). A script keeps them in a `# %% [streamlit-pages]` block: comments
   only, one page a line as JSON, so the file is still Python.
 - **The board:** 12 columns; a piece is 2 to 12 wide (6 when pushed) and as tall as what it draws,
@@ -1385,7 +1385,7 @@ streamlit cell in the notebook so I can build streamlit widgets/pages from the d
   last ran. Nothing runs by itself; Run refreshes the data and every page. A piece keeps what its
   widgets hold through a run.
 - **One process a document,** in the document's own Python (its environment; else this app's):
-  `streamlit run` on a temporary folder (`swissarmygrid-streamlit-*`), `--server.address=127.0.0.1`,
+  `streamlit run` on a temporary folder (`swissarmybench-streamlit-*`), `--server.address=127.0.0.1`,
   a free port, headless, usage statistics off. It is started through a few lines that watch this
   server and end with it. It stops when the document closes, its kernel stops, its Workbench window
   has been gone a minute, or the server stops; the folder goes with it.
@@ -1403,7 +1403,7 @@ streamlit cell in the notebook so I can build streamlit widgets/pages from the d
   `app.py` (`st.navigation` over the pages), `app_pages/<page>.py` for each page as designed,
   `data/<table>.parquet`, `requirements.txt` (streamlit, pandas, pyarrow and what the pieces import,
   the standard library left out) and `README.txt`. Its own files are replaced; nothing else in the
-  folder is touched. It runs without SwissArmyGrid.
+  folder is touched. It runs without Swiss Army Bench.
 - **The agent:** 22 commands (210 in all). In the window: `workbench_streamlit_add`, `_cells`, `_run`,
   `_push`, `_resize`, `_designer`. By the app's id: `streamlit_apps`, `_open` (a saved file's app,
   without the window), `_app` (pieces, pages and layouts), `_sync`, `_run`, `_address`, `_stop`,
@@ -1433,7 +1433,7 @@ the whole: "Essential we have built a data first style ide for streamlit". The f
 **Built (2026-11-15). Decided while building** (each can be changed):
 
 - **The app's file is `<name>.stapp.json`:** JSON written by hand so each block is one line (a change
-  to a block is a one-line diff). It holds `"swissarmygrid": "streamlit-app"`, a version, and the
+  to a block is a one-line diff). It holds `"swissarmybench": "streamlit-app"`, a version, and the
   pages; a page is a name and its blocks; a block is `{"document", "cell", "row", "column", "width",
   "height"}`. No ids, no code. `document` is relative to the app's own file, with forward slashes, so
   the two move together (another drive keeps the whole path). **`row` is one more field than the owner
@@ -1448,7 +1448,7 @@ the whole: "Essential we have built a data first style ide for streamlit". The f
   says "Save X first". The cell's own number (never changed, never reused) is the link, so moving cells
   in the notebook never breaks one.
 - **Getting a cell onto the canvas:** drag a Python cell by its number or its head (HTML drag and drop,
-  the type `application/x-swissarmygrid-cell`, a small JSON of the path, the number and the document's
+  the type `application/x-swissarmybench-cell`, a small JSON of the path, the number and the document's
   name; it works between two Workbench windows); onto the board at the place dropped, onto the app's
   tab or a page's tab at the end. **Copy** (C in command mode, More: Copy, the palette's Copy the cell)
   keeps the link and the cell on the Workbench's own clipboard, shared by every Workbench window
@@ -1479,7 +1479,7 @@ the whole: "Essential we have built a data first style ide for streamlit". The f
 - **Old files.** A notebook saved with the Streamlit kind opens with that cell as a Python cell: the
   marker line goes, the code, the number and the pane's height stay (a Python cell keeps a `height`
   now). A script's `# %% [streamlit]` marker reads as a plain `# %%` cell (`# %% [7] height=300`).
-  **Old pages are dropped, not read:** a notebook's `swissarmygrid.streamlit.pages` is not written
+  **Old pages are dropped, not read:** a notebook's `swissarmybench.streamlit.pages` is not written
   back; a script's `# %% [streamlit-pages]` block stays in the file as the comments it always was.
   Reading them would have needed a place to put them (a new app's file) and the owner said offer nothing.
 - **The app's Python** is its first linked file's own (the open document's choice, else the one
@@ -1571,10 +1571,10 @@ data.py export"**.
   requirements.txt, the app's file and the notebooks and scripts it links to. A linked file outside the
   folder comes along at the zip's top and the zip's copy of the app's file links to it there. Every
   notebook in the zip has its outputs dropped and a pasted table's rows taken out. The zip opens again
-  as a project. This replaced an earlier layout of the same day (a `sag_tables.py` module and a
+  as a project. This replaced an earlier layout of the same day (a `sab_tables.py` module and a
   `workbench/` folder), and an earlier data.py rule ("generated, then yours", entries marked
   `# %% [data] name` and refreshed one at a time): both were built and taken out the same day.
-- **Left open:** blade cells in data.ipynb are the user's own code (`fx = sag.blade("FX rates")`);
+- **Left open:** blade cells in data.ipynb are the user's own code (`fx = sab.blade("FX rates")`);
   there is no "add a blade" button. An unsaved data.ipynb or linked notebook is exported as it stands
   but zipped as its file (Save as says so). A project does not remember which Python it runs in beyond
   each notebook's own.
@@ -1587,7 +1587,7 @@ manipulating excel files like add sheet, format, add border to cell, set cell va
 for dax manipulation cells, and some html blades for creating a wide variety of basic html objects from
 data and tables." Decided:
 
-- **A built-in starter pack** ("SwissArmyGrid starters") in every install's blade list, grouped by family:
+- **A built-in starter pack** ("Swiss Army Bench starters") in every install's blade list, grouped by family:
   Power BI, Excel, Files, DAX, HTML. Read-only; any one can be copied and changed as the user's own.
   Updates arrive with new versions of the app.
 - **Power BI workspace actions:** refresh a dataset; refresh a dataflow; the refresh status (latest and
@@ -1638,7 +1638,7 @@ and Edit), projects and data.py are another branch's, which this one leaves room
   Query; the server's table listing now gives `rows` and `source`) and its steps. A click goes to the
   table's read-only cell in the focused document (a message when it has none); a drag gives its name
   to code. **Variables:** the blades that are not connections (a click opens one, a drag gives its
-  `sag.blade` line; its value shows when the focused kernel holds it). **Files:** a folded section at
+  `sab.blade` line; its value shows when the focused kernel holds it). **Files:** a folded section at
   the bottom, hidden until a project exists (`setFiles`, the hook for the app pages' branch). The arrow
   (or Ctrl+B) folds the panel to a narrow bar; remembered in this browser.
 - **"+ Table" and "+ Blade" keep what the side bar offered,** without a permanent rail: "+ Table" is a
@@ -1710,7 +1710,7 @@ work to be checked without the builder's model). What changed, and why:
 - **Save as writes over only its own pages.** It took away every pages/*.py the canvas did not write
   this time and wrote over any file of the same name, so a page of the user's own, or of a second app
   in the folder, was lost. A saved page's second line names its app's file (`# Written from
-  sales.stapp.json by SwissArmyGrid: change the canvas, not this file.`); only such pages of the same
+  sales.stapp.json by Swiss Army Bench: change the canvas, not this file.`); only such pages of the same
   app are written over or taken away, and Save as says which file it left alone.
 - **A linked file from outside the project** could take the name of the project's own file in the zip
   (data.py, a notebook beside it) and replace it there: it gets a name of its own (`data_2.py`).
@@ -1719,7 +1719,7 @@ work to be checked without the builder's model). What changed, and why:
 **Named cells** (the owner: "make it possible to name cells so the panel can show them by name").
 Any cell can have a name, one line of at most 80 characters; the cell's number stays its identity,
 so `@cell7` and canvas links never change with it.
-- A notebook keeps it in the cell's metadata, `swissarmygrid.name`, which plain Jupyter keeps.
+- A notebook keeps it in the cell's metadata, `swissarmybench.name`, which plain Jupyter keeps.
 - **A script keeps it on the cell's marker line, as the marker's own words**: `# %% [7] Region filter`,
   `# %% [9] [html] height=320 Report`. Those words were already kept (a marker's title) and are what
   VS Code and Jupytext show as the cell's title, so a script needs no new syntax, and old scripts'
@@ -1763,8 +1763,8 @@ cog; now also the Workbench's "…": Settings…) has a Panels section, a switch
 Workbench's Data panel, its Tables, Blade variables and Streamlit cells, Console, Variables and the
 status bar; the grid page's ribbon, steps strip and status bar. A panel turned off is gone (not folded)
 from every window at once, and its commands say "… is turned off in Settings (Panels)". **How "they
-default on every time sag is opened" was read:** the switches are the server's, in memory, shared by
-every window; a reload keeps them; a new start of SwissArmyGrid shows every panel again. If the owner
+default on every time sab is opened" was read:** the switches are the server's, in memory, shared by
+every window; a reload keeps them; a new start of Swiss Army Bench shows every panel again. If the owner
 wants them remembered across starts, they would go to a small file in the state folder. The agent reads
 and sets them with `app_panels`. Not switchable: the grid page's Application row (Settings is there)
 and the Workbench's top bar (its "…" is how Settings is reached).
@@ -1775,3 +1775,31 @@ system clipboard; Export keeps its folder that runs alone with the data as Parqu
 agent's Streamlit Export writes Parquet rows to a folder it names without the user's click (this
 predates the canvas; a grid export by the agent needs a ticket); the page's removal asks with the
 browser's own confirm box.
+
+## Renamed from SwissArmyGrid (2026-11-15, the owner)
+
+"I've decided to rename the app Swiss army bench." Depth: everything. The display name is **Swiss Army
+Bench**; the package, wheel, uv tool and commands are `swissarmybench` (`swissarmybench`,
+`swissarmybench-mcp`, `swissarmybench-context`), the short alias is `sab` (`import swissarmybench as sab`,
+the `sab` terminal command, `%sab_run`, `%%sab_table`, `%%sab_html`, `%%sab`), and the MCP server, the
+Claude Code plugin and its skill (`swissarmybench-use`), the marketplace, the VS Code extension, the
+installers, the release workflow, the state folder (`~/.swissarmybench`), the environment variables
+(`SWISSARMYBENCH_*`), the blade header, the notebook metadata key and the saved pages' mark line all
+follow. The GitHub repository keeps its name for now (the owner renames it later), so its URLs stay.
+
+**The old names work for one release, then go** (all in `src/swissarmybench/renamed.py` or beside what
+they keep, each tested in `tests/test_renamed.py`): `import swissarmygrid` (a small package that is the new
+one under the old name, with a DeprecationWarning); the old commands (one line on stderr naming the new
+one, then the new one); the `sag` magics and `sag` in a Workbench kernel; the old metadata key, blade
+header, tang, Streamlit app and saved-page marks, read and written over with the new ones; the state
+folder, moved on the server's first start (read where it is when it cannot move); the old environment
+variables, read after the new ones; the keyring's old service, read and copied across on first read;
+the page's remembered settings under the old prefix; the old websocket subprotocol; the old uv tool and
+the old `swissarmygrid.chromePath` setting in the VS Code extension. Code the app writes always uses the
+new names. **The next release removes them:** `src/swissarmygrid/`, `renamed.py` and every `OLD_*` name.
+
+Decisions taken here (confirm or change): the user's Workbench folder `~/SwissArmyGrid` is not moved (it
+holds the user's own files, and recent files point into it): it stays the folder while there is no
+`~/SwissArmyBench`. Machine-facing names that cannot hold a space (the keyring service, the Windows mutex,
+that folder) are `SwissArmyBench`. The release notes of 1.0.0 to 1.6.0 are history and keep the old name.
+The installers remove the old `swissarmygrid` uv tool first, since the new one brings the old commands.

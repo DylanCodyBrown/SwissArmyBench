@@ -48,8 +48,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, query_int, read_json
-from swissarmygrid.services.relationships import Compares, Finder, KeyFinder, Models
+from swissarmybench.server.http import actor, error_response, json_response, query_int, read_json
+from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 
 
 def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) -> list[BaseRoute]:
@@ -188,7 +188,7 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
             text, name = models.export_tang()
             return Response(
                 text,
-                media_type="application/vnd.swissarmygrid.tang+json; charset=utf-8",
+                media_type="application/vnd.swissarmybench.tang+json; charset=utf-8",
                 headers={"Content-Disposition": f'attachment; filename="{name}"'},
             )
         except Exception as error:

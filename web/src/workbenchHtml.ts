@@ -28,7 +28,14 @@ import type { Kernel, RunItem } from "./workbenchKernel";
 import type { Output } from "./workbenchOutputs";
 
 /** The output an HTML cell's run gives (client/html_cells.py MIME). */
-export const HTML_MIME = "application/vnd.swissarmygrid.html-cell+json";
+export const HTML_MIME = "application/vnd.swissarmybench.html-cell+json";
+/** The same, in an output saved before the rename to Swiss Army Bench (still read, for one release). */
+const OLD_HTML_MIME = "application/vnd.swissarmygrid.html-cell+json";
+/** What an HTML cell's output says about its names: under the new MIME type, else the old one. */
+function htmlDetail(data: unknown): { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined {
+  const held = data as Record<string, unknown> | undefined;
+  return (held?.[HTML_MIME] ?? held?.[OLD_HTML_MIME]) as { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined;
+}
 export const HEIGHT_MIN = 60;
 export const HEIGHT_MAX = 2000;
 /** A design with no saved height takes its own, up to this. */
@@ -90,7 +97,7 @@ export function htmlState(html: string, run: HtmlRun | undefined): HtmlState {
 /** The run a saved output holds (a notebook opened again): its values, not yet run in this kernel. */
 export function runFromOutputs(outputs: Output[]): HtmlRun | undefined {
   for (const output of outputs) {
-    const detail = (output.data as Record<string, unknown> | undefined)?.[HTML_MIME] as { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined;
+    const detail = htmlDetail(output.data);
     if (detail && typeof detail === "object") return { code: null, at: null, opened: true, values: detail.values ?? {}, marks: detail.marks ?? {}, changed: [], output };
   }
   return undefined;
@@ -121,7 +128,7 @@ export interface HtmlRunResult {
 export async function runHtml(kernel: Kernel, html: string, other: (item: RunItem) => void): Promise<HtmlRunResult> {
   let run: HtmlRun | null = null;
   const done = await kernel.run({ code: html, kind: "html" }, (item) => {
-    const detail = (item.data as Record<string, unknown> | undefined)?.[HTML_MIME] as { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined;
+    const detail = htmlDetail(item.data);
     if (detail && typeof detail === "object") run = { code: html, at: new Date(), opened: false, values: detail.values ?? {}, marks: detail.marks ?? {}, changed: [], output: item };
     else other(item);
   });
@@ -176,15 +183,15 @@ function listen(): void {
   window.addEventListener("message", (event) => {
     for (const pane of panes) {
       if (pane.frame()?.contentWindow !== event.source) continue;
-      if (event.data === "sag-design-ready") pane.ready();
-      else if (typeof event.data === "object" && event.data !== null && typeof (event.data as { sagDesignHeight?: unknown }).sagDesignHeight === "number") pane.fits((event.data as { sagDesignHeight: number }).sagDesignHeight);
+      if (event.data === "sab-design-ready") pane.ready();
+      else if (typeof event.data === "object" && event.data !== null && typeof (event.data as { sabDesignHeight?: unknown }).sabDesignHeight === "number") pane.fits((event.data as { sabDesignHeight: number }).sabDesignHeight);
       return;
     }
   });
 }
 
 // Tells the pane the design's height, so a design with no saved height is shown whole.
-const REPORTER = `<script>(function(){var last=0;function say(){var h=Math.ceil(Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0));if(h!==last){last=h;parent.postMessage({sagDesignHeight:h},"*")}}addEventListener("load",say);if(window.ResizeObserver)new ResizeObserver(say).observe(document.documentElement);setTimeout(say,0)})()</script>`;
+const REPORTER = `<script>(function(){var last=0;function say(){var h=Math.ceil(Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0));if(h!==last){last=h;parent.postMessage({sabDesignHeight:h},"*")}}addEventListener("load",say);if(window.ResizeObserver)new ResizeObserver(say).observe(document.documentElement);setTimeout(say,0)})()</script>`;
 
 /** The page a design is drawn as: plain defaults in the app's colours (the design's own styles come
  *  after them and win), then the cell's HTML. */
@@ -192,8 +199,8 @@ function page(html: string, dark: boolean): string {
   const ink = dark ? "#e8ecef" : "#1c2228";
   const line = dark ? "#343c45" : "#d5dbe1";
   const base = `<style>html{color-scheme:${dark ? "dark" : "light"}}body{margin:12px;font:14px/1.45 "Segoe UI",system-ui,sans-serif;color:${ink};background:transparent}
-.sag-table{border-collapse:collapse;font-size:13px}.sag-table th,.sag-table td{padding:3px 10px;border-bottom:1px solid ${line};text-align:left}.sag-table thead th{border-bottom-width:2px}
-.sag-table caption{caption-side:bottom;text-align:left;font-size:12px;opacity:.75;padding-top:6px}</style>`;
+.sab-table{border-collapse:collapse;font-size:13px}.sab-table th,.sab-table td{padding:3px 10px;border-bottom:1px solid ${line};text-align:left}.sab-table thead th{border-bottom-width:2px}
+.sab-table caption{caption-side:bottom;text-align:left;font-size:12px;opacity:.75;padding-top:6px}</style>`;
   return `<!doctype html><meta charset="utf-8">${base}${html}${REPORTER}`;
 }
 

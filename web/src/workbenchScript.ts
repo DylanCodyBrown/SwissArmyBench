@@ -81,7 +81,7 @@ export interface ScriptView {
   renameTable: (from: string, to: string) => void;
   /** Add an HTML cell after the cursor's cell (at the end without one), with the cursor in it. */
   addHtml: (source?: string, height?: number | null) => Promise<void>;
-  /** Add a DAX cell after the cell at the cursor: `# %% [dax]` over one sag.dax() call, plain Python. */
+  /** Add a DAX cell after the cell at the cursor: `# %% [dax]` over one sab.dax() call, plain Python. */
   addDax: (dataset: string, source?: string) => Promise<void>;
   /** Its HTML cells and each one's state. */
   htmlCells: () => HtmlReport[];
@@ -622,7 +622,7 @@ export function scriptView(
       const to = cell.end - start;
       const body = lines.slice(from, to + 1).join("\n");
       if (!body.trim()) continue;
-      lines[from] = `__import__('swissarmygrid.client.table_cells', fromlist=['run']).run(${JSON.stringify(variableOf(cell.table))}, ${JSON.stringify(body)})`;
+      lines[from] = `__import__('swissarmybench.client.table_cells', fromlist=['run']).run(${JSON.stringify(variableOf(cell.table))}, ${JSON.stringify(body)})`;
       for (let k = from + 1; k <= to; k++) lines[k] = "";
     }
     return lines.join("\n");
@@ -886,10 +886,10 @@ export function scriptView(
       const at = here ? Math.min(here.end, lines.length) : lines.length;
       const after = lines.slice(at);
       const closing = after.some((l) => l.trim()) && !/^# ?%%/.test(after.find((l) => l.trim()) ?? "") ? ["# %%"] : [];
-      // The file runs as plain Python: the cell is one sag.dax() call, its DAX a string.
-      const imported = /^\s*import swissarmygrid as sag\b/m.test(editor.value()) ? [] : ["import swissarmygrid as sag"];
+      // The file runs as plain Python: the cell is one sab.dax() call, its DAX a string.
+      const imported = /^\s*import swissarmybench as sab\b/m.test(editor.value()) ? [] : ["import swissarmybench as sab"];
       const dax = (source.trim() || "EVALUATE ").replace(/\\/g, "\\\\").replace(/"""/g, '\\"\\"\\"');
-      const body = [...imported, `result = sag.dax(${JSON.stringify(dataset)}, """`, ...dax.split("\n"), '""")'];
+      const body = [...imported, `result = sab.dax(${JSON.stringify(dataset)}, """`, ...dax.split("\n"), '""")'];
       editor.replaceText([...lines.slice(0, at), "# %% [dax]", ...body, ...closing, ...after].join("\n") + "\n");
       editor.reveal(at + 3 + imported.length, dax.split("\n")[0]!.length + 1); // in the DAX
       if (quiet !== null) window.clearTimeout(quiet);

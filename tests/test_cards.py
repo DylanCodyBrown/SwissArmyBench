@@ -384,7 +384,7 @@ def test_a_click_on_a_chart_whose_column_left_the_view_says_so(client: TestClien
 
 
 def test_a_click_value_given_as_text_is_read_as_the_columns_type(client: TestClient) -> None:
-    # `sag sandbox_select <card> --value 3` sends "3": the filter step was refused for a number column.
+    # `sab sandbox_select <card> --value 3` sends "3": the filter step was refused for a number column.
     grid = grid_id(push(client, "o", big_table(100)))
     by_qty = chart(client, grid, {"mark": "bar", "x": {"field": "qty"}, "y": {"aggregate": "count"}})
     assert client.post(f"/cards/{by_qty}/select", json={"value": "3"}, headers=AUTH).status_code == 200

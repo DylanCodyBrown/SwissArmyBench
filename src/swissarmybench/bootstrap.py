@@ -20,65 +20,65 @@ from typing import Any
 
 import duckdb
 
-from swissarmygrid.adapters import blade_run
-from swissarmygrid.adapters import datasets as table_reader
-from swissarmygrid.adapters import export as export_writer
-from swissarmygrid.adapters.blades import BladeStore
-from swissarmygrid.adapters.catalogs import CatalogStore
-from swissarmygrid.adapters.codegen import Verifier
-from swissarmygrid.adapters.database import PriorityWorkers, duckdb_grammar, open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.adapters.folders import ensure_own as ensure_own_folder
-from swissarmygrid.adapters.folders import listing as folder_listing
-from swissarmygrid.adapters.live_updates import LiveUpdates
-from swissarmygrid.adapters.packs import PackFolders
-from swissarmygrid.adapters.projects import ProjectFiles
-from swissarmygrid.adapters.state_files import (
+from swissarmybench.adapters import blade_run
+from swissarmybench.adapters import datasets as table_reader
+from swissarmybench.adapters import export as export_writer
+from swissarmybench.adapters.blades import BladeStore
+from swissarmybench.adapters.catalogs import CatalogStore
+from swissarmybench.adapters.codegen import Verifier
+from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
+from swissarmybench.adapters.folders import listing as folder_listing
+from swissarmybench.adapters.live_updates import LiveUpdates
+from swissarmybench.adapters.packs import PackFolders
+from swissarmybench.adapters.projects import ProjectFiles
+from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
     ModelFiles,
     ThemeFiles,
     is_own_file,
 )
-from swissarmygrid.adapters.streamlit_files import AppFiles
-from swissarmygrid.adapters.views import ViewEngine
-from swissarmygrid.adapters.workbench import Documents
-from swissarmygrid.domain.blades import Blade
-from swissarmygrid.domain.grids import GridRegistry
-from swissarmygrid.server import blade_runner
-from swissarmygrid.server.blade_templates import TEMPLATES
-from swissarmygrid.server.kernels import Launcher
-from swissarmygrid.server.streamlit_apps import Runner as StreamlitRunner
-from swissarmygrid.services.agent import AgentService, Approvals, ExportTickets
-from swissarmygrid.services.analysis import Analysis
-from swissarmygrid.services.blades import BladeService
-from swissarmygrid.services.catalog_loading import CatalogLoading
-from swissarmygrid.services.catalogs import CatalogService
-from swissarmygrid.services.charts import Cards
-from swissarmygrid.services.codegen import CodeService
-from swissarmygrid.services.connections import ConnectionService
-from swissarmygrid.services.datasets import ConnectionTables, DatasetService
-from swissarmygrid.services.export import Exports
-from swissarmygrid.services.folders import Folders
-from swissarmygrid.services.grids import GridService
-from swissarmygrid.services.inbox import Inbox
-from swissarmygrid.services.packs import Packs
-from swissarmygrid.services.panels import Panels
-from swissarmygrid.services.processes import ProcessRegistry, Sessions
-from swissarmygrid.services.profile import Profiles
-from swissarmygrid.services.projects import Projects
-from swissarmygrid.services.regression import Regression
-from swissarmygrid.services.relationships import Compares, Finder, KeyFinder, Models
-from swissarmygrid.services.snapshots import Snapshots
-from swissarmygrid.services.sql import SqlBox
-from swissarmygrid.services.streamlit import StreamlitApps
-from swissarmygrid.services.table_cells import TableCells
-from swissarmygrid.services.tieout import TieOut
-from swissarmygrid.services.timeseries import TimeSeries
-from swissarmygrid.services.workbench import Workbench
-from swissarmygrid.services.workbench_window import WorkbenchWindow
-from swissarmygrid.services.workspace import Addresses, Workspace
-from swissarmygrid.settings import Settings
+from swissarmybench.adapters.streamlit_files import AppFiles
+from swissarmybench.adapters.views import ViewEngine
+from swissarmybench.adapters.workbench import Documents
+from swissarmybench.domain.blades import Blade
+from swissarmybench.domain.grids import GridRegistry
+from swissarmybench.server import blade_runner
+from swissarmybench.server.blade_templates import TEMPLATES
+from swissarmybench.server.kernels import Launcher
+from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
+from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
+from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.blades import BladeService
+from swissarmybench.services.catalog_loading import CatalogLoading
+from swissarmybench.services.catalogs import CatalogService
+from swissarmybench.services.charts import Cards
+from swissarmybench.services.codegen import CodeService
+from swissarmybench.services.connections import ConnectionService
+from swissarmybench.services.datasets import ConnectionTables, DatasetService
+from swissarmybench.services.export import Exports
+from swissarmybench.services.folders import Folders
+from swissarmybench.services.grids import GridService
+from swissarmybench.services.inbox import Inbox
+from swissarmybench.services.packs import Packs
+from swissarmybench.services.panels import Panels
+from swissarmybench.services.processes import ProcessRegistry, Sessions
+from swissarmybench.services.profile import Profiles
+from swissarmybench.services.projects import Projects
+from swissarmybench.services.regression import Regression
+from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
+from swissarmybench.services.snapshots import Snapshots
+from swissarmybench.services.sql import SqlBox
+from swissarmybench.services.streamlit import StreamlitApps
+from swissarmybench.services.table_cells import TableCells
+from swissarmybench.services.tieout import TieOut
+from swissarmybench.services.timeseries import TimeSeries
+from swissarmybench.services.workbench import Workbench
+from swissarmybench.services.workbench_window import WorkbenchWindow
+from swissarmybench.services.workspace import Addresses, Workspace
+from swissarmybench.settings import Settings
 
 
 @dataclass

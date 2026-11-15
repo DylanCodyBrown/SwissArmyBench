@@ -6,10 +6,10 @@ filter driving the total; Edit; a cell edited in the notebook making the page ou
 giving the new code; a third cell copied and pasted; the app saved, closed and opened again; a cell
 deleted (the block says so in red); Export and Save as. And a script's cells that call Streamlit.
 
-Streamlit is not this app's dependency: these tests run when SWISSARMYGRID_STREAMLIT_PYTHON names a
+Streamlit is not this app's dependency: these tests run when SWISSARMYBENCH_STREAMLIT_PYTHON names a
 Python with streamlit, pandas and pyarrow, and are skipped otherwise. Made-up data only.
 
-With SWISSARMYGRID_SHOTS set to a folder, the first test also saves screenshots there (2x)."""
+With SWISSARMYBENCH_SHOTS set to a folder, the first test also saves screenshots there (2x)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ import pandas as pd
 import pytest
 from playwright.sync_api import Browser, FrameLocator, Locator, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.e2e.test_workbench_page import menu
@@ -44,7 +44,7 @@ ORDERS = pd.DataFrame(
     }
 )
 LONG = 60000  # Streamlit's first start, in milliseconds
-SHOTS = os.environ.get("SWISSARMYGRID_SHOTS")
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS")
 
 
 def open_window(browser: Browser, server: dict[str, Any], path: Path | None = None) -> Page:
@@ -325,7 +325,7 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     ]
     assert page_text.startswith(
         "# Page 1\n"
-        "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
+        "# Written from sales.stapp.json by Swiss Army Bench: change the canvas, not this file.\n"
         "import pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
     )
     assert not any(name.endswith(".parquet") for name in names)
@@ -505,7 +505,7 @@ def test_named_cells_show_in_the_streamlit_cells_pane_and_drag_onto_a_canvas(
     workbench.keyboard.press("Control+s")
     expect(workbench.locator(".wb-tab.active")).not_to_contain_text("●")
     held = json.loads(book.read_text())["cells"]
-    assert [c["metadata"]["swissarmygrid"].get("name") for c in held] == [
+    assert [c["metadata"]["swissarmybench"].get("name") for c in held] == [
         "Pick a region",
         "Sum [East] #1",
         None,
@@ -561,7 +561,7 @@ def test_a_tab_pops_out_with_its_unsaved_text_and_kernel_and_a_cell_drops_across
     board.evaluate(
         """(board, link) => {
           const data = new DataTransfer();
-          data.setData("application/x-swissarmygrid-cell", JSON.stringify(link));
+          data.setData("application/x-swissarmybench-cell", JSON.stringify(link));
           const box = board.getBoundingClientRect();
           for (const type of ["dragover", "drop"]) {
             const at = { clientX: box.left + 40, clientY: box.top + 40 };

@@ -7,11 +7,11 @@ from __future__ import annotations
 import pyarrow as pa
 import pyarrow.compute as pc
 
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.adapters.views import ViewEngine
-from swissarmygrid.domain.grids import POS
-from swissarmygrid.domain.steps import ViewSettings, steps_from_json
+from swissarmybench.adapters.database import open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.views import ViewEngine
+from swissarmybench.domain.grids import POS
+from swissarmybench.domain.steps import ViewSettings, steps_from_json
 
 ROWS = 600_000
 

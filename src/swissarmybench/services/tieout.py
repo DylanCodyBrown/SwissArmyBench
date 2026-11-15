@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from swissarmygrid.domain import tieout as T
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.steps import Step
-from swissarmygrid.services.ports import SqlSession
-from swissarmygrid.services.relationships import Compare, Compares
+from swissarmybench.domain import tieout as T
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.steps import Step
+from swissarmybench.services.ports import SqlSession
+from swissarmybench.services.relationships import Compare, Compares
 
 
 class TieOut:

@@ -1,13 +1,13 @@
-"""The `swissarmygrid` command: start, stop or check the local server.
+"""The `swissarmybench` command: start, stop or check the local server.
 
-    uv run swissarmygrid                 start (reuses the last port when it is free)
-    uv run swissarmygrid --port 8790     start on exactly this port, or fail clearly
-    uv run swissarmygrid status          is one running, and where
-    uv run swissarmygrid stop            ask the running one to shut down
+    uv run swissarmybench                 start (reuses the last port when it is free)
+    uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
+    uv run swissarmybench status          is one running, and where
+    uv run swissarmybench stop            ask the running one to shut down
 
-SwissArmyGrid lives in VS Code: its extension runs this command when VS Code opens (with
-SWISSARMYGRID_STARTED_BY=vscode), and a server it started stops once no VS Code window has been
-connected for VSCODE_GONE_SECONDS. Starting it by hand is for working on SwissArmyGrid itself.
+Swiss Army Bench lives in VS Code: its extension runs this command when VS Code opens (with
+SWISSARMYBENCH_STARTED_BY=vscode), and a server it started stops once no VS Code window has been
+connected for VSCODE_GONE_SECONDS. Starting it by hand is for working on Swiss Army Bench itself.
 
 Start-up order matters (server/lifecycle.py): take the instance lock, refuse if a healthy server
 is already running, bind and listen, write the connection file, serve, delete the file on every
@@ -29,11 +29,12 @@ from types import FrameType
 
 import uvicorn
 
-from swissarmygrid import __version__
-from swissarmygrid.adapters.live_updates import LiveUpdates
-from swissarmygrid.adapters.state_files import info_file_path, remove_info_file, write_info_file
-from swissarmygrid.server.app import create_app
-from swissarmygrid.server.lifecycle import (
+from swissarmybench import __version__
+from swissarmybench.adapters.live_updates import LiveUpdates
+from swissarmybench.adapters.state_files import info_file_path, remove_info_file, write_info_file
+from swissarmybench.renamed import env, move_state_folder
+from swissarmybench.server.app import create_app
+from swissarmybench.server.lifecycle import (
     AlreadyRunningError,
     AlreadyStartingError,
     InstanceLock,
@@ -44,8 +45,8 @@ from swissarmygrid.server.lifecycle import (
     request_stop,
     running_server,
 )
-from swissarmygrid.server.routes_processes import QuietHeartbeats
-from swissarmygrid.settings import Settings
+from swissarmybench.server.routes_processes import QuietHeartbeats
+from swissarmybench.settings import Settings
 
 # Long enough to ride out a window reload (the extension reconnects within a few seconds).
 VSCODE_GONE_SECONDS: float = 30.0
@@ -53,7 +54,7 @@ VSCODE_GONE_SECONDS: float = 30.0
 
 class _Server(uvicorn.Server):
     """uvicorn's server, but a stop by signal (Ctrl+C, the system shutting down) first lets the waiting
-    listeners answer, as `swissarmygrid stop` does."""
+    listeners answer, as `swissarmybench stop` does."""
 
     def __init__(self, config: uvicorn.Config, on_exit: Callable[[], None]) -> None:
         super().__init__(config)
@@ -68,7 +69,7 @@ class _Server(uvicorn.Server):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the SwissArmyGrid server on localhost.")
+    parser = argparse.ArgumentParser(description="Run the Swiss Army Bench server on localhost.")
     parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "status"])
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
     args = parser.parse_args()
@@ -77,13 +78,13 @@ def main() -> None:
     if args.command == "status":
         info = running_server(path)
         if info is None:
-            print("SwissArmyGrid is not running.")
+            print("Swiss Army Bench is not running.")
             sys.exit(1)
         print(f"Running on http://127.0.0.1:{info['port']} (process {info.get('pid')}).")
         return
     if args.command == "stop":
         if not request_stop(path):
-            print("SwissArmyGrid is not running.")
+            print("Swiss Army Bench is not running.")
             return
         for _ in range(50):
             if running_server(path) is None:
@@ -101,6 +102,10 @@ def main() -> None:
 
 
 def start(port: int | None) -> None:
+    # Swiss Army Bench was SwissArmyGrid: its state folder moves on the first start (renamed.py).
+    moved = move_state_folder(in_use=lambda old_info: running_server(old_info) is not None)
+    if moved:
+        print(moved, file=sys.stderr)
     settings = Settings()
     path = info_file_path()
     try:
@@ -113,7 +118,7 @@ def start(port: int | None) -> None:
     existing = running_server(path)  # a server from before the lock existed (an older version)
     if existing is not None:
         raise AlreadyRunningError(existing)
-    started_by = os.environ.get("SWISSARMYGRID_STARTED_BY", "cli")
+    started_by = env("SWISSARMYBENCH_STARTED_BY", "cli")
 
     listener = open_listener(port, settings.state_dir / "last_port")
     actual_port: int = listener.getsockname()[1]
@@ -154,11 +159,11 @@ def start(port: int | None) -> None:
             "executable": sys.executable,
         },
     )
-    print(f"SwissArmyGrid {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
+    print(f"Swiss Army Bench {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
     if started_by == "vscode":
         live: LiveUpdates = app.state.ctx.live
         threading.Thread(
-            target=end_with_vscode, args=(live, stop_soon), name="sag-vscode", daemon=True
+            target=end_with_vscode, args=(live, stop_soon), name="sab-vscode", daemon=True
         ).start()
     try:
         server.run(sockets=[listener])

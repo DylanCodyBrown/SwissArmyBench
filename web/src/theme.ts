@@ -62,7 +62,7 @@ contrastQuery.addEventListener("change", apply);
 // Another window or workspace tab changed the theme (browsers tell every other page of this
 // origin): follow it, so every tab and pop-out matches.
 window.addEventListener("storage", (event) => {
-  if (event.key !== "swissarmygrid.theme" || !event.newValue || !(event.newValue in THEME_LABELS)) return;
+  if (event.key !== "swissarmybench.theme" || !event.newValue || !(event.newValue in THEME_LABELS)) return;
   choice = event.newValue as ThemeChoice;
   apply();
 });
@@ -90,7 +90,7 @@ export function onHeaderProfilesChange(listener: () => void): () => void {
 }
 
 window.addEventListener("storage", (event) => {
-  if (event.key !== "swissarmygrid.headerProfiles") return;
+  if (event.key !== "swissarmybench.headerProfiles") return;
   profiles = event.newValue === "1";
   for (const listener of profileListeners) listener();
 });

@@ -14,10 +14,10 @@ from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from typing import Any, Protocol, TypeVar
 
-from swissarmygrid.domain.codegen import Outcome, Pasted
-from swissarmygrid.domain.datasets import Column, DatasetInfo, Opened
-from swissarmygrid.domain.grids import Window
-from swissarmygrid.domain.steps import CompiledView, Step, ViewSettings
+from swissarmybench.domain.codegen import Outcome, Pasted
+from swissarmybench.domain.datasets import Column, DatasetInfo, Opened
+from swissarmybench.domain.grids import Window
+from swissarmybench.domain.steps import CompiledView, Step, ViewSettings
 
 T = TypeVar("T")
 

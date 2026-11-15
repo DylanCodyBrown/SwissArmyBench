@@ -13,7 +13,7 @@ from urllib.parse import quote
 
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmygrid.domain import notebooks
+from swissarmybench.domain import notebooks
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.e2e.test_workbench_page import add_cell, start
 
@@ -324,7 +324,7 @@ def test_a_saved_notebook_opens_folded_runs_top_to_bottom_and_keeps_its_numbers(
         workbench.keyboard.press("Control+s")
     expect(workbench.locator(".toast", has_text="Saved")).to_have_count(0)  # the tab's dot going says it
     saved = json.loads(book.read_text(encoding="utf-8"))
-    marks = [c["metadata"].get("swissarmygrid", {}) for c in saved["cells"]]
+    marks = [c["metadata"].get("swissarmybench", {}) for c in saved["cells"]]
     assert [m.get("number") for m in marks] == [4, 1, 5, 2, 6, 3, 9]
     assert [m.get("role", "") for m in marks] == [
         "tables",
@@ -335,7 +335,7 @@ def test_a_saved_notebook_opens_folded_runs_top_to_bottom_and_keeps_its_numbers(
         "",
         "",
     ]
-    assert saved["metadata"]["swissarmygrid"]["next_cell"] == 10
+    assert saved["metadata"]["swissarmybench"]["next_cell"] == 10
     # In the file the group is Markdown headings, which JupyterLab folds too.
     assert [c["cell_type"] for c in saved["cells"][:3]] == ["markdown", "code", "markdown"]
     assert (

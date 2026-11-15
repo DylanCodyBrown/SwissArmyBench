@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from swissarmygrid.client import kernel_errors
-from swissarmygrid.domain import errors
+from swissarmybench.client import kernel_errors
+from swissarmybench.domain import errors
 
 
 def _last_error(code: str, folder: Path) -> dict[str, Any]:

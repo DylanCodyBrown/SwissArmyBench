@@ -4,10 +4,10 @@
 import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
-import { infoFile, samePath, serverPythons, windowlessPython } from "../src/core/paths";
+import { infoFile, samePath, serverModule, serverPythons, windowlessPython } from "../src/core/paths";
 import { EventEmitter } from "events";
 import { chromeCandidates, ChromeDeps, openInChrome } from "../src/core/chrome";
-const TOOL = "C:\\Users\\me\\AppData\\Roaming\\uv\\tools\\swissarmygrid\\Scripts\\python.exe";
+const TOOL = "C:\\Users\\me\\AppData\\Roaming\\uv\\tools\\swissarmybench\\Scripts\\python.exe";
 
 describe("serverPythons", () => {
   it("starts from the uv tool install the installers make", () => {
@@ -16,16 +16,43 @@ describe("serverPythons", () => {
   });
   it("uses only UV_TOOL_DIR when it is set, as uv does", () => {
     const found = serverPythons({ UV_TOOL_DIR: "D:\\uvtools", APPDATA: "C:\\a" }, "C:\\Users\\me", "win32");
-    assert.deepStrictEqual(found, [path.win32.join("D:\\uvtools", "swissarmygrid", "Scripts", "python.exe")]);
+    assert.deepStrictEqual(found, [
+      path.win32.join("D:\\uvtools", "swissarmybench", "Scripts", "python.exe"),
+      path.win32.join("D:\\uvtools", "swissarmygrid", "Scripts", "python.exe"),
+    ]);
   });
-  it("uses only SWISSARMYGRID_SERVER when it is set (a typo fails, it never falls back)", () => {
-    assert.deepStrictEqual(serverPythons({ SWISSARMYGRID_SERVER: "C:\\dev\\python.exe", APPDATA: "C:\\a" }, "C:\\u", "win32"), [
+  it("uses only SWISSARMYBENCH_SERVER when it is set (a typo fails, it never falls back)", () => {
+    assert.deepStrictEqual(serverPythons({ SWISSARMYBENCH_SERVER: "C:\\dev\\python.exe", APPDATA: "C:\\a" }, "C:\\u", "win32"), [
       "C:\\dev\\python.exe",
     ]);
   });
   it("finds the connection file the server and the push client use", () => {
-    assert.strictEqual(infoFile({}, "C:\\Users\\me"), path.join("C:\\Users\\me", ".swissarmygrid", "server.json"));
-    assert.strictEqual(infoFile({ SWISSARMYGRID_INFO: "C:\\t\\s.json" }, "C:\\Users\\me"), "C:\\t\\s.json");
+    assert.strictEqual(infoFile({}, "C:\\Users\\me"), path.join("C:\\Users\\me", ".swissarmybench", "server.json"));
+    assert.strictEqual(infoFile({ SWISSARMYBENCH_INFO: "C:\\t\\s.json" }, "C:\\Users\\me"), "C:\\t\\s.json");
+  });
+
+  // Swiss Army Bench was SwissArmyGrid: the old names still work for one release.
+  it("reads the old variables when the new ones are not set", () => {
+    assert.deepStrictEqual(serverPythons({ SWISSARMYGRID_SERVER: "C:\\old\\python.exe" }, "C:\\u", "win32"), ["C:\\old\\python.exe"]);
+    assert.deepStrictEqual(serverPythons({ SWISSARMYBENCH_SERVER: "C:\\new.exe", SWISSARMYGRID_SERVER: "C:\\old.exe" }, "C:\\u", "win32"), ["C:\\new.exe"]);
+    assert.strictEqual(infoFile({ SWISSARMYGRID_INFO: "C:\\t\\old.json" }, "C:\\Users\\me"), "C:\\t\\old.json");
+  });
+  it("reads the old state folder while only it is there, and the new one once it exists", () => {
+    const home = path.join("C:", "Users", "me");
+    const only = (...folders: string[]) => (file: string) => folders.some((f) => path.join(home, f) === file);
+    assert.strictEqual(infoFile({}, home, only(".swissarmygrid")), path.join(home, ".swissarmygrid", "server.json"));
+    assert.strictEqual(infoFile({}, home, only(".swissarmygrid", ".swissarmybench")), path.join(home, ".swissarmybench", "server.json"));
+    assert.strictEqual(infoFile({}, home, only()), path.join(home, ".swissarmybench", "server.json"));
+  });
+  it("finds the old uv tool after the new one, and runs the old tool by its old package", () => {
+    const found = serverPythons({ APPDATA: "C:\\Users\\me\\AppData\\Roaming" }, "C:\\Users\\me", "win32");
+    assert.strictEqual(found.indexOf(TOOL), 0);
+    const old = found.find((p) => p.includes("\\swissarmygrid\\"));
+    assert.ok(old && found.indexOf(old) > 0);
+    assert.strictEqual(serverModule(TOOL, "mcp.server"), "swissarmybench.mcp.server");
+    assert.strictEqual(serverModule(old ?? "", "server"), "swissarmygrid.server");
+    assert.strictEqual(serverModule("/home/x/.local/share/uv/tools/swissarmygrid/bin/python", "server"), "swissarmygrid.server");
+    assert.strictEqual(serverModule("/home/x/.local/share/uv/tools/swissarmybench/bin/python", "server"), "swissarmybench.server");
   });
   it("compares Windows paths without case or trailing slashes", () => {
     assert.ok(samePath("C:\\A\\python.exe", "c:/a/PYTHON.EXE", "win32"));
@@ -34,7 +61,7 @@ describe("serverPythons", () => {
 });
 
 describe("windowlessPython", () => {
-  const tool = path.win32.join("C:", "Users", "x", "AppData", "Roaming", "uv", "tools", "swissarmygrid", "Scripts");
+  const tool = path.win32.join("C:", "Users", "x", "AppData", "Roaming", "uv", "tools", "swissarmybench", "Scripts");
   const has = (...files: string[]) => (file: string) => files.some((f) => samePath(f, file, "win32"));
 
   it("starts the server with pythonw.exe on Windows, so no console window appears", () => {
@@ -47,13 +74,13 @@ describe("windowlessPython", () => {
     assert.strictEqual(windowlessPython(python, "win32", has()), python);
   });
   it("leaves other platforms and other interpreters alone", () => {
-    assert.strictEqual(windowlessPython("/home/x/.local/share/uv/tools/swissarmygrid/bin/python", "linux", () => true), "/home/x/.local/share/uv/tools/swissarmygrid/bin/python");
+    assert.strictEqual(windowlessPython("/home/x/.local/share/uv/tools/swissarmybench/bin/python", "linux", () => true), "/home/x/.local/share/uv/tools/swissarmybench/bin/python");
     const other = path.win32.join("C:", "dev", "py.exe");
     assert.strictEqual(windowlessPython(other, "win32", () => true), other);
   });
 });
 
-describe("Open SAG in Chrome", () => {
+describe("Open SAB in Chrome", () => {
   const URL = "http://127.0.0.1:8790/workspace#token=abc";
   /** Windows paths are built, not typed, so the backslashes cannot go wrong. */
   const win = (...parts: string[]): string => path.win32.join(...parts);
@@ -164,23 +191,23 @@ describe("Open SAG in Chrome", () => {
 
   it("has its setting", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"));
-    assert.strictEqual(manifest.contributes.configuration.properties["swissarmygrid.chromePath"].default, "");
+    assert.strictEqual(manifest.contributes.configuration.properties["swissarmybench.chromePath"].default, "");
   });
 });
 
 describe("the manifest", () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../package.json"), "utf8"));
 
-  it("offers SwissArmyGrid's MCP tools to VS Code", () => {
-    assert.deepStrictEqual(manifest.contributes.mcpServerDefinitionProviders, [{ id: "swissarmygrid", label: "SwissArmyGrid" }]);
+  it("offers Swiss Army Bench's MCP tools to VS Code", () => {
+    assert.deepStrictEqual(manifest.contributes.mcpServerDefinitionProviders, [{ id: "swissarmybench", label: "Swiss Army Bench" }]);
     const source = fs.readFileSync(path.resolve(__dirname, "../../src/extension.ts"), "utf8");
-    assert.ok(source.includes('registerMcpServerDefinitionProvider("swissarmygrid"'), "registered under the id the manifest names");
-    assert.ok(source.includes('"-m", "swissarmygrid.mcp.server"'), "the uv tool install's own MCP server");
+    assert.ok(source.includes('registerMcpServerDefinitionProvider("swissarmybench"'), "registered under the id the manifest names");
+    assert.ok(source.includes('"-m", serverModule(python, "mcp.server")'), "the uv tool install's own MCP server");
   });
 
-  it("has one command, Open SwissArmyGrid, on every editor and notebook toolbar", () => {
-    assert.deepStrictEqual(manifest.contributes.commands.map((c: { command: string }) => c.command), ["swissarmygrid.open"]);
-    const isOpen = (item: { command: string; when?: string }) => item.command === "swissarmygrid.open" && item.when === undefined;
+  it("has one command, Open Swiss Army Bench, on every editor and notebook toolbar", () => {
+    assert.deepStrictEqual(manifest.contributes.commands.map((c: { command: string }) => c.command), ["swissarmybench.open"]);
+    const isOpen = (item: { command: string; when?: string }) => item.command === "swissarmybench.open" && item.when === undefined;
     assert.ok(manifest.contributes.menus["editor/title"].some(isOpen));
     assert.ok(manifest.contributes.menus["notebook/toolbar"].some(isOpen));
     const icon = manifest.contributes.commands[0].icon.light;

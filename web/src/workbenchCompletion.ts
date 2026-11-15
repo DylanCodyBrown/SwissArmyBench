@@ -3,8 +3,8 @@
  *
  *   PYTHON     the document's kernel (IPython's completer, with Jedi): your variables, their attributes,
  *              a DataFrame's columns, modules; hover shows a signature and its help. Inside
- *              sag.connection("…") or sag.blade("…"): your connection and blade names; inside
- *              sag.dax("…"): your Power BI workspaces' datasets
+ *              sab.connection("…") or sab.blade("…"): your connection and blade names; inside
+ *              sab.dax("…"): your Power BI workspaces' datasets
  *   SQL CELL   the data explorer's catalog of the cell's connection (every catalog when it has none):
  *              schemas, tables, views and columns, `orders.` gives orders' columns; the kernel's names
  *              too once it runs (a file connection's own tables); SQL's words
@@ -202,13 +202,13 @@ async function kernelSuggestions(kernel: Kernel, code: string, offset: number, s
 }
 
 /** Python: the kernel's completions, every connection by its name (there before it is first used, so
- *  the kernel does not know it yet), and names inside sag.connection("…"). */
+ *  the kernel does not know it yet), and names inside sab.connection("…"). */
 export function pythonCompleter(kernel: Kernel, names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[]; datasets?: string[] }) {
   return async (text: string, offset: number): Promise<Suggestion[]> => {
     const before = text.slice(Math.max(0, offset - 200), offset);
-    const quoted = /sag\.(connection|blade|sql|dax)\(\s*["']([^"']*)$/.exec(before);
+    const quoted = /sab\.(connection|blade|sql|dax)\(\s*["']([^"']*)$/.exec(before);
     if (quoted) {
-      // sag.dax("…"): a Power BI workspace's datasets, as Finance/Sales model.
+      // sab.dax("…"): a Power BI workspace's datasets, as Finance/Sales model.
       const wanted = quoted[1] === "blade" ? names().blades : quoted[1] === "dax" ? (names().datasets ?? []) : names().connections;
       const typed = quoted[2]!.toLowerCase();
       const what = quoted[1] === "blade" ? "blade" : quoted[1] === "dax" ? "dataset" : "connection";

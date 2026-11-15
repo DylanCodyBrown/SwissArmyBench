@@ -1,4 +1,4 @@
-# CLAUDE.md — SwissArmyGrid
+# CLAUDE.md — Swiss Army Bench
 
 A local Python server (Starlette + uvicorn + in-memory DuckDB) that shows tabular data in live
 AG Grid pages, with steps, profiling, SQL, export, verified code generation, charts and an MCP
@@ -7,14 +7,17 @@ package at the root, its page in `web/`, and the optional VS Code extension in `
 
 One package, two installs (`python build.py` builds the wheel, page inside): the plain wheel is a
 standard-library-only push client for any Python environment; the `[server]` extra is the grid server,
-installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), started by `swissarmygrid`.
+installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), started by `swissarmybench`.
 
-- **What SAG is for:** Python-to-DuckDB work on one screen instead of three. SAG brings Python's
+- **Renamed (the owner, 2026-11-15):** SwissArmyGrid is now Swiss Army Bench: `swissarmybench`, alias `sab`.
+  Write only the new names; the old ones are read for one release (`renamed.py`, README "Renamed from
+  SwissArmyGrid"). The GitHub repository keeps its old name until the owner renames it.
+- **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
 - **Where it is going:** [Plans/standalone-workspaces.plan.md](Plans/standalone-workspaces.plan.md):
   a one-command installer that sets up everything; one local server with separate workspaces
-  (`sag.create_workspace()`); code goes in the **Workbench** (our own notebooks and scripts on an
+  (`sab.create_workspace()`); code goes in the **Workbench** (our own notebooks and scripts on an
   IPython kernel, [Plans/workbench-and-connections.plan.md](Plans/workbench-and-connections.plan.md)),
   Jupyter or Python in the terminal (marimo was built in, then stripped on the owner's call, 2026-11).
   **Rule: code always opens in its own browser window, never in the grid page** (the Workbench tab
@@ -26,14 +29,14 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   requests, and no answer the app gives it holds a password's value (`/blades/{name}/python` stays
   refused). Code the agent runs in a Workbench kernel can read what that Python can, which the owner
   accepted; `tests/test_cli.py` NOT_COMMANDS lists the routes without a command and why.
-- **The original plan:** [Plans/swissarmygrid-build-plan.md](Plans/swissarmygrid-build-plan.md).
+- **The original plan:** [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md).
   Follow its section 0 working agreements: typed Python, tests first for semantics, ask before
   adding a dependency the plan doesn't list. Milestone 9 (the agent running code) was the owner's
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
   added with a form; a Power BI workspace, its datasets read with DAX, a dataset's relationships
   imported; a connection made of the user's own Python, its environment variables mapped), the SQL
-  cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`, `sag.dax`), the
+  cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`, `sab.dax`), the
   Workbench (notebooks, scripts,
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
@@ -57,12 +60,16 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
 
 The Python is arranged after "Architecture Patterns with Python" (Cosmic Python); [REFACTOR.md](REFACTOR.md)
 has the rules and why. Three layers, imports pointing inwards, nothing deeper than
-`src/swissarmygrid/<folder>/<file>.py`, one file per feature in each layer.
+`src/swissarmybench/<folder>/<file>.py`, one file per feature in each layer.
 `tests/test_architecture.py` checks all of it.
 
 ```
-src/swissarmygrid/
+src/swissarmygrid/       the old name, one release: `import swissarmygrid` is this package under it (a warning)
+src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
+  renamed.py             the old name (SwissArmyGrid) for one release: SWISSARMYGRID_* read after the new
+                         variables, the state folder moved on first start, the old commands; the next
+                         release removes it, src/swissarmygrid/ and every OLD_* name (tests/test_renamed.py)
   stats.py               public: the Analyze menu's analyses on your own table (what notebook code calls)
   bootstrap.py           the composition root: builds the adapters, hands them to the services
 
@@ -84,13 +91,13 @@ src/swissarmygrid/
                          relationships as the app's model (the INFO functions' rows, named or numbered)
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
-                         `# /// swissarmygrid-blade` TOML header, zips), its settings (found with ast,
+                         `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
                          placeholders, suggestions, written back), Blade, parse_blade, Template
     stats.py             the shared statistics: chi-square, t, F and normal distributions, effect sizes
     analysis.py          the Analyze menu's math and query text: the fit test (Benford, Nigrini), outliers
                          (amount fences, frequency on two scales), odds (ratios, Woolf's range), buckets,
                          find predictors' rules, the Data shape check, and the notebook code (one
-                         swissarmygrid.stats call)
+                         swissarmybench.stats call)
     regression.py        linear and logistic regression: the terms as SQL, the sums, Cholesky, ranges,
                          what-if predictions, the model as SQL (predicted and miss columns)
     timeseries.py        periods, the seasonal index, anomalies against neighbours, steps in the level,
@@ -144,7 +151,7 @@ src/swissarmygrid/
     grids.py             rows, counts, steps and step changes, highlights, the selection
     profile.py           column and table profiles, kept by view key
     analysis.py          the Analyze menu on a grid's view: run_* functions over any cursor (the same code
-                         swissarmygrid.stats runs on a DataFrame), the Data shape check, the notebook code
+                         swissarmybench.stats runs on a DataFrame), the Data shape check, the notebook code
     regression.py        regression on a grid's view (run_regression, over any cursor) and what-if
     timeseries.py        time series and forecast on a grid's view (run_time_series, run_forecast)
     sql.py               the SQL box
@@ -183,10 +190,10 @@ src/swissarmygrid/
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
     views.py             the view cache and windows
     catalogs.py          loaded catalogs: tree queries and search in the locked DuckDB
-    blades.py            saved blades (~/.swissarmygrid/blades, one JSON each), blade folders
+    blades.py            saved blades (~/.swissarmybench/blades, one JSON each), blade folders
                          (.blade.py files found by their header), favourites; secrets via keyring
     blade_run.py         run a blade, its catalog command, a vault, in this Python (standard library
-                         only: sag.blade uses it too); which packages this Python has
+                         only: sab.blade uses it too); which packages this Python has
     codegen.py           runs copied code and compares it with the grid
     export.py            CSV, Excel and Parquet writers; the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
@@ -207,7 +214,7 @@ src/swissarmygrid/
                          panels). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
-    lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmygrid`
+    lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
@@ -219,24 +226,24 @@ src/swissarmygrid/
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
   client/push_client.py  push(), ensure_server()
-  client/blades_client.py sag.load (a catalog), sag.blade (run a saved blade here), sag.blades, sag.read (a
+  client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
-  client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sag.complete)
+  client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sab.complete)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
-  client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sag.sql: a database in its own SQL,
+  client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
-                         <connection>/<dataset> cells and sag.dax: DAX on one dataset of a Power BI workspace
-  client/sandbox_client.py sag.sandbox: a figure, picture, table or text as a Sandbox card (duck-typed)
+                         <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
+  client/sandbox_client.py sab.sandbox: a figure, picture, table or text as a Sandbox card (duck-typed)
   client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
-  client/table_cells.py  a table's read-only cell run in the kernel (%%sag_table, %sag_run): it starts
+  client/table_cells.py  a table's read-only cell run in the kernel (%%sab_table, %sab_run): it starts
                          from the original its maker made (a reference, never a copy), so a second run
                          changes nothing
-  client/html_cells.py   an HTML cell's names read in the kernel (%%sag_html): tables, figures and values
+  client/html_cells.py   an HTML cell's names read in the kernel (%%sab_html): tables, figures and values
                          told by their shape; the marks that say a variable changed
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
-                         agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
+                         agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (228 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
@@ -306,7 +313,7 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          workspace of three made-up datasets), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection)
 tools/                   screenshots.py, vscode_check.py
-plugin/                  the swissarmygrid plugin: skills/swissarmygrid-use (SKILL.md, guide), .mcp.json,
+plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
 .claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
@@ -316,7 +323,7 @@ installer/               install.sh and install.ps1 (uv, then the server as a uv
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
 tools/smoke_install.py   start the installed server, push the sample store, check it all arrived (used by releases)
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
-                         and an Open SwissArmyGrid button (starts the server when needed, opens its window)
+                         and an Open Swiss Army Bench button (starts the server when needed, opens its window)
 ```
 
 ## Commands
@@ -324,7 +331,7 @@ vscode-extension/        the optional VS Code extension (TypeScript): the uv ins
 See [README.md](README.md). Before a commit: `pytest -q` (includes the browser tests),
 `ruff check .`, `ruff format --check .`, `mypy`, and `npm run typecheck` in `web/`. Run
 Python as `.venv\Scripts\python -m ...`: `uv run` re-syncs first and fails while a server
-started from `swissarmygrid.exe` is running.
+started from `swissarmybench.exe` is running.
 
 **Commits:** no `Co-Authored-By` line and no model names in commit messages; the credit to Claude is in
 the README (the owner, 2026-11-15).
@@ -342,6 +349,6 @@ the README (the owner, 2026-11-15).
   `.wb-tcell`; `.wb-cell` is a cell of the user's. A browser test that counts `.wb-cell` counts
   the user's cells only.
 - `npm run build` writes source maps (development); `build.py` uses `build:release`
-  without them, and the wheel bundles `web/static` as `swissarmygrid/web_static`.
+  without them, and the wheel bundles `web/static` as `swissarmybench/web_static`.
 - DuckDB quirks the engine depends on are listed in docs/verified.md (LIKE escape, case
   mapping, date_trunc type, parameterized GROUP BY aliases).

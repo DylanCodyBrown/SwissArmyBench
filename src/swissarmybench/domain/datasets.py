@@ -16,7 +16,7 @@ MIB: int = 1024 * 1024
 NAME_PATTERN: re.Pattern[str] = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
-RESERVED_PREFIX: str = "__sag_"
+RESERVED_PREFIX: str = "__sab_"
 
 
 SOURCE_KINDS: tuple[str, ...] = (
@@ -117,7 +117,7 @@ def mib(size: int) -> str:
 
 def reserved_column_name(name: str) -> bool:
     """Names a column may not have, in any case (DuckDB matches names without case): the
-    engine's own __sag_ columns, and rowid, which would hide the row numbers views read."""
+    engine's own __sab_ columns, and rowid, which would hide the row numbers views read."""
     lowered = name.lower()
     return lowered.startswith(RESERVED_PREFIX) or lowered == "rowid"
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 import pyarrow as pa
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.relationships import Model, Relationship, rename_table
+from swissarmybench.domain.relationships import Model, Relationship, rename_table
 from tests.conftest import AUTH, grid_id, push
 
 ORDERS = pa.table({"order_id": [1, 2, 3], "region": ["North", "South", "North"]})

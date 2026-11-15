@@ -126,7 +126,7 @@ def missing_value(name: str) -> dict[str, Any]:
 
 def _marker(words: str) -> str:
     return (
-        '<span class="sag-marker" style="background:#fff3bf;color:#4a3800;padding:0 4px;'
+        '<span class="sab-marker" style="background:#fff3bf;color:#4a3800;padding:0 4px;'
         f'border-radius:3px;font-weight:normal">{escape(words)}</span>'
     )
 
@@ -167,7 +167,7 @@ def table_value(
         "kind": "table",
         "text": "",
         "html": (
-            f'<table class="sag-table">{caption}<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+            f'<table class="sab-table">{caption}<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
         ),
         "json": _literal(data),
         "rows": total_rows,
@@ -184,7 +184,7 @@ def picture_value(png_base64: str, name: str) -> dict[str, Any]:
     return {
         "kind": "picture",
         "text": "",
-        "html": f'<img class="sag-picture" alt="{escape(name)}" src="{address}" style="max-width:100%">',
+        "html": f'<img class="sab-picture" alt="{escape(name)}" src="{address}" style="max-width:100%">',
         "json": _literal(address),
     }
 

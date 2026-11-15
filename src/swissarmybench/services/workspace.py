@@ -15,12 +15,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from swissarmygrid.domain.datasets import DatasetInfo, mib
-from swissarmygrid.domain.grids import Grid, GridRegistry, StaleRequestError
-from swissarmygrid.domain.sql_guard import SqlGrammar
-from swissarmygrid.domain.steps import CompiledView
-from swissarmygrid.services.ports import Audit, Datasets, Jobs, Notifier, SqlSession, Views
-from swissarmygrid.settings import Settings
+from swissarmybench.domain.datasets import DatasetInfo, mib
+from swissarmybench.domain.grids import Grid, GridRegistry, StaleRequestError
+from swissarmybench.domain.sql_guard import SqlGrammar
+from swissarmybench.domain.steps import CompiledView
+from swissarmybench.services.ports import Audit, Datasets, Jobs, Notifier, SqlSession, Views
+from swissarmybench.settings import Settings
 
 T = TypeVar("T")
 

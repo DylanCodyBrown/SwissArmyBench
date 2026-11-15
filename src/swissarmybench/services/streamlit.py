@@ -36,18 +36,18 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmygrid.domain import notebooks, projects
-from swissarmygrid.domain import streamlit_cells as rules
-from swissarmygrid.domain.blades import install_command
-from swissarmygrid.domain.codegen import variable_name
-from swissarmygrid.domain.datasets import DatasetInfo, quote
-from swissarmygrid.domain.export import ExportOptions
-from swissarmygrid.domain.grids import POS, Grid
-from swissarmygrid.domain.projects import DataCell
-from swissarmygrid.domain.streamlit_cells import Block, Facts, Key, Page, PieceCode, StreamlitError
-from swissarmygrid.services.export import ExportWriter
-from swissarmygrid.services.ports import BACKGROUND
-from swissarmygrid.services.workspace import Conflict, NotFound, Workspace
+from swissarmybench.domain import notebooks, projects
+from swissarmybench.domain import streamlit_cells as rules
+from swissarmybench.domain.blades import install_command
+from swissarmybench.domain.codegen import variable_name
+from swissarmybench.domain.datasets import DatasetInfo, quote
+from swissarmybench.domain.export import ExportOptions
+from swissarmybench.domain.grids import POS, Grid
+from swissarmybench.domain.projects import DataCell
+from swissarmybench.domain.streamlit_cells import Block, Facts, Key, Page, PieceCode, StreamlitError
+from swissarmybench.services.export import ExportWriter
+from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 MAX_APPS: int = 80
 # How long an app outlives the Workbench window that opened it (a reload keeps it a minute).

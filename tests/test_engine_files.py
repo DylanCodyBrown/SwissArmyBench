@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from swissarmygrid.domain.relationships import mermaid_erd, parse_model
+from swissarmybench.domain.relationships import mermaid_erd, parse_model
 
 
 def test_a_note_with_line_breaks_stays_on_one_mermaid_line() -> None:

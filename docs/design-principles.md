@@ -1,8 +1,8 @@
 # Design principles
 
-A reusable set of rules for building a local data app like SwissArmyGrid, so the next app starts from
+A reusable set of rules for building a local data app like Swiss Army Bench, so the next app starts from
 these decisions instead of finding them again. Each rule is written for any new app; under it are why,
-an example from SwissArmyGrid, and the owner's words where the rule came from them (with the date).
+an example from Swiss Army Bench, and the owner's words where the rule came from them (with the date).
 Quotes are exact, typing slips included; a word in square brackets is a clarification.
 
 It is for a designer, a coding agent and a reviewer. Section 14 says the order to set a new app up;

@@ -26,7 +26,7 @@ IMPORTS: dict[str, str] = {
     "pl": "import polars as pl",
     "pa": "import pyarrow as pa",
     "pq": "import pyarrow.parquet as pq",
-    "sag": "import swissarmygrid as sag",
+    "sab": "import swissarmybench as sab",
     "duckdb": "import duckdb",
     "os": "import os",
     "sys": "import sys",

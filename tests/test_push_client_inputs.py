@@ -17,8 +17,8 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from swissarmygrid.client import push_client
-from swissarmygrid.client.push_client import ServerNotRunningError, _to_arrow, push
+from swissarmybench.client import push_client
+from swissarmybench.client.push_client import ServerNotRunningError, _to_arrow, push
 
 # ===== records =====
 
@@ -133,7 +133,7 @@ def test_a_bad_connection_file_means_not_running(
 ) -> None:
     info = tmp_path / "server.json"
     info.write_text(content)
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(info))
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
     with pytest.raises(ServerNotRunningError):
         push(pa.table({"x": [1]}), name="x")
 
@@ -163,7 +163,7 @@ def hangs_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     thread.start()
     info = tmp_path / "server.json"
     info.write_text(json.dumps({"port": port, "token": "t"}))
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(info))
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
     yield
     stop.set()
     thread.join(5)

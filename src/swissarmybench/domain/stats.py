@@ -2,7 +2,7 @@
 distributions, effect sizes in words, and (for the regressions) small linear algebra.
 
 Each function is written out from its textbook definition, tested against published values in
-tests/test_stats.py, and reached by generated code through `swissarmygrid.stats`.
+tests/test_stats.py, and reached by generated code through `swissarmybench.stats`.
 """
 
 from __future__ import annotations

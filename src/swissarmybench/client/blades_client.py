@@ -1,11 +1,11 @@
-"""`sag.load`, `sag.blade` and `sag.blades`: catalogs and blades from any Python (plan decisions 14-17).
+"""`sab.load`, `sab.blade` and `sab.blades`: catalogs and blades from any Python (plan decisions 14-17).
 
-    sag.load(columns_frame, name="Warehouse", dialect="sqlserver")   # a searchable catalog
-    conn = sag.blade("Warehouse")                                     # a saved blade, run here
-    sag.blade("Azure vault")        # a vault blade: sets its environment variables, gives their names
-    sag.blade("Warehouse login")    # a secret blade: asks for any value this Python does not have yet
-    api = sag.connection("Orders API")                                # a connection (the same, by its name)
-    orders = sag.read("Orders API", "orders")       # a table, by a connection's own Read a table
+    sab.load(columns_frame, name="Warehouse", dialect="sqlserver")   # a searchable catalog
+    conn = sab.blade("Warehouse")                                     # a saved blade, run here
+    sab.blade("Azure vault")        # a vault blade: sets its environment variables, gives their names
+    sab.blade("Warehouse login")    # a secret blade: asks for any value this Python does not have yet
+    api = sab.connection("Orders API")                                # a connection (the same, by its name)
+    orders = sab.read("Orders API", "orders")       # a table, by a connection's own Read a table
 
 A blade's code runs in this Python, so its driver must be installed here; a missing one is named with
 the command that installs it. Secret values never print: a vault or secret blade hands back the
@@ -22,8 +22,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from swissarmygrid.adapters.blade_run import BladeRunError, read_table, run_code, run_vault, set_variables
-from swissarmygrid.client.push_client import (
+from swissarmybench.adapters.blade_run import BladeRunError, read_table, run_code, run_vault, set_variables
+from swissarmybench.client.push_client import (
     _arrow_bytes,
     _prepared_frame,
     _records_json,
@@ -31,8 +31,8 @@ from swissarmygrid.client.push_client import (
     _to_arrow,
     ensure_server,
 )
-from swissarmygrid.domain.blades import missing_module_hint
-from swissarmygrid.domain.python_connections import env_reads
+from swissarmybench.domain.blades import missing_module_hint
+from swissarmybench.domain.python_connections import env_reads
 
 _TIMEOUT_SECONDS: float = 300.0
 
@@ -52,7 +52,7 @@ def _call(method: str, path: str, body: bytes | None = None, content_type: str =
         message = error.read().decode("utf-8", "replace")
         if error.code == 404:
             raise LookupError(message) from None
-        raise RuntimeError(f"SwissArmyGrid refused ({error.code}): {message}") from None
+        raise RuntimeError(f"Swiss Army Bench refused ({error.code}): {message}") from None
 
 
 def _quote(name: str) -> str:
@@ -68,7 +68,7 @@ def load(catalog: object, name: str, *, dialect: str | None = None) -> str:
     sqlite, duckdb, snowflake, oracle, trino) lets the agent quote SQL for the source.
     """
     if not isinstance(name, str) or not name.strip():
-        raise ValueError("Name the catalog: sag.load(frame, name='Warehouse').")
+        raise ValueError("Name the catalog: sab.load(frame, name='Warehouse').")
     try:
         table = _to_arrow(catalog)
     except ImportError:
@@ -93,7 +93,7 @@ def blades(tag: str | None = None, search: str | None = None) -> list[str]:
     """The names of the blades (saved ones and those in your blade folders), favourites first.
 
     `tag` keeps those with that tag (ignoring case); `search` keeps those whose name, description or a
-    tag contains the text: `sag.blades(search="orders-function-app")`.
+    tag contains the text: `sab.blades(search="orders-function-app")`.
     """
     found = _call("GET", "/blades")["blades"]
     if tag:
@@ -172,14 +172,14 @@ def _made(spec: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
 
 def read(connection: str, table: str, schema: str = "", limit: int | None = None) -> Any:
     """A table's rows from a connection made of your own Python, by its Read a table box, run in this
-    Python: `sag.read("Orders API", "orders")`. What that box returns (a DataFrame, a list of dicts...);
+    Python: `sab.read("Orders API", "orders")`. What that box returns (a DataFrame, a list of dicts...);
     `limit` rows, or every row."""
     spec = _call("GET", f"/blades/{_quote(connection)}/python")
     command = (spec.get("python") or {}).get("read")
     if not command:
         raise ValueError(
-            f"{spec['name']} has no Read a table box: sag.read is for a connection made of your own "
-            "Python. For a database, use sag.sql(connection, query)."
+            f"{spec['name']} has no Read a table box: sab.read is for a connection made of your own "
+            "Python. For a database, use sab.sql(connection, query)."
         )
     _, names = _made(spec)
     try:

@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from examples.push_demo import make_orders
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 
 SHOTS = ROOT / "docs" / "screenshots"
 
@@ -46,7 +46,7 @@ def call(info: dict[str, Any], method: str, path: str, body: Any = None, agent: 
 
 def seen(context: BrowserContext) -> BrowserContext:
     """The tour counts as seen, so its first-visit bubble stays out of the pictures."""
-    context.add_init_script("localStorage.setItem('swissarmygrid.tour.seen', '1')")
+    context.add_init_script("localStorage.setItem('swissarmybench.tour.seen', '1')")
     return context
 
 
@@ -149,7 +149,7 @@ def main() -> None:
         page.wait_for_timeout(1500)
         page.screenshot(path=str(SHOTS / "step-preview.png"))
         page.get_by_role("button", name="Back to the full view").click()
-        page.locator(".ag-header-cell[col-id='unit_price'] .sag-header-profile").click()
+        page.locator(".ag-header-cell[col-id='unit_price'] .sab-header-profile").click()
         page.wait_for_timeout(1200)
         page.screenshot(path=str(SHOTS / "column-profile.png"))
         page.context.close()

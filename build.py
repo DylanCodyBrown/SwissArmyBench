@@ -1,15 +1,15 @@
-"""Build SwissArmyGrid: one wheel that is both the client and the server.
+"""Build Swiss Army Bench: one wheel that is both the client and the server.
 
     python build.py            # the page (release build), then the wheel in dist/
     python build.py --vsix     # also the optional VS Code extension, carrying that wheel
 
 The wheel is one package with two installs:
 
-    uv pip install swissarmygrid-<version>-py3-none-any.whl              # the client, any environment
-    uv tool install "swissarmygrid-<version>-py3-none-any.whl[server]"   # the server, once per machine
+    uv pip install swissarmybench-<version>-py3-none-any.whl              # the client, any environment
+    uv tool install "swissarmybench-<version>-py3-none-any.whl[server]"   # the server, once per machine
 
-The client is standard library only (`import swissarmygrid as sag`), so it never touches a project's own
-packages; the server's `swissarmygrid` command runs the grid. The page ships inside the wheel
+The client is standard library only (`import swissarmybench as sab`), so it never touches a project's own
+packages; the server's `swissarmybench` command runs the grid. The page ships inside the wheel
 (pyproject.toml force-includes web/static), so it is built first, without source maps.
 """
 
@@ -56,7 +56,7 @@ def main() -> None:
 
     version = project_version()
     run(["uv", "build", "--wheel", "--out-dir", "dist"], HERE)
-    wheel = HERE / "dist" / f"swissarmygrid-{version}-py3-none-any.whl"
+    wheel = HERE / "dist" / f"swissarmybench-{version}-py3-none-any.whl"
     if not wheel.is_file():
         sys.exit(f"uv build wrote no {wheel.name}.")
     print(f"\nBuilt {wheel.relative_to(HERE)}")

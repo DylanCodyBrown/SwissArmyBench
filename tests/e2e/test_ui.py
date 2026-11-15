@@ -29,7 +29,7 @@ import pandas as pd
 import pytest
 from playwright.sync_api import Browser, Error, Locator, Page, expect, sync_playwright
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 
 ROOT = Path(__file__).resolve().parents[2]
 SHOTS = ROOT / "docs" / "screenshots"
@@ -54,14 +54,14 @@ def demo_frame(rows: int = ROWS) -> pd.DataFrame:
 def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
     tmp = tmp_path_factory.mktemp("e2e")
     env = os.environ | {
-        "SWISSARMYGRID_INFO": str(tmp / "server.json"),
-        "SWISSARMYGRID_STATE": str(tmp / "state"),
-        "SWISSARMYGRID_CLAUDE_DIR": str(tmp / "claude"),
+        "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
+        "SWISSARMYBENCH_STATE": str(tmp / "state"),
+        "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
     }
-    saved = {key: os.environ.get(key) for key in ("SWISSARMYGRID_INFO", "SWISSARMYGRID_STATE")}
+    saved = {key: os.environ.get(key) for key in ("SWISSARMYBENCH_INFO", "SWISSARMYBENCH_STATE")}
     for key in saved:
         os.environ[key] = env[key]
-    process = subprocess.Popen([sys.executable, "-m", "swissarmygrid.server", "--port", "0"], env=env)
+    process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env)
     for _ in range(100):
         try:
             info = json.loads((tmp / "server.json").read_text())
@@ -84,10 +84,10 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
 @pytest.fixture(scope="module")
 def browser() -> Iterator[Browser]:
     with sync_playwright() as p:
-        # SAG_HEADED=1 shows the browser so a person can watch; SAG_SLOWMO pauses between
+        # SAB_HEADED=1 shows the browser so a person can watch; SAB_SLOWMO pauses between
         # actions (milliseconds, 350 by default when headed).
-        headed = os.environ.get("SAG_HEADED") == "1"
-        slow = int(os.environ.get("SAG_SLOWMO", "350" if headed else "0"))
+        headed = os.environ.get("SAB_HEADED") == "1"
+        slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
         instance = p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
         yield instance
         instance.close()
@@ -185,17 +185,17 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
     expect(page.locator("#status")).to_contain_text("of 5,000")
     # Column profiles in the headers are off until switched on in the grid's top-left corner, above
     # the row numbers (decision 19): one action, beside the headers it changes. Not in Settings.
-    assert page.locator(".sag-header-stats").count() == 0
-    corner = page.locator(".ag-header-cell[col-id='__sag_rownum']")
+    assert page.locator(".sab-header-stats").count() == 0
+    corner = page.locator(".ag-header-cell[col-id='__sab_rownum']")
     switch = corner.get_by_role("button", name="Column profiles in the headers")
     expect(switch).to_have_attribute("aria-pressed", "false")
     switch.click()
-    expect(page.locator(".ag-header-cell[col-id='region'] .sag-header-stats")).to_contain_text(
+    expect(page.locator(".ag-header-cell[col-id='region'] .sab-header-stats")).to_contain_text(
         "distinct", timeout=10000
     )
     expect(switch).to_have_attribute("aria-pressed", "true")
     switch.click()
-    expect(page.locator(".sag-header-stats")).to_have_count(0)
+    expect(page.locator(".sab-header-stats")).to_have_count(0)
     expect(switch).to_have_attribute("aria-pressed", "false")
     # The corner still selects everything, in the room beside the switch.
     corner.get_by_role("button", name="Select all").click()
@@ -216,7 +216,7 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
 def test_header_click_sorts_on_the_server(browser: Browser, orders_url: str, server: dict[str, Any]) -> None:
     page = open_grid(browser, orders_url)
     # Sorting is the small arrow button in the header; a click on the name selects the column.
-    header = page.locator(".ag-header-cell[col-id='unit_price'] .sag-header-sort")
+    header = page.locator(".ag-header-cell[col-id='unit_price'] .sab-header-sort")
     header.click()
     header.click()
     wait_for_cell(page, 0, "unit_price", str(demo_frame()["unit_price"].max()))
@@ -308,7 +308,7 @@ def test_case_toggle_changes_matching(browser: Browser, orders_url: str, server:
 def test_bucket_and_categorize_forms(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     # Column tools act on the selected column: click its header first.
-    page.locator(".ag-header-cell[col-id='quantity'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='quantity'] .sab-header-name").click()
     page.get_by_role("button", name="Bucket…").click()
     dialog = page.locator("dialog")
     dialog.get_by_label("Column", exact=True).select_option("quantity")
@@ -322,7 +322,7 @@ def test_bucket_and_categorize_forms(browser: Browser, orders_url: str) -> None:
     page.wait_for_timeout(600)  # let the grid finish scrolling the new column in
     page.locator(".ag-body-horizontal-scroll-viewport").evaluate("e => e.scrollLeft = 0")
     page.wait_for_timeout(300)
-    page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
     page.get_by_role("button", name="Categorize…").click()
     dialog = page.locator("dialog")
     dialog.get_by_label("Column", exact=True).select_option("region")
@@ -339,9 +339,9 @@ def test_bucket_and_categorize_forms(browser: Browser, orders_url: str) -> None:
 def test_profile_click_value_adds_a_filter(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     # The Column row's Profile: a one-time popup over the grid; the grid tab stays open behind it.
-    page.locator(".ag-header-cell[col-id='product'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='product'] .sab-header-name").click()
     page.locator(".ribbon .ribbon-group").nth(1).get_by_role("button", name="Profile", exact=True).click()
-    expect(page.locator(".sag-header-profile")).to_have_count(0)  # no profile button in the headers
+    expect(page.locator(".sab-header-profile")).to_have_count(0)  # no profile button in the headers
     dialog = page.locator("dialog")
     expect(dialog.locator(".stat-grid")).to_contain_text("Distinct")
     expect(dialog.locator(".dialog-head h2")).to_have_text("Profile of product")
@@ -354,7 +354,7 @@ def test_profile_click_value_adds_a_filter(browser: Browser, orders_url: str) ->
     expect(page.locator("#status")).to_contain_text("of 1,250")
     dialog.get_by_role("button", name="Close").first.click()
     # The Column row's Profile opens the same popup for the selected column.
-    page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
     page.locator(".ribbon .ribbon-group").nth(1).get_by_role("button", name="Profile", exact=True).click()
     expect(page.locator("dialog .dialog-head h2")).to_have_text("Profile of region")
     page.locator("dialog").get_by_role("button", name="Close").first.click()
@@ -399,7 +399,7 @@ def test_copy_as_sql_and_python_run_on_the_users_own_table(
     window.wait_for_function("window.__copied !== undefined", timeout=30000)
     code = window.evaluate("window.__copied")
     assert code.startswith('import duckdb\n\norders_view = duckdb.sql("""')
-    assert "__sag" not in code and sql.strip() in code
+    assert "__sab" not in code and sql.strip() in code
 
     # Pasted where the user works: only their table, by its name.
     orders = demo_frame()
@@ -872,7 +872,7 @@ def test_agent_activity_in_settings(browser: Browser, orders_url: str, server: d
     # The privacy levels and column masks are gone.
     expect(dialog.get_by_role("radio", name=re.compile("Level 3"))).to_have_count(0)
     expect(dialog.get_by_text("What the agent may see")).to_have_count(0)
-    install = "claude mcp add --scope user swissarmygrid -- swissarmygrid-mcp"
+    install = "claude mcp add --scope user swissarmybench -- swissarmybench-mcp"
     expect(dialog.locator(".mcp-prompt")).to_contain_text(install)
 
 
@@ -906,8 +906,8 @@ def test_repush_hot_reloads_and_keeps_sort(browser: Browser, server: dict[str, A
     reload_me = demo_frame(200)
     url = push_client.push(reload_me)
     page = open_grid(browser, url)
-    page.locator(".ag-header-cell[col-id='order_id'] .sag-header-sort").click()
-    page.locator(".ag-header-cell[col-id='order_id'] .sag-header-sort").click()
+    page.locator(".ag-header-cell[col-id='order_id'] .sab-header-sort").click()
+    page.locator(".ag-header-cell[col-id='order_id'] .sab-header-sort").click()
     wait_for_cell(page, 0, "order_id", "200")
     push_client.push(demo_frame(300), name="reload_me")
     expect(page.locator("#grid-title")).to_contain_text("v2", timeout=15000)
@@ -1117,8 +1117,8 @@ def test_no_column_is_cut_beside_the_row_numbers(
     probe = """() => {
       const cells = [...document.querySelectorAll('.ag-header-cell[col-id]')]
         .map(c => [c.getAttribute('col-id'), c.getBoundingClientRect()]);
-      const key = cells.find(c => c[0] === '__sag_rownum')[1];
-      return cells.filter(c => !['__sag_rownum', '__sag_filler'].includes(c[0]))
+      const key = cells.find(c => c[0] === '__sab_rownum')[1];
+      return cells.filter(c => !['__sab_rownum', '__sab_filler'].includes(c[0]))
         .filter(c => c[1].left < key.right - 1 && c[1].right > key.right + 1).map(c => c[0]);
     }"""
     page.wait_for_timeout(1500)
@@ -1150,11 +1150,11 @@ def row_cell(row: int, column: str) -> str:
 def test_row_numbers_select_rows_by_click_and_drag(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     assert page.locator(".ag-selection-checkbox").count() == 0  # no checkboxes any more
-    drag(page, row_cell(1, "__sag_rownum"), row_cell(4, "__sag_rownum"))
+    drag(page, row_cell(1, "__sab_rownum"), row_cell(4, "__sab_rownum"))
     expect(page.locator(".statusbar")).to_contain_text("4 rows selected")
     expect(page.locator(row_cell(2, "region"))).to_have_class(re.compile("cell-selected"))
     expect(page.locator(row_cell(5, "region"))).not_to_have_class(re.compile("cell-selected"))
-    page.locator(row_cell(8, "__sag_rownum")).click(modifiers=["Control"])
+    page.locator(row_cell(8, "__sab_rownum")).click(modifiers=["Control"])
     expect(page.locator(".statusbar")).to_contain_text("5 rows selected")
 
 
@@ -1162,7 +1162,7 @@ def test_header_selects_its_column_and_the_column_tools_follow(
     browser: Browser, orders_url: str, server: dict[str, Any]
 ) -> None:
     page = open_grid(browser, orders_url)
-    page.locator(".ag-header-cell[col-id='quantity'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='quantity'] .sab-header-name").click()
     expect(page.locator(".ag-header-cell[col-id='quantity']")).to_have_class(re.compile("col-selected"))
     expect(page.locator(row_cell(0, "quantity"))).to_have_class(re.compile("cell-selected"))
     # Excel's status bar, over all 5,000 rows (not just the loaded ones).
@@ -1171,7 +1171,7 @@ def test_header_selects_its_column_and_the_column_tools_follow(
     expect(page.locator(".ribbon .ribbon-caption").nth(1)).to_contain_text("quantity")
     page.get_by_role("button", name="Sort Z→A").click()
     wait_for_cell(page, 0, "quantity", "50")
-    page.locator(".ag-header-cell[col-id='note'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='note'] .sab-header-name").click()
     page.get_by_role("button", name="Remove", exact=True).click()
     expect(page.locator(".ag-header-cell[col-id='note']")).to_have_count(0)
     steps = call(server, "GET", f"/grids/{grid_of(orders_url)}")["steps"]
@@ -1209,7 +1209,7 @@ def test_clicking_off_the_grid_clears_a_selected_column_but_the_ribbon_keeps_it(
 ) -> None:
     page = open_grid(browser, orders_url)
     header = page.locator(".ag-header-cell[col-id='quantity']")
-    page.locator(".ag-header-cell[col-id='quantity'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='quantity'] .sab-header-name").click()
     expect(header).to_have_class(re.compile("col-selected"))
     # The ribbon's tools act on the selection, so a click there leaves it.
     page.locator(".ribbon .ribbon-caption").nth(1).click()
@@ -1221,7 +1221,7 @@ def test_clicking_off_the_grid_clears_a_selected_column_but_the_ribbon_keeps_it(
 
 def test_clicking_off_the_grid_clears_selected_rows(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
-    drag(page, row_cell(1, "__sag_rownum"), row_cell(4, "__sag_rownum"))
+    drag(page, row_cell(1, "__sab_rownum"), row_cell(4, "__sab_rownum"))
     expect(page.locator(".statusbar")).to_contain_text("4 rows selected")
     page.locator(".statusbar").click()
     expect(page.locator(".statusbar")).not_to_contain_text("rows selected")
@@ -1701,8 +1701,8 @@ def test_relationships_mark_keys_and_draw_an_erd(browser: Browser, server: dict[
     call(server, "POST", "/relationships", {"model": model, "replace": True})
     page = open_grid(browser, url)
     # A primary-key column carries a key mark in its header; others don't.
-    expect(page.locator(".ag-header-cell[col-id='order_id'] .sag-header-key")).to_be_visible()
-    expect(page.locator(".ag-header-cell[col-id='cust'] .sag-header-key")).to_have_count(0)
+    expect(page.locator(".ag-header-cell[col-id='order_id'] .sab-header-key")).to_be_visible()
+    expect(page.locator(".ag-header-cell[col-id='cust'] .sab-header-key")).to_have_count(0)
     page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Relationships").click()
     dialog = page.locator("dialog")
     expect(dialog).to_contain_text("No tangs yet")  # the package ships no tangs
@@ -1755,7 +1755,7 @@ def test_the_erd_tab_shows_keys_or_says_none_are_defined(browser: Browser, serve
 def test_the_open_dialog_lists_a_session_opens_its_table_and_keeps_it_current(
     browser: Browser, orders_url: str, server: dict[str, Any]
 ) -> None:
-    from swissarmygrid.client.watcher import Watcher
+    from swissarmybench.client.watcher import Watcher
 
     namespace: dict[str, Any] = {"SOD": pd.DataFrame({"a": range(30), "b": range(30)})}
     watcher = Watcher(
@@ -1938,7 +1938,7 @@ def test_a_table_over_a_million_pixels_scrolls_row_for_row(browser: Browser, ser
         # The row numbers fit, at 100% and at 200% zoom.
         fits = (
             "() => { const c = document.querySelector("
-            "\".pane.active .ag-row[row-index='39999'] .ag-cell[col-id='__sag_rownum']\");"
+            "\".pane.active .ag-row[row-index='39999'] .ag-cell[col-id='__sab_rownum']\");"
             " return Boolean(c) && c.textContent === '40,000' && c.scrollWidth <= c.clientWidth; }"
         )
         viewport.evaluate("v => { v.scrollTop = v.scrollHeight; }")
@@ -2059,7 +2059,7 @@ def test_ctrl_c_copies_a_column_picked_by_its_header_or_used_from_the_ribbon(
 ) -> None:
     page = open_grid(browser, orders_url)
     page.evaluate(CAPTURE_CLIPBOARD)
-    page.locator(".ag-header-cell[col-id='product'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='product'] .sab-header-name").click()
     expect(page.locator(".statusbar")).to_contain_text("5,000 cells selected")
     page.keyboard.press("Control+c")
     page.wait_for_function("window.__copied !== undefined", timeout=10000)
@@ -2077,7 +2077,7 @@ def test_ctrl_click_on_the_only_selected_header_selects_nothing(browser: Browser
     page = open_grid(browser, orders_url)
     refused: list[str] = []
     page.on("response", lambda r: refused.append(r.url) if r.status >= 400 else None)
-    name = page.locator(".ag-header-cell[col-id='product'] .sag-header-name")
+    name = page.locator(".ag-header-cell[col-id='product'] .sab-header-name")
     name.click()
     expect(page.locator(".statusbar")).to_contain_text("5,000 cells selected")
     name.click(modifiers=["Control"])
@@ -2147,7 +2147,7 @@ def test_the_sandbox_draws_cleanly_and_a_chart_click_keeps_the_step_counts(
         # A diagram Mermaid can't parse says so in its card and leaves nothing under the page.
         broken = page.locator(".card", has_text="Broken diagram")
         expect(broken).to_contain_text("could not be drawn", timeout=30000)
-        assert page.locator("body > [id*='sag-diagram']").count() == 0
+        assert page.locator("body > [id*='sab-diagram']").count() == 0
         expect(page.locator("body")).not_to_contain_text("Syntax error in text")
         card = page.locator(".card", has_text="Rows per product")
         card.locator(".chart svg path.mark-rect, .chart svg .mark-rect path").first.click()
@@ -2185,7 +2185,7 @@ def test_closing_one_side_of_a_compare_gives_the_other_grid_its_own_rows_back(
 def test_a_server_that_stops_answering_gets_one_plain_message(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     page.route(re.compile("/steps$"), lambda route: route.abort("connectionrefused"))
-    page.locator(".ag-header-cell[col-id='product'] .sag-header-name").click()
+    page.locator(".ag-header-cell[col-id='product'] .sab-header-name").click()
     sort = page.locator(".ribbon").get_by_role("button", name="Sort A→Z", exact=True)
     sort.click()
     sort.click()
@@ -2205,7 +2205,7 @@ def test_long_names_and_empty_tables_read_well(browser: Browser, server: dict[st
         expect(page.locator(".grid-empty")).not_to_contain_text("filter")
         expect(page.get_by_text("No rows in this view.")).to_have_count(0)
         # A long name is cut at its end with an ellipsis, also in a right-aligned number column.
-        name = page.locator(f".ag-header-cell[col-id='{long}'] .sag-header-name")
+        name = page.locator(f".ag-header-cell[col-id='{long}'] .sab-header-name")
         expect(name).to_be_visible()
         first_letter_shown = name.evaluate(
             """el => {

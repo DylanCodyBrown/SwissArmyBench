@@ -17,10 +17,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from swissarmygrid.domain import notebooks, streamlit_cells
-from swissarmygrid.domain import projects as rules
-from swissarmygrid.domain.projects import ProjectError
-from swissarmygrid.services.workspace import Conflict, NotFound, Workspace
+from swissarmybench.domain import notebooks, streamlit_cells
+from swissarmybench.domain import projects as rules
+from swissarmybench.domain.projects import ProjectError
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
 class Files(Protocol):

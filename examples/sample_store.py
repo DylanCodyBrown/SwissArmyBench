@@ -255,7 +255,7 @@ def main() -> None:
             args.csv.mkdir(parents=True, exist_ok=True)
             frame.to_csv(args.csv / f"{name}.csv", index=False)
         if args.push:
-            from swissarmygrid.client import push
+            from swissarmybench.client import push
 
             print("  ", push(frame, name=name))
 

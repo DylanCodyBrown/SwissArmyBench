@@ -72,8 +72,8 @@ Odds ──────────► Fit test (together) ──► Find predic
   new grid, through the existing JSON-to-Arrow path.
 - **To notebook**: Python that redoes the analysis, as a cell in the open notebook. DuckDB does the
   counting and the sums (the analyst's own table by its variable name); the statistics come from
-  `swissarmygrid.stats`, a public, standard-library-only module (the same math the server uses), so
-  the code runs in any Python with duckdb and swissarmygrid. Verified like Copy as code: run in a fresh
+  `swissarmybench.stats`, a public, standard-library-only module (the same math the server uses), so
+  the code runs in any Python with duckdb and swissarmybench. Verified like Copy as code: run in a fresh
   namespace and compared with the window's numbers before it is offered.
 
 ## The page
@@ -105,7 +105,7 @@ Rows with a blank in any used column are left out, and the count is shown.
 ## Phases
 
 - **A. (built)** The Analyze menu; the three result actions; Odds; Find predictors; Fit test and
-  Outliers in the menu with Exclude these; `swissarmygrid.stats` and the notebook code for these.
+  Outliers in the menu with Exclude these; `swissarmybench.stats` and the notebook code for these.
   Send to Sandbox is a note for now: the Sandbox's markdown has no tables, and server-added Plotly
   cards wait for the Sandbox server part.
 - **B. (built)** Regression (linear and logistic), what-if, predicted and miss columns, Check the misses.
@@ -120,7 +120,7 @@ domain/stats.py (distributions, linear algebra), domain/analysis.py (fit test, o
 predictors), domain/models.py (regression, time series, forecast: encoding, query text, iterations);
 services/analysis.py and services/models.py; routes_analysis.py and routes_models.py;
 web/src/analyzeMenu.ts (the menu and the shared result actions), analysisDialog.ts (fit test,
-outliers, odds, predictors), modelDialog.ts (regression, what-if, forecast); src/swissarmygrid/stats.py
+outliers, odds, predictors), modelDialog.ts (regression, what-if, forecast); src/swissarmybench/stats.py
 (the public face of domain/stats.py and the analysis math, for generated code).
 
 ## Notes from building it

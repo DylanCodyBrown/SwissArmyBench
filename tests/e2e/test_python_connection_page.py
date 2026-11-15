@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Locator, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, demo_frame, grid_of, open_grid, server  # noqa: F401
 from tests.e2e.test_workbench_page import wait_until
 from tests.orders_service import API_KEY, VAULT_CODE, Service
@@ -123,7 +123,7 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     )
     catalog.locator('[role="treeitem"] .node-label', has_text=re.compile("^orders$")).click()
     detail = catalog.locator("#detail")
-    expect(detail.locator("pre")).to_have_text('sag.read("Orders API", "orders", schema="api")')
+    expect(detail.locator("pre")).to_have_text('sab.read("Orders API", "orders", schema="api")')
     expect(detail.locator("p.hint").first).to_have_text("api in Orders API · 2 columns · Python")
     described = detail.locator(".columns-table").first.locator("tr", has_text="amount")
     expect(described.locator("td").nth(1)).to_have_text("number")

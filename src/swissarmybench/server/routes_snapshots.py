@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import (
+from swissarmybench.server.http import (
     BodyTooLargeError,
     actor,
     error_response,
@@ -22,7 +22,7 @@ from swissarmygrid.server.http import (
     read_body,
     read_json,
 )
-from swissarmygrid.services.snapshots import (
+from swissarmybench.services.snapshots import (
     PNG_SIGNATURE,
     SnapshotFailed,
     Snapshots,

@@ -1,8 +1,8 @@
-"""The `swissarmygrid` command, wherever it was installed from.
+"""The `swissarmybench` command, wherever it was installed from.
 
 The one package installs this command twice over: with the server (the `[server]` extra, as a uv tool) and
 with the plain client (in a project's environment, which has no uvicorn or DuckDB). A person who has the
-project's environment active and types `swissarmygrid start` gets the project's copy first on PATH. That copy
+project's environment active and types `swissarmybench start` gets the project's copy first on PATH. That copy
 cannot run a server, so instead of failing with an import error it hands the command to the server's own
 install, found where uv puts its tools; with no server installed anywhere it says how to install one.
 
@@ -20,11 +20,16 @@ import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from swissarmybench.renamed import env as renamed_env
+
+# The uv tool SwissArmyGrid was installed as before its rename (renamed.py): still found, for one release.
+OLD_TOOL: str = "swissarmygrid"
+
 # What the server needs that the client does not have.
 SERVER_MODULES: tuple[str, ...] = ("uvicorn", "starlette", "duckdb", "pyarrow")
 
 INSTALL_HINT: str = (
-    "The SwissArmyGrid server is not installed on this machine "
+    "The Swiss Army Bench server is not installed on this machine "
     "(this environment has only the Python client).\n"
     "Install it once, with its own Python, from a release:\n"
     "  Windows:        powershell -ExecutionPolicy Bypass -File install.ps1 <wheel>\n"
@@ -39,10 +44,12 @@ def has_server(find_spec: Callable[[str], object | None] = importlib.util.find_s
 
 
 def tool_pythons(env: Mapping[str, str], home: Path, platform: str, uv_tool_dir: str | None) -> list[Path]:
-    """Where the server's own Python may be, in the order to try: SWISSARMYGRID_SERVER, then uv's tool
-    folder (UV_TOOL_DIR, what `uv tool dir` says, then uv's defaults), as the VS Code extension looks."""
-    if env.get("SWISSARMYGRID_SERVER"):
-        return [Path(env["SWISSARMYGRID_SERVER"])]
+    """Where the server's own Python may be, in the order to try: SWISSARMYBENCH_SERVER (or the old
+    SWISSARMYGRID_SERVER), then uv's tool folder (UV_TOOL_DIR, what `uv tool dir` says, then uv's defaults),
+    as the VS Code extension looks; in each, the swissarmybench tool, then the old swissarmygrid one."""
+    named = renamed_env("SWISSARMYBENCH_SERVER", environ=env)
+    if named:
+        return [Path(named)]
     python = ("Scripts", "python.exe") if platform == "win32" else ("bin", "python")
     roots: list[Path] = []
     for given in (env.get("UV_TOOL_DIR"), uv_tool_dir):
@@ -52,11 +59,17 @@ def tool_pythons(env: Mapping[str, str], home: Path, platform: str, uv_tool_dir:
         roots.append(Path(env["APPDATA"]) / "uv" / "tools")
     roots.append(Path(env.get("XDG_DATA_HOME") or home / ".local" / "share") / "uv" / "tools")
     seen: list[Path] = []
-    for root in roots:
-        candidate = root.joinpath("swissarmygrid", *python)
-        if candidate not in seen:
-            seen.append(candidate)
+    for tool in ("swissarmybench", OLD_TOOL):
+        for root in roots:
+            candidate = root.joinpath(tool, *python)
+            if candidate not in seen:
+                seen.append(candidate)
     return seen
+
+
+def server_module(python: Path) -> str:
+    """The server's module in an installed tool's Python: the old swissarmygrid tool has only the old name."""
+    return "swissarmygrid.server" if python.parent.parent.name == OLD_TOOL else "swissarmybench.server"
 
 
 def _uv_tool_dir() -> str | None:
@@ -86,7 +99,7 @@ def find_server_python() -> Path | None:
 
 def main() -> None:
     if has_server():
-        from swissarmygrid.server.__main__ import main as server_main
+        from swissarmybench.server.__main__ import main as server_main
 
         server_main()
         return
@@ -96,7 +109,7 @@ def main() -> None:
         sys.exit(1)
     # A child, not exec: Windows has no real exec, and the child's exit code is passed on as ours.
     # The server's own installed Python, running this package's server with the person's arguments.
-    done = subprocess.run([str(python), "-m", "swissarmygrid.server", *sys.argv[1:]], check=False)  # noqa: S603
+    done = subprocess.run([str(python), "-m", server_module(python), *sys.argv[1:]], check=False)  # noqa: S603
     sys.exit(done.returncode)
 
 

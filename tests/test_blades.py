@@ -16,7 +16,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from swissarmygrid.adapters.blade_run import (
+from swissarmybench.adapters.blade_run import (
     BladeRunError,
     needed,
     run_catalog,
@@ -24,11 +24,11 @@ from swissarmygrid.adapters.blade_run import (
     run_vault,
     table_rows,
 )
-from swissarmygrid.adapters.catalogs import CatalogStore
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.domain import blades as blade_code
-from swissarmygrid.domain.blades import install_command, missing_module_hint
-from swissarmygrid.server.blade_templates import BY_ID, TEMPLATES
+from swissarmybench.adapters.catalogs import CatalogStore
+from swissarmybench.adapters.database import open_database
+from swissarmybench.domain import blades as blade_code
+from swissarmybench.domain.blades import install_command, missing_module_hint
+from swissarmybench.server.blade_templates import BY_ID, TEMPLATES
 from tests.fake_keyring import memory_keyring
 
 # ===== reading the code =====
@@ -61,15 +61,15 @@ def test_bad_python_is_refused_with_its_line() -> None:
 
 
 def test_imports_already_in_a_script_are_not_added_again() -> None:
-    script = "import pandas as pd, numpy\nfrom pathlib import Path, PurePath\nimport swissarmygrid\n"
+    script = "import pandas as pd, numpy\nfrom pathlib import Path, PurePath\nimport swissarmybench\n"
     wanted = [
         "import pandas as pd",
         "import numpy",
         "from pathlib import Path",
-        "import swissarmygrid as sag",  # `import swissarmygrid` does not give `sag`
+        "import swissarmybench as sab",  # `import swissarmybench` does not give `sab`
         "import pyodbc",
     ]
-    assert blade_code.missing_imports(script, wanted) == ["import swissarmygrid as sag", "import pyodbc"]
+    assert blade_code.missing_imports(script, wanted) == ["import swissarmybench as sab", "import pyodbc"]
     assert blade_code.missing_imports("x = (", ["import os"]) == ["import os"]
     assert blade_code.import_lines("import os\nx = 1\nfrom a import (\n    b,\n)\n") == [
         "import os",
@@ -161,8 +161,8 @@ def test_packages_map_imports_to_pip_names_and_skip_the_standard_library() -> No
     excel = {p.pip for p in needed("import pandas as pd\nframe = pd.read_excel('x.xlsx')\n")}
     assert excel == {"pandas", "openpyxl"}
     assert (
-        install_command(["psycopg[binary]"], "/opt/sag python")
-        == "uv pip install --python '/opt/sag python' 'psycopg[binary]'"
+        install_command(["psycopg[binary]"], "/opt/sab python")
+        == "uv pip install --python '/opt/sab python' 'psycopg[binary]'"
     )
 
 
@@ -171,7 +171,7 @@ def test_packages_map_imports_to_pip_names_and_skip_the_standard_library() -> No
 
 @pytest.mark.parametrize("template", TEMPLATES, ids=lambda t: t.id)
 def test_every_template_reads_as_python_and_names_its_variable(template: object) -> None:
-    from swissarmygrid.domain.blades import Template
+    from swissarmybench.domain.blades import Template
 
     assert isinstance(template, Template)
     found = blade_code.read_code(template.code, template.label)

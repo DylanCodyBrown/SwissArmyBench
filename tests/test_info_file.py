@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from swissarmygrid.adapters.state_files import info_file_path, remove_info_file, write_info_file
+from swissarmybench.adapters.state_files import info_file_path, remove_info_file, write_info_file
 
 
 def test_write_then_remove(tmp_path: Path) -> None:
@@ -31,13 +31,19 @@ def test_write_then_remove(tmp_path: Path) -> None:
 
 
 def test_environment_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(tmp_path / "x.json"))
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(tmp_path / "x.json"))
     assert info_file_path() == tmp_path / "x.json"
 
 
-def test_default_location(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_location(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("SWISSARMYBENCH_INFO", raising=False)
     monkeypatch.delenv("SWISSARMYGRID_INFO", raising=False)
-    assert info_file_path() == Path.home() / ".swissarmygrid" / "server.json"
+    monkeypatch.setenv("HOME", str(tmp_path))  # never this machine's own (it may hold the old folder)
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert info_file_path() == Path.home() / ".swissarmybench" / "server.json"
+    # Before the rename's first start, only the old state folder: its connection file (test_renamed.py).
+    (tmp_path / ".swissarmygrid").mkdir()
+    assert info_file_path() == tmp_path / ".swissarmygrid" / "server.json"
 
 
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")

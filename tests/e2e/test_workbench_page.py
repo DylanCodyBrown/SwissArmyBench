@@ -86,7 +86,7 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     expect(page.locator(".connection-result")).to_contain_text("3 columns, the first 3 rows")
     page.locator("dialog .dialog-foot").get_by_role("button", name="Save").click()
     expect(page.locator(".connection-list")).to_contain_text("orders")
-    expect(page.locator(".connection-list")).to_contain_text('sag.connection("orders")')
+    expect(page.locator(".connection-list")).to_contain_text('sab.connection("orders")')
     # Its catalog loads itself in the background (no Refresh pressed) and the list says so when it lands.
     row = page.locator(".connection-row", has_text="orders")
     wait_until(lambda: call(server, "GET", "/connections")["connections"][0]["catalog_loaded"])
@@ -408,7 +408,7 @@ def test_the_first_save_on_a_fresh_home_folder_has_somewhere_to_go(
     browser: Browser, orders_url: str, server: dict[str, Any]
 ) -> None:
     """Decision 15: the app's own folder is made the first time it is needed. On a fresh home folder
-    the first Save said "…/SwissArmyGrid is not a folder this computer can open" and could not save."""
+    the first Save said "…/SwissArmyBench is not a folder this computer can open" and could not save."""
     import shutil
 
     own = Path(call(server, "GET", "/workbench/home")["folder"])
@@ -457,7 +457,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     expect(first.locator(".wb-stream")).to_have_text("hello\n", timeout=60000)
     expect(first.locator("iframe.wb-html")).to_be_visible()
     expect(first.locator(".wb-count")).to_have_text("[1]")
-    # Every connection is there by its name: no sag.connection(...) line (opened when first used).
+    # Every connection is there by its name: no sab.connection(...) line (opened when first used).
     add_cell(workbench, "Python")
     named = workbench.locator(".wb-cell").nth(1)
     expect(named.locator(".monaco-editor")).to_be_visible(timeout=20000)
@@ -685,7 +685,7 @@ def test_completion_comes_from_the_catalog_and_the_kernel(
         expect(suggest.filter(has_text="rain_mm").first).to_be_visible(timeout=15000)
         workbench.keyboard.press("Escape")
         workbench.keyboard.press("Enter")
-        workbench.keyboard.type('conn = sag.connection("Or')
+        workbench.keyboard.type('conn = sab.connection("Or')
         expect(suggest.filter(has_text="Orders").first).to_be_visible(timeout=10000)
     finally:
         call(server, "DELETE", "/catalogs/Orders")

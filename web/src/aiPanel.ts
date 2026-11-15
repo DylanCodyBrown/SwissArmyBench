@@ -28,7 +28,7 @@
  */
 import { api, gridId, gridPath, type ColumnInfo, type GridInfo, type Notice } from "./api";
 import { contextOf, gridList, onAgentView } from "./panes";
-import { button, clear, formatCount, h, icon, isDateType, isNumericType, openDialog, recall, remember, toast } from "./dom";
+import { button, clear, forget, formatCount, h, icon, isDateType, isNumericType, openDialog, recall, remember, toast } from "./dom";
 import { renderMarkdown } from "./markdown";
 import { saveBlob } from "./profileView";
 import { state } from "./state";
@@ -173,11 +173,7 @@ function resizeGrip(card: Card, element: HTMLElement): HTMLElement {
     set(clampSize(now.w + dw, now.h + dh), true);
   });
   grip.addEventListener("dblclick", () => {
-    try {
-      localStorage.removeItem(`swissarmygrid.sandbox.size.${card.id}`);
-    } catch {
-      // no storage: the size simply is not kept
-    }
+    forget(`sandbox.size.${card.id}`);
     set(card.size ? clampSize(card.size.w, card.size.h) : DEFAULT_SIZE[card.kind], false, Boolean(card.size));
   });
   return grip;

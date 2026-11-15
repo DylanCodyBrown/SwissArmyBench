@@ -1,4 +1,4 @@
-"""Catalogs (plan decision 17): a source database's names and types, loaded by the user (sag.load or
+"""Catalogs (plan decision 17): a source database's names and types, loaded by the user (sab.load or
 a blade's Refresh), browsed as a tree and searched. Readable by the agent: names and types, never
 values. Only the user loads or removes one.
 """
@@ -8,10 +8,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from swissarmygrid.domain.catalogs import CatalogInfo, select_sql
-from swissarmygrid.services.datasets import TableReader
-from swissarmygrid.services.ports import BACKGROUND, INTERACTIVE
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain.catalogs import CatalogInfo, select_sql
+from swissarmybench.services.datasets import TableReader
+from swissarmybench.services.ports import BACKGROUND, INTERACTIVE
+from swissarmybench.services.workspace import Workspace
 
 
 class Catalogs(Protocol):
@@ -81,7 +81,7 @@ class CatalogService:
     async def load(
         self, name: str, arrow: bytes | None, payload: Any, dialect: str | None, who: str
     ) -> CatalogInfo:
-        """Load one (sag.load): an Arrow stream or split JSON, like a push."""
+        """Load one (sab.load): an Arrow stream or split JSON, like a push."""
         ws = self.ws
         if arrow is not None:
             table = await ws.workers.run(

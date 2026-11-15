@@ -1,4 +1,4 @@
-"""Open a SwissArmyGrid grid in VS Code's built-in browser and screenshot it.
+"""Open a Swiss Army Bench grid in VS Code's built-in browser and screenshot it.
 
 Starts a throwaway VS Code window (its own empty profile, remote debugging on port 9333),
 opens "Simple Browser: Show" through the command palette with the given URL, waits, saves a
@@ -96,7 +96,7 @@ def main() -> None:
     if len(sys.argv) != 3:
         sys.exit(__doc__)
     url, out = sys.argv[1], sys.argv[2]
-    profile = tempfile.mkdtemp(prefix="sag_vscode_")
+    profile = tempfile.mkdtemp(prefix="sab_vscode_")
     subprocess.Popen(
         [
             code_exe(),

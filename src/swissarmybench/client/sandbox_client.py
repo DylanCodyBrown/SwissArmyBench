@@ -1,13 +1,13 @@
-"""`sag.sandbox(thing)`: put anything visual from Python into the Sandbox, as a card of no table.
+"""`sab.sandbox(thing)`: put anything visual from Python into the Sandbox, as a card of no table.
 
-    sag.sandbox(fig)                          # matplotlib or seaborn: a PNG picture
-    sag.sandbox(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
-    sag.sandbox(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
-    sag.sandbox(digraph)                      # graphviz: drawn from its DOT text
-    sag.sandbox(frame)                        # a DataFrame or Arrow table: its first 100 rows
-    sag.sandbox("## Findings\\n...")           # Markdown text: a note
-    sag.sandbox("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
-    sag.sandbox(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
+    sab.sandbox(fig)                          # matplotlib or seaborn: a PNG picture
+    sab.sandbox(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
+    sab.sandbox(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
+    sab.sandbox(digraph)                      # graphviz: drawn from its DOT text
+    sab.sandbox(frame)                        # a DataFrame or Arrow table: its first 100 rows
+    sab.sandbox("## Findings\\n...")           # Markdown text: a note
+    sab.sandbox("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
+    sab.sandbox(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
 
 `key="..."` names the card, so running the cell again replaces it in place (its size and position
 stay) instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Returns the card's
@@ -27,7 +27,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from swissarmygrid.client.blades_client import _call
+from swissarmybench.client.blades_client import _call
 
 _ROWS: int = 100
 _KIND_NAMES: dict[str, str] = {

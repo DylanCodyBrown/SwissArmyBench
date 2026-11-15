@@ -1,6 +1,6 @@
 """The SQL cell (%%sql <connection>) on each kind of connection, with made-up data: a SQLite database, a
 CSV file, a workbook, a folder of files, and a blade that makes a DataFrame. The server is stood in for
-(the connections list and what sag.blade() would hand back), and IPython by a small shell."""
+(the connections list and what sab.blade() would hand back), and IPython by a small shell."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from swissarmygrid.client import blades_client, sql_cell
+from swissarmybench.client import blades_client, sql_cell
 
 CONNECTIONS: list[dict[str, Any]] = [
     {"name": "Shop", "kind": "sql", "connection": "database", "dialect": "sqlite", "template": "sqlite"},
@@ -168,9 +168,12 @@ def test_the_magics_run_a_cell_keep_the_result_and_choose_a_default(
 ) -> None:
     shell = Shell()
     assert sql_cell.register(shell) == [
-        "%%sag",
+        "%%sab",
+        "%%sag",  # the old name, for one release (test_renamed.py)
         "%%sql",
         "%%dax",
+        "%sab_connect",
+        "%sab_connections",
         "%sag_connect",
         "%sag_connections",
         "%sql_connect",
@@ -181,7 +184,7 @@ def test_the_magics_run_a_cell_keep_the_result_and_choose_a_default(
     assert shown["region"].tolist() == ["North", "South", "North"] and shell.user_ns["by_region"] is shown
     shell.lines["sql_connect"]("Orders file")
     assert "now run on Orders file" in capsys.readouterr().out
-    assert shell.cells["sag"]("", "SELECT count(*) AS n FROM orders")["n"].tolist() == [2]
+    assert shell.cells["sab"]("", "SELECT count(*) AS n FROM orders")["n"].tolist() == [2]
     shell.lines["sql_connections"]("")
     listed = capsys.readouterr().out
     assert "Shop" in listed and "database (sqlite SQL)" in listed and "* Orders file" in listed
@@ -194,13 +197,13 @@ def test_the_magics_run_a_cell_keep_the_result_and_choose_a_default(
 
 def test_another_extensions_sql_magic_is_left_alone(made: dict[str, Any]) -> None:
     shell = Shell(taken={"sql"})
-    assert "%%sql" not in sql_cell.register(shell) and "sag" in shell.cells
+    assert "%%sql" not in sql_cell.register(shell) and "sab" in shell.cells
 
 
 def test_tab_in_a_cell_offers_only_that_connections_names(
     made: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from swissarmygrid.client import completion
+    from swissarmybench.client import completion
 
     searched: list[str] = []
     monkeypatch.setattr(completion, "_catalog_names", lambda: ["Shop", "Elsewhere"])
@@ -213,5 +216,5 @@ def test_tab_in_a_cell_offers_only_that_connections_names(
     completion.suggestions("ord", "%%sql Shop\nSELECT * FROM ")
     assert searched == ["Shop"]  # the cell's connection's catalog, not every catalog
     sql_cell.connection("Exports")  # a folder open in this Python: its own tables and columns
-    assert completion.suggestions("sto", "%%sag Exports\nSELECT * FROM ") == ["stores", "store_id"]
+    assert completion.suggestions("sto", "%%sab Exports\nSELECT * FROM ") == ["stores", "store_id"]
     assert completion.suggestions("stores.ci", "%%sql Exports\nSELECT stores.ci") == ["stores.city"]

@@ -8,7 +8,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 from tests.test_timeseries import sales_rows
 
@@ -41,7 +41,7 @@ def test_time_series_reads_the_series_and_hands_over_to_forecast(
         expect(dialog.locator(".analysis-results tbody tr")).to_have_count(3, timeout=20000)
         dialog.get_by_role("button", name="Close").last.click()
         # A number column whose header is selected is the user's own pick: the window opens on it.
-        page.locator(".ag-header-cell[col-id='amount'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='amount'] .sab-header-name").click()
         page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Analyze").click()
         page.get_by_role("menuitem", name="Time series…").click()
         expect(page.locator("dialog").get_by_label("Metric")).to_have_value("amount")

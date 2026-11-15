@@ -17,7 +17,7 @@ import pytest
 from examples.sample_store import DECOYS, TRUE_RELATIONSHIPS, make_store
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.relationships import read_tang
+from swissarmybench.domain.relationships import read_tang
 from tests.conftest import AGENT, AUTH, make_client, push
 
 
@@ -157,7 +157,7 @@ def test_export_review_and_import_a_tang_file(client: TestClient) -> None:
     assert exported.status_code == 200
     assert 'filename="sample_store.tang"' in exported.headers["content-disposition"]
     text = exported.text
-    assert json.loads(text)["swissarmygrid"] == "tang"
+    assert json.loads(text)["swissarmybench"] == "tang"
     # Someone else's current relationships say order_lines -> orders is one-to-one: the review says
     # what importing would change, and applying does it.
     other = {

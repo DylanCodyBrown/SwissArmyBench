@@ -11,8 +11,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.grids import UNDO_LIMIT, Grid
-from swissarmygrid.domain.steps import Step
+from swissarmybench.domain.grids import UNDO_LIMIT, Grid
+from swissarmybench.domain.steps import Step
 from tests.conftest import AGENT, AUTH, grid_id, push
 
 SECRET = "Acme Secret"
@@ -145,8 +145,8 @@ def test_a_step_error_in_duckdbs_words_reaches_the_agent(client: TestClient) -> 
 
 @pytest.fixture
 def as_agent(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    from swissarmygrid.cli import api
-    from swissarmygrid.cli.api import CommandError
+    from swissarmybench.cli import api
+    from swissarmybench.cli.api import CommandError
 
     def fake_call(method: str, path: str, body: Any = None, params: Any = None, timeout: float = 0) -> Any:
         clean = {k: v for k, v in (params or {}).items() if v is not None}
@@ -176,7 +176,7 @@ def as_agent(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def test_the_step_commands_keep_the_users_values(
     as_agent: TestClient, name: str, args: dict[str, Any]
 ) -> None:
-    from swissarmygrid.cli.commands import execute
+    from swissarmybench.cli.commands import execute
 
     gid = user_grid(as_agent)
     filter_id = user_steps(as_agent, gid)[0]["id"]

@@ -136,7 +136,7 @@ def test_dragging_gives_the_quoted_name_or_the_blade_line(
             return [pick(label('orders')), pick(label('placed at')), pick(blade)];
         }"""
     )
-    assert dragged == ["[sales].[orders]", "[placed at]", 'path = sag.blade("Bakery")']
+    assert dragged == ["[sales].[orders]", "[placed at]", 'path = sab.blade("Bakery")']
     page.close()
 
 
@@ -212,11 +212,11 @@ def test_a_refresh_asks_for_a_secret_blade_value_and_never_keeps_it(
 
 def test_the_page_follows_the_theme(browser: Browser, warehouse: str) -> None:
     page = open_page(browser, warehouse)
-    page.evaluate("localStorage.setItem('swissarmygrid.theme', 'hc-dark')")
+    page.evaluate("localStorage.setItem('swissarmybench.theme', 'hc-dark')")
     page.reload()
     page.goto(warehouse)
     expect(page.locator("html")).to_have_attribute("data-theme", "hc-dark")
-    page.evaluate("localStorage.removeItem('swissarmygrid.theme')")
+    page.evaluate("localStorage.removeItem('swissarmybench.theme')")
     page.close()
 
 
@@ -282,7 +282,7 @@ def test_blades_are_found_by_name_description_or_tag_and_favourites_come_first(
 def test_an_imported_blade_file_is_reviewed_first_and_a_taken_name_keeps_both(
     browser: Browser, server: dict[str, Any], warehouse: str, tmp_path: Path
 ) -> None:
-    from swissarmygrid.domain.blades import write_blade
+    from swissarmybench.domain.blades import write_blade
 
     marker = tmp_path / "ran.txt"
     code = f"open({str(marker)!r}, 'w').write('ran')\nconn = 1\n"
@@ -326,7 +326,7 @@ def test_an_imported_blade_file_is_reviewed_first_and_a_taken_name_keeps_both(
 def test_a_blade_folder_lists_its_blade_files_and_the_save_screen_exports(
     browser: Browser, server: dict[str, Any], warehouse: str, tmp_path: Path
 ) -> None:
-    from swissarmygrid.domain.blades import write_blade
+    from swissarmybench.domain.blades import write_blade
 
     folder = tmp_path / "team blades"
     (folder / "apps").mkdir(parents=True)
@@ -385,7 +385,7 @@ POSTGRES_STARTER = (
 def test_import_suggests_values_for_a_blades_settings_and_writes_them_in(
     browser: Browser, server: dict[str, Any], warehouse: str, tmp_path: Path
 ) -> None:
-    from swissarmygrid.domain.blades import write_blade
+    from swissarmybench.domain.blades import write_blade
 
     mine = 'import psycopg\nconn = psycopg.connect(host="db01.corp.local", dbname="sales")\n'
     call(server, "POST", "/blades", {"name": "Sales DB", "kind": "sql", "dialect": "postgres", "code": mine})
@@ -457,7 +457,7 @@ def test_a_long_blade_name_never_hides_the_blade_buttons(
     expect(listing.locator(".blade-item")).to_have_count(2)
     assert listing.evaluate("e => e.scrollWidth <= e.clientWidth")
     for item in listing.locator(".blade-item").all():
-        expect(item.get_by_role("button", name="Copy the sag.blade line")).to_be_in_viewport()
+        expect(item.get_by_role("button", name="Copy the sab.blade line")).to_be_in_viewport()
     page.close()
 
 
@@ -466,7 +466,7 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
 ) -> None:
     import json as json_module
 
-    from swissarmygrid.domain.blades import write_blade
+    from swissarmybench.domain.blades import write_blade
 
     # A made-up installed pack in this server's own Claude folder (never the machine's).
     root = Path(server["tmp"]) / "claude" / "plugins" / "cache" / "team-blades" / "sales" / "1a2b3c4d5e6f"

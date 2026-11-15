@@ -6,8 +6,8 @@ before any of this is reached (its own narrow door is services/agent.py).
   save, change, remove         a blade, with its secrets into the operating system's vault
   inspect, fill                what code makes, asks for, imports and needs; its settings written back
   refresh, test                run it in a child process: load its catalog, or just see that it works
-  for_python                   everything sag.blade() needs to run it in the caller's Python
-  install                      packages into SwissArmyGrid's own Python, on the user's click
+  for_python                   everything sab.blade() needs to run it in the caller's Python
+  install                      packages into Swiss Army Bench's own Python, on the user's click
   favourites, folders          this person's own, kept on this computer
   export, import               portable .blade.py files; an import is reviewed before anything is saved
 """
@@ -20,11 +20,11 @@ import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Protocol
 
-from swissarmygrid.domain import blades as rules
-from swissarmygrid.domain import connections as connection_rules
-from swissarmygrid.domain import python_connections
-from swissarmygrid.domain.analysis import whole_view_queries
-from swissarmygrid.domain.blades import (
+from swissarmybench.domain import blades as rules
+from swissarmybench.domain import connections as connection_rules
+from swissarmybench.domain import python_connections
+from swissarmybench.domain.analysis import whole_view_queries
+from swissarmybench.domain.blades import (
     Blade,
     BladeCodeError,
     BladeError,
@@ -34,12 +34,12 @@ from swissarmygrid.domain.blades import (
     install_command,
     pip_name,
 )
-from swissarmygrid.domain.connections import code_names, connection_kind, opens_in_code
-from swissarmygrid.domain.datasets import DatasetInfo
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.services.catalogs import CatalogService
-from swissarmygrid.services.ports import BACKGROUND, SqlSession
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
+from swissarmybench.domain.datasets import DatasetInfo
+from swissarmybench.domain.grids import Grid
+from swissarmybench.services.catalogs import CatalogService
+from swissarmybench.services.ports import BACKGROUND, SqlSession
+from swissarmybench.services.workspace import Workspace
 
 _PIP_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._\-]{0,99}(\[[A-Za-z0-9,._\-]{1,100}\])?")
 
@@ -116,7 +116,7 @@ class BladeService:
         # Run a blade in a child process: "catalog", "test" or "analysis" (server/blade_runner.py).
         self._run_blade = run_blade
         self._install_packages = install_packages
-        # SwissArmyGrid's own Python (where Refresh runs), and the environment suggestions come from.
+        # Swiss Army Bench's own Python (where Refresh runs), and the environment suggestions come from.
         self._python = python
         self._environ = environ
 
@@ -195,7 +195,7 @@ class BladeService:
             "imports": found.imports,
             "import_lines": rules.import_lines(code),
             "packages": [p.to_json() for p in packages],
-            # Into SwissArmyGrid's own Python (where Refresh runs), and the same for the user's own.
+            # Into Swiss Army Bench's own Python (where Refresh runs), and the same for the user's own.
             "install_here": install_command(missing, self._python) if missing else None,
             "install_yours": install_command([p.pip for p in packages]) if packages else None,
             "settings": self.settings_of(code, template, name),
@@ -437,7 +437,7 @@ class BladeService:
         return content
 
     def for_python(self, name: str) -> dict[str, Any]:
-        """What sag.blade() runs in the caller's Python. Secret values included: only the user's own
+        """What sab.blade() runs in the caller's Python. Secret values included: only the user's own
         Python asks (the token is the user's; the agent is refused)."""
         blade = self._blades.get(name)
         vaults, typed = self._blades.providers(blade)
@@ -478,7 +478,7 @@ class BladeService:
         }
 
     async def install(self, packages: Any) -> tuple[bool, dict[str, Any]]:
-        """Install packages into SwissArmyGrid's own Python, where Refresh runs, on the user's click.
+        """Install packages into Swiss Army Bench's own Python, where Refresh runs, on the user's click.
         Returns whether it worked, and what to show."""
         if (
             not isinstance(packages, list)

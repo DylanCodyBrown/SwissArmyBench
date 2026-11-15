@@ -261,7 +261,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     expect(third.get_by_label("Cell kind")).to_have_value("dax")
     expect(third.get_by_label("Dataset")).to_have_value(DATASETS[0])
 
-    # A script: its DAX cell is plain Python, one sag.dax() call under a `# %% [dax]` marker, on the
+    # A script: its DAX cell is plain Python, one sab.dax() call under a `# %% [dax]` marker, on the
     # first dataset; the agent adds one on a dataset it names. The file runs as it is.
     start(workbench, "New script")
     expect(workbench.locator(".wb-script-editor .monaco-editor")).to_be_visible(timeout=20000)
@@ -271,12 +271,12 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     text = window("doc.read")["text"]
     assert text.splitlines() == [
         "# %% [1] [dax]",
-        "import swissarmygrid as sag",
-        'result = sag.dax("Finance/Budget model", """',
+        "import swissarmybench as sab",
+        'result = sab.dax("Finance/Budget model", """',
         "EVALUATE ",
         '""")',
         "# %% [2] [dax]",
-        'result = sag.dax("Finance/Sales model", """',
+        'result = sab.dax("Finance/Sales model", """',
         "EVALUATE TOPN(2, 'Customer')",
         '""")',
     ]

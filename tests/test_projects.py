@@ -14,8 +14,8 @@ from typing import Any
 
 import pytest
 
-from swissarmygrid.domain import projects as rules
-from swissarmygrid.domain.projects import DataCell
+from swissarmybench.domain import projects as rules
+from swissarmybench.domain.projects import DataCell
 
 
 def _import(path: Path, show: str) -> Any:
@@ -95,7 +95,7 @@ PASTED = (
     "# customers: no transformations yet. Steps made in the grid appear here."
 )
 PUSHED = (
-    "# clients was made outside this file (in the console, or sent with sag.push).\n"
+    "# clients was made outside this file (in the console, or sent with sab.push).\n"
     "# Put the code that makes it in a cell above this one.\n\n"
     'import duckdb\n\nclients = duckdb.sql("""SELECT * FROM clients LIMIT 5""").df()'
 )
@@ -149,9 +149,9 @@ def test_a_script_for_a_zip_has_no_pasted_rows() -> None:
 
 def test_requirements_keep_the_users_lines() -> None:
     needed = rules.data_requirements(
-        "orders = sag.sql('W', 'x')\norders = duckdb.sql('y').df()\npd.read_excel('a')"
+        "orders = sab.sql('W', 'x')\norders = duckdb.sql('y').df()\npd.read_excel('a')"
     )
-    assert needed[:3] == ["pandas", "duckdb", "openpyxl"] and needed[3].startswith("# swissarmygrid:")
+    assert needed[:3] == ["pandas", "duckdb", "openpyxl"] and needed[3].startswith("# swissarmybench:")
     held = "pandas==2.2.0\nrequests\n"
     merged = rules.merged_requirements(held, ["streamlit>=1.36", "pandas", "duckdb", needed[3]])
     assert merged.split("\n")[:4] == ["pandas==2.2.0", "requests", "streamlit>=1.36", "duckdb"]

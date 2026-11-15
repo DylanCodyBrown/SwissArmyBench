@@ -4,7 +4,7 @@ Each grid page holds one WebSocket. On a push the server sends
 {"type": "dataset_updated", "dataset": "orders", "version": 4} to all of them, and each page
 refetches only if the dataset is its own. Like a SignalR hub with one broadcast method.
 
-SwissArmyGrid lives in VS Code: each VS Code window's extension holds one more socket, as an
+Swiss Army Bench lives in VS Code: each VS Code window's extension holds one more socket, as an
 opener (/ws?opener=1). When a push finds nothing on screen, the server asks the window the user
 was last in to show the workspace, so no caller ever opens a browser of its own. The openers are
 also how a server VS Code started knows VS Code has closed (`openers_gone_for`).

@@ -1,7 +1,7 @@
 """Every connection, always there, in the Workbench's kernels (the owner's choice, 2026-11-14): write
-`warehouse.cursor()` or `pd.read_csv(orders_file)` with no sag.connection(...) line. Before each cell
+`warehouse.cursor()` or `pd.read_csv(orders_file)` with no sab.connection(...) line. Before each cell
 runs, the names it uses are read; a connection's name (its code_name: Sales DB -> sales_db) that is not
-a variable yet is opened then (sag.connection), so a connection a notebook never uses never connects.
+a variable yet is opened then (sab.connection), so a connection a notebook never uses never connects.
 It is the connection's own object (a DB-API connection, a file's path), not a stand-in. A variable of
 the same name that the user made always wins. No password or connection code is in the document.
 
@@ -16,7 +16,7 @@ import sys
 import time
 from typing import Any
 
-from swissarmygrid.client import blades_client
+from swissarmybench.client import blades_client
 
 _REFRESH_SECONDS: float = 10.0
 _names: list[Any] = [0.0, {}]  # when read, {code name: connection name}

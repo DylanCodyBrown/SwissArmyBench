@@ -9,7 +9,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, demo_frame, open_grid, server  # noqa: F401
 
 
@@ -139,7 +139,7 @@ def test_enter_or_f2_on_a_cell_opens_the_value_viewer(browser: Browser, server: 
         expect(viewer).to_contain_text("note 4")
         page.keyboard.press("Escape")
         # On a header the keys keep their own meaning: no viewer.
-        page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
         page.keyboard.press("Enter")
         page.wait_for_timeout(300)
         expect(viewer).to_have_count(0)

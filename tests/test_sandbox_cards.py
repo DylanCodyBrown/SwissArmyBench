@@ -1,4 +1,4 @@
-"""Cards of no table: what sag.sandbox makes of each kind of thing (stand-ins of the right shape, since
+"""Cards of no table: what sab.sandbox makes of each kind of thing (stand-ins of the right shape, since
 duck typing is all it uses), keys that replace a card in place, and what the agent may not send."""
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.client import sandbox_client
-from swissarmygrid.client.sandbox_client import card_for
+from swissarmybench.client import sandbox_client
+from swissarmybench.client.sandbox_client import card_for
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"made-up picture"
@@ -82,7 +82,7 @@ def cards(client: TestClient) -> list[dict[str, Any]]:
     return shown
 
 
-def test_sag_sandbox_adds_a_card_of_no_table_and_a_key_replaces_it(
+def test_sab_sandbox_adds_a_card_of_no_table_and_a_key_replaces_it(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def call(method: str, path: str, body: bytes | None = None, content_type: str = "") -> Any:
@@ -140,7 +140,7 @@ def test_a_vega_lite_card_is_inline_data_from_the_users_python_never_the_agents(
 
 
 def test_the_agent_adds_a_file_and_reads_the_formats(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmygrid.cli import api, commands
+    from swissarmybench.cli import api, commands
 
     assert "plotly" in commands.REGISTRY["sandbox_formats"].run({})["kinds"]
     (tmp_path / "plan.md").write_text("# Plan\n- one")

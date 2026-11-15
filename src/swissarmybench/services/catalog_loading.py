@@ -20,11 +20,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from swissarmygrid.domain import connections as rules
-from swissarmygrid.domain.blades import BladeError
-from swissarmygrid.services.blades import BladeService, NeedsValues
-from swissarmygrid.services.catalogs import CatalogService
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain import connections as rules
+from swissarmybench.domain.blades import BladeError
+from swissarmybench.services.blades import BladeService, NeedsValues
+from swissarmybench.services.catalogs import CatalogService
+from swissarmybench.services.workspace import Workspace
 
 
 class CatalogLoading:

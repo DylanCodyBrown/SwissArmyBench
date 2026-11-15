@@ -269,8 +269,8 @@ export async function openConnections(): Promise<void> {
           c.description ? h("div", { class: "hint" }, c.description) : null,
           c.entries
             ? h("div", { class: "vault-entries" }, c.every ? h("span", { class: "badge" }, "Every secret") : null, ...c.entries.map((e) => h("code", { class: "hint", title: `${e.secret} in the vault` }, `${e.env} ← ${e.secret}`)))
-            : // A Power BI workspace's cells are DAX cells, each on one of its datasets; your own Python's reads with sag.read.
-              h("code", { class: "hint" }, c.dialect === "dax" ? `sag.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>` : c.connection === "python" ? `sag.connection("${c.name}")  ·  sag.read("${c.name}", table)` : `sag.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
+            : // A Power BI workspace's cells are DAX cells, each on one of its datasets; your own Python's reads with sab.read.
+              h("code", { class: "hint" }, c.dialect === "dax" ? `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>` : c.connection === "python" ? `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)` : `sab.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
         ),
         h(
           "span",
@@ -279,7 +279,7 @@ export async function openConnections(): Promise<void> {
           readOnly ? null : button("Edit", () => void showForm({ edit: c.name }), { icon: "edit" }),
           button("Test", () => void testSaved(c.name, c.connection === "python" ? tested : undefined), { icon: "play" }),
           c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
-          c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sag.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
+          c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
           readOnly
             ? null
             : button("Remove", () => {

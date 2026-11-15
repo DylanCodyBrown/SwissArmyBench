@@ -183,9 +183,9 @@ export function templates(): Promise<Template[]> {
   return templatesCache;
 }
 
-/** The line a blade drops into a script: `conn = sag.blade("Warehouse")`. */
+/** The line a blade drops into a script: `conn = sab.blade("Warehouse")`. */
 export function bladeLine(blade: { name: string; kind: BladeKind; variable: string | null; connection?: string | null }): string {
-  const call = `sag.${blade.connection ? "connection" : "blade"}(${JSON.stringify(blade.name)})`;
+  const call = `sab.${blade.connection ? "connection" : "blade"}(${JSON.stringify(blade.name)})`;
   return blade.kind === "vault" || blade.kind === "secret" || !blade.variable ? call : `${blade.variable} = ${call}`;
 }
 
@@ -289,7 +289,7 @@ function showRunError(name: string, failure: RunFailure): void {
   foot.append(button("Close", close, { class: "ghost" }));
 }
 
-/** Install packages into SwissArmyGrid's own Python, on the user's click. */
+/** Install packages into Swiss Army Bench's own Python, on the user's click. */
 export async function install(packages: string[]): Promise<boolean> {
   toast(`Installing ${packages.join(", ")}...`);
   try {
@@ -531,7 +531,7 @@ export async function editBlade(
       clear(packagesHost);
       return;
     }
-    // What the code makes: the variable sag.blade() hands back.
+    // What the code makes: the variable sab.blade() hands back.
     const names = found?.assigned ?? [];
     const select = h("select", { "aria-label": "The variable it makes" });
     for (const n of names) select.append(h("option", { value: n, selected: n === draft.variable }, n));
@@ -568,7 +568,7 @@ export async function editBlade(
         secretsHost.append(h("label", {}, h("span", {}, `secret("${secret}")`), h("div", { class: "row-actions" }, input, forget)));
       }
     }
-    // Packages the code needs, and which are missing from SwissArmyGrid's Python.
+    // Packages the code needs, and which are missing from Swiss Army Bench's Python.
     clear(packagesHost);
     // Only what is missing is listed, with Install (principle 7.9): an installed package needs nothing.
     const missingPackages = (found?.packages ?? []).filter((p) => !p.installed);

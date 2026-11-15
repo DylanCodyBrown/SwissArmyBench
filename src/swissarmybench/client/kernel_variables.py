@@ -26,7 +26,7 @@ _MAX_VARIABLES: int = 500
 _MAX_PREVIEW: int = 200
 _PREVIEW_SECONDS: float = 1.0
 # IPython's own names, and the names the Workbench's setup makes.
-_HIDDEN = frozenset({"In", "Out", "exit", "quit", "get_ipython", "open", "sag"})
+_HIDDEN = frozenset({"In", "Out", "exit", "quit", "get_ipython", "open", "sab", "sag"})  # sag: the old alias
 
 
 def _type_name(value: Any) -> str:
@@ -76,7 +76,7 @@ def _safe_preview(value: Any) -> str:
 
 
 def _is_table(value: Any) -> bool:
-    """Something the grid can open (sag.push takes it): a DataFrame or an Arrow table."""
+    """Something the grid can open (sab.push takes it): a DataFrame or an Arrow table."""
     module = type(value).__module__.split(".")[0]
     try:
         return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
@@ -91,7 +91,7 @@ def snapshot(env_names: list[str] | None = None, namespace: dict[str, Any] | Non
         shell = ipython.get_ipython() if ipython is not None else None
         namespace = shell.user_ns if shell is not None else {}
     try:
-        from swissarmygrid.client.kernel_connections import code_names
+        from swissarmybench.client.kernel_connections import code_names
 
         connections = code_names()
     except Exception:

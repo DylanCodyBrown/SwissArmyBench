@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.e2e.test_workbench_page import menu

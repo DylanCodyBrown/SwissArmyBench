@@ -186,15 +186,15 @@ def test_the_page_runs_no_script_a_card_could_inject(browser: Browser, orders_ur
     page = open_grid(browser, orders_url, width=1440)
     ran = page.evaluate(
         """async () => {
-            window.__sag_ran = false;
+            window.__sab_ran = false;
             const probe = document.createElement('div');
-            const handler = 'window.__sag_ran = true';
+            const handler = 'window.__sab_ran = true';
             const pixel = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
             probe.innerHTML = `<img src="${pixel}" onerror="${handler}" onload="${handler}">`;
             document.body.append(probe);
             await new Promise((done) => setTimeout(done, 300));
             probe.remove();
-            return window.__sag_ran;
+            return window.__sab_ran;
         }"""
     )
     assert ran is False  # the page's Content Security Policy refuses inline handlers

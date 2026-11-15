@@ -12,14 +12,14 @@ import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from swissarmygrid.domain.datasets import DatasetError, DatasetInfo, Opened, mib, quote, validate_name
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.sql_guard import SqlRefused, guard
-from swissarmygrid.domain.table_cells import Origin
-from swissarmygrid.services.ports import BACKGROUND, INTERACTIVE, SqlSession
-from swissarmygrid.services.processes import ProcessRegistry
-from swissarmygrid.services.table_cells import Origins
-from swissarmygrid.services.workspace import Conflict, NotFound, Refused, TimedOut, Workspace
+from swissarmybench.domain.datasets import DatasetError, DatasetInfo, Opened, mib, quote, validate_name
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.sql_guard import SqlRefused, guard
+from swissarmybench.domain.table_cells import Origin
+from swissarmybench.services.ports import BACKGROUND, INTERACTIVE, SqlSession
+from swissarmybench.services.processes import ProcessRegistry
+from swissarmybench.services.table_cells import Origins
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, TimedOut, Workspace
 
 
 class TableReader(Protocol):
@@ -58,7 +58,7 @@ class DatasetService:
         self.ws = ws
         self._reader = reader
         self._processes = processes
-        # True for a path that is one of SwissArmyGrid's own files (adapters/state_files.py).
+        # True for a path that is one of Swiss Army Bench's own files (adapters/state_files.py).
         self._own_file = own_file
         self._on_shutdown = on_shutdown
         # Who else names tables: each is told of a rename (the relationship model, bootstrap.py).
@@ -258,7 +258,7 @@ class DatasetService:
     # ===== a file, pasted text =====
 
     def _refuse_own_file(self, path: str) -> None:
-        """SwissArmyGrid's own files are not tables: the connection file (one line of JSON, so it
+        """Swiss Army Bench's own files are not tables: the connection file (one line of JSON, so it
         loaded as a table, token and all), the audit log: the state folder, except the
         export folder inside it (an export loaded back is a table)."""
         if self._own_file(path):

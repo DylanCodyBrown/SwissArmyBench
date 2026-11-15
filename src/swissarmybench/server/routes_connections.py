@@ -33,12 +33,12 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.domain.blades import VaultUnavailableError
-from swissarmygrid.server.blade_runner import RefreshError
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.blades import BladeService, NeedsValues
-from swissarmygrid.services.catalog_loading import CatalogLoading
-from swissarmygrid.services.connections import ConnectionService
+from swissarmybench.domain.blades import VaultUnavailableError
+from swissarmybench.server.blade_runner import RefreshError
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.blades import BladeService, NeedsValues
+from swissarmybench.services.catalog_loading import CatalogLoading
+from swissarmybench.services.connections import ConnectionService
 
 
 def routes(connections: ConnectionService, blades: BladeService, loading: CatalogLoading) -> list[BaseRoute]:

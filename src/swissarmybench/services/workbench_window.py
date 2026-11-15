@@ -19,7 +19,7 @@ import re
 import secrets
 from typing import Any
 
-from swissarmygrid.services.workspace import Conflict, Workspace
+from swissarmybench.services.workspace import Conflict, Workspace
 
 _COMMAND = re.compile(r"^[A-Za-z][A-Za-z.]{0,63}$")
 # Long enough for a command that runs code and waits for it (run.cell, run.primary).

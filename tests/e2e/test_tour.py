@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 
 STOPS = 20  # tour.ts STOPS: the welcome card and nineteen words
@@ -45,7 +45,7 @@ def test_the_tour_lights_up_each_word_and_ends_with_a_game(browser: Browser, ser
             tour.locator(".tour-choice").first.click()
             expect(tour.locator(".tour-choice.right")).to_have_count(1)
         expect(tour.locator(".tour-word")).to_contain_text("of 5.", timeout=5000)
-        expect(tour.locator(".tour-code")).to_contain_text("sag.push(df)")
+        expect(tour.locator(".tour-code")).to_contain_text("sab.push(df)")
         tour.get_by_role("button", name="Start").click()
         expect(tour).to_have_count(0)
         page.reload()

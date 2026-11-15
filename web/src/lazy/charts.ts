@@ -52,13 +52,13 @@ export function patternDefs(): string {
     // Light hues get a dark texture and dark hues a light one, so the texture always shows.
     const hex = color.replace("#", "");
     const lum = hex.length === 6 ? (0.299 * parseInt(hex.slice(0, 2), 16) + 0.587 * parseInt(hex.slice(2, 4), 16) + 0.114 * parseInt(hex.slice(4, 6), 16)) / 255 : 0.5;
-    return `<pattern id="sag-pat-${themeKey()}-${i + 1}" patternUnits="userSpaceOnUse" width="10" height="10"><rect width="10" height="10" fill="${color}"/>${texture(lum > 0.6 ? darkInk : ink)}</pattern>`;
+    return `<pattern id="sab-pat-${themeKey()}-${i + 1}" patternUnits="userSpaceOnUse" width="10" height="10"><rect width="10" height="10" fill="${color}"/>${texture(lum > 0.6 ? darkInk : ink)}</pattern>`;
   }).join("");
 }
 
 export function installPatterns(): void {
   // One set of pattern fills per theme in use (the app's, and the Sandbox's own when it differs).
-  const id = `sag-patterns-${themeKey()}`;
+  const id = `sab-patterns-${themeKey()}`;
   let host = document.getElementById(id);
   if (!host) {
     host = document.createElementNS("http://www.w3.org/2000/svg", "svg") as unknown as HTMLElement;
@@ -70,7 +70,7 @@ export function installPatterns(): void {
   host.innerHTML = `<defs>${patternDefs()}</defs>`;
 }
 
-const patterns = (): string[] => TEXTURES.map((_, i) => `url(#sag-pat-${themeKey()}-${i + 1})`);
+const patterns = (): string[] => TEXTURES.map((_, i) => `url(#sab-pat-${themeKey()}-${i + 1})`);
 
 // ===== theme =====
 
@@ -193,8 +193,8 @@ export interface Drawn {
 
 // The clicked values as the server sent them. Vega-Lite parses a temporal field in place (a date
 // becomes epoch milliseconds), so the filter step gets these copies instead.
-const RAW_X = "sag_raw_x";
-const RAW_Y = "sag_raw_y2";
+const RAW_X = "sab_raw_x";
+const RAW_Y = "sab_raw_y2";
 
 /** Keep each point's own x (and a heatmap's y2) beside the fields Vega-Lite may parse. */
 function withRawValues(spec: Record<string, unknown>): Record<string, unknown> {

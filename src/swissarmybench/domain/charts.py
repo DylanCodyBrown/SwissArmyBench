@@ -27,9 +27,9 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from swissarmygrid.domain.codegen import python_string, variable_name
-from swissarmygrid.domain.datasets import Column, quote
-from swissarmygrid.domain.steps import type_family
+from swissarmybench.domain.codegen import python_string, variable_name
+from swissarmybench.domain.datasets import Column, quote
+from swissarmybench.domain.steps import type_family
 
 MARKS: tuple[str, ...] = ("bar", "line", "area", "point", "histogram", "heatmap")
 

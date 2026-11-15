@@ -28,12 +28,12 @@ from typing import Any
 
 import duckdb
 
-from swissarmygrid.adapters.database import describer, duckdb_grammar
-from swissarmygrid.domain.datasets import Column, DatasetInfo, quote
-from swissarmygrid.domain.grids import POS, Window, view_key
-from swissarmygrid.domain.sql_guard import SqlGrammar
-from swissarmygrid.domain.steps import CompiledView, Step, ViewSettings, compile_view
-from swissarmygrid.services.ports import SqlSession
+from swissarmybench.adapters.database import describer, duckdb_grammar
+from swissarmybench.domain.datasets import Column, DatasetInfo, quote
+from swissarmybench.domain.grids import POS, Window, view_key
+from swissarmybench.domain.sql_guard import SqlGrammar
+from swissarmybench.domain.steps import CompiledView, Step, ViewSettings, compile_view
+from swissarmybench.services.ports import SqlSession
 
 
 @dataclass
@@ -139,7 +139,7 @@ class ViewEngine:
         settings: ViewSettings,
         upto: int | None = None,
     ) -> tuple[str, tuple[Column, ...]]:
-        """A relation exposing the view's columns plus __sag_pos (0-based, in view order), for
+        """A relation exposing the view's columns plus __sab_pos (0-based, in view order), for
         exports and selected-row scopes. Uses the cache, so it is cheap after a scroll.
 
         The relation names a cache table, which is not leased past this call: run it right

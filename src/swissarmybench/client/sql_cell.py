@@ -36,9 +36,9 @@ what the connection's code makes:
                             `%%dax` cell, which holds DAX, not SQL: `EVALUATE TOPN(10, 'Sales')`
 
 A database statement that returns no rows (an UPDATE, an INSERT) is committed and says how many rows it
-changed. `%%sql` is taken only when no other extension has it (JupySQL keeps its own); `%%sag` always
-works. The same, outside a notebook: `sag.sql("Warehouse", "SELECT ...")`, and
-`sag.dax("Finance/Sales model", "EVALUATE ...")`. Each connection is opened
+changed. `%%sql` is taken only when no other extension has it (JupySQL keeps its own); `%%sab` always
+works. The same, outside a notebook: `sab.sql("Warehouse", "SELECT ...")`, and
+`sab.dax("Finance/Sales model", "EVALUATE ...")`. Each connection is opened
 once per Python session (`%sql_connect Warehouse` opens it again). Standard library only: DuckDB and
 pandas are imported when a cell needs them, from this Python.
 """
@@ -54,7 +54,8 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from swissarmygrid.client import blades_client
+from swissarmybench.client import blades_client
+from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
 FILE_READERS: dict[str, str] = {
@@ -207,7 +208,7 @@ def _read_workbook(con: Any, path: Path, in_folder: bool) -> None:
     except ImportError as error:
         raise SqlCellError(f"{error} ({sys.executable} -m pip install openpyxl)") from None
     for i, (sheet, frame) in enumerate(sheets.items()):
-        hidden = f"__sag_sheet_{abs(hash((str(path), str(sheet))))}"
+        hidden = f"__sab_sheet_{abs(hash((str(path), str(sheet))))}"
         con.register(hidden, frame)
         if in_folder:  # a folder's catalog reads a workbook's first sheet, by the file's name
             if i == 0:
@@ -355,7 +356,7 @@ def tables(found: Connection) -> list[str]:
         "UNION ALL SELECT schema_name, table_name FROM duckdb_tables() WHERE NOT internal"
     ).fetchall()
     # A registered DataFrame is a view too (temporary, in main).
-    names = [t if s == "main" else f"{s}.{t}" for s, t in rows if not t.startswith("__sag_")]
+    names = [t if s == "main" else f"{s}.{t}" for s, t in rows if not t.startswith("__sab_")]
     return list(dict.fromkeys(sorted(names, key=lambda n: ("." in n, n.lower()))))
 
 
@@ -453,7 +454,7 @@ def run(found: Connection, sql: str) -> Any:
 
 
 def sql(connection_name: str, query: str) -> Any:
-    """Run `query` on a connection in this Python: `sag.sql("Warehouse", "SELECT ...")`. A DataFrame (or
+    """Run `query` on a connection in this Python: `sab.sql("Warehouse", "SELECT ...")`. A DataFrame (or
     rows, without pandas), or a line saying what changed."""
     return run(connection(connection_name), query)
 
@@ -461,13 +462,13 @@ def sql(connection_name: str, query: str) -> Any:
 def _not_dax(found: Connection) -> SqlCellError:
     return SqlCellError(
         f"{found.name} is not a Power BI workspace's dataset, so it takes SQL, not DAX: use a SQL cell "
-        "(%%sql) or sag.sql()."
+        "(%%sql) or sab.sql()."
     )
 
 
 def dax(dataset_name: str, query: str) -> Any:
     """Run a DAX `query` on one dataset of a Power BI workspace connection, in this Python:
-    `sag.dax("Finance/Sales model", "EVALUATE TOPN(10, 'Sales')")` (the connection's name, a slash,
+    `sab.dax("Finance/Sales model", "EVALUATE TOPN(10, 'Sales')")` (the connection's name, a slash,
     the dataset's name or id; a workspace with one dataset needs only the connection's name). A
     DataFrame (or rows, without pandas)."""
     found = connection(dataset_name)
@@ -512,7 +513,7 @@ def _cell(shell: Any, line: str, cell: str, dax: bool = False) -> Any:
     if parsed.target:
         shell.user_ns[parsed.target] = result
     if parsed.grid and result is not None:
-        from swissarmygrid.client.push_client import push
+        from swissarmybench.client.push_client import push
 
         print(push(result, name=parsed.target or f"{found.name} result"))
     return result
@@ -561,10 +562,12 @@ def _connections_magic(_line: str) -> None:
 
 
 _registered: list[Any] = []
+# The magics that are always this package's: its own name, and the old one (sag) for one release.
+OWN: tuple[str, ...] = ("sab", "sag")
 
 
 def register(shell: Any) -> list[str]:
-    """Add the magics to this IPython: %%sag always, %%sql and %%dax where no other extension has
+    """Add the magics to this IPython: %%sab always, %%sql and %%dax where no other extension has
     them."""
     if any(s is shell for s in _registered):
         return []
@@ -576,16 +579,17 @@ def register(shell: Any) -> list[str]:
     def dax_cell(line: str, cell_text: str) -> Any:
         return _cell(shell, line, cell_text, dax=True)
 
-    for name in ("sag", "sql", "dax"):
-        if name == "sag" or shell.find_cell_magic(name) is None:
+    # %%sag and %sag_*: the names before the rename to Swiss Army Bench, for old notebooks (renamed.py).
+    for name in ("sab", "sag", "sql", "dax"):
+        if name in OWN or shell.find_cell_magic(name) is None:
             shell.register_magic_function(
                 dax_cell if name == "dax" else cell, magic_kind="cell", magic_name=name
             )
             names.append(f"%%{name}")
-    for prefix in ("sag", "sql"):
+    for prefix in ("sab", "sag", "sql"):
         for suffix, fn in (("connect", _connect), ("connections", _connections_magic)):
             name = f"{prefix}_{suffix}"
-            if prefix == "sag" or shell.find_line_magic(name) is None:
+            if prefix in OWN or shell.find_line_magic(name) is None:
                 shell.register_magic_function(fn, magic_kind="line", magic_name=name)
                 names.append(f"%{name}")
     _registered.append(shell)
@@ -593,8 +597,8 @@ def register(shell: Any) -> list[str]:
 
 
 def autostart() -> None:
-    """On import in Jupyter or IPython, unless SWISSARMYGRID_SQL_CELL=0."""
-    if os.environ.get("SWISSARMYGRID_SQL_CELL", "") == "0":
+    """On import in Jupyter or IPython, unless SWISSARMYBENCH_SQL_CELL=0."""
+    if env("SWISSARMYBENCH_SQL_CELL", "") == "0":
         return
     module = sys.modules.get("IPython")
     get = getattr(module, "get_ipython", None) if module is not None else None

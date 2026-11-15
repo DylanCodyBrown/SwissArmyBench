@@ -61,7 +61,7 @@ def test_bad_inputs_are_400(client: TestClient) -> None:
     assert push_json(client, "x", {"columns": ["a"], "data": [[1], ["text"]]}).status_code == 400
     duplicate = pa.Table.from_arrays([pa.array([1]), pa.array([2])], names=["a", "a"])
     assert push(client, "x", duplicate).status_code == 400
-    reserved = pa.table({"__sag_ord": [1]})
+    reserved = pa.table({"__sab_ord": [1]})
     assert push(client, "x", reserved).status_code == 400
     garbage = client.put(
         "/datasets/x",

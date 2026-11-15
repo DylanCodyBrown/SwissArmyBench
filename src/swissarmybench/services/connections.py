@@ -10,13 +10,13 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
-from swissarmygrid.domain import connections as rules
-from swissarmygrid.domain import powerbi, python_connections
-from swissarmygrid.domain.blades import Blade, BladeError, Template
-from swissarmygrid.domain.catalogs import count_sql, select_sql
-from swissarmygrid.domain.datasets import Opened
-from swissarmygrid.domain.relationships import Model
-from swissarmygrid.services.blades import BladeService
+from swissarmybench.domain import connections as rules
+from swissarmybench.domain import powerbi, python_connections
+from swissarmybench.domain.blades import Blade, BladeError, Template
+from swissarmybench.domain.catalogs import count_sql, select_sql
+from swissarmybench.domain.datasets import Opened
+from swissarmybench.domain.relationships import Model
+from swissarmybench.services.blades import BladeService
 
 
 class ConnectionService:
@@ -315,7 +315,7 @@ class ConnectionService:
             dataset = powerbi.grid_name(within, place["table"], await self._shared(blade.name))
         else:
             dataset = rules.dataset_name(place["table"])
-        origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sag.dax(origin, sql)
+        origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sab.dax(origin, sql)
         stored = await self._tables.store(dataset, table, who, opened, origin, sql, dax)
         return stored | {"shown": shown, "total": total}
 

@@ -96,8 +96,8 @@ export async function importRelationships(picked: File, after: () => Promise<voi
   } catch {
     model = undefined;
   }
-  // A tang is JSON too, marked "swissarmygrid": "tang": it goes to the review below.
-  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmygrid" in model)) {
+  // A tang is JSON too, marked "swissarmybench": "tang" ("swissarmygrid" before the rename): it goes to the review below.
+  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmybench" in model) && !("swissarmygrid" in model)) {
     try {
       await api("/relationships", "POST", { model });
       await after();

@@ -49,8 +49,8 @@ def test_an_unclosed_quote_is_a_plain_answer(client: TestClient, path: str) -> N
 
 
 def test_export_options_that_are_not_an_object_are_refused_plainly(monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmygrid.cli import api
-    from swissarmygrid.cli.commands import CommandError, execute
+    from swissarmybench.cli import api
+    from swissarmybench.cli.commands import CommandError, execute
 
     monkeypatch.setattr(api, "call", lambda *a, **k: {"ticket": "t"})
     with pytest.raises(CommandError, match="options must be an object"):

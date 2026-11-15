@@ -1,7 +1,7 @@
 """Time series and forecast on a grid's view (domain/timeseries.py has the math and the query text).
 
 `run_time_series` and `run_forecast` work over any cursor, like the Analyze menu's other analyses, so
-swissarmygrid.stats runs the same code on an analyst's own table.
+swissarmybench.stats runs the same code on an analyst's own table.
 """
 
 from __future__ import annotations
@@ -11,13 +11,13 @@ from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
 
-from swissarmygrid.domain import timeseries as T
-from swissarmygrid.domain.analysis import AnalysisError, short_number
-from swissarmygrid.domain.datasets import Column, DatasetInfo
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.steps import type_family
-from swissarmygrid.services.ports import AGENT, BACKGROUND, SqlSession
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain import timeseries as T
+from swissarmybench.domain.analysis import AnalysisError, short_number
+from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.steps import type_family
+from swissarmybench.services.ports import AGENT, BACKGROUND, SqlSession
+from swissarmybench.services.workspace import Workspace
 
 Columns = tuple[Column, ...]
 

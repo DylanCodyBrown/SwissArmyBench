@@ -12,11 +12,11 @@ from typing import Any
 import pyarrow as pa
 import pytest
 
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.adapters.views import ViewEngine
-from swissarmygrid.domain.datasets import DatasetError
-from swissarmygrid.domain.steps import Step, ViewSettings
+from swissarmybench.adapters.database import open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.views import ViewEngine
+from swissarmybench.domain.datasets import DatasetError
+from swissarmybench.domain.steps import Step, ViewSettings
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ def test_column_names_differing_only_by_case_are_refused() -> None:
         store.replace("c", pa.table({"a": [1], "A": [2]}), "arrow")
 
 
-@pytest.mark.parametrize("name", ["rowid", "ROWID", "RowId", "__SAG_ORD", "__Sag_pos", "__sag_x"])
+@pytest.mark.parametrize("name", ["rowid", "ROWID", "RowId", "__SAB_ORD", "__Sab_pos", "__sab_x"])
 def test_reserved_column_names_are_refused_in_any_case(name: str) -> None:
     store = DatasetStore(open_database("256MiB"), 1 << 28, 1 << 28, 10)
     # A column named rowid hid DuckDB's row numbers: every window came back empty.
@@ -127,12 +127,12 @@ def test_new_names_must_differ_from_existing_ones_ignoring_case(
 @pytest.mark.parametrize(
     "step",
     [
-        Step("rename", {"mapping": {"x": "__SAG_ORD"}}),
+        Step("rename", {"mapping": {"x": "__SAB_ORD"}}),
         Step("rename", {"mapping": {"x": "rowid"}}),
         Step("bucket", {"column": "x", "as": "rowid", "mode": "edges", "edges": [0, 5]}),
         Step("group_by", {"keys": ["y"], "aggregates": [{"fn": "count_rows", "as": "ROWID"}]}),
         Step("sql", {"sql": "SELECT x AS rowid, y FROM grid"}),
-        Step("sql", {"sql": "SELECT x AS __SAG_POS FROM grid"}),
+        Step("sql", {"sql": "SELECT x AS __SAB_POS FROM grid"}),
     ],
 )
 def test_new_names_may_not_be_reserved(engine: tuple[DatasetStore, ViewEngine], step: Step) -> None:

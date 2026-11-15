@@ -45,9 +45,9 @@ import { openValueViewer } from "./valueViewer";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const MARKER = "__sag_marker";
-const FILLER = "__sag_filler";
-const ROWNUM = "__sag_rownum";
+const MARKER = "__sab_marker";
+const FILLER = "__sab_filler";
+const ROWNUM = "__sab_rownum";
 /** Copying past this many rows points to Export instead (the clipboard is not a file). */
 const COPY_CAP = 200_000;
 
@@ -154,7 +154,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       const info = columns.find((c) => c.name === name);
       this.sort = h("button", {
         type: "button",
-        class: "sag-header-sort",
+        class: "sab-header-sort",
         title: `Sort by ${name} (Shift+click adds a key)`,
         "aria-label": `Sort by ${name}`,
         onclick: (event: MouseEvent) => params.progressSort(event.shiftKey),
@@ -164,7 +164,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       this.gui = h(
         "div",
         {
-          class: "sag-header",
+          class: "sab-header",
           title: `${name} (${info?.type ?? ""})`,
           onmousedown: (event: MouseEvent) => {
             if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
@@ -193,21 +193,21 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         },
         h(
           "div",
-          { class: "sag-header-top" },
+          { class: "sab-header-top" },
           // A primary-key column (from the relationship model) carries a key mark.
-          primaryKey(state.info?.dataset ?? "").includes(name) ? h("span", { class: "sag-header-key", title: "Primary key" }, icon("key")) : null,
-          h("span", { class: "sag-header-name" }, params.displayName),
+          primaryKey(state.info?.dataset ?? "").includes(name) ? h("span", { class: "sab-header-key", title: "Primary key" }, icon("key")) : null,
+          h("span", { class: "sab-header-name" }, params.displayName),
           this.sort,
         ),
         // The column profile lines, only when turned on in Settings.
         headerProfiles()
-          ? h("div", { class: "sag-header-stats" }, stats ? `${formatCount(stats.distinct)} distinct · ${stats.blank_percent}% blank` : " ")
+          ? h("div", { class: "sab-header-stats" }, stats ? `${formatCount(stats.distinct)} distinct · ${stats.blank_percent}% blank` : " ")
           : null,
         !headerProfiles()
           ? null
           : spark
-            ? h("div", { class: "sag-header-spark", "aria-hidden": "true" }, ...spark.map((v) => h("span", { style: { height: `${v}%` } })))
-            : h("div", { class: "sag-header-spark-empty", "aria-hidden": "true" }),
+            ? h("div", { class: "sab-header-spark", "aria-hidden": "true" }, ...spark.map((v) => h("span", { style: { height: `${v}%` } })))
+            : h("div", { class: "sab-header-spark-empty", "aria-hidden": "true" }),
       );
       params.column.addEventListener("sortChanged", this.updateSort);
       this.updateSort();
@@ -218,9 +218,9 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     /** The name becomes a box; the new name is a rename step (one action shorter than any form). */
     private renameInPlace(): void {
       const name = this.params.column.getColId();
-      const label = this.gui.querySelector<HTMLElement>(".sag-header-name");
+      const label = this.gui.querySelector<HTMLElement>(".sab-header-name");
       if (!label || label.querySelector("input")) return;
-      const box = h("input", { type: "text", class: "sag-header-rename", value: name, "aria-label": `New name for ${name}`, spellcheck: false }) as HTMLInputElement;
+      const box = h("input", { type: "text", class: "sab-header-rename", value: name, "aria-label": `New name for ${name}`, spellcheck: false }) as HTMLInputElement;
       let done = false;
       const finish = (keep: boolean): void => {
         if (done) return;
@@ -286,15 +286,15 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       const profilesSwitch = button("Column profiles in the headers", () => setHeaderProfiles(!headerProfiles()), {
         icon: "profile",
         iconOnly: true,
-        class: "ghost sag-corner-profiles",
+        class: "ghost sab-corner-profiles",
         pressed: on,
         title: on ? "Hide the column profiles in the headers" : "Show each column's profile in its header",
       });
       this.gui = h(
         "div",
-        { class: "sag-corner-cell" },
+        { class: "sab-corner-cell" },
         profilesSwitch,
-        h("button", { type: "button", class: "sag-corner", title: "Select all (Ctrl+A)", "aria-label": "Select all", onclick: () => selection.selectAll() }),
+        h("button", { type: "button", class: "sab-corner", title: "Select all (Ctrl+A)", "aria-label": "Select all", onclick: () => selection.selectAll() }),
       );
     }
 
@@ -566,7 +566,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
           selection.selectCells(event.rowIndex, column, mouse.shiftKey);
           dragging = "cells";
         }
-        if (dragging) document.body.classList.add("sag-selecting");
+        if (dragging) document.body.classList.add("sab-selecting");
       },
       onCellMouseOver: (event) => {
         if (!dragging || event.rowIndex == null) return;
@@ -754,7 +754,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     lastHover = null;
     window.clearInterval(scrollTimer);
     scrollTimer = undefined;
-    document.body.classList.remove("sag-selecting");
+    document.body.classList.remove("sab-selecting");
   }
 
   /** Dragging past the top or bottom of the grid keeps scrolling and extending, like Excel. */

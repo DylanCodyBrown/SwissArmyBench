@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from swissarmygrid.domain.packs import (
+from swissarmybench.domain.packs import (
     BLADES_FOLDER,
     TANGS_FOLDER,
     Pack,

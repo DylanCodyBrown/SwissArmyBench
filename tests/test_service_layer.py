@@ -12,17 +12,17 @@ from typing import Any, TypeVar
 
 import pytest
 
-from swissarmygrid.domain.datasets import Column, DatasetInfo
-from swissarmygrid.domain.grids import GridRegistry
-from swissarmygrid.domain.relationships import Model, parse_model
-from swissarmygrid.domain.sql_guard import SqlGrammar
-from swissarmygrid.services.agent import AgentService, Approvals, ExportTickets
-from swissarmygrid.services.grids import GridService
-from swissarmygrid.services.processes import ProcessRegistry, Sessions
-from swissarmygrid.services.relationships import Models
-from swissarmygrid.services.snapshots import PNG_SIGNATURE, Snapshots, SnapshotUnanswered
-from swissarmygrid.services.workspace import Addresses, Conflict, NotFound, Refused, Workspace
-from swissarmygrid.settings import Settings
+from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.grids import GridRegistry
+from swissarmybench.domain.relationships import Model, parse_model
+from swissarmybench.domain.sql_guard import SqlGrammar
+from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
+from swissarmybench.services.grids import GridService
+from swissarmybench.services.processes import ProcessRegistry, Sessions
+from swissarmybench.services.relationships import Models
+from swissarmybench.services.snapshots import PNG_SIGNATURE, Snapshots, SnapshotUnanswered
+from swissarmybench.services.workspace import Addresses, Conflict, NotFound, Refused, Workspace
+from swissarmybench.settings import Settings
 
 T = TypeVar("T")
 
@@ -227,7 +227,7 @@ def test_a_snapshot_is_the_pages_answer_or_a_plain_refusal(tmp_path: Any) -> Non
     with pytest.raises(ValueError, match="area must be one of"):
         asyncio.run(snapshots.take("desktop", 1, "agent"))
     pages.open_page = False
-    with pytest.raises(Conflict, match="No SwissArmyGrid page is open"):
+    with pytest.raises(Conflict, match="No Swiss Army Bench page is open"):
         asyncio.run(snapshots.take("app", 1, "agent"))
 
 

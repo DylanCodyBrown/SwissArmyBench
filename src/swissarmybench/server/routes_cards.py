@@ -37,9 +37,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.domain.charts import ChartError
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.charts import Cards
+from swissarmybench.domain.charts import ChartError
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.charts import Cards
 
 
 def routes(cards: Cards) -> list[BaseRoute]:

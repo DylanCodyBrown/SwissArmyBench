@@ -13,8 +13,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import error_response, json_response, read_json
-from swissarmygrid.services.table_cells import TableCells
+from swissarmybench.server.http import error_response, json_response, read_json
+from swissarmybench.services.table_cells import TableCells
 
 
 def routes(tables: TableCells) -> list[BaseRoute]:

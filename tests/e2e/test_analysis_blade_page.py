@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
 
 CODE = """def analyze(df, columns):
@@ -31,7 +31,7 @@ def test_an_analysis_blade_runs_from_the_analyze_menu(browser: Browser, server: 
         browser, push_client.push(data, name="bakery_sales", new_grid=True), width=1300, height=900
     )
     try:
-        page.locator(".ag-header-cell[col-id='shop'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='shop'] .sab-header-name").click()
         page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Analyze").click()
         menu = page.get_by_role("menu", name="Analyze")
         expect(menu).to_contain_text("Your analyses")

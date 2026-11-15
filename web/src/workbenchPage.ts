@@ -100,7 +100,7 @@ interface PythonChoice {
   python: string;
   version: string;
   ipykernel: boolean;
-  swissarmygrid: boolean;
+  swissarmybench: boolean;
 }
 
 const top = document.getElementById("wb-top") as HTMLElement;
@@ -461,7 +461,7 @@ async function moveOut(doc: Doc, to: string | null): Promise<{ title: string; wi
   const { id } = await api<{ id: string }>("/workbench/handoffs", "POST", { document: movingState(doc), kernel, to });
   if (to === null) {
     const hash = new URLSearchParams({ token, take: id, fresh: "1", popped: "1" }).toString();
-    const opened = window.open(`/workbench#${hash}`, `swissarmygrid-workbench-${Date.now()}`, "popup,width=1200,height=800");
+    const opened = window.open(`/workbench#${hash}`, `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800");
     if (!opened) {
       await api(`/workbench/handoffs/${id}`, "DELETE").catch(() => undefined);
       throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
@@ -503,7 +503,7 @@ async function takeDocument(id: string): Promise<void> {
   const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified) : openScript(r.path, r.text ?? "", r.modified);
   if (!r.path && r.title) doc.title = r.title;
   doc.python = r.python;
-  if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmygrid: true });
+  if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
   doc.dirty = r.dirty;
   if (taken.kernel && doc.kernel) doc.kernel.adopt(taken.kernel, r.python ?? "");
   show(doc);
@@ -782,7 +782,7 @@ async function open(path?: string): Promise<void> {
     // Its own environment, as remembered (or the .venv beside it): the picker shows it, Run uses it.
     if (found.python && current) {
       current.python = found.python;
-      if (!pythons.some((p) => p.python === found.python)) pythons.push({ python: found.python, version: "", ipykernel: true, swissarmygrid: true });
+      if (!pythons.some((p) => p.python === found.python)) pythons.push({ python: found.python, version: "", ipykernel: true, swissarmybench: true });
       drawStatus();
     }
     void refreshHome();
@@ -870,7 +870,7 @@ function folderOf(path: string | null): string {
 /** Run in another Python from the next Run on (a running kernel is stopped first). */
 function useEnvironment(doc: Doc, python: string): void {
   doc.python = python;
-  if (!pythons.some((p) => p.python === python)) pythons.push({ python, version: "", ipykernel: true, swissarmygrid: true });
+  if (!pythons.some((p) => p.python === python)) pythons.push({ python, version: "", ipykernel: true, swissarmybench: true });
   if (doc.kernel?.id) {
     doc.kernel.stop();
     toast("Kernel stopped");
@@ -1310,7 +1310,7 @@ async function restore(): Promise<boolean> {
     }
     const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified) : openScript(r.path, r.text ?? "", r.modified);
     doc.python = r.python;
-    if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmygrid: true });
+    if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
     doc.dirty = r.dirty;
     opened.push(doc);
     byKey.set(key, doc);

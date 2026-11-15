@@ -37,7 +37,7 @@ import pyarrow.parquet as pq
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
-from swissarmygrid.domain.datasets import (
+from swissarmybench.domain.datasets import (
     RESERVED_PREFIX,
     SOURCE_KINDS,
     Column,
@@ -205,7 +205,7 @@ class DatasetStore:
             raise DatasetTooLargeError(
                 f"Dataset '{name}' is {mib(size)}; the limit is {mib(self.max_dataset_bytes)}. "
                 "Filter, sample, or select fewer columns before pushing, or raise the limit "
-                "(SWISSARMYGRID_MAX_DATASET_MB, then restart the server)."
+                "(SWISSARMYBENCH_MAX_DATASET_MB, then restart the server)."
             )
         with self._lock:
             previous = self._datasets.get(name)
@@ -330,7 +330,7 @@ def _collect(batches: Iterable[pa.RecordBatch], schema: Any, max_bytes: int, wha
             raise DatasetTooLargeError(
                 f"{what} is more than {mib(max_bytes)} once loaded; the limit is "
                 f"{mib(max_bytes)}. Load a smaller file or raise the limit "
-                "(SWISSARMYGRID_MAX_DATASET_MB, then restart the server)."
+                "(SWISSARMYBENCH_MAX_DATASET_MB, then restart the server)."
             )
         kept.append(batch)
     return pa.Table.from_batches(kept, schema=schema)
@@ -583,7 +583,7 @@ def _read_sheet(source: _Source, sheet: str | None, max_bytes: int, what: str) -
                 raise DatasetTooLargeError(
                     f"Sheet {sheet!r} of {what} is more than {mib(max_bytes)} once loaded; the limit "
                     f"is {mib(max_bytes)}. Load a smaller sheet or raise the limit "
-                    "(SWISSARMYGRID_MAX_DATASET_MB, then restart the server)."
+                    "(SWISSARMYBENCH_MAX_DATASET_MB, then restart the server)."
                 )
     finally:
         book.close()

@@ -33,7 +33,7 @@ const ROW = 40; // pixels a unit of a block's height stands for (domain/streamli
 const MIN_WIDTH = 2;
 const MAX_ROWS = 30;
 const DEFAULT_WIDTH = 6;
-const BLOCK_DRAG = "application/x-swissarmygrid-block";
+const BLOCK_DRAG = "application/x-swissarmybench-block";
 
 export interface CanvasHost {
   title: () => string;

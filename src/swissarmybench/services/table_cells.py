@@ -15,14 +15,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from swissarmygrid.domain import notebooks
-from swissarmygrid.domain import table_cells as rules
-from swissarmygrid.domain.codegen import variable_name, view_query
-from swissarmygrid.domain.datasets import DatasetInfo, quote
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.table_cells import Origin, PlanCell, TableSpec
-from swissarmygrid.services.ports import BACKGROUND, SqlSession
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain import notebooks
+from swissarmybench.domain import table_cells as rules
+from swissarmybench.domain.codegen import variable_name, view_query
+from swissarmybench.domain.datasets import DatasetInfo, quote
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.table_cells import Origin, PlanCell, TableSpec
+from swissarmybench.services.ports import BACKGROUND, SqlSession
+from swissarmybench.services.workspace import Workspace
 
 MAX_SCRIPT_CHARS: int = notebooks.MAX_CELL_CHARS * 5
 

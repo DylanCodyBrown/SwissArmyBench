@@ -8,11 +8,11 @@ from typing import Any
 import pyarrow as pa
 import pytest
 
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.domain.charts import ChartError, validate
-from swissarmygrid.domain.datasets import DatasetInfo
-from swissarmygrid.services.charts import aggregate
+from swissarmybench.adapters.database import open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.domain.charts import ChartError, validate
+from swissarmybench.domain.datasets import DatasetInfo
+from swissarmybench.services.charts import aggregate
 
 
 @pytest.fixture
@@ -79,8 +79,8 @@ def test_a_blank_date_does_not_stretch_the_y_axis() -> None:
     # 158 blank dates drew nowhere on the time axis but set its top at 170, over bars of 1.
     import datetime as dt
 
-    from swissarmygrid.domain.charts import vega_lite
-    from swissarmygrid.domain.datasets import Column
+    from swissarmybench.domain.charts import vega_lite
+    from swissarmybench.domain.datasets import Column
 
     columns = (Column("day", "DATE"), Column("kind", "VARCHAR"))
     values = [{"x": None, "y": 158}, {"x": dt.date(2026, 1, 1), "y": 2}, {"x": dt.date(2026, 1, 2), "y": 1}]

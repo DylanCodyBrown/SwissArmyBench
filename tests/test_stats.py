@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from swissarmygrid.domain import stats as S
+from swissarmybench.domain import stats as S
 
 
 @pytest.mark.parametrize(

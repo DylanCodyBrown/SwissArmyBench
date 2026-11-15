@@ -36,7 +36,7 @@ export async function analysisBlades(): Promise<AnalysisBlade[]> {
 }
 
 export function openBladesPage(): void {
-  window.open(`/catalog#token=${encodeURIComponent(token)}`, "swissarmygrid-catalog")?.focus();
+  window.open(`/catalog#token=${encodeURIComponent(token)}`, "swissarmybench-catalog")?.focus();
 }
 
 function drawCard(card: Card): HTMLElement {

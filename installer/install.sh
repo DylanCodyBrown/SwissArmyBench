@@ -1,25 +1,25 @@
 #!/bin/sh
-# Install SwissArmyGrid __VERSION__ (macOS and Linux): uv if it is missing, then the grid server as a uv tool,
+# Install Swiss Army Bench __VERSION__ (macOS and Linux): uv if it is missing, then the grid server as a uv tool,
 # with its own Python (uv downloads it; no system Python needed).
 #
 #   curl -LsSf https://github.com/DylanCodyBrown/SwissArmyGrid/releases/download/v__VERSION__/install.sh | sh
 #   sh install.sh                                          # download the wheel from the GitHub release
-#   sh install.sh ./swissarmygrid-__VERSION__-py3-none-any.whl  # or install a wheel you downloaded
+#   sh install.sh ./swissarmybench-__VERSION__-py3-none-any.whl  # or install a wheel you downloaded
 set -eu
 
 VERSION="__VERSION__"
 REPO="DylanCodyBrown/SwissArmyGrid"
-WHEEL="swissarmygrid-${VERSION}-py3-none-any.whl"
+WHEEL="swissarmybench-${VERSION}-py3-none-any.whl"
 
 say() { printf '%s\n' "$*"; }
-fail() { printf 'SwissArmyGrid install: %s\n' "$*" >&2; exit 1; }
+fail() { printf 'Swiss Army Bench install: %s\n' "$*" >&2; exit 1; }
 
 # 1. uv: the installer uses uv's own install script, which puts uv in ~/.local/bin.
 if ! command -v uv >/dev/null 2>&1; then
   if [ -x "$HOME/.local/bin/uv" ]; then
     PATH="$HOME/.local/bin:$PATH"
   else
-    say "Installing uv (the tool that installs SwissArmyGrid and its Python)..."
+    say "Installing uv (the tool that installs Swiss Army Bench and its Python)..."
     curl -LsSf https://astral.sh/uv/install.sh | sh || fail "uv could not be installed; see https://docs.astral.sh/uv/"
     PATH="$HOME/.local/bin:$PATH"
   fi
@@ -40,14 +40,20 @@ else
   Download $WHEEL from https://github.com/$REPO/releases/tag/v$VERSION and run: sh install.sh <path to the wheel>"
 fi
 
-# 3. The server, as a uv tool in its own environment.
-say "Installing the SwissArmyGrid server $VERSION..."
+# 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes (this one keeps the old commands working).
+if uv tool list 2>/dev/null | grep -q '^swissarmygrid '; then
+  say "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it; its old commands still work)..."
+  uv tool uninstall swissarmygrid >/dev/null 2>&1 || true
+fi
+
+# 4. The server, as a uv tool in its own environment.
+say "Installing the Swiss Army Bench server $VERSION..."
 uv tool install --force --python 3.12 "${wheel_path}[server]" || fail "uv could not install the server."
 uv tool update-shell >/dev/null 2>&1 || true
 
 say ""
-say "SwissArmyGrid $VERSION is installed."
-say "  Start it:              swissarmygrid start"
+say "Swiss Army Bench $VERSION is installed."
+say "  Start it:              swissarmybench start"
 say "  The Python client:     uv pip install \"$WHEEL\"   (in any project's environment)"
-say "  Then, in Python:       import swissarmygrid as sag; sag.push(df)"
-say "(Open a new terminal first if the swissarmygrid command is not found.)"
+say "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
+say "(Open a new terminal first if the swissarmybench command is not found.)"

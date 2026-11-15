@@ -1,7 +1,7 @@
 """Run a blade for the server: its catalog (Refresh) or a check that it works (Test), always in a child
 process of the server's own Python (plan decision 16), never inside the server.
 
-The child (`python -I -m swissarmygrid.server.blade_runner`) gets everything on stdin as JSON: the
+The child (`python -I -m swissarmybench.server.blade_runner`) gets everything on stdin as JSON: the
 blade's code and variable, its saved secrets, the vault blades to run first and the values the user
 typed for secret blades. It answers on stdout with one JSON object and exits. What the blade prints
 goes to stderr, so it cannot break that answer. A time limit stops a blade that hangs.
@@ -27,10 +27,10 @@ from typing import Any
 
 import pyarrow.ipc as ipc
 
-from swissarmygrid.adapters.blades import BladeStore
-from swissarmygrid.domain import python_connections
-from swissarmygrid.domain.blades import Blade
-from swissarmygrid.domain.connections import TEST_ROWS
+from swissarmybench.adapters.blades import BladeStore
+from swissarmybench.domain import python_connections
+from swissarmybench.domain.blades import Blade
+from swissarmybench.domain.connections import TEST_ROWS
 
 _MAX_ANSWER_BYTES: int = 512 * 1024 * 1024
 
@@ -134,7 +134,7 @@ async def run(job: dict[str, Any], timeout: float) -> dict[str, Any]:
         sys.executable,
         "-I",
         "-m",
-        "swissarmygrid.server.blade_runner",
+        "swissarmybench.server.blade_runner",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -169,7 +169,7 @@ _INSTALL_TIMEOUT_SECONDS: float = 600.0
 
 
 async def install_packages(packages: list[str]) -> tuple[int | None, str]:
-    """Install packages into SwissArmyGrid's own Python, where Refresh runs: with uv when it is here,
+    """Install packages into Swiss Army Bench's own Python, where Refresh runs: with uv when it is here,
     else pip. Returns the exit code (None when it ran over ten minutes and was stopped) and the output."""
     uv = shutil.which("uv") or next(
         (
@@ -200,7 +200,7 @@ async def install_packages(packages: list[str]) -> tuple[int | None, str]:
 
 
 def _child(job: dict[str, Any]) -> dict[str, Any]:
-    from swissarmygrid.adapters.blade_run import (
+    from swissarmybench.adapters.blade_run import (
         BladeRunError,
         close_quietly,
         list_tables,
@@ -276,7 +276,7 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     connection; the rows as typed Arrow. A file connection (no SQL): the file it reaches."""
     import pyarrow as pa
 
-    from swissarmygrid.adapters.blade_run import _sql_rows, close_quietly, run_code
+    from swissarmybench.adapters.blade_run import _sql_rows, close_quietly, run_code
 
     value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
     try:
@@ -314,7 +314,7 @@ def _within(value: Any, job: dict[str, Any]) -> Any:
 def _datasets(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     """A Power BI workspace's datasets, from the connection's own `datasets()`: each one's name and
     id. None for a connection that has no such list (it is one dataset by itself)."""
-    from swissarmygrid.adapters.blade_run import close_quietly, run_code
+    from swissarmybench.adapters.blade_run import close_quietly, run_code
 
     value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
     try:
@@ -333,8 +333,8 @@ def read_result(result: Any, total: int | None, limit: int | None) -> tuple[Any,
     """What Read a table returned as a typed Arrow table of at most `limit` rows, and how many rows
     the source holds when that is known: it said so (`(rows, total)`), or it ignored the limit and
     returned them all. A DataFrame, an Arrow table, a list of dicts: whatever push accepts."""
-    from swissarmygrid.adapters.blade_run import BladeRunError
-    from swissarmygrid.client.push_client import _to_arrow
+    from swissarmybench.adapters.blade_run import BladeRunError
+    from swissarmybench.client.push_client import _to_arrow
 
     if isinstance(result, list) and not result:
         raise BladeRunError("Read a table returned no rows, so there is nothing to show.")
@@ -362,7 +362,7 @@ def _arrow_answer(table: Any) -> str:
 
 def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     """A table's rows for Open as grid and the preview: Connect, then Read a table."""
-    from swissarmygrid.adapters.blade_run import BladeRunError, close_quietly, read_table, run_code
+    from swissarmybench.adapters.blade_run import BladeRunError, close_quietly, read_table, run_code
 
     python = job.get("python") or {}
     if not python.get("read"):
@@ -398,7 +398,7 @@ def _plain(value: Any) -> Any:
 def _python_tested(value: Any, names: dict[str, Any], job: dict[str, Any], secrets: dict[str, str]) -> Any:
     """Test, for the user's own Python: Connect ran; then List the tables; then the first table's first
     rows by Read a table. Each box that is filled in is run, and the first to fail says so."""
-    from swissarmygrid.adapters.blade_run import list_tables, read_table
+    from swissarmybench.adapters.blade_run import list_tables, read_table
 
     made = _tested(value)
     command = (job.get("catalog") or {}).get("command")
@@ -426,7 +426,7 @@ def _queries(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     """Several statements on the connection, signed in once. `attempts` is groups of statements, tried
     in order: the first group whose every statement the source answers is the answer ({"attempt": which
     group, "results": [{"columns", "rows"}, ...]}); when none does, the first group's refusal."""
-    from swissarmygrid.adapters.blade_run import BladeRunError, _sql_rows, close_quietly, run_code
+    from swissarmybench.adapters.blade_run import BladeRunError, _sql_rows, close_quietly, run_code
 
     value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
     refused: BaseException | None = None
@@ -451,7 +451,7 @@ def _queries(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
 def _names(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     """A vault's secret names, from its `names()`: names only, no value is read. None when the vault's
     code has no names() (the user types the names instead)."""
-    from swissarmygrid.adapters.blade_run import BladeRunError, run_code
+    from swissarmybench.adapters.blade_run import BladeRunError, run_code
 
     _, made = run_code(job["code"], job["variable"], secrets, job["label"])
     lister = made.get("names")
@@ -471,7 +471,7 @@ def _names(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
 def _load(job: dict[str, Any]) -> dict[str, Any]:
     """Every vault's entries: {"values": {variable: value}, "problems": [a vault that failed, why]}. One
     vault failing leaves the others' values (a kernel still starts)."""
-    from swissarmygrid.adapters.blade_run import BladeRunError, run_vault
+    from swissarmybench.adapters.blade_run import BladeRunError, run_vault
 
     values: dict[str, str] = {}
     problems: list[str] = []
@@ -529,8 +529,8 @@ def _analysis(function: Any, job: dict[str, Any]) -> dict[str, Any]:
 
     import pyarrow as pa
 
-    from swissarmygrid.adapters.blade_run import BladeRunError
-    from swissarmygrid.client.sandbox_client import card_for
+    from swissarmybench.adapters.blade_run import BladeRunError
+    from swissarmybench.client.sandbox_client import card_for
 
     if not callable(function):
         raise BladeRunError(f"{job['label']}'s {job['variable']!r} is not a function.")

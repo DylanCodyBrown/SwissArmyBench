@@ -18,9 +18,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.grids import GridService
-from swissarmygrid.services.timeseries import TimeSeries
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.grids import GridService
+from swissarmybench.services.timeseries import TimeSeries
 
 
 def routes(grids: GridService, series: TimeSeries) -> list[BaseRoute]:

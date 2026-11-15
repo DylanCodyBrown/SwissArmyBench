@@ -11,9 +11,9 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from swissarmygrid.domain.datasets import DatasetInfo, quote
-from swissarmygrid.domain.grids import POS, Grid, combine_stats, selection_scope, stats_sql
-from swissarmygrid.domain.steps import (
+from swissarmybench.domain.datasets import DatasetInfo, quote
+from swissarmybench.domain.grids import POS, Grid, combine_stats, selection_scope, stats_sql
+from swissarmybench.domain.steps import (
     Step,
     ViewSettings,
     categorize_conditions,
@@ -22,8 +22,8 @@ from swissarmygrid.domain.steps import (
     steps_from_json,
     with_header_sort,
 )
-from swissarmygrid.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
-from swissarmygrid.services.workspace import NotFound, Workspace
+from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
+from swissarmybench.services.workspace import NotFound, Workspace
 
 
 def truncate(rows: list[list[Any]], limit: int) -> list[list[int]]:

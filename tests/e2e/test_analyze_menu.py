@@ -9,7 +9,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 from tests.test_analysis import orders
 
@@ -26,7 +26,7 @@ def test_the_analyze_menu_chains_odds_fit_predictors_and_outliers(
             table_row.get_by_role("button", name="Analyze").click()
             page.get_by_role("menuitem", name=entry).click()
 
-        page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
         menu("Odds…")
         dialog = page.locator("dialog")
         expect(dialog.locator(".odds-table tbody tr")).to_have_count(4, timeout=20000)  # four regions
@@ -60,7 +60,7 @@ def test_the_analyze_menu_chains_odds_fit_predictors_and_outliers(
         page.wait_for_function("window.__copied !== undefined", timeout=30000)
         copied = page.evaluate("window.__copied")
         assert (
-            copied.startswith("from swissarmygrid import stats\n")
+            copied.startswith("from swissarmybench import stats\n")
             and "stats.predictors(\n    orders," in copied
         )
         expect(page.locator(".toast").last).to_have_text("Copied.")

@@ -11,10 +11,10 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.cli.main import main as sag
-from swissarmygrid.domain.blades import read_blade, write_blade
-from swissarmygrid.domain.packs import PackError, installed_entries, is_enabled, scaffold
-from swissarmygrid.domain.relationships import parse_model, read_tang, write_tang
+from swissarmybench.cli.main import main as sab
+from swissarmybench.domain.blades import read_blade, write_blade
+from swissarmybench.domain.packs import PackError, installed_entries, is_enabled, scaffold
+from swissarmybench.domain.relationships import parse_model, read_tang, write_tang
 from tests.conftest import AGENT, AUTH, make_client
 
 BAKERY = {"name": "Bakery DB", "kind": "other", "code": "conn = 1\n", "variable": "conn", "tags": ["bakery"]}
@@ -180,14 +180,14 @@ def test_the_agent_may_use_packs_too(client: TestClient, tmp_path: Path) -> None
     assert client.post("/packs/add", json={"pack": "x"}, headers=AGENT).status_code != 403
 
 
-def test_sag_pack_new_makes_a_marketplace_on_this_computer(tmp_path: Path, capsys: Any) -> None:
+def test_sab_pack_new_makes_a_marketplace_on_this_computer(tmp_path: Path, capsys: Any) -> None:
     target = tmp_path / "data-blades"
-    assert sag(["pack", "new", str(target), "--pack", "sales", "--owner", "Sales team"]) == 0
+    assert sab(["pack", "new", str(target), "--pack", "sales", "--owner", "Sales team"]) == 0
     told = json.loads(capsys.readouterr().out)
     assert json.loads((target / ".claude-plugin" / "marketplace.json").read_text())["name"] == "data-blades"
     assert (target / "packs" / "sales" / "blades" / "README.md").is_file()
     assert "/plugin install sales@data-blades" in told["next"][1]
-    assert sag(["pack", "new", str(target)]) == 1  # not empty now
+    assert sab(["pack", "new", str(target)]) == 1  # not empty now
     assert "not empty" in capsys.readouterr().err
 
 
@@ -201,13 +201,13 @@ def test_this_repository_is_a_marketplace_and_its_example_pack_matches_the_sampl
 
     manifest = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
     sources = {p["name"]: ROOT / p["source"] for p in manifest["plugins"]}
-    assert set(sources) == {"swissarmygrid", "sample-store"}
+    assert set(sources) == {"swissarmybench", "sample-store"}
     for name, folder in sources.items():
         assert (
             json.loads((folder / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["name"]
             == name
         )
-    assert (sources["swissarmygrid"] / "skills" / "swissarmygrid-use" / "SKILL.md").is_file()
+    assert (sources["swissarmybench"] / "skills" / "swissarmybench-use" / "SKILL.md").is_file()
     pack = sources["sample-store"]
     [blade] = (pack / "blades").glob("*.blade.py")
     assert read_blade(blade.read_text(encoding="utf-8"))["variable"] == "regions"

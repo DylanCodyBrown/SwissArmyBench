@@ -16,12 +16,12 @@ from typing import Any
 
 import pytest
 
-from swissarmygrid.adapters.codegen import Verifier, compare, result_rows, user_value
-from swissarmygrid.adapters.database import duckdb_grammar, open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.adapters.views import ViewEngine
-from swissarmygrid.domain.steps import ViewSettings, steps_from_json
-from swissarmygrid.services import codegen as code_service
+from swissarmybench.adapters.codegen import Verifier, compare, result_rows, user_value
+from swissarmybench.adapters.database import duckdb_grammar, open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.views import ViewEngine
+from swissarmybench.domain.steps import ViewSettings, steps_from_json
+from swissarmybench.services import codegen as code_service
 from tests.golden.cases import CASES, Case
 from tests.golden.tables import to_arrow
 
@@ -85,7 +85,7 @@ def test_duckdb_copy_is_one_import_and_one_statement(case: Case) -> None:
     assert len(inner.args) == 1 and isinstance(inner.args[0], ast.Constant)
     text = inner.args[0].value
     assert isinstance(text, str) and text.strip() == sql.strip()  # Python runs exactly "Copy as SQL"
-    for internal in ("__sag", "ds_golden", "source", "pyarrow", "def ", "register"):
+    for internal in ("__sab", "ds_golden", "source", "pyarrow", "def ", "register"):
         assert internal not in code, (internal, code)
     assert "FROM golden" in sql or not case.steps
 

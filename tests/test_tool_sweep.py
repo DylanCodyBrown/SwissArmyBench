@@ -37,10 +37,10 @@ import pyarrow.ipc as ipc
 import pytest
 import uvicorn
 
-from swissarmygrid.cli.commands import REGISTRY, Arg, Command
-from swissarmygrid.mcp import server as mcp_server
-from swissarmygrid.server.app import create_app
-from swissarmygrid.settings import Settings
+from swissarmybench.cli.commands import REGISTRY, Arg, Command
+from swissarmybench.mcp import server as mcp_server
+from swissarmybench.server.app import create_app
+from swissarmybench.settings import Settings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from examples.sample_store import make_store
@@ -161,10 +161,10 @@ def sweep(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Sweep]:
     with pytest.MonkeyPatch.context() as env:
         info = tmp / "server.json"
         info.write_text(json.dumps({"port": port, "token": TOKEN}))
-        env.setenv("SWISSARMYGRID_INFO", str(info))
-        env.setenv("SWISSARMYGRID_STATE", str(tmp / "state"))
-        env.setenv("SWISSARMYGRID_OPEN", "0")
-        env.setenv("SWISSARMYGRID_MODELS", str(tmp / "models"))
+        env.setenv("SWISSARMYBENCH_INFO", str(info))
+        env.setenv("SWISSARMYBENCH_STATE", str(tmp / "state"))
+        env.setenv("SWISSARMYBENCH_OPEN", "0")
+        env.setenv("SWISSARMYBENCH_MODELS", str(tmp / "models"))
         (tmp / "models").mkdir()
         library_model = {
             "name": "sweep",
@@ -185,7 +185,7 @@ def sweep(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Sweep]:
                 "PUT", f"/datasets/{name}", raw=_arrow(frame), kind="application/vnd.apache.arrow.stream"
             )
             grids[name] = str(pushed["grid"])
-        # A catalog, as sag.load would send it, for the catalog_* tools: names and types only.
+        # A catalog, as sab.load would send it, for the catalog_* tools: names and types only.
         probe.user(
             "PUT",
             "/catalogs/Sweep%20source?dialect=sqlserver",

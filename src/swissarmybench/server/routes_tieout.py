@@ -14,8 +14,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.tieout import TieOut
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.tieout import TieOut
 
 
 def routes(tie_out: TieOut) -> list[BaseRoute]:

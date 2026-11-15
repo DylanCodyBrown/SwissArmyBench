@@ -33,9 +33,9 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
-from swissarmygrid.domain import streamlit_cells, table_cells
-from swissarmygrid.domain.codegen import variable_name
-from swissarmygrid.domain.streamlit_use import uses_streamlit, usual_name
+from swissarmybench.domain import streamlit_cells, table_cells
+from swissarmybench.domain.codegen import variable_name
+from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 DATA_NOTEBOOK: str = "data.ipynb"
 DATA_FILE: str = "data.py"
@@ -85,7 +85,7 @@ class DataModule:
 
 
 HEAD: str = '''\
-"""{title}: its data, exported from data.ipynb by SwissArmyGrid. Do not edit: change data.ipynb.
+"""{title}: its data, exported from data.ipynb by Swiss Army Bench. Do not edit: change data.ipynb.
 
     from data import {example}
 
@@ -261,9 +261,9 @@ def data_requirements(text: str) -> list[str]:
         needed.append("duckdb")
     if "read_excel" in text:
         needed.append("openpyxl")
-    if re.search(r"\bsag\.", text):
+    if re.search(r"\b(?:sab|sag)\.", text):  # sag: the old alias, in a notebook from before the rename
         needed.append(
-            "# swissarmygrid: install SwissArmyGrid's wheel (data.py reads through one of its "
+            "# swissarmybench: install Swiss Army Bench's wheel (data.py reads through one of its "
             "connections or blades)"
         )
     return needed
@@ -284,7 +284,7 @@ def merged_requirements(held: str | None, needed: Sequence[str]) -> str:
 
 
 README: str = """\
-{title}: a SwissArmyGrid project.
+{title}: a Swiss Army Bench project.
 
 data.ipynb          the data's canvas: the tables and the variables everything starts from
 data.py             its export: what the pages and the notebooks import (`from data import ...`)
@@ -295,7 +295,7 @@ requirements.txt    what to install
 To add the pages to your own Streamlit app: copy pages/*.py into your app's pages/ folder and
 data.py beside your app's main script, then install what requirements.txt lists.
 
-To change the data or the pages: unzip, and open the folder as a project in SwissArmyGrid's Workbench.
+To change the data or the pages: unzip, and open the folder as a project in Swiss Army Bench's Workbench.
 
 No rows and no passwords are in this zip: data.py reads each table again the way it was loaded.
 {notes}"""

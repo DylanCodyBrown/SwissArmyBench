@@ -1,12 +1,12 @@
-"""`sag`: run any SwissArmyGrid command from a terminal (the same registry the MCP tool uses).
+"""`sab`: run any Swiss Army Bench command from a terminal (the same registry the MCP tool uses).
 
-    sag commands --match export        # the catalog, filtered
-    sag list_grids
-    sag build_from_query top_clients "SELECT client, sum(balance) b FROM clients GROUP BY 1"
-    sag add_step g1 filter '{"column": "balance", "op": "gt", "value": 100}'
-    sag put_steps g1 --steps @steps.json
-    sag events --types grid_updated --seconds 60
-    sag pack new ./data-blades --marketplace data-blades --pack sales --owner "Sales team"
+    sab commands --match export        # the catalog, filtered
+    sab list_grids
+    sab build_from_query top_clients "SELECT client, sum(balance) b FROM clients GROUP BY 1"
+    sab add_step g1 filter '{"column": "balance", "op": "gt", "value": 100}'
+    sab put_steps g1 --steps @steps.json
+    sab events --types grid_updated --seconds 60
+    sab pack new ./data-blades --marketplace data-blades --pack sales --owner "Sales team"
 
 Required arguments can be given in order without a name; any argument can be `--name value`. A
 value of `@file` reads the file and `-` reads standard input, which is the easy way to pass JSON or
@@ -22,14 +22,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from swissarmygrid.cli.api import CommandError
-from swissarmygrid.cli.commands import REGISTRY, ImageResult, catalog, execute_result
+from swissarmybench.cli.api import CommandError
+from swissarmybench.cli.commands import REGISTRY, ImageResult, catalog, execute_result
 
 
 def parse(argv: list[str]) -> tuple[str, dict[str, Any]]:
     """`name [positional...] [--arg value]...` to (command, arguments)."""
     if not argv:
-        raise CommandError("Give a command. `sag commands` lists them.")
+        raise CommandError("Give a command. `sab commands` lists them.")
     name, rest = argv[0], argv[1:]
     cmd = REGISTRY.get(name)
     required = [a.name for a in cmd.args if a.required] if cmd else []
@@ -75,11 +75,11 @@ def _read(value: str) -> str:
 
 def save_picture(data: bytes) -> Path:
     """A snapshot with no --out goes to the system temp folder, so a terminal agent can open the file
-    by its printed path. The operating system clears that folder; SwissArmyGrid keeps nothing."""
+    by its printed path. The operating system clears that folder; Swiss Army Bench keeps nothing."""
     import tempfile
     import time
 
-    folder = Path(tempfile.gettempdir()) / "swissarmygrid-snapshots"
+    folder = Path(tempfile.gettempdir()) / "swissarmybench-snapshots"
     folder.mkdir(exist_ok=True)
     path = folder / f"snapshot-{time.strftime('%Y%m%d-%H%M%S')}.png"
     path.write_bytes(data)
@@ -87,10 +87,10 @@ def save_picture(data: bytes) -> Path:
 
 
 def pack_new(argv: list[str]) -> int:
-    """`sag pack new <folder> [--marketplace name] [--pack name] [--owner name] [--description text]`:
+    """`sab pack new <folder> [--marketplace name] [--pack name] [--owner name] [--description text]`:
     a new Claude Code plugin marketplace repository with one pack (blades/ and tangs/), on this
     computer, with no server needed. Push it to GitHub and teammates add it with /plugin."""
-    from swissarmygrid.domain.packs import PackError, scaffold
+    from swissarmybench.domain.packs import PackError, scaffold
 
     options: dict[str, str] = {}
     rest: list[str] = []
@@ -103,7 +103,7 @@ def pack_new(argv: list[str]) -> int:
             rest.append(argv[i])
             i += 1
     if len(rest) != 1:
-        print("sag: pack new <folder> [--marketplace name] [--pack name] [--owner name]", file=sys.stderr)
+        print("sab: pack new <folder> [--marketplace name] [--pack name] [--owner name]", file=sys.stderr)
         return 1
     target = Path(rest[0]).expanduser().resolve()
     marketplace = options.get("marketplace") or target.name
@@ -111,10 +111,10 @@ def pack_new(argv: list[str]) -> int:
     try:
         files = scaffold(marketplace, options.get("owner", ""), pack, options.get("description", ""))
     except PackError as error:
-        print(f"sag: {error}", file=sys.stderr)
+        print(f"sab: {error}", file=sys.stderr)
         return 1
     if target.exists() and any(target.iterdir()):
-        print(f"sag: {target} is not empty: pick a new folder.", file=sys.stderr)
+        print(f"sab: {target} is not empty: pick a new folder.", file=sys.stderr)
         return 1
     for relative, text in files.items():
         path = target / relative
@@ -158,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
             print(result)
         return 0
     except CommandError as error:
-        print(f"sag: {error}", file=sys.stderr)
+        print(f"sab: {error}", file=sys.stderr)
         return 1
 
 

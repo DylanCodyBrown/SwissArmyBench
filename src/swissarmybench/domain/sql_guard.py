@@ -20,7 +20,7 @@ internal table) is refused before DuckDB sees it. The source datasets are never 
 the only write shape, CREATE TABLE AS, is executed by Python as a read plus a new dataset.
 
 Two details keep the name rules exact:
-- Every CTE is renamed to a fresh internal name (__sag_cte_<n>), and only a reference that the
+- Every CTE is renamed to a fresh internal name (__sab_cte_<n>), and only a reference that the
   CTE's scope covers is pointed at it. A name used outside that scope (or inside a CTE's own,
   non-recursive body, where DuckDB reads the real table) is checked like any other table name,
   so a CTE can never make an internal table's name pass.
@@ -44,17 +44,17 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
-from swissarmygrid.domain.datasets import NAME_PATTERN
+from swissarmybench.domain.datasets import NAME_PATTERN
 
 GRID_TABLE: str = "grid"
 # Table functions that only generate values (no files, no catalogs, no SQL strings).
 _ALLOWED_TABLE_FUNCTIONS: frozenset[str] = frozenset({"range", "generate_series", "unnest"})
-_VIEW_CTE: str = "__sag_grid"
-# A dataset read as its tab shows it: __sag_view_<dataset>.
-_DATASET_VIEW_CTE: str = "__sag_view_"
-# Each CTE of the user's query is renamed __sag_cte_<n>; no real table has such a name.
-_FRESH_CTE: str = "__sag_cte_"
-_RESERVED: str = "__sag_"
+_VIEW_CTE: str = "__sab_grid"
+# A dataset read as its tab shows it: __sab_view_<dataset>.
+_DATASET_VIEW_CTE: str = "__sab_view_"
+# Each CTE of the user's query is renamed __sab_cte_<n>; no real table has such a name.
+_FRESH_CTE: str = "__sab_cte_"
+_RESERVED: str = "__sab_"
 # Table references in DuckDB's parse that read nothing by themselves (their parts are checked).
 _SAFE_TABLE_REFS: frozenset[str] = frozenset(
     {"SUBQUERY", "JOIN", "EXPRESSION_LIST", "EMPTY", "EMPTY_FROM", "PIVOT"}

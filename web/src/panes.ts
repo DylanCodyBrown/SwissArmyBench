@@ -667,6 +667,6 @@ function onTabKey(event: KeyboardEvent, id: string): void {
 
 /** Open the Workbench in its own window, or bring it forward (one window, by name). */
 export function openWorkbench(): void {
-  const opened = window.open(`/workbench#token=${encodeURIComponent(token)}`, "swissarmygrid-workbench");
+  const opened = window.open(`/workbench#token=${encodeURIComponent(token)}`, "swissarmybench-workbench");
   opened?.focus();
 }

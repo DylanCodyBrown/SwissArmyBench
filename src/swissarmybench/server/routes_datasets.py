@@ -1,7 +1,7 @@
 """Dataset routes: push, list, close, load a file, paste text; plus health and shutdown.
 
   GET    /health                        liveness (version and process id)
-  POST   /shutdown                      `swissarmygrid stop`
+  POST   /shutdown                      `swissarmybench stop`
   GET    /datasets                      every dataset with its size, and the memory budget
   PUT    /datasets/{name}?new_grid=0|1  push: Arrow stream (preferred) or orient="split" JSON
   DELETE /datasets/{name}               close a dataset and its grids, freeing its memory
@@ -26,10 +26,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid import __version__
-from swissarmygrid.domain.datasets import mib, validate_name
-from swissarmygrid.server.http import actor, error_response, json_response, query_int, read_body, read_json
-from swissarmygrid.services.datasets import DatasetService
+from swissarmybench import __version__
+from swissarmybench.domain.datasets import mib, validate_name
+from swissarmybench.server.http import actor, error_response, json_response, query_int, read_body, read_json
+from swissarmybench.services.datasets import DatasetService
 
 ARROW_STREAM: str = "application/vnd.apache.arrow.stream"
 

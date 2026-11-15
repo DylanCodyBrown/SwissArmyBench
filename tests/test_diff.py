@@ -12,8 +12,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain import diff
-from swissarmygrid.domain.datasets import Column
+from swissarmybench.domain import diff
+from swissarmybench.domain.datasets import Column
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 

@@ -1,5 +1,5 @@
 """An HTML cell's names, filled in the kernel (docs/ideas.md, 2026-11-14; the Workbench runs the cell
-as `%%sag_html`).
+as `%%sab_html`).
 
 `{{ name }}` in an HTML cell is a variable of this Python. This module reads each one and says what
 goes into the design (the rules are domain/html_cells.py's): a single value as its text; a table (a
@@ -23,10 +23,10 @@ import json
 import sys
 from typing import Any
 
-from swissarmygrid.domain import html_cells as rules
+from swissarmybench.domain import html_cells as rules
 
 _MISSING: Any = object()
-MIME: str = "application/vnd.swissarmygrid.html-cell+json"
+MIME: str = "application/vnd.swissarmybench.html-cell+json"
 
 
 def _namespace() -> dict[str, Any]:
@@ -123,7 +123,7 @@ def bundle(text: str, namespace: dict[str, Any] | None = None) -> tuple[dict[str
         "notes": list(filled.notes),
     }
     data = {"text/html": filled.html, "text/plain": f"An HTML cell ({len(found)} filled)", MIME: detail}
-    return data, {"swissarmygrid": {"html_cell": True}}
+    return data, {"swissarmybench": {"html_cell": True}}
 
 
 def show(text: str, namespace: dict[str, Any] | None = None) -> None:
@@ -138,6 +138,7 @@ def _magic(line: str, cell: str) -> None:
 
 
 def install(shell: Any) -> None:
-    """`%%sag_html`: how the Workbench runs an HTML cell that asks for names."""
+    """`%%sab_html`: how the Workbench runs an HTML cell that asks for names."""
     if shell is not None:
-        shell.register_magic_function(_magic, magic_kind="cell", magic_name="sag_html")
+        for name in ("sab_html", "sag_html"):  # sag_html: the old name, for old notebooks (renamed.py)
+            shell.register_magic_function(_magic, magic_kind="cell", magic_name=name)

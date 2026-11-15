@@ -39,8 +39,8 @@ _BUDGET_SECONDS = 1.5  # previews after this are left out (a slow repr must not 
 _HIDDEN_PARTS = (
     f"{os.sep}IPython{os.sep}",
     f"{os.sep}ipykernel{os.sep}",
-    f"{os.sep}swissarmygrid{os.sep}server{os.sep}kernel_setup",
-    f"{os.sep}swissarmygrid{os.sep}client{os.sep}kernel_",
+    f"{os.sep}swissarmybench{os.sep}server{os.sep}kernel_setup",
+    f"{os.sep}swissarmybench{os.sep}client{os.sep}kernel_",
 )
 
 

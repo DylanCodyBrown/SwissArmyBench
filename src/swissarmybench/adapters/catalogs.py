@@ -1,6 +1,6 @@
 """The loaded catalogs (domain/catalogs.py has the rules): one DuckDB table per catalog, in the locked
-database, under an engine name (`__sag_catalog_<n>`) that the SQL box and agent SQL refuse like every
-`__sag_` name. Tree queries and search run here; the search text is only ever a parameter, never SQL.
+database, under an engine name (`__sab_catalog_<n>`) that the SQL box and agent SQL refuse like every
+`__sab_` name. Tree queries and search run here; the search text is only ever a parameter, never SQL.
 
 Each method takes the cursor it runs on, so the server runs them on its worker pool.
 """
@@ -15,7 +15,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from swissarmygrid.domain.catalogs import (
+from swissarmybench.domain.catalogs import (
     CatalogError,
     CatalogInfo,
     check_name,
@@ -80,8 +80,8 @@ class CatalogStore:
                     f"{self.max_catalogs} catalogs are loaded, the most at once. Remove one first: "
                     f"{', '.join(i.name for i in self._catalogs.values())}."
                 )
-        staging = "__sag_incoming_" + uuid.uuid4().hex
-        target = "__sag_catalog_" + uuid.uuid4().hex
+        staging = "__sab_incoming_" + uuid.uuid4().hex
+        target = "__sab_catalog_" + uuid.uuid4().hex
         cur.register(staging, table)
         try:
             # One row per (database, schema, table, column), in the source's own order, numbered

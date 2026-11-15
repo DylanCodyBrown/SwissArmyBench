@@ -11,7 +11,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.themes import BUILT_IN, ThemeError, contrast, read_theme
+from swissarmybench.domain.themes import BUILT_IN, ThemeError, contrast, read_theme
 from tests.conftest import AGENT, AUTH, make_client, push
 
 
@@ -82,7 +82,7 @@ def test_the_sandbox_theme_is_set_imported_proposed_and_saved_with_a_dashboard(
 
 
 def test_the_agent_tool_lists_names_only(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmygrid.cli import api, commands
+    from swissarmybench.cli import api, commands
 
     monkeypatch.setattr(
         api,

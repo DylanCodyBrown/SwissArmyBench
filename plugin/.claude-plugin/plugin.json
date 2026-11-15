@@ -1,13 +1,13 @@
 {
-  "name": "swissarmygrid",
-  "description": "How to use SwissArmyGrid, and its agent tools.",
+  "name": "swissarmybench",
+  "description": "How to use Swiss Army Bench, and its agent tools.",
   "keywords": [
-    "swissarmygrid",
+    "swissarmybench",
     "data",
     "duckdb",
     "grid"
   ],
   "author": {
-    "name": "SwissArmyGrid"
+    "name": "Swiss Army Bench"
   }
 }

@@ -6,7 +6,7 @@ A marketplace is a repository with `.claude-plugin/marketplace.json` listing plu
 of those plugins carrying a `blades/` folder (`.blade.py` files) and a `tangs/` folder (`.tang` files).
 Claude Code copies a plugin's folder as a unit when it installs it, so the blades and tangs arrive with
 it (`/plugin marketplace add org/repo`, `/plugin install sales@repo`, `/plugin marketplace update`).
-SwissArmyGrid lists an installed pack's blades and tangs read-only; changes go through the repository:
+Swiss Army Bench lists an installed pack's blades and tangs read-only; changes go through the repository:
 a clone added as a blade folder, a commit, a pull request.
 
 Standard library only, and no I/O: the adapter reads and writes the files.
@@ -88,16 +88,16 @@ def scaffold(marketplace: str, owner: str, pack: str, description: str = "") -> 
                 "name": pack,
                 "source": f"./packs/{pack}",
                 "description": about,
-                "keywords": ["swissarmygrid", "blades", "tangs"],
+                "keywords": ["swissarmybench", "blades", "tangs"],
             }
         ],
     }
-    plugin = {"name": pack, "description": about, "keywords": ["swissarmygrid", "blades", "tangs"]}
+    plugin = {"name": pack, "description": about, "keywords": ["swissarmybench", "blades", "tangs"]}
     readme = f"""# {marketplace}
 
 {about}
 
-A Claude Code plugin marketplace of SwissArmyGrid **packs**: each pack is a plugin with a `blades/`
+A Claude Code plugin marketplace of Swiss Army Bench **packs**: each pack is a plugin with a `blades/`
 folder (`.blade.py` files: saved code that loads data) and a `tangs/` folder (`.tang` files: saved
 relationships between tables).
 
@@ -110,7 +110,7 @@ In Claude Code:
 /plugin install {pack}@{marketplace}
 ```
 
-SwissArmyGrid then lists the pack's blades on its blades page and its tangs in the Relationships
+Swiss Army Bench then lists the pack's blades on its blades page and its tangs in the Relationships
 window, marked with the pack. To get the team's latest:
 
 ```
@@ -119,10 +119,10 @@ window, marked with the pack. To get the team's latest:
 
 ## Add to it
 
-1. Clone this repository, and add the clone as a blade folder in SwissArmyGrid (Blade folders, on the
+1. Clone this repository, and add the clone as a blade folder in Swiss Army Bench (Blade folders, on the
    blades page).
 2. Save blades into `packs/{pack}/blades/` and tangs into `packs/{pack}/tangs/` (or use Add to pack in
-   SwissArmyGrid's Packs window).
+   Swiss Army Bench's Packs window).
 3. Commit, push a branch and open a pull request. Once it is merged, everyone updates.
 
 Blade files hold code that runs on the computer of whoever uses the blade: review them like any code.

@@ -21,15 +21,15 @@ import pytest
 import uvicorn
 from starlette.testclient import TestClient
 
-import swissarmygrid as sag
-from swissarmygrid.adapters.blade_run import BladeRunError, list_tables, read_table, run_code, set_variables
-from swissarmygrid.domain import python_connections as rules
-from swissarmygrid.domain.blades import BladeError, parse_blade, read_blade, write_blade
-from swissarmygrid.domain.connections import connection_kind, has_catalog, opens_in_code
-from swissarmygrid.server.app import create_app
-from swissarmygrid.server.blade_runner import read_result
-from swissarmygrid.server.blade_templates import PYTHON_CONNECT, PYTHON_READ, PYTHON_TABLES
-from swissarmygrid.settings import Settings
+import swissarmybench as sab
+from swissarmybench.adapters.blade_run import BladeRunError, list_tables, read_table, run_code, set_variables
+from swissarmybench.domain import python_connections as rules
+from swissarmybench.domain.blades import BladeError, parse_blade, read_blade, write_blade
+from swissarmybench.domain.connections import connection_kind, has_catalog, opens_in_code
+from swissarmybench.server.app import create_app
+from swissarmybench.server.blade_runner import read_result
+from swissarmybench.server.blade_templates import PYTHON_CONNECT, PYTHON_READ, PYTHON_TABLES
+from swissarmybench.settings import Settings
 from tests.conftest import AGENT, AUTH
 from tests.fake_keyring import memory_keyring
 from tests.orders_service import API_KEY, VAULT_CODE, Service
@@ -333,7 +333,7 @@ def test_a_value_saved_on_this_computer_is_never_in_the_file() -> None:
 
 
 def test_files_written_before_the_boxes_still_load() -> None:
-    old = """# /// swissarmygrid-blade
+    old = """# /// swissarmybench-blade
 # format = 1
 # name = "Weather"
 # kind = "other"
@@ -530,7 +530,7 @@ def test_a_python_connection_over_a_web_service_end_to_end(client: TestClient, s
         assert API_KEY not in client.get(path, headers=AUTH).text
     exported = client.get("/blades/Orders%20API/export", headers=AUTH).text
     assert API_KEY not in exported and service in exported and "[read]" in exported
-    # The agent is never given what sag.connection gets (it holds the vault's own code and passwords).
+    # The agent is never given what sab.connection gets (it holds the vault's own code and passwords).
     assert client.get("/blades/Orders%20API/python", headers=AGENT).status_code == 403
 
 
@@ -600,7 +600,7 @@ def test_a_box_that_fails_says_which_and_only_python_connections_list_this_way(
     assert client.post("/connections/Team%20vault/tables", json={}, headers=AUTH).status_code == 400
 
 
-# ===== in a notebook: sag.connection gives conn, sag.read a table =====
+# ===== in a notebook: sab.connection gives conn, sab.read a table =====
 
 TOKEN = "python-connection-token"
 
@@ -622,8 +622,8 @@ def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[int]:
     assert server.started
     info = tmp_path / "server.json"
     info.write_text(json.dumps({"port": port, "token": TOKEN}))
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(info))
-    monkeypatch.setenv("SWISSARMYGRID_OPEN", "0")
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+    monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
     yield port
     server.should_exit = True
     thread.join(10)
@@ -650,7 +650,7 @@ def test_in_a_notebook_the_connection_is_conn_and_a_table_is_read(
     _post(live, "/blades", TEAM_VAULT)
     _post(live, "/connections", orders_api(service))
     try:
-        conn = sag.connection("Orders API")
+        conn = sab.connection("Orders API")
         assert type(conn).__name__ == "Api" and [t["name"] for t in conn.get("/tables")] == [
             "orders",
             "clients",
@@ -658,24 +658,24 @@ def test_in_a_notebook_the_connection_is_conn_and_a_table_is_read(
         # The variables are set here as the code expects them, as a vault's mapping sets its own.
         assert os.environ["ORDERS_API_KEY"] == API_KEY and os.environ["ORDERS_API_URL"] == service
         assert "OTHER" not in os.environ  # only what this connection maps, not the vault's other entries
-        rows = sag.read("Orders API", "orders", limit=4)
+        rows = sab.read("Orders API", "orders", limit=4)
         assert [r["order_id"] for r in rows] == [1, 2, 3, 4]
-        assert len(sag.read("Orders API", "clients", schema="api")) == 2
+        assert len(sab.read("Orders API", "clients", schema="api")) == 2
         with pytest.raises(ValueError, match="has no Read a table box"):
-            sag.read("Team vault", "orders")
+            sab.read("Team vault", "orders")
     finally:
         os.environ.pop("ORDERS_API_KEY", None)
         os.environ.pop("ORDERS_API_URL", None)
 
 
-def test_a_table_opened_from_it_is_loaded_again_by_sag_read() -> None:
-    from swissarmygrid.domain.table_cells import Origin, load_code
+def test_a_table_opened_from_it_is_loaded_again_by_sab_read() -> None:
+    from swissarmybench.domain.table_cells import Origin, load_code
 
     again = rules.read_call("Orders API", "api", "orders")
-    assert again == "sag.read('Orders API', 'orders', schema='api')"
-    assert rules.read_call("Orders API", "", "orders") == "sag.read('Orders API', 'orders')"
+    assert again == "sab.read('Orders API', 'orders', schema='api')"
+    assert rules.read_call("Orders API", "", "orders") == "sab.read('Orders API', 'orders')"
     origin = Origin("connection", connection="Orders API", code=again)
     assert load_code("orders", origin, "connection", None, 30) == (
-        ["import swissarmygrid as sag"],
-        "orders = sag.read('Orders API', 'orders', schema='api')",
+        ["import swissarmybench as sab"],
+        "orders = sab.read('Orders API', 'orders', schema='api')",
     )

@@ -15,9 +15,9 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from swissarmygrid.domain.datasets import Column, quote
-from swissarmygrid.domain.relationships import KeyOptions, normalized
-from swissarmygrid.domain.steps import literal, type_family
+from swissarmybench.domain.datasets import Column, quote
+from swissarmybench.domain.relationships import KeyOptions, normalized
+from swissarmybench.domain.steps import literal, type_family
 
 MAX_GROUPS: int = 10_000
 MAX_GROUP_COLUMNS: int = 4
@@ -131,15 +131,15 @@ def distinct_query(view: str, column: Column) -> str:
 def _side(view: str, columns: list[Column], measures: list[Column]) -> str:
     """A side totalled per group: g (the group's comparable value), v (as it reads), n, s (each sum)."""
     options = KeyOptions()
-    keyed = ", ".join(f"{normalized(c, options)} AS __sag_g{i}" for i, c in enumerate(columns))
+    keyed = ", ".join(f"{normalized(c, options)} AS __sab_g{i}" for i, c in enumerate(columns))
     select = [
-        *(f"__sag_g{i} AS g{i}" for i in range(len(columns))),
+        *(f"__sab_g{i} AS g{i}" for i in range(len(columns))),
         *(f"min({quote(c.name)}) AS v{i}" for i, c in enumerate(columns)),
         "count(*) AS n",
         *(f"sum({quote(c.name)}) AS s{i}" for i, c in enumerate(measures)),
     ]
     source = f"(SELECT {keyed}, * FROM ({view}))" if columns else f"({view})"
-    by = f" GROUP BY {', '.join(f'__sag_g{i}' for i in range(len(columns)))}" if columns else ""
+    by = f" GROUP BY {', '.join(f'__sab_g{i}' for i in range(len(columns)))}" if columns else ""
     return f"SELECT {', '.join(select)} FROM {source}{by}"
 
 

@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, FrameLocator, Locator, Page, expect
 
-from swissarmygrid.domain import html_cells, notebooks
+from swissarmybench.domain import html_cells, notebooks
 from tests.e2e.test_table_cells_page import (
     close_tables,
     open_as_grid,
@@ -267,7 +267,7 @@ def test_the_designs_pane_resizes_and_its_height_is_saved(
     # Saved in the file: the cell's metadata, in a cell plain Jupyter draws.
     window(server, "file.save")
     saved = json.loads(book.read_text(encoding="utf-8"))["cells"][0]
-    assert saved["source"][0] == "%%html\n" and saved["metadata"]["swissarmygrid"]["height"] == 300
+    assert saved["source"][0] == "%%html\n" and saved["metadata"]["swissarmybench"]["height"] == 300
     workbench.close()
     again = open_workbench(browser, server, book)
     expect(again.locator(".wb-cell.kind-html .wb-design-stage")).to_have_css("height", "300px", timeout=20000)
@@ -318,9 +318,9 @@ def test_names_are_filled_from_the_kernel_and_the_cell_goes_out_of_date(
     )
     assert frame.locator("body").get_attribute("id") is None and frame.locator("#who img").count() == 0
     # A table, up to its cap, saying what it leaves out.
-    expect(frame.locator("table.sag-table tbody tr")).to_have_count(50)
-    expect(frame.locator("table.sag-table caption")).to_have_text("first 50 of 120 rows")
-    expect(frame.locator("table.sag-table tbody tr").first).to_have_text("Store 1 <b>0")
+    expect(frame.locator("table.sab-table tbody tr")).to_have_count(50)
+    expect(frame.locator("table.sab-table caption")).to_have_text("first 50 of 120 rows")
+    expect(frame.locator("table.sab-table tbody tr").first).to_have_text("Store 1 <b>0")
     # An unknown name is a plain marker, and the design is whole.
     expect(frame.locator("#none")).to_have_text("{{ nobody }} not found")
     expect(cell.locator(".wb-design-notes")).to_contain_text("{{ nobody }} was not found in the kernel.")
@@ -414,8 +414,8 @@ def test_a_saved_html_cell_opens_with_its_last_design_and_its_uses_line(
     # Saved: IPython's own cell magic, the filled design as its output, the height.
     window(server, "file.save")
     saved = json.loads(book.read_text(encoding="utf-8"))["cells"]
-    html = next(c for c in saved if c["metadata"].get("swissarmygrid", {}).get("kind") == "html")
-    assert html["source"][0] == "%%html\n" and html["metadata"]["swissarmygrid"]["height"] == 260
+    html = next(c for c in saved if c["metadata"].get("swissarmybench", {}).get("kind") == "html")
+    assert html["source"][0] == "%%html\n" and html["metadata"]["swissarmybench"]["height"] == 260
     assert "30 sold" in html["outputs"][0]["data"]["text/html"]
     workbench.close()
     close_tables(server)

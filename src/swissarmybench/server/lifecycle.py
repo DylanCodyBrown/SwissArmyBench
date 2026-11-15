@@ -1,6 +1,6 @@
 """Server lifecycle: one instance, a port that sticks, ready before announced, clean exit.
 
-The connection file (~/.swissarmygrid/server.json) is the contract between the server and its
+The connection file (~/.swissarmybench/server.json) is the contract between the server and its
 clients, so this module keeps it truthful:
 
 - One server at a time. Each server holds an OS lock named for the connection file for its whole
@@ -16,7 +16,7 @@ clients, so this module keeps it truthful:
   127.0.0.1:<port> and receive requests (and tokens) meant for us.
 - Ready before announced. The socket is listening before the file is written, so a client that
   finds the file can connect at once (early connections wait in the listen backlog).
-- Clean exit. The file is deleted on Ctrl+C, on `swissarmygrid stop` (POST /shutdown), on a
+- Clean exit. The file is deleted on Ctrl+C, on `swissarmybench stop` (POST /shutdown), on a
   normal exit, and when the Windows console window is closed.
 """
 
@@ -48,9 +48,9 @@ class AlreadyRunningError(RuntimeError):
 
     def __init__(self, info: dict[str, Any]) -> None:
         super().__init__(
-            f"SwissArmyGrid is already running on http://127.0.0.1:{info.get('port')} "
+            f"Swiss Army Bench is already running on http://127.0.0.1:{info.get('port')} "
             f"(process {info.get('pid')}). Restart it from VS Code's status bar, or stop it with "
-            "`swissarmygrid stop` first."
+            "`swissarmybench stop` first."
         )
         self.info = info
 
@@ -73,7 +73,7 @@ class InstanceLock:
     def __init__(self, info_path: Path) -> None:
         digest = hashlib.sha256(str(info_path.resolve()).lower().encode()).hexdigest()[:16]
         taken = AlreadyStartingError(
-            "Another SwissArmyGrid server is running or starting; VS Code's status bar item shows it."
+            "Another Swiss Army Bench server is running or starting; VS Code's status bar item shows it."
         )
         self._handle: Any = None
         if sys.platform == "win32":
@@ -84,7 +84,7 @@ class InstanceLock:
             kernel32.ReleaseMutex.argtypes = [ctypes.c_void_p]
             # CreateMutexW leaves the last error alone when it makes a new mutex, so clear it first.
             ctypes.set_last_error(0)
-            handle = kernel32.CreateMutexW(None, True, f"Local\\SwissArmyGrid-{digest}")
+            handle = kernel32.CreateMutexW(None, True, f"Local\\SwissArmyBench-{digest}")
             if not handle or ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
                 if handle:
                     kernel32.CloseHandle(handle)
@@ -95,7 +95,7 @@ class InstanceLock:
             import fcntl
 
             info_path.parent.mkdir(parents=True, exist_ok=True)
-            handle = (info_path.parent / f".swissarmygrid-{digest}.lock").open("w")
+            handle = (info_path.parent / f".swissarmybench-{digest}.lock").open("w")
             try:
                 fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError as error:

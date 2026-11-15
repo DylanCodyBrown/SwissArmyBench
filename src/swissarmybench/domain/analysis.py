@@ -25,8 +25,8 @@ import math
 import re
 from typing import Any
 
-from swissarmygrid.domain.stats import chi_square_p, effect_words
-from swissarmygrid.domain.steps import type_family
+from swissarmybench.domain.stats import chi_square_p, effect_words
+from swissarmybench.domain.steps import type_family
 
 __all__ = ["chi_square_p", "effect_words"]  # also here: the fit test's own words
 
@@ -741,7 +741,7 @@ def analysis_code(
     view_sql: str | None,
     reference: str | None = None,
 ) -> tuple[str, list[str]]:
-    """(code, imports): the analysis as one `swissarmygrid.stats` call over the analyst's own table
+    """(code, imports): the analysis as one `swissarmybench.stats` call over the analyst's own table
     (`table`, the name it was pushed with), through the grid's steps as a DuckDB query when it has
     any. The call is the function the window ran, so the numbers match."""
     known = CODE_ARGUMENTS.get(analysis)
@@ -760,10 +760,10 @@ def analysis_code(
     if view_sql:
         quote_ = '"""' if '"""' not in view_sql else "'''"
         data = f"duckdb.sql({quote_}\n{view_sql}\n{quote_})"
-        imports = ["import duckdb", "from swissarmygrid import stats"]
+        imports = ["import duckdb", "from swissarmybench import stats"]
     else:
         data = table
-        imports = ["from swissarmygrid import stats"]
+        imports = ["from swissarmybench import stats"]
     subject = (
         args.get("column")
         or args.get("target")

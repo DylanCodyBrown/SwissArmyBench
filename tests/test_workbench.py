@@ -14,13 +14,13 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain import notebooks
+from swissarmybench.domain import notebooks
 from tests.conftest import AGENT, AUTH, PORT, make_client
 
 
 @pytest.fixture
 def client(tmp_path: Path) -> Iterator[TestClient]:
-    with make_client(tmp_path, workbench_dir=tmp_path / "home" / "SwissArmyGrid") as test_client:
+    with make_client(tmp_path, workbench_dir=tmp_path / "home" / "SwissArmyBench") as test_client:
         yield test_client
 
 
@@ -29,7 +29,7 @@ def test_a_notebook_keeps_its_sql_cells_as_sql_cells_jupyter_can_run() -> None:
         notebooks.Cell("markdown", "# Orders\n"),
         notebooks.Cell(
             "code",
-            "import swissarmygrid as sag\n",
+            "import swissarmybench as sab\n",
             outputs=[{"output_type": "stream", "name": "stdout", "text": "ok\n"}],
             execution_count=1,
         ),
@@ -54,10 +54,10 @@ def test_a_notebook_keeps_its_sql_cells_as_sql_cells_jupyter_can_run() -> None:
         and read[1].outputs == cells[1].outputs
         and read[1].execution_count == 1
     )
-    # A notebook written by Jupyter: a %%sag cell is a SQL cell; old formats and other files are refused.
+    # A notebook written by Jupyter: a %%sab cell is a SQL cell; old formats and other files are refused.
     jupyter = {
         "nbformat": 4,
-        "cells": [{"cell_type": "code", "source": ["%%sag Shop\n", "SELECT 2"], "outputs": []}],
+        "cells": [{"cell_type": "code", "source": ["%%sab Shop\n", "SELECT 2"], "outputs": []}],
     }
     assert [(c.kind, c.connection, c.source) for c in notebooks.read_notebook(json.dumps(jupyter))] == [
         ("sql", "Shop", "SELECT 2")
@@ -69,9 +69,9 @@ def test_a_notebook_keeps_its_sql_cells_as_sql_cells_jupyter_can_run() -> None:
 
 
 def test_the_apps_own_folder_is_made_the_first_time_it_is_needed(client: TestClient, tmp_path: Path) -> None:
-    """A fresh home folder has no SwissArmyGrid folder. The Workbench's first Save (and Open) starts
+    """A fresh home folder has no SwissArmyBench folder. The Workbench's first Save (and Open) starts
     there, so the file chooser's first look makes it; no other missing folder is ever made."""
-    own = tmp_path / "home" / "SwissArmyGrid"
+    own = tmp_path / "home" / "SwissArmyBench"
     assert not own.exists() and not own.parent.exists()
     # Somewhere else that is not there: said, and left alone.
     other = client.get("/folders", params={"path": str(tmp_path / "home" / "Elsewhere")}, headers=AUTH)
@@ -96,26 +96,29 @@ def test_the_apps_own_folder_is_made_the_first_time_it_is_needed(client: TestCli
 def test_a_file_in_the_way_of_the_apps_folder_is_said_not_replaced(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
-    (home / "SwissArmyGrid").write_text("a file with the folder's name", encoding="utf-8")
-    with make_client(tmp_path, workbench_dir=home / "SwissArmyGrid") as client:
+    (home / "SwissArmyBench").write_text("a file with the folder's name", encoding="utf-8")
+    with make_client(tmp_path, workbench_dir=home / "SwissArmyBench") as client:
         # A path to a file lists the file's folder (the chooser's rule): nothing is made or replaced.
-        answer = client.get("/folders", params={"path": str(home / "SwissArmyGrid")}, headers=AUTH)
+        answer = client.get("/folders", params={"path": str(home / "SwissArmyBench")}, headers=AUTH)
         assert answer.status_code == 200 and answer.json()["path"] == str(home.resolve())
-        assert (home / "SwissArmyGrid").read_text(encoding="utf-8") == "a file with the folder's name"
+        assert (home / "SwissArmyBench").read_text(encoding="utf-8") == "a file with the folder's name"
 
 
 def test_the_workbench_folder_can_be_set_for_tests(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from swissarmygrid.settings import Settings
+    from swissarmybench.settings import Settings
 
-    monkeypatch.setenv("SWISSARMYGRID_WORKBENCH_DIR", str(tmp_path / "elsewhere"))
+    monkeypatch.setenv("SWISSARMYBENCH_WORKBENCH_DIR", str(tmp_path / "elsewhere"))
     assert Settings().workbench_dir == tmp_path / "elsewhere"
-    monkeypatch.delenv("SWISSARMYGRID_WORKBENCH_DIR")
-    assert Settings().workbench_dir == Path.home() / "SwissArmyGrid"
+    monkeypatch.delenv("SWISSARMYBENCH_WORKBENCH_DIR")
+    monkeypatch.delenv("SWISSARMYGRID_WORKBENCH_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))  # never this machine's own home (test_renamed.py)
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert Settings().workbench_dir == Path.home() / "SwissArmyBench"
 
 
 def test_open_save_and_recent(client: TestClient, tmp_path: Path) -> None:
     home = client.get("/workbench/home", headers=AUTH).json()
-    assert home["folder"] == str(tmp_path / "home" / "SwissArmyGrid") and home["recent"] == []
+    assert home["folder"] == str(tmp_path / "home" / "SwissArmyBench") and home["recent"] == []
     # Save as into the default folder makes it; a script and a notebook.
     script = Path(home["folder"]) / "clean.py"
     saved = client.post(
@@ -190,7 +193,7 @@ def test_a_kernel_runs_code_and_streams_its_outputs(client: TestClient, tmp_path
         failed = run(client, kernel, "1 / 0")
         assert failed[0]["ename"] == "ZeroDivisionError" and failed[-1]["done"]["ok"] is False
         # The kernel keeps its state between runs; the package is imported quietly when it starts.
-        assert run(client, kernel, "'sag' in globals()")[0]["data"]["text/plain"] == "True"
+        assert run(client, kernel, "'sab' in globals()")[0]["data"]["text/plain"] == "True"
         # Completion and help from the kernel: its own variables, a DataFrame's columns, a signature.
         run(
             client,
@@ -249,7 +252,7 @@ def test_the_agent_may_use_every_workbench_route(client: TestClient) -> None:
 def test_a_new_environment_is_checked_and_a_documents_python_remembered(
     client: TestClient, tmp_path: Path
 ) -> None:
-    from swissarmygrid.domain import environments
+    from swissarmybench.domain import environments
 
     offered = client.get("/workbench/environments", headers=AUTH).json()
     assert "pandas" in offered["presets"]["Data analysis"] and "3.12" in offered["versions"]
@@ -315,7 +318,7 @@ def test_the_variables_overlay_shows_values_but_never_a_secret(monkeypatch: pyte
 
     import pandas as pd
 
-    from swissarmygrid.client import kernel_connections, kernel_variables
+    from swissarmybench.client import kernel_connections, kernel_variables
 
     monkeypatch.setattr(
         kernel_connections, "code_names", lambda: {"sales_db": "Sales DB", "orders_file": "Orders file"}
@@ -582,8 +585,8 @@ def test_saving_keeps_the_files_encoding_line_endings_and_permissions(
 def test_connection_names_never_hide_a_builtin_or_the_cells_own_name(monkeypatch: pytest.MonkeyPatch) -> None:
     import ast
 
-    from swissarmygrid.client import kernel_connections
-    from swissarmygrid.domain.connections import code_names
+    from swissarmybench.client import kernel_connections
+    from swissarmybench.domain.connections import code_names
 
     assert code_names(["Print", "List", "Input", "ID", "Type", "Open"]) == {
         "Print": "print_",
@@ -600,7 +603,7 @@ def test_connection_names_never_hide_a_builtin_or_the_cells_own_name(monkeypatch
 
 
 def test_one_odd_object_costs_its_row_never_the_list() -> None:
-    from swissarmygrid.client import kernel_variables
+    from swissarmybench.client import kernel_variables
 
     class Odd:
         columns = ("a",)
@@ -634,7 +637,7 @@ def test_one_odd_object_costs_its_row_never_the_list() -> None:
     ],
 )
 def test_the_statement_at_a_line(line: int, expected: tuple[int, int, int | None] | None) -> None:
-    from swissarmygrid.domain.notebooks import statement_at
+    from swissarmybench.domain.notebooks import statement_at
 
     code = (
         "import math\n"  # 1
@@ -658,7 +661,7 @@ def test_the_statement_at_a_line(line: int, expected: tuple[int, int, int | None
 
 
 def test_the_statement_at_a_line_while_the_rest_does_not_parse() -> None:
-    from swissarmygrid.domain.notebooks import statement_at
+    from swissarmybench.domain.notebooks import statement_at
 
     code = "for r in rates:\n    print(r)\n\nx = (\n"  # the last line is half typed
     assert statement_at(code, 1) == (1, 2, 4)
@@ -737,7 +740,7 @@ def test_a_window_command_is_run_by_the_window_and_answered(client: TestClient) 
 def test_window_commands_go_to_the_workbench_window_last_in_front() -> None:
     import asyncio
 
-    from swissarmygrid.adapters.live_updates import LiveUpdates
+    from swissarmybench.adapters.live_updates import LiveUpdates
 
     class Window:
         def __init__(self) -> None:
@@ -798,7 +801,7 @@ def test_a_failed_run_says_what_happened_and_what_to_do(client: TestClient) -> N
 
 @pytest.mark.parametrize("folder", ["x", "nope-does-not-exist", "projects/.venv", "..\\env"])
 def test_a_new_environment_needs_a_full_path(folder: str) -> None:
-    from swissarmygrid.domain import environments
+    from swissarmybench.domain import environments
 
     with pytest.raises(environments.EnvironmentRequestError, match="full path"):
         environments.check_request({"folder": folder, "packages": []})
@@ -876,9 +879,9 @@ def test_a_vault_that_loads_every_secret_sets_each_under_its_own_name(
 
 
 def test_a_sql_cells_error_reads_like_a_python_one() -> None:
-    from swissarmygrid.client.kernel_errors import _entry
-    from swissarmygrid.domain import errors
-    from swissarmygrid.services.workbench import sql_error_entry
+    from swissarmybench.client.kernel_errors import _entry
+    from swissarmybench.domain import errors
+    from swissarmybench.services.workbench import sql_error_entry
 
     try:
         raise KeyError("made-up")
@@ -973,7 +976,7 @@ def test_a_busy_reader_loses_none_of_what_a_kernel_prints(tmp_path: Path) -> Non
     import os
     import sys
 
-    from swissarmygrid.server import kernels
+    from swissarmybench.server import kernels
 
     async def run() -> tuple[int, bool]:
         kernel = await kernels.start(sys.executable, str(tmp_path), dict(os.environ))

@@ -128,14 +128,14 @@ def _patched_asyncio_run() -> None:
 def setup() -> None:
     shell = _ipython()
     try:
-        import swissarmygrid  # noqa: F401 (the watcher, the %%sql cells, sag.*)
-        from swissarmygrid.client.html_cells import install as html_cells
-        from swissarmygrid.client.kernel_connections import install
-        from swissarmygrid.client.table_cells import install as table_cells
+        import swissarmybench  # noqa: F401 (the watcher, the %%sql cells, sab.*)
+        from swissarmybench.client.html_cells import install as html_cells
+        from swissarmybench.client.kernel_connections import install
+        from swissarmybench.client.table_cells import install as table_cells
 
         install(shell)
-        table_cells(shell)  # %%sag_table: a table's read-only cell, safe to run again
-        html_cells(shell)  # %%sag_html: an HTML cell's names, filled from this Python
+        table_cells(shell)  # %%sab_table: a table's read-only cell, safe to run again
+        html_cells(shell)  # %%sab_html: an HTML cell's names, filled from this Python
     except ImportError:
         pass
     _ordered_streams()
@@ -152,4 +152,4 @@ def setup() -> None:
     shell.user_ns["exit"] = shell.user_ns["quit"] = _Exit()
     _quiet_exits(shell)
     shell.register_magic_function(_pip, magic_kind="line", magic_name="pip")
-    sys.modules.setdefault("__sag_setup_done__", sys)  # once per kernel
+    sys.modules.setdefault("__sab_setup_done__", sys)  # once per kernel

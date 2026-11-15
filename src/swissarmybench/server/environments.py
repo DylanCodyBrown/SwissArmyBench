@@ -94,18 +94,25 @@ _client_copy: list[str] = []
 
 
 def client_path() -> str:
-    """A folder holding a copy of this package for a kernel's import path, so `import swissarmygrid`
-    (sag.*, %%sql cells, tables as grids) works in an environment that does not have it installed. The
+    """A folder holding a copy of this package for a kernel's import path, so `import swissarmybench`
+    (sab.*, %%sql cells, tables as grids) works in an environment that does not have it installed. The
     client needs only the standard library; the page's files are left out. Made once per server."""
     if not _client_copy:
         import tempfile
 
         package = Path(__file__).resolve().parents[1]
-        holder = Path(tempfile.mkdtemp(prefix="swissarmygrid-client-"))
+        holder = Path(tempfile.mkdtemp(prefix="swissarmybench-client-"))
         shutil.copytree(
             package,
-            holder / "swissarmygrid",
+            holder / "swissarmybench",
             ignore=shutil.ignore_patterns("web_static", "__pycache__", "*.pyc"),
         )
+        # The old name beside it (renamed.py), so an old notebook's `import swissarmygrid` runs this
+        # package, not an older copy the environment may still have installed.
+        old = package.parent / "swissarmygrid"
+        if old.is_dir():
+            shutil.copytree(
+                old, holder / "swissarmygrid", ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+            )
         _client_copy.append(str(holder))
     return _client_copy[0]

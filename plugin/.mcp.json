@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "swissarmygrid": {
-      "command": "swissarmygrid-mcp"
+    "swissarmybench": {
+      "command": "swissarmybench-mcp"
     }
   }
 }

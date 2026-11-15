@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
 
 
@@ -193,6 +193,6 @@ def test_import_relationships_is_one_name_and_takes_a_model_or_a_tang(
 
 def tang_text(server: dict[str, Any], model: dict[str, Any]) -> str:
     """The model as a .tang file, written by the app itself (domain/relationships.py write_tang)."""
-    from swissarmygrid.domain.relationships import parse_model, write_tang
+    from swissarmybench.domain.relationships import parse_model, write_tang
 
     return write_tang(parse_model(model))

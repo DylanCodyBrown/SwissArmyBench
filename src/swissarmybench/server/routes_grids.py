@@ -39,13 +39,13 @@ from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.domain.steps import StepError
-from swissarmygrid.server.http import actor, client_of, error_response, json_response, query_int, read_json
-from swissarmygrid.services.codegen import CodeService
-from swissarmygrid.services.export import Exports
-from swissarmygrid.services.grids import GridService
-from swissarmygrid.services.profile import Profiles
-from swissarmygrid.services.sql import SqlBox
+from swissarmybench.domain.steps import StepError
+from swissarmybench.server.http import actor, client_of, error_response, json_response, query_int, read_json
+from swissarmybench.services.codegen import CodeService
+from swissarmybench.services.export import Exports
+from swissarmybench.services.grids import GridService
+from swissarmybench.services.profile import Profiles
+from swissarmybench.services.sql import SqlBox
 
 
 def routes(

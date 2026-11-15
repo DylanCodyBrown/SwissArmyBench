@@ -1,7 +1,7 @@
 """Server lifecycle and the push client against a real server process.
 
-Each test points SWISSARMYGRID_INFO and SWISSARMYGRID_STATE at a temp folder, so nothing here
-touches the real ~/.swissarmygrid.
+Each test points SWISSARMYBENCH_INFO and SWISSARMYBENCH_STATE at a temp folder, so nothing here
+touches the real ~/.swissarmybench.
 """
 
 from __future__ import annotations
@@ -19,27 +19,27 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from swissarmygrid.client import push_client
-from swissarmygrid.server import lifecycle
+from swissarmybench.client import push_client
+from swissarmybench.server import lifecycle
 
 
 @pytest.fixture
 def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, str]]:
     variables = {
-        "SWISSARMYGRID_INFO": str(tmp_path / "server.json"),
-        "SWISSARMYGRID_STATE": str(tmp_path / "state"),
+        "SWISSARMYBENCH_INFO": str(tmp_path / "server.json"),
+        "SWISSARMYBENCH_STATE": str(tmp_path / "state"),
     }
     for key, value in variables.items():
         monkeypatch.setenv(key, value)
     yield os.environ | variables
     # Stop anything a test started.
-    lifecycle.request_stop(Path(variables["SWISSARMYGRID_INFO"]))
+    lifecycle.request_stop(Path(variables["SWISSARMYBENCH_INFO"]))
     time.sleep(0.5)
 
 
 def cli(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "swissarmygrid.server", *args],
+        [sys.executable, "-m", "swissarmybench.server", *args],
         env=env,
         capture_output=True,
         text=True,
@@ -50,13 +50,13 @@ def cli(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
 
 def start_background(env: dict[str, str], *args: str) -> subprocess.Popen[str]:
     process = subprocess.Popen(  # noqa: S603
-        [sys.executable, "-m", "swissarmygrid.server", *args],
+        [sys.executable, "-m", "swissarmybench.server", *args],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
     )
-    info_path = Path(env["SWISSARMYGRID_INFO"])
+    info_path = Path(env["SWISSARMYBENCH_INFO"])
     for _ in range(100):
         if lifecycle.running_server(info_path):
             return process
@@ -115,8 +115,8 @@ def test_kept_alive_requests_answer_without_a_delayed_ack_stall(tmp_path: Path) 
 
     import uvicorn
 
-    from swissarmygrid.server.app import create_app
-    from swissarmygrid.settings import Settings
+    from swissarmybench.server.app import create_app
+    from swissarmybench.settings import Settings
 
     listener = lifecycle.open_listener(0, tmp_path / "last")
     port = listener.getsockname()[1]
@@ -170,7 +170,7 @@ def test_stale_file_from_a_crash_is_not_a_running_server(tmp_path: Path) -> None
 def test_start_status_second_start_and_stop(env: dict[str, str]) -> None:
     port = free_port()
     process = start_background(env, "--port", str(port))
-    info = json.loads(Path(env["SWISSARMYGRID_INFO"]).read_text())
+    info = json.loads(Path(env["SWISSARMYBENCH_INFO"]).read_text())
     # On Windows the venv's python.exe is a launcher, so compare with the server's own pid.
     assert info["port"] == port and info["pid"] == _get(info, "/health")["pid"]
     assert f"127.0.0.1:{port}" in cli(env, "status").stdout
@@ -178,28 +178,28 @@ def test_start_status_second_start_and_stop(env: dict[str, str]) -> None:
     assert second.returncode == 1 and "already running" in second.stderr
     assert "Stopped" in cli(env, "stop").stdout
     process.wait(timeout=20)
-    assert not Path(env["SWISSARMYGRID_INFO"]).exists()
+    assert not Path(env["SWISSARMYBENCH_INFO"]).exists()
     assert cli(env, "status").returncode == 1
     # The next start reuses the remembered port.
     again = start_background(env)
-    assert json.loads(Path(env["SWISSARMYGRID_INFO"]).read_text())["port"] == port
+    assert json.loads(Path(env["SWISSARMYBENCH_INFO"]).read_text())["port"] == port
     cli(env, "stop")
     again.wait(timeout=20)
 
 
 def test_a_crash_leaves_a_stale_file_that_the_next_start_replaces(env: dict[str, str]) -> None:
     process = start_background(env)
-    crashed = json.loads(Path(env["SWISSARMYGRID_INFO"]).read_text())
+    crashed = json.loads(Path(env["SWISSARMYBENCH_INFO"]).read_text())
     os.kill(crashed["pid"], 9)  # a hard kill: TerminateProcess on Windows, no cleanup runs
     process.wait(timeout=20)
     for _ in range(50):
         if not lifecycle.process_alive(crashed["pid"]):
             break
         time.sleep(0.1)
-    assert Path(env["SWISSARMYGRID_INFO"]).exists()
-    assert lifecycle.running_server(Path(env["SWISSARMYGRID_INFO"])) is None
+    assert Path(env["SWISSARMYBENCH_INFO"]).exists()
+    assert lifecycle.running_server(Path(env["SWISSARMYBENCH_INFO"])) is None
     replacement = start_background(env)
-    info = json.loads(Path(env["SWISSARMYGRID_INFO"]).read_text())
+    info = json.loads(Path(env["SWISSARMYBENCH_INFO"]).read_text())
     assert info["pid"] != crashed["pid"] and info["pid"] == _get(info, "/health")["pid"]
     cli(env, "stop")
     replacement.wait(timeout=20)
@@ -233,7 +233,7 @@ def test_a_push_never_starts_a_server(env: dict[str, str]) -> None:
     with pytest.raises(push_client.ServerNotRunningError, match="VS Code"):
         push_client.push(pd.DataFrame({"a": [1, 2]}), name="auto")
     time.sleep(0.5)
-    assert lifecycle.running_server(Path(env["SWISSARMYGRID_INFO"])) is None
+    assert lifecycle.running_server(Path(env["SWISSARMYBENCH_INFO"])) is None
 
 
 def test_only_one_server_holds_the_instance_lock(tmp_path: Path) -> None:
@@ -248,13 +248,13 @@ def test_only_one_server_holds_the_instance_lock(tmp_path: Path) -> None:
 def test_two_servers_started_at_once_leave_one_running(env: dict[str, str]) -> None:
     """VS Code restoring two windows starts the extension in both, and both start a server at the
     same moment, before either has written the connection file. Exactly one keeps running."""
-    command = [sys.executable, "-m", "swissarmygrid.server"]
+    command = [sys.executable, "-m", "swissarmybench.server"]
     racers = [
         subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)  # noqa: S603
         for _ in range(2)
     ]
     try:
-        info_path = Path(env["SWISSARMYGRID_INFO"])
+        info_path = Path(env["SWISSARMYBENCH_INFO"])
         for _ in range(150):
             if lifecycle.running_server(info_path) and any(r.poll() is not None for r in racers):
                 break

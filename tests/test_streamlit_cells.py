@@ -11,11 +11,11 @@ import json
 
 import pytest
 
-from swissarmygrid.client import table_cells as kernel_side
-from swissarmygrid.domain import notebooks, table_cells
-from swissarmygrid.domain import streamlit_cells as rules
-from swissarmygrid.domain.streamlit_cells import Block, Page, PieceCode
-from swissarmygrid.domain.streamlit_use import other_st, uses_streamlit, usual_name
+from swissarmybench.client import table_cells as kernel_side
+from swissarmybench.domain import notebooks, table_cells
+from swissarmybench.domain import streamlit_cells as rules
+from swissarmybench.domain.streamlit_cells import Block, Page, PieceCode
+from swissarmybench.domain.streamlit_use import other_st, uses_streamlit, usual_name
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
 TOTAL = '# Total\nst.metric("Total", int(orders[orders["region"] == region]["amount"].sum()))'
@@ -79,7 +79,7 @@ def _old_notebook() -> str:
     cell = {
         "cell_type": "code",
         "id": "cell-2",
-        "metadata": {"swissarmygrid": {"kind": "streamlit", "height": 320, "number": 2}},
+        "metadata": {"swissarmybench": {"kind": "streamlit", "height": 320, "number": 2}},
         "source": ["# %% [streamlit]\n", *FILTER.splitlines(keepends=True)],
         "outputs": [],
         "execution_count": None,
@@ -87,14 +87,14 @@ def _old_notebook() -> str:
     plain = {
         "cell_type": "code",
         "id": "cell-1",
-        "metadata": {"swissarmygrid": {"number": 1}},
+        "metadata": {"swissarmybench": {"number": 1}},
         "source": ["import pandas as pd"],
         "outputs": [],
         "execution_count": None,
     }
     pages = [{"id": "p1", "name": "Sales", "pieces": [{"id": "s1", "cell": 2, "w": 12, "h": None}]}]
     own = {"next_cell": 3, "streamlit": {"pages": pages}}
-    return json.dumps({"cells": [plain, cell], "metadata": {"swissarmygrid": own}, "nbformat": 4})
+    return json.dumps({"cells": [plain, cell], "metadata": {"swissarmybench": own}, "nbformat": 4})
 
 
 def test_an_old_notebooks_streamlit_cell_opens_as_a_python_cell_with_nothing_lost() -> None:
@@ -107,8 +107,8 @@ def test_an_old_notebooks_streamlit_cell_opens_as_a_python_cell_with_nothing_los
     # Saved again: a plain code cell that keeps its pane's height; no kind, no marker, no pages.
     raw = json.loads(notebooks.write_notebook(cells, next_number=following))
     assert "".join(raw["cells"][1]["source"]) == FILTER
-    assert raw["cells"][1]["metadata"]["swissarmygrid"] == {"height": 320, "number": 2}
-    assert raw["metadata"]["swissarmygrid"] == {"next_cell": 3}
+    assert raw["cells"][1]["metadata"]["swissarmybench"] == {"height": 320, "number": 2}
+    assert raw["metadata"]["swissarmybench"] == {"next_cell": 3}
     assert not hasattr(notebooks, "document_pages")
 
 
@@ -131,7 +131,7 @@ OLD_SCRIPT = f"""import pandas as pd
 # %% [6]
 print("plain")
 # %% [streamlit-pages]
-# The pages of this file's Streamlit app (SwissArmyGrid's page designer keeps this block).
+# The pages of this file's Streamlit app (Swiss Army Bench's page designer keeps this block).
 # {{"id": "p1", "name": "Sales", "pieces": [{{"id": "s1", "cell": 5, "w": 12, "h": null}}]}}
 """
 SCRIPT = (
@@ -197,7 +197,7 @@ def test_run_file_leaves_the_cells_that_call_streamlit_out_on_the_same_lines() -
 # ===== the app's file, both ways; links =====
 
 APP = """{
-  "swissarmygrid": "streamlit-app",
+  "swissarmybench": "streamlit-app",
   "version": 1,
   "pages": [
     {
@@ -256,7 +256,7 @@ def test_the_apps_file_is_small_readable_and_reads_back() -> None:
         "height": 5,
     }
     assert (
-        rules.write_app([]) == '{\n  "swissarmygrid": "streamlit-app",\n  "version": 1,\n  "pages": []\n}\n'
+        rules.write_app([]) == '{\n  "swissarmybench": "streamlit-app",\n  "version": 1,\n  "pages": []\n}\n'
     )
     assert rules.read_app(rules.write_app([])) == []
     # Not an app's file, or one from a newer version, says so.
@@ -265,7 +265,7 @@ def test_the_apps_file_is_small_readable_and_reads_back() -> None:
     with pytest.raises(rules.StreamlitError, match="not a Streamlit app's file"):
         rules.read_app('{"cells": []}')
     with pytest.raises(rules.StreamlitError, match="newer"):
-        rules.read_app('{"swissarmygrid": "streamlit-app", "version": 2, "pages": []}')
+        rules.read_app('{"swissarmybench": "streamlit-app", "version": 2, "pages": []}')
     with pytest.raises(rules.StreamlitError, match="cell's own number"):
         rules.read_app(APP.replace('"cell": 4', '"cell": "four"'))
     assert notebooks.kind_of("/work/Sales.STAPP.json") == "app" and rules.is_app("x.stapp.json")
@@ -319,9 +319,9 @@ def test_a_notebook_cells_name_is_kept_in_its_metadata_both_ways() -> None:
     text = notebooks.write_notebook(cells)
     held = json.loads(text)["cells"]
     # Where plain Jupyter keeps it: the cell's own metadata, beside its number.
-    assert held[0]["metadata"]["swissarmygrid"] == {"number": 1, "name": "Region [filter] #1"}
-    assert held[1]["metadata"]["swissarmygrid"]["name"] == "Read me"
-    assert "name" not in held[2]["metadata"]["swissarmygrid"]
+    assert held[0]["metadata"]["swissarmybench"] == {"number": 1, "name": "Region [filter] #1"}
+    assert held[1]["metadata"]["swissarmybench"]["name"] == "Read me"
+    assert "name" not in held[2]["metadata"]["swissarmybench"]
     read, _ = notebooks.read_document(text)
     assert [(c.number, c.name) for c in read] == [(1, "Region [filter] #1"), (2, "Read me"), (3, None)]
     assert rules.document_names("/work/sales.ipynb", text) == {1: "Region [filter] #1"}  # Python cells
@@ -720,7 +720,7 @@ def test_the_live_entry_and_the_names_of_modules() -> None:
 def _more_pieces() -> dict[tuple[str, int], PieceCode]:
     return PIECES | {
         (DOC, 6): PieceCode(6, "Chart", CHART, "sales.ipynb @cell6"),
-        (DOC, 7): PieceCode(7, "Extra", "import sklearn, os, swissarmygrid"),
+        (DOC, 7): PieceCode(7, "Extra", "import sklearn, os, swissarmybench"),
     }
 
 
@@ -753,13 +753,13 @@ def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
     first = made.files["app_pages/sales_overview.py"]
     # Laid out as designed, blocks in name order, plain code (no guard), data beside app.py.
     assert first.index("with _slot_b2:") < first.index("with _slot_b1:")
-    assert "try:" not in first and "swissarmygrid" not in first.lower()
+    assert "try:" not in first and "swissarmybench" not in first.lower()
     assert '_DATA = Path(__file__).resolve().parent.parent / "data"' in first
     assert made.tables == ("orders",) and made.problems == ()
     # What the pages import, and only the cells that are on a page.
     assert made.files["requirements.txt"] == "streamlit>=1.36\npandas\npyarrow\naltair\n"
     assert "streamlit run app.py" in made.files["README.txt"]
-    assert rules.requirements(["import sklearn, os, swissarmygrid\nimport PIL.Image"]) == [
+    assert rules.requirements(["import sklearn, os, swissarmybench\nimport PIL.Image"]) == [
         "streamlit>=1.36",
         "pandas",
         "pyarrow",
@@ -802,7 +802,7 @@ def test_save_as_makes_pages_that_import_their_tables_from_data_py() -> None:
     # A page of somebody else's app: no app.py, no page config, no data folder, no rows.
     assert page.startswith(
         "# Sales overview\n"
-        "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
+        "# Written from sales.stapp.json by Swiss Army Bench: change the canvas, not this file.\n"
         "import pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
     )
     # Save as writes over (and takes away) only this app's own saved pages.

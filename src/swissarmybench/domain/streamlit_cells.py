@@ -37,15 +37,18 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
-from swissarmygrid.domain import notebooks, table_cells
-from swissarmygrid.domain.blades import pip_name, provided
-from swissarmygrid.domain.html_cells import check_height
-from swissarmygrid.domain.streamlit_use import uses_streamlit, usual_name
+from swissarmybench.domain import notebooks, table_cells
+from swissarmybench.domain.blades import pip_name, provided
+from swissarmybench.domain.html_cells import check_height
+from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 __all__ = ["uses_streamlit", "usual_name"]
 
 APP_SUFFIX: str = notebooks.APP_SUFFIX
 APP_MARK: str = "streamlit-app"
+# The marker's key; an app saved before the rename has SwissArmyGrid's, still read.
+APP_KEY: str = "swissarmybench"
+OLD_APP_KEY: str = "swissarmygrid"
 APP_VERSION: int = 1
 MAX_APP_CHARS: int = 2_000_000
 _ANY_MARKER = re.compile(r"^# ?%%")
@@ -483,7 +486,7 @@ def pages_json(pages: Sequence[Page]) -> list[dict[str, Any]]:
 # ----- the app's file: sales.stapp.json -----
 #
 #     {
-#       "swissarmygrid": "streamlit-app",
+#       "swissarmybench": "streamlit-app",
 #       "version": 1,
 #       "pages": [
 #         {
@@ -504,7 +507,7 @@ def write_app(pages: Sequence[Page], link: Callable[[str], str] = lambda documen
     """The app's file text. `link` gives each block's path as the file should hold it (relative to
     the file: `relative_link`)."""
     said = json.dumps
-    lines = ["{", f'  "swissarmygrid": {said(APP_MARK)},', f'  "version": {APP_VERSION},']
+    lines = ["{", f"  {said(APP_KEY)}: {said(APP_MARK)},", f'  "version": {APP_VERSION},']
     if not pages:
         return "\n".join([*lines, '  "pages": []', "}"]) + "\n"
     lines.append('  "pages": [')
@@ -538,13 +541,13 @@ def read_app(text: str, link: Callable[[str], str] = lambda document: document) 
         data = json.loads(text)
     except ValueError as error:
         raise StreamlitError(f"This is not a Streamlit app's file: {error}.") from None
-    if not isinstance(data, dict) or data.get("swissarmygrid") != APP_MARK:
+    if not isinstance(data, dict) or APP_MARK not in (data.get(APP_KEY), data.get(OLD_APP_KEY)):
         raise StreamlitError(
-            'This is not a Streamlit app\'s file: it has no "swissarmygrid": "streamlit-app".'
+            'This is not a Streamlit app\'s file: it has no "swissarmybench": "streamlit-app".'
         )
     version = data.get("version", 1)
     if not isinstance(version, int) or isinstance(version, bool) or version > APP_VERSION:
-        raise StreamlitError("This Streamlit app was saved by a newer SwissArmyGrid: update to open it.")
+        raise StreamlitError("This Streamlit app was saved by a newer Swiss Army Bench: update to open it.")
     pages = read_pages(data.get("pages"))
     for page in pages:
         for block in page.blocks:
@@ -946,7 +949,7 @@ def elsewhere(page: Page, found: Mapping[Key, Facts], where: Mapping[Key, str]) 
 # The live app's entry never changes: it reads the manifest each time it runs, so a page changed on
 # the canvas shows without a restart.
 ENTRY: str = '''\
-"""A Streamlit app as SwissArmyGrid's Workbench shows it live (made by the app)."""
+"""A Streamlit app as Swiss Army Bench's Workbench shows it live (made by the app)."""
 import json
 from pathlib import Path
 
@@ -963,7 +966,7 @@ _current = st.navigation(_PAGES, position="hidden")
 _designed = [page for page, said in zip(_PAGES, _MANIFEST["pages"]) if said["kind"] == "page"]
 if _current is _PAGES[0] and _designed:
     st.switch_page(_designed[0])  # the app's own address: its first page
-if st.query_params.get("sag") != "frame":
+if st.query_params.get("sab") != "frame":
     # The app at its own address: its pages, listed at the side.
     if len(_designed) > 1:
         with st.sidebar:
@@ -1015,7 +1018,7 @@ class Export:
 
 
 README: str = """\
-{title}: a Streamlit app, made on SwissArmyGrid's Streamlit canvas.
+{title}: a Streamlit app, made on Swiss Army Bench's Streamlit canvas.
 
 Run it:
 
@@ -1066,7 +1069,8 @@ def export(
         problems += [f"{page.name}: {p}" for p in made.problems]
         codes += [pieces[b.key].code for b in page.blocks if b.key in pieces]
     lines = [
-        f'"""{title}: a Streamlit app from SwissArmyGrid\'s Streamlit canvas. Run: streamlit run app.py"""',
+        f'"""{title}: a Streamlit app from Swiss Army Bench\'s Streamlit canvas. '
+        'Run: streamlit run app.py"""',
         "import streamlit as st",
         "",
         f'st.set_page_config(page_title={title!r}, layout="wide")',
@@ -1096,7 +1100,9 @@ class SavedPages:
 
 # A saved page's second line: whose export it is. Save as writes over (and takes away) only the
 # pages/*.py of the same app; a page of the user's own, or of another app in the folder, stays.
-PAGE_MARK: str = "# Written from {app} by SwissArmyGrid: change the canvas, not this file."
+PAGE_MARK: str = "# Written from {app} by Swiss Army Bench: change the canvas, not this file."
+# The line a page saved before the rename carries (SwissArmyGrid's): still this app's page to write over.
+OLD_PAGE_MARK: str = "# Written from {app} by SwissArmyGrid: change the canvas, not this file."
 
 
 def page_mark(app: str) -> str:
@@ -1106,7 +1112,8 @@ def page_mark(app: str) -> str:
 
 def is_saved_page(text: str, app: str) -> bool:
     """A pages/*.py this app's Save as wrote (and may write again or take away)."""
-    return page_mark(app) in text.split("\n", 3)[:3]
+    head = text.split("\n", 3)[:3]
+    return page_mark(app) in head or OLD_PAGE_MARK.format(app=app.replace("\n", " ")) in head
 
 
 def saved_pages(

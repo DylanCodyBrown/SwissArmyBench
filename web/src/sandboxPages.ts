@@ -137,7 +137,7 @@ export async function printPages(paper: Paper, ready: () => Promise<void>, done:
   }
 }
 
-const DRAG_TYPE = "application/x-swissarmygrid-card";
+const DRAG_TYPE = "application/x-swissarmybench-card";
 
 /** Drag `handle` to move `element`'s card; drop on another card's left or right half to put it
  * before or after that card. `next` is the id of the card after this one (null when it is last). */

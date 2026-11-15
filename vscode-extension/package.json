@@ -1,7 +1,7 @@
 {
-  "name": "swissarmygrid",
-  "displayName": "SwissArmyGrid",
-  "description": "SwissArmyGrid's tools for VS Code's agent mode, and a button that opens SwissArmyGrid. Install SwissArmyGrid itself with uv first.",
+  "name": "swissarmybench",
+  "displayName": "Swiss Army Bench",
+  "description": "Swiss Army Bench's tools for VS Code's agent mode, and a button that opens Swiss Army Bench. Install Swiss Army Bench itself with uv first.",
   "version": "1.7.0",
   "publisher": "dylancodybrown",
   "license": "(MIT OR Apache-2.0)",
@@ -24,42 +24,42 @@
   "contributes": {
     "commands": [
       {
-        "command": "swissarmygrid.open",
-        "title": "Open SwissArmyGrid",
-        "category": "SwissArmyGrid",
+        "command": "swissarmybench.open",
+        "title": "Open Swiss Army Bench",
+        "category": "Swiss Army Bench",
         "icon": {
-          "light": "media/swissarmygrid.svg",
-          "dark": "media/swissarmygrid.svg"
+          "light": "media/swissarmybench.svg",
+          "dark": "media/swissarmybench.svg"
         }
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "swissarmygrid.open",
+          "command": "swissarmybench.open",
           "group": "navigation@100"
         }
       ],
       "notebook/toolbar": [
         {
-          "command": "swissarmygrid.open",
+          "command": "swissarmybench.open",
           "group": "navigation/execute@10"
         }
       ]
     },
     "mcpServerDefinitionProviders": [
       {
-        "id": "swissarmygrid",
-        "label": "SwissArmyGrid"
+        "id": "swissarmybench",
+        "label": "Swiss Army Bench"
       }
     ],
     "configuration": {
-      "title": "SwissArmyGrid",
+      "title": "Swiss Army Bench",
       "properties": {
-        "swissarmygrid.chromePath": {
+        "swissarmybench.chromePath": {
           "type": "string",
           "default": "",
-          "description": "Google Chrome's full path, for opening SwissArmyGrid in its own window. Empty: the usual places, then the default browser."
+          "description": "Google Chrome's full path, for opening Swiss Army Bench in its own window. Empty: the usual places, then the default browser."
         }
       }
     }

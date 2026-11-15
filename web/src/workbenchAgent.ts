@@ -4,7 +4,7 @@
  * Right-click an error (its panel, or the underlined code) or selected code, and choose Send to the
  * agent: it goes to the agent's inbox on this server (memory only, nothing on disk). The agent reads
  * it two ways (the owner, 2026-11-14: "it will send via hook in the MCP"):
- *   - the plugin's UserPromptSubmit hook (swissarmygrid-context) puts what is waiting into the user's
+ *   - the plugin's UserPromptSubmit hook (swissarmybench-context) puts what is waiting into the user's
  *     next message to the agent, so "why does this fail?" needs no copying;
  *   - the MCP tool agent_inbox reads it at any time.
  * "…with a question" adds the user's own words to it.

@@ -14,8 +14,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain import analysis as A
-from swissarmygrid.domain.sql_guard import keeps_order
+from swissarmybench.domain import analysis as A
+from swissarmybench.domain.sql_guard import keeps_order
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 # ===== the domain: the math =====
@@ -361,7 +361,7 @@ def same(a: Any, b: Any) -> bool:
 
 def test_the_notebook_code_gives_the_windows_numbers(client: TestClient, orders_grid: str) -> None:
     """The code the page puts in the notebook: the grid's steps as checked SQL, then the same
-    swissarmygrid.stats call. Run on the analyst's own DataFrame, it matches the window."""
+    swissarmybench.stats call. Run on the analyst's own DataFrame, it matches the window."""
     client.post(
         f"/grids/{orders_grid}/step-ops",
         json={
@@ -397,7 +397,7 @@ def test_the_notebook_code_gives_the_windows_numbers(client: TestClient, orders_
 
 
 def test_stats_works_on_a_plain_dataframe() -> None:
-    from swissarmygrid import stats
+    from swissarmybench import stats
 
     frame = orders().to_pandas()
     result = stats.odds(frame, column="region", outcome={"column": "late", "values": ["late"]})

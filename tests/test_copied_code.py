@@ -29,15 +29,15 @@ import pyarrow.ipc as ipc
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.adapters import codegen as verifying
-from swissarmygrid.adapters.codegen import compare, result_rows
-from swissarmygrid.adapters.database import duckdb_grammar, open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.adapters.views import ViewEngine
-from swissarmygrid.domain import codegen as code_text
-from swissarmygrid.domain.codegen import Pasted, python_string, variable_name
-from swissarmygrid.domain.steps import ViewSettings, steps_from_json
-from swissarmygrid.services import codegen as code_service
+from swissarmybench.adapters import codegen as verifying
+from swissarmybench.adapters.codegen import compare, result_rows
+from swissarmybench.adapters.database import duckdb_grammar, open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.views import ViewEngine
+from swissarmybench.domain import codegen as code_text
+from swissarmybench.domain.codegen import Pasted, python_string, variable_name
+from swissarmybench.domain.steps import ViewSettings, steps_from_json
+from swissarmybench.services import codegen as code_service
 from tests.conftest import ARROW, AUTH, arrow_bytes, grid_id
 
 # The use case and the quoting rule, given their ports: the verifier that runs the copy, and
@@ -377,7 +377,7 @@ def test_copied_python_runs_in_a_fresh_python(name: str) -> None:
     # Only `import duckdb`, one statement, nothing from the server.
     tree = ast.parse(code)
     assert [type(n).__name__ for n in tree.body] == ["Import", "Assign"], code
-    for internal in ("__sag", "ds_orders", "source", "pyarrow", "transform", "register"):
+    for internal in ("__sab", "ds_orders", "source", "pyarrow", "transform", "register"):
         assert internal not in code, (internal, code)
     got_names, got = run_in_fresh_python(code, ORDERS.copy())
     outcome = compare(got_names, got, names, rows)

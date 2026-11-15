@@ -6,15 +6,14 @@ Tab offers the loaded catalogs' names: `ord<Tab>` gives tables (and columns) sta
 Columns of the tables the query already names come first. A `%%sql Warehouse` cell offers only that
 connection's names: its catalog, or, for a file connection open in this Python, its own tables.
 
-Installed by itself when swissarmygrid is imported in Jupyter or IPython (SWISSARMYGRID_COMPLETE=0
-turns it off), or by hand with `sag.complete()`. It asks the running server and never starts one: with
+Installed by itself when swissarmybench is imported in Jupyter or IPython (SWISSARMYBENCH_COMPLETE=0
+turns it off), or by hand with `sab.complete()`. It asks the running server and never starts one: with
 no server, or a slow one, Tab simply offers nothing from here. Standard library only.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 import time
@@ -23,7 +22,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from swissarmygrid.client.push_client import _read_info
+from swissarmybench.client.push_client import _read_info
+from swissarmybench.renamed import env
 
 _TIMEOUT_SECONDS: float = 1.0
 _CATALOGS_FOR_SECONDS: float = 30.0
@@ -39,7 +39,7 @@ _catalogs: tuple[float, list[str]] = (0.0, [])
 def sql_before(text: str) -> str | None:
     """The SQL written so far when the cursor (the end of `text`) is inside SQL, else None: a `%%sql`
     cell, or an open string literal (triple-quoted or on this line) that holds a SQL word."""
-    if text.lstrip().startswith(("%%sql", "%sql", "%%sag")):
+    if text.lstrip().startswith(("%%sql", "%sql", "%%sab", "%%sag")):  # %%sag: the old name
         return text
     opened: str | None = None
     start = 0
@@ -102,9 +102,9 @@ def _search(catalog: str, text: str) -> dict[str, Any]:
 def _cell_connection(sql: str) -> str | None:
     """The connection a `%%sql` cell names on its first line (or the %sql_connect one), if any."""
     first = sql.lstrip().split("\n", 1)[0]
-    if not first.startswith(("%%sql", "%%sag")) or first.startswith("%%sql_"):
+    if not first.startswith(("%%sql", "%%sab", "%%sag")) or first.startswith("%%sql_"):
         return None
-    from swissarmygrid.client import sql_cell  # only for a %%sql cell
+    from swissarmybench.client import sql_cell  # only for a %%sql cell
 
     try:
         named = sql_cell.parse_line(first.split(None, 1)[1] if " " in first.strip() else "").name
@@ -115,7 +115,7 @@ def _cell_connection(sql: str) -> str | None:
 
 def _local(name: str, token: str) -> list[str] | None:
     """A file or table connection open in this Python: its own tables and columns (None: not open)."""
-    from swissarmygrid.client import sql_cell  # only for a %%sql cell
+    from swissarmybench.client import sql_cell  # only for a %%sql cell
 
     found = sql_cell._connections.get(name.casefold())
     if found is None or found.kind == "database":
@@ -195,6 +195,6 @@ def complete() -> bool:
 
 
 def autostart() -> None:
-    """On import in Jupyter or IPython, unless SWISSARMYGRID_COMPLETE=0."""
-    if os.environ.get("SWISSARMYGRID_COMPLETE", "") != "0":
+    """On import in Jupyter or IPython, unless SWISSARMYBENCH_COMPLETE=0."""
+    if env("SWISSARMYBENCH_COMPLETE", "") != "0":
         complete()

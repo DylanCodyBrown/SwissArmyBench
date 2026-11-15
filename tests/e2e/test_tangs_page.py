@@ -9,8 +9,8 @@ from typing import Any
 from examples.sample_store import make_store
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
-from swissarmygrid.domain.relationships import read_tang
+from swissarmybench.client import push_client
+from swissarmybench.domain.relationships import read_tang
 
 # The grid tests' fixtures (browser, server) are imported by name, which pytest needs and ruff reads
 # as a redefinition in every test that takes them.

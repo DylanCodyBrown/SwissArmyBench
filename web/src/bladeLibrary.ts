@@ -1,7 +1,7 @@
 /**
  * bladeLibrary.ts: portable blades on the page: import (review first), export, blade folders. [VIEW]
  *
- * A portable blade is a plain Python file whose frontmatter is a `# /// swissarmygrid-blade` header
+ * A portable blade is a plain Python file whose frontmatter is a `# /// swissarmybench-blade` header
  * (blade_core/portable.py). Import shows what each file holds, its full code and the secrets it will
  * ask for, and whether its name is taken (replace, keep both or skip), before anything is saved;
  * nothing runs. Blade folders are searched for such files; a folder blade's file is its own.
@@ -220,7 +220,7 @@ export async function editBladeFolders(onDone: () => void): Promise<void> {
           h("code", {}, folder.path),
           h("span", { class: "hint" }, folder.exists ? `  ${folder.blades ?? 0} blade${folder.blades === 1 ? "" : "s"}` : "  not found"),
           folder.from_env
-            ? h("span", { class: "hint" }, "  (from SWISSARMYGRID_BLADE_FOLDERS)")
+            ? h("span", { class: "hint" }, "  (from SWISSARMYBENCH_BLADE_FOLDERS)")
             : button("Remove", () => {
                 mine.splice(mine.indexOf(folder.path), 1);
                 render();

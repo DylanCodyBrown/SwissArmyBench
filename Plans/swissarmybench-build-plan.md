@@ -1,6 +1,6 @@
-# SwissArmyGrid — Build Plan
+# Swiss Army Bench — Build Plan
 
-Name: **SwissArmyGrid**. A local server that shows any tabular
+Name: **Swiss Army Bench**. A local server that shows any tabular
 data in live browser grids, with built-in analysis, a step-based transformation panel
 (think "Power Query applied steps"), code generation back to Python, charts, and an MCP
 door so an agent can analyze alongside the user.
@@ -43,7 +43,7 @@ milestone by milestone. Do not skip ahead.
 - Existing prototype files to start from (attach them to the build session):
   - `dfgrid.py` — renders a data frame as an AG Grid page and serves it locally. Includes
     `enable_inline()` for a Jupyter display hook. Use as a reference, not a base.
-  - `swissarmygrid_client.py` — the push client, tested against a stand-in server. Its contract
+  - `swissarmybench_client.py` — the push client, tested against a stand-in server. Its contract
     (section 5.1) is the contract the real server must honor.
 
 ## 2. Goals and non-goals
@@ -114,7 +114,7 @@ One Python process, two doors, one shared registry.
 
 **Process rules**
 - Bind to `127.0.0.1` only. Random free port unless configured.
-- On start, write `~/.swissarmygrid/server.json` with `{"port": ..., "token": ..., "max_dataset_bytes": ...}` (file
+- On start, write `~/.swissarmybench/server.json` with `{"port": ..., "token": ..., "max_dataset_bytes": ...}` (file
   permissions as restrictive as the operating system allows). Delete it on clean shutdown.
 - Clients find the server through that file and may start it if it is not running.
 - One shared DuckDB connection with a **cursor per request**. A bounded worker pool runs
@@ -478,9 +478,9 @@ status, and that the provenance metadata is present and contains no cell values.
 ## 15. Project layout (suggested)
 
 ```
-swissarmygrid/
+swissarmybench/
   pyproject.toml            # uv project; strict typing, ruff, pytest
-  src/swissarmygrid/
+  src/swissarmybench/
     server/                 # web app, auth, origin checks, websocket, info file
     engine/                 # DuckDB setup, datasets, steps to SQL, profiling, guard
     codegen/                # duckdb.py, pandas.py, plain.py, verify.py

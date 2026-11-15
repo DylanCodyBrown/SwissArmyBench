@@ -1,4 +1,4 @@
-"""The agent command layer: the registry, the `sag` terminal front end and the two-tool MCP server.
+"""The agent command layer: the registry, the `sab` terminal front end and the two-tool MCP server.
 
 These run against a real server on a real port (like test_watch.py), so the actual HTTP client, the
 hand-rolled event socket and the export approval are all exercised with nothing mocked. The "user" in
@@ -22,12 +22,12 @@ import pytest
 import uvicorn
 from mcp.types import CallToolResult, ImageContent, TextContent
 
-from swissarmygrid.cli import api, main
-from swissarmygrid.cli.api import CommandError
-from swissarmygrid.cli.commands import REGISTRY, catalog, execute
-from swissarmygrid.mcp import server as mcp_server
-from swissarmygrid.server.app import create_app
-from swissarmygrid.settings import Settings
+from swissarmybench.cli import api, main
+from swissarmybench.cli.api import CommandError
+from swissarmybench.cli.commands import REGISTRY, catalog, execute
+from swissarmybench.mcp import server as mcp_server
+from swissarmybench.server.app import create_app
+from swissarmybench.settings import Settings
 
 # A spreadsheet copy is tab-separated, which is what the Paste button reads.
 CSV = "\n".join(
@@ -92,8 +92,8 @@ def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Live]:
     assert server.started
     info = tmp_path / "server.json"
     info.write_text(json.dumps({"port": port, "token": token}))
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(info))
-    monkeypatch.setenv("SWISSARMYGRID_OPEN", "0")
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+    monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
     yield Live(port, token)
     server.should_exit = True
     thread.join(10)
@@ -148,7 +148,7 @@ NOT_COMMANDS = {
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
     "/agent/context": "current_table",
-    "/blades/{}/python": "its answer holds the saved password values for sag.blade: never the agent's",
+    "/blades/{}/python": "its answer holds the saved password values for sab.blade: never the agent's",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
@@ -472,7 +472,7 @@ def test_the_terminal_command_prints_json_and_reports_errors(
     assert json.loads(capsys.readouterr().out)["row_count"] == 2
     assert main.main(["tabs_get", "nope"]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("sag:") and "No such grid" in err
+    assert err.startswith("sab:") and "No such grid" in err
     assert main.main(["nonsense"]) == 1
     assert "No command 'nonsense'" in capsys.readouterr().err
 
@@ -482,7 +482,7 @@ def test_a_missing_at_file_is_a_one_line_error(
 ) -> None:
     assert main.main(["steps_run_sql", "g1", f"@{tmp_path / 'missing.sql'}"]) == 1
     err = capsys.readouterr().err
-    assert err.startswith("sag:") and "missing.sql" in err and "Traceback" not in err
+    assert err.startswith("sab:") and "missing.sql" in err and "Traceback" not in err
 
 
 @pytest.mark.parametrize(
@@ -609,7 +609,7 @@ def test_agent_cannot_approve_itself_or_read_a_password(live: Live, clients: str
 
 
 def test_every_command_belongs_to_an_app_area_and_the_registry_follows_the_apps_order() -> None:
-    from swissarmygrid.cli.commands import AREAS, area_of
+    from swissarmybench.cli.commands import AREAS, area_of
 
     order = [area for area, _ in AREAS]
     seen = [area_of(name) for name in REGISTRY]  # raises for a command with no area
@@ -708,7 +708,7 @@ def test_the_agent_guide_only_names_commands_that_exist() -> None:
     """The guide is what an agent learns the names from; a renamed command must not linger in it."""
     import re
 
-    from swissarmygrid.cli.commands import AREAS
+    from swissarmybench.cli.commands import AREAS
 
     guide = json.loads(execute("guide"))["markdown"]
     prefixes = "|".join(area for area, _ in AREAS if area != "help")
@@ -743,7 +743,7 @@ def a_page_that_draws(live: Live, png: bytes, width: int = 800, height: int = 60
 
 
 def test_app_snapshot_returns_the_picture_the_page_drew(live: Live, clients: str, tmp_path: Path) -> None:
-    from swissarmygrid.cli.commands import ImageResult, execute_result
+    from swissarmybench.cli.commands import ImageResult, execute_result
     from tests.test_snapshots import tiny_png
 
     png = tiny_png(8, 6)
@@ -769,7 +769,7 @@ def test_app_snapshot_is_audited(live: Live, clients: str) -> None:
 
 
 def test_app_snapshot_says_when_no_page_is_open(live: Live) -> None:
-    with pytest.raises(CommandError, match="No SwissArmyGrid page is open"):
+    with pytest.raises(CommandError, match="No Swiss Army Bench page is open"):
         run("app_snapshot")
 
 
@@ -787,7 +787,7 @@ def test_the_mcp_returns_a_snapshot_as_an_image(live: Live, clients: str) -> Non
     assert json.loads(description.text)["area"] == "ribbon"
 
 
-def test_sag_saves_a_snapshot_to_a_file_and_prints_where(
+def test_sab_saves_a_snapshot_to_a_file_and_prints_where(
     live: Live, clients: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from tests.test_snapshots import tiny_png

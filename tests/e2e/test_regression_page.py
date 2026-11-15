@@ -9,7 +9,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 from tests.test_regression import orders
 

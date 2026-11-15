@@ -23,9 +23,9 @@ from dataclasses import dataclass, field
 import sqlglot
 from sqlglot import exp
 
-from swissarmygrid.domain.datasets import DatasetInfo
-from swissarmygrid.domain.sql_guard import keeps_order, step_tables
-from swissarmygrid.domain.steps import (
+from swissarmybench.domain.datasets import DatasetInfo
+from swissarmybench.domain.sql_guard import keeps_order, step_tables
+from swissarmybench.domain.steps import (
     CompiledView,
     Stage,
     Step,
@@ -46,7 +46,7 @@ from swissarmygrid.domain.steps import (
 
 # ===== The copy: a grid's steps as ONE DuckDB query over the user's own table =====
 #
-# What SAG is for: DuckDB SQL does the transforming, so the copy is not a translation. The query
+# What SAB is for: DuckDB SQL does the transforming, so the copy is not a translation. The query
 # reads the table by the name the user pushed it under, which is their variable's name (DuckDB
 # reads a pandas, Polars or Arrow variable, or a DuckDB relation, by name), so it runs in their
 # Python as is:

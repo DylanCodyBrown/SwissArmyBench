@@ -3,7 +3,7 @@ selected code, Send to the agent).
 
 The owner (2026-11-14): "right click an error or highlight code and right click to send to an agent. It
 will send via hook in the MCP." So the agent hears of it two ways: the plugin's UserPromptSubmit hook
-(`swissarmygrid-context`) takes what is waiting into the user's next message, and the MCP tool
+(`swissarmybench-context`) takes what is waiting into the user's next message, and the MCP tool
 agent_inbox reads it whenever the agent asks. Kept in memory only (nothing on disk), the newest 20; each
 send is written to the audit log (its size, not its text).
 """
@@ -14,7 +14,7 @@ import itertools
 import time
 from typing import Any
 
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.services.workspace import Workspace
 
 MAX_ITEMS: int = 20
 MAX_TEXT: int = 20_000

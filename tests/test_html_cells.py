@@ -16,10 +16,10 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.cli.commands import execute
-from swissarmygrid.client import html_cells as kernel_side
-from swissarmygrid.domain import html_cells as rules
-from swissarmygrid.domain import notebooks, table_cells
+from swissarmybench.cli.commands import execute
+from swissarmybench.client import html_cells as kernel_side
+from swissarmybench.domain import html_cells as rules
+from swissarmybench.domain import notebooks, table_cells
 from tests.conftest import AGENT, AUTH, make_client
 from tests.test_cli import Live, data_of, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
@@ -236,8 +236,8 @@ def test_a_notebook_keeps_an_html_cell_as_a_cell_plain_jupyter_draws() -> None:
     # IPython's own cell magic, so Jupyter draws it when run; the height is in the cell's metadata.
     assert saved[0]["cell_type"] == "code" and saved[0]["source"][0] == "%%html\n"
     assert "".join(saved[0]["source"][1:]) == CARD
-    assert saved[0]["metadata"]["swissarmygrid"] == {"kind": "html", "height": 320, "number": 1}
-    assert saved[1]["metadata"]["swissarmygrid"] == {"kind": "html", "number": 2}
+    assert saved[0]["metadata"]["swissarmybench"] == {"kind": "html", "height": 320, "number": 1}
+    assert saved[1]["metadata"]["swissarmybench"] == {"kind": "html", "number": 2}
     read = notebooks.read_notebook(text)
     assert [(c.kind, c.source, c.height, c.number) for c in read] == [
         ("html", CARD, 320, 1),
@@ -490,7 +490,7 @@ def test_polars_and_matplotlib_are_told_by_their_shape() -> None:
     found = kernel_side.values(["frame", "chart"], {"frame": DataFrame(), "chart": Figure()})
     assert found["frame"]["kind"] == "table" and "first 50 of 120 rows" in found["frame"]["html"]
     assert found["chart"]["kind"] == "picture"
-    assert found["chart"]["html"].startswith('<img class="sag-picture" alt="chart"')
+    assert found["chart"]["html"].startswith('<img class="sab-picture" alt="chart"')
 
 
 def test_the_cells_output_is_the_filled_design_and_what_filled_it() -> None:
@@ -499,7 +499,7 @@ def test_the_cells_output_is_the_filled_design_and_what_filled_it() -> None:
     detail = data[kernel_side.MIME]
     assert set(detail["values"]) == {"total", "region"} and detail["missing"] == []
     assert detail["marks"]["total"] == rules.digest(detail["values"]["total"])
-    assert metadata == {"swissarmygrid": {"html_cell": True}}
+    assert metadata == {"swissarmybench": {"html_cell": True}}
     json.dumps(data)  # it travels as JSON
 
 
@@ -513,7 +513,7 @@ def run(client: TestClient, kernel: str, body: dict[str, Any]) -> list[dict[str,
 
 
 def test_an_html_cell_runs_in_a_kernel_and_goes_out_of_date_with_its_variables(tmp_path: Path) -> None:
-    with make_client(tmp_path, workbench_dir=tmp_path / "home" / "SwissArmyGrid") as client:
+    with make_client(tmp_path, workbench_dir=tmp_path / "home" / "SwissArmyBench") as client:
         kernel = client.post("/workbench/kernels", headers=AUTH, json={}).json()["kernel"]
         setup = (
             "import pandas as pd\ntotal = 42\nsales = pd.DataFrame({'store': ['<North>'], 'amount': [10]})"
@@ -527,7 +527,7 @@ def test_an_html_cell_runs_in_a_kernel_and_goes_out_of_date_with_its_variables(t
         assert design.startswith("<h1>42 orders</h1><table") and "<td>&lt;North&gt;</td>" in design
         assert "{{ nope }} not found" in design
         detail = output["data"][kernel_side.MIME]
-        assert detail["missing"] == ["nope"] and output["metadata"]["swissarmygrid"]["html_cell"] is True
+        assert detail["missing"] == ["nope"] and output["metadata"]["swissarmybench"]["html_cell"] is True
 
         # The design again, from the values the run gave: no kernel needed.
         again = client.post(
@@ -563,7 +563,7 @@ def test_an_html_cell_runs_in_a_kernel_and_goes_out_of_date_with_its_variables(t
 
 
 def test_an_html_cell_is_saved_and_opened_again(tmp_path: Path) -> None:
-    with make_client(tmp_path, workbench_dir=tmp_path / "home" / "SwissArmyGrid") as client:
+    with make_client(tmp_path, workbench_dir=tmp_path / "home" / "SwissArmyBench") as client:
         path = str(tmp_path / "story.ipynb")
         cells = [{"kind": "html", "source": CARD, "height": 280}, {"kind": "code", "source": "total = 1"}]
         saved = client.post("/workbench/save", headers=AUTH, json={"path": path, "cells": cells})

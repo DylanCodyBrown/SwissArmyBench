@@ -1,4 +1,4 @@
-# SwissArmyGrid
+# Swiss Army Bench
 
 A local server that shows any tabular data in live browser grids, with analysis built in. You
 push a DataFrame from Python and get a URL; open it in Chrome, Edge or VS Code's built-in
@@ -54,7 +54,7 @@ What a grid page does:
   **Streamlit cells** lists every cell that calls Streamlit by name, to drag onto a canvas. Any tab
   pops out into a Workbench window of its own (its unsaved changes and kernel go with it), and back.
 - **Panels:** Settings can switch off any panel of the Workbench or the grid page; every one is on
-  again the next time SwissArmyGrid starts.
+  again the next time Swiss Army Bench starts.
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
   variables; `data.py` is its export, and what your notebooks and pages import (`from data import
   orders`). The app's canvas exports `pages/*.py` the same way.
@@ -83,7 +83,7 @@ What a grid page does:
   tested against a target by chi-square, ranked by strength, with the pairs that say the same thing.
   **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof in the Sandbox:
   each formula with the result's own numbers, worked to the values shown. Every result can go to the Sandbox, open as a grid, or go to
-  the notebook as Python (`swissarmygrid.stats`, the same code the window ran). **Regression**: linear or
+  the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
   logistic (odds ratios), effects in words with ranges, what-if predictions, predicted and miss columns,
   and Check the misses (outliers of what the model cannot explain). Each form has a **Data shape**
   cheat sheet: a made-up table in the shape it needs, one that does not work, and a check of your grid.
@@ -125,11 +125,11 @@ What a grid page does:
   form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a Power BI workspace, its datasets read with DAX;
   a CSV, workbook, Parquet or JSON file, or a folder of them; or your own Python, for anything
   else), its password kept in the system keyring, **Test connection** before
-  saving. Then `conn = sag.connection("Warehouse")` in any Python, or a whole SQL cell on it:
+  saving. Then `conn = sab.connection("Warehouse")` in any Python, or a whole SQL cell on it:
   `%%sql Warehouse` in Jupyter or IPython.
 - **Blades and the catalog** (its own tab, from **Blades and catalog** in the Application row): a **blade** is any
   Python that reaches outside Python to load something (a database connection, a CSV or workbook,
-  an API, a vault). Save it once, then `conn = sag.blade("Warehouse")` in any Python. Starters for
+  an API, a vault). Save it once, then `conn = sab.blade("Warehouse")` in any Python. Starters for
   21 databases, 5 file patterns and 8 vaults; the save screen shows the packages a blade needs and
   installs missing ones. A blade can fill the **catalog**: every schema, table and column of its
   source with its type, as a searchable tree, readable by the agent so it can write SQL in the
@@ -140,12 +140,43 @@ What a grid page does:
   default; Windows forced colors are supported. One zoom for the whole page, the Sandbox
   included: Ctrl+= and Ctrl+-.
 
-The design is [Plans/swissarmygrid-build-plan.md](Plans/swissarmygrid-build-plan.md); what has
+The design is [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md); what has
 been checked against real versions is in [docs/verified.md](docs/verified.md); decisions and
 open notes are in [docs/ideas.md](docs/ideas.md).
 
 New here? The **Tour** button (the question mark in the Application row) explains every word, grid to
 pack, by lighting up each one on the page, then plays a quick matching game.
+
+## Renamed from SwissArmyGrid
+
+Swiss Army Bench was called SwissArmyGrid until this release. Everything has the new name: the package
+and the wheel (`swissarmybench`), the import (`import swissarmybench as sab`), the commands
+(`swissarmybench`, `sab`, `swissarmybench-mcp`, `swissarmybench-context`), the MCP server, the Claude Code
+plugin and its skill (`swissarmybench-use`), the VS Code extension, the state folder
+(`~/.swissarmybench`), the environment variables (`SWISSARMYBENCH_*`), the blade header
+(`# /// swissarmybench-blade`) and the notebook metadata (`swissarmybench`).
+
+The old names still work for this release, and go in the next one:
+
+- `import swissarmygrid as sag` works, with a DeprecationWarning that names the new import. Code the app
+  writes (copied code, table cells, data.py) always uses the new names.
+- `swissarmygrid`, `sag`, `swissarmygrid-mcp` and `swissarmygrid-context` are still installed: each says
+  its new name in one line, then runs it. An already installed plugin or VS Code extension keeps working.
+- Old notebooks run: `%sag_run`, `%%sag_table`, `%%sag_html` and `%%sag` still work, and the old
+  `swissarmygrid` metadata, `# /// swissarmygrid-blade` headers, tangs, Streamlit apps and their saved
+  pages are read. Files are written with the new names.
+- On its first start the server moves `~/.swissarmygrid` to `~/.swissarmybench` and says so once in its
+  log; if it cannot (an old server still running from it, say), it reads the old folder where it is. An
+  existing `~/SwissArmyGrid` Workbench folder stays your folder while there is no `~/SwissArmyBench`.
+- `SWISSARMYBENCH_*` variables are read first, then the old `SWISSARMYGRID_*` ones.
+- Passwords saved in the system keyring under the old name are found, and copied to the new name on their
+  first read. The page's remembered settings (theme, zoom, the Sandbox's card sizes) are read from their
+  old keys when the new ones are empty.
+
+The installers remove the old `swissarmygrid` uv tool before installing the new one, which brings the old
+commands with it; by hand, that is `uv tool uninstall swissarmygrid`, then the install below. Update the
+VS Code extension too: the new one finds the new install (and still finds an old one). The GitHub
+repository keeps its old name for now.
 
 ## Install it: one package, two installs
 
@@ -165,31 +196,31 @@ with its own Python. Give it a wheel path to install one you downloaded instead.
 Or straight from PyPI, with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv tool install "swissarmygrid[server]"   # the server, once per machine
-uv pip install swissarmygrid              # the client, in any project's environment
+uv tool install "swissarmybench[server]"   # the server, once per machine
+uv pip install swissarmybench              # the client, in any project's environment
 ```
 
 Or by hand: build it with `python build.py`, then:
 
 ```bash
-uv tool install --force "swissarmygrid-<version>-py3-none-any.whl[server]"   # the server, once per machine
-uv pip install "swissarmygrid-<version>-py3-none-any.whl"                    # the client, in any Python environment
+uv tool install --force "swissarmybench-<version>-py3-none-any.whl[server]"   # the server, once per machine
+uv pip install "swissarmybench-<version>-py3-none-any.whl"                    # the client, in any Python environment
 ```
 
-The server install gives the `swissarmygrid` command (start, stop, status), the `sag` agent
-command and `swissarmygrid-mcp`. The client install is standard library only, so it goes into any
+The server install gives the `swissarmybench` command (start, stop, status), the `sab` agent
+command and `swissarmybench-mcp`. The client install is standard library only, so it goes into any
 project's environment without touching that project's own packages:
 
 ```python
-import swissarmygrid as sag
+import swissarmybench as sab
 
-sag.push(orders)  # a grid named "orders" opens; push again to refresh it in place
+sab.push(orders)  # a grid named "orders" opens; push again to refresh it in place
 ```
 
 Visual Studio Code is optional. Everything installs with uv; the extension in `vscode-extension/`
-only points VS Code at what uv installed: SwissArmyGrid's MCP tools become VS Code's own tools (agent
-mode), and an Open SwissArmyGrid button (the editor and notebook toolbars, the status bar) starts the
-server when it is not running and opens it in its own window. It needs VS Code 1.101 or later. Where this is going (workspaces, `sag.create_workspace()`, an in-app Python terminal,
+only points VS Code at what uv installed: Swiss Army Bench's MCP tools become VS Code's own tools (agent
+mode), and an Open Swiss Army Bench button (the editor and notebook toolbars, the status bar) starts the
+server when it is not running and opens it in its own window. It needs VS Code 1.101 or later. Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
 saved workspaces, a relationships view): [Plans/standalone-workspaces.plan.md](Plans/standalone-workspaces.plan.md).
 
 Grids open as tabs in one window, the workspace (`/workspace`): the first push opens it, and
@@ -201,7 +232,7 @@ tabs to reorder them.
 With pyarrow present, pushes keep their column types. A push opens the browser only when no page
 already shows that grid.
 
-## One-time setup for working on SwissArmyGrid itself
+## One-time setup for working on Swiss Army Bench itself
 
 ```bash
 uv sync                      # Python environment in .venv
@@ -217,28 +248,28 @@ relationships (and deliberate traps for autodetection) to the running server.
 ## Run it
 
 ```powershell
-.venv\Scripts\python -m swissarmygrid.server            # start (reuses the last port if free)
-.venv\Scripts\python -m swissarmygrid.server --port 8790  # exactly this port, or a clear error
-.venv\Scripts\python -m swissarmygrid.server status
-.venv\Scripts\python -m swissarmygrid.server stop
+.venv\Scripts\python -m swissarmybench.server            # start (reuses the last port if free)
+.venv\Scripts\python -m swissarmybench.server --port 8790  # exactly this port, or a clear error
+.venv\Scripts\python -m swissarmybench.server status
+.venv\Scripts\python -m swissarmybench.server stop
 ```
 
-`uv run swissarmygrid` works too, but while a server started that way is running, `uv` can't
+`uv run swissarmybench` works too, but while a server started that way is running, `uv` can't
 update the environment (Windows locks the launcher). `python -m` avoids that.
 
 From a notebook or script (the client starts a server if none is running):
 
 ```python
-import swissarmygrid as sag
+import swissarmybench as sab
 
 orders = load_orders()  # a pandas or Polars frame, Arrow table, DuckDB relation, or list of dicts
-sag.push(orders)  # the dataset (and the browser tab) is named "orders"; the grid opens
-sag.push(orders)  # again: every open grid on it refreshes in place, keeping its sort
-sag.push(orders, name="q3", new_grid=True)
-url = sag.push(orders, open=False)  # no browser, just the link
+sab.push(orders)  # the dataset (and the browser tab) is named "orders"; the grid opens
+sab.push(orders)  # again: every open grid on it refreshes in place, keeping its sort
+sab.push(orders, name="q3", new_grid=True)
+url = sab.push(orders, open=False)  # no browser, just the link
 ```
 
-`SWISSARMYGRID_OPEN=0` turns the browser off everywhere (the tests set it).
+`SWISSARMYBENCH_OPEN=0` turns the browser off everywhere (the tests set it).
 
 Or the demo data:
 
@@ -263,21 +294,21 @@ its line) and the data explorer (drag a table or column for its name).
 - **Scripts** are an editor over a Python console: F5 runs the file, Ctrl+Enter the selection or the
   line, and lines typed in the console run there too.
 - **Every connection is there by its name:** `warehouse.cursor()`, `pd.read_csv(orders_file)`, with no
-  `sag.connection(...)` line and no password or connection code in the document. A connection opens
+  `sab.connection(...)` line and no password or connection code in the document. A connection opens
   the first time a cell uses its name (one never used never connects); a variable of the same name you
   make yourself wins. The left panel shows each one's name in code (Sales DB is `sales_db`).
 - **Completion as you type:** Python from the running kernel (your variables, their attributes, a
   DataFrame's columns; hover for a signature and its help); a SQL cell from its connection's catalog
   (schemas, tables, columns: `orders.` gives orders' columns); a DAX cell from its dataset (DAX's
-  functions, `'Sales'`, `'Sales'[Amount]`, `[Total Sales]`); `sag.connection("` gives your connections.
+  functions, `'Sales'`, `'Sales'[Amount]`, `[Total Sales]`); `sab.connection("` gives your connections.
 - **Each notebook's own environment:** pick **New environment…** in the Environment box: where it goes
   (a `.venv` beside the notebook), the Python version, and libraries from presets (Data analysis,
   Charts, Statistics and models, Databases) or by group, plus any other package. It is made with uv
   (or venv and pip), its imports can go in as a first cell, and the Workbench remembers it for the
-  notebook (a `.venv` beside a notebook is found by itself). `sag` and `%%sql` work in any
+  notebook (a `.venv` beside a notebook is found by itself). `sab` and `%%sql` work in any
   environment, installed there or not.
 - **Files:** New, Open, Save, Save as (a file chooser showing real paths) and Recent. Save as starts in
-  `~/SwissArmyGrid`. A file changed on disk since it was opened is not overwritten without asking.
+  `~/Swiss Army Bench`. A file changed on disk since it was opened is not overwritten without asking.
 
 The kernel runs on your computer only when you press Run, in the Python you chose; an agent can never
 run code there.
@@ -291,7 +322,7 @@ vault. SQL Server and Azure SQL have a **Sign in** choice: Windows, a user name 
 (Microsoft Entra), each its own connection string, switched keeping what you typed. **Trust server
 certificate** and **Encrypt** are checkboxes (SQL Server, Azure SQL, Trino). **Test connection** runs
 the form before anything is saved. A connection's **catalog** (its tables and columns) loads itself
-in the background: when the connection is saved, when SwissArmyGrid starts, and the first time a SQL
+in the background: when the connection is saved, when Swiss Army Bench starts, and the first time a SQL
 cell, the side bar or an agent uses it. Each load runs in its own process, a couple at a time, so nothing
 waits, and the SQL cell's suggestions pick it up as it lands. One that signs in with a browser window
 (MFA) is not loaded at start-up, only on first use. **Refresh catalog** reads it again after the
@@ -323,22 +354,22 @@ tables, columns and measures, and gives a DataFrame, as a SQL cell does. It is s
 `%%dax Finance/Sales model` cell, which plain Jupyter with the client runs too. In Python:
 
 ```python
-import swissarmygrid as sag
+import swissarmybench as sab
 
-by_region = sag.dax(
+by_region = sab.dax(
     "Finance/Sales model",
     """
 EVALUATE SUMMARIZECOLUMNS('Customer'[Region], "Total Sales", [Total Sales])
 """,
 )
 
-conn = sag.connection("Finance")  # the workspace itself
+conn = sab.connection("Finance")  # the workspace itself
 conn.datasets()  # each dataset's name and id
 conn.dataset("Sales model").cursor()  # one dataset, used as a database's cursor is
 ```
 
 A workspace with one dataset needs only the connection's name; with several, `Finance` alone is
-refused with their names. In a script a DAX cell is that `sag.dax(...)` call under a `# %% [dax]`
+refused with their names. In a script a DAX cell is that `sab.dax(...)` call under a `# %% [dax]`
 marker.
 
 **Import its relationships** (on a dataset in the catalog: its page and its right-click; and offered
@@ -366,8 +397,8 @@ the same code runs unchanged where those names are set some other way (an Azure 
 grid, the preview and Load all rows then work as for a database. In a notebook:
 
 ```python
-api = sag.connection("Orders API")  # what Connect made
-orders = sag.read("Orders API", "orders")  # a table, by your Read a table box
+api = sab.connection("Orders API")  # what Connect made
+orders = sab.read("Orders API", "orders")  # a table, by your Read a table box
 ```
 
 A **key vault** (Azure Key Vault, AWS Secrets Manager or Parameter Store, Google Secret Manager,
@@ -384,10 +415,10 @@ environment: never saved, never shown, never sent to an agent. A password's **A 
 **New vault** when there is none yet, and comes back to the connection when it is saved.
 
 ```python
-import swissarmygrid as sag
+import swissarmybench as sab
 
-conn = sag.connection("Warehouse")  # runs it here: the database connection, or the file's path
-sag.sql("Warehouse", "SELECT TOP 10 * FROM sales.orders")  # a DataFrame
+conn = sab.connection("Warehouse")  # runs it here: the database connection, or the file's path
+sab.sql("Warehouse", "SELECT TOP 10 * FROM sales.orders")  # a DataFrame
 ```
 
 In Jupyter and IPython a whole cell can be SQL on a connection, like the SQL Server extension's
@@ -407,8 +438,8 @@ SELECT * FROM sales.orders WHERE shipped > due
   file; a workbook's sheets are tables named after the sheets (read again when the file is saved); a
   folder's files are tables. A blade that makes a DataFrame can be queried by its variable's name.
 - Tab in the cell offers that connection's tables and columns. An error stops the cell with one line.
-  `%%sql` is taken only where no other extension (JupySQL) has it; `%%sag` always works.
-  `SWISSARMYGRID_SQL_CELL=0` turns the cells off.
+  `%%sql` is taken only where no other extension (JupySQL) has it; `%%sab` always works.
+  `SWISSARMYBENCH_SQL_CELL=0` turns the cells off.
 
 ## Blades and the catalog
 
@@ -416,21 +447,21 @@ A blade is saved Python that reaches outside Python to load something. Write it 
 page (**Blades and catalog** in the Application row, or `/catalog`), then use it anywhere:
 
 ```python
-import swissarmygrid as sag
+import swissarmybench as sab
 
-conn = sag.blade("Warehouse")  # runs the saved code here and returns its variable
-sag.blade("Azure vault")  # a vault blade: reads its secrets live, sets environment variables
-sag.blade("Warehouse login")  # a secret blade: asks for values this Python does not have yet
-sag.blades()  # every blade's name, favourites first
-sag.blades(search="orders-function-app")  # by name, description or tag
-sag.blades(tag="sales")
+conn = sab.blade("Warehouse")  # runs the saved code here and returns its variable
+sab.blade("Azure vault")  # a vault blade: reads its secrets live, sets environment variables
+sab.blade("Warehouse login")  # a secret blade: asks for values this Python does not have yet
+sab.blades()  # every blade's name, favourites first
+sab.blades(search="orders-function-app")  # by name, description or tag
+sab.blades(tag="sales")
 ```
 
 The Sandbox can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
-`sag.sandbox(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
+`sab.sandbox(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
 figure, a picture, a DataFrame's first rows, Markdown text or a file in the Sandbox; the same `key`
 replaces the card in place when the cell runs again.
 
@@ -444,13 +475,13 @@ replaces the card in place when the cell runs again.
   vault (Windows Credential Manager, macOS Keychain), never in the blade's file; an environment
   variable of the same name works too.
 - **Packages:** the save screen reads the code's imports, names the pip packages (and calls such as
-  `read_excel`, which needs openpyxl), and installs missing ones into SwissArmyGrid's Python on your
-  click. `sag.blade()` turns a missing driver into the exact `uv pip install` command.
+  `read_excel`, which needs openpyxl), and installs missing ones into Swiss Army Bench's Python on your
+  click. `sab.blade()` turns a missing driver into the exact `uv pip install` command.
 - **The catalog:** a blade's catalog command (SQL on its connection, or Python) returns one row per
   column of the source; **Refresh** runs it in a child process and loads it. Or load one directly:
 
 ```python
-sag.load(conn.execute("SELECT * FROM INFORMATION_SCHEMA.COLUMNS").df(), name="Warehouse", dialect="sqlserver")
+sab.load(conn.execute("SELECT * FROM INFORMATION_SCHEMA.COLUMNS").df(), name="Warehouse", dialect="sqlserver")
 ```
 
 ### Portable blades, blade folders, tags and favourites
@@ -459,7 +490,7 @@ A blade travels as one plain Python file, `<name>.blade.py`: its own code under 
 script's inline metadata, that holds what the app needs (TOML):
 
 ```python
-# /// swissarmygrid-blade
+# /// swissarmybench-blade
 # format = 1
 # name = "Orders app DB"
 # kind = "sql"
@@ -479,7 +510,7 @@ conn = psycopg.connect(host="db.example", user="reader", password=secret("passwo
   blade first: its code, its description and tags, the secrets it asks for, and whether its name is
   taken (keep both, replace or skip). Importing runs nothing. **Export** gives one blade's file (on its
   save screen) or every blade as a zip.
-- **Blade folders** (the folder button, or `SWISSARMYGRID_BLADE_FOLDERS`, paths separated as in `PATH`):
+- **Blade folders** (the folder button, or `SWISSARMYBENCH_BLADE_FOLDERS`, paths separated as in `PATH`):
   folders searched, four levels deep, for Python files that *start* with the header. Ordinary Python
   files, virtual environments, `node_modules` and hidden folders are left alone, so blades can live in
   a Git repository beside other code. A folder blade saves back into its own file; removing it is
@@ -489,7 +520,7 @@ conn = psycopg.connect(host="db.example", user="reader", password=secret("passwo
   and searching for that app finds it.
 - **Favourites:** the star pins a blade to the top. Kept on this computer, never in the file.
 - **Fill in your values.** A blade from someone else is written with their server, database, user or
-  file path. SwissArmyGrid finds these settings in the code (read, never run): connection arguments
+  file path. Swiss Army Bench finds these settings in the code (read, never run): connection arguments
   such as `host=` and `dbname=`, the parts of a connection string (`Server=...;Database=...;`), and top-level
   values and paths (`path = Path(r"C:\data\orders.csv")`). The import review and the save screen show
   a field for each, mark the ones still holding an example value (`my-server`, `<your host>`, a
@@ -510,7 +541,7 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
 ```
 
 - **Installed packs** are found in Claude Code's plugin folder (`~/.claude`, or `CLAUDE_CONFIG_DIR`, or
-  `SWISSARMYGRID_CLAUDE_DIR`; the cache follows `CLAUDE_CODE_PLUGIN_CACHE_DIR`). Their blades are on the
+  `SWISSARMYBENCH_CLAUDE_DIR`; the cache follows `CLAUDE_CODE_PLUGIN_CACHE_DIR`). Their blades are on the
   blades page and their tangs in the Relationships window, marked **pack**, read-only: Claude Code
   replaces the installed copy on every update. **Save a copy** keeps your own; Test and Refresh the
   catalog work without saving. A pack switched off in Claude Code adds nothing.
@@ -519,7 +550,7 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
 - **Making one:** **Packs** on the blades page, then **New marketplace**, or from a terminal:
 
   ```
-  sag pack new ./team-blades --pack sales --owner "Sales team"
+  sab pack new ./team-blades --pack sales --owner "Sales team"
   ```
 
   It writes the marketplace, one pack and a README with the commands, and (from the page) adds the
@@ -532,8 +563,8 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
   make or fill packs.
 
 **This repository is a marketplace too.** `/plugin marketplace add DylanCodyBrown/SwissArmyGrid`
-offers two plugins: `swissarmygrid` (the user guide as a skill, and the agent tools, the
-`swissarmygrid-mcp` server the installer puts on your computer; remove a copy you added by hand so the
+offers two plugins: `swissarmybench` (the user guide as a skill, and the agent tools, the
+`swissarmybench-mcp` server the installer puts on your computer; remove a copy you added by hand so the
 tools are not listed twice) and `sample-store`, an example pack with a made-up blade and a tang holding
 the ten relationships of `examples/sample_store.py` (push its tables with
 `python examples/sample_store.py --push`, then **Run** the tang).
@@ -551,16 +582,16 @@ it your blades' names, descriptions and tags (so it can reuse one), `blades_get`
 
 **Copy code** (on an analysis result) copies the analysis as Python to the clipboard, its imports
 first: the grid's steps as checked DuckDB SQL over your table by its own name, then one
-`swissarmygrid.stats` call, the same code the window ran. Paste it into Jupyter or any Python.
+`swissarmybench.stats` call, the same code the window ran. Paste it into Jupyter or any Python.
 
-Tables your Python makes still show in the grid page's Open list: importing `swissarmygrid` in Jupyter
-or IPython starts the watcher (`sag.watch()` in a plain script).
+Tables your Python makes still show in the grid page's Open list: importing `swissarmybench` in Jupyter
+or IPython starts the watcher (`sab.watch()` in a plain script).
 
 **SQL completion.** In Jupyter and IPython, Tab inside SQL (a string with a SELECT, FROM or JOIN, or a
 `%%sql` cell) offers the loaded catalogs' tables and columns; `orders.cu` Tab gives orders' columns.
-It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turns it off).
+It asks the running server and never starts one (`SWISSARMYBENCH_COMPLETE=0` turns it off).
 
-## The agent commands: `sag` and the MCP server
+## The agent commands: `sab` and the MCP server
 
 **The golden rule: everything you can do, the agent can do too** (215 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
@@ -570,7 +601,7 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 215 of
+Every action the page has is a named command in one registry (`swissarmybench/cli/commands.py`), 215 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
@@ -579,15 +610,15 @@ Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (
 registry is ordered the same way, and `commands` returns the catalog grouped by area. Two front ends
 run it:
 
-- `swissarmygrid-mcp` is a stdio MCP server that registers one typed tool per command, generated from
+- `swissarmybench-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
   the whole tool list is about 11,000 tokens for 215 tools (a test holds it under a budget). `guide` and
   `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
-- `sag` is the same commands in a terminal (standard library only, in the plain wheel):
-  `sag tabs_new_query top "SELECT ..."`, `sag steps_add g1 filter @step.json`,
-  `sag agent_events --seconds 60`. `@file` reads a file and `-` reads standard input. `sag --help`
+- `sab` is the same commands in a terminal (standard library only, in the plain wheel):
+  `sab tabs_new_query top "SELECT ..."`, `sab steps_add g1 filter @step.json`,
+  `sab agent_events --seconds 60`. `@file` reads a file and `-` reads standard input. `sab --help`
   prints the catalog.
 
 `agent_events` listens to the server's live broadcasts (a grid changed and who changed it, a table
@@ -596,7 +627,7 @@ opened, an export approval asked for), so an agent can work alongside the user i
 `app_snapshot` returns a PNG of the page as the user sees it (the whole window, or the ribbon, grid,
 steps strip or sandbox). The server draws nothing: it asks the open page, which draws itself with
 html-to-image and uploads the picture, and the server hands it to the agent without writing it to disk.
-The MCP returns it as image content; `sag app_snapshot` saves it and prints the path. It shows real
+The MCP returns it as image content; `sab app_snapshot` saves it and prints the path. It shows real
 cell values, and each one is written to the audit log.
 
 The ribbon's Column buttons and a cell's right-click menu act on the selected columns or cells, which only the browser
@@ -612,7 +643,7 @@ approval, shutting the server down, the audit log,
 pushing table contents (an agent passes a path to `datasets_load`), and opening a table from
 a Python session. Zoom, column widths and the theme live in the browser, so no command reaches them.
 
-The plugin's `UserPromptSubmit` hook (`plugin/hooks/hooks.json`) runs `swissarmygrid-context`, which
+The plugin's `UserPromptSubmit` hook (`plugin/hooks/hooks.json`) runs `swissarmybench-context`, which
 adds to each prompt what you sent your agent from the Workbench (right-click an error or selected code,
 Send to the agent: once, then it is marked read; the `agent_inbox` tool reads it too) and a short
 summary of the table in front (grid, row count, columns and types, steps; never cell values), the way an
@@ -644,7 +675,7 @@ cd web; npm run typecheck
 
 ## Credits
 
-SwissArmyGrid is built with Claude, by Anthropic.
+Swiss Army Bench is built with Claude, by Anthropic.
 
 **How it was built.** Dylan Brown designed it and decided every feature, one question at a time; Claude
 wrote the code, the tests and the documentation, and checked each change in a real browser with made-up

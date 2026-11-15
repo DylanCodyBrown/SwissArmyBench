@@ -14,7 +14,7 @@ to install them.
 
 from __future__ import annotations
 
-from swissarmygrid.domain.blades import Template
+from swissarmybench.domain.blades import Template
 
 # ===== catalog queries =====
 

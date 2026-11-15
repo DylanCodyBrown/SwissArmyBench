@@ -1,4 +1,4 @@
-/* SwissArmyGrid page styles.
+/* Swiss Army Bench page styles.
    Every color is a token defined once per theme (plan section 13): light, dark, high contrast
    light and high contrast dark. theme.ts sets html[data-theme] to the effective theme
    (following the system unless the user picked one); before it runs, the media queries below
@@ -1232,7 +1232,7 @@ table.small td.num {
 }
 
 .cell-number,
-.header-number .sag-header-name {
+.header-number .sab-header-name {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -1268,7 +1268,7 @@ table.small td.num {
   font-weight: 700;
 }
 
-.sag-header {
+.sab-header {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1278,7 +1278,7 @@ table.small td.num {
   cursor: pointer;
 }
 
-.sag-header-top {
+.sab-header-top {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1287,7 +1287,7 @@ table.small td.num {
 
 /* A block, not a flex box: text-overflow works only on a block's own text, so a long name was
    cut mid-letter (and a right-aligned number column's name lost its start, not its end). */
-.sag-header-name {
+.sab-header-name {
   display: block;
   flex: 1;
   min-width: 0;
@@ -1297,13 +1297,13 @@ table.small td.num {
   white-space: nowrap;
 }
 
-.sag-header-sort {
+.sab-header-sort {
   color: var(--accent);
   font-size: 0.9em;
   font-variant-numeric: tabular-nums;
 }
 
-.sag-header-stats {
+.sab-header-stats {
   overflow: hidden;
   color: var(--muted);
   font-size: 0.82em;
@@ -1312,18 +1312,18 @@ table.small td.num {
   white-space: nowrap;
 }
 
-.header-number .sag-header-stats {
+.header-number .sab-header-stats {
   text-align: right;
 }
 
-.sag-header-spark {
+.sab-header-spark {
   display: flex;
   align-items: flex-end;
   gap: 1px;
   height: 10px;
 }
 
-.sag-header-spark span {
+.sab-header-spark span {
   flex: 1;
   min-height: 1px;
   background: var(--border-strong);
@@ -1690,7 +1690,7 @@ html {
 }
 
 /* A text floor: nothing smaller than about 11.5px at 100% zoom. */
-.sag-header-stats,
+.sab-header-stats,
 .card-foot,
 .step-count,
 .step .meta,
@@ -1700,8 +1700,8 @@ html {
 }
 
 /* Every header reserves the histogram row, so all column names share a baseline. */
-.sag-header-spark,
-.sag-header-spark-empty {
+.sab-header-spark,
+.sab-header-spark-empty {
   height: 10px;
 }
 
@@ -2105,36 +2105,36 @@ dialog .expanded-chart {
   color: var(--accent-fg);
 }
 
-.ag-header-cell.col-selected .sag-header-stats,
-.ag-header-cell.col-selected .sag-header-sort {
+.ag-header-cell.col-selected .sab-header-stats,
+.ag-header-cell.col-selected .sab-header-sort {
   color: var(--accent-fg);
 }
 
-.ag-header-cell.col-selected .sag-header-spark span {
+.ag-header-cell.col-selected .sab-header-spark span {
   background: var(--accent-fg);
 }
 
-.sag-header {
+.sab-header {
   cursor: s-resize;
 }
 
 /* The corner above the row numbers selects everything. Blank on purpose; it tints on hover. */
 /* The corner above the row numbers: the column profiles switch, then Select all in the room left. */
-.sag-corner-cell {
+.sab-corner-cell {
   display: flex;
   align-items: center;
   width: 100%;
   height: 100%;
 }
 
-.sag-corner-cell .sag-corner-profiles {
+.sab-corner-cell .sab-corner-profiles {
   flex: none;
   min-height: 0;
   padding: 2px;
   margin-left: 2px;
 }
 
-.sag-corner {
+.sab-corner {
   flex: 1;
   align-self: stretch;
   min-width: 8px;
@@ -2144,11 +2144,11 @@ dialog .expanded-chart {
   cursor: pointer;
 }
 
-.sag-corner:hover {
+.sab-corner:hover {
   background-color: var(--accent-soft);
 }
 
-button.sag-header-sort {
+button.sab-header-sort {
   min-width: 20px;
   padding: 0 3px;
   border: 1px solid transparent;
@@ -2158,18 +2158,18 @@ button.sag-header-sort {
   cursor: pointer;
 }
 
-button.sag-header-sort.active {
+button.sab-header-sort.active {
   color: var(--accent);
   font-weight: 700;
 }
 
-button.sag-header-sort:hover {
+button.sab-header-sort:hover {
   border-color: var(--border);
   background: var(--raised);
 }
 
-body.sag-selecting,
-body.sag-selecting * {
+body.sab-selecting,
+body.sab-selecting * {
   user-select: none;
 }
 
@@ -2817,12 +2817,12 @@ body.agent-view .titlebar {
 }
 
 /* ===== RELATIONSHIPS: key marks, known-pair crowns, ERD cards ===== */
-.sag-header-key {
+.sab-header-key {
   display: inline-flex;
   color: var(--warn);
 }
 
-.sag-header-key .icon-svg {
+.sab-header-key .icon-svg {
   width: calc(13px * var(--ui-zoom, 1));
   height: calc(13px * var(--ui-zoom, 1));
 }
@@ -6456,7 +6456,7 @@ body.dropping-file::after {
 }
 
 /* A column renamed in place (double-click its name). */
-.sag-header-rename {
+.sab-header-rename {
   width: 100%;
   min-width: 60px;
   font: inherit;

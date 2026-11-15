@@ -31,10 +31,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from swissarmygrid.domain import diff
-from swissarmygrid.domain.datasets import Column, DatasetInfo
-from swissarmygrid.domain.grids import POS, Grid
-from swissarmygrid.domain.relationships import (
+from swissarmybench.domain import diff
+from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.grids import POS, Grid
+from swissarmybench.domain.relationships import (
     MAX_ALTERNATIVES,
     MAX_KEY_COLUMNS,
     Candidate,
@@ -66,10 +66,10 @@ from swissarmygrid.domain.relationships import (
     tang_file_name,
     write_tang,
 )
-from swissarmygrid.domain.steps import quote
-from swissarmygrid.services.grids import truncate
-from swissarmygrid.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
-from swissarmygrid.services.workspace import NotFound, TimedOut, Workspace
+from swissarmybench.domain.steps import quote
+from swissarmybench.services.grids import truncate
+from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
+from swissarmybench.services.workspace import NotFound, TimedOut, Workspace
 
 # ===== Key Finder =====
 
@@ -514,7 +514,7 @@ class Compare:
 
     @property
     def table(self) -> str:
-        return f'"__sag_cmp_{self.id}"'
+        return f'"__sab_cmp_{self.id}"'
 
     def to_json(self) -> dict[str, Any]:
         focus: dict[str, Any] | None = None
@@ -625,7 +625,7 @@ class Compares:
         )
         compared = diff.pairs(left.columns, right.columns, cmp.spec.keys, options)
         diff.kept_sql("", keys, compared, options, mapping_order(keys))  # refuses an unknown column
-        staged = f'"__sag_cmp_{cmp.id}_diffed"'
+        staged = f'"__sab_cmp_{cmp.id}_diffed"'
         cur.execute(
             f"CREATE OR REPLACE TABLE {staged} AS "
             + diff.diffed_sql(mapping, left.positioned, right.positioned, compared, options)

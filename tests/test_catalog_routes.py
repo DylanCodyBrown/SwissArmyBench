@@ -84,7 +84,7 @@ def test_catalogs_stay_out_of_the_sql_box(client: TestClient) -> None:
     load(client)
     pushed = client.put("/datasets/loaves", json={"columns": ["a"], "data": [[1]]}, headers=AUTH)
     grid = pushed.json()["grid"]
-    for sql in ["SELECT * FROM __sag_catalog", "SELECT * FROM information_schema.tables"]:
+    for sql in ["SELECT * FROM __sab_catalog", "SELECT * FROM information_schema.tables"]:
         response = client.post(f"/grids/{grid}/sql", json={"sql": sql}, headers=AUTH)
         assert response.status_code == 400, response.text
 
@@ -143,7 +143,7 @@ def test_save_refresh_and_browse_a_blade(client: TestClient, bakery: Path) -> No
     assert test.json() == {"ok": True, "type": "sqlite3.Connection"}
 
 
-def test_secrets_are_set_but_never_read_back_except_by_sag_blade(client: TestClient, bakery: Path) -> None:
+def test_secrets_are_set_but_never_read_back_except_by_sab_blade(client: TestClient, bakery: Path) -> None:
     blade = sqlite_blade(bakery, "password = secret('password')\n") | {"secrets": {"password": "seeded-rye"}}
     assert client.post("/blades", json=blade, headers=AUTH).status_code == 200
     detail = client.get("/blades/Bakery%20DB", headers=AUTH)
@@ -248,7 +248,7 @@ def test_export_then_import_on_another_computer(client: TestClient, bakery: Path
     exported = client.get("/blades/Bakery%20DB/export", headers=AUTH)
     assert exported.status_code == 200 and "bakery_db.blade.py" in exported.headers["content-disposition"]
     text = exported.text
-    assert text.startswith("# /// swissarmygrid-blade") and '"orders-function-app"' in text
+    assert text.startswith("# /// swissarmybench-blade") and '"orders-function-app"' in text
     # The other computer: no blades yet. Review first: nothing saved, nothing run.
     client.delete("/blades/Bakery%20DB", headers=AUTH)
     files = [{"name": "bakery_db.blade.py", "data": base64.b64encode(text.encode()).decode()}]
@@ -289,7 +289,7 @@ def test_import_never_runs_code_and_reports_bad_files(client: TestClient, tmp_pa
     marker = tmp_path / "ran.txt"
     code = f"open({str(marker)!r}, 'w').write('ran')\nx = 1\n"
     text = (
-        '# /// swissarmygrid-blade\n# format = 1\n# name = "Sneaky"\n# kind = "other"\n'
+        '# /// swissarmybench-blade\n# format = 1\n# name = "Sneaky"\n# kind = "other"\n'
         '# variable = "x"\n# ///\n' + code
     )
     files = [
@@ -297,7 +297,7 @@ def test_import_never_runs_code_and_reports_bad_files(client: TestClient, tmp_pa
         {"name": "script.py", "data": base64.b64encode(b"print('hello')\n").decode()},
     ]
     preview = client.post("/blades/import", json={"files": files}, headers=AUTH).json()["items"]
-    assert preview[0]["blade"]["code"] == code and "no swissarmygrid-blade header" in preview[1]["error"]
+    assert preview[0]["blade"]["code"] == code and "no swissarmybench-blade header" in preview[1]["error"]
     client.post("/blades/import", json={"files": files, "apply": True}, headers=AUTH)
     assert not marker.exists()  # reading and saving a blade never runs it
     bad = client.post("/blades/import", json={"files": [{"name": "x", "data": "%%%"}]}, headers=AUTH)
@@ -307,11 +307,11 @@ def test_import_never_runs_code_and_reports_bad_files(client: TestClient, tmp_pa
 def test_folders_and_favourites_over_http(
     client: TestClient, tmp_path: Path, bakery: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("SWISSARMYGRID_BLADE_FOLDERS", raising=False)
+    monkeypatch.delenv("SWISSARMYBENCH_BLADE_FOLDERS", raising=False)
     team = tmp_path / "team"
     team.mkdir()
     (team / "pantry.blade.py").write_text(
-        '# /// swissarmygrid-blade\n# format = 1\n# name = "Pantry"\n# kind = "other"\n# variable = "x"\n'
+        '# /// swissarmybench-blade\n# format = 1\n# name = "Pantry"\n# kind = "other"\n# variable = "x"\n'
         '# tags = ["orders-function-app"]\n# ///\nx = 1\n'
     )
     answer = client.put("/blades/folders", json={"folders": [str(team)]}, headers=AUTH).json()
@@ -379,7 +379,7 @@ def test_the_save_screen_sees_settings_with_suggestions_and_writes_new_values(cl
 
 
 def test_csv_starter_path_needs_a_value(client: TestClient) -> None:
-    from swissarmygrid.server.blade_templates import TEMPLATES
+    from swissarmybench.server.blade_templates import TEMPLATES
 
     csv = next(t for t in TEMPLATES if t.id == "csv")
     plain = client.post("/blades/inspect", json={"code": csv.code}, headers=AUTH).json()["settings"]
@@ -390,7 +390,7 @@ def test_csv_starter_path_needs_a_value(client: TestClient) -> None:
 def test_import_review_offers_settings_and_import_writes_them_and_keeps_typed_secrets(
     client: TestClient,
 ) -> None:
-    from swissarmygrid.domain.blades import write_blade
+    from swissarmybench.domain.blades import write_blade
 
     text = write_blade(
         {"name": "Orders DB", "kind": "sql", "dialect": "postgres", "code": POSTGRES_CODE, "variable": "conn"}

@@ -12,8 +12,8 @@ import pandas as pd
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid import stats
-from swissarmygrid.domain.proofs import PROOFS, ProofError, n, proof
+from swissarmybench import stats
+from swissarmybench.domain.proofs import PROOFS, ProofError, n, proof
 from tests.conftest import AUTH
 
 

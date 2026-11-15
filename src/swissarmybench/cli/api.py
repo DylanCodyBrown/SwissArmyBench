@@ -9,7 +9,7 @@ It speaks HTTP/1.1 over a plain socket instead of `urllib` or `http.client`: tho
 parser, `ssl` and `inspect` (about 100 ms of imports on a laptop), and a loopback request needs none
 of it. There is no separate health check either: a refused connection already says "not running".
 
-Standard library only, and nothing from the rest of the package, so `sag` starts fast.
+Standard library only, and nothing from the rest of the package, so `sab` starts fast.
 """
 
 from __future__ import annotations
@@ -24,9 +24,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
+from swissarmybench.renamed import env, home_state_folder
+
 NOT_RUNNING = (
-    "SwissArmyGrid isn't running. Start it with the swissarmygrid command (installed with uv), or "
-    "VS Code's Open SwissArmyGrid button."
+    "Swiss Army Bench isn't running. Start it with the swissarmybench command (installed with uv), or "
+    "VS Code's Open Swiss Army Bench button."
 )
 
 
@@ -35,9 +37,9 @@ class CommandError(Exception):
 
 
 def info_file() -> Path:
-    """The server's connection file; SWISSARMYGRID_INFO overrides it (tests use this)."""
-    override = os.environ.get("SWISSARMYGRID_INFO")
-    return Path(override) if override else Path.home() / ".swissarmygrid" / "server.json"
+    """The server's connection file; SWISSARMYBENCH_INFO overrides it (tests use this)."""
+    override = env("SWISSARMYBENCH_INFO")
+    return Path(override) if override else home_state_folder() / "server.json"
 
 
 def _info() -> dict[str, Any]:
@@ -228,7 +230,7 @@ def collect_events(
                 f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{info['port']}\r\n"
                 f"Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\n"
                 f"Sec-WebSocket-Version: 13\r\n"
-                f"Sec-WebSocket-Protocol: swissarmygrid, {info['token']}\r\n\r\n"
+                f"Sec-WebSocket-Protocol: swissarmybench, {info['token']}\r\n\r\n"
             ).encode("latin-1")
         )
         buffer = bytearray()

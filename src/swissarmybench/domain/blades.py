@@ -1,7 +1,7 @@
 """Blades: saved Python that reaches outside Python to load something (plan decisions 14-16).
 
 A database connection, an API client, a CSV path, a workbook: any code that loads from outside is a
-blade. It is written once, saved by the server, and run wherever it is needed: `sag.blade("name")` runs
+blade. It is written once, saved by the server, and run wherever it is needed: `sab.blade("name")` runs
 it in the caller's Python and returns its variable; the server's Refresh runs it in a child process to
 load the blade's catalog.
 
@@ -10,7 +10,7 @@ Standard library only, so the plain client can use it. In this order:
 
   the code       what a blade's code makes, asks for and imports (read with `ast`, never run)
   the packages   the pip packages its imports need
-  the file       the portable `.blade.py` file: a `# /// swissarmygrid-blade` TOML header, and zips
+  the file       the portable `.blade.py` file: a `# /// swissarmybench-blade` TOML header, and zips
   the settings   the values each person fills in: found with `ast`, placeholders, suggestions, written back
   the blade      the saved record (`Blade`) and the check every save goes through (`parse_blade`)
 
@@ -32,8 +32,8 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmygrid.domain import python_connections
-from swissarmygrid.domain.catalogs import CatalogError, check_name, normalize_dialect
+from swissarmybench.domain import python_connections
+from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 
 # ===== the code =====
 # What a blade's code makes, asks for and imports, read with `ast` and never run.
@@ -177,8 +177,8 @@ def missing_imports(script: str, wanted: list[str]) -> list[str]:
     """The import statements in `wanted` that `script` does not already make. An import counts as made
     when the script binds the same name to the same thing: `import pandas as pd` is there when the
     script has it anywhere (even among others on one line), and `from x import a` is there when the
-    script has `from x import a, b`; but `import swissarmygrid` does not give the `sag` that
-    `import swissarmygrid as sag` would. A script that does not parse yet gets them all."""
+    script has `from x import a, b`; but `import swissarmybench` does not give the `sab` that
+    `import swissarmybench as sab` would. A script that does not parse yet gets them all."""
     try:
         tree = ast.parse(script)
     except SyntaxError:
@@ -287,8 +287,10 @@ CALL_NEEDS: dict[str, str] = {
     "read_html": "lxml",
 }
 
-# Never installed by pip: the standard library, and SwissArmyGrid itself (sag.blade gives it).
-_PROVIDED: frozenset[str] = frozenset({*sys.stdlib_module_names, "swissarmygrid", "__future__"})
+# Never installed by pip: the standard library, and Swiss Army Bench itself (sab.blade gives it).
+_PROVIDED: frozenset[str] = frozenset(
+    {*sys.stdlib_module_names, "swissarmybench", "swissarmygrid", "__future__"}  # and its old name
+)
 
 
 @dataclass(frozen=True)
@@ -303,7 +305,7 @@ class Package:
 
 
 def provided(dotted: str) -> bool:
-    """A module pip never installs: the standard library's, or SwissArmyGrid's own."""
+    """A module pip never installs: the standard library's, or Swiss Army Bench's own."""
     return dotted.split(".")[0] in _PROVIDED
 
 
@@ -355,7 +357,7 @@ def missing_module_hint(module: str) -> str:
 # The file is the blade's own code under a header comment block, written the way Python's inline script
 # metadata is (`# /// <type>` ... `# ///`, each line starting `# `), holding TOML:
 #
-#     # /// swissarmygrid-blade
+#     # /// swissarmybench-blade
 #     # format = 1
 #     # name = "Warehouse"
 #     # kind = "sql"
@@ -386,7 +388,9 @@ def missing_module_hint(module: str) -> str:
 # Standard library only, so the client can use it too.
 
 FORMAT: int = 1
-HEADER_TYPE: str = "swissarmygrid-blade"
+HEADER_TYPE: str = "swissarmybench-blade"
+# The header SwissArmyGrid wrote before the rename: still a blade (written with the new header on export).
+OLD_HEADER_TYPE: str = "swissarmygrid-blade"
 SUFFIX: str = ".blade.py"
 # An analysis blade is the user's own analysis: a function of the grid's rows (a pandas DataFrame, and
 # optionally the selected columns) that returns markdown, a table, a figure, or a list or dict of them.
@@ -518,7 +522,7 @@ def _header_start(lines: list[str]) -> int | None:
     not count, so an ordinary script that mentions the marker is never taken for a blade."""
     for i, line in enumerate(lines[:200]):
         match = _OPEN.match(line)
-        if match and match["type"] == HEADER_TYPE:
+        if match and match["type"] in (HEADER_TYPE, OLD_HEADER_TYPE):
             return i
         if line.strip() and not line.lstrip().startswith("#"):
             return None

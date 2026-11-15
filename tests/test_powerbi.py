@@ -15,14 +15,14 @@ import pandas as pd
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.adapters.blade_run import BladeRunError, run_catalog, run_code
-from swissarmygrid.client import blades_client, sql_cell
-from swissarmygrid.domain import notebooks, powerbi
-from swissarmygrid.domain.blades import detect_settings, read_code
-from swissarmygrid.domain.catalogs import count_sql, dax_column, dax_table, normalize_dialect, select_sql
-from swissarmygrid.domain.connections import signs_in_interactively
-from swissarmygrid.domain.relationships import Model, Relationship, conflicts, merge
-from swissarmygrid.server.blade_templates import (
+from swissarmybench.adapters.blade_run import BladeRunError, run_catalog, run_code
+from swissarmybench.client import blades_client, sql_cell
+from swissarmybench.domain import notebooks, powerbi
+from swissarmybench.domain.blades import detect_settings, read_code
+from swissarmybench.domain.catalogs import count_sql, dax_column, dax_table, normalize_dialect, select_sql
+from swissarmybench.domain.connections import signs_in_interactively
+from swissarmybench.domain.relationships import Model, Relationship, conflicts, merge
+from swissarmybench.server.blade_templates import (
     BY_ID,
     POWERBI_BROWSER,
     POWERBI_CATALOG,
@@ -642,9 +642,9 @@ def test_a_table_opens_as_a_grid_its_first_rows_counted_then_all(
     ).json()
     assert preview["columns"] == ["CustomerKey", "Customer Name", "Region"] and len(preview["rows"]) == 8
     assert preview["rows"][2][2] is None  # a customer with no region
-    # In a notebook the table's cell reads it again the way the docs teach: sag.dax, on its dataset.
+    # In a notebook the table's cell reads it again the way the docs teach: sab.dax, on its dataset.
     cells = {t["name"]: t for t in client.get("/workbench/tables", headers=AUTH).json()["tables"]}
-    assert "Sales = sag.dax('Finance/Sales model', \"\"\"\nEVALUATE 'Sales'\n" in cells["Sales"]["loaded"]
+    assert "Sales = sab.dax('Finance/Sales model', \"\"\"\nEVALUATE 'Sales'\n" in cells["Sales"]["loaded"]
     # The second dataset's table: its rows come from that dataset, the count too.
     second = client.post(
         "/connections/Finance/open", json={"schema": BUDGET, "table": "Budget"}, headers=AUTH
@@ -729,7 +729,7 @@ def cell(standin: made_up.StandIn, monkeypatch: pytest.MonkeyPatch) -> Iterator[
     yield
 
 
-def test_sag_dax_names_the_dataset_after_the_connection_and_gives_a_frame(
+def test_sab_dax_names_the_dataset_after_the_connection_and_gives_a_frame(
     cell: None, standin: made_up.StandIn
 ) -> None:
     frame = sql_cell.dax("Finance/Sales model", "EVALUATE TOPN(5, 'Customer')")
@@ -746,7 +746,7 @@ def test_sag_dax_names_the_dataset_after_the_connection_and_gives_a_frame(
     assert len(sql_cell.dax(f"Finance/{made_up.BUDGET_DATASET}", "EVALUATE 'Department'")) == 3
     assert len([r for r in standin.requests if r["what"] == "token"]) == 1
     assert len([r for r in standin.requests if r["what"] == "datasets"]) == 1
-    # sag.sql on a dataset is the same call underneath.
+    # sab.sql on a dataset is the same call underneath.
     assert len(sql_cell.sql("Finance/Sales model", "EVALUATE TOPN(5, 'Customer')")) == 5
     found = sql_cell.connection("Finance/Sales model")
     assert (found.name, found.describe, found.language) == (
@@ -756,9 +756,9 @@ def test_sag_dax_names_the_dataset_after_the_connection_and_gives_a_frame(
         ("Finance", "a Power BI workspace: a DAX cell names a dataset, %%dax Finance/<dataset>"),
         ("Warehouse", "database (sqlite SQL)"),
     ]
-    import swissarmygrid as sag
+    import swissarmybench as sab
 
-    assert sag.dax is sql_cell.dax and "dax" in sag.__all__
+    assert sab.dax is sql_cell.dax and "dax" in sab.__all__
 
 
 def test_a_workspace_with_several_datasets_wants_one_named(cell: None, standin: made_up.StandIn) -> None:
@@ -837,7 +837,7 @@ def test_a_dax_cell_is_a_code_cell_that_starts_with_its_dax_line() -> None:
     raw = json.loads(text)["cells"][0]
     assert raw["cell_type"] == "code"  # plain Jupyter with the client runs it as it is
     assert raw["source"] == ["%%dax 'Finance/Sales model'\n", "EVALUATE TOPN(10, 'Sales')"]
-    assert raw["metadata"]["swissarmygrid"] == {
+    assert raw["metadata"]["swissarmybench"] == {
         "kind": "dax",
         "connection": "Finance/Sales model",
         "number": 3,
@@ -851,7 +851,7 @@ def test_a_dax_cell_is_a_code_cell_that_starts_with_its_dax_line() -> None:
     # workspace's dataset is named with a slash. A SQL cell on a plain connection stays one.
     old = json.loads(text)
     old["cells"][0]["source"] = ["%%sql 'Finance/Sales model'\n", "EVALUATE 'Sales'"]
-    old["cells"][0]["metadata"] = {"swissarmygrid": {"kind": "sql", "connection": "Finance/Sales model"}}
+    old["cells"][0]["metadata"] = {"swissarmybench": {"kind": "sql", "connection": "Finance/Sales model"}}
     assert [(c.kind, c.connection) for c in notebooks.read_notebook(json.dumps(old))] == [
         ("dax", "Finance/Sales model"),
         ("sql", "Warehouse"),
@@ -877,12 +877,12 @@ def test_a_dax_cell_is_a_code_cell_that_starts_with_its_dax_line() -> None:
 
 
 def test_a_script_keeps_a_dax_cell_as_python_under_its_marker() -> None:
-    from swissarmygrid.domain.table_cells import arrange_script, parse_script
+    from swissarmybench.domain.table_cells import arrange_script, parse_script
 
     script = (
-        "import swissarmygrid as sag\n"
+        "import swissarmybench as sab\n"
         "# %% [1] [dax] Sales by region\n"
-        'by_region = sag.dax("Finance/Sales model", """\n'
+        'by_region = sab.dax("Finance/Sales model", """\n'
         "EVALUATE SUMMARIZECOLUMNS('Customer'[Region], \"Total Sales\", [Total Sales])\n"
         '""")\n'
     )
@@ -895,7 +895,7 @@ def test_a_script_keeps_a_dax_cell_as_python_under_its_marker() -> None:
 def test_a_dax_cell_gets_no_uses_line() -> None:
     """DAX names its dataset's own tables, never the kernel's: `Sales` in a DAX cell is not the open
     table Sales, so the app writes no uses line on it (a SQL cell beside it gets one)."""
-    from swissarmygrid.domain.table_cells import PlanCell, TableSpec, arrange
+    from swissarmybench.domain.table_cells import PlanCell, TableSpec, arrange
 
     cells = [
         PlanCell(1, "code", "Sales = 1"),
@@ -911,7 +911,7 @@ def test_a_dax_cell_gets_no_uses_line() -> None:
 
 
 def test_the_uses_line_reads_dax_without_breaking() -> None:
-    from swissarmygrid.domain.table_cells import names_used, uses_line, with_uses
+    from swissarmybench.domain.table_cells import names_used, uses_line, with_uses
 
     dax = (
         """EVALUATE\nSUMMARIZECOLUMNS('Customer'[Region], "Total Sales", [Total Sales])  -- Sales by region"""
@@ -1143,7 +1143,7 @@ def test_the_agents_commands_list_datasets_import_one_and_add_a_dax_cell(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The golden rule: what the page does with a workspace, the agent does by a command."""
-    from swissarmygrid.cli import api, commands
+    from swissarmybench.cli import api, commands
 
     sent: list[tuple[str, str, Any]] = []
 

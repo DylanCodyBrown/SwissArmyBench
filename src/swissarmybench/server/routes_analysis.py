@@ -18,7 +18,7 @@
   POST /analysis-proof        {"analysis", "result", "dataset"} -> {"title", "markdown"}: Show the math,
                               the result's own numbers worked through (domain/proofs.py)
   POST /grids/{id}/analysis-code {"analysis", "body"} -> {"code", "imports"}: the analysis as Python for
-                              the notebook (the steps as checked SQL, then the swissarmygrid.stats call)
+                              the notebook (the steps as checked SQL, then the swissarmybench.stats call)
 
   GET  /grids/{id}/analysis-defaults -> {"identifiers", "number", "column", "predictors"}: what the forms
                               start on in this view, never an identifier (domain/analysis.py)
@@ -34,10 +34,10 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.domain.proofs import proof as show_the_math
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.analysis import Analysis
-from swissarmygrid.services.grids import GridService
+from swissarmybench.domain.proofs import proof as show_the_math
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.grids import GridService
 
 
 def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:

@@ -9,8 +9,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import error_response, json_response
-from swissarmygrid.services.folders import Folders
+from swissarmybench.server.http import error_response, json_response
+from swissarmybench.services.folders import Folders
 
 
 def routes(folders: Folders) -> list[BaseRoute]:

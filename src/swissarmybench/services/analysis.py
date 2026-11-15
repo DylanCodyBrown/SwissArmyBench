@@ -2,7 +2,7 @@
 the math and the query text).
 
 Each analysis is a `run_*` function over any cursor, a relation and its columns, so the same code runs
-on a grid's view here and on an analyst's own table through `swissarmygrid.stats` (which is what the
+on a grid's view here and on an analyst's own table through `swissarmybench.stats` (which is what the
 notebook code calls: the numbers match the window's because they come from the same function). The
 `Analysis` service reads the rows the user is looking at, after the grid's steps, and changes nothing:
 an outlier result carries the steps that would show or exclude its rows, for the page or the agent.
@@ -13,14 +13,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from swissarmygrid.domain import analysis as A
-from swissarmygrid.domain import stats
-from swissarmygrid.domain.datasets import Column, DatasetInfo
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.steps import type_family
-from swissarmygrid.services.codegen import generate_code
-from swissarmygrid.services.ports import AGENT, BACKGROUND, CodeVerifier, SqlSession
-from swissarmygrid.services.workspace import Conflict, Workspace
+from swissarmybench.domain import analysis as A
+from swissarmybench.domain import stats
+from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.steps import type_family
+from swissarmybench.services.codegen import generate_code
+from swissarmybench.services.ports import AGENT, BACKGROUND, CodeVerifier, SqlSession
+from swissarmybench.services.workspace import Conflict, Workspace
 
 MAX_STEP_VALUES = 1_000  # flagged values (or groups) written into a Show these rows step
 FEW_VALUES = 12  # a number column with this many different values or fewer is categories as it is
@@ -321,7 +321,7 @@ class Analysis:
         self, analysis: str, grid: Grid, info: DatasetInfo, body: dict[str, Any]
     ) -> dict[str, Any]:
         """The analysis as Python for the notebook: the grid's steps as one DuckDB query (checked
-        against the grid, like Copy as SQL), then the `swissarmygrid.stats` call the window made."""
+        against the grid, like Copy as SQL), then the `swissarmybench.stats` call the window made."""
         if analysis not in A.CODE_ARGUMENTS:
             raise A.AnalysisError(f"No analysis {analysis!r}.")
         view_sql: str | None = None

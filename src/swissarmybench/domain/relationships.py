@@ -5,7 +5,7 @@ A saved set of relationships is a **tang** (the owner's name: the part of a blad
 the handle, as a join anchors two tables), kept as a .tang file (below) that people share through the
 same folders as blades. The original model JSON (no marker) still reads.
 
-A model names tables by their dataset name in the grid (what `sag.push(df, "orders")` called
+A model names tables by their dataset name in the grid (what `sab.push(df, "orders")` called
 them), so pushing the same tables again makes the model apply as-is:
 
     {
@@ -44,11 +44,11 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
-from swissarmygrid.domain.analysis import is_identifier
-from swissarmygrid.domain.datasets import Column
-from swissarmygrid.domain.diff import DiffOptions
-from swissarmygrid.domain.grids import POS
-from swissarmygrid.domain.steps import quote, type_family
+from swissarmybench.domain.analysis import is_identifier
+from swissarmybench.domain.datasets import Column
+from swissarmybench.domain.diff import DiffOptions
+from swissarmybench.domain.grids import POS
+from swissarmybench.domain.steps import quote, type_family
 
 KINDS: tuple[str, ...] = ("one-to-one", "one-to-many", "many-to-one", "many-to-many")
 _NAME = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")  # a table: its dataset name
@@ -558,7 +558,7 @@ def preferred_key(pairs: list[dict[str, Any]]) -> tuple[str, str] | None:
 # row with the same key, or one of them with a blank placeholder beside it, so a person reads straight
 # across and sees every match. Both panes read the same mapping, so row N lines up on both sides.
 #
-# Each side is its grid's view (after its own steps), as a positioned relation (__sag_pos = the
+# Each side is its grid's view (after its own steps), as a positioned relation (__sab_pos = the
 # row's place in that view). The mapping is one full outer join on the keys, compared the way the
 # Key Finder compares them (`normalized` above: 42, 42.0 and '42' meet; text trimmed), and
 # sorted by key: number-looking keys as numbers (9 before 10), then as text, blanks last.
@@ -637,7 +637,7 @@ def _key_expressions(columns: tuple[Column, ...], names: list[str], side: str) -
 
 
 def keyed_sql(positioned: str, columns: tuple[Column, ...], names: list[str], side: str) -> str:
-    """A side as (__sag_pos, k0, k1, ...): its position and its normalized key values."""
+    """A side as (__sab_pos, k0, k1, ...): its position and its normalized key values."""
     keys = _key_expressions(columns, names, side)
     parts = ", ".join(f"{sql} AS k{i}" for i, sql in enumerate(keys))
     return f"SELECT {POS}, {parts} FROM ({positioned})"
@@ -997,7 +997,7 @@ def path_between(relationships: tuple[Relationship, ...], start: str, end: str) 
 # another JSON file, and its own extension:
 #
 #     {
-#       "swissarmygrid": "tang", "format": 1,
+#       "swissarmybench": "tang", "format": 1,
 #       "name": "Sample store", "description": "...", "tags": ["sales"],
 #       "tables": {"orders": {"primary_key": ["order_id"], "columns": [["order_id", "BIGINT"], ...]}},
 #       "relationships": [{"from": "orders", "from_columns": ["customer_id"], "to": "customers",
@@ -1011,6 +1011,9 @@ def path_between(relationships: tuple[Relationship, ...], start: str, end: str) 
 
 TANG_MARK = "tang"
 TANG_FORMAT = 1
+# The marker's key: "swissarmybench"; a tang saved before the rename has SwissArmyGrid's, still read.
+TANG_KEY = "swissarmybench"
+OLD_TANG_KEY = "swissarmygrid"
 TANG_SUFFIX = ".tang"
 
 
@@ -1027,8 +1030,7 @@ def write_tang(model: Model) -> str:
     """The model as a .tang file's text."""
     body = model.to_json()
     return (
-        json.dumps({"swissarmygrid": TANG_MARK, "format": TANG_FORMAT, **body}, indent=2, ensure_ascii=False)
-        + "\n"
+        json.dumps({TANG_KEY: TANG_MARK, "format": TANG_FORMAT, **body}, indent=2, ensure_ascii=False) + "\n"
     )
 
 
@@ -1041,13 +1043,13 @@ def read_tang(text: str) -> Model:
         raise TangError(
             f"This is not a tang: it is not readable ({error.msg}, line {error.lineno})."
         ) from None
-    if not isinstance(raw, dict) or raw.get("swissarmygrid") != TANG_MARK:
-        raise TangError('This is not a tang: it does not start with "swissarmygrid": "tang".')
+    if not isinstance(raw, dict) or TANG_MARK not in (raw.get(TANG_KEY), raw.get(OLD_TANG_KEY)):
+        raise TangError('This is not a tang: it does not start with "swissarmybench": "tang".')
     if raw.get("format") != TANG_FORMAT:
         raise TangError(
             f"This tang is in format {raw.get('format')!r}; this version reads format {TANG_FORMAT}."
         )
     try:
-        return parse_model({k: v for k, v in raw.items() if k not in ("swissarmygrid", "format")})
+        return parse_model({k: v for k, v in raw.items() if k not in (TANG_KEY, OLD_TANG_KEY, "format")})
     except ValueError as error:
         raise TangError(f"This tang does not hold together: {error}") from None

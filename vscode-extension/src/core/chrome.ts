@@ -1,4 +1,4 @@
-// chrome.ts -- "Open SAG in Chrome": find Google Chrome and start it on the workspace address. No vscode import, and the two
+// chrome.ts -- "Open SAB in Chrome": find Google Chrome and start it on the workspace address. No vscode import, and the two
 // things that touch the machine (does this file exist, start this program) are passed in, so the unit tests run without
 // VS Code or Chrome and the integration tests can swap in a fake launcher.
 //
@@ -8,7 +8,7 @@
 //
 // The address carries the server's token in its #fragment, which a browser never sends over the network, exactly as the
 // VS Code tab's address does. Chrome receives it on its command line, which other programs of the same user can read,
-// as they can read the connection file the token comes from (~/.swissarmygrid/server.json): nothing new is exposed.
+// as they can read the connection file the token comes from (~/.swissarmybench/server.json): nothing new is exposed.
 
 import type { ChildProcess, SpawnOptions } from "child_process";
 
@@ -65,7 +65,7 @@ function launch(chrome: string, url: string, spawn: Spawn): Promise<Opened> {
 }
 
 /**
- * Open `url` in Google Chrome. `configured` is the person's own path to it (the swissarmygrid.chromePath setting) and,
+ * Open `url` in Google Chrome. `configured` is the person's own path to it (the swissarmybench.chromePath setting) and,
  * when given, is the only place looked: a wrong path is reported, never quietly replaced by another browser.
  */
 export async function openInChrome(

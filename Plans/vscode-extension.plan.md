@@ -3,7 +3,7 @@
 > **Superseded (the owner, 2026-11-14):** "The goal is to install everything with UV. The vscode extension
 > just adds the mcp tools as vscode tools and adds the button to open Swiss army grid the same the icon
 > tray does." The extension is now only that: an MCP server definition provider for the uv tool
-> install's `swissarmygrid.mcp.server`, and Open SwissArmyGrid (start the server if it is not running,
+> install's `swissarmybench.mcp.server`, and Open Swiss Army Bench (start the server if it is not running,
 > open the workspace in a window of its own). It no longer starts the server with VS Code, carries or
 > updates a server, pushes files or shows grids in a VS Code tab. The installers stay uv only. What
 > follows is the earlier design, kept for its reasons.
@@ -16,17 +16,17 @@ Status (2026-10-23): planned, not built. Waiting on Dylan's review of the open q
    that restarts the server.
 2. A button at the top of a data file pushes it to the grid: CSV, JSON and every other type the
    server reads, plus Excel (`.xlsx`).
-3. The Python import (`sag.push`) relies on the server VS Code runs, never a stray local process,
+3. The Python import (`sab.push`) relies on the server VS Code runs, never a stray local process,
    and nothing else in the framework starts the server from somewhere else.
 
 ## Today: the server starts from whichever install asks first
 
 | Caller | How it starts a server | Which Python runs it |
 |---|---|---|
-| `sag.push` in a project | `ensure_server(start=True)`, then `server_command()` | `SWISSARMYGRID_SERVER`; else the project's own Python if it happens to have duckdb, uvicorn, starlette and sqlglot; else the uv tool install; else a `swissarmygrid` on PATH |
-| `swissarmygrid-mcp` (the plugin, run by uvx) | `_call` calls `ensure_server(start=True)` | uvx's cached environment: it has the `[server]` extra, so rule 2 of `server_command()` picks it |
-| `swissarmygrid` / `python -m swissarmygrid.server` | started by hand | the uv tool install, or the repo's `.venv` during development |
-| the prompt hook (`swissarmygrid-context`) | never: it only reads the connection file | n/a |
+| `sab.push` in a project | `ensure_server(start=True)`, then `server_command()` | `SWISSARMYBENCH_SERVER`; else the project's own Python if it happens to have duckdb, uvicorn, starlette and sqlglot; else the uv tool install; else a `swissarmybench` on PATH |
+| `swissarmybench-mcp` (the plugin, run by uvx) | `_call` calls `ensure_server(start=True)` | uvx's cached environment: it has the `[server]` extra, so rule 2 of `server_command()` picks it |
+| `swissarmybench` / `python -m swissarmybench.server` | started by hand | the uv tool install, or the repo's `.venv` during development |
+| the prompt hook (`swissarmybench-context`) | never: it only reads the connection file | n/a |
 | `setup.ps1` | never: it stops the server before reinstalling | n/a |
 
 `lifecycle.py` keeps it to one server at a time, so nothing crashes. But the first caller decides
@@ -42,15 +42,15 @@ which version and which packages run:
 ### 1. One owner
 
 - The extension starts the server, always from the uv tool install:
-  `<uv tool dir>\swissarmygrid\Scripts\python.exe -m swissarmygrid.server`. That is the install
+  `<uv tool dir>\swissarmybench\Scripts\python.exe -m swissarmybench.server`. That is the install
   the setup skill makes and updates, so the server's version is always the plugin's.
 - Nothing else starts one. `ensure_server` becomes connect-only: `push()` and the MCP use the
-  server named in `~/.swissarmygrid/server.json`, or fail with "SwissArmyGrid isn't running. Start
-  it from the SwissArmyGrid item in VS Code's status bar." `server_command()` and the detached
+  server named in `~/.swissarmybench/server.json`, or fail with "Swiss Army Bench isn't running. Start
+  it from the Swiss Army Bench item in VS Code's status bar." `server_command()` and the detached
   `Popen` go. `push(start_server=...)` stays one version as an ignored argument, so existing calls
   don't break.
-- Starting by hand stays, for development and for use outside VS Code (`swissarmygrid`, or
-  `python -m swissarmygrid.server` in the repo). That is a deliberate start, not a stray one.
+- Starting by hand stays, for development and for use outside VS Code (`swissarmybench`, or
+  `python -m swissarmybench.server` in the repo). That is a deliberate start, not a stray one.
 - The connection file records who started the server (`started_by`: `vscode` or `cli`) and its
   executable. `/health` already reports the version and process id.
 
@@ -72,7 +72,7 @@ which version and which packages run:
   the workspace with `simpleBrowser.show`. That command works in VS Code 1.143 (docs/verified.md),
   but it is built in, not a stable API, so the fallback is `vscode.env.openExternal`, the system
   browser.
-- Setting `swissarmygrid.openIn`: `vscode` (default) or `browser`.
+- Setting `swissarmybench.openIn`: `vscode` (default) or `browser`.
 
 ### 4. Push buttons on files
 
@@ -88,7 +88,7 @@ which version and which packages run:
 
 ### 5. Shipped through the plugin
 
-- The `.vsix` ships in the plugin folder (`Claude Plugins/swissarmygrid/vscode/`), built by
+- The `.vsix` ships in the plugin folder (`Claude Plugins/swissarmybench/vscode/`), built by
   `deploy_plugin.py` beside the wheel. The setup skill installs it with
   `code --install-extension <vsix> --force` after the server. Teammates keep one update path:
   update the plugin, run setup.
@@ -126,4 +126,4 @@ the order is: build the new owner, then take the old ones away, in the same rele
    running.
 2. **Outside VS Code** (a scheduled script, Claude Code in a plain terminal). With nothing else
    allowed to start a server, those calls fail with the message until someone starts it with
-   `swissarmygrid`. Proposed: yes, by design.
+   `swissarmybench`. Proposed: yes, by design.

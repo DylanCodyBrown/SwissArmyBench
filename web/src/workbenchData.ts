@@ -6,7 +6,7 @@
  *                a drag gives its name to code. "+ Table": Open file…, a connection's tables, the
  *                catalog's search, Add connection… (the page's menu)
  *   [VARIABLES]  the blades that are not connections (a value, a secret, an analysis): a click opens one,
- *                a drag gives its sag.blade line. "+ Blade": the saved blades and connections, New blade
+ *                a drag gives its sab.blade line. "+ Blade": the saved blades and connections, New blade
  *   [FLYOUT]     what "+ Table" and "+ Blade" open beside the panel: the catalog (a connection's tables,
  *                search) or the saved blades, the side bar the Workbench had before (catalogRail.ts)
  *   [STREAMLIT]  every Python cell that calls Streamlit (the owner, 2026-11-15), from the open notebooks
@@ -230,7 +230,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     bladeList.replaceChildren(
       ...blades.map((b) => {
         const name = b.variable ?? b.name;
-        const line = b.kind === "vault" || b.kind === "secret" || !b.variable ? `sag.blade(${JSON.stringify(b.name)})` : `${b.variable} = sag.blade(${JSON.stringify(b.name)})`;
+        const line = b.kind === "vault" || b.kind === "secret" || !b.variable ? `sab.blade(${JSON.stringify(b.name)})` : `${b.variable} = sab.blade(${JSON.stringify(b.name)})`;
         return h(
           "li",
           { class: "wb-data-item" },
@@ -244,7 +244,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
               onclick: () => host.openBlade(b.name),
               ondragstart: (event: DragEvent) => {
                 event.dataTransfer?.setData("text/plain", line);
-                event.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: line, imports: ["import swissarmygrid as sag"] }));
+                event.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: line, imports: ["import swissarmybench as sab"] }));
               },
             },
             h("span", { class: "wb-data-name" }, h("span", { class: "wb-data-label" }, name)),

@@ -38,8 +38,8 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from swissarmygrid.domain.codegen import Outcome, Pasted
-from swissarmygrid.services.ports import SqlSession
+from swissarmybench.domain.codegen import Outcome, Pasted
+from swissarmybench.services.ports import SqlSession
 
 _ALLOWED_IMPORTS: frozenset[str] = frozenset({"duckdb"})
 

@@ -7,7 +7,7 @@
  *   Closed tables    tables still in memory whose tabs were closed: Open puts the original back as a
  *                    tab (the same table, not a copy)
  *   Python sessions  the tables in your running Python sessions. A session whose watcher is on
- *                    (swissarmygrid imported in a notebook, or sag.watch() in a script) tells the
+ *                    (swissarmybench imported in a notebook, or sab.watch() in a script) tells the
  *                    server which tables it holds: names and sizes, never rows. Open asks that
  *                    session to push the table, and from then on the table follows its variable.
  *                    Reload sends it again, for changes made in place that the watcher cannot see.

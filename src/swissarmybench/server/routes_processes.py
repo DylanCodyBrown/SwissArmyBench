@@ -18,8 +18,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import error_response, json_response, read_json
-from swissarmygrid.services.processes import Sessions
+from swissarmybench.server.http import error_response, json_response, read_json
+from swissarmybench.services.processes import Sessions
 
 _QUIET_PREFIX = "/processes/"
 

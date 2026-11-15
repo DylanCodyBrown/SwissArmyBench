@@ -15,13 +15,13 @@ import threading
 import time
 from typing import Any
 
-from swissarmygrid.domain.datasets import DatasetInfo
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.sql_guard import guard
-from swissarmygrid.services.datasets import DatasetService, TableReader
-from swissarmygrid.services.grids import truncate
-from swissarmygrid.services.ports import AGENT, BACKGROUND
-from swissarmygrid.services.workspace import TimedOut, Workspace
+from swissarmybench.domain.datasets import DatasetInfo
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.sql_guard import guard
+from swissarmybench.services.datasets import DatasetService, TableReader
+from swissarmybench.services.grids import truncate
+from swissarmybench.services.ports import AGENT, BACKGROUND
+from swissarmybench.services.workspace import TimedOut, Workspace
 
 
 class SqlBox:

@@ -2,7 +2,7 @@
  * catalogPage.ts: the blades and catalog page, in its own tab (plan decisions 14-18). [COMPOSITION]
  *
  * The rail (catalogRail.ts) on the left; the main area shows a table's columns with a first SELECT,
- * the blade save screen, or a welcome. Dragging gives plain text: a blade its `sag.blade(...)` line,
+ * the blade save screen, or a welcome. Dragging gives plain text: a blade its `sab.blade(...)` line,
  * a table or column its quoted name.
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";

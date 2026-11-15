@@ -14,8 +14,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain import timeseries as T
-from swissarmygrid.domain.sql_guard import keeps_order
+from swissarmybench.domain import timeseries as T
+from swissarmybench.domain.sql_guard import keeps_order
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 

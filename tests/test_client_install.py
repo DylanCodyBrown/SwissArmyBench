@@ -12,19 +12,19 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.adapters import live_updates
-from swissarmygrid.adapters.live_updates import LiveUpdates
-from swissarmygrid.client import push_client
+from swissarmybench.adapters import live_updates
+from swissarmybench.adapters.live_updates import LiveUpdates
+from swissarmybench.client import push_client
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_the_client_imports_only_the_standard_library() -> None:
-    """`import swissarmygrid` must work in a project with none of the server's packages."""
+    """`import swissarmybench` must work in a project with none of the server's packages."""
     probe = (
-        "import sys; import swissarmygrid as sag; "
+        "import sys; import swissarmybench as sab; "
         "heavy = sorted(m for m in ('duckdb', 'pyarrow', 'pandas', 'starlette', 'uvicorn', 'sqlglot', 'mcp') "
-        "if m in sys.modules); print(heavy, callable(sag.push))"
+        "if m in sys.modules); print(heavy, callable(sab.push))"
     )
     out = subprocess.run(  # noqa: S603 (this Python, a fixed probe)
         [sys.executable, "-c", probe], capture_output=True, text=True, check=True, cwd=ROOT
@@ -33,10 +33,10 @@ def test_the_client_imports_only_the_standard_library() -> None:
 
 
 def test_only_the_server_command_can_start_a_process_or_open_a_browser() -> None:
-    """SwissArmyGrid lives in VS Code: its extension starts the one server, and the server has VS
+    """Swiss Army Bench lives in VS Code: its extension starts the one server, and the server has VS
     Code show the grids. So nothing outside server/ (the push client, the MCP, the prompt hook)
     may start a process or open a browser, or the server could run from another install again."""
-    package = ROOT / "src" / "swissarmygrid"
+    package = ROOT / "src" / "swissarmybench"
     offenders = [
         str(path.relative_to(package))
         for path in package.rglob("*.py")
@@ -106,7 +106,7 @@ def test_a_push_only_connects(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
 
     monkeypatch.setattr("subprocess.Popen", refuse)
     monkeypatch.setattr("webbrowser.open", refuse)
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(tmp_path / "server.json"))  # no server there
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(tmp_path / "server.json"))  # no server there
     with pytest.raises(push_client.ServerNotRunningError, match="VS Code"):
         push_client.push([{"a": 1}], name="rows")
 
@@ -178,7 +178,7 @@ def test_the_window_last_in_front_opens_the_workspace() -> None:
 
 
 def test_the_server_counts_how_long_vscode_has_been_gone(monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmygrid.server.__main__ import end_with_vscode
+    from swissarmybench.server.__main__ import end_with_vscode
 
     clock = [100.0]
     monkeypatch.setattr(live_updates, "monotonic", lambda: clock[0])
@@ -229,7 +229,7 @@ def test_the_name_written_in_the_call_wins_over_a_loop_variable() -> None:
 
     seen: dict[str, str | None] = {}
 
-    def push(data: object) -> None:  # stands in for sag.push: it reads its caller the same way
+    def push(data: object) -> None:  # stands in for sab.push: it reads its caller the same way
         frame = inspect.currentframe()
         seen["name"] = push_client.caller_variable_name(data, frame.f_back if frame else None)
 

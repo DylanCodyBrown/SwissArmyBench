@@ -9,7 +9,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, demo_frame, grid_of, open_grid, server, wait_for_cell  # noqa: F401
 
 
@@ -35,7 +35,7 @@ def test_undo_redo_keys_a_header_sort_counted_and_the_steps_listed_on_hover(
         keep_north(page)
         expect(count).to_have_text("1 step")
         # A sort made by clicking a header is a step, and the strip counts it.
-        sort = page.locator(".ag-header-cell[col-id='order_id'] .sag-header-sort")
+        sort = page.locator(".ag-header-cell[col-id='order_id'] .sab-header-sort")
         sort.click()
         sort.click()
         wait_for_cell(page, 0, "order_id", "595")

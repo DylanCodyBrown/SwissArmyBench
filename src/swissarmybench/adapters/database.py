@@ -37,9 +37,9 @@ from typing import Any, TypeVar
 
 import duckdb
 
-from swissarmygrid.domain.sql_guard import SqlGrammar
-from swissarmygrid.domain.steps import Describe, EngineError
-from swissarmygrid.services.ports import SqlSession
+from swissarmybench.domain.sql_guard import SqlGrammar
+from swissarmybench.domain.steps import Describe, EngineError
+from swissarmybench.services.ports import SqlSession
 
 T = TypeVar("T")
 

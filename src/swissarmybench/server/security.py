@@ -11,7 +11,7 @@ request and either short-circuits with a status code or passes it on. Two checks
    such as the push client never send it. Those still face the token check.
 2. Token -> 401. `Authorization: Bearer <token>`, compared in constant time. A browser cannot
    set headers on a WebSocket, so the grid page sends the token as a WebSocket subprotocol
-   instead (`new WebSocket(url, ["swissarmygrid", token])`); that keeps it out of the URL and
+   instead (`new WebSocket(url, ["swissarmybench", token])`); that keeps it out of the URL and
    so out of the server's access log.
 
 A notebook's live Streamlit pages (/streamlit/live/<app>-<secret>/..., server/streamlit_proxy.py)
@@ -36,7 +36,9 @@ from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
-WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
+WEBSOCKET_SUBPROTOCOL: str = "swissarmybench"
+# What a client from before the rename offers (SwissArmyGrid's): still answered, for one release.
+OLD_WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
 
 # The page shell and its files: prefixes for /g/<id> and /static/..., and the exact paths of the
 # workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).

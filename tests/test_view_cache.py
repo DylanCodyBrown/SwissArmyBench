@@ -9,10 +9,10 @@ from collections import Counter
 
 import pyarrow as pa
 
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.adapters.views import ViewEngine
-from swissarmygrid.domain.steps import Step, ViewSettings
+from swissarmybench.adapters.database import open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.views import ViewEngine
+from swissarmybench.domain.steps import Step, ViewSettings
 
 ROWS = 20_000
 

@@ -20,11 +20,11 @@ from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
 
-from swissarmygrid.domain.datasets import Column, DatasetInfo, quote
-from swissarmygrid.domain.grids import Grid, view_key
-from swissarmygrid.domain.steps import _TRIM_SQL, type_family
-from swissarmygrid.services.ports import AGENT, BACKGROUND, SqlSession
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain.datasets import Column, DatasetInfo, quote
+from swissarmybench.domain.grids import Grid, view_key
+from swissarmybench.domain.steps import _TRIM_SQL, type_family
+from swissarmybench.services.ports import AGENT, BACKGROUND, SqlSession
+from swissarmybench.services.workspace import Workspace
 
 TOP_VALUES: int = 20
 

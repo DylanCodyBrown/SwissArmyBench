@@ -4,7 +4,7 @@
  * Blades (saved code that reaches outside Python to load something) above the Catalog (a source
  * database's names and types, as a tree: schema -> table or view -> column and its type, searchable).
  * The page that mounts it decides where a table's details and the blade editor show. A drag gives
- * plain text: a name, a query, or a blade's sag.blade line, to drop into Jupyter or an editor.
+ * plain text: a name, a query, or a blade's sab.blade line, to drop into Jupyter or an editor.
  *
  * The tree loads lazily, so a catalog of half a million columns opens at once.
  */
@@ -84,7 +84,7 @@ export function watchTheme(): void {
   applyTheme();
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
   window.addEventListener("storage", (event) => {
-    if (event.key === "swissarmygrid.theme" || event.key === "swissarmygrid.zoom") applyTheme();
+    if (event.key === "swissarmybench.theme" || event.key === "swissarmybench.zoom") applyTheme();
   });
 }
 
@@ -178,7 +178,7 @@ export interface Rail {
 }
 
 /** Code and the imports it needs, carried beside a drag's plain text (for pages that place cells). */
-export const DROP_TYPE = "application/x-sag-drop";
+export const DROP_TYPE = "application/x-sab-drop";
 
 export function copy(text: string, what: string): void {
   void navigator.clipboard.writeText(text).then(
@@ -356,8 +356,8 @@ export function mountRail(host: RailHost): Rail {
           title: `${blade.description ? blade.description + "\n" : ""}${line}`,
           ondragstart: (event: DragEvent) => {
             event.dataTransfer?.setData("text/plain", line);
-            event.dataTransfer?.setData("application/x-sag-blade", JSON.stringify({ name: blade.name, kind: blade.kind, line }));
-            event.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: line, imports: ["import swissarmygrid as sag"] }));
+            event.dataTransfer?.setData("application/x-sab-blade", JSON.stringify({ name: blade.name, kind: blade.kind, line }));
+            event.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: line, imports: ["import swissarmybench as sab"] }));
           },
         },
         button(blade.pinned ? "Unpin" : "Pin", () => void setPinned(blade, !blade.pinned), {
@@ -378,7 +378,7 @@ export function mountRail(host: RailHost): Rail {
         ),
         blade.source === "folder" ? h("span", { class: "blade-file", title: blade.path ?? "" }, "file") : null,
         blade.source === "pack" ? h("span", { class: "blade-file blade-pack", title: `${blade.pack ?? ""}, read-only` }, "pack") : null,
-        button(blade.connection ? "Copy the sag.connection line" : "Copy the sag.blade line", () => copy(line, "the line"), { icon: "copy", iconOnly: true, class: "ghost", title: line }),
+        button(blade.connection ? "Copy the sab.connection line" : "Copy the sab.blade line", () => copy(line, "the line"), { icon: "copy", iconOnly: true, class: "ghost", title: line }),
       );
       bladeList.append(item);
     }
@@ -815,7 +815,7 @@ export function mountRail(host: RailHost): Rail {
     // A connection from the user's own Python: no SELECT, the line that reads the table in a notebook.
     const text = (value: string): string => JSON.stringify(value);
     const own = blades.find((b) => b.name.toLowerCase() === current!.name.toLowerCase())?.connection === "python";
-    const line = `sag.read(${text(current.name)}, ${text(data.table)}${data.schema ? `, schema=${text(data.schema)}` : ""})`;
+    const line = `sab.read(${text(current.name)}, ${text(data.table)}${data.schema ? `, schema=${text(data.schema)}` : ""})`;
     host.showTable({
       catalog: current.name,
       table: data.table,

@@ -65,8 +65,8 @@ export function settingsButton(): HTMLButtonElement {
  * command is the one the installers put on PATH (uv tool install of the wheel). */
 export const MCP_PROMPT = [
   "Connect the grid MCP server so you can work on my local data grids:",
-  "1. Run: claude mcp add --scope user swissarmygrid -- swissarmygrid-mcp",
-  "   (another agent: add an MCP server over stdio whose command is swissarmygrid-mcp)",
+  "1. Run: claude mcp add --scope user swissarmybench -- swissarmybench-mcp",
+  "   (another agent: add an MCP server over stdio whose command is swissarmybench-mcp)",
   "2. Reconnect your MCP servers (/mcp in Claude Code).",
   "3. Call its guide tool first; it explains the grids and the tools.",
 ].join("\n");

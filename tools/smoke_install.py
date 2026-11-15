@@ -1,14 +1,14 @@
-"""Check an installed SwissArmyGrid end to end, the way a person would use it (the release workflow runs this).
+"""Check an installed Swiss Army Bench end to end, the way a person would use it (the release workflow runs this).
 
 Run it in a client-only environment (the plain wheel plus pandas and pyarrow), with the server installed as a uv
-tool so `swissarmygrid` is on PATH:
+tool so `swissarmybench` is on PATH:
 
     uv run --no-project --with <wheel> --with pandas --with pyarrow python tools/smoke_install.py
 
-It starts the server with `swissarmygrid start`, pushes the made-up store (examples/sample_store.py), checks that
+It starts the server with `swissarmybench start`, pushes the made-up store (examples/sample_store.py), checks that
 all nine tables arrived, that the page's script is served and that blades and catalogs work, then stops the
 server. State goes in a temporary
-folder, so nothing of the machine's own SwissArmyGrid is touched.
+folder, so nothing of the machine's own Swiss Army Bench is touched.
 """
 
 from __future__ import annotations
@@ -107,9 +107,9 @@ def workbench(info: dict[str, Any]) -> None:
         )
         urllib.request.urlopen(request, timeout=30).close()  # noqa: S310 (fixed local URL)
     post(info, "/agent/inbox", {"kind": "code", "title": "Code from smoke.py, line 1", "text": "x = 1"})
-    hook = shutil.which("swissarmygrid-context")
+    hook = shutil.which("swissarmybench-context")
     if hook is None:
-        sys.exit("swissarmygrid-context (the prompt hook) is not on PATH.")
+        sys.exit("swissarmybench-context (the prompt hook) is not on PATH.")
     said = subprocess.run([hook], capture_output=True, text=True, timeout=30, check=False).stdout
     if "Code from smoke.py, line 1" not in said:
         sys.exit(f"The prompt hook did not hand on what was sent to the agent: {said!r}")
@@ -117,14 +117,14 @@ def workbench(info: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    command = shutil.which("swissarmygrid")
+    command = shutil.which("swissarmybench")
     if command is None:
-        sys.exit("swissarmygrid is not on PATH: install the server first (uv tool install <wheel>[server]).")
-    state = Path(tempfile.mkdtemp(prefix="sag-smoke-"))
+        sys.exit("swissarmybench is not on PATH: install the server first (uv tool install <wheel>[server]).")
+    state = Path(tempfile.mkdtemp(prefix="sab-smoke-"))
     os.environ.update(
-        SWISSARMYGRID_INFO=str(state / "server.json"),
-        SWISSARMYGRID_STATE=str(state),
-        SWISSARMYGRID_OPEN="0",
+        SWISSARMYBENCH_INFO=str(state / "server.json"),
+        SWISSARMYBENCH_STATE=str(state),
+        SWISSARMYBENCH_OPEN="0",
     )
     log = (state / "server.log").open("w")
     server = subprocess.Popen([command, "start"], stdout=log, stderr=subprocess.STDOUT)
@@ -139,7 +139,7 @@ def main() -> None:
         info = json.loads(info_path.read_text())
         print(f"Server {info['version']} on port {info['port']} from {info.get('executable')}")
 
-        from swissarmygrid.client import push
+        from swissarmybench.client import push
 
         tables = make_store()
         for name, frame in tables.items():
@@ -183,10 +183,10 @@ def main() -> None:
         print("The page's script is served.")
 
         # Blades: a SQLite blade from its starter, refreshed in the server's own Python (a child
-        # process), run here with sag.blade, and a catalog loaded with sag.load.
+        # process), run here with sab.blade, and a catalog loaded with sab.load.
         import sqlite3
 
-        import swissarmygrid as sag
+        import swissarmybench as sab
 
         bakery = state / "bakery.sqlite"
         with sqlite3.connect(bakery) as setup:
@@ -207,19 +207,19 @@ def main() -> None:
             sys.exit(f"A blade's Refresh failed: {error.read().decode()[:500]}")
         if refreshed["catalog"]["columns"] != 2:
             sys.exit(f"The blade's catalog came back wrong: {refreshed}")
-        conn = sag.blade("Smoke bakery")
+        conn = sab.blade("Smoke bakery")
         if conn.execute("SELECT count(*) FROM loaves").fetchall() != [(0,)]:
-            sys.exit("sag.blade did not give a working connection.")
-        sag.load([{"table_name": "loaves", "column_name": "crust", "data_type": "TEXT"}], name="Smoke load")
+            sys.exit("sab.blade did not give a working connection.")
+        sab.load([{"table_name": "loaves", "column_name": "crust", "data_type": "TEXT"}], name="Smoke load")
         found = get(info, "/catalogs/Smoke%20load/search?q=crust")["columns"]
         if [c["column"] for c in found] != ["crust"]:
-            sys.exit(f"sag.load's catalog cannot be searched: {found}")
+            sys.exit(f"sab.load's catalog cannot be searched: {found}")
         with urllib.request.urlopen(
             f"http://127.0.0.1:{info['port']}/static/build/catalog.js", timeout=30
         ) as page:
             if page.status != 200 or len(page.read()) < 5_000:
                 sys.exit("The blades page's script is missing from the install.")
-        print("Blades refresh, run with sag.blade, and sag.load fills a catalog.")
+        print("Blades refresh, run with sab.blade, and sab.load fills a catalog.")
 
         pages_load_whole(info)
         workbench(info)

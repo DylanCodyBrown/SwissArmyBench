@@ -1802,8 +1802,8 @@ wheels = [
 ]
 
 [[package]]
-name = "swissarmygrid"
-version = "1.6.0"
+name = "swissarmybench"
+version = "1.7.0b1"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -1837,7 +1837,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-playwright" },
     { name = "ruff" },
-    { name = "swissarmygrid", extra = ["server"] },
+    { name = "swissarmybench", extra = ["server"] },
 ]
 
 [package.metadata]
@@ -1870,7 +1870,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-playwright", specifier = ">=0.10.0" },
     { name = "ruff", specifier = ">=0.11" },
-    { name = "swissarmygrid", extras = ["server"] },
+    { name = "swissarmybench", extras = ["server"] },
 ]
 
 [[package]]

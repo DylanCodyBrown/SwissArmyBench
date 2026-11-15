@@ -1,13 +1,13 @@
 """The panels' switches (domain/panels.py): Settings and the agent read and set them; every window
 follows at once (the `panels_changed` notice). Memory only: every panel is on again when
-SwissArmyGrid starts."""
+Swiss Army Bench starts."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from swissarmygrid.domain import panels as rules
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain import panels as rules
+from swissarmybench.services.workspace import Workspace
 
 
 class Panels:

@@ -2,14 +2,14 @@
 
 Status (2026-10-23): steps 1-5 built and shipped in 0.5.0; step 6 (docs and skills) and the
 "Added while building" items are next. Replaces the push-first workflow in
-0.4.5. Owner: whoever picks up SwissArmyGrid (the 0.4.5 session is finished).
+0.4.5. Owner: whoever picks up Swiss Army Bench (the 0.4.5 session is finished).
 
 ## What was asked
 
 1. Write the query line and nothing else. The table shows up in the grid's **Open** list by its
    variable name (`SOD`). Click it and the server loads it into its own DuckDB.
 2. Once a table is open, re-running the cell refreshes it in place. A table nobody opened loads nothing.
-3. `sag.push` stops being the way in. It stays as a quiet fallback, out of every doc, example and skill step.
+3. `sab.push` stops being the way in. It stays as a quiet fallback, out of every doc, example and skill step.
 4. A toolbar button in VS Code that opens the grids.
 5. Works at every Python level where it can: notebooks, the interactive window, scripts, the REPL.
 
@@ -53,9 +53,9 @@ cursor, which never touches the user's connection), because `to_duck(table, con)
   - **Listener**: long-polls `GET /processes/<id>/requests?wait=25`; for each `load` request it pushes
     that variable, as the dataset of the same name.
 - Both threads back off 3 s when no server answers, and pick up again when one appears. Neither raises.
-- **Start**: `import swissarmygrid` starts it when IPython is running (notebook, interactive window,
+- **Start**: `import swissarmybench` starts it when IPython is running (notebook, interactive window,
   `ipython`), because that import is already the user's decision to use the grid. In a plain script
-  call `sag.watch()`. `SWISSARMYGRID_WATCH=0` turns it off everywhere, `=1` forces it on. The server,
+  call `sab.watch()`. `SWISSARMYBENCH_WATCH=0` turns it off everywhere, `=1` forces it on. The server,
   the MCP and pytest are not IPython, so they never start one.
 - The session label shown in the list: the notebook file (`__vsc_ipynb_file__` when VS Code sets it),
   else the script's file name, else `Python <pid>`.
@@ -90,15 +90,15 @@ sessions as groups, each table as a row (name, kind, rows × columns, state) wit
 It refreshes on `processes_changed`. Opening waits for the dataset to arrive and the existing
 `grid_shown` notice adds the tab.
 
-### Extension (`VSCode-Extensions/swissarmygrid`)
+### Extension (`VSCode-Extensions/swissarmybench`)
 
-`swissarmygrid.showGrids` gets a toolbar entry: `editor/title` for Python files and `notebook/toolbar`
+`swissarmybench.showGrids` gets a toolbar entry: `editor/title` for Python files and `notebook/toolbar`
 for notebooks, icon `$(table)`. Grids keep opening in VS Code's own browser (Dylan: fine).
 
 ### The query client library
 
 `Result` gains `__arrow_c_stream__` (and `to_arrow()`), with the typed column logic `to_duck` already
-uses, so `sag.push(result)`, `duckdb.sql("SELECT * FROM result")`, `pandas` and Polars read it directly.
+uses, so `sab.push(result)`, `duckdb.sql("SELECT * FROM result")`, `pandas` and Polars read it directly.
 `to_duck`, `df()` and `dicts()` stay.
 
 ### Docs and skills
@@ -144,7 +144,7 @@ list". `push` moves to a "Fallback" paragraph that names when it is still needed
    set, read-only: list datasets, describe, profile, query, read rows, open a grid. Whatever a tool
    returns goes to Copilot's model, so check that Copilot is approved for this data first.
 3. **One server per VS Code workspace.** Its own port and its own tabs and memory. The server already
-   allows it (its lock is named after the connection file's path and `SWISSARMYGRID_INFO` moves that
+   allows it (its lock is named after the connection file's path and `SWISSARMYBENCH_INFO` moves that
    file); the extension and the client need a per-workspace connection file and a way for a Python
    process to find its own. Needs a plan of its own. It isolates data, not Python environments.
 

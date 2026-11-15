@@ -26,13 +26,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmygrid.domain.datasets import DatasetInfo, quote
-from swissarmygrid.domain.export import FORMATS
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.services.ports import AGENT, Notifier, SqlSession
-from swissarmygrid.services.profile import profile_column, profile_table
-from swissarmygrid.services.workspace import Refused, Workspace
-from swissarmygrid.settings import EXCEL_MAX_ROWS
+from swissarmybench.domain.datasets import DatasetInfo, quote
+from swissarmybench.domain.export import FORMATS
+from swissarmybench.domain.grids import Grid
+from swissarmybench.services.ports import AGENT, Notifier, SqlSession
+from swissarmybench.services.profile import profile_column, profile_table
+from swissarmybench.services.workspace import Refused, Workspace
+from swissarmybench.settings import EXCEL_MAX_ROWS
 
 # The most rows one agent read returns: as many as one Excel worksheet holds. The agent still
 # picks its own limit.

@@ -30,10 +30,10 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from swissarmygrid.domain import html_cells
-from swissarmygrid.domain.codegen import output_call, python_string, variable_name
-from swissarmygrid.domain.datasets import Column, quote
-from swissarmygrid.domain.streamlit_use import uses_streamlit, usual_name
+from swissarmybench.domain import html_cells
+from swissarmybench.domain.codegen import output_call, python_string, variable_name
+from swissarmybench.domain.datasets import Column, quote
+from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 # A link to a cell in a comment: `# see @cell7`.
 CELL_LINK: re.Pattern[str] = re.compile(r"@cell(\d+)\b")
@@ -946,7 +946,7 @@ class Origin:
     connection: str | None = None
     sql: str | None = None  # the query a connection's table was read with, or a "+" tab's query
     dax: bool = False  # the query is DAX, on a Power BI workspace's dataset (`connection` names both)
-    # The Python that reads it again from a connection that has no SQL: sag.read('Orders API', 'orders')
+    # The Python that reads it again from a connection that has no SQL: sab.read('Orders API', 'orders')
     code: str | None = None
 
     def to_json(self) -> dict[str, Any]:
@@ -1041,9 +1041,9 @@ def load_code(
     if origin.kind == "connection" and origin.connection and origin.sql:
         text = python_string(origin.sql)
         reader = "dax" if origin.dax else "sql"
-        return ["import swissarmygrid as sag"], f"{var} = sag.{reader}({origin.connection!r}, {text})"
+        return ["import swissarmybench as sab"], f"{var} = sab.{reader}({origin.connection!r}, {text})"
     if origin.kind == "connection" and origin.connection and origin.code:
-        return ["import swissarmygrid as sag"], f"{var} = {origin.code}"
+        return ["import swissarmybench as sab"], f"{var} = {origin.code}"
     if origin.kind == "query" and origin.sql:
         return [duck], f"{var} = {module}.sql({python_string(origin.sql.strip())}).df()"
     if origin.kind == "paste":
@@ -1060,7 +1060,7 @@ def load_code(
             "Open it from its folder (Open file), and this cell will load it."
         )
     return [], _comment(
-        f"{dataset} was made outside this file (in the console, or sent with sag.push).\n"
+        f"{dataset} was made outside this file (in the console, or sent with sab.push).\n"
         "Put the code that makes it in a cell above this one."
     )
 

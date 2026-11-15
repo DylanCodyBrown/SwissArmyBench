@@ -62,8 +62,8 @@ The owner's requests, 2026-11-13, in their words:
 (`is_connection`: kind `sql`, or a file starter's blade), so secrets, vaults, the catalog command,
 Refresh, Test, folders, packs and the portable `.blade.py` file all work as they do. What changes is
 where they are seen: `/connections` (the list, the types and their forms), the Application row's
-Connections window, a Connections group in the Workbench's left panel, `sag.connection(name)` (the
-same as `sag.blade(name)`), and the blades lists, which no longer show connections.
+Connections window, a Connections group in the Workbench's left panel, `sab.connection(name)` (the
+same as `sab.blade(name)`), and the blades lists, which no longer show connections.
 
 **The form per type** is the starter's code read by the settings reader (`domain/blades.py`: the
 values each person fills in, written back with `/blades/fill`) plus its `secret("...")` names as
@@ -74,17 +74,17 @@ process with the typed password (nothing saved until Save).
 connection's code makes. A database connection runs it in its own SQL (any DB-API connection, DuckDB,
 BigQuery, ClickHouse, Spark, SQLAlchemy). A file connection runs it in DuckDB in the user's Python: a
 file is a table named after it, a workbook's sheets are tables, a folder's files are tables. A blade
-that makes a DataFrame can be queried too. `%%sag` always works; `%%sql` only where no other extension
+that makes a DataFrame can be queried too. `%%sab` always works; `%%sql` only where no other extension
 (JupySQL) has it. Tab completion in the cell is scoped to that connection.
 
 **The Workbench** (`/workbench`, its own page):
 
 - left panel: Connections, the data explorer (each connection's catalog), Blades; drag one into a cell
-  or the script (its `sag.connection(...)` line, a table's `SELECT`, a blade's line), or create one;
+  or the script (its `sab.connection(...)` line, a table's `SELECT`, a blade's line), or create one;
 - centre: tabs of open notebooks and scripts; a notebook is cells (code, SQL on a connection, markdown)
   run in the kernel; a script is an editor with the console under it;
 - File: New notebook, New script, Open, Save, Save as, and **Recent** (the last files opened);
-- the files live where the user saves them (default `~/SwissArmyGrid/notebooks`); recent paths are kept
+- the files live where the user saves them (default `~/Swiss Army Bench/notebooks`); recent paths are kept
   in the state folder (nothing else is written).
 
 **Security.** The kernel runs only on the user's click, on their own computer, reached through the
@@ -101,7 +101,7 @@ a kernel in a Python without the package gets a copy of the plain client on its 
 ## Phases
 
 1. Connections: the domain rule, `/connections`, the Connections window (form per type), the blade
-   lists without connections, `sag.connection`.
+   lists without connections, `sab.connection`.
 2. The SQL cell on connections, its completion, docs.
 3. The Workbench: the window and its tab, the kernel (start, run, interrupt, restart), notebooks and
    scripts (open, save, recent), the left panel with drag and drop.

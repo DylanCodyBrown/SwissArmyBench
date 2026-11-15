@@ -10,7 +10,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.relationships import merge, mermaid_erd, parse_model
+from swissarmybench.domain.relationships import merge, mermaid_erd, parse_model
 from tests.conftest import AGENT, AUTH, grid_id, push
 
 MODEL: dict[str, Any] = {
@@ -104,7 +104,7 @@ def test_a_personal_library_folder_adds_models(
     folder.mkdir()
     (folder / "shop.json").write_text(json.dumps(MODEL), encoding="utf-8")
     (folder / "broken.json").write_text("{not json", encoding="utf-8")
-    monkeypatch.setenv("SWISSARMYGRID_MODELS", str(folder))
+    monkeypatch.setenv("SWISSARMYBENCH_MODELS", str(folder))
     library = client.get("/relationships/library", headers=AUTH).json()
     assert "shop" in [m["name"] for m in library["models"]]
     assert any("broken.json" in p for p in library["problems"])

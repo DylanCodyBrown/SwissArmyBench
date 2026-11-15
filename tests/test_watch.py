@@ -1,7 +1,7 @@
 """The watcher: finding the tables in a running Python, and the loop that offers them to the grid.
 
 All data here is made up. The loop tests run a real server in a thread and point the client at it with
-SWISSARMYGRID_INFO, so nothing touches the real ~/.swissarmygrid.
+SWISSARMYBENCH_INFO, so nothing touches the real ~/.swissarmybench.
 """
 
 from __future__ import annotations
@@ -25,10 +25,10 @@ import pyarrow as pa
 import pytest
 import uvicorn
 
-from swissarmygrid.client import push_client, watcher
-from swissarmygrid.client.watcher import Watcher, find_tables, label_for, resolve
-from swissarmygrid.server.app import create_app
-from swissarmygrid.settings import Settings
+from swissarmybench.client import push_client, watcher
+from swissarmybench.client.watcher import Watcher, find_tables, label_for, resolve
+from swissarmybench.server.app import create_app
+from swissarmybench.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -189,7 +189,7 @@ def test_the_label_names_the_notebook_then_the_script_then_the_process() -> None
 def test_autostart_follows_ipython_and_the_environment_switch(monkeypatch: pytest.MonkeyPatch) -> None:
     started: list[int] = []
     monkeypatch.setattr(watcher, "start", lambda namespace=None: started.append(1))
-    monkeypatch.delenv("SWISSARMYGRID_WATCH", raising=False)
+    monkeypatch.delenv("SWISSARMYBENCH_WATCH", raising=False)
 
     monkeypatch.delitem(sys.modules, "IPython", raising=False)
     watcher.autostart()
@@ -199,18 +199,18 @@ def test_autostart_follows_ipython_and_the_environment_switch(monkeypatch: pytes
     watcher.autostart()
     assert started == [1]  # a notebook or the interactive window
 
-    monkeypatch.setenv("SWISSARMYGRID_WATCH", "0")
+    monkeypatch.setenv("SWISSARMYBENCH_WATCH", "0")
     watcher.autostart()
     assert started == [1]  # switched off
 
     monkeypatch.delitem(sys.modules, "IPython")
-    monkeypatch.setenv("SWISSARMYGRID_WATCH", "1")
+    monkeypatch.setenv("SWISSARMYBENCH_WATCH", "1")
     watcher.autostart()
     assert started == [1, 1]  # forced on in a script
 
 
 def test_importing_the_package_in_a_plain_process_starts_no_thread() -> None:
-    probe = "import threading, swissarmygrid; print(threading.active_count())"
+    probe = "import threading, swissarmybench; print(threading.active_count())"
     out = subprocess.run(  # noqa: S603 (this Python, a fixed probe)
         [sys.executable, "-c", probe], capture_output=True, text=True, check=True, cwd=ROOT
     ).stdout
@@ -287,7 +287,7 @@ def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Live]:
     info.write_text(
         json.dumps({"port": port, "token": token, "max_dataset_bytes": settings.max_dataset_bytes})
     )
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(info))
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
     yield Live(port, token)
     server.should_exit = True
     thread.join(10)
@@ -358,7 +358,7 @@ def test_a_table_inside_a_connection_opens_and_follows_its_size(live: Live) -> N
 def test_the_watcher_waits_for_a_server_and_connects_when_one_appears(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("SWISSARMYGRID_INFO", str(tmp_path / "missing.json"))
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(tmp_path / "missing.json"))
     namespace: dict[str, Any] = {"SOD": pd.DataFrame({"a": [1]})}
     w = Watcher(lambda: namespace, scan_seconds=0.05, heartbeat_seconds=0.5, poll_seconds=0.5)
     w.start()

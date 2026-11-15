@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from swissarmygrid.domain.blades import PortableError, read_blade, read_blades, write_blade
-from swissarmygrid.server.blade_templates import TEMPLATES
+from swissarmybench.domain.blades import PortableError, read_blade, read_blades, write_blade
+from swissarmybench.server.blade_templates import TEMPLATES
 
 SQL_BLADE: dict[str, Any] = {
     "name": "Warehouse",
@@ -25,7 +25,7 @@ SQL_BLADE: dict[str, Any] = {
 
 def test_a_blade_is_a_python_file_with_a_header() -> None:
     text = write_blade(SQL_BLADE)
-    assert text.startswith("# /// swissarmygrid-blade\n# format = 1\n")
+    assert text.startswith("# /// swissarmybench-blade\n# format = 1\n")
     assert '# name = "Warehouse"' in text and '# secrets = ["password"]' in text
     assert text.endswith(SQL_BLADE["code"])
     ast.parse(text)  # the whole file is valid Python: it opens in any editor, diffs in Git
@@ -106,16 +106,16 @@ def test_no_secret_value_is_ever_written() -> None:
 @pytest.mark.parametrize(
     ("text", "message"),
     [
-        ("import os\n", "no swissarmygrid-blade header"),
-        ("# /// swissarmygrid-blade\n# format = 1\n# name = 'x'\n", "never closed"),
+        ("import os\n", "no swissarmybench-blade header"),
+        ("# /// swissarmybench-blade\n# format = 1\n# name = 'x'\n", "never closed"),
         (
-            "# /// swissarmygrid-blade\n# format = 9\n# name = 'x'\n# kind = 'other'\n# ///\nx = 1\n",
+            "# /// swissarmybench-blade\n# format = 9\n# name = 'x'\n# kind = 'other'\n# ///\nx = 1\n",
             "format 9",
         ),
-        ("# /// swissarmygrid-blade\n# format = 1\n# name = = 'x'\n# ///\nx = 1\n", "header is not valid"),
-        ("# /// swissarmygrid-blade\n# format = 1\n# kind = 'other'\n# ///\nx = 1\n", "name"),
+        ("# /// swissarmybench-blade\n# format = 1\n# name = = 'x'\n# ///\nx = 1\n", "header is not valid"),
+        ("# /// swissarmybench-blade\n# format = 1\n# kind = 'other'\n# ///\nx = 1\n", "name"),
         (
-            "# /// swissarmygrid-blade\n# format = 1\n# name = 'x'\n# kind = 'other'\n# ///\nx = (\n",
+            "# /// swissarmybench-blade\n# format = 1\n# name = 'x'\n# kind = 'other'\n# ///\nx = (\n",
             "not valid Python",
         ),
     ],
@@ -153,16 +153,16 @@ def test_several_blades_from_a_zip_or_files() -> None:
 
 
 def test_only_a_header_at_the_top_makes_a_file_a_blade() -> None:
-    from swissarmygrid.domain.blades import is_blade
+    from swissarmybench.domain.blades import is_blade
 
     blade = write_blade(SQL_BLADE)
     assert is_blade(blade)
     assert is_blade("#!/usr/bin/env python\n# -*- coding: utf-8 -*-\n# Copyright Bakery Ltd\n\n" + blade)
     # A script that mentions the marker after its code, or in a string, is just a script.
     assert not is_blade("import os\n" + blade)
-    assert not is_blade('"""Docs: # /// swissarmygrid-blade"""\n')
+    assert not is_blade('"""Docs: # /// swissarmybench-blade"""\n')
     assert not is_blade("x = 1\n")
-    with pytest.raises(PortableError, match="no swissarmygrid-blade header"):
+    with pytest.raises(PortableError, match="no swissarmybench-blade header"):
         read_blade("import os\n" + blade)
 
 

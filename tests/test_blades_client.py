@@ -1,4 +1,4 @@
-"""`sag.load`, `sag.blade` and `sag.blades` against a real server on a free port. Made-up data only."""
+"""`sab.load`, `sab.blade` and `sab.blades` against a real server on a free port. Made-up data only."""
 
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ import pandas as pd
 import pytest
 import uvicorn
 
-import swissarmygrid as sag
-from swissarmygrid.server.app import create_app
-from swissarmygrid.settings import Settings
+import swissarmybench as sab
+from swissarmybench.server.app import create_app
+from swissarmybench.settings import Settings
 from tests.fake_keyring import memory_keyring
 
 TOKEN = "blades-client-token"
@@ -42,8 +42,8 @@ def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[int]:
         assert server.started
         info = tmp_path / "server.json"
         info.write_text(json.dumps({"port": port, "token": TOKEN}))
-        monkeypatch.setenv("SWISSARMYGRID_INFO", str(info))
-        monkeypatch.setenv("SWISSARMYGRID_OPEN", "0")
+        monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+        monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
         yield port
         server.should_exit = True
         thread.join(10)
@@ -80,14 +80,14 @@ def test_load_a_catalog_from_an_information_schema_frame(live: int) -> None:
             "DATA_TYPE": ["int", "datetime2"],
         }
     )
-    url = sag.load(frame, name="Bakery warehouse", dialect="sqlserver")
+    url = sab.load(frame, name="Bakery warehouse", dialect="sqlserver")
     assert url.startswith(f"http://127.0.0.1:{live}/catalog#token=") and url.endswith(
         "catalog=Bakery%20warehouse"
     )
     assert [c["name"] for c in user(live, "GET", "/catalogs")["catalogs"]] == ["Bakery warehouse"]
-    assert sag.load([{"table_name": "t", "column_name": "c"}], name="records")
+    assert sab.load([{"table_name": "t", "column_name": "c"}], name="records")
     with pytest.raises(RuntimeError, match="column_name"):
-        sag.load(pd.DataFrame({"x": [1]}), name="bad")
+        sab.load(pd.DataFrame({"x": [1]}), name="bad")
 
 
 def test_blade_runs_saved_code_here_with_its_saved_secret(live: int, bakery: Path) -> None:
@@ -99,11 +99,11 @@ def test_blade_runs_saved_code_here_with_its_saved_secret(live: int, bakery: Pat
         "secrets": {"password": "crusty"},
     }
     user(live, "POST", "/blades", blade)
-    assert sag.blades() == ["Bakery"]
-    conn = sag.blade("bakery")
+    assert sab.blades() == ["Bakery"]
+    conn = sab.blade("bakery")
     assert conn.execute("SELECT name FROM loaves").fetchall() == [("rye",)]
     with pytest.raises(LookupError):
-        sag.blade("nope")
+        sab.blade("nope")
 
 
 def test_a_missing_driver_says_what_to_install(live: int) -> None:
@@ -114,12 +114,12 @@ def test_a_missing_driver_says_what_to_install(live: int) -> None:
         {"name": "Snow", "kind": "sql", "code": "import snowflake.connector\nconn = 1\n"},
     )
     with pytest.raises(ImportError, match="uv pip install snowflake-connector-python"):
-        sag.blade("Snow")
+        sab.blade("Snow")
 
 
 @pytest.fixture
 def clean_env() -> Iterator[None]:
-    """sag.blade sets variables in this process on purpose; take them away after the test."""
+    """sab.blade sets variables in this process on purpose; take them away after the test."""
     names = ("PANTRY_KEY", "OVEN_PASSWORD")
     for name in names:
         os.environ.pop(name, None)
@@ -144,7 +144,7 @@ def test_vault_and_secret_blades_set_variables_and_hand_back_names_only(
         },
     )
     user(live, "POST", "/blades", {"name": "Oven login", "kind": "secret", "env_names": ["OVEN_PASSWORD"]})
-    assert sag.blade("Pantry") == ["PANTRY_KEY"] and os.environ["PANTRY_KEY"] == "cinnamon-7"
+    assert sab.blade("Pantry") == ["PANTRY_KEY"] and os.environ["PANTRY_KEY"] == "cinnamon-7"
 
     asked: list[str] = []
 
@@ -153,8 +153,8 @@ def test_vault_and_secret_blades_set_variables_and_hand_back_names_only(
         return "proofing-box"
 
     monkeypatch.setattr("getpass.getpass", typed)
-    assert sag.blade("Oven login") == ["OVEN_PASSWORD"] and os.environ["OVEN_PASSWORD"] == "proofing-box"
-    assert sag.blade("Oven login") == ["OVEN_PASSWORD"] and len(asked) == 1  # still set: not asked again
+    assert sab.blade("Oven login") == ["OVEN_PASSWORD"] and os.environ["OVEN_PASSWORD"] == "proofing-box"
+    assert sab.blade("Oven login") == ["OVEN_PASSWORD"] and len(asked) == 1  # still set: not asked again
     del os.environ["OVEN_PASSWORD"], os.environ["PANTRY_KEY"]  # the kernel restarted
 
     # A blade that needs both: the vault runs first, the secret blade's value is asked for again.
@@ -163,5 +163,5 @@ def test_vault_and_secret_blades_set_variables_and_hand_back_names_only(
         f"assert secret('OVEN_PASSWORD') == 'proofing-box'\nconn = sqlite3.connect({str(bakery)!r})\n"
     )
     user(live, "POST", "/blades", {"name": "Bakery", "kind": "sql", "code": code})
-    assert sag.blade("Bakery").execute("SELECT count(*) FROM loaves").fetchall() == [(1,)]
+    assert sab.blade("Bakery").execute("SELECT count(*) FROM loaves").fetchall() == [(1,)]
     assert len(asked) == 2

@@ -2,7 +2,7 @@
 number target, logistic for a yes/no outcome; what-if predictions from the fitted model; and the steps
 that add its predictions (or its misses) to the grid.
 
-`run_regression` works over any cursor, like the Analyze menu's other analyses, so swissarmygrid.stats
+`run_regression` works over any cursor, like the Analyze menu's other analyses, so swissarmybench.stats
 runs the same code on an analyst's own table (what the notebook code calls).
 """
 
@@ -11,13 +11,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from swissarmygrid.domain import analysis as A
-from swissarmygrid.domain import regression as R
-from swissarmygrid.domain.datasets import Column, DatasetInfo
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.steps import type_family
-from swissarmygrid.services.ports import AGENT, BACKGROUND, SqlSession
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain import analysis as A
+from swissarmybench.domain import regression as R
+from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.steps import type_family
+from swissarmybench.services.ports import AGENT, BACKGROUND, SqlSession
+from swissarmybench.services.workspace import Workspace
 
 Columns = tuple[Column, ...]
 

@@ -60,7 +60,7 @@ export async function drawDiagram(host: HTMLElement, text: string, dark: boolean
     ready = key;
   }
   count += 1;
-  const id = `sag-diagram-${count}`;
+  const id = `sab-diagram-${count}`;
   try {
     const { svg } = await mermaid.render(id, text);
     const drawing = contained(svg);

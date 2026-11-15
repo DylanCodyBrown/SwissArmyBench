@@ -1,5 +1,5 @@
 /**
- * The tour: what every word in SwissArmyGrid means, for a first-time user, in as few words as
+ * The tour: what every word in Swiss Army Bench means, for a first-time user, in as few words as
  * possible. The question mark in the Application row opens it; until it has been opened once, a
  * small "New here?" bubble sits beside it in the row (inline, so it never covers anything).
  *
@@ -30,7 +30,7 @@ const BLADES_BUTTON = '.app-row [aria-label="Blades and catalog"]';
 
 export const STOPS: readonly Stop[] = [
   { icon: "star", word: "Hi!", line: "Your Python tables, live in the browser. A minute of words, then a game." },
-  { icon: "rows", word: "Grid", line: "A table you pushed from Python. One tab each.", target: ".tabs-row .tab-item:not(.tab-app)", code: "sag.push(orders)" },
+  { icon: "rows", word: "Grid", line: "A table you pushed from Python. One tab each.", target: ".tabs-row .tab-item:not(.tab-app)", code: "sab.push(orders)" },
   { icon: "filter", word: "Ribbon", line: "Filter, sort, clean. Your data never changes.", target: ".ribbon" },
   { icon: "steps", word: "Steps", line: "Every click is a step. Ctrl+Z undoes the last; hover the count to remove any one.", target: ".steps-strip" },
   { icon: "sql", word: "Table cell", line: "Your steps as one DuckDB query, in the table's own read-only cell in the Workbench.", target: ".tabs-row .tab-workbench" },
@@ -44,7 +44,7 @@ export const STOPS: readonly Stop[] = [
   { icon: "zoom", word: "Key Finder", line: "Finds the columns two tables share.", target: '.ribbon [aria-label="Key Finder"]' },
   { icon: "crown", word: "Tang", line: "Saved joins between tables. Run one to test it.", where: "Relationships", target: '.ribbon [aria-label="Relationships"]' },
   { icon: "image", word: "Sandbox", line: "Charts, notes and diagrams on one board.", target: ".tab-agent" },
-  { icon: "key", word: "Blade", line: "Saved code that loads data: a database, a file.", where: "Blades and catalog", target: BLADES_BUTTON, code: 'conn = sag.blade("Warehouse")' },
+  { icon: "key", word: "Blade", line: "Saved code that loads data: a database, a file.", where: "Blades and catalog", target: BLADES_BUTTON, code: 'conn = sab.blade("Warehouse")' },
   { icon: "folder", word: "Catalog", line: "Every table and column your blades reach. Search it.", where: "Blades and catalog", target: BLADES_BUTTON },
   { icon: "group", word: "Pack", line: "Blades and tangs your team shares on GitHub.", where: "Blades and catalog, then Packs", target: BLADES_BUTTON },
   { icon: "code", word: "Notebook", line: "Python and SQL cells, in a window of its own.", where: "Workbench", target: ".tabs-row .tab-workbench" },
@@ -241,7 +241,7 @@ export function openTour(): void {
         knife,
         h("h2", { class: "tour-word" }, `${score} of ${rounds.length}. ${cheer}`),
         h("p", { class: "tour-line" }, "Push a table from any Python to begin:"),
-        h("code", { class: "tour-code" }, "import swissarmygrid as sag\nsag.push(df)"),
+        h("code", { class: "tour-code" }, "import swissarmybench as sab\nsab.push(df)"),
         h("div", { class: "tour-actions" }, button("Again", () => show(0), { icon: "back", class: "ghost" }), done),
       );
       aim(null);

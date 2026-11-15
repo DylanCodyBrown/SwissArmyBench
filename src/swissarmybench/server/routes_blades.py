@@ -10,8 +10,8 @@ carries the saved password values (they never reach the agent):
   PUT    /blades/{name}/secrets      save or forget its secrets (in the operating system's vault)
   POST   /blades/{name}/refresh      run it and its catalog command in a child process; load the catalog
   POST   /blades/{name}/test         run it in a child process: does it work?
-  GET    /blades/{name}/python       everything sag.blade() needs to run it in the caller's Python
-  POST   /blades/install             install packages into SwissArmyGrid's own Python
+  GET    /blades/{name}/python       everything sab.blade() needs to run it in the caller's Python
+  POST   /blades/install             install packages into Swiss Army Bench's own Python
   GET    /blades/folders  PUT ...    the blade folders searched for blade files, and files that failed
   PUT    /blades/{name}/pin          a favourite, or not (kept on this computer)
   GET    /blades/{name}/export       the blade as a portable .blade.py file
@@ -31,15 +31,15 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.domain.blades import BladeCodeError, VaultUnavailableError
-from swissarmygrid.server.blade_runner import RefreshError
-from swissarmygrid.server.http import actor, error_response, json_response, read_json, read_json_object
-from swissarmygrid.services.blades import BladeService, NeedsValues
+from swissarmybench.domain.blades import BladeCodeError, VaultUnavailableError
+from swissarmybench.server.blade_runner import RefreshError
+from swissarmybench.server.http import actor, error_response, json_response, read_json, read_json_object
+from swissarmybench.services.blades import BladeService, NeedsValues
 
 
 def _agent_refused() -> Response:
     return Response(
-        "This answer holds the saved password values (for sag.blade in the user's Python): never the "
+        "This answer holds the saved password values (for sab.blade in the user's Python): never the "
         "agent's. Run the blade in a Workbench kernel instead (workbench_run), where it reads them itself.",
         status_code=403,
     )
@@ -168,7 +168,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return error_response(error)
 
     async def python(request: Request) -> Response:
-        """What sag.blade() runs in the caller's Python. Secret values included: only the user's own
+        """What sab.blade() runs in the caller's Python. Secret values included: only the user's own
         Python asks (the token is the user's; the agent is refused)."""
         if actor(request) == "agent":
             return _agent_refused()
@@ -229,7 +229,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return error_response(error)
 
     async def install(request: Request) -> Response:
-        """Install packages into SwissArmyGrid's own Python, where Refresh runs, on the user's click."""
+        """Install packages into Swiss Army Bench's own Python, where Refresh runs, on the user's click."""
         try:
             body = await read_json_object(request, '{"packages": ["pyodbc"]}')
             worked, shown = await blades.install(body.get("packages"))

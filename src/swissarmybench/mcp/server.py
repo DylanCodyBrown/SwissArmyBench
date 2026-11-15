@@ -1,7 +1,7 @@
-"""The SwissArmyGrid MCP server: `swissarmygrid-mcp`. One typed tool per command.
+"""The Swiss Army Bench MCP server: `swissarmybench-mcp`. One typed tool per command.
 
 A stdio launcher. Claude Code (or any MCP client) starts it. Every command in the registry
-(`swissarmygrid.cli.commands`) becomes an MCP tool of the same name, with its real arguments as the
+(`swissarmybench.cli.commands`) becomes an MCP tool of the same name, with its real arguments as the
 tool's typed schema, so the model sees `steps_add(grid, kind, params, index?)` rather than composing
 a generic call. Nothing is written by hand here: add a command to the registry and it is a tool.
 
@@ -11,7 +11,7 @@ whose shape cannot be guessed (the JSON ones). The `guide` tool carries the deta
 
 Like every front end it calls the grid server over HTTP as the agent (`X-Actor: agent`); all the
 rules (export approvals, the SQL guard, the audit log) live in that server. It never
-starts a server or opens a browser: SwissArmyGrid lives in VS Code, whose extension runs the one
+starts a server or opens a browser: Swiss Army Bench lives in VS Code, whose extension runs the one
 server and shows the grids.
 
 Cell values are untrusted: they come back only inside an `<untrusted-data>` block.
@@ -27,12 +27,12 @@ from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from swissarmygrid.cli.api import CommandError
-from swissarmygrid.cli.commands import DATA_NOTE, REGISTRY, Command, ImageResult, execute_result
+from swissarmybench.cli.api import CommandError
+from swissarmybench.cli.commands import DATA_NOTE, REGISTRY, Command, ImageResult, execute_result
 
 server = MCPServer(
-    name="swissarmygrid",
-    title="SwissArmyGrid",
+    name="swissarmybench",
+    title="Swiss Army Bench",
     instructions=(
         "The user's tables in live local grids, with every action their grid page has. Call guide "
         "first. Exports wait for the user's click. " + DATA_NOTE

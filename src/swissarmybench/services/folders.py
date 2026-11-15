@@ -16,7 +16,7 @@ class Folders:
         ensure_own: Callable[[str], None] = lambda where: None,
     ) -> None:
         self._listing = listing
-        # Makes the app's own folder (SwissArmyGrid in the home folder) when `where` is that folder and
+        # Makes the app's own folder (SwissArmyBench in the home folder) when `where` is that folder and
         # it is not there yet: the first Save or Open of the Workbench starts in it. No other folder.
         self._ensure_own = ensure_own
 

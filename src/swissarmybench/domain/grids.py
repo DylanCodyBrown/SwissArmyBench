@@ -22,11 +22,11 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmygrid.domain.datasets import Column, DatasetInfo
-from swissarmygrid.domain.steps import Step, ViewSettings, quote, type_family
+from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.steps import Step, ViewSettings, quote, type_family
 
 # The view's position column: 0-based, in view order.
-POS: str = "__sag_pos"
+POS: str = "__sab_pos"
 
 
 @dataclass(frozen=True)

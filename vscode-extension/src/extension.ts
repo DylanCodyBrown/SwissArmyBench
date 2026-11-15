@@ -1,5 +1,5 @@
-// extension.ts -- SwissArmyGrid in VS Code, and nothing more: its MCP tools as VS Code's own tools (agent mode, any
-// model), and a button that opens SwissArmyGrid, as the app's icon does. The server and the tools are installed with uv
+// extension.ts -- Swiss Army Bench in VS Code, and nothing more: its MCP tools as VS Code's own tools (agent mode, any
+// model), and a button that opens Swiss Army Bench, as the app's icon does. The server and the tools are installed with uv
 // (install.sh, install.ps1); the extension only points VS Code at them.
 
 import { spawn } from "child_process";
@@ -7,9 +7,10 @@ import * as fs from "fs";
 import * as vscode from "vscode";
 import { ChromeDeps, openInChrome } from "./core/chrome";
 import { ensureRunning, NOT_INSTALLED, serverPython, workspaceUrl } from "./vscode/server";
+import { serverModule } from "./core/paths";
 
 export function activate(ctx: vscode.ExtensionContext): void {
-  const log = vscode.window.createOutputChannel("SwissArmyGrid");
+  const log = vscode.window.createOutputChannel("Swiss Army Bench");
   const chrome: ChromeDeps = { spawn, exists: fs.existsSync };
 
   // ===== THE TOOLS: the uv tool install's MCP server, offered to VS Code =====
@@ -17,7 +18,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   ctx.subscriptions.push(
     log,
     changed,
-    vscode.lm.registerMcpServerDefinitionProvider("swissarmygrid", {
+    vscode.lm.registerMcpServerDefinitionProvider("swissarmybench", {
       onDidChangeMcpServerDefinitions: changed.event,
       provideMcpServerDefinitions: () => {
         const python = serverPython();
@@ -25,21 +26,24 @@ export function activate(ctx: vscode.ExtensionContext): void {
           log.appendLine(NOT_INSTALLED);
           return [];
         }
-        return [new vscode.McpStdioServerDefinition("SwissArmyGrid", python, ["-m", "swissarmygrid.mcp.server"])];
+        return [new vscode.McpStdioServerDefinition("Swiss Army Bench", python, ["-m", serverModule(python, "mcp.server")])];
       },
     }),
   );
 
-  // ===== THE BUTTON: start SwissArmyGrid if it is not running, and open it =====
+  // ===== THE BUTTON: start Swiss Army Bench if it is not running, and open it =====
   const open = async (): Promise<void> => {
     try {
       const info = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Window, title: "SwissArmyGrid" },
+        { location: vscode.ProgressLocation.Window, title: "Swiss Army Bench" },
         () => ensureRunning(),
       );
       changed.fire(); // installed now, if it was not when VS Code started
       const url = workspaceUrl(info);
-      const own = vscode.workspace.getConfiguration("swissarmygrid").get<string>("chromePath", "");
+      // The setting under its old name too (SwissArmyGrid's, before the rename), for one release.
+      const own =
+        vscode.workspace.getConfiguration("swissarmybench").get<string>("chromePath", "") ||
+        vscode.workspace.getConfiguration("swissarmygrid").get<string>("chromePath", "");
       const opened = await openInChrome(url, chrome, process.platform, process.env, own);
       if (!opened.ok) {
         log.appendLine(opened.message);
@@ -51,12 +55,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }
   };
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  item.text = "$(table) SwissArmyGrid";
-  item.command = "swissarmygrid.open";
+  item.text = "$(table) Swiss Army Bench";
+  item.command = "swissarmybench.open";
   item.show();
-  ctx.subscriptions.push(item, vscode.commands.registerCommand("swissarmygrid.open", open));
+  ctx.subscriptions.push(item, vscode.commands.registerCommand("swissarmybench.open", open));
 }
 
 export function deactivate(): void {
-  // Nothing to stop: SwissArmyGrid keeps running, as the app does, until it is closed.
+  // Nothing to stop: Swiss Army Bench keeps running, as the app does, until it is closed.
 }

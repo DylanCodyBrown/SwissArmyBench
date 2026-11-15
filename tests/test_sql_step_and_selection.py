@@ -15,9 +15,9 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.cli import api
-from swissarmygrid.cli.api import CommandError
-from swissarmygrid.cli.commands import execute
+from swissarmybench.cli import api
+from swissarmybench.cli.api import CommandError
+from swissarmybench.cli.commands import execute
 from tests.conftest import AGENT, AUTH, grid_id, push
 
 ORDERS = pa.table(
@@ -78,7 +78,7 @@ def test_sql_step_shapes_the_view_and_later_steps_see_it(client: TestClient) -> 
         ("SELECT * FROM customers", "reads only the table entering it"),
         ("SELECT * FROM read_csv('C:/x.csv')", "not allowed"),
         ("CREATE TABLE x AS SELECT * FROM grid", "one SELECT over orders"),
-        ("SELECT 1 AS __sag_pos FROM grid", "may not start"),
+        ("SELECT 1 AS __sab_pos FROM grid", "may not start"),
     ],
 )
 def test_sql_step_refusals_are_step_errors(client: TestClient, sql: str, message: str) -> None:

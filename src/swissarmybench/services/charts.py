@@ -10,7 +10,7 @@ because charts are computed on request from the grid's current steps. Agent-made
 so the page can mark them.
 
 A card may also belong to no table (`add_free`): a note, a figure, a picture or a table of rows sent
-from Python (`sag.sandbox`), the agent or the Sandbox's own Add note. It stays when grids close. A
+from Python (`sab.sandbox`), the agent or the Sandbox's own Add note. It stays when grids close. A
 `key` names a card, so sending the same key again replaces that card's content in its place.
 
 Saved dashboards (the `Dashboards` port): Save freezes every card as drawn, a chart's points and a
@@ -28,14 +28,14 @@ from collections import OrderedDict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from swissarmygrid.domain import themes
-from swissarmygrid.domain.charts import _grouped, altair_code, fill_figure, validate, vega_lite
-from swissarmygrid.domain.datasets import DatasetInfo, quote
-from swissarmygrid.domain.grids import Grid, view_key
-from swissarmygrid.domain.sql_guard import guard
-from swissarmygrid.domain.steps import Step, type_family
-from swissarmygrid.services.ports import BACKGROUND, Dashboards, SqlSession, ThemeShelf
-from swissarmygrid.services.workspace import NotFound, Refused, Workspace
+from swissarmybench.domain import themes
+from swissarmybench.domain.charts import _grouped, altair_code, fill_figure, validate, vega_lite
+from swissarmybench.domain.datasets import DatasetInfo, quote
+from swissarmybench.domain.grids import Grid, view_key
+from swissarmybench.domain.sql_guard import guard
+from swissarmybench.domain.steps import Step, type_family
+from swissarmybench.services.ports import BACKGROUND, Dashboards, SqlSession, ThemeShelf
+from swissarmybench.services.workspace import NotFound, Refused, Workspace
 
 _TABLE_CARD_ROWS: int = 100
 _TABLE_CARD_COLUMNS: int = 50
@@ -77,7 +77,7 @@ _BODY_WORDS: dict[str, str] = {
 }
 Card = dict[str, Any]
 # The number of groups, carried on each row of a grouped chart's one query.
-_GROUPS: str = "sag_groups"
+_GROUPS: str = "sab_groups"
 # How many charts' points are kept (a chart on a view that has not changed is not computed again).
 _KEPT_CHARTS: int = 128
 
@@ -634,7 +634,7 @@ class Cards:
 
     async def add_free(self, body: Any, who: str) -> dict[str, Any]:
         """A card that belongs to no table: any kind but a chart or a table's query, which need a
-        grid's view. `"origin": "python"` marks one sent by sag.sandbox."""
+        grid's view. `"origin": "python"` marks one sent by sab.sandbox."""
         card = check_card(body)
         _not_the_agents(card, who)
         if card["kind"] == "chart" or "sql" in card:
@@ -782,7 +782,7 @@ def _click_filter(field: str, family: str, value: Any, time_unit: str | None) ->
 
 
 def _as_family(value: Any, family: str) -> Any:
-    """A value an agent gave as text (`sag sandbox_select --value 3`) as its column's type; any
+    """A value an agent gave as text (`sab sandbox_select --value 3`) as its column's type; any
     other value as it came (the filter step says what is wrong with it)."""
     if not isinstance(value, str):
         return value

@@ -10,7 +10,7 @@ and DAX cells use it as they use one. Its dialect is `dax` (domain/catalogs.py q
 the catalog each dataset is a schema.
 
 - A dataset is named with its connection: `Finance/Sales model` (split_name, joined_name). A DAX cell,
-  `sag.dax()` and the agent's commands all say it that way.
+  `sab.dax()` and the agent's commands all say it that way.
 - A table opens as a grid under its own name; when two of the workspace's datasets hold a table of
   that name, under the dataset's name and its own (grid_name: `Sales_model_Date`).
 
@@ -34,8 +34,8 @@ import re
 from collections.abc import Collection
 from typing import Any
 
-from swissarmygrid.domain.connections import dataset_name
-from swissarmygrid.domain.relationships import Model, Relationship, parse_model
+from swissarmybench.domain.connections import dataset_name
+from swissarmybench.domain.relationships import Model, Relationship, parse_model
 
 DIALECT: str = "dax"
 

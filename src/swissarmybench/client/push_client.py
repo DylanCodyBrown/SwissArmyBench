@@ -1,4 +1,4 @@
-"""Send tabular data to the local SwissArmyGrid server: `push(orders)`.
+"""Send tabular data to the local Swiss Army Bench server: `push(orders)`.
 
 Accepts a pandas DataFrame, a Polars DataFrame, a PyArrow table, a DuckDB relation, anything
 else that speaks the Arrow C stream interface, or a list of dicts ("records").
@@ -11,7 +11,7 @@ The dataset name, which is also the browser tab's title, comes from:
 With pyarrow installed (the normal case) the data travels as an Arrow stream, which keeps
 real column types (dates stay dates). Without it a pandas frame goes as orient="split" JSON.
 
-SwissArmyGrid lives in VS Code. Its extension starts the server when VS Code opens and shows
+Swiss Army Bench lives in VS Code. Its extension starts the server when VS Code opens and shows
 the grids there; this client only connects to that server and never starts one or opens a
 browser, so every script, notebook and agent reaches the one server the extension keeps current.
 """
@@ -23,7 +23,6 @@ import inspect
 import io
 import json
 import linecache
-import os
 import re
 import urllib.error
 import urllib.request
@@ -31,12 +30,14 @@ from pathlib import Path
 from types import FrameType
 from typing import Any
 
+from swissarmybench.renamed import env, home_state_folder
+
 _MIB: int = 1024 * 1024
 _NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _TIMEOUT_SECONDS: float = 300.0
 NOT_RUNNING: str = (
-    "SwissArmyGrid isn't running. Start it with the swissarmygrid command (installed with uv), or "
-    "VS Code's Open SwissArmyGrid button."
+    "Swiss Army Bench isn't running. Start it with the swissarmybench command (installed with uv), or "
+    "VS Code's Open Swiss Army Bench button."
 )
 
 
@@ -53,8 +54,8 @@ class TableNotOpenError(RuntimeError):
 
 
 def info_file() -> Path:
-    override = os.environ.get("SWISSARMYGRID_INFO")
-    return Path(override) if override else Path.home() / ".swissarmygrid" / "server.json"
+    override = env("SWISSARMYBENCH_INFO")
+    return Path(override) if override else home_state_folder() / "server.json"
 
 
 def _read_info() -> dict[str, Any] | None:
@@ -100,7 +101,7 @@ def _too_large_message(name: str, size: int, limit: int) -> str:
     return (
         f"Dataset '{name}' is about {size / _MIB:.1f} MiB; the limit is "
         f"{limit / _MIB:.0f} MiB. Filter, sample, or select fewer columns before "
-        "pushing, or raise the limit (SWISSARMYGRID_MAX_DATASET_MB, then restart the server)."
+        "pushing, or raise the limit (SWISSARMYBENCH_MAX_DATASET_MB, then restart the server)."
     )
 
 
@@ -110,7 +111,7 @@ _CALL_ARGUMENT = re.compile(r"\bpush\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*[,)]")
 def caller_variable_name(data: object, frame: FrameType | None) -> str | None:
     """The name the caller has for `data`.
 
-    First the name written in the call itself (`sag.push(orders)` -> "orders"), read from the
+    First the name written in the call itself (`sab.push(orders)` -> "orders"), read from the
     calling line of source, when that name does hold `data`: this is what you meant even when a
     loop variable (`for frame in ...`) points at the same table. Otherwise the one local or global
     that holds it; several names for one object are ambiguous and give None.
@@ -364,7 +365,7 @@ def push(
     if _process:
         headers["X-Process"] = _process
     # A Workbench kernel says which one it is: the table's cell goes into that kernel's document.
-    kernel = os.environ.get("SWISSARMYGRID_KERNEL", "")
+    kernel = env("SWISSARMYBENCH_KERNEL", "")
     if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", kernel):
         headers["X-Kernel"] = kernel
     request = urllib.request.Request(
@@ -382,18 +383,18 @@ def push(
             raise DatasetTooLargeError(message) from error
         if error.code == 409 and _follow:
             raise TableNotOpenError(message) from error
-        raise RuntimeError(f"SwissArmyGrid refused the push ({error.code}): {message}") from error
+        raise RuntimeError(f"Swiss Army Bench refused the push ({error.code}): {message}") from error
     except TimeoutError as error:
         raise ServerNotRunningError(
-            f"The SwissArmyGrid server at port {info['port']} did not answer within "
+            f"The Swiss Army Bench server at port {info['port']} did not answer within "
             f"{_TIMEOUT_SECONDS:.0f} seconds."
         ) from error
     except (urllib.error.URLError, http.client.HTTPException, OSError) as error:
         # Refused, reset, or closed without a reply (RemoteDisconnected): the server went away.
         reason = getattr(error, "reason", None) or error
         raise ServerNotRunningError(
-            f"No SwissArmyGrid server at port {info['port']} ({reason}): it stopped while "
-            "this push was on its way. Click SwissArmyGrid in VS Code's status bar to start it again."
+            f"No Swiss Army Bench server at port {info['port']} ({reason}): it stopped while "
+            "this push was on its way. Click Swiss Army Bench in VS Code's status bar to start it again."
         ) from error
     return str(result.get("grid_url") or "")  # a refresh of a table whose tab was closed has none
 

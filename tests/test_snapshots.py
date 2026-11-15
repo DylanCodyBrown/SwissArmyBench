@@ -92,7 +92,7 @@ def test_it_is_audited(tmp_path: Path) -> None:
 
 def test_with_no_page_open_the_agent_is_told_so(client: TestClient) -> None:
     response = client.post("/snapshots", json={}, headers=AGENT)
-    assert response.status_code == 409 and "No SwissArmyGrid page is open" in response.text
+    assert response.status_code == 409 and "No Swiss Army Bench page is open" in response.text
 
 
 def test_a_page_that_cannot_draw_says_why(client: TestClient) -> None:
@@ -167,8 +167,8 @@ def test_an_answer_that_arrives_as_the_request_times_out_is_not_a_500(tmp_path: 
     import uvicorn
     from websockets.sync.client import connect
 
-    from swissarmygrid.server.app import create_app
-    from swissarmygrid.settings import Settings
+    from swissarmybench.server.app import create_app
+    from swissarmybench.settings import Settings
 
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
@@ -187,7 +187,7 @@ def test_an_answer_that_arrives_as_the_request_times_out_is_not_a_500(tmp_path: 
     try:
         with connect(
             f"ws://127.0.0.1:{port}/ws?workspace=1",
-            subprotocols=["swissarmygrid", "t"],  # type: ignore[list-item]
+            subprotocols=["swissarmybench", "t"],  # type: ignore[list-item]
         ) as page:
             asked: dict[str, Any] = {}
 

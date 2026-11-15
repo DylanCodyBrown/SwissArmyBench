@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from time import monotonic
 from typing import Any
 
-from swissarmygrid.domain.datasets import NAME_PATTERN
-from swissarmygrid.services.ports import Datasets, Notifier
+from swissarmybench.domain.datasets import NAME_PATTERN
+from swissarmybench.services.ports import Datasets, Notifier
 
 MAX_TABLES: int = 500
 MAX_LABEL_CHARS: int = 120

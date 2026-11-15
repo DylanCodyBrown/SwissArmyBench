@@ -35,15 +35,15 @@ import pyarrow.parquet as pq
 import xlsxwriter
 from xlsxwriter.utility import xl_col_to_name
 
-from swissarmygrid.domain.datasets import Column
-from swissarmygrid.domain.export import (
+from swissarmybench.domain.datasets import Column
+from swissarmybench.domain.export import (
     FORMULA_STARTS,
     ExportError,
     ExportOptions,
     Provenance,
     neutralize,
 )
-from swissarmygrid.domain.steps import type_family
+from swissarmybench.domain.steps import type_family
 
 EXCEL_MAX_ROWS: int = 1_048_576
 EXCEL_MAX_COLUMNS: int = 16_384
@@ -619,7 +619,7 @@ def parquet(reader: pa.RecordBatchReader, options: ExportOptions, provenance: Pr
     if provenance is not None:
         schema = schema.with_metadata(
             {
-                "swissarmygrid.provenance": json.dumps(
+                "swissarmybench.provenance": json.dumps(
                     {
                         "source": provenance.source,
                         "steps": provenance.steps,

@@ -1,6 +1,6 @@
 """Run a blade's code, and its catalog command, in this Python.
 
-`sag.blade(name)` runs the code here, in the caller's Python, and returns the blade's variable. The
+`sab.blade(name)` runs the code here, in the caller's Python, and returns the blade's variable. The
 server's Refresh runs the same functions in a child process of its own Python (server/blade_runner.py)
 to load the catalog.
 
@@ -24,10 +24,10 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from swissarmygrid.domain import blades, python_connections
-from swissarmygrid.domain.blades import Package
-from swissarmygrid.domain.blades import parse_code as parse
-from swissarmygrid.domain.blades import read_code as read
+from swissarmybench.domain import blades, python_connections
+from swissarmybench.domain.blades import Package
+from swissarmybench.domain.blades import parse_code as parse
+from swissarmybench.domain.blades import read_code as read
 
 
 class BladeRunError(RuntimeError):

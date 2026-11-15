@@ -4,14 +4,14 @@ A step is plain data, {id, kind, params, enabled}, never code. A grid's view is 
 through the enabled steps in order. Like Power Query, each step is one stage, compiled here to
 one common table expression (CTE) over the previous stage:
 
-    WITH s0 AS (SELECT *, rowid AS __sag_ord FROM "ds_orders"),
+    WITH s0 AS (SELECT *, rowid AS __sab_ord FROM "ds_orders"),
          s1 AS (SELECT * FROM s0 WHERE ...),        -- step 1: filter
          s2 AS (SELECT * REPLACE (...) FROM s1)     -- step 2: sort
-    SELECT * EXCLUDE (__sag_ord) FROM s2 ORDER BY __sag_ord
+    SELECT * EXCLUDE (__sab_ord) FROM s2 ORDER BY __sab_ord
 
 "Preview at step N" is the same query ending at sN, so it costs nothing extra to build.
 
-Row order is explicit. SQL relations have no order, so every stage carries a hidden __sag_ord
+Row order is explicit. SQL relations have no order, so every stage carries a hidden __sab_ord
 column and the final query sorts by it. Filters keep it; a sort step renumbers it; group-by
 orders groups by their keys; distinct keeps each row's first position.
 
@@ -52,8 +52,8 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, TypeGuard
 
-from swissarmygrid.domain.datasets import Column, reserved_column_name, same_name_ignoring_case
-from swissarmygrid.domain.sql_guard import SqlGrammar, SqlRefused, guard_step
+from swissarmybench.domain.datasets import Column, reserved_column_name, same_name_ignoring_case
+from swissarmybench.domain.sql_guard import SqlGrammar, SqlRefused, guard_step
 
 # Port: the (name, type) of each column a query returns, asked of the engine. It raises EngineError
 # when the engine refuses the query.
@@ -65,8 +65,8 @@ class EngineError(Exception):
     cell value."""
 
 
-ORD: str = "__sag_ord"
-RESERVED_PREFIX: str = "__sag_"
+ORD: str = "__sab_ord"
+RESERVED_PREFIX: str = "__sab_"
 # Numbers a step may compare against: up to DuckDB's widest integers, UHUGEINT and HUGEINT.
 _LARGEST_INTEGER: int = 2**128 - 1
 _SMALLEST_INTEGER: int = -(2**127)

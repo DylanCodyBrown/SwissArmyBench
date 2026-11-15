@@ -13,7 +13,7 @@ import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
-PREFIX: str = "swissarmygrid-streamlit-"
+PREFIX: str = "swissarmybench-streamlit-"
 
 
 class AppFiles:

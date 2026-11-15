@@ -10,7 +10,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Locator, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, demo_frame, open_grid, server  # noqa: F401
 from tests.test_regression import orders
 
@@ -42,7 +42,7 @@ def test_the_forms_never_start_on_an_identifier(browser: Browser, server: dict[s
             dialog.get_by_role("button", name="Close").last.click()
 
         # A column the user selected is theirs, identifier or not.
-        page.locator(".ag-header-cell[col-id='unit_price'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='unit_price'] .sab-header-name").click()
         dialog = analyze(page, "Odds…")
         expect(dialog.get_by_label("Column", exact=True)).to_have_value("unit_price", timeout=20000)
         dialog.get_by_role("button", name="Close").last.click()

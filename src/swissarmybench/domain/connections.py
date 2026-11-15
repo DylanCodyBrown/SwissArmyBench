@@ -18,8 +18,8 @@ import re
 import unicodedata
 from typing import Any
 
-from swissarmygrid.domain import python_connections
-from swissarmygrid.domain.blades import env_name_for_secret
+from swissarmybench.domain import python_connections
+from swissarmybench.domain.blades import env_name_for_secret
 
 __all__ = ["env_name_for_secret"]  # with the rules below: a vault's secret as a variable
 
@@ -282,5 +282,7 @@ _PYTHON_WORDS = (
         "from global if import in is lambda nonlocal not or pass raise return try while with yield".split()
     )
     | frozenset(name.lower() for name in dir(builtins))
-    | frozenset({"sag", "pd", "np", "plt", "df", "display", "get_ipython", "in", "out"})
+    | frozenset(
+        {"sab", "sag", "pd", "np", "plt", "df", "display", "get_ipython", "in", "out"}
+    )  # sag: the old alias
 )

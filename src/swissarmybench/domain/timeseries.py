@@ -24,8 +24,8 @@ import math
 from datetime import date, timedelta
 from typing import Any
 
-from swissarmygrid.domain.analysis import MAD_TO_SD, AnalysisError, literal, quote, short_number
-from swissarmygrid.domain.regression import cholesky, inverse, solve, t_quantile
+from swissarmybench.domain.analysis import MAD_TO_SD, AnalysisError, literal, quote, short_number
+from swissarmybench.domain.regression import cholesky, inverse, solve, t_quantile
 
 PERIODS: tuple[str, ...] = ("day", "week", "month", "quarter", "year")
 TOTALS: tuple[str, ...] = ("sum", "avg", "count")

@@ -6,10 +6,10 @@ from decimal import Decimal
 
 import pyarrow as pa
 
-from swissarmygrid.adapters.database import open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.domain.relationships import KeyOptions
-from swissarmygrid.services.relationships import find_keys
+from swissarmybench.adapters.database import open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.domain.relationships import KeyOptions
+from swissarmybench.services.relationships import find_keys
 
 
 def test_a_decimal_and_a_double_with_the_same_values_meet() -> None:

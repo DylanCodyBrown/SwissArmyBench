@@ -13,10 +13,10 @@ import duckdb
 import pyarrow as pa
 import pytest
 
-from swissarmygrid.adapters.database import duckdb_grammar, open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.domain import sql_guard
-from swissarmygrid.domain.sql_guard import SqlRefused
+from swissarmybench.adapters.database import duckdb_grammar, open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.domain import sql_guard
+from swissarmybench.domain.sql_guard import SqlRefused
 
 
 @pytest.fixture
@@ -65,8 +65,8 @@ ESCAPES = [
     # A table function called as a scalar never runs, but is refused plainly too.
     "SELECT json_execute_serialized_sql(json_serialize_sql('SELECT * FROM ds_other'))",
     # Internal names are not for user text.
-    "WITH __sag_grid AS (SELECT * FROM grid) SELECT * FROM __sag_grid",
-    "SELECT * FROM __sag_cte_0",
+    "WITH __sab_grid AS (SELECT * FROM grid) SELECT * FROM __sab_grid",
+    "SELECT * FROM __sab_cte_0",
 ]
 
 

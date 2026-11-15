@@ -11,8 +11,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.blades import env_name_for_secret, every_secret
-from swissarmygrid.domain.connections import (
+from swissarmybench.domain.blades import env_name_for_secret, every_secret
+from swissarmybench.domain.connections import (
     connection_kind,
     form_order,
     name_from_path,
@@ -147,7 +147,7 @@ def test_the_file_chooser_lists_folders_then_chosen_kinds_of_file(client: TestCl
 
 
 def test_a_password_comes_from_the_keyring_an_environment_variable_or_a_vault(client: TestClient) -> None:
-    from swissarmygrid.domain.connections import env_name_for, rename_secret
+    from swissarmybench.domain.connections import env_name_for, rename_secret
 
     code = 'import psycopg\nconn = psycopg.connect(host="h", password=secret("password"))'
     assert rename_secret(code, "password", "SHOP_PW").endswith('password=secret("SHOP_PW"))')
@@ -230,7 +230,7 @@ def test_a_password_comes_from_the_keyring_an_environment_variable_or_a_vault(cl
 
 
 def test_each_connection_has_a_name_in_code(client: TestClient, tmp_path: Path) -> None:
-    from swissarmygrid.domain.connections import code_names
+    from swissarmybench.domain.connections import code_names
 
     assert code_names(["Sales DB", "orders", "Orders", "2024 Budget", "class", "Café"]) == {
         "Sales DB": "sales_db",
@@ -249,7 +249,7 @@ def test_each_connection_has_a_name_in_code(client: TestClient, tmp_path: Path) 
 def test_a_cell_that_names_a_connection_opens_it_first(monkeypatch: pytest.MonkeyPatch) -> None:
     from IPython.core.interactiveshell import InteractiveShell
 
-    from swissarmygrid.client import blades_client, kernel_connections
+    from swissarmybench.client import blades_client, kernel_connections
 
     opened: list[str] = []
 
@@ -387,8 +387,8 @@ def test_a_vault_may_load_every_secret_under_its_own_name(client: TestClient) ->
 
 
 def test_trino_links_a_pem_over_https_with_a_password() -> None:
-    from swissarmygrid.domain.blades import detect_settings, read_code
-    from swissarmygrid.server.blade_templates import TEMPLATES
+    from swissarmybench.domain.blades import detect_settings, read_code
+    from swissarmybench.server.blade_templates import TEMPLATES
 
     code = next(t for t in TEMPLATES if t.id == "trino").code
     found = {s.name: s for s in detect_settings(code)}
@@ -414,14 +414,14 @@ def test_trino_links_a_pem_over_https_with_a_password() -> None:
     ],
 )
 def test_a_certificate_file_is_a_field_with_a_file_picker(code: str, key: str) -> None:
-    from swissarmygrid.domain.blades import detect_settings
+    from swissarmybench.domain.blades import detect_settings
 
     [cert] = [s for s in detect_settings(code) if s.key == key]
     assert cert.name == "certificate file" and picker(cert.to_json(), None) == "file"
 
 
 def test_trust_server_certificate_is_a_checkbox_in_code_and_connection_strings() -> None:
-    from swissarmygrid.domain.blades import apply_settings, detect_settings
+    from swissarmybench.domain.blades import apply_settings, detect_settings
 
     odbc = 'conn = pyodbc.connect("Server=s;Encrypt=yes;TrustServerCertificate=no;")'
     found = {s.name: s for s in detect_settings(odbc)}
@@ -438,8 +438,8 @@ def test_trust_server_certificate_is_a_checkbox_in_code_and_connection_strings()
 
 @pytest.mark.parametrize("template", ["sqlserver", "azuresql"])
 def test_sql_server_and_azure_sql_sign_in_three_ways(template: str) -> None:
-    from swissarmygrid.domain.blades import detect_settings, read_code
-    from swissarmygrid.server.blade_templates import TEMPLATES
+    from swissarmybench.domain.blades import detect_settings, read_code
+    from swissarmybench.server.blade_templates import TEMPLATES
 
     starter = next(t for t in TEMPLATES if t.id == template)
     ways = {label: (mark, code) for label, mark, code in starter.sign_ins}
@@ -471,7 +471,7 @@ def test_the_form_offers_the_ways_to_sign_in_new_and_saved(client: TestClient) -
 
 
 def test_a_sign_in_that_opens_a_window_is_told_apart() -> None:
-    from swissarmygrid.domain.connections import signs_in_interactively
+    from swissarmybench.domain.connections import signs_in_interactively
 
     assert signs_in_interactively('"Authentication=ActiveDirectoryInteractive;"')
     assert signs_in_interactively('snowflake.connector.connect(authenticator="externalbrowser")')

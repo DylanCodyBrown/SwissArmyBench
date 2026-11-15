@@ -1,4 +1,4 @@
-> **Removed 2026-11-01.** The Agent tab's terminal described here was taken out of SwissArmyGrid (the table-in-front context hook stays). This plan is kept as history.
+> **Removed 2026-11-01.** The Agent tab's terminal described here was taken out of Swiss Army Bench (the table-in-front context hook stays). This plan is kept as history.
 
 # Agent terminal and current-table context
 
@@ -12,7 +12,7 @@ Goal: launch Claude Code (or any agent CLI) beside the data without leaving the 
   Analysis Sandbox; **Launch** starts the launch command in the user's shell, **Stop** ends it.
 - Settings, **Agent terminal**: the launch command (`claude` by default; `codex`, `gemini`,
   `aider` or anything else works) and the folder it starts in. The server keeps them in
-  `~/.swissarmygrid/terminal.json`; an agent cannot change them (403).
+  `~/.swissarmybench/terminal.json`; an agent cannot change them (403).
 - Plumbing: xterm.js in the page (`web/src/lazy/terminal.ts`, loaded on first Launch), a
   WebSocket to `/terminal/ws`, and a pseudo-terminal on the server (`routes_terminal.py`:
   pywinpty/ConPTY on Windows, ptyprocess elsewhere). The shell stays open after the agent exits.
@@ -29,7 +29,7 @@ IDE integrations hand it the open file and selection.
 - `GET /agent/context` summarizes it: dataset, grid id, the view's row count, columns and types,
   steps, selection size, the other open tables. Metadata only; at level 0 step values are left out.
 - Two ways in: the MCP tool `current_table`, and the plugin's `UserPromptSubmit` hook
-  (`hooks/hooks.json`, written by `deploy_plugin.py`), which runs `swissarmygrid-context` and adds
+  (`hooks/hooks.json`, written by `deploy_plugin.py`), which runs `swissarmybench-context` and adds
   the summary to each prompt. It prints nothing (and exits 0) when no server or no page is open.
 - The hook runs the bare wheel through `uvx`; the first prompt after an update builds that small
   environment (no extras), later prompts reuse it.

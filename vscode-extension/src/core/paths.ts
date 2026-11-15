@@ -1,24 +1,42 @@
-// paths.ts -- where SwissArmyGrid's pieces live on this machine: the connection file the server writes, and the
+// paths.ts -- where Swiss Army Bench's pieces live on this machine: the connection file the server writes, and the
 // Python the extension starts the server with. Pure functions of the environment, so the tests can pass their own.
 
 import * as path from "path";
 
 export type Env = Record<string, string | undefined>;
 
-/** The connection file: SWISSARMYGRID_INFO, else ~/.swissarmygrid/server.json (the server and every client agree). */
-export function infoFile(env: Env, home: string): string {
-  return env.SWISSARMYGRID_INFO || path.join(home, ".swissarmygrid", "server.json");
+// Swiss Army Bench was SwissArmyGrid. For one release the old names still work here as in the server
+// (src/swissarmybench/renamed.py): the old environment variables, the old state folder while it has not
+// moved, and the old uv tool. The next release drops them.
+const OLD_STATE = ".swissarmygrid";
+export const OLD_TOOL = "swissarmygrid";
+
+/** A variable by its new name (SWISSARMYBENCH_X), else its old one (SWISSARMYGRID_X). */
+export function setting(env: Env, name: string): string | undefined {
+  return env[`SWISSARMYBENCH_${name}`] || env[`SWISSARMYGRID_${name}`];
+}
+
+/** The connection file: SWISSARMYBENCH_INFO, else ~/.swissarmybench/server.json (the server and every client agree);
+ *  ~/.swissarmygrid/server.json while only the old state folder is there (the server moves it on its first start). */
+export function infoFile(env: Env, home: string, exists: (file: string) => boolean = () => false): string {
+  const named = setting(env, "INFO");
+  if (named) return named;
+  const own = path.join(home, ".swissarmybench");
+  const old = path.join(home, OLD_STATE);
+  return path.join(!exists(own) && exists(old) ? old : own, "server.json");
 }
 
 /**
  * The Pythons that may run the server, in the order to try them:
- *   1. SWISSARMYGRID_SERVER, a python.exe with the server installed (for working on SwissArmyGrid itself: the repo's
+ *   1. SWISSARMYBENCH_SERVER (or the old SWISSARMYGRID_SERVER), a python.exe with the server installed (for working on Swiss Army Bench itself: the repo's
  *      .venv). When it is set it is the only one, so a typo fails loudly instead of quietly using another install.
- *   2. The uv tool install the installers make: <uv tool dir>/swissarmygrid/Scripts/python.exe (bin/python elsewhere).
+ *   2. The uv tool install the installers make: <uv tool dir>/swissarmybench/Scripts/python.exe (bin/python elsewhere),
+ *      then the one SwissArmyGrid's installers made before the rename (<uv tool dir>/swissarmygrid/...).
  *      UV_TOOL_DIR, when set, is uv's tool folder and the only one: uv installs there and nowhere else.
  */
 export function serverPythons(env: Env, home: string, platform: string): string[] {
-  if (env.SWISSARMYGRID_SERVER) return [env.SWISSARMYGRID_SERVER];
+  const named = setting(env, "SERVER");
+  if (named) return [named];
   // The target platform's path rules, not this machine's: the tests build Windows paths on any host.
   const p = platform === "win32" ? path.win32 : path.posix;
   const python = platform === "win32" ? ["Scripts", "python.exe"] : ["bin", "python"];
@@ -28,7 +46,13 @@ export function serverPythons(env: Env, home: string, platform: string): string[
     if (platform === "win32" && env.APPDATA) roots.push(p.join(env.APPDATA, "uv", "tools"));
     roots.push(p.join(env.XDG_DATA_HOME || p.join(home, ".local", "share"), "uv", "tools"));
   }
-  return roots.map((root) => p.join(root, "swissarmygrid", ...python));
+  return ["swissarmybench", OLD_TOOL].flatMap((tool) => roots.map((root) => p.join(root, tool, ...python)));
+}
+
+/** A module of the server as an installed Python names it: the old swissarmygrid tool has only the old package. */
+export function serverModule(python: string, module: string): string {
+  const tool = path.win32.basename(path.win32.dirname(path.win32.dirname(python))); // win32 splits on both slashes
+  return `${tool.toLowerCase() === OLD_TOOL ? "swissarmygrid" : "swissarmybench"}.${module}`;
 }
 
 /**

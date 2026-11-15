@@ -8,7 +8,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 from tests.test_analysis import orders
 
@@ -19,7 +19,7 @@ def test_show_the_math_puts_each_proof_in_the_sandbox(browser: Browser, server: 
     toast = page.locator(".toast").last
     try:
         table_row = page.locator(".ribbon .ribbon-group").first
-        page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
         table_row.get_by_role("button", name="Analyze").click()
         page.get_by_role("menuitem", name="Odds…").click()
         dialog = page.locator("dialog")

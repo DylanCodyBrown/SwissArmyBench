@@ -16,7 +16,7 @@ are in services/agent.py; this file reads the requests and shapes the answers.
   GET  /agent/inbox?take=1&all=1        what was sent, oldest first (take: mark it read)
 
 Cell values reach the agent only as data inside the MCP layer's delimited block
-(swissarmygrid.mcp.server), never in a tool description or instruction text.
+(swissarmybench.mcp.server), never in a tool description or instruction text.
 """
 
 from __future__ import annotations
@@ -26,9 +26,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.agent import AgentService
-from swissarmygrid.services.inbox import Inbox
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.agent import AgentService
+from swissarmybench.services.inbox import Inbox
 
 
 def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:

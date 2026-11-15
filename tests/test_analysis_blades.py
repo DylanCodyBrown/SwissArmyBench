@@ -10,7 +10,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.blades import BladeError, parse_blade
+from swissarmybench.domain.blades import BladeError, parse_blade
 from tests.conftest import AGENT, AUTH, grid_id, push
 from tests.fake_keyring import memory_keyring
 

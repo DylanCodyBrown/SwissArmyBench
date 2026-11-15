@@ -7,7 +7,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 from tests.test_analysis import invoices
 
@@ -21,14 +21,14 @@ def test_fit_test_then_outliers_within_each_vendor_shown_as_a_step(
 
         def header_menu(column: str, entry: str) -> None:
             """Fit test and Outliers are on the column's right-click menu (and in Analyze)."""
-            page.locator(f".ag-header-cell[col-id='{column}'] .sag-header-name").click(button="right")
+            page.locator(f".ag-header-cell[col-id='{column}'] .sab-header-name").click(button="right")
             page.get_by_role("menuitem", name=entry).click()
 
         column_row = page.locator(".ribbon .ribbon-group").nth(1)
         for gone in ("Fit test…", "Outliers…"):
             expect(column_row.get_by_role("button", name=gone)).to_have_count(0)
-        page.locator(".ag-header-cell[col-id='amount'] .sag-header-name").click()
-        page.locator(".ag-header-cell[col-id='typed'] .sag-header-name").click(modifiers=["Control"])
+        page.locator(".ag-header-cell[col-id='amount'] .sab-header-name").click()
+        page.locator(".ag-header-cell[col-id='typed'] .sab-header-name").click(modifiers=["Control"])
         header_menu("typed", "Fit test…")
         dialog = page.locator("dialog")
         expect(dialog.get_by_label("Expected spread")).to_have_value("benford")  # number columns

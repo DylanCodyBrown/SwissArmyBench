@@ -4,8 +4,8 @@ A catalog is loaded from any table that names, per row, one column of the source
 column, and usually its schema and type. An `INFORMATION_SCHEMA.COLUMNS` result works as it is, as
 do Oracle's ALL_TAB_COLUMNS and plain `schema, table, column, type` frames; the column names are
 matched case-insensitively against ALIASES. The rows go into one DuckDB table per catalog, in the
-locked database, under an engine name (`__sag_catalog_<n>`) that the SQL box and agent SQL refuse
-like every `__sag_` name. Names and types only: nothing here is ever a value from the source.
+locked database, under an engine name (`__sab_catalog_<n>`) that the SQL box and agent SQL refuse
+like every `__sab_` name. Names and types only: nothing here is ever a value from the source.
 
 The tree is Schema -> table or view -> column -> type. Search finds tables and columns: every word
 must appear in `schema.table.column`; `a.b` means schema `a` and table `b`, or table `a` and
@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-# The dialects SAG knows how to quote for, with the names people also use for them.
+# The dialects SAB knows how to quote for, with the names people also use for them.
 DIALECTS: tuple[str, ...] = (
     "sqlserver",
     "postgres",
@@ -75,7 +75,7 @@ class CatalogError(ValueError):
 class CatalogInfo:
     name: str
     dialect: str
-    source: str  # "load" (sag.load) or "blade" (a blade's Refresh)
+    source: str  # "load" (sab.load) or "blade" (a blade's Refresh)
     loaded_at: float
     table: str  # the engine table holding its rows
     databases: int

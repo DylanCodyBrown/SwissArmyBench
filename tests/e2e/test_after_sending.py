@@ -10,7 +10,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, demo_frame, open_grid, server  # noqa: F401
 
 
@@ -20,7 +20,7 @@ def test_send_to_sandbox_keeps_the_window_and_show_goes_to_the_card(
     url = push_client.push(demo_frame(400), name="send_orders", new_grid=True)
     page = open_grid(browser, url, width=1440, height=1000)
     try:
-        page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
         page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Analyze").click()
         page.get_by_role("menuitem", name="Odds…").click()
         dialog = page.locator("dialog")
@@ -50,7 +50,7 @@ def test_open_as_grid_closes_its_window_and_shows_the_new_tab(
     url = push_client.push(demo_frame(400), name="grid_orders", new_grid=True)
     page = open_grid(browser, url, width=1440, height=1000)
     try:
-        page.locator(".ag-header-cell[col-id='region'] .sag-header-name").click()
+        page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
         page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Analyze").click()
         page.get_by_role("menuitem", name="Odds…").click()
         dialog = page.locator("dialog")

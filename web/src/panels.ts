@@ -2,7 +2,7 @@
  * panels.ts: the panels Settings can turn off (the owner, 2026-11-15). [FUNCTION + WIRE]
  *
  * Each panel has a switch on the server (domain/panels.py), on unless the user turns it off: shared by
- * every window, kept through a reload, every one on again when SwissArmyGrid starts. A panel turned off
+ * every window, kept through a reload, every one on again when Swiss Army Bench starts. A panel turned off
  * is gone, not folded: the page puts `panel-off-<id>` on <body> and grid.css takes the panel away; the
  * pages' own code asks `panelOn` where a panel would open by itself (a run opening the console).
  *

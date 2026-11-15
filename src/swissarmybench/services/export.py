@@ -15,14 +15,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from swissarmygrid.domain.datasets import Column, DatasetInfo, quote
-from swissarmygrid.domain.export import FORMATS, ExportOptions, Provenance
-from swissarmygrid.domain.grids import POS, Grid, selection_scope
-from swissarmygrid.domain.steps import describe_settings, describe_steps, literal
-from swissarmygrid.services.agent import ExportTickets
-from swissarmygrid.services.ports import BACKGROUND, SqlSession
-from swissarmygrid.services.profile import profile_table
-from swissarmygrid.services.workspace import Conflict, Refused, Workspace
+from swissarmybench.domain.datasets import Column, DatasetInfo, quote
+from swissarmybench.domain.export import FORMATS, ExportOptions, Provenance
+from swissarmybench.domain.grids import POS, Grid, selection_scope
+from swissarmybench.domain.steps import describe_settings, describe_steps, literal
+from swissarmybench.services.agent import ExportTickets
+from swissarmybench.services.ports import BACKGROUND, SqlSession
+from swissarmybench.services.profile import profile_table
+from swissarmybench.services.workspace import Conflict, Refused, Workspace
 
 _SAFE_FILE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 SCOPES: tuple[str, ...] = ("view", "rows", "columns", "selection", "source", "profile")

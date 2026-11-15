@@ -1,6 +1,6 @@
-"""The Analyze menu's statistics on your own table, in any Python with duckdb and swissarmygrid:
+"""The Analyze menu's statistics on your own table, in any Python with duckdb and swissarmybench:
 
-    from swissarmygrid import stats
+    from swissarmybench import stats
 
     stats.odds(orders, column="region", outcome={"column": "late", "values": ["late"]})
     stats.predictors(orders, target="amount")
@@ -9,7 +9,7 @@
 
 `data` is a pandas or Polars DataFrame, an Arrow table or a DuckDB relation. Each function is the one
 the grid's window runs (services/analysis.py), on a private in-memory DuckDB, so the notebook code
-SwissArmyGrid writes gives the window's numbers. The results are plain dictionaries.
+Swiss Army Bench writes gives the window's numbers. The results are plain dictionaries.
 
 The distributions are here too: chi_square_p, t_p, f_p, normal_quantile, correlation_p.
 """
@@ -20,12 +20,12 @@ from typing import Any
 
 import duckdb
 
-from swissarmygrid.domain.datasets import Column
-from swissarmygrid.domain.regression import predict as _predict
-from swissarmygrid.domain.stats import chi_square_p, correlation_p, f_p, normal_quantile, t_p
-from swissarmygrid.services import analysis as _analysis
-from swissarmygrid.services import regression as _regression
-from swissarmygrid.services import timeseries as _timeseries
+from swissarmybench.domain.datasets import Column
+from swissarmybench.domain.regression import predict as _predict
+from swissarmybench.domain.stats import chi_square_p, correlation_p, f_p, normal_quantile, t_p
+from swissarmybench.services import analysis as _analysis
+from swissarmybench.services import regression as _regression
+from swissarmybench.services import timeseries as _timeseries
 
 __all__ = [
     "chi_square_p",

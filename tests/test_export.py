@@ -14,7 +14,7 @@ import pyarrow.parquet as pq
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.adapters import export as exporting
+from swissarmybench.adapters import export as exporting
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 TRICKY = pa.table(
@@ -121,7 +121,7 @@ def test_parquet_keeps_types_blanks_time_zones_and_provenance(client: TestClient
     assert read.schema.field("day").type == pa.date32()
     assert read.schema.field("at").type.tz is not None
     assert read.column("amount").null_count == 1
-    meta = json.loads(read.schema.metadata[b"swissarmygrid.provenance"])
+    meta = json.loads(read.schema.metadata[b"swissarmybench.provenance"])
     assert meta["rows"] == 8 and "007" not in json.dumps(meta)
     assert read.to_pandas().dtypes["big"].kind == "i"
 

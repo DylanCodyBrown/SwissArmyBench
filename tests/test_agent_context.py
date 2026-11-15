@@ -9,7 +9,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.client.context_hook import summary
+from swissarmybench.client.context_hook import summary
 from tests.conftest import AGENT, AUTH, PORT, grid_id, push
 
 # Copied per call: websocket_connect writes the subprotocols into the headers dict it is given.
@@ -45,9 +45,9 @@ def test_the_hook_prints_nothing_without_a_table_in_front() -> None:
 def test_the_commands_get_python_compare_and_close(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from swissarmygrid.cli import api
-    from swissarmygrid.cli.api import CommandError
-    from swissarmygrid.cli.commands import execute
+    from swissarmybench.cli import api
+    from swissarmybench.cli.api import CommandError
+    from swissarmybench.cli.commands import execute
 
     def fake_call(method: str, path: str, body: Any = None, params: Any = None, timeout: float = 0) -> Any:
         response = client.request(method, path, json=body, params=params, headers=AGENT)
@@ -75,7 +75,7 @@ def test_the_commands_get_python_compare_and_close(
 
 
 def test_what_the_user_sends_reaches_the_agent_once(client: TestClient) -> None:
-    from swissarmygrid.client.context_hook import sent
+    from swissarmybench.client.context_hook import sent
 
     error = {
         "kind": "error",

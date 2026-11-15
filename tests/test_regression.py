@@ -14,9 +14,9 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain import regression as R
-from swissarmygrid.domain.analysis import AnalysisError
-from swissarmygrid.domain.sql_guard import keeps_order
+from swissarmybench.domain import regression as R
+from swissarmybench.domain.analysis import AnalysisError
+from swissarmybench.domain.sql_guard import keeps_order
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 # ===== the domain =====
@@ -175,7 +175,7 @@ def test_regression_refuses_what_it_cannot_fit(client: TestClient, grid: str) ->
 
 
 def test_the_notebook_code_and_stats_give_the_windows_regression(client: TestClient, grid: str) -> None:
-    from swissarmygrid import stats
+    from swissarmybench import stats
 
     body = {"target": "amount", "predictors": ["units", "region"]}
     window = fit(client, grid, **body)

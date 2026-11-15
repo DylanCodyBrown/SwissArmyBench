@@ -1,21 +1,21 @@
-# SwissArmyGrid user guide
+# Swiss Army Bench user guide
 
-SwissArmyGrid is a local data grid that runs on your own machine. You push a pandas DataFrame from Python, and it opens as a tab in a browser page where you can filter, sort, compare and profile the table without changing the source data. Every change you make is a step you can see, turn off or export as Python.
+Swiss Army Bench is a local data grid that runs on your own machine. You push a pandas DataFrame from Python, and it opens as a tab in a browser page where you can filter, sort, compare and profile the table without changing the source data. Every change you make is a step you can see, turn off or export as Python.
 
 ## Getting data in
 
 Install it once with the installer in the repository's `installer/` folder (`install.ps1` on Windows, `install.sh` on macOS and Linux), or with `uv tool install "<wheel>[server]"`. After that, push a DataFrame from any script or notebook:
 
 ```python
-import swissarmygrid as sag
+import swissarmybench as sab
 
-sag.push(orders)
+sab.push(orders)
 ```
 
 The grid is named after the variable, here `orders`. To choose the name yourself, pass `name=`. Names can be 1 to 64 letters, digits, `_` or `-`.
 
 ```python
-sag.push(orders, name="orders", new_grid=True)
+sab.push(orders, name="orders", new_grid=True)
 ```
 
 `new_grid=True` opens a new grid even when one with the same name is already open. Without it, pushing again refreshes the same grid, and its steps stay in place.
@@ -32,7 +32,7 @@ The page has these parts:
 
 - **Tab bar.** The Sandbox, Diagram and Workbench tabs come first and cannot be closed. Each open grid has its own tab after them. Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
 - **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
-- **Application row.** Above the ribbon, on every tab: **Settings**, **Connections**, **Blades and catalog**, **Tour** (the question mark) and **Zoom**: a one-minute tour of every word SwissArmyGrid uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
+- **Application row.** Above the ribbon, on every tab: **Settings**, **Connections**, **Blades and catalog**, **Tour** (the question mark) and **Zoom**: a one-minute tour of every word Swiss Army Bench uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
@@ -47,13 +47,13 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, the setup prompt for connecting an agent and the agent activity list described below.
 
-**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time SwissArmyGrid starts.
+**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts.
 
 ![The Settings window: the theme, the setup prompt with its copy button and the agent activity list.](images/02-preferences.png)
 
 Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, the Sandbox included.
 
-The "Connect an agent" box holds a prompt you can copy into Claude Code or another agent that has a shell. It tells that agent how to add the SwissArmyGrid MCP server.
+The "Connect an agent" box holds a prompt you can copy into Claude Code or another agent that has a shell. It tells that agent how to add the Swiss Army Bench MCP server.
 
 ## Working with a table
 
@@ -154,7 +154,7 @@ Each form has a **Data shape** panel: a made-up table in the shape the analysis 
 
 The forms never start on an identifier column (one whose name ends in id or key, or where every row holds a different whole number or text): Odds, Fit test, Find predictors, Outliers and Regression start on the first number column that is not one, Time series and Forecast start on the row count, and a regression starts with every column but its target and the identifiers ticked. A column you selected first is used as it is.
 
-Every result has four buttons: **Send to Sandbox** (the result in words, as a note; the window stays open, and the toast's **Show** closes it and goes to the card), **Open as grid** (the result's table as a new grid: the window closes and the new tab is in front), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmygrid.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
+Every result has four buttons: **Send to Sandbox** (the result in words, as a note; the window stays open, and the toast's **Show** closes it and goes to the card), **Open as grid** (the result's table as a new grid: the window closes and the new tab is in front), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmybench.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
 
 ### Auto width
 
@@ -247,7 +247,7 @@ Every theme is readable: text stands at least 7:1 against its background, quiete
 
 ### Saved dashboards
 
-**Dashboards…** in the Sandbox's toolbar saves the Sandbox under a name: every card as it is drawn now, its size and place, a chart's points and a query table's rows included, so the dashboard opens even when its tables are gone. Saving again under the same name adds a version (the last 60 are kept); **History** lists them, newest first, with their cards, and **Open this version** brings one back. Opening replaces the cards on the Sandbox (it asks first). A chart or query whose table is open draws live on it; one whose table isn't shows what it showed when saved ("As saved") and turns live by itself once that table is pushed again. Nothing is saved unless you press Save; dashboards live in your SwissArmyGrid folder (`~/.swissarmygrid/dashboards`). An agent can list a dashboard's versions, never save, open or delete one.
+**Dashboards…** in the Sandbox's toolbar saves the Sandbox under a name: every card as it is drawn now, its size and place, a chart's points and a query table's rows included, so the dashboard opens even when its tables are gone. Saving again under the same name adds a version (the last 60 are kept); **History** lists them, newest first, with their cards, and **Open this version** brings one back. Opening replaces the cards on the Sandbox (it asks first). A chart or query whose table is open draws live on it; one whose table isn't shows what it showed when saved ("As saved") and turns live by itself once that table is pushed again. Nothing is saved unless you press Save; dashboards live in your Swiss Army Bench folder (`~/.swissarmybench/dashboards`). An agent can list a dashboard's versions, never save, open or delete one.
 
 ### Sending things to the Sandbox
 
@@ -258,27 +258,27 @@ Anything that shows details can go to the Sandbox, as a readable note and, where
 - **Right-click a column header**: Profile to Sandbox (its numbers, most common values and a histogram), Distinct values to Sandbox, Profile, and the Analyze entries for that column.
 - **Send to Sandbox** also sits on the column profile, the whole-table profile, the value viewer and the Key Finder.
 
-### From Python: sag.sandbox
+### From Python: sab.sandbox
 
-`sag.sandbox(thing, "Title")` puts anything visual from your own Python in the Sandbox:
+`sab.sandbox(thing, "Title")` puts anything visual from your own Python in the Sandbox:
 
 ```python
-sag.sandbox(fig)  # matplotlib or seaborn: a picture
-sag.sandbox(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
-sag.sandbox(chart)  # Altair: drawn as Vega-Lite
-sag.sandbox(dot)  # a graphviz Digraph
-sag.sandbox(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
-sag.sandbox("## Findings\n- North leads")  # Markdown: a note
-sag.sandbox("chart.png")  # a file: a picture, .md, .mmd, .dot
-sag.sandbox(text, kind="mermaid")  # Mermaid, DOT or ECharts text
-sag.sandbox(fig, key="monthly", size=(8, 10))
+sab.sandbox(fig)  # matplotlib or seaborn: a picture
+sab.sandbox(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
+sab.sandbox(chart)  # Altair: drawn as Vega-Lite
+sab.sandbox(dot)  # a graphviz Digraph
+sab.sandbox(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
+sab.sandbox("## Findings\n- North leads")  # Markdown: a note
+sab.sandbox("chart.png")  # a file: a picture, .md, .mmd, .dot
+sab.sandbox(text, kind="mermaid")  # Mermaid, DOT or ECharts text
+sab.sandbox(fig, key="monthly", size=(8, 10))
 ```
 
 `key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing.
 
 ### How an agent sees the grids
 
-An agent works on your tables through the SwissArmyGrid MCP server, which has one tool for each thing the grid can do (anything you can do with a button, the agent can do with a command, named for the part of the app it belongs to (`table_`, `column_`, `cell_`, `steps_`, `compare_`...), except the controls that are yours alone, such as approving an export). The plugin provides it, the setup prompt in Settings installs it in other agents, and the agent workspace has it already. The agent sees which table you have in front of you without asking: the page tells the grid server which tab is active, and each prompt carries a short summary of that table (its name, row count, columns and steps, never its values). An agent can also ask for it with the `current_table` tool.
+An agent works on your tables through the Swiss Army Bench MCP server, which has one tool for each thing the grid can do (anything you can do with a button, the agent can do with a command, named for the part of the app it belongs to (`table_`, `column_`, `cell_`, `steps_`, `compare_`...), except the controls that are yours alone, such as approving an export). The plugin provides it, the setup prompt in Settings installs it in other agents, and the agent workspace has it already. The agent sees which table you have in front of you without asking: the page tells the grid server which tab is active, and each prompt carries a short summary of that table (its name, row count, columns and steps, never its values). An agent can also ask for it with the `current_table` tool.
 
 ## Relationships
 
@@ -299,7 +299,7 @@ A saved set of relationships is a **tang** (the part of a blade that anchors it 
 - **In your tangs**, on this computer, or
 - **In a shared folder**: the blade folders (a team share or a repository, set with Blade folders on the blades page). A tang saved there is in your coworkers' list the next time they open this window, marked **Shared**, with who saved it and when.
 
-The list at the top shows every tang found, searchable by name, description, tag or author, with how many of its tables you have open. **Apply** uses one (merged into what you use now; the toast says if it changed a join you had). **Run** checks a tang against your tables before you trust it. **Import a tang** opens a `.tang` file: you see what it holds and what it would change before applying it, and can keep it in your tangs or share it. **Export** downloads the joins in use as a `.tang` file. Only `.tang` files are tangs: ordinary JSON files in those folders are left alone. Older model files (`~/.swissarmygrid/models`, `SWISSARMYGRID_MODELS`) still work.
+The list at the top shows every tang found, searchable by name, description, tag or author, with how many of its tables you have open. **Apply** uses one (merged into what you use now; the toast says if it changed a join you had). **Run** checks a tang against your tables before you trust it. **Import a tang** opens a `.tang` file: you see what it holds and what it would change before applying it, and can keep it in your tangs or share it. **Export** downloads the joins in use as a `.tang` file. Only `.tang` files are tangs: ordinary JSON files in those folders are left alone. Older model files (`~/.swissarmybench/models`, `SWISSARMYBENCH_MODELS`) still work.
 
 Tangs also come in packs (see Blades and the catalog): an installed pack's tangs are listed marked **Pack**, and **Add to pack** shares yours through the team's repository.
 
@@ -331,7 +331,7 @@ their own, run in an IPython kernel on this computer.
   its file or connection and its steps; a click goes to its read-only cell in the notebook in front,
   and a drag puts its name in your code. **+ Table** opens a file as a table, browses a connection's
   tables, searches the catalog, or adds a connection. **Variables** lists your blades (a click opens
-  one, a drag gives its `sag.blade` line); **+ Blade** shows your saved blades and connections. The
+  one, a drag gives its `sab.blade` line); **+ Blade** shows your saved blades and connections. The
   arrow (or Ctrl+B) folds the panel away.
 - **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
@@ -391,7 +391,7 @@ their own, run in an IPython kernel on this computer.
 
 - **Every database form reads in the same order:** the server, the port and the catalog or database; then the user and the password, each under its own label; then the certificate file and **Trust server certificate** together.
 - **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows.
-- **A driver that is not installed** is said under the form with its install command and an **Install** button beside it, which installs it into SwissArmyGrid's own Python. The note goes when the install is done.
+- **A driver that is not installed** is said under the form with its install command and an **Install** button beside it, which installs it into Swiss Army Bench's own Python. The note goes when the install is done.
 - **A password from a key vault:** choose the vault, and **Entry in the vault** lists the vault's secrets by name (never a value). Picking one applies it. A secret the vault does not list can be named by hand (**A secret by name…**).
 
 - **SQL Server and Azure SQL** ask how to sign in: **Windows sign-in**, **User name and password** (a SQL login; the password from any of the three places) or **MFA (Microsoft Entra)**, which opens Microsoft's sign-in window. Switching keeps the server and database you typed. **Trust server certificate** is a checkbox (off by default; tick it for a server whose certificate this computer does not know, such as a self-signed one), and so is **Encrypt**.
@@ -404,8 +404,8 @@ their own, run in an IPython kernel on this computer.
   - Its catalog shows the workspace's datasets, and under each one its tables, with their columns and, marked **measure**, their measures. Datasets are read one after another: the first 25, for at most 200 seconds. A dataset that could not be read has a circled **!** on it (point at it, or click the dataset, for the reason); the others are not affected.
   - **Open as grid** opens a table's first rows (Rows to open) from its own dataset and says how many the table holds; **Copy the EVALUATE** gives the DAX. The grid is named after the table. When two datasets have a table of the same name, the grid is named after the dataset too: `Sales_model_Date`.
   - **Import its relationships** is on a dataset: on its page (click the dataset in the catalog), in its right-click menu, and offered in the message when one of its tables opens. It brings that dataset's own relationships into the Diagram and the Key Finder's known joins. An inactive relationship stays inactive (a dashed line).
-  - **DAX goes in a DAX cell** (the Workbench, below): `EVALUATE TOPN(10, 'Sales')` on the dataset picked in the cell's head. In Python: `sag.dax("Finance/Sales model", "EVALUATE ...")`. A dataset is named after its connection: the connection, a slash, the dataset.
-  - In Python the connection is the workspace: `conn = sag.connection("Finance")`, then `conn.datasets()` (each dataset's name and id) and `conn.dataset("Sales model").cursor()` (one dataset, used as a database's cursor is; a dataset is found by its name or its id).
+  - **DAX goes in a DAX cell** (the Workbench, below): `EVALUATE TOPN(10, 'Sales')` on the dataset picked in the cell's head. In Python: `sab.dax("Finance/Sales model", "EVALUATE ...")`. A dataset is named after its connection: the connection, a slash, the dataset.
+  - In Python the connection is the workspace: `conn = sab.connection("Finance")`, then `conn.datasets()` (each dataset's name and id) and `conn.dataset("Sales model").cursor()` (one dataset, used as a database's cursor is; a dataset is found by its name or its id).
   - A connection saved before this, for one dataset, still works: it shows as one dataset called **Model**, and a DAX cell names the connection alone.
   - Power BI gives at most 100,000 rows or 1,000,000 values (rows times columns) for one query. An answer that reaches that is refused with a message: ask for fewer rows or columns, or summarize in DAX.
   - What the tenant needs: the admin setting **Dataset Execute Queries REST API** on, service principals allowed to use the Power BI APIs (for an app registration, which must also be a member of the workspace), and Read and Build permission on each dataset.
@@ -415,14 +415,14 @@ their own, run in an IPython kernel on this computer.
   - **Read a table** returns a table's rows, given `conn`, `schema`, `table` and `limit` (`None` means all): a DataFrame, an Arrow table or a list of dicts. Return `(rows, total)` and the grid can say "First 10,000 of 250,000 rows" and offer **Load all rows**.
   - **Environment variables** lists every variable the boxes read (`os.environ["ORDERS_API_KEY"]`, `os.environ.get(...)`, `os.getenv(...)`, `secret(...)`), found as you type. Choose where each comes from: **This computer's environment**, **Saved on this computer**, **A key vault** (pick the vault and its entry) or **A plain value (not a secret)**. Your code is not changed: the values are set as environment variables before it runs, so the same code runs where those names are set some other way, such as an Azure Function's settings. A variable the code needs that has no value says **Not set on this computer**.
   - **Test connection** runs Connect, then List the tables, then reads the first table's first 20 rows and shows them. A saved connection's **Test** shows them under its row.
-  - Its catalog, **Open as grid**, the first-rows preview and **Rows to open** work as for a database. In a notebook, `conn = sag.connection("Orders API")` gives what Connect made, and `sag.read("Orders API", "orders")` reads a table with your Read a table box.
+  - Its catalog, **Open as grid**, the first-rows preview and **Rows to open** work as for a database. In a notebook, `conn = sab.connection("Orders API")` gives what Connect made, and `sab.read("Orders API", "orders")` reads a table with your Read a table box.
 - **A key vault** (Azure Key Vault, AWS, Google, HashiCorp, 1Password, a `.env` file, Windows Credential Manager or the macOS Keychain): fill in its address and save. **Every secret in the vault** is on by default: each secret becomes an environment variable under its own name (`SqlPassword` stays `SqlPassword`; `Sql--Password` becomes `Sql__Password`, Azure's convention; `warehouse-password` becomes `warehouse_password`), and a secret added to the vault later is there at the next kernel. Once its address is filled in, the form lists the vault's secrets by name: leave a box empty and the secret keeps its own name (shown faintly), or type a name to map it to that variable. Untick Every secret to choose them instead.
 - **Every Workbench kernel starts with those variables set.** `os.environ["WAREHOUSE_PASSWORD"]` works in any notebook or script, and so does a connection whose password is `secret("WAREHOUSE_PASSWORD")`. The Variables pane's Environment section shows each one as set or not set, never its value. A vault that cannot be read (signed out of Azure, say) says so when the kernel starts, and the kernel starts without its variables.
 - No vault yet? Choose **A key vault** for a password and press **New vault**: the connection's form waits and comes back with the new vault in its list.
 
 ### Catalogs load themselves
 
-A connection's catalog (its tables and columns, for the Workbench's catalog tree and the SQL cell's suggestions) loads in the background: when you save the connection, when SwissArmyGrid starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
+A connection's catalog (its tables and columns, for the Workbench's catalog tree and the SQL cell's suggestions) loads in the background: when you save the connection, when Swiss Army Bench starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
 
 ## What the agent may see
 
@@ -434,17 +434,17 @@ Settings lists the agent's activity: what it asked for, newest first. It never i
 
 **Blades and catalog** in the Application row opens the blades page in a tab of its own, so it can sit on another screen.
 
-- **A blade** is any Python that reaches outside Python to load something: a database connection, a CSV file, an Excel workbook, an API, a vault. Press **New blade**, pick a starter (21 databases, 5 file patterns, 8 vaults) or paste your own code, and save it. Then in any Python: `conn = sag.blade("Warehouse")`.
+- **A blade** is any Python that reaches outside Python to load something: a database connection, a CSV file, an Excel workbook, an API, a vault. Press **New blade**, pick a starter (21 databases, 5 file patterns, 8 vaults) or paste your own code, and save it. Then in any Python: `conn = sab.blade("Warehouse")`.
 - **Passwords** go in the code as `secret("password")`. Type the value on the save screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
 - **Analysis blades** are your own analyses. Pick **Analysis** as the kind (or a starter: a summary of every column, a Pareto of the selected column, correlations): the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Sandbox**.
 - **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable. **Secret blades** keep only variable names: you type the values once per session.
 - **Packages:** the save screen lists the packages the code needs. **Install** adds missing ones to the grid server's Python; the copy button gives the command for your own Python.
-- **The catalog:** tick **Add to the catalog** and give a query that lists the source's columns (the starters have one). **Save and refresh the catalog** on the save screen loads it, and **Refresh** (the play button beside the catalog picker) loads it again: every schema, table and column with its type, as a tree you can search (`sales.orders` finds schema and table). Click a table for its columns and a first SELECT. Drag a blade into a script for its `sag.blade` line, or a table or column for its quoted name.
+- **The catalog:** tick **Add to the catalog** and give a query that lists the source's columns (the starters have one). **Save and refresh the catalog** on the save screen loads it, and **Refresh** (the play button beside the catalog picker) loads it again: every schema, table and column with its type, as a tree you can search (`sales.orders` finds schema and table). Click a table for its columns and a first SELECT. Drag a blade into a script for its `sab.blade` line, or a table or column for its quoted name.
 - **Find a blade:** the search box above the blades matches names, descriptions and tags, and the tag chips under it narrow the list. Give a blade a description and tags on its save screen (tag it with the app it serves, and searching for that app finds it). The star pins a favourite to the top.
 - **Share a blade:** **Export** on its save screen downloads it as one `.blade.py` file (its code under a short header; passwords never go in it). The download arrow above the blades exports them all as a zip. To bring blades in, press the up arrow or drop the files on the blades: you see each blade's code first, and choose what happens when a name is taken. Importing runs nothing.
 - **Fill in your values:** a blade's server, database, user and file path show as fields under **Settings** on its save screen and under **Fill in your values** when you import one. Example values are marked **needs your value**, and the values your other blades use are offered as buttons. A change is written straight into the blade's code.
 - **Blade folders:** the folder button lists folders to search for `.blade.py` files (a team's Git repository, say). Only files that start with the blade header count. A blade from a folder shows **file**; saving it writes its file.
-- **Packs:** a team can keep blades and tangs in a GitHub repository that is a Claude Code plugin marketplace. Install a pack once in Claude Code (`/plugin marketplace add <owner>/<repository>`, then `/plugin install <pack>@<marketplace>`) and its blades show here marked **pack**. They are read-only, since Claude Code replaces them on every update (`/plugin marketplace update`): **Save a copy** to change one; **Test** and **Refresh** work as they are. **Packs** above the blades lists what is installed, makes a **New marketplace** (also `sag pack new <folder>` in a terminal) and, for a clone of the repository in your blade folders, **Add to pack** copies your blades and tangs in, ready to commit.
+- **Packs:** a team can keep blades and tangs in a GitHub repository that is a Claude Code plugin marketplace. Install a pack once in Claude Code (`/plugin marketplace add <owner>/<repository>`, then `/plugin install <pack>@<marketplace>`) and its blades show here marked **pack**. They are read-only, since Claude Code replaces them on every update (`/plugin marketplace update`): **Save a copy** to change one; **Test** and **Refresh** work as they are. **Packs** above the blades lists what is installed, makes a **New marketplace** (also `sab pack new <folder>` in a terminal) and, for a clone of the repository in your blade folders, **Add to pack** copies your blades and tangs in, ready to commit.
 - Your agent can read the catalog to write SQL against the source, and **make a blade for you**, saved as you would save it. It never gets a password's value; you type passwords on the blade's save screen.
 
 ![The blades page: a database connection and a secret blade above the catalog tree, opened at main.orders.customer_id, with the table's columns, a first SELECT, Open as grid and the table's first rows on the right.](images/20-catalog.png)
@@ -513,12 +513,12 @@ with **+ Cell** › **DAX**, the kind picker in a cell's head, the palette (**Ad
 - **The result is a DataFrame,** as a SQL cell's: shown under the cell with **Open as grid**, kept
   under a name with `-> name` on the cell's first line in Jupyter.
 - **In the file** it is a code cell that starts `%%dax Finance/Sales model`, so Jupyter and VS Code
-  run it too, with the SwissArmyGrid client installed.
+  run it too, with the Swiss Army Bench client installed.
 - **In a script** a DAX cell is plain Python under a marker, so the file runs anywhere:
 
   ```python
   # %% [dax]
-  result = sag.dax(
+  result = sab.dax(
       "Finance/Sales model",
       """
   EVALUATE TOPN(10, 'Sales')
@@ -637,7 +637,7 @@ of cell: write Python.
   moves a notebook, a script or a canvas into a Workbench window of its own, for another screen: its
   unsaved changes and its running kernel go with it. **Move to the main window** brings it back. Drag
   a cell (or a Streamlit cells entry) from one window onto a canvas in the other.
-- **Streamlit is not installed with SwissArmyGrid.** It runs in the notebook's own Python (its
+- **Streamlit is not installed with Swiss Army Bench.** It runs in the notebook's own Python (its
   environment). If that Python lacks it, the cell or the canvas says so and offers **Install**
   (streamlit, pandas and pyarrow, into that Python).
 - **Export…** writes a folder that runs alone: `app.py`, `app_pages/`, the data as Parquet in
@@ -677,12 +677,12 @@ start with `from data import orders, ...`.
 
 **Copy code** (on any analysis result) copies the analysis as Python to the clipboard, its imports first. Paste it into Jupyter or any Python; nothing runs until you run it.
 
-- **Drag from the blades page** into a cell or an editor: a blade gives its `sag.blade(...)` line, a table a first SELECT, a column its quoted name.
-- **Your tables are grids:** importing `swissarmygrid` in Jupyter or IPython lists the tables you make in the grid page's Open list. Open one and it's a grid; run the cell again and the grid refreshes.
+- **Drag from the blades page** into a cell or an editor: a blade gives its `sab.blade(...)` line, a table a first SELECT, a column its quoted name.
+- **Your tables are grids:** importing `swissarmybench` in Jupyter or IPython lists the tables you make in the grid page's Open list. Open one and it's a grid; run the cell again and the grid refreshes.
 
 ### SQL completion
 
-- **Completion:** in Jupyter or the IPython terminal (after `import swissarmygrid`), press Tab inside SQL, in a string holding a SELECT, FROM or JOIN, or in a `%%sql` cell, and the loaded catalogs' names come up: `ord` Tab gives tables and columns starting so, `orders.cu` Tab the columns of orders, `sales.ord` Tab the tables of sales. Columns of the tables the query names come first. It asks the running grid server and never starts one. `sag.complete()` turns it on by hand; `SWISSARMYGRID_COMPLETE=0` keeps it off.
+- **Completion:** in Jupyter or the IPython terminal (after `import swissarmybench`), press Tab inside SQL, in a string holding a SELECT, FROM or JOIN, or in a `%%sql` cell, and the loaded catalogs' names come up: `ord` Tab gives tables and columns starting so, `orders.cu` Tab the columns of orders, `sales.ord` Tab the tables of sales. Columns of the tables the query names come first. It asks the running grid server and never starts one. `sab.complete()` turns it on by hand; `SWISSARMYBENCH_COMPLETE=0` keeps it off.
 
 ## Limits
 

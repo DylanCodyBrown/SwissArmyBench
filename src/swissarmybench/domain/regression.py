@@ -19,8 +19,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from swissarmygrid.domain.analysis import AnalysisError, literal, number_literal, quote, short_number
-from swissarmygrid.domain.stats import f_p, normal_quantile, t_p
+from swissarmybench.domain.analysis import AnalysisError, literal, number_literal, quote, short_number
+from swissarmybench.domain.stats import f_p, normal_quantile, t_p
 
 MAX_LEVELS = 30  # a category's most common values get their own indicator; the rest share "(other)"
 MAX_TERMS = 80

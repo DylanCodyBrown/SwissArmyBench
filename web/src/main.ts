@@ -277,7 +277,7 @@ start().catch((e: unknown) => {
 function bladesButton(): HTMLButtonElement {
   return button(
     "Blades and catalog",
-    () => window.open(`/catalog#token=${encodeURIComponent(token)}`, "swissarmygrid-catalog")?.focus(),
+    () => window.open(`/catalog#token=${encodeURIComponent(token)}`, "swissarmybench-catalog")?.focus(),
     { icon: "key", class: "ribbon-btn" },
   );
 }

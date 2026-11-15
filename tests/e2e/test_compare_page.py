@@ -12,7 +12,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Locator, Page, expect
 
-from swissarmygrid.client import push_client
+from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, demo_frame, open_grid, server  # noqa: F401
 
 
@@ -39,7 +39,7 @@ def until(page: Page, read: Callable[[], Any], wanted: Any, seconds: float = 10)
 
 HEADERS = """pane => {
   const box = c => c.getBoundingClientRect();
-  const corner = pane.querySelector(".ag-header-cell[col-id='__sag_rownum']");
+  const corner = pane.querySelector(".ag-header-cell[col-id='__sab_rownum']");
   const edge = box(corner).right + 2;
   return [...pane.querySelectorAll('.ag-header-cell')]
     .filter(c => !c.getAttribute('col-id').startsWith('__') && box(c).width > 0)

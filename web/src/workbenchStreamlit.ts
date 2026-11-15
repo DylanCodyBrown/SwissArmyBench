@@ -141,7 +141,7 @@ export function problemText(problem: AppProblem): string {
 
 /** A frame's address for a page of the app: without Streamlit's own chrome, and without the app's
  *  list of pages (a canvas and a cell show one page). */
-export const frameAddress = (address: string): string => `${address}?embed=true&embed_options=${effectiveTheme().endsWith("dark") ? "dark_theme" : "light_theme"}&sag=frame`;
+export const frameAddress = (address: string): string => `${address}?embed=true&embed_options=${effectiveTheme().endsWith("dark") ? "dark_theme" : "light_theme"}&sab=frame`;
 
 /** "makes region · reads orders" */
 export const partsOf = (what: { makes: string[]; reads: string[]; tables: string[] }): string =>
@@ -441,7 +441,7 @@ export function pieceTools(host: StreamlitHost | undefined): PieceTools {
 // ===== a cell's link: what a drag carries, what Copy keeps =====
 
 /** The drag's type: a small JSON of the document's path and the cell's number. */
-export const CELL_DRAG = "application/x-swissarmygrid-cell";
+export const CELL_DRAG = "application/x-swissarmybench-cell";
 
 export interface CellLink {
   /** The notebook's or script's path (null: it has no file yet, so nothing can link to it). */
@@ -460,7 +460,7 @@ export interface CopiedCell extends CellLink {
 }
 
 let copied: CopiedCell | null = null;
-const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("swissarmygrid-workbench-clipboard");
+const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("swissarmybench-workbench-clipboard");
 if (channel) {
   channel.onmessage = (e: MessageEvent) => {
     const message = e.data as { copied?: CopiedCell; ask?: boolean } | null;

@@ -1,5 +1,5 @@
 """A table's read-only cell, run in the kernel (docs/ideas.md, 2026-11-14; the Workbench runs it as
-`%%sag_table orders`).
+`%%sab_table orders`).
 
 The cell's result is the table's own name: `orders = duckdb.sql("... FROM orders ...").df()`. Run a
 second time as it stands, it would transform a table that is already transformed. So this module keeps
@@ -10,7 +10,7 @@ a reference (never a copy) to the original the user's own code made, and the cel
   - `is_result` lets the watcher see that a changed variable is the cell's own result, which the grid
     already shows (its data with its steps): it is not sent back, or the steps would apply twice.
 
-A script run as a file (`%sag_run`, the Workbench's Run file) runs its tables' cells the same way: each
+A script run as a file (`%sab_run`, the Workbench's Run file) runs its tables' cells the same way: each
 `# %% [n] [transformations] name` cell goes through `run`, so the file's own run never sends a
 transformed table to the grid as if it were new data. Outside the app the file is plain Python: the
 maker makes the table, the cell transforms it once.
@@ -26,7 +26,7 @@ import sys
 from importlib import import_module
 from typing import Any
 
-from swissarmygrid.domain.streamlit_use import uses_streamlit, usual_name
+from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 _MISSING: Any = object()
 # What the user's own code made under each name, as last sent to the grid.
@@ -134,7 +134,7 @@ def run(name: str, code: str, namespace: dict[str, Any] | None = None) -> None:
 def open_grid(name: str, namespace: dict[str, Any] | None = None) -> str:
     """Open the table variable `name` as a grid, and keep it current from then on; the grid's address.
     When the table's cell already ran, the original is sent: the grid applies the steps itself."""
-    from swissarmygrid.client import push_client, watcher
+    from swissarmybench.client import push_client, watcher
 
     ns = _namespace() if namespace is None else namespace
     value = ns[name]
@@ -150,7 +150,7 @@ def open_grid(name: str, namespace: dict[str, Any] | None = None) -> str:
 def _magic(line: str, cell: str) -> None:
     name = line.strip()
     if not name.isidentifier():
-        raise _stop("%%sag_table takes the table's name: %%sag_table orders")
+        raise _stop("%%sab_table takes the table's name: %%sab_table orders")
     run(name, cell)
 
 
@@ -213,7 +213,7 @@ def safe_source(text: str) -> str:
             body.append(lines[index])
             index += 1
         if any(line.strip() for line in body):
-            helper = "__import__('swissarmygrid.client.table_cells', fromlist=['run'])"
+            helper = "__import__('swissarmybench.client.table_cells', fromlist=['run'])"
             out.append(f"{helper}.run({found.group(1)!r}, {chr(10).join(body)!r}, globals())")
             out += [""] * (len(body) - 1)
         else:
@@ -222,7 +222,7 @@ def safe_source(text: str) -> str:
 
 
 def _run_file(line: str) -> None:
-    """`%sag_run script.py args`: IPython's own %run, with the script's table cells run through `run`.
+    """`%sab_run script.py args`: IPython's own %run, with the script's table cells run through `run`.
     IPython reads the file itself; for the length of this run it is handed the safe text instead."""
     shell = import_module("IPython").get_ipython()
     core = import_module("IPython.core.interactiveshell")
@@ -245,7 +245,9 @@ def _run_file(line: str) -> None:
 
 
 def install(shell: Any) -> None:
-    """`%%sag_table <name>`: how the Workbench runs a table's cell. `%sag_run`: how it runs a script."""
+    """`%%sab_table <name>`: how the Workbench runs a table's cell. `%sab_run`: how it runs a script."""
     if shell is not None:
-        shell.register_magic_function(_magic, magic_kind="cell", magic_name="sag_table")
-        shell.register_magic_function(_run_file, magic_kind="line", magic_name="sag_run")
+        # sag_table and sag_run: the names before the rename, for old notebooks (renamed.py).
+        for prefix in ("sab", "sag"):
+            shell.register_magic_function(_magic, magic_kind="cell", magic_name=f"{prefix}_table")
+            shell.register_magic_function(_run_file, magic_kind="line", magic_name=f"{prefix}_run")

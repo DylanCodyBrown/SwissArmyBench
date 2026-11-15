@@ -44,7 +44,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   so `Popen.pid` is not the server's pid; the connection file records the real one.
 - Playwright 1.64 drives the installed Edge (`channel="msedge"`) with no browser download.
 - `uv run` re-syncs the environment first, which fails while a server started from
-  `swissarmygrid.exe` holds that file; run the server with `python -m swissarmygrid.server`
+  `swissarmybench.exe` holds that file; run the server with `python -m swissarmybench.server`
   during development.
 - DuckDB keeps an ordered input's order through `row_number() OVER ()` (checked on 3,000,000
   rows with 8 threads: an `ORDER BY` subquery and a filtered ordered table, five runs each, no
@@ -95,7 +95,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   (`WITH ds_x AS (SELECT * FROM ds_x)`), and so is a WITH RECURSIVE self-reference outside the
   recursive side of a UNION. `LATERAL json_execute_serialized_sql(json_serialize_sql('...'))` ran
   any SELECT, because sqlglot keeps a LATERAL function out of its Table nodes. The guard now renames
-  every CTE to `__sag_cte_<n>` by scope, refuses every table-only function, and checks DuckDB's own
+  every CTE to `__sab_cte_<n>` by scope, refuses every table-only function, and checks DuckDB's own
   parse (`json_serialize_sql`) of the rewritten query (`tests/test_sql_guard.py`).
 - (2026-11-12) Engine hardening, DuckDB 2.0.0: DuckDB matches table and column names without
   case, so "ds_orders" is also the table of a dataset "Orders" (a push of "orders" replaced it)
@@ -177,14 +177,14 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   path is wrong, so the SQLite starter opens `file:...?mode=ro` with `uri=True`, which fails plainly.
   keyring 25 on a Linux container with no Secret Service gives `keyring.backends.fail.Keyring`; the
   blade store says plainly that secrets need a vault and suggests a secret or vault blade instead. A
-  module attribute and a subpackage of the same name collide (`sag.blades` was the `blades` package
+  module attribute and a subpackage of the same name collide (`sab.blades` was the `blades` package
   once it was imported), so the package is `blade_core`.
-- (2026-11-12) The notebook behind SAG, marimo 0.25.2 (server/notebook.py, routes_notebook.py):
+- (2026-11-12) The notebook behind SAB, marimo 0.25.2 (server/notebook.py, routes_notebook.py):
   `marimo edit <folder> --headless --base-url /marimo --token-password-file - --no-skew-protection`
-  starts in about 2 s and is served through SAG's own address (HTTP with `http.client` on worker
+  starts in about 2 s and is served through SAB's own address (HTTP with `http.client` on worker
   threads, `read1` so server-sent events flow; websockets relayed with `websockets`). marimo accepts
   `Authorization: Bearer <token>`, so the proxy adds it and the browser never sees marimo's token. Skew
-  protection needs a `Marimo-Server-Token` header the proxy cannot know, and SAG serves marimo's own
+  protection needs a `Marimo-Server-Token` header the proxy cannot know, and SAB serves marimo's own
   page anyway, so it is off. A second viewer may join a running notebook as a kiosk
   (`/marimo/ws?session_id=<new>&file=<nb>&kiosk=true`): it is sent `kernel-ready` with the cell ids
   and codes, and a `create-cell` document change it posts to `/api/document/transaction` (with
@@ -254,7 +254,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   `claude plugin validate .` (Claude Code 2.1.323), with warnings only for the plugins' missing
   `version`, left out on purpose so every commit is an update. The sample-store pack copied into a
   made-up Claude folder's plugin cache and listed in its `installed_plugins.json` is found as
-  `sample-store@swissarmygrid`, with its blade (source pack, read-only) and its tang (where pack, ten
+  `sample-store@swissarmybench`, with its blade (source pack, read-only) and its tang (where pack, ten
   joins); run against the pushed sample store, nine hold and orders -> customers holds with orphans
   (90.9%), the same as the tang saved by hand. A plugin switched off in `enabledPlugins` adds nothing;
   a plugin with no blades or tangs is not a pack. In Chrome for Testing 153, a pack blade opens
@@ -277,7 +277,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   and Show these rows keeps exactly rows 30, 1030 and 2030 in the grid's order; frequency finds the one
   misspelled region. In Chrome for Testing 153, light and dark.
 - (2026-11-13) The Analyze menu, phase A (Plans/analyze-menu.plan.md): odds, find predictors,
-  swissarmygrid.stats, the three result actions. domain/stats.py matches printed tables: t (2.228 with
+  swissarmybench.stats, the three result actions. domain/stats.py matches printed tables: t (2.228 with
   10 degrees of freedom, 2.0096 with 49, 3.169 with 10 at 0.01), F (4.103 for 2 and 10, 2.5336 for 5
   and 30) and normal quantiles to 1e-12. Odds by hand: 20 of 100 against 10 of 100 is an odds ratio of
   2.25, Woolf's range 0.9943 to 5.0916. On made-up orders (West late 40% against 10%, office a copy of
@@ -319,7 +319,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 - (2026-11-13) Connections and the SQL cell (Plans/workbench-and-connections.plan.md). The Connections
   window in Chromium: a CSV connection added through Browse… (the server lists the folder; a browser's
   own picker hides the path), named after the file, Test said "a file of 27 bytes" before saving, and
-  the saved one listed under Files with its `sag.connection` and `%%sql` lines. A draft's typed password
+  the saved one listed under Files with its `sab.connection` and `%%sql` lines. A draft's typed password
   reaches the test run and never its error text; a missing path fails the test ("is not there"). The
   SQL cell in real IPython 9.18.1 against a real server: `%%sql Shop -> totals` on a SQLite connection
   gave the DataFrame and kept it; `%sql_connect` on a CSV connection, then a bare `%%sql`, read the file
@@ -336,14 +336,14 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   its completer at start), then 0.06 to 0.6 s. Sent the whole cell, Jedi reads `rainfall =
   pd.DataFrame(...)` as code and misses the live columns; the cursor's line alone gets them. A SQL
   cell's names come from the connection's catalog before any kernel runs. A new environment with uv
-  and pandas took 5.8 s; the kernel ran in it with pandas 3.1.1 and `swissarmygrid` lent from the client
+  and pandas took 5.8 s; the kernel ran in it with pandas 3.1.1 and `swissarmybench` lent from the client
   copy. Password sources: an environment variable and a new vault entry both rewrote the code's
   secret() name, and a saved connection lists the vault it runs first.
 - (2026-11-14) Every connection by its name in the Workbench: an IPython AST transformer reads the names
   a cell uses before it runs and opens a connection only then (checked in a real IPython shell: one
   connection opened, a user's own variable of the same name kept, a failing one said why and the cell
   raised NameError). In Chromium a cell ran `pd.read_csv(orders)` on a CSV connection with no
-  sag.connection line. With the suggestion list open, Monaco took Ctrl+Enter for the list and the cell
+  sab.connection line. With the suggestion list open, Monaco took Ctrl+Enter for the list and the cell
   never ran; the run keys are now caught first and close the list.
 
 - (2026-11-14) The Workbench stress test's kernel findings, each now a test (tests/test_workbench.py) on
@@ -404,7 +404,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   MCP." The Plots and Help pane is gone (Variables has the right column; F1 help is a card over the
   source); a picture's Send to Sandbox made an image card titled after the script. Send to the agent:
   the error panel's button and right-click, and the editor's right-click (the selection, or the error
-  under the cursor) post to an inbox kept in memory; `swissarmygrid-context` (now shipped in
+  under the cursor) post to an inbox kept in memory; `swissarmybench-context` (now shipped in
   plugin/hooks/hooks.json: the README named the hook but the plugin had no hooks file) prints what
   waits with the next prompt and marks it read; the `agent_inbox` tool reads it too. Monaco's context
   menu ignores a click that comes as it opens (the right button's release), so the browser test waits
@@ -419,10 +419,10 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   load-order flake of the full run, not of the app; left open in docs/ideas.md.
 - (2026-11-14) The 1.7.0b1 wheel (7.0 MB, `python build.py`) installed with its own `install.sh` as a uv
   tool on Linux, then tools/smoke_install.py against the installed server: ten made-up tables pushed and
-  arrived, the page served, blades and a catalog, copied code verified, To Python and sag.paste(); and,
+  arrived, the page served, blades and a catalog, copied code verified, To Python and sab.paste(); and,
   new in the smoke test so every release checks it: a Workbench kernel in the tool's Python ran code
   (42), a failed run came with the error panel's reading ("Use 'north'"), and a Send to the agent came
-  back through the installed `swissarmygrid-context` prompt hook. Not tried here: Windows and macOS
+  back through the installed `swissarmybench-context` prompt hook. Not tried here: Windows and macOS
   (the release workflow installs on Windows), and the VS Code extension.
 - (2026-11-14) The beta's Workbench drew Monaco without its styles in a clean build: its page linked
   build/workbench.css, which only an old build had left in the folder (a clean build has the editor's
@@ -442,7 +442,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   failed on the beta's version, 1.7.0b1, which broke the release workflow's build). Against the uv tool
   install: the Open button's code found the tool's Python, started the server and the workspace page
   answered 200, a second press reused it; the MCP command it registers (the tool's Python, -m
-  swissarmygrid.mcp.server) answered initialize and listed 177 tools. Not run: inside a real VS Code
+  swissarmybench.mcp.server) answered initialize and listed 177 tools. Not run: inside a real VS Code
   (needs a VS Code download).
 - (2026-11-14) The release workflow by hand on the branch (run 22; off main nothing publishes, and the
   release and PyPI jobs were skipped): the checks, the tests and the extension's tests passed, the wheel
@@ -570,7 +570,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   Python and no language picker, and no "Verified identical" badge; the steps window has no ribbon
   and no pop-out button; the ribbon's rows are Table and Column, and a cell's right-click menu keeps
   rows by the selected value (Keep these, Exclude these); Fit test and Outliers open from a column
-  header's right-click menu; an analysis result's Copy code puts `from swissarmygrid import stats`
+  header's right-click menu; an analysis result's Copy code puts `from swissarmybench import stats`
   and the call on the clipboard and says "Copied."; a catalog table's right-click offers Open as
   grid alone; a blade's row has no refresh icon, its save screen refreshes its catalog (asking for a
   secret each time) and the icon beside the picker refreshes it again; the strip says nothing with no
@@ -684,7 +684,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   says Microsoft's first line and what to check, never the secret; a wrong dataset id says what to
   check; no server says which one could not be reached; an answer at the row or value limit (tried
   with the limits lowered to 40 rows and 70 values) is refused as not whole.
-  **A DAX cell:** `sag.sql` and the `%%sql` magic give a DataFrame, keep it under `-> name`, and say a
+  **A DAX cell:** `sab.sql` and the `%%sql` magic give a DataFrame, keep it under `-> name`, and say a
   refusal in one line; the uses line does not take `[Total Sales]` or `"Total Sales"` for the table
   Sales, in DAX or SQL.
   **Relationships:** the named and the numbered forms give the same model (many-to-one, "filters both
@@ -717,7 +717,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 - (2026-11-15) The Streamlit canvas and projects (docs/ideas.md has the owner's words and every
   decision). This replaces Push to page, the page designer window and the Streamlit kind of cell;
   the earlier entry below describes what was there before. Streamlit is still not a dependency: the
-  tests that need it use the Python named by SWISSARMYGRID_STREAMLIT_PYTHON (here Streamlit 1.67.0,
+  tests that need it use the Python named by SWISSARMYBENCH_STREAMLIT_PYTHON (here Streamlit 1.67.0,
   pandas 3.1.1, pyarrow) and are skipped without it.
   **Rules** (tests/test_streamlit_cells.py, 27 tests): which Python cells call Streamlit (a call
   through `st` or the cell's own name for it, a name imported from it, `with st.sidebar:`; not an
@@ -781,7 +781,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   paste and a push); dragging a script's cell (not built: copy and paste); a dark theme's look.
 - (2026-11-15) Streamlit cells: pieces pushed to a page designer and linked by shared names
   (docs/ideas.md has the owner's calls and what was decided while building). Streamlit is not a
-  dependency: the tests that need it use a Python named by SWISSARMYGRID_STREAMLIT_PYTHON (here a
+  dependency: the tests that need it use a Python named by SWISSARMYBENCH_STREAMLIT_PYTHON (here a
   throwaway environment with Streamlit 1.67.0, pandas 3.1.1 and pyarrow) and are skipped without it.
   **Rules** (tests/test_streamlit_cells.py): the cell in a notebook and in a script, both ways, with
   saved pages and layouts (the notebook's metadata, the script's `# %% [streamlit-pages]` block); the
@@ -844,13 +844,13 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   **Open as grid:** `EVALUATE TOPN(...)` and the count go to the table's own dataset, with the row
   limit and first N of M; with the catalog loaded, the two Date tables open as `Sales_model_Date` and
   `Budget_model_Date`, and other tables under their own names. The table's cell in a notebook loads it
-  with `sag.dax('Finance/Sales model', ...)`.
+  with `sab.dax('Finance/Sales model', ...)`.
   **Relationships:** imported per dataset (by name or id), only that dataset asked; the model's tables
   are named as the grids are; several datasets and none named is refused with their names; the broken
   dataset says Power BI's words and changes nothing. In the browser: the offer on the "is open as a
   grid" message imports the Budget model's two, and the Diagram draws Budget, Department and
   Budget_model_Date. The Connections row has no Import button.
-  **The DAX cell:** `%%dax` is registered beside `%%sql`; `sag.dax("Finance/Sales model", ...)` gives a
+  **The DAX cell:** `%%dax` is registered beside `%%sql`; `sab.dax("Finance/Sales model", ...)` gives a
   DataFrame; the workspace alone with several datasets is refused naming them; a SQL connection is
   refused for DAX. A notebook writes and reads a DAX cell as a `%%dax 'Finance/Sales model'` code cell
   (by its first line alone too); an old `%%sql Finance/Sales model` cell reads as a DAX cell; a DAX
@@ -859,7 +859,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   connection; completion offers EVALUATE, then `'Customer'`, `[Region]` after `'Customer'[`, and
   `[Total Sales]`, each replacing the quote or bracket already typed, never the other dataset's tables
   and never SQL's WHERE; the cell runs and shows four rows; a script's DAX button and the agent's
-  command write `# %% [dax]` over one `sag.dax()` call, and the text compiles.
+  command write `# %% [dax]` over one `sab.dax()` call, and the text compiles.
   **The agent:** `connections_datasets`, `connections_import_relationships` with `dataset`,
   `workbench_dax_add`, and `workbench_run` with kind `dax`. 190 commands (188 before).
   **Found on the way, and fixed: a kernel's output could be lost.** In the whole run
@@ -880,7 +880,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   Not checked: a real tenant; whether the datasets list names datasets the sign-in may not query;
   more than 25 datasets against the real 120-queries-a-minute limit; `%%dax` in plain Jupyter outside
   the Workbench (the magic is the same function the Workbench's kernel runs, tested through IPython's
-  registration); Tab completion of names inside a `%%dax` cell in Jupyter (sag.complete is SQL's);
+  registration); Tab completion of names inside a `%%dax` cell in Jupyter (sab.complete is SQL's);
   a table opened before the catalog has loaded takes its own name even when another dataset shares
   it; Edge.
 - (2026-11-15) A connection from your own Python (docs/ideas.md has the decisions). Made-up data
@@ -902,19 +902,19 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   file written before loads as it did; a value saved on this computer is never in the file.
   **Secrets:** a key in an error from either box is starred out; no answer (the list, the form, the
   blade, the export, a Test, a refused Test with a wrong key) and nothing in the state folder holds
-  the key; the agent is refused what `sag.connection` is given.
+  the key; the agent is refused what `sab.connection` is given.
   **Through the real child process:** the starter's own three boxes over the web service, the URL a
   plain value and the key an entry of a made-up vault: Test (2 tables, 3 columns, the first 20 of 30
   rows), a missing variable named before the code runs, a vault that is gone, Save, the list, the form
   again, `connections/{name}/tables`, Refresh, the catalog's schemas and columns, the preview, Open as
   grid (10 of 30, the note's numbers), Load all rows (30, no note), the saved connection's Test. Also
   the key saved on this computer, and both variables from this computer's environment. Over a live
-  server: `sag.connection` gives `conn` with only this connection's variables set, and `sag.read`
+  server: `sab.connection` gives `conn` with only this connection's variables set, and `sab.read`
   reads a table with a limit and a schema.
   **In a browser** (one test, tests/e2e/test_python_connection_page.py): the type under Your own code,
   three boxes in the Workbench's editor, the List and Read boxes typed in, the two variables found,
   one a plain value and one picked from the vault's entries, Test showing rows, Save, the row's own
-  Test, the catalog tree, a table's columns with descriptions, its first rows and its `sag.read` line,
+  Test, the catalog tree, a table's columns with descriptions, its first rows and its `sab.read` line,
   Open as grid with "First 10 of 30 rows", and Load all rows.
   Then: ruff, format, mypy (252 files), the TypeScript check, and the whole suite with the browser
   tests: 2,142 passed, none skipped (2,095 before; 47 new: 36 in tests/test_python_connections.py,
@@ -970,7 +970,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   **Checked that the builder could not:**
   - *A project from a connection* (tests/test_streamlit_apps.py): a made-up SQLite file as the
     connection "Shop", its table opened in the grid with a filter step, New project: data.py reads it
-    again with `sag.sql('Shop', ...)` then the step as one DuckDB query (`"amount" > 50`), names the
+    again with `sab.sql('Shop', ...)` then the step as one DuckDB query (`"amount" > 50`), names the
     connection and never its code, and imports in a Python of its own with no Streamlit (as a
     notebook's kernel), giving the filtered rows (75, 100, 250) through the running server.
   - *The saved pages in a real multi-page app*: the zip unzipped, an `app.py` of the user's own with
@@ -1011,7 +1011,7 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   reason, still off after reloading both, on again from the grid page's Settings; the Data panel, both
   status bars and the steps strip by the agent's command.
   Then: ruff, format, mypy (273 files), the TypeScript check, the build, and the whole suite with the
-  browser tests in this machine's Chromium and SWISSARMYGRID_STREAMLIT_PYTHON set (Streamlit 1.67):
+  browser tests in this machine's Chromium and SWISSARMYBENCH_STREAMLIT_PYTHON set (Streamlit 1.67):
   2,312 passed, none failed, none skipped (one run; the move-back change to "a main window" came
   after it, and its tests, the Streamlit, panels and Workbench pages and the Workbench's unit tests,
   67, passed again). 228 commands (224 before: workbench_cell_name, streamlit_cells,

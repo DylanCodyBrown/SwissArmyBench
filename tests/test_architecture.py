@@ -1,5 +1,5 @@
 """The shape of the code (REFACTOR.md): three layers, imports pointing inwards, nothing deeper than
-`swissarmygrid/<folder>/<file>.py`, and a client that needs nothing but the standard library.
+`swissarmybench/<folder>/<file>.py`, and a client that needs nothing but the standard library.
 
   domain/     the model and its rules. The standard library and sqlglot (text parsing); no I/O.
   services/   the use cases. The domain and each other; every dependency arrives as an argument.
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmygrid"
+PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench"
 
 # What the plain wheel does not install: the server's packages (pyproject's [server] extra).
 SERVER_PACKAGES = (
@@ -32,31 +32,35 @@ SERVER_PACKAGES = (
     "pytz",
     "websockets",
 )
-# The plain client: every module `import swissarmygrid`, `sag`, `sag.push`, `sag.blade` can reach.
+# The plain client: every module `import swissarmybench`, `sab`, `sab.push`, `sab.blade` can reach.
 CLIENT_MODULES = (
+    "swissarmybench",
+    "swissarmybench.renamed",
+    # The old name, for one release: the same client under it.
     "swissarmygrid",
-    "swissarmygrid.client",
     "swissarmygrid.client.push_client",
-    "swissarmygrid.client.blades_client",
-    "swissarmygrid.client.sandbox_client",
-    "swissarmygrid.client.completion",
-    "swissarmygrid.client.sql_cell",
-    "swissarmygrid.client.kernel_connections",
-    "swissarmygrid.client.kernel_variables",
-    "swissarmygrid.client.watcher",
-    "swissarmygrid.client.table_cells",
-    "swissarmygrid.client.html_cells",
-    "swissarmygrid.client.context_hook",
-    "swissarmygrid.cli",
-    "swissarmygrid.cli.api",
-    "swissarmygrid.cli.commands",
-    "swissarmygrid.cli.main",
+    "swissarmybench.client",
+    "swissarmybench.client.push_client",
+    "swissarmybench.client.blades_client",
+    "swissarmybench.client.sandbox_client",
+    "swissarmybench.client.completion",
+    "swissarmybench.client.sql_cell",
+    "swissarmybench.client.kernel_connections",
+    "swissarmybench.client.kernel_variables",
+    "swissarmybench.client.watcher",
+    "swissarmybench.client.table_cells",
+    "swissarmybench.client.html_cells",
+    "swissarmybench.client.context_hook",
+    "swissarmybench.cli",
+    "swissarmybench.cli.api",
+    "swissarmybench.cli.commands",
+    "swissarmybench.cli.main",
     # What the client borrows from the layers: blades as text, and running one in this Python.
-    "swissarmygrid.domain.blades",
-    "swissarmygrid.domain.catalogs",
-    "swissarmygrid.domain.html_cells",
-    "swissarmygrid.domain.streamlit_use",
-    "swissarmygrid.adapters.blade_run",
+    "swissarmybench.domain.blades",
+    "swissarmybench.domain.catalogs",
+    "swissarmybench.domain.html_cells",
+    "swissarmybench.domain.streamlit_use",
+    "swissarmybench.adapters.blade_run",
 )
 # Standard library modules that do I/O, start something or read the clock: not for the domain.
 DOMAIN_FORBIDDEN = {
@@ -107,9 +111,9 @@ def _layer_files(folder: str) -> list[Path]:
 
 
 def _own(module: str) -> str | None:
-    """The package folder (or root file) a `swissarmygrid.x...` import names; None for other packages."""
+    """The package folder (or root file) a `swissarmybench.x...` import names; None for other packages."""
     parts = module.split(".")
-    if parts[0] != "swissarmygrid":
+    if parts[0] != "swissarmybench":
         return None
     return parts[1] if len(parts) > 1 else ""
 
@@ -130,7 +134,7 @@ def test_the_domain_imports_only_itself_and_does_no_io(path: Path) -> None:
         top = module.split(".")[0]
         own = _own(module)
         if own is not None:
-            # `from swissarmygrid.domain import steps` also lists "swissarmygrid.domain" itself.
+            # `from swissarmybench.domain import steps` also lists "swissarmybench.domain" itself.
             if own != "domain":
                 problems.append(f"imports {module}")
         elif top not in sys.stdlib_module_names and top != "sqlglot":
@@ -156,7 +160,7 @@ def test_the_service_layer_imports_only_the_domain_and_itself(path: Path) -> Non
 
 @pytest.mark.parametrize("path", _layer_files("adapters"), ids=lambda p: p.name)
 def test_the_driven_adapters_do_not_know_the_doors(path: Path) -> None:
-    """`adapters/` serves the service layer; it never reaches for HTTP routes, the `sag` command, the
+    """`adapters/` serves the service layer; it never reaches for HTTP routes, the `sab` command, the
     MCP server or the composition root."""
     doors = {"server", "cli", "mcp", "client", "bootstrap"}
     assert sorted(m for m in _imports(path) if _own(m) in doors) == []
@@ -230,15 +234,17 @@ class Block(importlib.abc.MetaPathFinder):
         return None
 
 sys.meta_path.insert(0, Block())
+import warnings
+warnings.simplefilter("ignore", DeprecationWarning)  # the old name's own warning
 for module in {CLIENT_MODULES!r}:
     importlib.import_module(module)
 foreign = sorted(
     name for name in sys.modules
     if name.split(".")[0] not in sys.stdlib_module_names
-    and name.split(".")[0] not in ("swissarmygrid", "__main__")
+    and name.split(".")[0] not in ("swissarmybench", "swissarmygrid", "__main__")
     and not name.startswith("_")
 )
-ours = sorted(name for name in sys.modules if name.startswith("swissarmygrid"))
+ours = sorted(name for name in sys.modules if name.startswith("swissarmybench"))
 print(foreign)
 print(ours)
 """
@@ -247,7 +253,7 @@ print(ours)
         capture_output=True,
         text=True,
         cwd=PACKAGE.parent,
-        env={"PYTHONPATH": str(PACKAGE.parent), "SWISSARMYGRID_WATCH": "0"},
+        env={"PYTHONPATH": str(PACKAGE.parent), "SWISSARMYBENCH_WATCH": "0"},
     )
     assert result.returncode == 0, result.stderr
     foreign, ours = result.stdout.strip().splitlines()

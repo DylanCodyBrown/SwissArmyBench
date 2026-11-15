@@ -9,11 +9,11 @@ import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
-from swissarmygrid.domain import environments as envs
-from swissarmygrid.domain import errors, html_cells, streamlit_cells
-from swissarmygrid.domain import notebooks as rules
-from swissarmygrid.domain.datasets import validate_name
-from swissarmygrid.services.workspace import Conflict, NotFound, Workspace
+from swissarmybench.domain import environments as envs
+from swissarmybench.domain import errors, html_cells, streamlit_cells
+from swissarmybench.domain import notebooks as rules
+from swissarmybench.domain.datasets import validate_name
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 MAX_KERNELS: int = 12
 # How long a kernel outlives the Workbench window that started it (a reload or a slip keeps it a minute).
@@ -280,7 +280,7 @@ class Workbench:
         kernel_id = tokens.token_hex(6)
         # The kernel knows which one it is: a table it sends to the grid says so, and that table's
         # read-only cell goes into this kernel's document (services/table_cells.py).
-        environ = dict(self._environ) | from_vaults | {"SWISSARMYGRID_KERNEL": kernel_id}
+        environ = dict(self._environ) | from_vaults | {"SWISSARMYBENCH_KERNEL": kernel_id}
         kernel = await self._kernels.start(str(python), folder, environ)
         self._running[kernel_id] = kernel
         window = body.get("window")
@@ -321,11 +321,11 @@ class Workbench:
                 path = self._documents.scratch(body["code"])
             args = body.get("args") if isinstance(body.get("args"), str) else ""
             line = rules.quote_path(path) + (" " + args if args else "")
-            # %sag_run is %run with the script's table cells run safely (client/table_cells.py); a
+            # %sab_run is %run with the script's table cells run safely (client/table_cells.py); a
             # Python without the package runs the file as it is.
             code = (
                 "get_ipython().run_line_magic("
-                f"'sag_run' if 'sag_run' in get_ipython().magics_manager.magics['line'] else 'run', {line!r})"
+                f"'sab_run' if 'sab_run' in get_ipython().magics_manager.magics['line'] else 'run', {line!r})"
             )
         elif not isinstance(body.get("code"), str):
             raise ValueError('Send {"code": "..."}.')
@@ -333,11 +333,11 @@ class Workbench:
             table = body.get("table")
             if not isinstance(table, str) or not table.isidentifier():
                 raise ValueError('A table\'s cell runs with {"kind": "table", "table": "its name", "code"}.')
-            code = f"get_ipython().run_cell_magic('sag_table', {table!r}, {body['code']!r})"
+            code = f"get_ipython().run_cell_magic('sab_table', {table!r}, {body['code']!r})"
         elif kind == "html":
             if len(body["code"]) > rules.MAX_CELL_CHARS:
                 raise ValueError("An HTML cell holds at most a million characters.")
-            code = f"get_ipython().run_cell_magic('sag_html', '', {body['code']!r})"
+            code = f"get_ipython().run_cell_magic('sab_html', '', {body['code']!r})"
         elif kind in ("sql", "dax"):
             connection = body.get("connection")
             named = connection if isinstance(connection, str) else None

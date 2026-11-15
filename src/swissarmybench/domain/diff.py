@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from swissarmygrid.domain.datasets import Column, quote
-from swissarmygrid.domain.grids import POS
-from swissarmygrid.domain.steps import type_family
+from swissarmybench.domain.datasets import Column, quote
+from swissarmybench.domain.grids import POS
+from swissarmybench.domain.steps import type_family
 
 MAX_TOLERANCE: float = 1e15
 

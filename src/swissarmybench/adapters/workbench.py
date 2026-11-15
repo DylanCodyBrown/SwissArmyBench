@@ -115,7 +115,7 @@ class Documents:
     def scratch(self, text: str) -> str:
         """An unsaved script written to a private folder of its own, so %run can run it as a file."""
         if not hasattr(self, "_scratch"):
-            self._scratch = Path(tempfile.mkdtemp(prefix="swissarmygrid-script-"))
+            self._scratch = Path(tempfile.mkdtemp(prefix="swissarmybench-script-"))
         file = self._scratch / "untitled.py"
         file.write_text(text, encoding="utf-8")
         return str(file)

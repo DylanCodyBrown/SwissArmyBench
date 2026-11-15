@@ -19,19 +19,19 @@ import sqlglot
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 
-from swissarmygrid.domain.blades import BladeError
-from swissarmygrid.domain.catalogs import CatalogError
-from swissarmygrid.domain.datasets import (
+from swissarmybench.domain.blades import BladeError
+from swissarmybench.domain.catalogs import CatalogError
+from swissarmybench.domain.datasets import (
     DatasetError,
     DatasetLimitError,
     DatasetTooLargeError,
     mib,
 )
-from swissarmygrid.domain.export import ExportError
-from swissarmygrid.domain.grids import GridLimitError, StaleRequestError
-from swissarmygrid.domain.sql_guard import SqlRefused
-from swissarmygrid.domain.steps import StepError
-from swissarmygrid.services.workspace import Conflict, NotFound, Refused, TimedOut
+from swissarmybench.domain.export import ExportError
+from swissarmybench.domain.grids import GridLimitError, StaleRequestError
+from swissarmybench.domain.sql_guard import SqlRefused
+from swissarmybench.domain.steps import StepError
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, TimedOut
 
 T = TypeVar("T")
 

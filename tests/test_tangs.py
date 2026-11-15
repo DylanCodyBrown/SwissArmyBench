@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from swissarmygrid.domain.relationships import (
+from swissarmybench.domain.relationships import (
     Candidate,
     Model,
     Relationship,
@@ -66,7 +66,7 @@ SALES = {
 def test_a_tang_round_trips_everything_and_starts_with_its_marker() -> None:
     model = parse_model(SALES)
     text = write_tang(model)
-    assert text.lstrip().startswith('{\n  "swissarmygrid": "tang",\n  "format": 1,')
+    assert text.lstrip().startswith('{\n  "swissarmybench": "tang",\n  "format": 1,')
     back = read_tang(text)
     assert back == model
     assert back.tags == ("sales", "orders-function-app") and back.author == "Avery"
@@ -80,12 +80,12 @@ def test_a_tang_round_trips_everything_and_starts_with_its_marker() -> None:
     ("text", "says"),
     [
         ("not json at all", "not readable"),
-        (json.dumps(SALES), 'does not start with "swissarmygrid": "tang"'),
-        (json.dumps({"swissarmygrid": "blade", "format": 1}), "does not start with"),
-        (json.dumps({"swissarmygrid": "tang", "format": 2, "name": "x"}), "format 2"),
-        (json.dumps({"swissarmygrid": "tang", "format": 1, "name": "x", "tags": "sales"}), "tags"),
+        (json.dumps(SALES), 'does not start with "swissarmybench": "tang"'),
+        (json.dumps({"swissarmybench": "blade", "format": 1}), "does not start with"),
+        (json.dumps({"swissarmybench": "tang", "format": 2, "name": "x"}), "format 2"),
+        (json.dumps({"swissarmybench": "tang", "format": 1, "name": "x", "tags": "sales"}), "tags"),
         (
-            json.dumps({"swissarmygrid": "tang", "format": 1, "relationships": [{"from": "a"}]}),
+            json.dumps({"swissarmybench": "tang", "format": 1, "relationships": [{"from": "a"}]}),
             "hold together",
         ),
     ],

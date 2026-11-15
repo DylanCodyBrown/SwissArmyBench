@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import pytest
 
-from swissarmygrid.domain.blades import BladeCodeError, FillError, is_placeholder
-from swissarmygrid.domain.blades import apply_settings as apply
-from swissarmygrid.domain.blades import detect_settings as detect
-from swissarmygrid.domain.blades import suggest_settings as suggest
-from swissarmygrid.server.blade_templates import TEMPLATES
+from swissarmybench.domain.blades import BladeCodeError, FillError, is_placeholder
+from swissarmybench.domain.blades import apply_settings as apply
+from swissarmybench.domain.blades import detect_settings as detect
+from swissarmybench.domain.blades import suggest_settings as suggest
+from swissarmybench.server.blade_templates import TEMPLATES
 
 POSTGRES = """import psycopg
 

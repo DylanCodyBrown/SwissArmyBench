@@ -16,8 +16,8 @@ from typing import Any
 import pandas as pd
 import pytest
 
-import swissarmygrid as sag
-from swissarmygrid.client import push_client, table_cells, watcher
+import swissarmybench as sab
+from swissarmybench.client import push_client, table_cells, watcher
 from tests.test_cli import Live, live, run  # noqa: F401 (the running server, and the agent's commands)
 
 ORDERS = pd.DataFrame(
@@ -60,7 +60,7 @@ def clean() -> Any:
 
 
 def test_a_tables_cell_is_the_grids_steps_and_running_it_twice_changes_nothing(live: Live) -> None:
-    sag.push(ORDERS, name="orders")
+    sab.push(ORDERS, name="orders")
     listed = table(live, "orders")
     assert listed["steps"] == 0 and listed["origin"] == "python" and listed["kernel"] is None
     assert listed["code"] == "# orders: no transformations yet. Steps made in the grid appear here."
@@ -123,7 +123,7 @@ def test_a_table_no_code_made_starts_with_its_load(live: Live, tmp_path: Path) -
 
 
 def test_a_document_is_arranged_through_the_door_and_by_the_agent(live: Live) -> None:
-    sag.push(ORDERS, name="orders")
+    sab.push(ORDERS, name="orders")
     cells = [
         {"kind": "code", "source": "import pandas as pd", "number": 1},
         {"kind": "code", "source": "orders = pd.DataFrame({'amount': [1]})", "number": 2},
@@ -295,7 +295,7 @@ def test_a_script_run_as_a_file_runs_its_table_cells_safely() -> None:
     safe = table_cells.safe_source(script)
     assert len(safe.split("\n")) == len(script.split("\n"))  # an error still names the right line
     assert safe.split("\n")[4].startswith(
-        "__import__('swissarmygrid.client.table_cells', fromlist=['run']).run('orders', "
+        "__import__('swissarmybench.client.table_cells', fromlist=['run']).run('orders', "
     )
     assert safe.split("\n")[:4] == script.split("\n")[:4] and safe.endswith("# %%\nprint(len(orders))\n")
     namespace: dict[str, Any] = {"load": lambda: ORDERS}

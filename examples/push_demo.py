@@ -1,6 +1,6 @@
 """Push a made-up orders table to the running server and print its grid address.
 
-Run the server first (`uv run swissarmygrid`), then `uv run python examples/push_demo.py`.
+Run the server first (`uv run swissarmybench`), then `uv run python examples/push_demo.py`.
 Run this again to see hot reload: the open grid refreshes in place with new values and keeps
 its sort. All data here is random; nothing real.
 
@@ -14,7 +14,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from swissarmygrid.client import push
+from swissarmybench.client import push
 
 
 def make_orders(rows: int, seed: int | None) -> pd.DataFrame:

@@ -6,7 +6,7 @@ export data.py; Save as (one zip, no rows); the door the live pages come through
 that has Streamlit, the real thing: the pages run in Streamlit itself.
 
 Streamlit is not this app's dependency. The tests that need it are skipped unless
-SWISSARMYGRID_STREAMLIT_PYTHON names a Python with streamlit, pandas and pyarrow (or this Python has
+SWISSARMYBENCH_STREAMLIT_PYTHON names a Python with streamlit, pandas and pyarrow (or this Python has
 them). Made-up data only."""
 
 from __future__ import annotations
@@ -31,9 +31,9 @@ import pyarrow.parquet as pq
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmygrid.cli.commands import CommandError, execute
-from swissarmygrid.domain import notebooks
-from swissarmygrid.server import streamlit_apps
+from swissarmybench.cli.commands import CommandError, execute
+from swissarmybench.domain import notebooks
+from swissarmybench.server import streamlit_apps
 from tests.conftest import AGENT, AUTH, BASE, make_client, push
 from tests.test_cli import Live, data_of, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
@@ -53,7 +53,7 @@ CUSTOMERS = pa.table({"customer": ["Acme", "Globex"], "region": ["East", "West"]
 
 def _streamlit_python() -> str | None:
     """A Python with Streamlit, pandas and pyarrow, for the tests that run the real thing."""
-    for python in (os.environ.get("SWISSARMYGRID_STREAMLIT_PYTHON"), sys.executable):
+    for python in (os.environ.get("SWISSARMYBENCH_STREAMLIT_PYTHON"), sys.executable):
         if not python or not Path(python).is_file():
             continue
         try:
@@ -67,7 +67,7 @@ def _streamlit_python() -> str | None:
 STREAMLIT_PYTHON = _streamlit_python()
 needs_streamlit = pytest.mark.skipif(
     STREAMLIT_PYTHON is None,
-    reason="no Python with Streamlit here (set SWISSARMYGRID_STREAMLIT_PYTHON to one)",
+    reason="no Python with Streamlit here (set SWISSARMYBENCH_STREAMLIT_PYTHON to one)",
 )
 
 
@@ -540,7 +540,7 @@ def test_the_apps_file_saves_links_relative_to_itself_and_opens_again(
     )
     text = Path(saved["path"]).read_text()
     assert json.loads(text) == {
-        "swissarmygrid": "streamlit-app",
+        "swissarmybench": "streamlit-app",
         "version": 1,
         "pages": [
             {
@@ -591,8 +591,8 @@ def test_the_apps_file_saves_links_relative_to_itself_and_opens_again(
         )
     )
     raw = json.loads(Path(kept["path"]).read_text())
-    assert raw["metadata"]["swissarmygrid"] == {"next_cell": 2}
-    assert raw["cells"][0]["metadata"]["swissarmygrid"] == {"height": 300, "number": 1}
+    assert raw["metadata"]["swissarmybench"] == {"next_cell": 2}
+    assert raw["cells"][0]["metadata"]["swissarmybench"] == {"height": 300, "number": 1}
 
 
 # ===== export: a folder that runs alone =====
@@ -800,7 +800,7 @@ def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp
         ast.parse(overview)
         assert overview.startswith(
             "# Overview\n"
-            "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
+            "# Written from sales.stapp.json by Swiss Army Bench: change the canvas, not this file.\n"
             "import pandas as pd\nimport streamlit as st\n\nfrom data import orders, big\n"
         )
         assert sorted(p.name for p in (folder / "pages").iterdir()) == ["filter.py", "mine.py", "overview.py"]
@@ -867,7 +867,7 @@ def test_a_project_from_a_connection_reads_it_again_in_a_plain_python(
     live: Live,  # noqa: F811
     tmp_path: Path,
 ) -> None:
-    """data.py reads a connection's table again: `sag.sql` on the connection, then the grid's steps as
+    """data.py reads a connection's table again: `sab.sql` on the connection, then the grid's steps as
     one DuckDB query. It imports in a Python of its own with no Streamlit (as a notebook's kernel)."""
     database = tmp_path / "shop.sqlite"
     with sqlite3.connect(database) as made_up:
@@ -885,9 +885,9 @@ def test_a_project_from_a_connection_reads_it_again_in_a_plain_python(
     data = (folder / "data.py").read_text()
     ast.parse(data)
     # The connection by name (never its code or a password), then the steps as one DuckDB query.
-    assert "sag.sql('Shop', " in data and '"amount" > 50' in data and "sqlite3" not in data
-    assert data.index("sag.sql('Shop', ") < data.index('"amount" > 50')
-    assert "# swissarmygrid:" in (folder / "requirements.txt").read_text()
+    assert "sab.sql('Shop', " in data and '"amount" > 50' in data and "sqlite3" not in data
+    assert data.index("sab.sql('Shop', ") < data.index('"amount" > 50')
+    assert "# swissarmybench:" in (folder / "requirements.txt").read_text()
     code = (
         "import json, sys\nsys.path.insert(0, sys.argv[1])\nimport data\n"
         "print(json.dumps(sorted(int(a) for a in data.orders['amount'])))\n"
@@ -899,7 +899,7 @@ def test_a_project_from_a_connection_reads_it_again_in_a_plain_python(
         text=True,
         timeout=120,
         check=False,
-        env=os.environ | {"SWISSARMYGRID_OPEN": "0"},
+        env=os.environ | {"SWISSARMYBENCH_OPEN": "0"},
     )
     assert done.returncode == 0, done.stderr[-2000:]
     shown, streamlit = done.stdout.strip().splitlines()[-2:]
@@ -1130,7 +1130,7 @@ def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_sa
             assert stream.subprotocol == "streamlit"
         # The page as Streamlit runs it: the filter drives the total, though it sits below it.
         temporary = Path(ran["folder"])
-        assert temporary.name.startswith("swissarmygrid-streamlit-")
+        assert temporary.name.startswith("swissarmybench-streamlit-")
         page = _app_test(STREAMLIT_PYTHON, next(temporary.glob("page_p1_*.py")), "West")
         assert page["errors"] == [] and page["options"] == ["East", "North", "West"]
         assert page["first"] == "140" and page["second"] == "250" and page["keys"] == ["b2_1"]
@@ -1195,7 +1195,7 @@ def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_sa
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = int(probe.getsockname()[1])
-    environ = {k: v for k, v in os.environ.items() if not k.startswith(("SWISSARMYGRID", "PYTHONPATH"))}
+    environ = {k: v for k, v in os.environ.items() if not k.startswith(("SWISSARMYBENCH", "PYTHONPATH"))}
     process = subprocess.Popen(  # noqa: S603 (the exported app, in the test's own Streamlit Python)
         [
             STREAMLIT_PYTHON,
@@ -1236,7 +1236,7 @@ def test_a_streamlit_process_ends_when_the_server_that_started_it_goes(tmp_path:
     (tmp_path / "app.py").write_text("import streamlit as st\nst.write('hello')\n")
     parent = (
         "import asyncio, sys\n"
-        "from swissarmygrid.server import streamlit_apps\n"
+        "from swissarmybench.server import streamlit_apps\n"
         "async def main():\n"
         "    running = await streamlit_apps.start(sys.argv[1], sys.argv[2], '/streamlit/live/a-b')\n"
         "    print(running.process.pid, running.port, flush=True)\n"

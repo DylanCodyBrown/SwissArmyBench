@@ -11,18 +11,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from swissarmygrid.domain.codegen import (
+from swissarmybench.domain.codegen import (
     pasted_for,
     python_code,
     reads_text,
     view_query,
 )
-from swissarmygrid.domain.datasets import DatasetInfo
-from swissarmygrid.domain.grids import Grid
-from swissarmygrid.domain.sql_guard import SqlGrammar
-from swissarmygrid.domain.steps import Step, StepError, ViewSettings
-from swissarmygrid.services.ports import BACKGROUND, CodeVerifier, SqlSession, Views
-from swissarmygrid.services.workspace import Workspace
+from swissarmybench.domain.datasets import DatasetInfo
+from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.sql_guard import SqlGrammar
+from swissarmybench.domain.steps import Step, StepError, ViewSettings
+from swissarmybench.services.ports import BACKGROUND, CodeVerifier, SqlSession, Views
+from swissarmybench.services.workspace import Workspace
 
 
 def generate_code(

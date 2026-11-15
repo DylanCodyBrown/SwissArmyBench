@@ -39,9 +39,9 @@ from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
-from swissarmygrid.server.http import actor, error_response, json_response, read_json
-from swissarmygrid.services.workbench import Workbench
-from swissarmygrid.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.workbench import Workbench
+from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
 
 
 def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:

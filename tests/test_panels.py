@@ -1,5 +1,5 @@
 """The panels Settings can turn off (the owner, 2026-11-15): every one on by default, switched off
-and on again, shared by every window, and every one on again when SwissArmyGrid starts (memory
+and on again, shared by every window, and every one on again when Swiss Army Bench starts (memory
 only). The agent reads and sets them too."""
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from swissarmygrid.domain import panels as rules
+from swissarmybench.domain import panels as rules
 from tests.conftest import AGENT, AUTH, make_client
 from tests.test_cli import Live, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
@@ -42,7 +42,7 @@ def test_switches_are_the_servers_shared_and_on_again_at_each_start(tmp_path: Pa
         assert client.put("/panels", json={"grid.ribbon": "no"}, headers=AUTH).status_code == 400
         back = client.put("/panels", json={"grid.ribbon": True}, headers=AUTH).json()["panels"]
         assert {p["id"]: p["on"] for p in back}["grid.ribbon"] is True
-    # A new start of SwissArmyGrid: every panel on again (nothing was written to disk).
+    # A new start of Swiss Army Bench: every panel on again (nothing was written to disk).
     with make_client(tmp_path) as client:
         assert all(p["on"] for p in client.get("/panels", headers=AUTH).json()["panels"])
 

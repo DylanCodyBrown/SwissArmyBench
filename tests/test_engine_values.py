@@ -11,9 +11,9 @@ from collections.abc import Iterator
 import pyarrow as pa
 import pytest
 
-from swissarmygrid.adapters.database import describer, duckdb_grammar, open_database
-from swissarmygrid.adapters.datasets import DatasetStore
-from swissarmygrid.domain.steps import Step, ViewSettings, compile_view
+from swissarmybench.adapters.database import describer, duckdb_grammar, open_database
+from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.domain.steps import Step, ViewSettings, compile_view
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-# /// swissarmygrid-blade
+# /// swissarmybench-blade
 # format = 1
 # name = "Sample regions"
 # kind = "other"

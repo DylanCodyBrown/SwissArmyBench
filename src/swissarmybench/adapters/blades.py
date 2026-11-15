@@ -1,4 +1,4 @@
-"""Saved blades: one JSON file each under ~/.swissarmygrid/blades/, secrets in the operating system's vault.
+"""Saved blades: one JSON file each under ~/.swissarmybench/blades/, secrets in the operating system's vault.
 
 Four kinds (plan decisions 14-15b):
 - `sql`: code that makes a database connection, with its dialect, and usually a catalog command.
@@ -10,13 +10,13 @@ Four kinds (plan decisions 14-15b):
 Every blade has an optional description and tags, for finding and grouping blades.
 
 Blades also live in **blade folders** (the owner's request): folders the user lists (Settings, or the
-SWISSARMYGRID_BLADE_FOLDERS environment variable) are searched for portable blade files, Python files whose
-frontmatter is a `# /// swissarmygrid-blade` header (domain/blades.py). Such a blade's file is its
+SWISSARMYBENCH_BLADE_FOLDERS environment variable) are searched for portable blade files, Python files whose
+frontmatter is a `# /// swissarmybench-blade` header (domain/blades.py). Such a blade's file is its
 source of truth: saving it writes the file, a change to the file (a `git pull`) shows on the next look, and
 removing one is the user's to do in their folder. A saved blade with the same name comes first.
 
 A blade's own secrets (`secret("password")` in its code) are kept in the vault through `keyring`,
-under the service "SwissArmyGrid" and the user name `blade/<name>/<secret>`; the file never holds a
+under the service "SwissArmyBench" and the user name `blade/<name>/<secret>`; the file never holds a
 value. A blade's code is the user's: the routes never show it to the agent.
 """
 
@@ -32,8 +32,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from swissarmygrid.domain import blades as rules
-from swissarmygrid.domain.blades import (
+from swissarmybench.domain import blades as rules
+from swissarmybench.domain.blades import (
     Blade,
     BladeError,
     VaultUnavailableError,
@@ -42,8 +42,12 @@ from swissarmygrid.domain.blades import (
     read_blade,
     write_blade,
 )
+from swissarmybench.renamed import env
 
-KEYRING_SERVICE: str = "SwissArmyGrid"
+KEYRING_SERVICE: str = "SwissArmyBench"
+# The service SwissArmyGrid saved under before its rename (renamed.py): a secret found only there is
+# copied to the new service on its first read, so saved passwords keep working; the next release drops it.
+OLD_KEYRING_SERVICE: str = "SwissArmyGrid"
 
 
 def parse_blade(data: Any, previous: Blade | None = None) -> Blade:
@@ -170,7 +174,7 @@ class BladeStore:
     # ===== blade folders =====
 
     def folders(self) -> list[dict[str, Any]]:
-        """The blade folders: the user's list, then those in SWISSARMYGRID_BLADE_FOLDERS."""
+        """The blade folders: the user's list, then those in SWISSARMYBENCH_BLADE_FOLDERS."""
         listed: list[dict[str, Any]] = []
         if self.folders_file is not None:
             try:
@@ -178,7 +182,7 @@ class BladeStore:
             except (OSError, ValueError):
                 saved = []
             listed += [{"path": str(p), "from_env": False} for p in saved if isinstance(p, str)]
-        for part in os.environ.get("SWISSARMYGRID_BLADE_FOLDERS", "").split(os.pathsep):
+        for part in env("SWISSARMYBENCH_BLADE_FOLDERS", "").split(os.pathsep):
             if part.strip():
                 listed.append({"path": part.strip(), "from_env": True})
         seen: set[str] = set()
@@ -395,19 +399,29 @@ class BladeStore:
         return f"blade/{name.casefold()}/{secret}"
 
     def _secret(self, name: str, secret: str) -> str | None:
-        value: str | None = self._keyring().get_password(KEYRING_SERVICE, self._user(name, secret))
+        vault, user = self._keyring(), self._user(name, secret)
+        value: str | None = vault.get_password(KEYRING_SERVICE, user)
+        if value is None:
+            # Saved before the rename: found under the old service, and copied across once.
+            value = vault.get_password(OLD_KEYRING_SERVICE, user)
+            if value is not None:
+                try:
+                    vault.set_password(KEYRING_SERVICE, user, value)
+                except Exception:  # noqa: S110 (a vault that will not write still gives the value)
+                    pass
         return value
 
     def _set_secret(self, name: str, secret: str, value: str) -> None:
         self._keyring().set_password(KEYRING_SERVICE, self._user(name, secret), value)
 
     def _delete_secret(self, name: str, secret: str) -> None:
-        try:
-            self._keyring().delete_password(KEYRING_SERVICE, self._user(name, secret))
-        except VaultUnavailableError:
-            return
-        except Exception:  # keyring raises PasswordDeleteError for one that was never set
-            return
+        for service in (KEYRING_SERVICE, OLD_KEYRING_SERVICE):  # forgotten under the old name too
+            try:
+                self._keyring().delete_password(service, self._user(name, secret))
+            except VaultUnavailableError:
+                return
+            except Exception:  # noqa: S112 (keyring raises PasswordDeleteError for one never set)
+                continue
 
     def secret_status(self, name: str | Blade) -> dict[str, bool]:
         """Each secret the blade's code asks for, and whether a value is saved (never the value)."""
@@ -434,7 +448,7 @@ class BladeStore:
         return self.secret_status(name)
 
     def saved_secrets(self, blade: Blade) -> dict[str, str]:
-        """The saved values, for running the blade (the client's sag.blade, the server's Refresh)."""
+        """The saved values, for running the blade (the client's sab.blade, the server's Refresh)."""
         values: dict[str, str] = {}
         try:
             for secret in blade.secrets:

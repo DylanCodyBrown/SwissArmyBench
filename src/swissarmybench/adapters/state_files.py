@@ -1,11 +1,11 @@
-"""Everything SwissArmyGrid keeps in its own state folder (~/.swissarmygrid), and nothing else is
+"""Everything Swiss Army Bench keeps in its own state folder (~/.swissarmybench), and nothing else is
 written: the audit log, saved dashboards, the connection file and the model library's files.
 
   the audit log        one JSON line per action, never a cell value
   dashboards           a Sandbox saved on the user's click: its cards as drawn, the last 60 versions
   themes               Sandbox themes the user imported (colours only), one small file each
   the connection file  where the running server is, and its token (owner-only)
-  the model library    relationship models: the shipped ones, the user's, and SWISSARMYGRID_MODELS
+  the model library    relationship models: the shipped ones, the user's, and SWISSARMYBENCH_MODELS
 
 (Blades and their folders are adapters/blades.py; exports are adapters/export.py.)
 """
@@ -21,8 +21,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from swissarmygrid.domain.datasets import validate_name
-from swissarmygrid.domain.relationships import (
+from swissarmybench.domain.datasets import validate_name
+from swissarmybench.domain.relationships import (
     TANG_SUFFIX,
     Model,
     TangError,
@@ -31,6 +31,7 @@ from swissarmygrid.domain.relationships import (
     tang_file_name,
     write_tang,
 )
+from swissarmybench.renamed import env, home_state_folder
 
 # ===== the audit log =====
 # The audit log: one JSON line per action, never a cell value (plan section 6, rule 9).
@@ -186,9 +187,9 @@ class ThemeFiles:
 # ===== the connection file =====
 # The connection file clients read to find the running server (plan section 4).
 #
-# On start the server writes ~/.swissarmygrid/server.json with its port, its token, the dataset
+# On start the server writes ~/.swissarmybench/server.json with its port, its token, the dataset
 # size limit and its process id; on clean shutdown it deletes it. The push client
-# (swissarmygrid.client.push_client) reads the same path, including the SWISSARMYGRID_INFO
+# (swissarmybench.client.push_client) reads the same path, including the SWISSARMYBENCH_INFO
 # override, so the two must stay in step. The process id lets anyone tell a live server from a
 # file left behind by a crash (server/lifecycle.py).
 #
@@ -198,9 +199,9 @@ class ThemeFiles:
 
 
 def info_file_path() -> Path:
-    """Where the connection file lives. SWISSARMYGRID_INFO overrides it (tests use this)."""
-    override: str | None = os.environ.get("SWISSARMYGRID_INFO")
-    return Path(override) if override else Path.home() / ".swissarmygrid" / "server.json"
+    """Where the connection file lives. SWISSARMYBENCH_INFO overrides it (tests use this)."""
+    override: str | None = env("SWISSARMYBENCH_INFO")
+    return Path(override) if override else home_state_folder() / "server.json"
 
 
 def write_info_file(path: Path, info: dict[str, Any]) -> None:
@@ -232,7 +233,7 @@ def remove_info_file(path: Path, token: str | None = None) -> None:
 
 
 def is_own_file(path: str, state_dir: Path, export_dir: Path) -> bool:
-    """True for a file of SwissArmyGrid's own: the connection file, or anything in the state folder
+    """True for a file of Swiss Army Bench's own: the connection file, or anything in the state folder
     except the export folder inside it (an export loaded back is a table). An unusable path is not
     one: the loader says why."""
     try:
@@ -250,10 +251,10 @@ def is_own_file(path: str, state_dir: Path, export_dir: Path) -> bool:
 # Tangs (saved sets of relationships, domain/relationships.py has the .tang shape) and the older model
 # JSON files. Read in this order, a later one with the same name winning:
 #
-#   1. the models shipped in the package (src/swissarmygrid/models/*.json), released with it
-#   2. ~/.swissarmygrid/models/*.json: a person's own older models
-#   3. ~/.swissarmygrid/tangs/*.tang: a person's own tangs ("mine"), where Save tang writes by default
-#   4. every folder in SWISSARMYGRID_MODELS (separated by ; on Windows)
+#   1. the models shipped in the package (src/swissarmybench/models/*.json), released with it
+#   2. ~/.swissarmybench/models/*.json: a person's own older models
+#   3. ~/.swissarmybench/tangs/*.tang: a person's own tangs ("mine"), where Save tang writes by default
+#   4. every folder in SWISSARMYBENCH_MODELS (separated by ; on Windows)
 #   5. the shared folders: the blade folders, so one team folder carries blades and tangs alike
 #      (.tang files at any depth up to SHARED_DEPTH, hidden folders and environments skipped). A tang
 #      saved there is in a coworker's list the next time their window opens.
@@ -291,14 +292,12 @@ class ModelFiles:
 
     def _folders(self) -> list[tuple[Path, str]]:
         folders = [
-            (Path(str(files("swissarmygrid").joinpath("models"))), "package"),
+            (Path(str(files("swissarmybench").joinpath("models"))), "package"),
             (self.state_dir / "models", "mine"),
             (self.mine, "mine"),
         ]
         folders += [
-            (Path(p), "environment")
-            for p in os.environ.get("SWISSARMYGRID_MODELS", "").split(os.pathsep)
-            if p.strip()
+            (Path(p), "environment") for p in env("SWISSARMYBENCH_MODELS", "").split(os.pathsep) if p.strip()
         ]
         folders += [(Path(p), "shared") for p in self.shared_folders()]
         folders = [(folder, "pack") for folder, _ in self._packs()] + folders  # a clone wins over its install

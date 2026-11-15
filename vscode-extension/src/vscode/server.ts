@@ -1,4 +1,4 @@
-// server.ts -- the SwissArmyGrid server, as the Open button needs it: the uv tool install that runs it (and its MCP
+// server.ts -- the Swiss Army Bench server, as the Open button needs it: the uv tool install that runs it (and its MCP
 // tools), whether it is running, and starting it when it is not. The server is installed with uv (install.sh or
 // install.ps1); this extension never installs or updates it.
 
@@ -6,24 +6,24 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { Env, infoFile, serverPythons, windowlessPython } from "../core/paths";
+import { Env, infoFile, serverModule, serverPythons, windowlessPython } from "../core/paths";
 
-/** The parts of ~/.swissarmygrid/server.json the extension reads. */
+/** The parts of ~/.swissarmybench/server.json the extension reads. */
 export interface ServerInfo {
   port: number;
   token: string;
 }
 
-export const NOT_INSTALLED = "SwissArmyGrid is not installed. Install it with uv: sh install.sh <wheel>, or install.ps1 on Windows.";
+export const NOT_INSTALLED = "Swiss Army Bench is not installed. Install it with uv: sh install.sh <wheel>, or install.ps1 on Windows.";
 
-/** The Python of the uv tool install, or null when SwissArmyGrid is not installed. */
+/** The Python of the uv tool install, or null when Swiss Army Bench is not installed. */
 export function serverPython(env: Env = process.env): string | null {
   return serverPythons(env, os.homedir(), process.platform).find((p) => fs.existsSync(p)) ?? null;
 }
 
 function readInfo(env: Env): ServerInfo | null {
   try {
-    const info = JSON.parse(fs.readFileSync(infoFile(env, os.homedir()), "utf8"));
+    const info = JSON.parse(fs.readFileSync(infoFile(env, os.homedir(), fs.existsSync), "utf8"));
     return typeof info.port === "number" && typeof info.token === "string" ? info : null;
   } catch {
     return null;
@@ -51,12 +51,12 @@ export async function ensureRunning(env: Env = process.env): Promise<ServerInfo>
   if (up) return up;
   const python = serverPython(env);
   if (!python) throw new Error(NOT_INSTALLED);
-  const logPath = path.join(path.dirname(infoFile(env, os.homedir())), "server.log");
+  const logPath = path.join(path.dirname(infoFile(env, os.homedir(), fs.existsSync)), "server.log");
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const out = fs.openSync(logPath, "a");
   try {
     // pythonw.exe on Windows: python.exe would give the server a console window, and closing it ended the server.
-    spawn(windowlessPython(python, process.platform, fs.existsSync), ["-m", "swissarmygrid.server"], {
+    spawn(windowlessPython(python, process.platform, fs.existsSync), ["-m", serverModule(python, "server")], {
       detached: true,
       windowsHide: true,
       stdio: ["ignore", out, out],
@@ -70,7 +70,7 @@ export async function ensureRunning(env: Env = process.env): Promise<ServerInfo>
     if (info) return info;
     await new Promise((done) => setTimeout(done, 300));
   }
-  throw new Error(`SwissArmyGrid did not start; its output is in ${logPath}.`);
+  throw new Error(`Swiss Army Bench did not start; its output is in ${logPath}.`);
 }
 
 /** The page with every open grid as a tab, the token in its #fragment (a browser never sends the fragment). */
