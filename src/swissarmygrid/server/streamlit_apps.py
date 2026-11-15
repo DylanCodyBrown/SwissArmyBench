@@ -1,0 +1,216 @@
+"""A notebook's Streamlit process (docs/ideas.md, "Streamlit cells"): started in the notebook's own
+Python, never this app's dependency.
+
+One process a notebook: `streamlit run` on the app's temporary folder, bound to 127.0.0.1 on a free
+port, headless, usage statistics off. The process is started through a few lines of Python (`_LAUNCH`)
+that watch this server: when the server goes, however it goes, the Streamlit process ends too.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import os
+import shutil
+import socket
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+_START_SECONDS: float = 60.0
+_INSTALL_SECONDS: float = 900.0
+PACKAGES: tuple[str, ...] = ("streamlit", "pandas", "pyarrow")
+
+# Run in the notebook's Python: end with the server that started it, then be `streamlit run`.
+_LAUNCH = r"""
+import os, sys, threading, time
+
+def _watch(parent):
+    if os.name == "nt":
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x00100000, False, parent)  # SYNCHRONIZE
+        if handle:
+            ctypes.windll.kernel32.WaitForSingleObject(handle, 0xFFFFFFFF)
+            os._exit(0)
+        return
+    while True:
+        time.sleep(1.0)
+        if os.getppid() != parent:
+            os._exit(0)
+
+threading.Thread(target=_watch, args=(int(sys.argv[1]),), daemon=True).start()
+from streamlit.web import cli
+sys.argv = ["streamlit", "run", *sys.argv[2:]]
+sys.exit(cli.main())
+"""
+
+
+class StreamlitProcessError(ValueError):
+    """A Streamlit app that cannot start (the message says why)."""
+
+
+def check(python: str) -> dict[str, Any]:
+    """Whether a Python can run the app: which of Streamlit, pandas and pyarrow it lacks."""
+    probe = (
+        "import importlib.util as u, json;"
+        f"print(json.dumps([p for p in {list(PACKAGES)!r} if u.find_spec(p) is None]))"
+    )
+    try:
+        done = subprocess.run(  # noqa: S603 (the notebook's own Python, asked one fixed question)
+            [python, "-c", probe], capture_output=True, text=True, timeout=30, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise StreamlitProcessError(f"{python} did not answer: {error}") from None
+    if done.returncode != 0:
+        raise StreamlitProcessError(f"{python} is not a Python that runs: {done.stderr.strip()[-300:]}")
+    import json
+
+    return {"python": python, "missing": list(json.loads(done.stdout.strip().splitlines()[-1]))}
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+class Process:
+    def __init__(self, process: asyncio.subprocess.Process, port: int, python: str) -> None:
+        self.process = process
+        self.port = port
+        self.python = python
+        self.lines: list[str] = []  # what it last said, for a start that fails
+        self._reader: asyncio.Task[None] | None = None
+
+    def alive(self) -> bool:
+        return self.process.returncode is None
+
+    def read(self) -> None:
+        async def lines() -> None:
+            stream = self.process.stdout
+            if stream is None:
+                return
+            while line := await stream.readline():
+                self.lines.append(line.decode("utf-8", "replace").rstrip())
+                del self.lines[:-40]
+
+        self._reader = asyncio.create_task(lines())
+
+    async def stop(self) -> None:
+        if self.process.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                self.process.terminate()
+            try:
+                await asyncio.wait_for(self.process.wait(), 5)
+            except TimeoutError:
+                with contextlib.suppress(ProcessLookupError):
+                    self.process.kill()
+                await self.process.wait()
+        if self._reader is not None:
+            self._reader.cancel()
+
+
+def _answers(port: int, base: str) -> bool:
+    import http.client
+
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request("GET", f"{base}/_stcore/health")
+        return connection.getresponse().status == 200
+    except OSError:
+        return False
+    finally:
+        connection.close()
+
+
+async def start(python: str, folder: str, base: str) -> Process:
+    """`streamlit run app.py` in `folder`, in `python`, under the path `base` (the proxy's), on a free
+    port of 127.0.0.1. Ready to answer when this returns."""
+    port = _free_port()
+    command = [
+        python,
+        "-c",
+        _LAUNCH,
+        str(os.getpid()),
+        str(Path(folder) / "app.py"),
+        "--server.address=127.0.0.1",  # never anything but this computer
+        f"--server.port={port}",
+        "--server.headless=true",
+        "--browser.gatherUsageStats=false",
+        f"--server.baseUrlPath={base.strip('/')}",
+        # Its pages are files this app rewrites: Streamlit looks at them itself (no extra package),
+        # and runs the open pages again when one changes.
+        "--server.fileWatcherType=poll",
+        "--server.runOnSave=true",
+        "--client.toolbarMode=minimal",
+        "--global.developmentMode=false",
+    ]
+    environ = dict(os.environ)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=folder,
+            env=environ,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+    except OSError as error:
+        raise StreamlitProcessError(f"Streamlit did not start in {python}: {error}") from None
+    running = Process(process, port, python)
+    running.read()
+    deadline = asyncio.get_running_loop().time() + _START_SECONDS
+    while asyncio.get_running_loop().time() < deadline:
+        if not running.alive():
+            said = "\n".join(running.lines[-8:])
+            raise StreamlitProcessError(f"Streamlit stopped as it started:\n{said}"[:2000])
+        if await asyncio.to_thread(_answers, port, "/" + base.strip("/")):
+            return running
+        await asyncio.sleep(0.2)
+    await running.stop()
+    raise StreamlitProcessError(f"Streamlit did not answer within {_START_SECONDS:.0f} seconds.")
+
+
+async def install(python: str, packages: list[str]) -> tuple[int | None, str]:
+    """Install packages into the notebook's Python (its environment): with uv when it is here, else
+    that Python's own pip. The exit code (None: it took too long and was stopped) and what it said."""
+    uv = shutil.which("uv") or next(
+        (
+            str(p)
+            for p in (Path.home() / ".local" / "bin" / "uv", Path.home() / ".cargo" / "bin" / "uv")
+            if p.is_file()
+        ),
+        None,
+    )
+    command = (
+        [uv, "pip", "install", "--python", python, *packages]
+        if uv
+        else [python, "-m", "pip", "install", *packages]
+    )
+    process = await asyncio.create_subprocess_exec(
+        *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+    )
+    try:
+        out, _ = await asyncio.wait_for(process.communicate(), _INSTALL_SECONDS)
+    except TimeoutError:
+        process.kill()
+        await process.wait()
+        return None, ""
+    return process.returncode, out.decode("utf-8", "replace")[-4000:]
+
+
+class Runner:
+    """The service's port (services/streamlit.py): check a Python, start, stop, install."""
+
+    def default_python(self) -> str:
+        return sys.executable
+
+    async def check(self, python: str) -> dict[str, Any]:
+        return await asyncio.to_thread(check, python)
+
+    async def start(self, python: str, folder: str, base: str) -> Process:
+        return await start(python, folder, base)
+
+    async def install(self, python: str, packages: list[str]) -> tuple[int | None, str]:
+        return await install(python, packages)

@@ -2,11 +2,14 @@
 Pure rules: no I/O. Plans/workbench-and-connections.plan.md.
 
 A notebook here is a list of cells, each code (Python), sql (run on a connection), html (a design:
-domain/html_cells.py) or markdown, with the outputs a run gave (kept as nbformat's own output records).
+domain/html_cells.py), streamlit (a piece of a Streamlit page: domain/streamlit_cells.py) or markdown,
+with the outputs a run gave (kept as nbformat's own output records).
 In the file, a SQL cell is a code cell that starts with its `%%sql <connection>` line (any Jupyter with
 SwissArmyGrid runs it as it is), marked so the Workbench opens it as a SQL cell again. An HTML cell is a
 code cell that starts with `%%html`, IPython's own cell magic, so plain Jupyter draws it when run; the
-height of its pane is kept in the cell's metadata.
+height of its pane is kept in the cell's metadata. A Streamlit cell is a code cell whose first line is the
+comment `# %% [streamlit]` and whose body is plain Python, so plain Jupyter runs it as it is; the pages
+its pieces are placed on are kept in the notebook's metadata (`swissarmygrid.streamlit.pages`).
 
 Every cell has a number that never changes (docs/ideas.md, 2026-11-14): given when the cell is made,
 never reused or shifted when cells move or go. It is kept in the cell's metadata, with the cell's part
@@ -23,12 +26,13 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmygrid.domain import streamlit_cells
 from swissarmygrid.domain.html_cells import check_height
 
 MAX_CELLS: int = 2_000
 MAX_CELL_CHARS: int = 1_000_000
 MAX_OUTPUTS_PER_CELL: int = 200
-KINDS: tuple[str, ...] = ("code", "sql", "html", "markdown")
+KINDS: tuple[str, ...] = ("code", "sql", "html", "streamlit", "markdown")
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
 MAX_STEPS_CHARS: int = 200_000
 _SQL_LINE = re.compile(r"^%%(?:sql|sag)\b(?!_)")
@@ -41,8 +45,10 @@ class NotebookError(ValueError):
 
 @dataclass
 class Cell:
-    kind: str  # code, sql, html or markdown
-    source: str  # a SQL cell's query, without its %%sql line; an HTML cell's HTML, without %%html
+    kind: str  # code, sql, html, streamlit or markdown
+    # A SQL cell's query, without its %%sql line; an HTML cell's HTML, without %%html; a Streamlit
+    # cell's Python, without its marker line.
+    source: str
     connection: str | None = None  # a SQL cell's connection (None: the %sql_connect one)
     outputs: list[dict[str, Any]] = field(default_factory=list)
     execution_count: int | None = None
@@ -53,7 +59,7 @@ class Cell:
     # A transformations cell's steps as the grid holds them, so the grid gets them back when the
     # table is opened again.
     steps: list[Any] | None = None
-    # An HTML cell's pane, in pixels (None: the design's own height).
+    # An HTML or Streamlit cell's pane, in pixels (None: the design's own height, the usual one).
     height: int | None = None
 
     def to_json(self) -> dict[str, Any]:
@@ -76,8 +82,8 @@ class Cell:
         kept: dict[str, Any] = {}
         if self.kind == "sql":
             kept |= {"kind": "sql", "connection": self.connection}
-        if self.kind == "html":
-            kept["kind"] = "html"
+        if self.kind in ("html", "streamlit"):
+            kept["kind"] = self.kind
             if self.height is not None:
                 kept["height"] = self.height
         if self.number is not None:
@@ -106,6 +112,8 @@ def code_of(cell: Cell) -> str:
         return f"{sql_line(cell.connection)}\n{cell.source}"
     if cell.kind == "html":
         return f"%%html\n{cell.source}"
+    if cell.kind == "streamlit":
+        return streamlit_cells.marked(cell.source)
     return cell.source if cell.kind == "code" else ""
 
 
@@ -136,7 +144,7 @@ def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:
     cell.grouped = marks.get("grouped") is True
     if isinstance(marks.get("steps"), list) and cell.role == "transformations":
         cell.steps = marks["steps"]
-    if cell.kind == "html":
+    if cell.kind in ("html", "streamlit"):
         cell.height = check_height(marks.get("height"))
     return cell
 
@@ -191,6 +199,8 @@ def read_document(text: str) -> tuple[list[Cell], int]:
                 cell = Cell("sql", rest, named or None)
             elif _HTML_LINE.match(first):
                 cell = Cell("html", rest)
+            elif streamlit_cells.is_marked(source):
+                cell = Cell("streamlit", rest)
             else:
                 cell = Cell("code", source)
             outputs = raw.get("outputs")
@@ -217,7 +227,7 @@ def read_cells(sent: Any) -> list[Cell]:
     for raw in sent:
         if not isinstance(raw, dict) or raw.get("kind") not in KINDS:
             raise NotebookError(
-                'Each cell is {"kind": "code", "sql", "html" or "markdown", "source": "..."}.'
+                'Each cell is {"kind": "code", "sql", "html", "streamlit" or "markdown", "source": "..."}.'
             )
         source = raw.get("source", "")
         if not isinstance(source, str) or len(source) > MAX_CELL_CHARS:
@@ -253,16 +263,35 @@ def read_cells(sent: Any) -> list[Cell]:
                 table or None,
                 raw.get("grouped") is True,
                 steps,
-                check_height(raw.get("height")) if raw["kind"] == "html" else None,
+                check_height(raw.get("height")) if raw["kind"] in ("html", "streamlit") else None,
             )
         )
     return cells
 
 
-def write_notebook(cells: list[Cell], python_version: str = "3", next_number: int | None = None) -> str:
+def document_pages(text: str) -> list[dict[str, Any]]:
+    """The Streamlit pages a notebook file keeps (none: it has none, or they cannot be read)."""
+    try:
+        kept = (json.loads(text).get("metadata") or {}).get("swissarmygrid") or {}
+        pages = (kept.get("streamlit") or {}).get("pages")
+        return streamlit_cells.pages_json(streamlit_cells.read_pages(pages))
+    except (ValueError, AttributeError):
+        return []
+
+
+def write_notebook(
+    cells: list[Cell],
+    python_version: str = "3",
+    next_number: int | None = None,
+    pages: list[streamlit_cells.Page] | None = None,
+) -> str:
     """The cells as an .ipynb file's text (nbformat 4.5). Each cell's number is in its metadata, and
-    the notebook's keeps the next number to give, so a deleted cell's number is never given again."""
+    the notebook's keeps the next number to give, so a deleted cell's number is never given again.
+    `pages`: its Streamlit pages (the page designer's), kept in the notebook's metadata."""
     following = number_cells(cells, next_number or 1)
+    own: dict[str, Any] = {"next_cell": following}
+    if pages:
+        own["streamlit"] = {"pages": streamlit_cells.pages_json(pages)}
     out: list[dict[str, Any]] = []
     for i, cell in enumerate(cells):
         marks = cell.marks()
@@ -285,7 +314,7 @@ def write_notebook(cells: list[Cell], python_version: str = "3", next_number: in
         "metadata": {
             "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
             "language_info": {"name": "python", "version": python_version},
-            "swissarmygrid": {"next_cell": following},
+            "swissarmygrid": own,
         },
         "nbformat": 4,
         "nbformat_minor": 5,

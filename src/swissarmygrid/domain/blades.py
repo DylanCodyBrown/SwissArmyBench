@@ -301,6 +301,11 @@ class Package:
         return {"module": self.module, "pip": self.pip, "guessed": self.guessed, "installed": self.installed}
 
 
+def provided(dotted: str) -> bool:
+    """A module pip never installs: the standard library's, or SwissArmyGrid's own."""
+    return dotted.split(".")[0] in _PROVIDED
+
+
 def pip_name(dotted: str) -> tuple[str, bool]:
     parts = dotted.split(".")
     for end in range(len(parts), 0, -1):

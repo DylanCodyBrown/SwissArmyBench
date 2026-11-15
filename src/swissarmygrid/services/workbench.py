@@ -10,7 +10,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmygrid.domain import environments as envs
-from swissarmygrid.domain import errors, html_cells
+from swissarmygrid.domain import errors, html_cells, streamlit_cells
 from swissarmygrid.domain import notebooks as rules
 from swissarmygrid.domain.datasets import validate_name
 from swissarmygrid.services.workspace import Conflict, NotFound, Workspace
@@ -95,6 +95,7 @@ class Workbench:
         folder_of: Callable[[str], str],
         secret_names: Callable[[], list[str]] = list,
         vault_environment: Callable[[], Awaitable[tuple[dict[str, str], list[str]]]] | None = None,
+        kernel_stopped: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self.ws = ws
         self._documents = documents
@@ -110,6 +111,8 @@ class Workbench:
         # The variables the vaults set at the last kernel start (names only): a vault that loads every
         # secret names them only when it runs, and the Variables pane lists them.
         self._vault_names: set[str] = set()
+        # Told when a kernel stops: the document's Streamlit process stops with it.
+        self._kernel_stopped = kernel_stopped
         self._running: dict[str, Kernel] = {}
         # The Workbench window that started each kernel, and since when that window has been gone.
         self._owner: dict[str, str] = {}
@@ -143,7 +146,10 @@ class Workbench:
                 "cells": cells,
                 "python": python,
                 "next_cell": next_cell,  # the number the next new cell gets (never one used before)
+                # Its Streamlit pages (the page designer's), kept in the notebook's metadata.
+                "pages": rules.document_pages(text),
             }
+        # A script keeps its pages in its own text (a `# %% [streamlit-pages]` block of comments).
         return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python}
 
     def save(self, body: Any) -> dict[str, Any]:
@@ -158,6 +164,7 @@ class Workbench:
             text = rules.write_notebook(
                 rules.read_cells(body.get("cells")),
                 next_number=following if isinstance(following, int) and following > 0 else None,
+                pages=streamlit_cells.read_pages(body.get("pages")),
             )
         else:
             script = body.get("text")
@@ -476,6 +483,8 @@ class Workbench:
         kernel = self._running.pop(kernel_id, None)
         if kernel is not None:
             await kernel.shutdown()
+            if self._kernel_stopped is not None:
+                await self._kernel_stopped(kernel_id)
 
     async def stop_all(self) -> None:
         for kernel_id in list(self._running):

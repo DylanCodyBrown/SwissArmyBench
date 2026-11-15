@@ -145,6 +145,9 @@ NOT_COMMANDS = {
     "/catalog": "page shell",
     "/workbench": "page shell: the Workbench window (the agent works its files and kernels directly)",
     "/static": "page files",
+    "/designer": "page shell: the page designer's window (the agent works its pages by streamlit_*)",
+    "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
+    "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
     "/agent/context": "current_table",
     "/blades/{}/python": "its answer holds the saved password values for sag.blade: never the agent's",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
@@ -532,7 +535,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # a document's tables and their state, running a table's cell, going to a cell by its number.
     # HTML cells (2026-11-14) added six: add one, list them, run one, size its pane, fill a design,
     # the marks of its names.
-    assert size < 47_500, f"the tool list is {size} characters"
+    # Streamlit pieces (2026-11-15) added 22: the cells in the window (add, list, run, push, size, open
+    # the designer) and the app by its id (open, read, sync, run, address, stop, close, install,
+    # export; pages: add, change, remove; pieces: push, place, remove).
+    assert size < 51_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

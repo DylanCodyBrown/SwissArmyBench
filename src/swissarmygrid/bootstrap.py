@@ -39,6 +39,7 @@ from swissarmygrid.adapters.state_files import (
     ThemeFiles,
     is_own_file,
 )
+from swissarmygrid.adapters.streamlit_files import AppFiles
 from swissarmygrid.adapters.views import ViewEngine
 from swissarmygrid.adapters.workbench import Documents
 from swissarmygrid.domain.blades import Blade
@@ -46,6 +47,7 @@ from swissarmygrid.domain.grids import GridRegistry
 from swissarmygrid.server import blade_runner
 from swissarmygrid.server.blade_templates import TEMPLATES
 from swissarmygrid.server.kernels import Launcher
+from swissarmygrid.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmygrid.services.agent import AgentService, Approvals, ExportTickets
 from swissarmygrid.services.analysis import Analysis
 from swissarmygrid.services.blades import BladeService
@@ -66,6 +68,7 @@ from swissarmygrid.services.regression import Regression
 from swissarmygrid.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmygrid.services.snapshots import Snapshots
 from swissarmygrid.services.sql import SqlBox
+from swissarmygrid.services.streamlit import StreamlitApps
 from swissarmygrid.services.table_cells import TableCells
 from swissarmygrid.services.tieout import TieOut
 from swissarmygrid.services.timeseries import TimeSeries
@@ -111,6 +114,7 @@ class Services:
     snapshots: Snapshots
     workbench_window: WorkbenchWindow
     table_cells: TableCells
+    streamlit: StreamlitApps
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -225,6 +229,18 @@ def bootstrap(
         ),
     )
     datasets.renamed.append(models.rename_table)
+    documents = Documents(state_dir / "recent.json", settings.workbench_dir)
+    # A notebook's Streamlit app: its pieces and pages, written to a temporary folder of its own and
+    # run in the notebook's own Python (Streamlit is never this app's dependency).
+    streamlit = StreamlitApps(
+        ws,
+        AppFiles(),
+        StreamlitRunner(),
+        export_writer,
+        now=time.time,
+        read_document=documents.read,
+        environment_of=documents.environment,
+    )
     return Services(
         settings=settings,
         ws=ws,
@@ -255,13 +271,14 @@ def bootstrap(
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=Workbench(
             ws,
-            Documents(state_dir / "recent.json", settings.workbench_dir),
+            documents,
             Launcher(),
             os.environ,
             now=time.time,
             folder_of=lambda path: str(Path(path).expanduser().parent),
             secret_names=blades.environment_names,
             vault_environment=vault_environment,
+            kernel_stopped=streamlit.kernel_stopped,
         ),
         models=models,
         finder=Finder(ws, models),
@@ -272,6 +289,7 @@ def bootstrap(
         snapshots=Snapshots(ws),
         workbench_window=WorkbenchWindow(ws),
         table_cells=TableCells(ws, datasets.origins),
+        streamlit=streamlit,
         live=live,
         workers=workers,
     )

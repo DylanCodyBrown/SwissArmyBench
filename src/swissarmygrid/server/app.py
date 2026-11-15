@@ -17,6 +17,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_folders.py        the page's file chooser: a folder's contents, the user's alone
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
+  routes_streamlit.py      Streamlit pieces, the page designer's pages, the app's run and export
+  streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
   routes_snapshots.py      a PNG of the page the user sees, drawn by the page, for an agent
@@ -55,10 +57,12 @@ from swissarmygrid.server import (
     routes_regression,
     routes_relationships,
     routes_snapshots,
+    routes_streamlit,
     routes_table_cells,
     routes_tieout,
     routes_timeseries,
     routes_workbench,
+    streamlit_proxy,
 )
 from swissarmygrid.server.security import WEBSOCKET_SUBPROTOCOL, LocalOnlyGuard
 from swissarmygrid.settings import Settings
@@ -119,6 +123,10 @@ def create_app(
         # Notebooks and scripts, always in a window of their own (the grid page's Workbench tab opens it).
         return FileResponse(settings.web_root / "workbench.html", headers={"Cache-Control": "no-store"})
 
+    async def designer_page(request: Request) -> Response:
+        # The page designer: a notebook's Streamlit pieces assembled on pages, in a window of its own.
+        return FileResponse(settings.web_root / "designer.html", headers={"Cache-Control": "no-store"})
+
     async def drop_silent_sessions() -> None:
         # A notebook that closes or crashes just stops reporting; the list notices within a few
         # seconds and tells the pages, so a dead session never lingers in the Open dialog.
@@ -126,7 +134,9 @@ def create_app(
             await asyncio.sleep(PRUNE_EVERY_SECONDS)
             await ctx.sessions.drop_silent()
             # A Workbench window closed (or reloaded) a minute ago: its kernels stop.
-            await ctx.workbench.stop_orphans(ctx.live.workbench_windows())
+            windows = ctx.live.workbench_windows()
+            await ctx.workbench.stop_orphans(windows)
+            await ctx.streamlit.stop_orphans(windows)  # and their notebooks' Streamlit apps
 
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
@@ -135,6 +145,7 @@ def create_app(
         yield
         pruner.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
+        await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         workers.close()
 
     app = Starlette(
@@ -152,6 +163,8 @@ def create_app(
             *routes_folders.routes(ctx.folders),
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),
+            *routes_streamlit.routes(ctx.streamlit),
+            *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),
             *routes_packs.routes(ctx.packs),
@@ -162,6 +175,7 @@ def create_app(
             Route("/workspace", workspace_page),
             Route("/catalog", catalog_page),
             Route("/workbench", workbench_page),
+            Route("/designer", designer_page),
             Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[Middleware(LocalOnlyGuard, port=port, token=token)],

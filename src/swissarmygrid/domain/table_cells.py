@@ -305,6 +305,7 @@ class PlanCell:
     title: str = ""  # a script marker's own words (`# %% Load the data`)
     uses: str | None = None  # the uses line it should start with (None: none)
     html: bool = False  # a script's HTML cell: its lines hold the HTML as one Python string
+    streamlit: bool = False  # a script's Streamlit cell (domain/streamlit_cells.py): plain Python
     height: int | None = None  # that cell's pane, in pixels
 
     def to_json(self) -> dict[str, Any]:
@@ -611,7 +612,7 @@ def arrange(
         own = cell.role == "" and id(cell) not in maker_ids and not cell.fixed
         if own and cell.html and links:
             cell = replace(cell, uses=script_html_uses(cell.source, links))
-        elif own and cell.kind in ("code", "sql", "html") and links:
+        elif own and cell.kind in ("code", "sql", "html", "streamlit") and links:
             cell = replace(cell, uses=uses_line(cell.source, links, cell.kind == "sql", cell.kind == "html"))
         else:
             cell = replace(cell, uses=None)
@@ -656,7 +657,7 @@ REGION_START: str = "# region Tables"
 REGION_END: str = "# endregion"
 _MARKER = re.compile(
     r"^# ?%%(?: \[(?P<number>\d+)\])?(?: \[(?P<role>table|transformations)\] (?P<table>[A-Za-z_][\w-]*))?"
-    r"(?: \[(?P<html>html)\](?: height=(?P<height>\d{1,5}))?)?"
+    r"(?: \[(?P<html>html|streamlit)\](?: height=(?P<height>\d{1,5}))?)?"
     r"(?P<title>(?: .*)?)$"
 )
 _REGION_START = re.compile(r"^# ?region Tables\s*$")
@@ -711,7 +712,9 @@ def parse_script(text: str) -> Script:
             role, table = _marker_role(found, True)
             number = int(found.group("number")) if found.group("number") else None
             # An HTML marker inside the group is kept as the user's own words.
-            words = ("[html] " if found.group("html") else "") + found.group("title").strip()
+            words = (f"[{found.group('html')}] " if found.group("html") else "") + found.group(
+                "title"
+            ).strip()
             current = PlanCell(number, "code", "", role, table, True, title=words.strip())
             grouped.append(current)
             body = []
@@ -737,15 +740,18 @@ def parse_script(text: str) -> Script:
         number = int(found.group("number")) if found.group("number") else None
         # Outside the group only a table's own cell keeps a role; a maker there is found again.
         role = role if role == "transformations" else ""
+        streamlit = found.group("html") == "streamlit" and not role
         current = PlanCell(
             number,
-            "code",
+            # A Streamlit cell is a piece of a page, never the cell that makes a table.
+            "streamlit" if streamlit else "code",
             "",
             role,
             table if role else None,
             False,
             title=found.group("title").strip(),
-            html=bool(found.group("html")) and not role,
+            html=found.group("html") == "html" and not role,
+            streamlit=streamlit,
             height=html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
         )
         rest.append(current)
@@ -773,8 +779,9 @@ def _marker_line(cell: PlanCell) -> str:
         parts.append(f"[transformations] {cell.table}")
     elif cell.role == "maker" and cell.table and cell.grouped:
         parts.append(f"[table] {cell.table}")
-    if cell.html:
-        parts.append("[html]" + (f" height={cell.height}" if cell.height is not None else ""))
+    if cell.html or cell.streamlit:
+        word = "[html]" if cell.html else "[streamlit]"
+        parts.append(word + (f" height={cell.height}" if cell.height is not None else ""))
     if cell.title:
         parts.append(cell.title)
     return " ".join(parts)
@@ -871,7 +878,7 @@ def outline(text: str) -> dict[str, Any]:
             "role": role if inside or role == "transformations" else "",
             "table": table,
             "grouped": inside,
-            "kind": "html" if found.group("html") and not inside and not role else "code",
+            "kind": found.group("html") if found.group("html") and not inside and not role else "code",
             "height": html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
         }
     close(len(lines))

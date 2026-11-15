@@ -154,18 +154,27 @@ def _magic(line: str, cell: str) -> None:
 
 _TABLE_CELL = re.compile(r"^# ?%%(?: \[\d+\])? \[transformations\] ([A-Za-z_]\w*)\b")
 _CELL_END = re.compile(r"^# ?(?:%%|endregion\b)")
+# A Streamlit cell is a piece of a page: it runs in the notebook's Streamlit app, not in the kernel.
+_STREAMLIT_CELL = re.compile(r"^# ?%%(?: \[\d+\])? \[streamlit\](?:\s|$)")
 
 
 def safe_source(text: str) -> str:
     """A script's text with each table's cell (`# %% [n] [transformations] name`) run through `run`,
-    on the same lines (so an error still names the right line). Everything else is as written."""
+    on the same lines (so an error still names the right line), and each Streamlit cell's lines left
+    out (blank lines in their place: a piece runs in the Streamlit app). Everything else is as written."""
     lines = text.split("\n")
     out: list[str] = []
     index = 0
     while index < len(lines):
         found = _TABLE_CELL.match(lines[index])
+        piece = _STREAMLIT_CELL.match(lines[index])
         out.append(lines[index])
         index += 1
+        if piece is not None:
+            while index < len(lines) and not _CELL_END.match(lines[index]):
+                out.append("")
+                index += 1
+            continue
         if found is None:
             continue
         body: list[str] = []

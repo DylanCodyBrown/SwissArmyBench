@@ -14,6 +14,12 @@ request and either short-circuits with a status code or passes it on. Two checks
    instead (`new WebSocket(url, ["swissarmygrid", token])`); that keeps it out of the URL and
    so out of the server's access log.
 
+A notebook's live Streamlit pages (/streamlit/live/<app>-<secret>/..., server/streamlit_proxy.py)
+skip the token check too, for any method and for their websocket: a frame's address cannot carry a
+header, so the path carries that app's own secret instead (random, made when the app is opened, never
+the server's token), which the route checks. Those frames are sandboxed without this server's origin,
+so their requests say `Origin: null`: allowed on these paths only. Host is still checked.
+
 Deliberate exception: GET requests for the grid page shell (/g/...) and its static files
 (/static/...) skip the token check. They hold no data, only the page and the vendored grid
 library. The token reaches the page in the URL fragment (#token=...), which browsers never
@@ -35,7 +41,9 @@ WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
 # The page shell and its files: prefixes for /g/<id> and /static/..., and the exact paths of the
 # workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/static/")
-_PUBLIC_PATHS: frozenset[str] = frozenset({"/workspace", "/catalog", "/workbench"})
+_PUBLIC_PATHS: frozenset[str] = frozenset({"/workspace", "/catalog", "/workbench", "/designer"})
+# A notebook's live Streamlit pages: the path's own secret is checked by the route.
+_SECRET_PATH: str = "/streamlit/live/"  # noqa: S105 (a path, not a secret)
 
 _MESSAGES: dict[int, str] = {
     401: "Missing or wrong token. Clients read it from the server's connection file.",
@@ -73,9 +81,12 @@ class LocalOnlyGuard:
         if headers.get("host") not in self._allowed_hosts:
             return 403
         origin: str | None = headers.get("origin")
+        path: str = scope["path"]
+        if path.startswith(_SECRET_PATH) and len(path) > len(_SECRET_PATH):
+            # A sandboxed frame has no origin of its own to name.
+            return None if origin in (None, "null") or origin in self._allowed_origins else 403
         if origin is not None and origin not in self._allowed_origins:
             return 403
-        path: str = scope["path"]
         public = path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
         if scope["type"] == "http" and scope["method"] == "GET" and public:
             return None

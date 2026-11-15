@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The same policy as the Workbench's: frames from this server only. A notebook's live Streamlit
+         pages come through this server (/streamlit/live/..., server/streamlit_proxy.py), so no other
+         address is ever allowed in a frame. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
+    <title>Page designer</title>
+    <!-- The icon inline, so the browser never requests /favicon.ico (which would need the token). -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23D52B1E'/%3E%3Cpath fill='%23fff' d='M42 23h16v19h19v16H58v19H42V58H23V42h19z'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/static/grid.css" />
+    <link rel="stylesheet" href="/static/catalog.css" />
+  </head>
+  <body class="catalog-page designer-page">
+    <!-- The page designer (docs/ideas.md, 2026-11-15): a notebook's Streamlit pieces assembled on
+         pages, in a window of its own (opened from the Workbench; never the Sandbox). With view=app in
+         its address it shows the whole app alone. -->
+    <header class="dz-top" id="dz-top"></header>
+    <div class="dz-layout">
+      <aside class="dz-rail" id="dz-pieces" aria-label="Pieces"></aside>
+      <main class="dz-main">
+        <section class="dz-board" id="dz-board" aria-label="The page's layout"></section>
+        <section class="dz-live" id="dz-live" aria-label="The page, live"></section>
+      </main>
+    </div>
+    <script type="module" src="/static/build/designer.js"></script>
+  </body>
+</html>
