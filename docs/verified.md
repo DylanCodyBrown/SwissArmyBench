@@ -11,7 +11,7 @@ still an assumption. Last updated 2026-10-23.
 | 4 | Arrow data exchange interface | Verified | The push client converts pandas (`Table.from_pandas`), Polars and other objects with `__arrow_c_stream__` (`pa.table(obj)`), DuckDB relations (`to_arrow_table()`) and lists of dicts, with pyarrow 26. Dates keep their type end to end. |
 | 5 | sqlglot | Verified, 30.24.0 | Parses the DuckDB dialect for the SQL box subset; WITH clauses live under the `with_` argument (not `with`) in this version; table functions parse as `exp.Table` with a function `this`. |
 | 6 | VS Code | Verified, 1.143.0 | "Simple Browser: Show" opens the integrated browser as a real Chromium page (not an iframe); the grid, WebSocket, panel and title all work. Older versions use a sandboxed iframe and append `?id=&vscodeBrowserReqId=`; the page reads the grid id from the path and the token from the fragment, so both work. `tools/vscode_check.py` reproduces the check. Debugger-variable menu: not checked (VS Code extension not built). |
-| 7 | Licenses and sizes | Verified | AG Grid Community MIT; Monaco 0.57 MIT; Vega 6.4, Vega-Lite 6.5, vega-embed 7.3 BSD-3-Clause; xlsxwriter 3.3 BSD-2-Clause; DuckDB MIT; pyarrow Apache-2.0; sqlglot MIT; Starlette and uvicorn BSD-3. Bundles: main 1.2 MB (loads with the page), charts 0.84 MB and the SQL editor 4.5 MB (each loads on first use). The release wheel is 7.2 MiB unpacked. Check the company's open-source policy before wider sharing. |
+| 7 | Licenses and sizes | Verified | AG Grid Community MIT; Monaco 0.57 MIT; Vega 6.4, Vega-Lite 6.5, vega-embed 7.3 BSD-3-Clause; xlsxwriter 3.3 BSD-2-Clause; DuckDB MIT; pyarrow Apache-2.0; sqlglot MIT; Starlette and uvicorn BSD-3. Bundles (2026-11-15): main 1.4 MB (loads with the page), charts 0.83 MB and Monaco 4.4 MB (the Workbench's editors and the "+" tab's SQL box share it; each loads on first use). The release wheel is 5.9 MiB (19.5 MiB unpacked). Check the company's open-source policy before wider sharing. |
 | 8 | Company policy on sending client data to an AI service | Not checked | A connected agent sees cell values (the privacy levels were removed on 2026-11-12), so check this before connecting an agent to client data. |
 | 9 | Windows sandbox options | Not checked | Milestone 9 is not built. |
 | 10 | Excel export | Verified | xlsxwriter `in_memory` mode (constant_memory would write temp files, against the no-disk default); `strings_to_formulas=False` writes `=1+1` as a string cell; integers over 15 digits stay exact as text; the row limit (1,048,576) and cell limit (32,767) are enforced with messages; round trips read back with openpyxl. CSV formula neutralization prefixes an apostrophe. Parquet round trips keep types, nulls, time zones and provenance metadata (pyarrow, snappy or zstd). |
@@ -1229,3 +1229,50 @@ environment with Streamlit 1.67.0 and pandas (SWISSARMYBENCH_STREAMLIT_PYTHON).
 - **Not checked:** Edge itself; a Mermaid diagram on a Streamlit page (it stays a code block there);
   a picture named in a Markdown cell; Jupyter's own rendering of the escaped Markdown (CommonMark's
   rules, which the Workbench now follows for backslashes and references).
+
+## The pre-release sweep for 0.0.1 (2026-11-15)
+
+Design principles 13b: a read of what the release ships, for dead code, bloat and anything made slower.
+No behaviour changed and no tests were added. Found with ripgrep and small ast and regex scans (vulture
+is not installed here): every Python function, class and module constant named only where it is
+defined; every TypeScript export and module nothing imports; every class in `grid.css` and `catalog.css`
+that no module, page or server string gives an element (classes built as `mark-${kind}`, `tie-${status}`
+and `role-${role}` counted as used); identical function bodies in two modules.
+
+- **Bloat: Monaco twice.** `lazy/sqlEditor.js` (the "+" tab's SQL box) bundled all of Monaco again,
+  4.4 MB of script and 171 KB of stylesheet, beside `lazy/codeEditor.js`. Its `createSqlEditor` now ends
+  `lazy/codeEditor.ts`, so a page that has both loads one copy. The release wheel: 7.40 MB → 6.19 MB
+  (24.0 → 19.5 MiB unpacked, 274 → 272 files). Checked in the browser: the "+" tab's editor is Monaco
+  (not the text box it falls back to) and completes a column's name. The wheel holds no tests, pictures,
+  source maps or caches. What remains large is what the page uses: Plotly 4.7 MB, Monaco 4.4 MB,
+  Mermaid 2.5 MB, Graphviz 1.5 MB, ECharts 1.1 MB, Vega 0.8 MB, each loaded on first use, and AG Grid
+  (1.0 of main's 1.4 MB), which the grid page needs at once.
+- **A leak: a closed document stayed alive.** Closing a notebook or script removed its element but left
+  its cells' Monaco editors and models, its console's prompt and its HTML panes alive, and each notebook
+  added a window `blur` listener that was never removed. Measured in Chromium over CDP, twelve rounds of
+  opening and closing a notebook and a script: the heap after garbage collection grew 13.6 → 30.4 MB with
+  13 blur listeners; with the views' new `dispose()` (called when the document closes), 12.7 → 17.3 MB
+  and none.
+- **Dead code removed:** Python `streamlit_proxy.key_of`, `services/streamlit.KernelStopped`,
+  `streamlit_cells.check_pane`, `AppFiles.remove_all` (stop_all already removes each folder); CSS
+  `.visually-hidden`, `.ag-theme-host`, `.wb-project`. The `dz-*` classes, the old toolbar's and side
+  bar's rules, the page designer and the Streamlit cell kind had already gone. Every TypeScript export is
+  used.
+- **Duplicates merged:** `quote()` (DuckDB identifiers) had identical copies in `domain/steps.py` and
+  `domain/analysis.py`: one, in `domain/datasets.py`. The page's `plural` and `pct` had two copies each.
+  Left on purpose: the starter blades' shared helpers (each `.blade.py` is a file that runs alone), and
+  the kernel-side `client/` modules' small helpers (each loads into a kernel on its own).
+- **Hot paths read, nothing found slow:** the grid's windows (compiled views and materialized tables are
+  LRU-bounded, a per-key lock builds a view once), the profile cache (512 entries), the watcher's scan
+  (one dict lookup per variable by class), the Workbench's outputs (batched, capped), its Tables and
+  Streamlit cells pane refreshes (debounced 120 and 150 ms; the server says `streamlit_cells` only when a
+  pane's mark changes), the canvas (no polling: socket notices), the server's background loop (every few
+  seconds) and the kernels' message waits.
+- **Noted, not changed:** compare's shared scrollbar measures both grids every 250 ms while a compare is
+  open (cheap, and it stops with the compare); a running canvas asks for its state on every grid change
+  without a pause between; `GET /streamlit/cells` with a project folder reads and parses the project's
+  files on the event loop (small files, a handful). `markdown.ts` and `valueViewer.ts` each have their own
+  Markdown renderer (different output; merging them would change how one draws).
+- **The whole suite** with the browser tests in Chromium and SWISSARMYBENCH_STREAMLIT_PYTHON set: 2,589
+  passed, 9 skipped. `ruff check`, `ruff format --check`, `mypy`, `npm run typecheck` and `npm run build`
+  clean.
