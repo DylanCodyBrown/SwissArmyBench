@@ -39,6 +39,11 @@ export function registerAnalysis(iconName: string, label: string, open: () => vo
   entries.push([iconName, label, open]);
 }
 
+/** The menu's built-in entries as [label, open], for the command palette (gridCommands.ts). */
+export function analysisEntries(): [string, () => void][] {
+  return entries.map(([, label, open]) => [label, open]);
+}
+
 export function analyzeButton(): HTMLButtonElement {
   const btn = button("Analyze", (event) => openMenu(event), {
     icon: "fit",

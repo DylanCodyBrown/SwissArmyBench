@@ -66,6 +66,9 @@ class StaleRequestError(Exception):
     """A newer request for the same grid replaced this one. Maps to HTTP 409."""
 
 
+UNDO_LIMIT: int = 100  # step changes a grid remembers, to undo
+
+
 @dataclass
 class Grid:
     id: str
@@ -81,6 +84,48 @@ class Grid:
     # Cursors running a query for this grid, with the gen they serve.
     _running: dict[int, tuple[str, int, Interruptible]] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    # The step lists before each change (newest last), and the ones undone since (to redo).
+    _undo: list[list[Step]] = field(default_factory=list)
+    _redo: list[list[Step]] = field(default_factory=list)
+
+    # ===== undo and redo (Ctrl+Z, Ctrl+Y): every change to the steps goes through set_steps =====
+
+    def set_steps(self, steps: list[Step]) -> None:
+        """Make `steps` the grid's steps, remembering the list they replace so the change can be
+        undone. A change is anything that changes the list: a step added, removed, edited, switched
+        off or moved, the whole list cleared, a header sort. The same list again is no change. A new
+        change ends what could be redone."""
+        steps = list(steps)
+        if steps == self.steps:
+            return
+        self._undo.append(self.steps)
+        del self._undo[:-UNDO_LIMIT]
+        self._redo.clear()
+        self.steps = steps
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(self._undo)
+
+    @property
+    def can_redo(self) -> bool:
+        return bool(self._redo)
+
+    def undo(self) -> bool:
+        """Back to the steps before the last change. False when there is none."""
+        if not self._undo:
+            return False
+        self._redo.append(self.steps)
+        self.steps = self._undo.pop()
+        return True
+
+    def redo(self) -> bool:
+        """The last undone change again. False when there is none."""
+        if not self._redo:
+            return False
+        self._undo.append(self.steps)
+        self.steps = self._redo.pop()
+        return True
 
     def admit(self, gen: int | None, cursor: Interruptible, client: str = "") -> int:
         """Register a query. A newer gen from a page interrupts that page's older running

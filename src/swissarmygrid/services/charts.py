@@ -750,7 +750,7 @@ class Cards:
                 raise ValueError(str(trial.error))
             return steps
 
-        grid.steps = [*grid.steps, *await ws.grid_query(grid, None, BACKGROUND, added)]
+        grid.set_steps([*grid.steps, *await ws.grid_query(grid, None, BACKGROUND, added)])
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
         return {"steps": len(grid.steps)}
 

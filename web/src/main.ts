@@ -39,6 +39,7 @@ import { settingsButton } from "./settingsWindow";
 import { connectionsButton } from "./connectionsWindow";
 import { tourButton } from "./tour";
 import { restoreCompare } from "./compare";
+import { mountGridCommands } from "./gridCommands";
 import { openCompareDialog } from "./compareDialog";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, dropGrid, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids } from "./panes";
 import { mountRibbon, zoomControl } from "./ribbon";
@@ -214,6 +215,7 @@ async function start(): Promise<void> {
   mountContextMenus();
   mountOpenMenu();
   mountFileDrop(); // a file dropped anywhere opens as a grid
+  mountGridCommands(); // Ctrl+Shift+P: every action of this page, by name
   // This page shows every grid as a tab, so a push while it is open adds a tab, not a window.
   // Each (re)connect fetches the agent's requests already waiting: one made before the socket was
   // open never reached this page as a notice.

@@ -33,19 +33,26 @@ export interface Command {
 }
 
 const registry = new Map<string, Command>();
+// Commands worked out when they are asked for (the grid page's: its buttons and tabs as they stand).
+let source: () => Command[] = () => [];
+
+/** A page whose commands follow what is on screen gives them here, read each time the list is. */
+export function setCommandSource(found: () => Command[]): void {
+  source = found;
+}
 
 export function registerCommands(list: Command[]): void {
   for (const c of list) registry.set(c.id, c);
 }
 
 export function allCommands(): Command[] {
-  return [...registry.values()];
+  return [...registry.values(), ...source()];
 }
 
 /** Run a command by its id (the palette, a key, the agent). */
 export async function runCommand(id: string, args: Record<string, unknown> = {}): Promise<unknown> {
-  const command = registry.get(id);
-  if (!command) throw new Error(`No Workbench command "${id}". The command "commands" lists them.`);
+  const command = registry.get(id) ?? source().find((c) => c.id === id);
+  if (!command) throw new Error(`No command "${id}". The command "commands" lists them.`);
   if (command.when && !command.when()) throw new Error(`"${command.title}" cannot run now: ${command.whyNot ?? "it does not apply to what is open"}.`);
   return command.run(args);
 }
@@ -89,7 +96,7 @@ export function openPalette(): void {
     if (!c || (c.when && !c.when())) return;
     close();
     void Promise.resolve()
-      .then(() => runCommand(c.id))
+      .then(() => (c.when && !c.when() ? undefined : c.run({})))
       .catch((e: Error) => import("./dom").then((m) => m.toast(e.message, "error")));
   };
   const draw = (): void => {
@@ -101,7 +108,7 @@ export function openPalette(): void {
         const off = c.when ? !c.when() : false;
         const row = h(
           "li",
-          { role: "option", id: `wb-cmd-${i}`, class: `wb-palette-item${i === at ? " active" : ""}${off ? " off" : ""}`, "aria-selected": String(i === at), "aria-disabled": off ? "true" : undefined },
+          { role: "option", id: `wb-cmd-${i}`, class: `wb-palette-item${i === at ? " active" : ""}${off ? " off" : ""}`, "aria-selected": String(i === at), "aria-disabled": off ? "true" : undefined, title: off ? c.whyNot : undefined },
           h("span", { class: "wb-palette-group" }, c.group),
           h("span", { class: "wb-palette-title" }, c.title),
           c.keys ? h("kbd", {}, c.keys) : null,

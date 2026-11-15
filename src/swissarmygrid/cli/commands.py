@@ -680,6 +680,25 @@ def move_step(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "steps_undo",
+    "Undo the last change to the grid's steps (the page's Ctrl+Z): a step added, removed, edited, switched "
+    "off or moved, the steps cleared, a header sort. Each grid remembers its own changes.",
+    req("grid", "Grid id."),
+)
+def undo_step(a: dict[str, Any]) -> Any:
+    return _step_op(a["grid"], {"op": "undo"})
+
+
+@command(
+    "steps_redo",
+    "Redo the step change last undone (the page's Ctrl+Y). A new change ends what can be redone.",
+    req("grid", "Grid id."),
+)
+def redo_step(a: dict[str, Any]) -> Any:
+    return _step_op(a["grid"], {"op": "redo"})
+
+
+@command(
     "steps_apply_sql",
     "Add a SQL transformation step (Create SQL transformation, Apply): one SELECT over the table as it stands, "
     "by the dataset's own name or `grid`. Later steps see its columns.",

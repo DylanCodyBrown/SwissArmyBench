@@ -98,6 +98,7 @@ const ICONS: Record<string, string> = {
   bucket: '<path d="M3 7h5v13H3zM10 4h5v16h-5zM17 10h4v10h-4zM3 20h18"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   image: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/>',
+  forward: '<path d="M14 6l6 6-6 6M20 12H4"/>',
   back: '<path d="M10 6l-6 6 6 6M4 12h16"/>',
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   star: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>',

@@ -268,7 +268,7 @@ def test_steps_add_filter_preview_toggle_and_delete(browser: Browser, orders_url
     dialog.get_by_label("Value", exact=True).fill("North")
     dialog.get_by_role("button", name="Add step").click()
     expect(page.locator("#status")).to_contain_text("of 834")
-    page.get_by_role("button", name="Undo the last step").click()
+    page.locator(".steps-strip").get_by_role("button", name="Undo", exact=True).click()
     expect(page.locator("#status")).to_contain_text("of 5,000")
     steps.close()
 
@@ -422,7 +422,8 @@ def test_the_grid_has_the_whole_page_and_its_steps_open_in_their_own_tab(
     assert grid_box["x"] + grid_box["width"] >= right_edge - 20
     strip = page.locator(".steps-strip")
     expect(strip.locator(".steps-count")).to_have_count(0)  # no steps, no words
-    expect(strip.get_by_role("button", name="Undo the last step")).to_be_disabled()
+    expect(strip.get_by_role("button", name="Undo", exact=True)).to_be_disabled()
+    expect(strip.get_by_role("button", name="Redo", exact=True)).to_be_disabled()
     with page.context.expect_page() as opened:
         strip.get_by_role("button", name="Edit steps").click()
     steps = opened.value
@@ -919,7 +920,8 @@ def test_the_tables_list_reopens_a_closed_table_and_holds_the_memory_numbers(
     # The list closes and the table is the tab in front, with its rows.
     expect(page.locator("dialog[open]")).to_have_count(0, timeout=15000)
     expect(page.locator(".tab-item.active .tab-label")).to_have_text("reopen_me", timeout=15000)
-    wait_for_cell(page, 0, "order_id", "1")
+    shown = page.locator(".pane:not([hidden]) .ag-row[row-index='0'] .ag-cell[col-id='order_id']")
+    expect(shown).to_have_text("1", timeout=15000)
     after = {d["name"]: d for d in call(server, "GET", "/datasets")["datasets"]}
     # The original: the same table at the same version, one grid on it, and no copy beside it.
     assert after["reopen_me"]["version"] == before["version"] and len(after["reopen_me"]["grids"]) == 1

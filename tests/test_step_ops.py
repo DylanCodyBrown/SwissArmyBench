@@ -11,6 +11,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmygrid.domain.grids import UNDO_LIMIT, Grid
+from swissarmygrid.domain.steps import Step
 from tests.conftest import AGENT, AUTH, grid_id, push
 
 SECRET = "Acme Secret"
@@ -181,3 +183,82 @@ def test_the_step_commands_keep_the_users_values(
     execute(name, {"grid": gid, **args})
     survivors = {s["id"]: s for s in user_steps(as_agent, gid)}
     assert survivors[filter_id]["params"]["value"] == SECRET
+
+
+# ===== undo and redo: Ctrl+Z, Ctrl+Y (the agent's steps_undo, steps_redo) =====
+
+
+def _step(column: str) -> Step:
+    return Step("filter", {"column": column, "op": "not_blank"})
+
+
+def test_a_grid_remembers_its_step_changes_to_undo_and_redo() -> None:
+    a, b, c = _step("a"), _step("b"), _step("c")
+    grid = Grid("g1", "orders")
+    assert not grid.can_undo and not grid.can_redo and not grid.undo() and not grid.redo()
+    grid.set_steps([a])
+    grid.set_steps([a, b])
+    grid.set_steps([a, b])  # nothing changed: nothing to undo twice
+    assert grid.can_undo and not grid.can_redo
+    assert grid.undo() and grid.steps == [a] and grid.can_redo
+    assert grid.undo() and grid.steps == [] and not grid.can_undo
+    assert grid.redo() and grid.redo() and grid.steps == [a, b] and not grid.can_redo
+    # A new change after an undo: what was undone can no longer be redone.
+    grid.undo()
+    grid.set_steps([a, c])
+    assert not grid.can_redo and grid.steps == [a, c]
+    assert grid.undo() and grid.steps == [a]
+    # Clearing every step is one change, undone in one go.
+    grid.set_steps([a, b, c])
+    grid.set_steps([])
+    assert grid.undo() and grid.steps == [a, b, c]
+
+
+def test_the_undo_history_is_kept_to_a_limit() -> None:
+    grid = Grid("g1", "orders")
+    for n in range(UNDO_LIMIT + 20):
+        grid.set_steps([_step(f"c{n}")])
+    undone = 0
+    while grid.undo():
+        undone += 1
+    assert undone == UNDO_LIMIT and grid.steps[0].params["column"] == "c19"
+
+
+def test_undo_and_redo_over_http_cover_every_way_steps_change(client: TestClient) -> None:
+    gid = grid_id(push(client, "clients", TABLE))
+
+    def op(body: dict[str, Any], headers: dict[str, str] = AUTH) -> Any:
+        return client.post(f"/grids/{gid}/step-ops", json=body, headers=headers)
+
+    def kinds() -> list[str]:
+        return [s["kind"] for s in client.get(f"/grids/{gid}", headers=AUTH).json()["steps"]]
+
+    described = client.get(f"/grids/{gid}", headers=AUTH).json()
+    assert described["can_undo"] is False and described["can_redo"] is False
+    nothing = op({"op": "undo"})
+    assert nothing.status_code == 400 and "Nothing to undo" in nothing.text
+    # A step from the ribbon, the whole list from the steps window, a click on a header.
+    add = {"kind": "filter", "params": {"column": "region", "op": "eq", "value": "east"}}
+    assert op({"op": "add", "step": add}).json()["can_undo"] is True
+    distinct = {"kind": "distinct", "params": {"columns": ["region"]}}
+    client.post(f"/grids/{gid}/steps", json={"steps": [add, distinct]}, headers=AUTH)
+    client.post(f"/grids/{gid}/header-sort", json={"keys": [["balance", "desc"]]}, headers=AUTH)
+    assert kinds() == ["filter", "distinct", "sort"]
+    # Undo walks back through them, the header sort included; the agent may undo and redo too.
+    undone = op({"op": "undo"}, AGENT)
+    assert undone.status_code == 200 and undone.json()["can_redo"] is True
+    assert kinds() == ["filter", "distinct"]
+    op({"op": "undo"})
+    assert kinds() == ["filter"]
+    assert client.get(f"/grids/{gid}/rows", headers=AUTH).json()["row_count"] == 2
+    op({"op": "undo"})
+    assert kinds() == [] and op({"op": "undo"}).status_code == 400
+    assert client.get(f"/grids/{gid}/rows", headers=AUTH).json()["row_count"] == 3
+    for _ in range(3):
+        assert op({"op": "redo"}, AGENT).status_code == 200
+    assert kinds() == ["filter", "distinct", "sort"]
+    again = op({"op": "redo"})
+    assert again.status_code == 400 and "Nothing to redo" in again.text
+    # Each grid has its own history.
+    other = client.post("/grids", json={"dataset": "clients"}, headers=AUTH).json()["grid"]
+    assert client.get(f"/grids/{other}", headers=AUTH).json()["can_undo"] is False

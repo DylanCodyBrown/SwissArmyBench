@@ -10,7 +10,7 @@ import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisD
 import { sendCards } from "./analyzeMenu";
 import { api, grid } from "./api";
 import { showMenu, toast } from "./dom";
-import { cellValue, copySelection, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
+import { cellValue, copySelection, focusedCell, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
 import { openColumnProfile, profileToSandbox } from "./profileView";
 import { filterByCells, keepColumns, sortColumns } from "./ribbon";
 import { editStep } from "./stepForms";
@@ -30,6 +30,25 @@ async function distinctToSandbox(column: string): Promise<void> {
   } catch (e) {
     toast((e as Error).message, "error");
   }
+}
+
+/** The cell menu's entries that need no pointer, on the cell in front, as [words, action]: the
+ * command palette lists them (gridCommands.ts). Send the row needs the row's values, which only a
+ * right-click on it gives. */
+export function cellCommands(): [string, () => void][] {
+  const sendValue = (): void => {
+    const cell = focusedCell();
+    if (!cell) return;
+    const where = `${cell.column}, row ${(cell.row + 1).toLocaleString()}`;
+    void cellValue(cell.row, cell.column).then((value) => sendCards(valueCards(value, where, dataset())));
+  };
+  return [
+    ["View value", () => viewCell()],
+    ["Copy", () => void copySelection()],
+    ["Keep these", () => void filterByCells(true)],
+    ["Exclude these", () => void filterByCells(false)],
+    ["Send value to Sandbox", sendValue],
+  ];
 }
 
 export function mountContextMenus(): void {

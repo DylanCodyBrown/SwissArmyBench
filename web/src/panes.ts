@@ -403,6 +403,13 @@ export function compareWith(id: string, x?: number, y?: number): void {
   showMenu(x ?? box?.left ?? 8, y ?? box?.bottom ?? 40, `Compare ${label(id)} with`, others.map((o): MenuItem => ["columns", label(o), () => go(o)]));
 }
 
+/** Rename the table in front, in its tab (the palette's Rename; F2 on the tab). */
+export function renameActive(): void {
+  const ctx = activeContext();
+  const name = ctx ? tabRow.querySelector<HTMLElement>(`.tab-item[data-grid="${CSS.escape(ctx.id)}"] .tab-label`) : null;
+  if (ctx && name) renameInPlace(name, ctx.dataset);
+}
+
 /** A tab's right-click menu: what can be done with that table's tab. */
 function tabMenu(id: string, event: MouseEvent): void {
   event.preventDefault();

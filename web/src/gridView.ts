@@ -18,7 +18,7 @@
  *          [CELLS]           click / drag / Shift+arrows -> selection.selectCells()
  *          [ROWS]            -> datasource.getRows(), refreshed by refresh()
  *          [MARKER COLUMN]   -> read-only, from the rows response's `highlighted`
- *          [CELL VIEWER]     double-click -> showCellDetail() -> openValueViewer()
+ *          [CELL VIEWER]     double-click, or Enter or F2 on a cell -> showCellDetail() -> openValueViewer()
  *          [CHANGED CELL]    -> read-only, computed while previewing a step
  *          [SELECTION STATS] -> selection change -> loadSelectionStats()  (status bar, agent count)
  *          [COPY]            -> Ctrl+C -> copySelection()  (server-built tab-separated text)
@@ -766,6 +766,11 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       selection.selectAll();
     } else if (event.key === "Escape") {
       selection.clear();
+    } else if ((event.key === "Enter" || event.key === "F2") && !ctrl && !event.altKey && !event.shiftKey && row != null && column && ![ROWNUM, MARKER, FILLER].includes(column) && (event.target as HTMLElement).closest(".ag-cell")) {
+      // Enter or F2 on a cell opens its value, as a double-click does (Excel's keys for "into the cell").
+      event.preventDefault();
+      event.stopPropagation();
+      void showCellDetail(row, column);
     } else if (event.key === " " && event.shiftKey && row != null) {
       event.preventDefault();
       selection.selectRows(row, "replace");

@@ -102,6 +102,9 @@ class GridService:
             "stage_columns": [[{"name": c.name, "type": c.type} for c in s.columns] for s in compiled.stages],
             "steps": steps,
             "step_error": step_error,
+            # Is there a step change to undo, or an undone one to redo (Ctrl+Z, Ctrl+Y)?
+            "can_undo": grid.can_undo,
+            "can_redo": grid.can_redo,
             "settings": grid.settings.to_json(),
             # What the page last reported as selected, and how many highlight rules mark rows.
             "selected_rows": grid.selected,
@@ -250,7 +253,8 @@ class GridService:
         ws = self.ws
         if isinstance(gen, int):  # newer gen from this page: interrupt its older queries
             grid.release(grid.admit(gen, ws.store.cursor(), client))
-        grid.steps, grid.settings = new_steps, new_settings
+        grid.set_steps(new_steps)  # remembered, so the change can be undone
+        grid.settings = new_settings
         described = await self.describe(grid, info)
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
         ws.audit.write(who, "steps", info.name, steps=len(new_steps))
@@ -269,7 +273,8 @@ class GridService:
         """One change to one step, by its id or index, so an agent never needs the step values back:
         {"op": "add", "step": {...}, "index"?} | {"op": "edit", "params": {...}} |
         {"op": "delete"} | {"op": "toggle", "enabled"?} | {"op": "move", "to": n},
-        each but add naming the step with "id" or "index"."""
+        each but add naming the step with "id" or "index"; and {"op": "undo"} | {"op": "redo"}: the
+        steps as they were before the last change to them, and that change again."""
         if not isinstance(body, dict):
             raise ValueError('Send {"op": "add" | "edit" | "delete" | "toggle" | "move", ...}.')
         steps = list(grid.steps)
@@ -301,6 +306,8 @@ class GridService:
             return index
 
         op = body.get("op")
+        if op in ("undo", "redo"):
+            return await self._undo(grid, info, op, who, body.get("gen"), str(body.get("client", ""))[:40])
         if op == "add":
             raw = body.get("step")
             if not isinstance(raw, dict):
@@ -336,8 +343,23 @@ class GridService:
             at = max(0, min(to, len(steps)))
             steps.insert(at, moved)
         else:
-            raise ValueError("op must be add, edit, delete, toggle or move.")
+            raise ValueError("op must be add, edit, delete, toggle, move, undo or redo.")
         return await self.commit_steps(grid, info, steps, grid.settings, who, extra={"index": at})
+
+    async def _undo(
+        self, grid: Grid, info: DatasetInfo, op: str, who: str, gen: Any, client: str
+    ) -> dict[str, Any]:
+        """Undo the last change to the grid's steps, or redo the last one undone (the page's Ctrl+Z
+        and Ctrl+Y, the strip's buttons, the agent's steps_undo and steps_redo)."""
+        ws = self.ws
+        if isinstance(gen, int):
+            grid.release(grid.admit(gen, ws.store.cursor(), client))
+        if not (grid.undo() if op == "undo" else grid.redo()):
+            raise ValueError(f"Nothing to {op}.")
+        described = await self.describe(grid, info)
+        await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
+        ws.audit.write(who, op, info.name, steps=len(grid.steps))
+        return described
 
     async def header_sort(self, grid: Grid, info: DatasetInfo, body: Any, who: str) -> dict[str, Any]:
         """A click on a column header: {"keys": [["column", "asc"|"desc"], ...]}."""
@@ -349,7 +371,7 @@ class GridService:
         client = str(body.get("client", ""))[:40]
         if isinstance(gen, int):
             grid.release(grid.admit(gen, ws.store.cursor(), client))
-        grid.steps = with_header_sort(grid.steps, keys)
+        grid.set_steps(with_header_sort(grid.steps, keys))  # a header sort is a step: undone like one
         described = await self.describe(grid, info)
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
         return described

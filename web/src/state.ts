@@ -93,6 +93,26 @@ export class PageState {
     return this.info;
   }
 
+  /** One change the server makes to the steps itself: undo, redo, or a step removed by its id. */
+  async stepOp(body: Record<string, unknown>): Promise<GridInfo> {
+    this.gen += 1;
+    this.info = await api<GridInfo>(`${this.base}/step-ops`, "POST", { ...body, gen: this.gen, client: clientId });
+    if (this.previewUpto !== null && this.previewUpto > this.info.steps.length) this.previewUpto = null;
+    this.emit("info");
+    this.emit("view");
+    return this.info;
+  }
+
+  /** Ctrl+Z: the steps as they were before the last change to them. Nothing to undo: nothing happens. */
+  async undo(): Promise<void> {
+    if (this.info?.can_undo) await this.stepOp({ op: "undo" });
+  }
+
+  /** Ctrl+Y: the change last undone, again. */
+  async redo(): Promise<void> {
+    if (this.info?.can_redo) await this.stepOp({ op: "redo" });
+  }
+
   async addStep(step: StepJson): Promise<GridInfo> {
     const steps = [...(this.info?.steps ?? [])];
     // A new step goes before the header sort, so clicking a header stays "the last word".

@@ -58,6 +58,9 @@ export interface GridInfo {
   columns: ColumnInfo[];
   stage_columns: ColumnInfo[][];
   steps: StepJson[];
+  /** Is there a step change to undo, or an undone one to redo? */
+  can_undo?: boolean;
+  can_redo?: boolean;
   step_error: { index: number; message: string } | null;
   settings: Settings;
   gen: number;

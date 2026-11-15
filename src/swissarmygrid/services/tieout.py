@@ -74,7 +74,7 @@ class TieOut:
 
         planned = await self.compares._run(plan)
         for grid, step in planned:
-            grid.steps = [*grid.steps, step]
+            grid.set_steps([*grid.steps, step])
             await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
         ws.audit.write(who, "tie_out_show", f"{cmp.left}:{cmp.right}")
         return {"left_steps": len(planned[0][0].steps), "right_steps": len(planned[1][0].steps)}

@@ -3013,9 +3013,81 @@ body.agent-view .titlebar {
   display: none;
 }
 
-.steps-strip .steps-count {
+/* "3 steps": a quiet button; its list of the steps drops under it on hover, focus or a click. */
+.steps-strip .steps-hover {
+  position: relative;
   margin-right: 6px;
+}
+
+.steps-strip .steps-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
   color: var(--muted);
+  font: inherit;
+  cursor: default;
+}
+
+.steps-strip .steps-count:hover,
+.steps-strip .steps-count:focus-visible,
+.steps-strip .steps-count[aria-expanded="true"] {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.steps-strip .steps-count .icon-svg {
+  width: 12px;
+  height: 12px;
+}
+
+.steps-list {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  max-width: min(560px, 90vw);
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 6px 6px 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.steps-list[hidden] {
+  display: none;
+}
+
+.steps-list li {
+  padding-left: 2px;
+}
+
+.steps-list li > * {
+  vertical-align: middle;
+}
+
+.steps-list li.off .steps-words {
+  color: var(--muted);
+}
+
+.steps-list .steps-words {
+  display: inline-block;
+  max-width: 440px;
+  margin-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .steps-strip .btn {
