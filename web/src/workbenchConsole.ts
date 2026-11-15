@@ -102,7 +102,13 @@ export function consoleView(
     if (!code.trim()) return;
     // In the middle of several lines Enter is a new line; at the end, a whole statement runs.
     if (code.includes("\n") && !prompt.atEnd()) return prompt.insertNewline();
+    // What is plainly unfinished gets its new line at once, without asking the kernel: a line that
+    // opens a block or goes on (`:` or `\\` at its end), and a line inside a block (indented; an empty
+    // line ends the block). Asking first let the next keys typed land before the new line did.
+    const last = code.split("\n").pop() ?? "";
+    if (/[:\\]\s*$/.test(last) || (code.includes("\n") && /^\s+\S/.test(last))) return prompt.insertNewline();
     const verdict = await kernel.isComplete(code);
+    if (prompt.value() !== code) return; // typed on while the kernel was asked: that answer is for older text
     if (verdict.status === "incomplete") prompt.insertNewline();
     else submit();
   };
