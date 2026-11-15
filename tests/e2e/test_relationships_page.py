@@ -191,6 +191,34 @@ def test_import_relationships_is_one_name_and_takes_a_model_or_a_tang(
         page.close()
 
 
+def test_a_model_none_of_whose_tables_are_open_is_drawn_whole(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The test bed's use case 7: a Power BI dataset's relationships imported before any of its tables
+    is open. The Diagram said "No relationships yet." with five in the model."""
+    model = {
+        "name": "pbi model",
+        "tables": {"pbi_orders": {}, "pbi_customers": {}, "pbi_lines": {}},
+        "relationships": [
+            {"from": "pbi_orders", "from_columns": ["customer"], "to": "pbi_customers", "to_columns": ["id"]},
+            {"from": "pbi_lines", "from_columns": ["order"], "to": "pbi_orders", "to_columns": ["order_id"]},
+        ],
+    }
+    call(server, "POST", "/relationships", {"model": model, "replace": True})
+    shown = push_client.push(pd.DataFrame({"x": [1]}), name="closed_other", new_grid=True)
+    page = open_grid(browser, shown, width=1400, height=900)
+    try:
+        page.locator(".tab-erd").click()
+        erd = page.locator("#erd-view")
+        expect(erd.locator(".erd-diagram svg")).to_be_visible(timeout=30000)
+        for name in ("pbi_orders", "pbi_customers", "pbi_lines"):
+            expect(erd.locator(".erd-diagram svg").get_by_text(name, exact=True).first).to_be_visible()
+        assert "No relationships yet" not in erd.inner_text()
+    finally:
+        call(server, "POST", "/relationships", {"model": {"name": "empty"}, "replace": True})
+        page.close()
+
+
 def tang_text(server: dict[str, Any], model: dict[str, Any]) -> str:
     """The model as a .tang file, written by the app itself (domain/relationships.py write_tang)."""
     from swissarmybench.domain.relationships import parse_model, write_tang

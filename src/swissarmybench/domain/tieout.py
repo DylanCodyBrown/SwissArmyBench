@@ -198,6 +198,15 @@ def _within(left: float | None, right: float | None, request: Request) -> bool:
     return abs(right - left) <= allowed + 1e-9 * max(1.0, abs(left))
 
 
+def _difference(left: float | None, right: float | None) -> float | None:
+    """Right minus left; a difference that is only the rounding of sums (two sides that add the same
+    decimals in another order) is 0, never -0."""
+    if left is None and right is None:
+        return None
+    difference = (right or 0.0) - (left or 0.0)
+    return 0.0 if abs(difference) <= 1e-9 * max(1.0, abs(left or 0.0)) else difference
+
+
 def report(rows: list[tuple[Any, ...]], request: Request) -> dict[str, Any]:
     """The report: groups that are off first (largest first), then those that tie, and a grand total."""
     n, m = len(request.groups), len(request.measures)
@@ -216,7 +225,7 @@ def report(rows: list[tuple[Any, ...]], request: Request) -> dict[str, Any]:
             sums[i][0] += left or 0.0
             sums[i][1] += right or 0.0
             # A group on one side only: its whole total is the difference (the other side has none).
-            difference = None if left is None and right is None else (right or 0.0) - (left or 0.0)
+            difference = _difference(left, right)
             measures.append(
                 {
                     "column": request.measures[i].name,
@@ -252,8 +261,10 @@ def report(rows: list[tuple[Any, ...]], request: Request) -> dict[str, Any]:
             "column": request.measures[i].name,
             "left": sums[i][0],
             "right": sums[i][1],
-            "difference": sums[i][1] - sums[i][0],
-            "difference_share": (sums[i][1] - sums[i][0]) / abs(sums[i][0]) if sums[i][0] else None,
+            "difference": _difference(sums[i][0], sums[i][1]),
+            "difference_share": (_difference(sums[i][0], sums[i][1]) or 0.0) / abs(sums[i][0])
+            if sums[i][0]
+            else None,
             "ties": _within(sums[i][0], sums[i][1], request),
         }
         for i in range(m)

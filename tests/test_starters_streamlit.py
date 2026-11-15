@@ -112,6 +112,39 @@ def _run(scripts: dict[str, str], folder: Path) -> dict[str, list[str]]:
     return {Path(path).stem: problems for path, problems in answer.items()}
 
 
+@pytest.mark.parametrize("name", ["Streamlit bar chart", "Streamlit line chart", "Streamlit area chart"])
+def test_a_chart_piece_draws_a_databases_decimals_as_numbers(name: str) -> None:
+    """The test bed's use case 11: PostgreSQL's numeric amounts arrive as Python Decimals (an object
+    column), and the bar chart drew each total as a name on its axis, the bars floating."""
+    import types
+    from decimal import Decimal
+
+    import pandas as pd
+
+    drawn: dict[str, pd.DataFrame] = {}
+    st = types.ModuleType("streamlit")
+    for chart in ("bar_chart", "line_chart", "area_chart"):
+        setattr(st, chart, lambda data, **_: drawn.setdefault("data", data))
+    orders = pd.DataFrame(
+        {
+            "region": ["North", "South", "North"],
+            "order_date": pd.to_datetime(["2026-01-01", "2026-01-01", "2026-02-01"]),
+            "amount": [Decimal("10.50"), Decimal("7.25"), Decimal("3.00")],
+        }
+    )
+    code = fill(next(p for p in PIECES if p["name"] == name)["code"], "streamlit", VALUES)
+    saved = sys.modules.get("streamlit")
+    sys.modules["streamlit"] = st
+    try:
+        exec(code, {"orders": orders})  # noqa: S102 (the starter pack's own code)
+    finally:
+        if saved is None:
+            sys.modules.pop("streamlit", None)
+        else:
+            sys.modules["streamlit"] = saved
+    assert pd.api.types.is_float_dtype(drawn["data"]["amount"])
+
+
 @needs_streamlit
 def test_every_piece_runs_under_streamlits_own_test_runner(tmp_path: Path) -> None:
     scripts = {p["name"]: _script(fill(p["code"], "streamlit", VALUES)) for p in PIECES}

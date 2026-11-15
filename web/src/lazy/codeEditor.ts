@@ -3,8 +3,8 @@
  * connection form and the grid page's "+" tab (createSqlEditor, at the end). [WIRE]
  *
  * Python, SQL, DAX, HTML or Markdown; the theme follows the page. A cell editor grows with its text (no
- * scrollbar of its own); a script's fills its pane. Drop text on it (a connection's line, a table's
- * name from the left panel) and it lands where it was dropped: Monaco's own drop.
+ * scrollbar of its own); a script's fills its pane. Drop text on it (a table's name from the left panel)
+ * and it lands where it was dropped; a blade's line lands on a line of its own (ownDrops).
  */
 import * as monaco from "monaco-editor";
 
@@ -459,6 +459,45 @@ function addNoteAction(editor: monaco.editor.IStandaloneCodeEditor, host: HTMLEl
   editor.addAction({ id: "sab.leaveNote", label: "Leave a note…", contextMenuGroupId: "9_beta", contextMenuOrder: 1, precondition: "sabBetaNotes", run: () => noteHook()?.open(host.querySelector(".monaco-editor") ?? host) });
 }
 
+/** The blade list's drag type: its `sab.blade(...)` line is a statement, so it lands on a line of its own. */
+const BLADE_DRAG = "application/x-sab-blade";
+
+/** Text dropped on an editor, put in by the app. Monaco's own drop inserts text as a snippet, and the
+ *  standalone editor applies a snippet as plain text: `orders` arrived as `orders$0`, a `$` escaped. A
+ *  blade's line goes on its own line after the one it is dropped on (that line, when it is empty); other
+ *  text where it is dropped. A drag of the app's own (a snippet's form, a cell) is left to whoever takes it. */
+function ownDrops(editor: monaco.editor.IStandaloneCodeEditor): void {
+  const node = editor.getDomNode();
+  if (!node) return;
+  node.addEventListener("dragover", (e) => {
+    if (!e.dataTransfer?.types.includes("text/plain")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  node.addEventListener("drop", (e) => {
+    const text = e.dataTransfer?.getData("text/plain");
+    const model = editor.getModel();
+    if (!text || !model || editor.getOption(monaco.editor.EditorOption.readOnly)) return;
+    e.preventDefault();
+    const at = editor.getTargetAtClientPoint(e.clientX, e.clientY)?.position ?? editor.getPosition() ?? new monaco.Position(model.getLineCount(), 1);
+    let range = new monaco.Range(at.lineNumber, at.column, at.lineNumber, at.column);
+    let put = text;
+    if (e.dataTransfer?.types.includes(BLADE_DRAG)) {
+      const end = model.getLineMaxColumn(at.lineNumber);
+      if (model.getLineContent(at.lineNumber).trim()) {
+        range = new monaco.Range(at.lineNumber, end, at.lineNumber, end);
+        put = `\n${text}`;
+      } else {
+        range = new monaco.Range(at.lineNumber, 1, at.lineNumber, end);
+      }
+    }
+    editor.pushUndoStop();
+    editor.executeEdits("drop", [{ range, text: put, forceMoveMarkers: true }]);
+    editor.pushUndoStop();
+    editor.focus();
+  });
+}
+
 export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions): CodeEditor {
   const editor = monaco.editor.create(host, {
     value: options.value,
@@ -479,7 +518,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     fontSize: 13,
     tabSize: 4,
     insertSpaces: true,
-    dropIntoEditor: { enabled: true },
+    dropIntoEditor: { enabled: false }, // ownDrops: Monaco's own drop leaves a snippet's $0 behind
     // Suggestions as you type, inside strings too (a connection's name in sab.connection("…"), SQL in a string).
     quickSuggestions: { other: true, comments: false, strings: true },
     wordBasedSuggestions: "currentDocument",
@@ -585,6 +624,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   }
 
   addNoteAction(editor, host);
+  ownDrops(editor);
 
   const fit = (): void => {
     if (!options.grow) return;
@@ -883,7 +923,9 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
     scrollBeyondLastLine: false,
     wordWrap: "on",
     ariaLabel: "SQL query",
+    dropIntoEditor: { enabled: false },
   });
+  ownDrops(editor);
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, onRun);
   addNoteAction(editor, host);
   return {

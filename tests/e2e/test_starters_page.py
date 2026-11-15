@@ -211,6 +211,62 @@ def test_a_dax_snippet_dragged_onto_a_dax_cell_fills_its_form_from_the_dataset(
     workbench.close()
 
 
+def test_python_starters_dropped_on_a_cell_are_each_a_line_of_their_own(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The test bed's use case 4: three Excel starters dragged onto a cell came out as one line,
+    `copy_template = sab.blade("Excel copy template")$0set_values = sab.write_table = ...`: Monaco's
+    own drop left a snippet's `$0` behind, and the next drop landed inside the line before."""
+    close_tables(server)
+    workbench = open_window(browser, server)
+    workbench.get_by_role("button", name="Start a notebook").click()
+    editor = workbench.locator(".wb-cell").first.locator(".monaco-editor")
+    expect(editor).to_be_visible(timeout=20000)
+    for name in ("Excel copy template", "Excel set cell values", "Excel write table"):
+        listed = blades(workbench)
+        family(listed, "Excel")
+        listed.locator(".starter-item", has_text=name).drag_to(editor.locator(".view-lines"))
+    expected = (
+        'copy_template = sab.blade("Excel copy template")\n'
+        'set_values = sab.blade("Excel set cell values")\n'
+        'write_table = sab.blade("Excel write table")'
+    )
+    wait_until(lambda: window(server, "doc.read")["cells"][-1]["source"] == expected)
+    workbench.close()
+
+
+def test_a_pieces_column_is_never_an_identifier_when_another_fits(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The test bed's use case 11: a selectbox filter on invoices offered invoice_id, the first column."""
+    close_tables(server)
+    made_up = pd.DataFrame(
+        {
+            "invoice_id": ["A-1", "A-2"],
+            "customerId": [7, 8],
+            "region": ["North", "South"],
+            "amount": [5.0, 7.5],
+        }
+    )
+    push_client.push(made_up, name="statements", new_grid=True)
+    workbench = open_window(browser, server)
+    workbench.get_by_role("button", name="Start a notebook").click()
+    editor = workbench.locator(".wb-cell").first.locator(".monaco-editor")
+    expect(editor).to_be_visible(timeout=20000)
+    for name, label, column in (
+        ("Streamlit selectbox filter", "Column", "region"),
+        ("Streamlit metric row", "Value column", "amount"),
+    ):
+        listed = blades(workbench)
+        family(listed, "Streamlit")
+        listed.locator(".starter-item", has_text=name).drag_to(editor)
+        form = workbench.locator("dialog[open]")
+        expect(form.get_by_label(label, exact=True)).to_have_value(column, timeout=20000)
+        form.get_by_role("button", name="Cancel").click()
+    workbench.close()
+    close_tables(server)
+
+
 def test_an_html_kpi_row_is_inserted_from_the_cells_menu_and_drawn(
     browser: Browser, server: dict[str, Any]
 ) -> None:

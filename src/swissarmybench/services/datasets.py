@@ -396,6 +396,16 @@ class ConnectionTables:
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]:
         return await self._datasets.load_file(name, path, sheet, True, who)
 
+    def opened_from(self, name: str) -> str | None:
+        # Names that differ only in case are one table to DuckDB: Invoices is open as invoices too.
+        found = next(
+            (d.name for d in self._datasets.ws.store.all() if d.name.casefold() == name.casefold()), None
+        )
+        if found is None:
+            return None
+        origin = self._datasets.origins.get(found)
+        return (origin.connection or "") if origin.kind == "connection" else ""
+
     async def sheets(self, path: str) -> list[str]:
         return list((await self._datasets.sheets(path))["sheets"])
 

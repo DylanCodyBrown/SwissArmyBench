@@ -76,6 +76,25 @@ def test_identifier_columns_are_not_suggested_as_totals() -> None:
     assert suggest(pairs, set(), keys={"amount"})["measures"] == ["paid", "idle_days"]
 
 
+def test_a_difference_that_is_only_rounding_is_zero_not_minus_zero() -> None:
+    """The test bed's use case 8: Power BI against PostgreSQL, two regions tying to the cent, showed a
+    difference of "-0" and "-0.0%" (sums of decimals added in another order)."""
+    import math
+
+    from swissarmybench.domain.datasets import Column
+    from swissarmybench.domain.tieout import Pair, Request, report
+
+    amount = Pair(Column("amount", "DOUBLE"), Column("amount", "DOUBLE"))
+    region = Pair(Column("region", "VARCHAR"), Column("region", "VARCHAR"))
+    request = Request((region,), (amount,), 0.0, False)
+    left, right = 0.1 + 0.2 + 237_308.05, 237_308.35  # one is 237308.35000000003
+    row = ("East", "East", 3, 3, left, right)
+    made = report([row], request)
+    for measure in (made["groups"][0]["measures"][0], made["total"]["measures"][0]):
+        assert measure["ties"] and measure["difference"] == 0.0
+        assert math.copysign(1.0, measure["difference"]) == 1.0 and measure["difference_share"] == 0.0
+
+
 def test_groups_that_are_off_come_first_and_the_tolerance_decides_what_ties(
     client: TestClient, compare: str
 ) -> None:

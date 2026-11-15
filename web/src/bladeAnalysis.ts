@@ -83,7 +83,10 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
         button("Send to Sandbox", () => {
           void (async () => {
             let first: unknown;
-            for (const [i, card] of answer.cards.entries()) first ??= await api(`${grid}/cards`, "POST", { ...card, title: card.title ?? (i === 0 ? answer.title : "") });
+            for (const [i, card] of answer.cards.entries()) {
+              const made = await api(`${grid}/cards`, "POST", { ...card, title: card.title ?? (i === 0 ? answer.title : "") });
+              first ??= made; // each card sent (??= alone skipped every card after the first)
+            }
             return first;
           })().then((first) => sentToast(`In the Sandbox: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`, first), (e: Error) => toast(e.message, "error"));
         }, { icon: "image" }),

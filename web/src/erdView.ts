@@ -72,7 +72,11 @@ async function render(): Promise<void> {
   // Loading it here would notify onRelationshipsChange, which redraws: a loop.
   const model = currentModel();
   const open = new Set(openTables());
-  const covered = [...new Set([...Object.keys(model.tables), ...model.relationships.flatMap((r) => [r.from, r.to])])].filter((t) => open.has(t));
+  const named = [...new Set([...Object.keys(model.tables), ...model.relationships.flatMap((r) => [r.from, r.to])])];
+  // The open tables' part of the model; none of them open (a Power BI dataset's relationships just
+  // imported, its tables not opened yet): the whole model, rather than "No relationships yet".
+  const openPart = named.filter((t) => open.has(t));
+  const covered = openPart.length || !model.relationships.length ? openPart : named;
   const file = h("input", { type: "file", accept: ".tang,.json,application/json", hidden: true, onchange: () => void importModel(file) });
   const actions = h(
     "div",

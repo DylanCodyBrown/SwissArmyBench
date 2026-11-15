@@ -715,6 +715,12 @@ npm run typecheck
 cd web; npm run typecheck
 ```
 
+The real-world test bed (`tools/testbed/README.md`) runs eleven of the owner's use cases end to end
+in a real browser against real PostgreSQL and MariaDB and stand-ins for Power BI and Azure Key Vault,
+counting the user's actions: `python tools/testbed/testbed.py up`, then
+`python -m pytest -q tests/e2e/test_real_world.py`, then `python tools/testbed/testbed.py down`. Without
+it up, those tests skip and say why.
+
 `tools\screenshots.py` photographs every screen into `docs\screenshots\`, and
 `tools\vscode_check.py <url> <png>` checks a grid inside VS Code's browser.
 

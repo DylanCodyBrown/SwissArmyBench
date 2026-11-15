@@ -21,10 +21,11 @@ snippet = r"""
 #                                       (and colour) for each value of color
 #
 # The totals are worked out first (one per day and value): Streamlit draws the values it is given.
+# A database's decimals arrive as Python Decimals, which a chart draws as names: numbers first.
 import streamlit as st
 
 st.area_chart(
-    <<table>>.groupby(["<<date column>>", "<<colour column: region>>"], as_index=False)["<<value column>>"].sum(),
+    <<table>>.astype({"<<value column>>": float}).groupby(["<<date column>>", "<<colour column: region>>"], as_index=False)["<<value column>>"].sum(),
     x="<<date column>>",
     y="<<value column>>",
     color="<<colour column: region>>",

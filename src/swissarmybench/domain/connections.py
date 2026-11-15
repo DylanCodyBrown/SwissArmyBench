@@ -218,6 +218,17 @@ def dataset_name(text: str) -> str:
     return name or "table"
 
 
+def table_grid_name(name: str, connection: str, open_from: str | None) -> str:
+    """A connection's table as a grid: its own name (`name`, already a dataset's), unless a table of
+    that name is open from somewhere else (another connection, a file, Python; `open_from` names where,
+    "" when not a connection, None when none is open): then the connection's name before it
+    (Warehouse_customers), so the open one is not replaced under its grid. A Power BI workspace's
+    tables say `Finance/Sales model`: the workspace is the connection."""
+    if open_from is None or open_from.partition("/")[0] == connection:
+        return name
+    return dataset_name(f"{connection} {name}")
+
+
 def file_to_open(template: str | None, path: str, table: str) -> tuple[str, str | None]:
     """Which file (and sheet) a file connection's catalog table is: a CSV, Parquet or JSON connection is
     its one file; a workbook's tables are its sheets; a folder's are its files."""

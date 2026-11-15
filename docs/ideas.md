@@ -1076,7 +1076,7 @@ counts.
 - `table_profile` takes `grid` as a named argument now (`sab table_profile --grid <id>`), since it can
   take `dataset` instead.
 
-## Power BI workspaces, DAX cells, and a real-world test bed (2026-11-15, the owner's calls; the connection and the DAX cell built)
+## Power BI workspaces, DAX cells, and a real-world test bed (2026-11-15, the owner's calls; built: the connection, the DAX cell and the test bed)
 
 The owner's work: notebooks scheduled and run in an Azure Function app; notebooks that make Excel
 invoices and CSVs; models built here and taken into Power BI dashboards. Decided:
@@ -1186,8 +1186,8 @@ What it is now (docs/verified.md has what was checked):
 - **The stand-in** is a workspace of three made-up datasets: Sales model, Budget model (a Date table
   of its own) and Broken model (answers every query with an error).
 
-**The first build, per dataset, on 2026-11-15** (the test bed, scheduling and the ten use cases
-are still to do). **Not run against a real tenant:** Power BI and
+**The first build, per dataset, on 2026-11-15** (the test bed, scheduling and the use cases came
+after: below). **Not run against a real tenant:** Power BI and
 Microsoft's sign-in are stood in for on this computer (tests/powerbi_standin.py). Decided while
 building, and still so except where the block above changed it (marked):
 
@@ -1253,6 +1253,62 @@ building, and still so except where the block above changed it (marked):
   COLUMNSTATISTICS fallback). Datasets with row-level security do not take a service principal. Whether
   the datasets list names a dataset the sign-in may not query is not known either: such a one would
   show with the error mark.
+
+**The real-world test bed: built (2026-11-15), all eleven use cases passing in Chromium.** `tools/testbed/`
+(PostgreSQL and MariaDB started on ports of their own, made-up files, the Power BI and Key Vault
+stand-ins) and `tests/e2e/test_real_world.py`, which skips with the reason when the bed is not up. The
+use cases, each counting the user's clicks, keys, typed values, choices and drags (the table in
+tools/testbed/README.md has what each does): 1 orders cleaned, the notebook saved, 35; 2 headless, 1;
+3 as an Azure Function, 5; 4 Excel statements from a template with the Excel starters, 24; 5 a daily
+CSV export run as the scheduled task, 12; 6 a CSV folder, workbook sheets and MariaDB, joins found, 35;
+7 a Power BI dataset's relationships and tables, 26; 8 Power BI tied out against PostgreSQL, 10; 9 a
+forecast as a Sandbox report printed to PDF, 14; 10 a story notebook, 20; 11 a project played and saved
+as a zip whose page runs with AppTest elsewhere, 40. **Agent parity** for 1, 4 and 11: the same results
+through the MCP commands alone (`connections_create`, `table_*`, `workbench_table_cells`,
+`workbench_save`, `workbench_run_notebook`, `project_new`, `blades_snippet`, `streamlit_block_place`,
+`streamlit_run`, `streamlit_save_as`); nothing was missing.
+
+Decided while building (each can be changed):
+- **Code of more than one line is pasted** in the tests (one typed value): Monaco indents each typed
+  line after the last, as it does for a person typing.
+- **A blade's line dropped on a cell or a script goes on a line of its own**, after the line it is
+  dropped on (that line, when it is empty). Other text (a table's or a column's name) lands where it is
+  dropped. The app takes drops itself: Monaco's own drop applied its snippet as plain text (`orders$0`).
+- **A connection's table opened while a table of that name is open from elsewhere** (another
+  connection, a file, Python; names differing only in case count as one, as DuckDB has it) is named
+  after its connection too: `Warehouse_customers`, `Shop_invoices`. Opening it again from its own
+  connection reloads it, as before.
+- **The Diagram draws the whole model when none of its tables is open** (a Power BI dataset's
+  relationships imported before its tables). With some open, it draws those, as before.
+- **A last period that is not over is left out** of a time series and a forecast, and the words say so:
+  "Left out 2026-11-01: its rows stop on 2026-11-01, before the month is over." It is not over when its
+  rows stop before half way through it while the periods before it typically run past their middle; a
+  table of one row on each period's first day (a budget) never is, nor a day, nor a series of fewer than
+  four periods.
+- **A snippet's form never starts a column on an identifier** (`order_id`, `customerId`) when another
+  column is there and no hint in the blank's name fits.
+
+**Gaps found, for the owner (not built):**
+- **Open every table of a dataset (or schema) at once.** Use case 7 opens five tables one at a time:
+  10 of its 26 actions. One action on the dataset's page (and an agent command) would make it 1.
+- **Vault entries matched by name.** The Power BI form asks for each of the app registration's three
+  entries; the vault holds `powerbi-tenant-id` and the rest. Picking the one entry whose name matches
+  would save 3 actions on every Power BI workspace (connectionsWindow.ts; the vault sign-in work there).
+- **A notebook for a project's pages.** New project… asks only for the folder: no pages notebook (the
+  agent's `project_new` takes `notebooks`); New notebook starts empty, outside the project. Use case 11
+  types `from data import invoices` and saves into the folder (5 actions), and putting Streamlit pieces
+  into data.ipynb instead works but warns on each one. A "notebook in this project" choice would do.
+- **A Python with Streamlit for a project** is chosen by its path (4 actions); the app could offer the
+  ones it has seen with Streamlit.
+- **A relative date filter** ("in the last N days", `current_date - INTERVAL`) would make a daily
+  export a grid step that stays right each morning; use case 5 writes the day in Python.
+- **A note card's table is cut at the card's edge** in the Sandbox and when printed (the forecast's
+  95% range column, use case 9): a wide table in a 5-column note needs wrapping or a smaller font.
+- **The forecast chart's two labels overlap** ("Held back to test" and "Forecast") when the held-back
+  span is short.
+- **Save as zip with unsaved notebooks** zips their saved copies (it says so): it could offer to save.
+- **Connection test wording:** "It works: made a mariadb.connections.Connection." names a Python class.
+- **The empty notebook cell** is a thin strip until something is typed (screenshots of a new notebook).
 
 ## A connection from your own Python (2026-11-15, the owner's request; built)
 

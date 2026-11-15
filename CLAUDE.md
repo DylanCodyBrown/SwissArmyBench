@@ -368,7 +368,10 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          workspace of three made-up datasets), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
                          orders service, every sign-in it takes stood in for)
-tools/                   screenshots.py, vscode_check.py
+tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
+                         PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
+                         company; standins.py, Power BI's Company model and Azure Key Vault) for
+                         tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity)
 plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
 .claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)

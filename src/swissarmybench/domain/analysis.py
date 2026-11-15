@@ -526,7 +526,7 @@ def short_number(value: float) -> str:
     """A cut point as people write it: 1,250 or 0.35 or 12.5, never 1.2500000001."""
     if value == int(value) and abs(value) < 1e15:
         return f"{int(value):,}"
-    return f"{value:,.4g}" if abs(value) < 1e5 else f"{value:,.0f}"
+    return f"{value:,.4g}" if abs(value) < 1e4 else f"{value:,.0f}"  # .4g of 12,345.6 is 1.235e+04
 
 
 def bucket_expression(column: str, edges: list[float]) -> str:

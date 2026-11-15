@@ -51,13 +51,19 @@ def _request(view: Columns, body: dict[str, Any]) -> tuple[str, str | None, str,
 
 def _series(
     cur: SqlSession, relation: str, when: str, metric: str | None, total: str, period: str
-) -> tuple[list[date], list[float], list[str]]:
-    """The periods from first to last, their totals, and the periods with no rows (counted as 0 for a
-    sum or a count; carried from the period before for an average)."""
+) -> tuple[list[date], list[float], list[str], tuple[date, date] | None]:
+    """The periods from first to last, their totals, the periods with no rows (counted as 0 for a
+    sum or a count; carried from the period before for an average), and a last period left out
+    because it is not over yet (its start and its last row's day; None when none is)."""
     rows = cur.execute(T.series_query(relation, when, period, total, metric, None)).fetchall()
     if len(rows) > T.MAX_PERIODS:
         raise AnalysisError(f"More than {T.MAX_PERIODS:,} periods: choose a longer period.")
-    points = [(_day(p), float(v)) for p, _, v, _ in rows if p is not None and v is not None]
+    found = [(_day(p), float(v), _day(d)) for p, _, v, _, d in rows if p is not None and v is not None]
+    left_out: tuple[date, date] | None = None
+    if T.partial_last([p for p, _, _ in found], [d for _, _, d in found], period):
+        start, _, last = found.pop()
+        left_out = (start, last)
+    points = [(p, v) for p, v, _ in found]
     if len(points) < 4:
         raise AnalysisError("Fewer than 4 periods with values: a longer history, or a shorter period.")
     periods, values = T.complete(points, period)
@@ -67,7 +73,15 @@ def _series(
         filled.append(
             v if v is not None else (0.0 if total in ("sum", "count") else (filled[-1] if filled else 0.0))
         )
-    return periods, filled, gaps
+    return periods, filled, gaps, left_out
+
+
+def _left_out(cut: tuple[date, date] | None, period: str) -> list[str]:
+    if cut is None:
+        return []
+    return [
+        f"Left out {cut[0].isoformat()}: its rows stop on {cut[1].isoformat()}, before the {period} is over."
+    ]
 
 
 def _what(metric: str | None, total: str) -> str:
@@ -78,7 +92,7 @@ def run_time_series(cur: SqlSession, relation: str, view: Columns, body: dict[st
     """{"date", "metric", "total": sum | avg | count, "period": day | week | month | quarter | year,
     "split": a category for one line per value}: the series' shape, growth, anomalies, shifts, memory."""
     when, metric, total, period = _request(view, body)
-    periods, values, gaps = _series(cur, relation, when, metric, total, period)
+    periods, values, gaps, left_out = _series(cur, relation, when, metric, total, period)
     what = _what(metric, total)
     dec = T.decompose(periods, values, period)
     adjusted = T._adjusted(values, dec["season"], dec["multiplicative"])
@@ -118,6 +132,7 @@ def run_time_series(cur: SqlSession, relation: str, view: Columns, body: dict[st
             f"({'+' if change >= 0 else ''}{change:.0f}%), season aside."
         )
     words.append(f"Memory: {T.memory_words(memory)}.")
+    words += _left_out(left_out, period)
     lines = []
     if body.get("split"):
         split = _column(view, body["split"]).name
@@ -137,6 +152,7 @@ def run_time_series(cur: SqlSession, relation: str, view: Columns, body: dict[st
             for p, v, t, s in zip(periods, values, dec["trend"], dec["season"], strict=True)
         ],
         "gaps": gaps,
+        "left_out": left_out[0].isoformat() if left_out else None,
         "seasonal": dec["seasonal"],
         "multiplicative": dec["multiplicative"],
         "season_index": [
@@ -167,7 +183,7 @@ def run_forecast(cur: SqlSession, relation: str, view: Columns, body: dict[str, 
     check. A predictor enters as its average per period."""
     when, metric, total, period = _request(view, body)
     horizon = int(body.get("horizon") or 12)
-    periods, values, gaps = _series(cur, relation, when, metric, total, period)
+    periods, values, gaps, left_out = _series(cur, relation, when, metric, total, period)
     asks = body.get("predictors") or []
     if not isinstance(asks, list) or not all(isinstance(a, dict) for a in asks):
         raise AnalysisError('Predictors are [{"column": name, "future": "last" | "trend" | "value"}].')
@@ -175,7 +191,7 @@ def run_forecast(cur: SqlSession, relation: str, view: Columns, body: dict[str, 
     for ask in asks:
         column = _column(view, ask.get("column"), ("number",)).name
         rows = cur.execute(T.series_query(relation, when, period, "avg", column, None)).fetchall()
-        found = {_day(p): float(v) for p, _, v, _ in rows if p is not None and v is not None}
+        found = {_day(p): float(v) for p, _, v, *_ in rows if p is not None and v is not None}
         series: list[float] = []
         for p in periods:
             series.append(found.get(p, series[-1] if series else next(iter(found.values()), 0.0)))
@@ -207,6 +223,7 @@ def run_forecast(cur: SqlSession, relation: str, view: Columns, body: dict[str, 
             f"{len(gaps)} {period}s had no rows "
             f"(counted as {'0' if total != 'avg' else 'the period before'})."
         )
+    words += _left_out(left_out, period)
     words.append("A forecast is a range, not a line: it assumes the past pattern goes on.")
     return {
         "date": when,
@@ -220,6 +237,7 @@ def run_forecast(cur: SqlSession, relation: str, view: Columns, body: dict[str, 
             for c, _, a in predictors
         ],
         "gaps": gaps,
+        "left_out": left_out[0].isoformat() if left_out else None,
         "words": words,
         **result,
     }
