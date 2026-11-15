@@ -181,6 +181,7 @@ from datetime import datetime
 """
 
 _POWERBI_WHERE = """
+# Both ids are in the dataset's address in Power BI: .../groups/<workspace id>/datasets/<dataset id>
 workspace_id = "my-workspace-id"
 dataset_id = "my-dataset-id"
 """
@@ -695,8 +696,7 @@ conn = pyodbc.connect("DSN=my_data_source")""",
         "dax",
         POWERBI_VAULT,
         POWERBI_CATALOG,
-        "Reads a dataset (semantic model) with DAX. Both ids are in the dataset's address in Power BI: "
-        ".../groups/<workspace id>/datasets/<dataset id>.",
+        "",
         language="python",
         sign_ins=(
             ("App registration, from a key vault", "tenant_id = secret(", POWERBI_VAULT),

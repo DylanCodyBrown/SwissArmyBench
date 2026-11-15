@@ -140,7 +140,9 @@ const envFor = (secret: string): string => {
   return (/^\d/.test(w) ? `_${w}` : w).slice(0, 128);
 };
 /** What a Test answers: a vault reads its variables; a connection makes something (a file: is there). */
-const worked = (r: { type?: string; found?: string; variables?: string[] }): string => (r.variables ? `read ${r.variables.join(", ")}` : (r.found ?? `made a ${r.type}`));
+// A Power BI dataset's test signs in and asks the dataset one question: say that, not its class's name.
+const worked = (r: { type?: string; found?: string; variables?: string[] }): string =>
+  r.variables ? `read ${r.variables.join(", ")}` : (r.found ?? (r.type === "PowerBI" ? "signed in and reached the dataset" : `made a ${r.type}`));
 
 // The list, while it shows: drawn again as catalogs load in the background (the notices below).
 let listShowing: (() => void) | null = null;

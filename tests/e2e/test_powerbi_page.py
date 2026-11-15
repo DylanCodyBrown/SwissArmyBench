@@ -85,7 +85,9 @@ def test_a_power_bi_dataset_is_added_from_the_vault_browsed_opened_and_its_relat
         picker.select_option(entry)
         expect(code).to_have_value(re.compile(re.escape(f'secret("{entry.replace("-", "_")}")')))
     dialog.get_by_role("button", name="Test connection").click()
-    expect(dialog.locator(".connection-result")).to_have_text("It works: made a PowerBI.", timeout=60000)
+    expect(dialog.locator(".connection-result")).to_have_text(
+        "It works: signed in and reached the dataset.", timeout=60000
+    )
     token = next(r for r in standin.requests if r["what"] == "token")
     assert token["form"]["client_secret"] == made_up.SECRET and token["tenant"] == made_up.TENANT
     assert made_up.SECRET not in dialog.inner_text() and made_up.SECRET not in code.input_value()
