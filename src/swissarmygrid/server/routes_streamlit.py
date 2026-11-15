@@ -1,23 +1,24 @@
-"""Streamlit pieces and the page designer (services/streamlit.py), for the Workbench window, the page
-designer's window and the agent (the golden rule: every action here has its command).
+"""Streamlit in the Workbench (services/streamlit.py), for the Workbench window and the agent (the
+golden rule: every action here has its command).
 
-  GET    /designer                              the page designer (its own window)
-  GET    /streamlit/apps                        the open apps: one for each document with Streamlit cells
-  POST   /streamlit/apps   {"title", "pieces", "pages", "python", "window"} | {"path"}: open one
-  GET    /streamlit/apps/{app}                  its pieces (name, what each makes and reads, state),
-                                                its pages and their layouts, where it is shown
-  PUT    /streamlit/apps/{app}                  {"pieces", ...}: the document as the window holds it now
+  GET    /streamlit/apps                        the open apps: a canvas for each open Streamlit app,
+                                                one for each open notebook or script
+  POST   /streamlit/apps   {"path"} | {"title", "cells", ...} | {"canvas": true, "pages", ...}: open one
+  GET    /streamlit/apps/{app}                  a canvas: its pages, blocks and their state; a
+                                                document's: its live cells
+  PUT    /streamlit/apps/{app}                  the document as the window holds it now
   DELETE /streamlit/apps/{app}                  the document closed: the app goes
-  POST   /streamlit/apps/{app}/run              run or refresh the app (start its Streamlit process)
+  POST   /streamlit/apps/{app}/run              Play: run or refresh the app
   POST   /streamlit/apps/{app}/stop             stop its process
-  POST   /streamlit/apps/{app}/install          Streamlit, pandas and pyarrow into the notebook's Python
-  POST   /streamlit/apps/{app}/export           {"folder"}: the designed pages as a runnable folder
-  POST   /streamlit/apps/{app}/pages            {"name"?, "cell"?}: a new page (with a first piece)
+  POST   /streamlit/apps/{app}/install          Streamlit, pandas and pyarrow into its Python
+  POST   /streamlit/apps/{app}/export           {"folder"}: the pages as a folder that runs alone
+  POST   /streamlit/apps/{app}/save-as          {"path"}: the project as one zip
+  POST   /streamlit/apps/{app}/pages            {"name"?, "document"?, "cell"?}: a new page
   PATCH  /streamlit/apps/{app}/pages/{page}     {"name"} rename, {"index"} move among the pages
   DELETE /streamlit/apps/{app}/pages/{page}
-  POST   /streamlit/apps/{app}/pages/{page}/pieces          {"cell", "index"?, "w"?, "h"?}: push a piece
-  PATCH  /streamlit/apps/{app}/pages/{page}/pieces/{piece}  {"index"} move, {"w", "h"} resize, {"page"}
-  DELETE /streamlit/apps/{app}/pages/{page}/pieces/{piece}  take it off the page
+  POST   /streamlit/apps/{app}/pages/{page}/blocks          {"document", "cell", "row"?, "column"?, "w"?}
+  PATCH  /streamlit/apps/{app}/pages/{page}/blocks/{block}  {"row", "column", "insert"?}, {"w", "h"}, {"page"}
+  DELETE /streamlit/apps/{app}/pages/{page}/blocks/{block}  take it off the page
 
 The live pages themselves are passed through by server/streamlit_proxy.py (/streamlit/live/...).
 """
@@ -94,27 +95,32 @@ def routes(apps: StreamlitApps) -> list[BaseRoute]:
         params = request.path_params
         return json_response(await apps.remove_page(params["app"], params["page"], actor(request)))
 
-    async def push(request: Request) -> Response:
-        params = request.path_params
+    async def save_as(request: Request) -> Response:
         return json_response(
-            await apps.push(params["app"], params["page"], await body_of(request), actor(request))
+            await apps.save_as(request.path_params["app"], await body_of(request), actor(request))
         )
 
-    async def change_piece(request: Request) -> Response:
+    async def place(request: Request) -> Response:
         params = request.path_params
         return json_response(
-            await apps.change_piece(
-                params["app"], params["page"], params["piece"], await body_of(request), actor(request)
+            await apps.place(params["app"], params["page"], await body_of(request), actor(request))
+        )
+
+    async def change_block(request: Request) -> Response:
+        params = request.path_params
+        return json_response(
+            await apps.change_block(
+                params["app"], params["page"], params["block"], await body_of(request), actor(request)
             )
         )
 
-    async def remove_piece(request: Request) -> Response:
+    async def remove_block(request: Request) -> Response:
         params = request.path_params
         return json_response(
-            await apps.remove_piece(params["app"], params["page"], params["piece"], actor(request))
+            await apps.remove_block(params["app"], params["page"], params["block"], actor(request))
         )
 
-    piece = "/streamlit/apps/{app}/pages/{page}/pieces/{piece}"
+    block = "/streamlit/apps/{app}/pages/{page}/blocks/{block}"
     return [
         Route("/streamlit/apps", safely(listing)),
         Route("/streamlit/apps", safely(open_app), methods=["POST"]),
@@ -128,7 +134,8 @@ def routes(apps: StreamlitApps) -> list[BaseRoute]:
         Route("/streamlit/apps/{app}/pages", safely(add_page), methods=["POST"]),
         Route("/streamlit/apps/{app}/pages/{page}", safely(change_page), methods=["PATCH"]),
         Route("/streamlit/apps/{app}/pages/{page}", safely(remove_page), methods=["DELETE"]),
-        Route("/streamlit/apps/{app}/pages/{page}/pieces", safely(push), methods=["POST"]),
-        Route(piece, safely(change_piece), methods=["PATCH"]),
-        Route(piece, safely(remove_piece), methods=["DELETE"]),
+        Route("/streamlit/apps/{app}/save-as", safely(save_as), methods=["POST"]),
+        Route("/streamlit/apps/{app}/pages/{page}/blocks", safely(place), methods=["POST"]),
+        Route(block, safely(change_block), methods=["PATCH"]),
+        Route(block, safely(remove_block), methods=["DELETE"]),
     ]

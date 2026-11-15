@@ -96,6 +96,30 @@ class TableCells:
             "loaded": rules.cell_text([load, change]),
         }
 
+    async def group_cells(self, names: list[str] | None = None) -> tuple[list[notebooks.Cell], int]:
+        """The open tables (or the ones named) as a new notebook's Tables group: each table's
+        read-only cell, with its load. The cells, and the number the next new cell gets. This is how
+        a project's data.ipynb starts."""
+        listed = (await self.listing(names))["tables"]
+        specs = [
+            TableSpec(t["name"], t["code"], t["loaded"], t["steps"], tuple(t["step_list"])) for t in listed
+        ]
+        arrangement = rules.arrange([], specs, 1, True)
+        steps = {spec.name: list(spec.step_list) for spec in specs}
+        cells = [
+            notebooks.Cell(
+                c.kind,
+                c.source if c.uses is None else f"{c.uses}\n{rules.split_uses(c.source)[1]}",
+                number=c.number,
+                role=c.role,
+                table=c.table,
+                grouped=c.grouped,
+                steps=steps.get(c.table or "") if c.role == "transformations" else None,
+            )
+            for c in arrangement.cells
+        ]
+        return cells, arrangement.next_number
+
     async def listing(self, names: list[str] | None = None) -> dict[str, Any]:
         """Every open table (or the ones named) as its cell's text. Open means it has a tab in the grid:
         a table whose last tab was closed (its data is kept for a while) has no steps to follow."""

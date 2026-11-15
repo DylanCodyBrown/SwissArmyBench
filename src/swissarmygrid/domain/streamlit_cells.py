@@ -13,11 +13,11 @@ Pure rules, no I/O:
   order     the order the blocks of a page run in, by the names they need; a cycle is said
   code      a page as ONE Streamlit page: its layout drawn first as empty slots, then each block run
             in name order inside its own slot, its widgets given keys of their own
-  tables    the tables a page names, read from Parquet by a small preamble (or, in a saved zip, by a
-            shared module that loads each one again)
+  tables    the tables a page names, read from Parquet by a small preamble (or, in a saved project, imported
+            from its data.py)
   export    the pages as a folder that runs without this app (the data as Parquet)
-  bundle    Save as: the pages as modules to drop into another Streamlit app, a module that loads
-            each table again (no rows), and the Workbench files, as one zip's files
+  save as   the pages as a project's pages/*.py: modules to drop into another Streamlit app, their
+            tables imported from the project's data.py (domain/projects.py)
 
 A Python cell that calls Streamlit (domain/streamlit_use.py) is also shown live in its own cell: a
 piece alone, with the cells that make the names it reads.
@@ -296,7 +296,7 @@ def _whole(value: Any) -> bool:
 def check_width(width: Any) -> int:
     if not _whole(width):
         raise StreamlitError(f"A block's width is a whole number of columns, {MIN_WIDTH} to {COLUMNS}.")
-    return max(MIN_WIDTH, min(COLUMNS, round(width)))
+    return int(max(MIN_WIDTH, min(COLUMNS, round(width))))
 
 
 def check_rows(height: Any) -> int | None:
@@ -305,19 +305,19 @@ def check_rows(height: Any) -> int | None:
         return None
     if not _whole(height):
         raise StreamlitError(f"A block's height is a number of rows (1 to {MAX_HEIGHT}), or null.")
-    return max(1, min(MAX_HEIGHT, round(height)))
+    return int(max(1, min(MAX_HEIGHT, round(height))))
 
 
 def check_column(column: Any) -> int:
     if not _whole(column):
         raise StreamlitError(f"A block's column is where it starts, 1 to {COLUMNS}.")
-    return max(1, min(COLUMNS, round(column)))
+    return int(max(1, min(COLUMNS, round(column))))
 
 
 def check_row(row: Any) -> int:
     if not _whole(row):
         raise StreamlitError("A block's row is a whole number from 1.")
-    return max(1, min(MAX_PLACED, round(row)))
+    return int(max(1, min(MAX_PLACED, round(row))))
 
 
 def check_name(name: Any) -> str:
@@ -345,24 +345,38 @@ def next_id(prefix: str, taken: Iterable[str]) -> str:
     return f"{prefix}{n}"
 
 
-def settle(blocks: list[Block]) -> None:
+def settle(blocks: list[Block], first: Block | None = None) -> None:
     """The blocks as the grid holds them: in reading order (row, then column), no two on the same
-    columns of a row, none past column 12. A block that does not fit where it was put (it would lie
-    on its neighbour) starts a row of its own below. Rows are counted from 1 with none empty."""
+    columns of a row, none past column 12. A block that would lie on another starts a row of its
+    own below; `first` (the block just moved or placed) keeps the place it was given, and the
+    neighbour it would lie on goes below. Rows are counted from 1 with none empty."""
     order = {id(b): i for i, b in enumerate(blocks)}
-    blocks.sort(key=lambda b: (b.row, b.column, order[id(b)]))
-    row = 0
-    asked: int | None = None
-    cursor = 1
     for block in blocks:
         block.w = max(MIN_WIDTH, min(COLUMNS, block.w))
         block.column = max(1, min(COLUMNS - block.w + 1, block.column))
-        if block.row != asked or block.column < cursor:
-            row += 1
-            cursor = 1
-        asked = block.row
-        block.row = row
-        cursor = block.column + block.w
+    asked: dict[int, list[Block]] = {}
+    for block in blocks:
+        asked.setdefault(block.row, []).append(block)
+    settled: list[list[Block]] = []
+    for row in sorted(asked):
+        waiting = sorted(asked[row], key=lambda b: (b is not first, b.column, order[id(b)]))
+        while waiting:
+            taken: set[int] = set()
+            here: list[Block] = []
+            below: list[Block] = []
+            for block in waiting:
+                columns = set(range(block.column, block.column + block.w))
+                if columns & taken:
+                    below.append(block)
+                else:
+                    taken |= columns
+                    here.append(block)
+            settled.append(sorted(here, key=lambda b: b.column))
+            waiting = below
+    for number, held in enumerate(settled, start=1):
+        for block in held:
+            block.row = number
+    blocks[:] = [block for held in settled for block in held]
 
 
 def rows(blocks: Sequence[Block]) -> list[list[Block]]:
@@ -687,14 +701,13 @@ def _listed(names: Sequence[str]) -> str:
 def preamble(tables: Sequence[str], data: str, loader: str | None = None) -> list[str]:
     """What a page starts with: Streamlit and pandas, and each table the page names. Usually a table
     is read from its Parquet file (read again only when the file has changed; `data` is the Python
-    expression of the data folder). With `loader` (a module's name) each comes from that module's
-    function of the table's name instead: the pages of a saved zip, which hold no rows."""
+    expression of the data folder). With `loader` (a module's name: a project's data.py) they are
+    imported from it instead: a saved project's pages, which hold no rows."""
     lines = ["import pandas as pd", "import streamlit as st"]
     if not tables:
         return lines
     if loader is not None:
-        lines += ["", f"import {loader}", ""]
-        return lines + [f"{table} = {loader}.{table}()" for table in tables]
+        return [*lines, "", f"from {loader} import {', '.join(tables)}"]
     lines = ["from pathlib import Path", "", *lines]
     lines += [
         "",
@@ -749,6 +762,7 @@ def page_code(
     elsewhere: Mapping[str, str] | None = None,
     gone: Mapping[str, str] | None = None,
     loader: str | None = None,
+    imports: Iterable[str] = (),
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -764,7 +778,8 @@ def page_code(
     page (an export). `notes`: a line of words above a block (a cell shown alone says where its
     inputs come from). `elsewhere`: names made by a cell that is not on this page, and where that
     cell is. `gone`: what to say for a block whose cell is not there, by the block's id. `loader`:
-    the tables come from that module (a saved zip's pages).
+    the tables come from that module (a saved project's pages). `imports`: the other names the
+    project's data.py gives; the ones the page reads are imported from it (`from data import TAX`).
     """
     known = [b for b in placed if b.key in pieces]
     found = {b.id: facts(pieces[b.key].code) for b in known}
@@ -774,8 +789,18 @@ def page_code(
     used: list[str] = []
     for b in known:
         used += [t for t in tables_named(pieces[b.key].code, named) if t not in used]
+    also: list[str] = []
+    if loader is None:
+        given = [name for name in imports if name not in named]
+        for b in known:
+            also += [n for n in tables_named(pieces[b.key].code, given) if n not in also]
+        # A name made on the page itself is the page's own.
+        also = [n for n in also if not any(n in found[b.id].makes for b in known)]
     problems: list[str] = []
-    out: list[str] = [f"# {title}", *preamble(used, data, loader), ""]
+    out: list[str] = [f"# {title}", *preamble(used, data, loader)]
+    if also:
+        out += ["", f"from data import {', '.join(also)}"]
+    out.append("")
 
     out.append("# The layout: empty slots, drawn before any block runs.")
     out += _layout(placed)
@@ -815,6 +840,7 @@ def page_code(
             if elsewhere
             and name in elsewhere
             and name not in used
+            and name not in also
             and not any(k == block_id and n == name for k, n, _ in ordered.links)
         ]
         if far and elsewhere:
@@ -1021,7 +1047,7 @@ def export(
         problems += [f"{page.name}: {p}" for p in made.problems]
         codes += [pieces[b.key].code for b in page.blocks if b.key in pieces]
     lines = [
-        f'"""{title}: a Streamlit app, made on SwissArmyGrid\'s Streamlit canvas. Run: streamlit run app.py"""',
+        f'"""{title}: a Streamlit app from SwissArmyGrid\'s Streamlit canvas. Run: streamlit run app.py"""',
         "import streamlit as st",
         "",
         f'st.set_page_config(page_title={title!r}, layout="wide")',
@@ -1038,126 +1064,36 @@ def export(
     return Export(files, tuple(used), tuple(problems))
 
 
-# ===== bundle: Save as, the pages to drop into another Streamlit app (one zip) =====
-#
-#     pages/<page>.py        one module a page: a page of the user's own Streamlit app
-#     <app>_tables.py        one function a table: the table read again the way it was loaded (its
-#                            connection, its file) and then its transformations as DuckDB SQL. No rows
-#     requirements.txt, README.txt
-#     workbench/             the app's file and every notebook and script it links to (the caller
-#                            adds these), so the zip opens again in the Workbench
-#
-# Nothing secret goes in: a connection is named, never its password; no table's rows are written.
+# ===== Save as: the pages as modules of a project (domain/projects.py) =====
 
 
 @dataclass(frozen=True)
-class TableLoad:
-    """How a table is read again outside this app."""
-
-    variable: str
-    imports: tuple[str, ...] = ()  # the import lines its code needs
-    load: str | None = None  # the statements that read it (None: the app cannot write them: a stub)
-    change: str | None = None  # its transformations: one DuckDB statement over the table's own name
-    source: str = ""  # where it came from, in words: "the connection Warehouse"
-    needs: str = ""  # what it needs where the app runs, in words (the README says it)
-
-
-def loader_name(title: str) -> str:
-    """The shared module's name: `Sales overview` -> `sales_overview_tables`."""
-    return f"{slug(title)}_tables"
-
-
-def loader_module(title: str, module: str, loads: Sequence[TableLoad]) -> str:
-    """The module that loads the pages' tables: one function a table, cached by Streamlit. A table
-    whose load the app cannot write (pasted, pushed from Python) gets a stub that says so until it
-    is filled in."""
-    imports = list(dict.fromkeys(line for load in loads for line in load.imports))
-    lines = [
-        f'"""The tables of {title}\'s pages: each read again the way it was loaded in SwissArmyGrid,',
-        "then its transformations as DuckDB SQL. No rows are kept here.",
-        "",
-        f"Put this file beside your app's main script: the pages import it ({module}.<table>()).",
-        '"""',
-        "import pandas as pd",
-        "import streamlit as st",
-        *sorted(set(imports) - {"import pandas as pd", "import streamlit as st"}),
-    ]
-    for load in loads:
-        var = load.variable
-        lines += ["", ""]
-        if load.load is None:
-            lines += [
-                f"def _{var}_source():",
-                f"    # ===== FILL IN: {var} =====",
-                *(f"    # {line}".rstrip() for line in load.source.split("\n")),
-                f"    # Return it as a DataFrame, for example: return pd.read_csv({var + '.csv'!r})",
-                f"    raise NotImplementedError({f'Fill in _{var}_source() in {module}.py: ' + load.source.split(chr(10))[0]!r})",
-                "",
-                "",
-            ]
-        lines += ["@st.cache_data(show_spinner=False)", f"def {var}():"]
-        said = load.source.split("\n")[0]
-        lines.append(
-            f'    """{var}: {said}"""' if said and '"' not in said and "\\" not in said else f"    # {var}"
-        )
-        if load.load is None:
-            lines.append(f"    {var} = _{var}_source()")
-        else:
-            lines.append(indented(load.load))
-        if load.change:
-            lines.append(indented(load.change))
-        lines.append(f"    return {var}")
-    return "\n".join(lines) + "\n"
-
-
-BUNDLE_README: str = """\
-{title}: Streamlit pages, saved from SwissArmyGrid's Streamlit canvas.
-
-These are pages to add to your own Streamlit app. Copy:
-
-    pages/*.py          into your app's pages/ folder (a page each: {pages})
-    {module}.py{pad}    beside your app's main script (the pages import it)
-
-Then install what requirements.txt lists into your app's Python.
-
-{module}.py loads each table again the way it was loaded here, then applies its
-transformations as DuckDB SQL. No rows and no passwords are in this zip.
-
-{tables}
-workbench/ holds the app's file ({app}) and the notebooks and scripts its
-pages are made from. Unzip it and open {app} in SwissArmyGrid's Workbench to change the pages.
-"""
-
-
-@dataclass(frozen=True)
-class Bundle:
-    files: dict[str, str]  # each file's path in the zip, and its text
-    tables: tuple[str, ...]
+class SavedPages:
+    files: dict[str, str]  # pages/<page>.py, and its text
+    tables: tuple[str, ...]  # the names the pages import from data.py
     problems: tuple[str, ...]
-    stubs: tuple[str, ...]  # the tables whose load is left to fill in
+    requirements: tuple[str, ...]  # what the pages' own code needs installed
 
 
-def bundle(
-    title: str,
+def saved_pages(
     pages: Sequence[Page],
     pieces: Mapping[Key, PieceCode],
-    loads: Mapping[str, TableLoad],
+    tables: Iterable[str],
     found: Mapping[Key, Facts] | None = None,
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
-    app_file: str | None = None,
-) -> Bundle:
-    """Save as: the pages as modules for another Streamlit app, the module that loads their tables,
-    requirements.txt and README.txt. `loads`: how each open table is read again, by its name as a
-    Python variable. The caller adds workbench/ (the app's file and the files it links to)."""
+) -> SavedPages:
+    """The pages as a project's pages/*.py: each a page to drop into a Streamlit app, starting with
+    `from data import ...` for the tables (and blade variables) it names. `tables`: the names data.py
+    can give. No data folder, no rows: data.py reads each table again."""
     if not pages:
         raise StreamlitError("There is no page to save yet.")
-    module = loader_name(title)
     files: dict[str, str] = {}
     used: list[str] = []
     problems: list[str] = []
     codes: list[str] = []
     names: list[str] = []
+    named = list(tables)
     every = found if found is not None else {key: facts(piece.code) for key, piece in pieces.items()}
     for page in pages:
         name = slug(page.name, names)
@@ -1166,53 +1102,23 @@ def bundle(
             page.name,
             page.blocks,
             pieces,
-            list(loads),
+            named,
             guard=False,
             elsewhere=elsewhere(page, every, where or {}),
             gone=gone,
-            loader=module,
+            loader="data",
         )
         files[f"pages/{name}.py"] = made.code
         used += [t for t in made.tables if t not in used]
         problems += [f"{page.name}: {p}" for p in made.problems]
         codes += [pieces[b.key].code for b in page.blocks if b.key in pieces]
-    wanted = [loads[t] for t in used]
-    if wanted:
-        files[f"{module}.py"] = loader_module(title, module, wanted)
-    base = ["streamlit>=1.36", "pandas"]
-    lines = "\n".join(line for load in wanted for line in (*load.imports, load.load or "", load.change or ""))
-    if re.search(r"\b(?:duckdb|ddb)\.", lines):
-        base.append("duckdb")
-    if "read_excel" in lines:
-        base.append("openpyxl")
-    needed = requirements(codes, base)
-    if re.search(r"\bsag\.", lines):
-        needed.append(
-            "# swissarmygrid: install SwissArmyGrid's wheel (a table here is read through one of its connections)"
-        )
-    files["requirements.txt"] = "\n".join(needed) + "\n"
-    stubs = tuple(load.variable for load in wanted if load.load is None)
-    said: list[str] = []
-    for load in wanted:
-        first = load.source.split("\n")[0]
-        if load.load is None:
-            said.append(f"    {load.variable}: FILL IN _{load.variable}_source() in {module}.py. {first}")
-        else:
-            said.append(f"    {load.variable}: {first}" + (f" Needs: {load.needs}" if load.needs else ""))
-    tables_said = ("The tables:\n\n" + "\n".join(said) + "\n") if said else ""
-    files["README.txt"] = BUNDLE_README.format(
-        title=title,
-        pages=", ".join(p.name for p in pages),
-        module=module,
-        pad=" " * max(0, 16 - len(module)),
-        tables=tables_said,
-        app=f"workbench/{app_file or slug(title) + APP_SUFFIX}",
-    )
-    return Bundle(files, tuple(used), tuple(problems), stubs)
+    needed = requirements(codes, ["streamlit>=1.36", "pandas"])
+    return SavedPages(files, tuple(used), tuple(problems), tuple(needed))
 
 
 def bundle_names(documents: Sequence[str]) -> dict[str, str]:
-    """Each linked file's name inside the zip's workbench/ folder: its own name, one of a kind
+    """The name in a saved project's zip of each linked file that is outside the project's folder:
+    its own name, one of a kind
     (`analysis.ipynb`, `analysis_2.ipynb` for a second file of that name from another folder)."""
     names: dict[str, str] = {}
     taken: set[str] = set()

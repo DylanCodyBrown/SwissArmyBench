@@ -867,7 +867,7 @@ def test_a_dax_cell_is_a_code_cell_that_starts_with_its_dax_line() -> None:
         [{"kind": "dax", "source": "EVALUATE 'Sales'", "connection": long_name.strip()}]
     )
     assert sent[0].kind == "dax" and sent[0].connection == long_name.strip()
-    kinds = '"code", "sql", "dax", "html", "streamlit" or "markdown"'
+    kinds = '"code", "sql", "dax", "html" or "markdown"'
     with pytest.raises(notebooks.NotebookError, match=kinds):
         notebooks.read_cells([{"kind": "m", "source": ""}])
     assert powerbi.split_name("Finance/Sales model") == ("Finance", "Sales model")

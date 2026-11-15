@@ -2289,14 +2289,12 @@ def workbench_open(a: dict[str, Any]) -> Any:
     req("path", "An .ipynb or .py file."),
     opt(
         "cells",
-        '[{"kind": "code" | "sql" | "dax" | "html" | "streamlit" | "markdown", "source", "connection"?, '
-        '"outputs"?, "height"?}]',
+        '[{"kind": "code" | "sql" | "dax" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',
         "json",
     ),
     opt("text", "A script's text."),
     opt("modified", "The modified time workbench_open gave.", "any"),
     opt("force", "Replace it even if it changed on disk.", "bool"),
-    opt("pages", "A notebook's Streamlit pages, as workbench_open gave them.", "json"),
     opt("next_cell", "A notebook's next cell number, as workbench_open gave it.", "int"),
 )
 def workbench_save(a: dict[str, Any]) -> Any:
@@ -2583,111 +2581,155 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/html-marks", {"names": a["names"]})
 
 
-# ===== Streamlit pieces and the page designer (docs/ideas.md, 2026-11-15) =====
-# A Streamlit cell is a piece; pieces are pushed to pages and linked by the names they share. Each
-# document with Streamlit cells has an app: the window's commands work on the cells, the streamlit_*
-# commands on the app (its pages, its run, its export) by the app's id.
+# ===== Streamlit: the canvas, live cells, projects (docs/ideas.md, 2026-11-15) =====
+# A Streamlit app is a document of its own: pages of blocks, each block a link to a Python cell of a
+# notebook or script. There is no Streamlit kind of cell: a Python cell that calls Streamlit is shown
+# live in its cell. The window's commands work on what is in front; the streamlit_* commands on an
+# app by its id; the project_* commands on a project's folder.
+
+
+@command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
+def workbench_new_app(a: dict[str, Any]) -> Any:
+    return _window("file.newApp", {})
 
 
 @command(
-    "workbench_streamlit_add",
-    "Add a Streamlit cell (a piece) to the front Workbench document: Python that draws with st.*; open "
-    "tables are DataFrames by name; a name it makes drives the pieces that read it",
-    opt("source", "The piece's Python. Its first comment line is its name."),
-    opt("height", "Its pane's height in pixels, 60 to 2000.", "int"),
+    "workbench_canvas",
+    "The front canvas: its app id (for streamlit_*), page, blocks or live page",
 )
-def workbench_streamlit_add(a: dict[str, Any]) -> Any:
-    return _window("streamlit.add", {k: a[k] for k in ("source", "height") if a.get(k) is not None})
+def workbench_canvas(a: dict[str, Any]) -> Any:
+    return _window("canvas.state", {})
 
 
 @command(
-    "workbench_streamlit_cells",
-    "The front Workbench document's Streamlit cells: number, name, makes, reads, state, pages; "
-    "and its app id",
+    "workbench_canvas_play",
+    "Play the front canvas: the live page in place",
+    opt("page", "The page to show (its id; default: the one in front)."),
 )
-def workbench_streamlit_cells(a: dict[str, Any]) -> Any:
+def workbench_canvas_play(a: dict[str, Any]) -> Any:
+    return _window("canvas.play", {"page": a["page"]} if a.get("page") else {})
+
+
+@command("workbench_canvas_edit", "Back from the live page to the front canvas's blocks")
+def workbench_canvas_edit(a: dict[str, Any]) -> Any:
+    return _window("canvas.edit", {})
+
+
+@command(
+    "workbench_cell_copy",
+    "Copy a cell of the front document (as C does): for a canvas or a notebook",
+    opt("number", "The cell's own number (default: the selected cell).", "int"),
+)
+def workbench_cell_copy(a: dict[str, Any]) -> Any:
+    return _window("cell.copy", {"number": a["number"]} if a.get("number") is not None else {})
+
+
+@command(
+    "workbench_cell_paste",
+    "Paste the copied cell (as V does): a block on a canvas, the cell in a notebook",
+)
+def workbench_cell_paste(a: dict[str, Any]) -> Any:
+    return _window("cell.paste", {})
+
+
+@command(
+    "workbench_live_cells",
+    "The front document's cells that call Streamlit (shown live): makes, reads, state",
+)
+def workbench_live_cells(a: dict[str, Any]) -> Any:
     return _window("streamlit.list", {})
 
 
-@command(
-    "workbench_streamlit_run",
-    "Run or refresh the front Workbench document's Streamlit app: each piece shows live in its cell",
-)
-def workbench_streamlit_run(a: dict[str, Any]) -> Any:
+@command("workbench_live_run", "Run the front document's live cells")
+def workbench_live_run(a: dict[str, Any]) -> Any:
     return _window("streamlit.run", {})
 
 
 @command(
-    "workbench_streamlit_push",
-    "Push a Streamlit cell of the front Workbench document to a page",
-    req("number", "The cell's own number.", "int"),
-    opt("page", "The page's id (default: the first page, made when there is none)."),
-    opt("name", "A new page's name, to make one for it."),
-)
-def workbench_streamlit_push(a: dict[str, Any]) -> Any:
-    return _window("streamlit.push", {k: a[k] for k in ("number", "page", "name") if a.get(k) is not None})
-
-
-@command(
-    "workbench_streamlit_resize",
-    "Size a Streamlit cell's pane in the front Workbench document (saved with the cell)",
+    "workbench_live_resize",
+    "Size a live cell's pane in the front document",
     req("number", "The cell's own number.", "int"),
     opt("height", "Pixels, 60 to 2000 (without it: the usual height).", "int"),
 )
-def workbench_streamlit_resize(a: dict[str, Any]) -> Any:
+def workbench_live_resize(a: dict[str, Any]) -> Any:
     args = {"number": a["number"]} | ({"height": a["height"]} if a.get("height") is not None else {})
     return _window("streamlit.resize", args)
 
 
 @command(
-    "workbench_streamlit_designer",
-    "Open the page designer's window for the front Workbench document's Streamlit app",
-    opt("page", "The page to show."),
+    "workbench_pop_out",
+    "Move the front (saved) document into a Workbench window of its own",
 )
-def workbench_streamlit_designer(a: dict[str, Any]) -> Any:
-    return _window("streamlit.designer", {"page": a["page"]} if a.get("page") else {})
+def workbench_pop_out(a: dict[str, Any]) -> Any:
+    return _window("doc.popOut", {})
 
 
-@command("streamlit_apps", "The open Streamlit apps: one for each document with Streamlit cells")
+@command(
+    "workbench_project_open",
+    "Open a project's folder in the Workbench window, its files as tabs",
+    req("folder", "The project's folder."),
+)
+def workbench_project_open(a: dict[str, Any]) -> Any:
+    return _window("project.open", {"folder": a["folder"]})
+
+
+@command(
+    "project_new",
+    "A new project folder: data.ipynb (a cell an open table), data.py, a canvas, notebooks",
+    req("folder", "Where the project's folder goes."),
+    req("name", "The project's (and its folder's) name."),
+    opt("app", "false: no Streamlit app (data and notebooks only).", "bool"),
+    opt("notebooks", 'Notebooks to make, by name: ["analysis", "mockups"].', "json"),
+    opt("tables", "Open tables for data.ipynb (default: all).", "json"),
+)
+def project_new(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("folder", "name", "app", "notebooks", "tables") if a.get(k) is not None}
+    return api.call("POST", "/projects", body)
+
+
+@command(
+    "project_files", "A project folder's files, as the Workbench opens them", req("folder", "Its folder.")
+)
+def project_files(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/open", {"folder": a["folder"]})
+
+
+@command(
+    "project_export_data",
+    "Export data.py again from the project's data.ipynb",
+    req("folder", "The project's folder."),
+)
+def project_export_data(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/export-data", {"folder": a["folder"]})
+
+
+@command("streamlit_apps", "The open Streamlit apps: canvases, and each open document's own")
 def streamlit_apps(a: dict[str, Any]) -> Any:
     return api.call("GET", "/streamlit/apps")
 
 
 @command(
     "streamlit_open",
-    "Open a saved notebook's or script's Streamlit app without the Workbench window, from its file",
-    req("path", "The notebook (.ipynb) or script (.py)."),
+    "Open a Streamlit app's file (a canvas) without the window",
+    opt("path", "A .stapp.json file (without it: a new canvas)."),
 )
 def streamlit_open(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/streamlit/apps", {"path": a["path"]})
+    body = {"path": a["path"]} if a.get("path") else {"canvas": True, "pages": []}
+    return api.call("POST", "/streamlit/apps", body)
 
 
 @command(
     "streamlit_app",
-    "A Streamlit app: its pieces (name, makes, reads, tables, state), each page's layout (pieces in "
-    "order, widths of 12, rows, run order, problems), its address",
-    req("app", "The app's id."),
+    "A canvas's pages, blocks (link, place, makes, reads, state, missing) and problems",
+    req("app", "The app's id (streamlit_apps lists them)."),
 )
 def streamlit_app(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/streamlit/apps/{_q(a['app'])}")
 
 
 @command(
-    "streamlit_sync",
-    "Give a Streamlit app its pieces (and pages); nothing runs (the Workbench window does this itself)",
-    req("app", "The app's id."),
-    req("pieces", '[{"cell": the cell\'s number, "code": "..."}], in the document\'s order.', "json"),
-    opt("pages", '[{"id", "name", "pieces": [{"id", "cell", "w", "h"}]}].', "json"),
-)
-def streamlit_sync(a: dict[str, Any]) -> Any:
-    body = {"pieces": a["pieces"]} | ({"pages": a["pages"]} if a.get("pages") is not None else {})
-    return api.call("PUT", f"/streamlit/apps/{_q(a['app'])}", body)
-
-
-@command(
     "streamlit_run",
-    "Run or refresh a Streamlit app: its pages written as they stand, their tables read from the grid "
-    "again, its process started in the notebook's own Python",
+    "Play a canvas: its pages from the linked cells as they are now, tables read again",
     req("app", "The app's id."),
 )
 def streamlit_run(a: dict[str, Any]) -> Any:
@@ -2696,39 +2738,35 @@ def streamlit_run(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_address",
-    "A running Streamlit app's addresses: the app, each page, each piece alone",
+    "A running app's addresses: the app, each page, each live cell",
     req("app", "The app's id."),
 )
 def streamlit_address(a: dict[str, Any]) -> Any:
     state = api.call("GET", f"/streamlit/apps/{_q(a['app'])}")
     if not state["running"]:
         return {"running": False, "problem": state["problem"], "hint": "streamlit_run starts it."}
-    root = state["address"].rstrip("/")
+    base = state["address"].rsplit(state["path"], 1)[0]
     return {
         "running": True,
         "app": state["address"],
-        "pages": {p["name"]: f"{root}/page-{p['id']}" for p in state["pages"]},
-        "pieces": {str(p["cell"]): f"{root}/piece-{p['cell']}" for p in state["pieces"] if p["preview"]},
+        "pages": {p["name"]: base + p["address"] for p in state.get("pages", []) if p["address"]},
+        "cells": {p["cell"]: base + p["preview"] for p in state.get("pieces", []) if p["preview"]},
     }
 
 
-@command("streamlit_stop", "Stop a Streamlit app's process (its pages stay)", req("app", "The app's id."))
+@command("streamlit_stop", "Stop a Streamlit app's process", req("app", "The app's id."))
 def streamlit_stop(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/stop")
 
 
-@command(
-    "streamlit_close",
-    "Close a Streamlit app opened with streamlit_open",
-    req("app", "The app's id."),
-)
+@command("streamlit_close", "Close a Streamlit app opened with streamlit_open", req("app", "The app's id."))
 def streamlit_close(a: dict[str, Any]) -> Any:
     return api.call("DELETE", f"/streamlit/apps/{_q(a['app'])}")
 
 
 @command(
     "streamlit_install",
-    "Install Streamlit, pandas and pyarrow into the notebook's own Python (when streamlit_run says so)",
+    "Install Streamlit into the app's Python (when streamlit_run says so)",
     req("app", "The app's id."),
 )
 def streamlit_install(a: dict[str, Any]) -> Any:
@@ -2736,34 +2774,60 @@ def streamlit_install(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "streamlit_export",
-    "Export the designed pages as a runnable folder: app.py, a module a page, data/, requirements.txt",
+    "streamlit_save",
+    "Save a canvas to its file (.stapp.json: pages, blocks, links; no code)",
     req("app", "The app's id."),
-    req("folder", "The folder to write it into (made when it is not there)."),
+    opt("path", "Where (default: the file it was opened from)."),
+)
+def streamlit_save(a: dict[str, Any]) -> Any:
+    state = api.call("GET", f"/streamlit/apps/{_q(a['app'])}")
+    path = a.get("path") or state["document"]
+    if not path:
+        raise CommandError("Send path: this app has no file yet.")
+    if not path.lower().endswith(".stapp.json"):
+        path += ".stapp.json"
+    saved = api.call("POST", "/workbench/save", {"path": path, "pages": state["pages"], "force": True})
+    api.call("PUT", f"/streamlit/apps/{_q(a['app'])}", {"document": saved["path"]})
+    return saved
+
+
+@command(
+    "streamlit_export",
+    "Export a canvas as an app that runs alone (app.py, pages, data as Parquet)",
+    req("app", "The app's id."),
+    req("folder", "Where it goes (made when it is not there)."),
 )
 def streamlit_export(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/export", {"folder": a["folder"]})
 
 
 @command(
+    "streamlit_save_as",
+    "Save as: the app's project as one zip (data.py, pages/*.py, sources); no rows, no secrets",
+    req("app", "The app's id (saved: its folder is the project)."),
+    req("path", "The zip's path."),
+)
+def streamlit_save_as(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/save-as", {"path": a["path"]})
+
+
+@command(
     "streamlit_page_add",
-    "Add a page to a Streamlit app (with cell: that piece goes on it)",
+    "Add a page to a canvas",
     req("app", "The app's id."),
-    opt("name", 'The page\'s name (default: "Page N").'),
-    opt("cell", "A Streamlit cell's number, to push to the new page.", "int"),
-    opt("w", "That piece's columns of 12 (default 6).", "int"),
-    opt("h", "That piece's rows of 40 pixels (default: its own height).", "int"),
+    opt("name", "The page's name (default: Page N)."),
 )
 def streamlit_page_add(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("name", "cell", "w", "h") if a.get(k) is not None}
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages", body)
+    return api.call(
+        "POST", f"/streamlit/apps/{_q(a['app'])}/pages", {"name": a["name"]} if a.get("name") else {}
+    )
 
 
 @command(
     "streamlit_page_change",
-    "Rename a Streamlit app's page, or move it among the pages",
+    "Rename a canvas's page, or move it among the pages",
     req("app", "The app's id."),
-    req("page", "The page's id."),
+    req("page", "The page's id (p1...)."),
     opt("name", "Its new name."),
     opt("index", "Its new place among the pages, from 0.", "int"),
 )
@@ -2774,7 +2838,7 @@ def streamlit_page_change(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_page_remove",
-    "Remove a page from a Streamlit app (its pieces stay in the notebook)",
+    "Remove a page from a canvas",
     req("app", "The app's id."),
     req("page", "The page's id."),
 )
@@ -2783,50 +2847,54 @@ def streamlit_page_remove(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "streamlit_piece_push",
-    "Push a piece (a Streamlit cell) to a page, at the end or at index",
+    "streamlit_block_place",
+    "Place a Python cell's link on a canvas's page (as dragging it there)",
     req("app", "The app's id."),
     req("page", "The page's id."),
-    req("cell", "The Streamlit cell's number.", "int"),
-    opt("index", "Its place among the page's pieces, from 0 (they flow in rows of 12 columns).", "int"),
-    opt("w", "Columns of 12 (default 6).", "int"),
-    opt("h", "Rows of 40 pixels (default: its own height).", "int"),
+    req("document", "The saved notebook's or script's path."),
+    req("cell", "The cell's own number.", "int"),
+    opt("row", "Its row, from 1 (default: after the last block).", "int"),
+    opt("column", "The column it starts in, 1 to 12.", "int"),
+    opt("w", "Its width in columns, 2 to 12 (default 6).", "int"),
+    opt("h", "Its height in 40-pixel rows (default: its content's).", "int"),
 )
-def streamlit_piece_push(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("cell", "index", "w", "h") if a.get(k) is not None}
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/pieces", body)
+def streamlit_block_place(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("document", "cell", "row", "column", "w", "h") if a.get(k) is not None}
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks", body)
 
 
 @command(
-    "streamlit_piece_place",
-    "Move or resize a piece on a page",
+    "streamlit_block_change",
+    "Move or resize a block on the 12-column grid, or send it to another page",
     req("app", "The app's id."),
     req("page", "The page's id."),
-    req("piece", "The placed piece's id (s1...: streamlit_app lists them)."),
-    opt("index", "Its new place among the pieces, from 0.", "int"),
-    opt("w", "Columns of 12.", "int"),
-    opt("h", "Rows of 40 pixels (0: its own height).", "int"),
-    opt("to_page", "Another page's id, to move it there."),
+    req("block", "The block's id (b1...: streamlit_app lists them)."),
+    opt("row", "Its row, from 1.", "int"),
+    opt("column", "The column it starts in, 1 to 12.", "int"),
+    opt("insert", "true: a new row at `row`.", "bool"),
+    opt("w", "Its width in columns, 2 to 12.", "int"),
+    opt("h", "Its height in 40-pixel rows; 0: its content's.", "int"),
+    opt("to_page", "Another page's id, to send it there."),
 )
-def streamlit_piece_place(a: dict[str, Any]) -> Any:
-    body: dict[str, Any] = {k: a[k] for k in ("index", "w") if a.get(k) is not None}
+def streamlit_block_change(a: dict[str, Any]) -> Any:
+    body: dict[str, Any] = {k: a[k] for k in ("row", "column", "insert", "w") if a.get(k) is not None}
     if a.get("h") is not None:
         body["h"] = a["h"] or None
     if a.get("to_page"):
         body["page"] = a["to_page"]
-    path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/pieces/{_q(a['piece'])}"
+    path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}"
     return api.call("PATCH", path, body)
 
 
 @command(
-    "streamlit_piece_remove",
-    "Take a piece off a page (its cell stays in the notebook)",
+    "streamlit_block_remove",
+    "Take a block off its page",
     req("app", "The app's id."),
     req("page", "The page's id."),
-    req("piece", "The placed piece's id."),
+    req("block", "The block's id."),
 )
-def streamlit_piece_remove(a: dict[str, Any]) -> Any:
-    path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/pieces/{_q(a['piece'])}"
+def streamlit_block_remove(a: dict[str, Any]) -> Any:
+    path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}"
     return api.call("DELETE", path)
 
 
@@ -2858,8 +2926,8 @@ def workbench_run_notebook(a: dict[str, Any]) -> Any:
     )
     results = []
     for cell in opened["cells"]:
-        # A Streamlit cell is a piece of a page: it runs in the notebook's Streamlit app (streamlit_run).
-        if cell["kind"] in ("markdown", "streamlit") or not cell["source"].strip():
+        # A cell that calls Streamlit is shown live in a Streamlit page, never run in the kernel.
+        if cell["kind"] == "markdown" or cell.get("live") or not cell["source"].strip():
             continue
         lines = api.call_lines(
             "POST",
@@ -2881,7 +2949,6 @@ def workbench_run_notebook(a: dict[str, Any]) -> Any:
                 "cells": opened["cells"],
                 "modified": opened["modified"],
                 "next_cell": opened.get("next_cell"),
-                "pages": opened.get("pages"),
             },
         )
     return {"kernel": kernel, "cells_run": len(results), "results": results}
@@ -3233,7 +3300,8 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
-    ("streamlit", "Streamlit: a notebook's pieces on the page designer's pages, the app's run and export"),
+    ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
+    ("project", "Projects: a folder that starts with data.ipynb and its export data.py"),
     ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("compare", "Compare (two grids side by side)"),

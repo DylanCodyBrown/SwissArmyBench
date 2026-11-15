@@ -270,7 +270,8 @@ def test_the_page_sends_html_cells_and_their_height() -> None:
     sent = [{"kind": "html", "source": CARD, "height": 5000, "outputs": [{"output_type": "display_data"}]}]
     cells = notebooks.read_cells(sent)
     assert cells[0].kind == "html" and cells[0].height == rules.HEIGHT_MAX and len(cells[0].outputs) == 1
-    assert notebooks.read_cells([{"kind": "code", "source": "x", "height": 300}])[0].height is None
+    # A Python cell that is shown live (it calls Streamlit) keeps its pane's height too; SQL has none.
+    assert notebooks.read_cells([{"kind": "sql", "source": "x", "height": 300}])[0].height is None
     assert notebooks.code_of(cells[0]) == f"%%html\n{CARD}"
     with pytest.raises(notebooks.NotebookError, match="html"):
         notebooks.read_cells([{"kind": "design", "source": ""}])

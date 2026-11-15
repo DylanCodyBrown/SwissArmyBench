@@ -41,7 +41,7 @@ WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
 # The page shell and its files: prefixes for /g/<id> and /static/..., and the exact paths of the
 # workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/static/")
-_PUBLIC_PATHS: frozenset[str] = frozenset({"/workspace", "/catalog", "/workbench", "/designer"})
+_PUBLIC_PATHS: frozenset[str] = frozenset({"/workspace", "/catalog", "/workbench"})
 # A notebook's live Streamlit pages: the path's own secret is checked by the route.
 _SECRET_PATH: str = "/streamlit/live/"  # noqa: S105 (a path, not a secret)
 

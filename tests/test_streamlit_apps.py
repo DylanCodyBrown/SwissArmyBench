@@ -1,7 +1,9 @@
-"""Streamlit pieces and the page designer on the running server (docs/ideas.md, 2026-11-15): an app's
-pieces and pages over HTTP and by the agent's commands; the table hand-over (Parquet written, only
-the tables a page names); the out-of-date rule; the export folder; the door the live pages come
-through. And, with a Python that has Streamlit, the real thing: the pages run in Streamlit itself.
+"""The Streamlit canvas, live cells and projects on the running server (docs/ideas.md, 2026-11-15):
+a document's Python cells that call Streamlit; a canvas's links to cells over HTTP and by the agent's
+commands (place, move, resize, pages); Play from the cells' current code, saved or not; the
+out-of-date rule; a missing cell; the app's file; the export folder; a project's data.ipynb and its
+export data.py; Save as (one zip, no rows); the door the live pages come through. And, with a Python
+that has Streamlit, the real thing: the pages run in Streamlit itself.
 
 Streamlit is not this app's dependency. The tests that need it are skipped unless
 SWISSARMYGRID_STREAMLIT_PYTHON names a Python with streamlit, pandas and pyarrow (or this Python has
@@ -18,6 +20,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -28,8 +31,9 @@ import pytest
 from starlette.testclient import TestClient
 
 from swissarmygrid.cli.commands import CommandError, execute
+from swissarmygrid.domain import notebooks
 from swissarmygrid.server import streamlit_apps
-from tests.conftest import AGENT, AUTH, BASE, PORT, make_client, push
+from tests.conftest import AGENT, AUTH, BASE, make_client, push
 from tests.test_cli import Live, data_of, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
 
@@ -43,7 +47,6 @@ ORDERS = pa.table(
     }
 )
 CUSTOMERS = pa.table({"customer": ["Acme", "Globex"], "region": ["East", "West"]})
-PIECES = [{"cell": 4, "code": FILTER}, {"cell": 5, "code": TOTAL}]
 
 
 def _streamlit_python() -> str | None:
@@ -115,8 +118,11 @@ def served(tmp_path: Path) -> Iterator[tuple[TestClient, FakeRunner]]:
         yield client, runner
 
 
+CELLS = [{"cell": 1, "code": "import pandas as pd"}, {"cell": 4, "code": FILTER}, {"cell": 5, "code": TOTAL}]
+
+
 def _open(client: TestClient, **more: Any) -> dict[str, Any]:
-    body = {"title": "sales.ipynb", "pieces": PIECES, "window": "w1"} | more
+    body = {"title": "sales.ipynb", "cells": CELLS, "window": "w1"} | more
     opened = client.post("/streamlit/apps", headers=AUTH, json=body)
     assert opened.status_code == 200, opened.text
     return dict(opened.json())
@@ -127,275 +133,312 @@ def _ok(response: Any) -> dict[str, Any]:
     return dict(response.json())
 
 
-# ===== pieces and pages =====
-
-
-def test_an_app_holds_its_pieces_and_says_what_each_makes_and_reads(
-    served: tuple[TestClient, FakeRunner],
-) -> None:
-    client, _ = served
-    state = _open(client)
-    assert state["running"] is False and state["path"] is None and state["pages"] == []
-    assert [(p["cell"], p["name"], p["state"]) for p in state["pieces"]] == [
-        (4, "Region filter", "notRun"),
-        (5, "Total", "notRun"),
+def _notebook(folder: Path, name: str = "sales.ipynb", total: str = TOTAL) -> Path:
+    """A saved notebook: imports (1), a note, the filter (3), the total (4), plain Python (5)."""
+    cells = [
+        notebooks.Cell("code", "import pandas as pd"),
+        notebooks.Cell("markdown", "# Sales"),
+        notebooks.Cell("code", FILTER),
+        notebooks.Cell("code", total),
+        notebooks.Cell("code", "threshold = 50"),
     ]
-    picker, total = state["pieces"]
-    assert picker["makes"] == ["region"] and picker["reads"] == [] and picker["tables"] == ["orders"]
-    assert total["makes"] == [] and total["reads"] == ["region"] and total["inputs"] == [4]
-    assert client.get("/streamlit/apps", headers=AUTH).json()["apps"][0]["title"] == "sales.ipynb"
-    # The document as it is typed: a piece changed, one added, one gone.
-    app = state["app"]
-    synced = _ok(
-        client.put(
-            f"/streamlit/apps/{app}",
-            headers=AUTH,
-            json={"pieces": [{"cell": 5, "code": TOTAL}, {"cell": 9, "code": "x = st.slider(\n"}]},
-        )
-    )
-    assert [p["cell"] for p in synced["pieces"]] == [5, 9]
-    assert synced["pieces"][1]["problem"].startswith("line 1")
-    for bad in ({"pieces": [{"cell": 4}]}, {"pieces": [{"cell": 0, "code": ""}]}, {"pieces": "x"}):
-        assert client.put(f"/streamlit/apps/{app}", headers=AUTH, json=bad).status_code == 400
-    assert client.get("/streamlit/apps/nope", headers=AUTH).status_code == 404
+    path = folder / name
+    path.write_text(notebooks.write_notebook(cells), encoding="utf-8")
+    return path
 
 
-def test_pieces_are_pushed_to_pages_moved_resized_and_taken_off(
-    served: tuple[TestClient, FakeRunner],
-) -> None:
-    client, _ = served
-    app = _open(client)["app"]
-    base = f"/streamlit/apps/{app}"
-    # Push to a new page: the page is made with the piece on it.
-    made = _ok(client.post(f"{base}/pages", headers=AUTH, json={"cell": 4}))
-    assert made["page"] == "p1" and made["pages"][0]["name"] == "Page 1"
-    assert made["pages"][0]["pieces"] == [{"id": "s1", "cell": 4, "w": 6, "h": None}]
-    pushed = _ok(client.post(f"{base}/pages/p1/pieces", headers=AUTH, json={"cell": 5, "w": 12}))
-    assert pushed["piece"] == "s2"
-    page = pushed["pages"][0]
-    assert [s["id"] for s in page["pieces"]] == ["s1", "s2"] and page["rows"] == [["s1"], ["s2"]]
-    assert page["order"] == ["s1", "s2"] and page["problems"] == [] and page["tables"] == ["orders"]
-    # Place the filter BELOW the total: it still runs first.
-    moved = _ok(client.patch(f"{base}/pages/p1/pieces/s1", headers=AUTH, json={"index": 1}))
-    page = moved["pages"][0]
-    assert [s["id"] for s in page["pieces"]] == ["s2", "s1"] and page["order"] == ["s1", "s2"]
-    # Resize: columns of 12, rows of 40 pixels; a row holds what fits.
-    sized = _ok(client.patch(f"{base}/pages/p1/pieces/s2", headers=AUTH, json={"w": 6, "h": 4}))
-    page = sized["pages"][0]
-    assert page["pieces"][0] == {"id": "s2", "cell": 5, "w": 6, "h": 4} and page["rows"] == [["s2", "s1"]]
-    assert _ok(client.patch(f"{base}/pages/p1/pieces/s2", headers=AUTH, json={"w": 99, "h": None}))["pages"][
-        0
-    ]["pieces"][0] == {"id": "s2", "cell": 5, "w": 12, "h": None}
-    # A second page; rename; a piece sent across; pages reordered; removed.
-    second = _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Details"}))
-    assert [p["id"] for p in second["pages"]] == ["p1", "p2"]
-    renamed = _ok(client.patch(f"{base}/pages/p1", headers=AUTH, json={"name": "Sales overview"}))
-    assert [p["name"] for p in renamed["pages"]] == ["Sales overview", "Details"]
-    sent = _ok(client.patch(f"{base}/pages/p1/pieces/s2", headers=AUTH, json={"page": "p2"}))
-    assert [[s["id"] for s in p["pieces"]] for p in sent["pages"]] == [["s1"], ["s2"]]
-    # The total alone on a page: the page says what it lacks.
-    assert "which is not on this page" in sent["pages"][1]["problems"][0]
-    first = _ok(client.patch(f"{base}/pages/p2", headers=AUTH, json={"index": 0}))
-    assert [p["id"] for p in first["pages"]] == ["p2", "p1"]
-    gone = _ok(client.delete(f"{base}/pages/p2/pieces/s2", headers=AUTH))
-    assert gone["pages"][0]["pieces"] == []
-    assert [p["id"] for p in _ok(client.delete(f"{base}/pages/p2", headers=AUTH))["pages"]] == ["p1"]
-    # What cannot be: a cell that is not a piece, a page or a piece that is not there, a bad name.
-    assert client.post(f"{base}/pages/p1/pieces", headers=AUTH, json={"cell": 77}).status_code == 400
-    assert client.post(f"{base}/pages/p9/pieces", headers=AUTH, json={"cell": 4}).status_code == 404
-    assert client.patch(f"{base}/pages/p1/pieces/s9", headers=AUTH, json={"w": 3}).status_code == 404
-    assert client.patch(f"{base}/pages/p1", headers=AUTH, json={"name": ""}).status_code == 400
-    # The audit log says who: the agent's pushes are the agent's.
-    client.post(f"{base}/pages", headers=AGENT, json={"name": "Agent's"})
-    log = client.app.state.ctx.ws.audit.tail(50)  # type: ignore[attr-defined]
-    assert any(e["actor"] == "agent" and e["action"] == "streamlit_add_page" for e in log)
-
-
-# ===== the table hand-over, and the out-of-date rule =====
+def _canvas(client: TestClient, **more: Any) -> dict[str, Any]:
+    body = {"canvas": True, "title": "sales", "window": "w1", "pages": []} | more
+    return _ok(client.post("/streamlit/apps", headers=AUTH, json=body))
 
 
 def _files(runner: FakeRunner) -> Path:
     return Path(runner.started[-1][1])
 
 
-def test_run_writes_the_pieces_the_pages_and_only_the_tables_they_name(
+# ===== a document's live cells: any Python cell that calls Streamlit =====
+
+
+def test_a_documents_python_cells_that_call_streamlit_are_its_live_cells(
     served: tuple[TestClient, FakeRunner],
 ) -> None:
     client, runner = served
-    app = _open(client, python="/a/notebook/python")["app"]
+    state = _open(client, document="/made/up/sales.ipynb", python="/a/notebook/python")
+    assert state["kind"] == "document" and state["running"] is False and "pages" not in state
+    # The import cell is plain Python: it is not live (and still runs in the kernel).
+    assert [
+        (p["cell"], p["name"], p["makes"], p["reads"], p["tables"], p["inputs"], p["state"])
+        for p in state["pieces"]
+    ] == [
+        (4, "Region filter", ["region"], [], ["orders"], [], "notRun"),
+        (5, "Total", [], ["region"], ["orders"], [4], "notRun"),
+    ]
+    app = state["app"]
+    ran = _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH))
+    python, folder, path = runner.started[0]
+    assert python == "/a/notebook/python" and path.startswith(f"/streamlit/live/{app}-")
+    root = Path(folder)
+    assert sorted(p.name for p in root.iterdir()) == [
+        "app.py",
+        "data",
+        "home.py",
+        "manifest.json",
+        "piece_4_1.py",
+        "piece_5_1.py",
+    ]
+    assert sorted(p.name for p in (root / "data").iterdir()) == ["orders.parquet"]
+    alone = (root / "piece_5_1.py").read_text()
+    assert "region comes from cell 4" in alone and "st.metric" in alone
+    assert [p["state"] for p in ran["pieces"]] == ["current", "current"] and ran["pieces"][0][
+        "preview"
+    ] == f"{path}/piece-4"
+    # Typed on: out of date until it runs. A cell that stops calling Streamlit is no longer live.
+    typed = [CELLS[0], CELLS[1], {"cell": 5, "code": TOTAL.replace("Total", "Sum")}]
+    state = _ok(client.put(f"/streamlit/apps/{app}", headers=AUTH, json={"cells": typed}))
+    assert [(p["cell"], p["state"], p["code_changed"]) for p in state["pieces"]] == [
+        (4, "current", False),
+        (5, "outOfDate", True),
+    ]
+    plain = [CELLS[0], CELLS[1], {"cell": 5, "code": "total = orders['amount'].sum()"}]
+    assert [
+        p["cell"]
+        for p in _ok(client.put(f"/streamlit/apps/{app}", headers=AUTH, json={"cells": plain}))["pieces"]
+    ] == [4]
+    # It has no pages: those are a Streamlit app's.
+    refused = client.post(f"/streamlit/apps/{app}/pages", headers=AUTH, json={})
+    assert refused.status_code == 400 and "Open a Streamlit app" in refused.text
+    for bad in ({"cells": [{"cell": 4}]}, {"cells": [{"cell": 4, "code": "a"}, {"cell": 4, "code": "b"}]}):
+        assert client.put(f"/streamlit/apps/{app}", headers=AUTH, json=bad).status_code == 400
+    assert client.get("/streamlit/apps/nope", headers=AUTH).status_code == 404
+
+
+def test_opening_a_notebook_marks_the_cells_that_call_streamlit(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, _ = served
+    path = _notebook(tmp_path)
+    opened = _ok(client.post("/workbench/open", headers=AUTH, json={"path": str(path)}))
+    assert [(c["number"], c["kind"], c.get("live", False)) for c in opened["cells"]] == [
+        (1, "code", False),
+        (2, "markdown", False),
+        (3, "code", True),
+        (4, "code", True),
+        (5, "code", False),
+    ]
+    assert "pages" not in opened
+
+
+# ===== the canvas: blocks are links to cells =====
+
+
+def test_a_canvas_holds_links_to_cells_and_reads_them_as_they_are_now(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, _ = served
+    path = str(_notebook(tmp_path))
+    app = _canvas(client)["app"]
     base = f"/streamlit/apps/{app}"
-    _ok(client.post(f"{base}/pages", headers=AUTH, json={"cell": 5, "w": 12}))
-    _ok(client.post(f"{base}/pages/p1/pieces", headers=AUTH, json={"cell": 4, "w": 4}))
+    page = _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Sales overview"}))["page"]
+    placed = _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 4}))
+    assert placed["block"] == "b1"
+    state = _ok(
+        client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 3, "w": 4})
+    )
+    blocks = state["pages"][0]["blocks"]
+    # The second goes beside the first (the row has room); each says its cell's title, where it is,
+    # and what it makes and reads. From the file: the notebook is not open anywhere.
+    assert [(b["id"], b["row"], b["column"], b["w"], b["name"], b["where"]) for b in blocks] == [
+        ("b1", 1, 1, 6, "Total", "sales.ipynb @cell4"),
+        ("b2", 1, 7, 4, "Region filter", "sales.ipynb @cell3"),
+    ]
+    assert (
+        blocks[0]["reads"] == ["region"]
+        and blocks[0]["tables"] == ["orders"]
+        and blocks[1]["makes"] == ["region"]
+    )
+    assert state["pages"][0]["order"] == ["b2", "b1"] and state["pages"][0]["problems"] == []
+    assert blocks[0]["document"] == path and blocks[0]["missing"] is None and blocks[0]["state"] == "notRun"
+    # Any Python cell can be placed, one that never calls Streamlit too. Not Markdown; not a missing cell.
+    _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 5}))
+    for cell in (2, 99):
+        refused = client.post(
+            f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": cell}
+        )
+        assert refused.status_code == 400 and f"sales.ipynb has no Python cell {cell}" in refused.text
+    missing = client.post(
+        f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": str(tmp_path / "no.ipynb"), "cell": 1}
+    )
+    assert missing.status_code == 404
+    # Move: to a row of its own between the two rows; resize; the grid settles.
+    moved = _ok(
+        client.patch(
+            f"{base}/pages/{page}/blocks/b2",
+            headers=AUTH,
+            json={"row": 1, "column": 3, "insert": True, "w": 8, "h": 5},
+        )
+    )
+    assert [(b["id"], b["row"], b["column"], b["w"], b["h"]) for b in moved["pages"][0]["blocks"]] == [
+        ("b2", 1, 3, 8, 5),
+        ("b1", 2, 1, 6, None),
+        ("b3", 3, 1, 6, None),
+    ]
+    assert moved["pages"][0]["rows"] == [["b2"], ["b1"], ["b3"]]
+    # Onto a neighbour's columns: the neighbour goes below.
+    over = _ok(client.patch(f"{base}/pages/{page}/blocks/b3", headers=AUTH, json={"row": 2, "column": 4}))
+    assert over["pages"][0]["rows"] == [["b2"], ["b3"], ["b1"]]
+    # Pages: add, rename, move a block to another, remove.
+    second = _ok(client.post(f"{base}/pages", headers=AUTH, json={}))
+    assert [p["name"] for p in second["pages"]] == ["Sales overview", "Page 2"]
+    _ok(client.patch(f"{base}/pages/p2", headers=AUTH, json={"name": "Details", "index": 0}))
+    sent = _ok(client.patch(f"{base}/pages/{page}/blocks/b3", headers=AUTH, json={"page": "p2"}))
+    assert [(p["name"], [b["id"] for b in p["blocks"]]) for p in sent["pages"]] == [
+        ("Details", ["b3"]),
+        ("Sales overview", ["b2", "b1"]),
+    ]
+    _ok(client.delete(f"{base}/pages/p2/blocks/b3", headers=AUTH))
+    gone = _ok(client.delete(f"{base}/pages/p2", headers=AUTH))
+    assert [p["id"] for p in gone["pages"]] == ["p1"]
+    assert client.delete(f"{base}/pages/p1/blocks/nope", headers=AUTH).status_code == 404
+    listed = client.get("/streamlit/apps", headers=AUTH).json()["apps"]
+    assert listed == [
+        {
+            "app": app,
+            "kind": "canvas",
+            "title": "sales",
+            "document": None,
+            "running": False,
+            "pages": [{"id": "p1", "name": "Sales overview", "blocks": 2}],
+        }
+    ]
+
+
+def test_play_runs_the_linked_cells_current_code_and_says_when_a_page_is_out_of_date(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, runner = served
+    path = str(_notebook(tmp_path))
+    app = _canvas(client)["app"]
+    base = f"/streamlit/apps/{app}"
+    _ok(client.post(f"{base}/pages", headers=AUTH, json={"document": path, "cell": 4, "w": 12}))
+    _ok(client.post(f"{base}/pages/p1/blocks", headers=AUTH, json={"document": path, "cell": 3, "w": 4}))
     ran = _ok(client.post(f"{base}/run", headers=AUTH))
     assert ran["running"] is True and ran["problem"] is None and ran["notes"] == []
-    # One process, in the notebook's own Python, under the app's own secret path.
-    python, folder, path = runner.started[0]
-    assert python == "/a/notebook/python" and len(runner.started) == 1
-    assert path == ran["path"].rstrip("/") and path.startswith(f"/streamlit/live/{app}-")
-    assert ran["address"] == f"http://127.0.0.1:{PORT}{path}/"
-    root = Path(folder)
-    assert (
-        root.name.startswith("swissarmygrid-streamlit-")
-        and root.parent == Path(os.path.realpath(root)).parent
-    )
-    names = sorted(p.name for p in root.iterdir())
-    assert names == [
+    root = _files(runner)
+    assert sorted(p.name for p in root.iterdir()) == [
         "app.py",
         "data",
         "home.py",
         "manifest.json",
         "page_p1_1.py",
-        "piece_4_1.py",
-        "piece_5_1.py",
     ]
-    manifest = json.loads((root / "manifest.json").read_text())
-    assert [(p["kind"], p["path"], p["default"]) for p in manifest["pages"]] == [
-        ("home", "home", True),
-        ("piece", "piece-4", False),
-        ("piece", "piece-5", False),
-        ("page", "page-p1", False),
-    ]
-    # Only the table the code names is handed over, as Parquet, as the grid has it.
-    assert sorted(p.name for p in (root / "data").iterdir()) == ["orders.parquet"]
     assert pq.read_table(root / "data" / "orders.parquet").to_pydict() == ORDERS.to_pydict()
-    page = (root / "page_p1_1.py").read_text()
-    ast.parse(page)
-    assert 'orders = _table("orders"' in page and "customers" not in page
-    assert page.index("with _slot_s2:") < page.index("with _slot_s1:")  # the filter runs first
-    # The total alone, in its cell: the filter comes with it.
-    alone = (root / "piece_5_1.py").read_text()
-    assert "region comes from the piece in cell 4" in alone and "st.metric" in alone
-    assert [p["state"] for p in ran["pieces"]] == ["current", "current"]
-    assert (
-        ran["pieces"][0]["preview"] == f"{path}/piece-4" and ran["pages"][0]["address"] == f"{path}/page-p1"
-    )
-
-
-def test_a_changed_table_or_changed_code_makes_a_piece_out_of_date_until_it_runs(
-    served: tuple[TestClient, FakeRunner],
-) -> None:
-    client, runner = served
-    app = _open(client, pieces=[*PIECES, {"cell": 6, "code": "st.dataframe(customers)"}])["app"]
-    base = f"/streamlit/apps/{app}"
-    _ok(client.post(f"{base}/pages", headers=AUTH, json={"cell": 5}))
-    _ok(client.post(f"{base}/run", headers=AUTH))
-    root = _files(runner)
-    written = (root / "data" / "customers.parquet").stat().st_mtime_ns
-    # A new grid step on orders: the pieces that name orders go out of date; the customers one does not.
-    orders_grid = next(
-        g["grid"] for g in client.get("/grids", headers=AUTH).json()["grids"] if g["dataset"] == "orders"
-    )
-    step = {"kind": "filter", "params": {"column": "region", "op": "ne", "value": "North"}}
-    assert client.post(f"/grids/{orders_grid}/steps", headers=AUTH, json={"steps": [step]}).status_code == 200
-    state = client.get(base, headers=AUTH).json()
-    assert [(p["cell"], p["state"], p["changed"]) for p in state["pieces"]] == [
-        (4, "outOfDate", ["orders"]),
-        (5, "outOfDate", ["orders"]),
-        (6, "current", []),
+    code = (root / "page_p1_1.py").read_text()
+    ast.parse(code)
+    assert code.index("with _slot_b2:") < code.index("with _slot_b1:") and '"Total"' in code
+    page = ran["pages"][0]
+    assert page["out_of_date"] is False and page["address"] == f"{ran['path']}page-p1"
+    assert [b["state"] for b in page["blocks"]] == ["current", "current"]
+    # The notebook is opened in a Workbench window and a linked cell typed on, not saved: the canvas
+    # reads the open document, and its page is out of date. Nothing runs by itself.
+    typed = [
+        {"cell": 1, "code": "import pandas as pd"},
+        {"cell": 3, "code": FILTER},
+        {"cell": 4, "code": TOTAL.replace('"Total"', '"Sum"')},
+        {"cell": 5, "code": "threshold = 50"},
     ]
-    assert state["pages"][0]["out_of_date"] is True
-    # Nothing ran by itself: the file still holds the table as it was.
-    assert pq.read_table(root / "data" / "orders.parquet").num_rows == 6
-    # Run: the data is the table after its steps, and every piece is current again.
-    time.sleep(0.02)
+    doc = _open(client, document=path, cells=typed, unsaved=True)["app"]
+    state = _ok(client.get(base, headers=AUTH))
+    assert state["pages"][0]["out_of_date"] is True and state["unsaved"] == ["sales.ipynb"]
+    assert [(b["id"], b["state"]) for b in state["pages"][0]["blocks"]] == [
+        ("b1", "outOfDate"),
+        ("b2", "current"),
+    ]
+    assert '"Total"' in next(root.glob("page_p1_*.py")).read_text()
+    again = _ok(client.post(f"{base}/run", headers=AUTH))
+    assert again["pages"][0]["out_of_date"] is False and len(runner.started) == 1  # the same process
+    assert '"Sum"' in (root / "page_p1_2.py").read_text()
+    # A table a block names changes in the grid: out of date again.
+    grid = client.get("/grids", headers=AUTH).json()["grids"][0]["grid"]
+    step = {"kind": "limit", "params": {"n": 2}}
+    assert client.post(f"/grids/{grid}/steps", headers=AUTH, json={"steps": [step]}).status_code == 200
+    stale = _ok(client.get(base, headers=AUTH))["pages"][0]
+    assert stale["out_of_date"] is True and stale["blocks"][0]["changed"] == ["orders"]
+    _ok(client.post(f"{base}/run", headers=AUTH))
+    assert pq.read_table(root / "data" / "orders.parquet").num_rows == 2
+    # The layout changed while the page shows: out of date until Play.
+    laid = _ok(client.patch(f"{base}/pages/p1/blocks/b2", headers=AUTH, json={"w": 6}))
+    assert laid["pages"][0]["out_of_date"] is True and "page_p1_4.py" not in [p.name for p in root.iterdir()]
+    _ok(client.post(f"{base}/run", headers=AUTH))
+    # The cell is deleted in the open notebook: the block says so, with the path and the number.
+    less = [c for c in typed if c["cell"] != 4]
+    _ok(client.put(f"/streamlit/apps/{doc}", headers=AUTH, json={"cells": less}))
+    lost = _ok(client.get(base, headers=AUTH))["pages"][0]
+    assert lost["blocks"][0]["state"] == "missing" and lost["out_of_date"] is True
+    assert lost["blocks"][0]["missing"] == f"sales.ipynb has no Python cell 4 now ({path})."
+    assert lost["blocks"][0]["missing"] in lost["problems"][0]
+    # The notebook closes and its file goes: every block of it says the file is missing.
+    assert client.delete(f"/streamlit/apps/{doc}", headers=AUTH).status_code == 200
+    Path(path).unlink()
+    nowhere = _ok(client.get(base, headers=AUTH))["pages"][0]["blocks"]
+    assert all(
+        b["state"] == "missing" and f"{path} is missing: this block links to its cell" in b["missing"]
+        for b in nowhere
+    )
     ran = _ok(client.post(f"{base}/run", headers=AUTH))
-    assert {p["state"] for p in ran["pieces"]} == {"current"} and ran["generation"] == 2
-    held = pq.read_table(root / "data" / "orders.parquet").to_pydict()
-    assert held["region"] == ["East", "West", "East", "West", "East"] and len(runner.started) == 1
-    # A table that did not change is not written again; the earlier pages are kept one run, then go.
-    assert (root / "data" / "customers.parquet").stat().st_mtime_ns == written
-    assert {"page_p1_1.py", "page_p1_2.py"} <= {p.name for p in root.iterdir()}
-    _ok(client.post(f"{base}/run", headers=AUTH))
-    assert "page_p1_1.py" not in {p.name for p in root.iterdir()}
-    # A sort made by clicking a header is a way of looking: it changes nothing.
-    sort = {"kind": "sort", "params": {"keys": [["amount", "desc"]], "header": True}}
-    client.post(f"/grids/{orders_grid}/steps", headers=AUTH, json={"steps": [step, sort]})
-    assert {p["state"] for p in client.get(base, headers=AUTH).json()["pieces"]} == {"current"}
-    # The table pushed again (its maker ran): out of date.
-    assert push(client, "orders", ORDERS.slice(0, 3)).status_code == 200
-    assert client.get(base, headers=AUTH).json()["pieces"][0]["state"] == "outOfDate"
-    _ok(client.post(f"{base}/run", headers=AUTH))
-
-    # Changed code: only that piece; the uses line never counts; undoing the edit clears it.
-    def sync(code: str) -> list[tuple[str, bool]]:
-        body = {
-            "pieces": [{"cell": 4, "code": code}, PIECES[1], {"cell": 6, "code": "st.dataframe(customers)"}]
-        }
-        got = _ok(client.put(base, headers=AUTH, json=body))
-        return [(p["state"], p["code_changed"]) for p in got["pieces"]]
-
-    assert sync(FILTER + "\nst.write(region)") == [
-        ("outOfDate", True),
-        ("current", False),
-        ("current", False),
-    ]
-    assert sync("# uses orders @cell3\n" + FILTER)[0] == ("current", False)
-    assert sync(FILTER)[0] == ("current", False)
-    # A change in the designer while the app runs is shown at once (it is a run).
-    before = client.get(base, headers=AUTH).json()["generation"]
-    moved = _ok(client.post(f"{base}/pages/p1/pieces", headers=AUTH, json={"cell": 4}))
-    assert moved["generation"] == before + 1
+    assert ran["pages"][0]["out_of_date"] is False  # it ran as it is: the page says what is missing
+    assert "is missing" in next(root.glob(f"page_p1_{ran['generation']}.py")).read_text()
+    # Stopped: the folder goes; the pages stay.
+    stopped = _ok(client.post(f"{base}/stop", headers=AUTH))
+    assert stopped["running"] is False and not root.exists() and len(stopped["pages"]) == 1
 
 
-def test_stopping_removes_the_temporary_folder_and_the_kernel_or_window_going_stops_the_app(
-    served: tuple[TestClient, FakeRunner],
+def test_the_canvas_runs_in_its_first_linked_files_own_python_and_stops_with_its_window(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
 ) -> None:
     client, runner = served
     apps = client.app.state.ctx.streamlit  # type: ignore[attr-defined]
-    app = _open(client, kernel="k1")["app"]
+    path = str(_notebook(tmp_path))
+    _open(client, document=path, python="/the/notebook/python", cells=[{"cell": 3, "code": FILTER}])
+    app = _canvas(client)["app"]
     base = f"/streamlit/apps/{app}"
-    _ok(client.post(f"{base}/pages", headers=AUTH, json={"cell": 4}))
+    _ok(client.post(f"{base}/pages", headers=AUTH, json={"document": path, "cell": 3}))
+    ran = _ok(client.post(f"{base}/run", headers=AUTH))
+    assert ran["python"] == "/the/notebook/python" and runner.started[0][0] == "/the/notebook/python"
+    runner.missing = ["streamlit"]
+    _ok(client.post(f"{base}/stop", headers=AUTH))
+    missing = _ok(client.post(f"{base}/run", headers=AUTH))
+    assert missing["problem"]["kind"] == "missing" and missing["problem"]["python"] == "/the/notebook/python"
+    done = _ok(client.post(f"{base}/install", headers=AUTH))
+    assert done["ok"] is True and runner.installed == [("/the/notebook/python", ["streamlit"])]
     _ok(client.post(f"{base}/run", headers=AUTH))
     folder = _files(runner)
-    assert folder.is_dir() and apps.port_of(runner.started[0][2].rsplit("/", 1)[-1]) == 1
-    stopped = _ok(client.post(f"{base}/stop", headers=AUTH))
-    assert stopped["running"] is False and not folder.exists() and runner.processes[0].up is False
-    assert [p["state"] for p in stopped["pieces"]] == ["notRun", "notRun"]
-    assert len(stopped["pages"]) == 1  # the pages stay: they are the notebook's
-    # Another Python chosen for the notebook: the next run starts there.
-    _ok(client.post(f"{base}/run", headers=AUTH, json={"python": "/first/python"}))
-    _ok(client.post(f"{base}/run", headers=AUTH, json={"python": "/second/python"}))
-    assert [s[0] for s in runner.started] == ["/made/up/python", "/first/python", "/second/python"]
-    assert [p.up for p in runner.processes] == [False, False, True]
-    # Its kernel stops: so does the process, and its folder goes.
+    # Its window gone a minute: the apps go. One the agent opened (no window) stays.
+    agents = client.post("/streamlit/apps", headers=AGENT, json={"canvas": True, "pages": []}).json()["app"]
+    clock = [1000.0]
+    apps._now = lambda: clock[0]
+    assert client.portal.call(apps.stop_orphans, {"w1"}) == []  # type: ignore[union-attr]
+    assert client.portal.call(apps.stop_orphans, set()) == []  # type: ignore[union-attr]
+    clock[0] += 61
+    assert len(client.portal.call(apps.stop_orphans, set())) == 2  # type: ignore[union-attr]
+    assert not folder.exists() and runner.processes[-1].up is False
+    assert [a["app"] for a in client.get("/streamlit/apps", headers=AUTH).json()["apps"]] == [agents]
+
+
+def test_a_document_app_stops_with_its_kernel(served: tuple[TestClient, FakeRunner]) -> None:
+    client, runner = served
+    apps = client.app.state.ctx.streamlit  # type: ignore[attr-defined]
+    app = _open(client, kernel="k1")["app"]
+    _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH))
     folder = _files(runner)
+    assert apps.port_of(runner.started[0][2].rsplit("/", 1)[-1]) == 1
     client.portal.call(apps.kernel_stopped, "another")  # type: ignore[union-attr]
     assert runner.processes[-1].up is True
     client.portal.call(apps.kernel_stopped, "k1")  # type: ignore[union-attr]
     assert runner.processes[-1].up is False and not folder.exists()
-    # Its window gone a minute: the app goes. One the agent opened (no window) stays.
-    agents = client.post(
-        "/streamlit/apps", headers=AGENT, json={"title": "agent's", "pieces": PIECES}
-    ).json()["app"]
-    clock = [1000.0]
-    apps._now = lambda: clock[0]
-    assert client.portal.call(apps.stop_orphans, {"w1"}) == []
-    assert client.portal.call(apps.stop_orphans, set()) == []
-    clock[0] += 61
-    assert client.portal.call(apps.stop_orphans, set()) == [app]
-    assert [a["app"] for a in client.get("/streamlit/apps", headers=AUTH).json()["apps"]] == [agents]
-    # The document closed.
-    assert client.delete(f"/streamlit/apps/{agents}", headers=AUTH).status_code == 200
-    assert client.get("/streamlit/apps", headers=AUTH).json()["apps"] == []
-
-
-def test_a_python_without_streamlit_is_said_and_install_goes_into_that_python(
-    served: tuple[TestClient, FakeRunner],
-) -> None:
-    client, runner = served
-    runner.missing = ["streamlit", "pyarrow"]
-    app = _open(client, python="/a/notebook/python")["app"]
-    ran = _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH))
-    assert ran["running"] is False and runner.started == []
-    assert ran["problem"] == {
-        "kind": "missing",
-        "packages": ["streamlit", "pyarrow"],
-        "python": "/a/notebook/python",
-        "command": "uv pip install --python /a/notebook/python streamlit pyarrow",
-    }
-    done = _ok(client.post(f"/streamlit/apps/{app}/install", headers=AUTH))
-    assert done["ok"] is True and runner.installed == [("/a/notebook/python", ["streamlit", "pyarrow"])]
-    assert _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH))["running"] is True
+    # Another Python chosen for the notebook: the next run starts there.
+    _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH, json={"python": "/first/python"}))
+    _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH, json={"python": "/second/python"}))
+    assert [s[0] for s in runner.started] == ["/made/up/python", "/first/python", "/second/python"]
 
 
 def test_this_apps_own_python_has_no_streamlit(tmp_path: Path) -> None:
@@ -411,148 +454,408 @@ def test_this_apps_own_python_has_no_streamlit(tmp_path: Path) -> None:
     assert "streamlit" not in project.lower()
 
 
-# ===== export =====
+# ===== the app's file: saved by the Workbench, opened again =====
+
+
+def test_the_apps_file_saves_links_relative_to_itself_and_opens_again(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, _ = served
+    (tmp_path / "nb").mkdir()
+    path = str(_notebook(tmp_path / "nb"))
+    app = _canvas(client)["app"]
+    base = f"/streamlit/apps/{app}"
+    _ok(
+        client.post(
+            f"{base}/pages", headers=AUTH, json={"name": "Sales", "document": path, "cell": 4, "w": 12}
+        )
+    )
+    state = _ok(
+        client.post(
+            f"{base}/pages/p1/blocks", headers=AUTH, json={"document": path, "cell": 3, "w": 4, "h": 3}
+        )
+    )
+    target = tmp_path / "apps"
+    target.mkdir()
+    saved = _ok(
+        client.post(
+            "/workbench/save",
+            headers=AUTH,
+            json={"path": str(target / "sales.stapp.json"), "pages": state["pages"]},
+        )
+    )
+    text = Path(saved["path"]).read_text()
+    assert json.loads(text) == {
+        "swissarmygrid": "streamlit-app",
+        "version": 1,
+        "pages": [
+            {
+                "name": "Sales",
+                "blocks": [
+                    {
+                        "document": "../nb/sales.ipynb",
+                        "cell": 4,
+                        "row": 1,
+                        "column": 1,
+                        "width": 12,
+                        "height": None,
+                    },
+                    {
+                        "document": "../nb/sales.ipynb",
+                        "cell": 3,
+                        "row": 2,
+                        "column": 1,
+                        "width": 4,
+                        "height": 3,
+                    },
+                ],
+            }
+        ],
+    }
+    assert "st.metric" not in text and len(text.splitlines()) == 13  # no code; one block a line
+    opened = _ok(client.post("/workbench/open", headers=AUTH, json={"path": saved["path"]}))
+    assert opened["kind"] == "app" and [b["document"] for b in opened["pages"][0]["blocks"]] == [path, path]
+    assert saved["path"] in [r["path"] for r in client.get("/workbench/home", headers=AUTH).json()["recent"]]
+    # The agent opens it from its file, without a window.
+    again = _ok(client.post("/streamlit/apps", headers=AGENT, json={"path": saved["path"]}))
+    assert again["kind"] == "canvas" and again["title"] == "sales" and again["document"] == saved["path"]
+    assert [(b["name"], b["w"], b["h"]) for b in again["pages"][0]["blocks"]] == [
+        ("Total", 12, None),
+        ("Region filter", 4, 3),
+    ]
+    # Not an app's file.
+    bad = tmp_path / "bad.stapp.json"
+    bad.write_text("{}")
+    assert client.post("/workbench/open", headers=AUTH, json={"path": str(bad)}).status_code == 400
+    # A notebook is saved without pages, whatever the page sends.
+    cells = [{"kind": "streamlit", "source": FILTER, "height": 300}]
+    kept = _ok(
+        client.post(
+            "/workbench/save",
+            headers=AUTH,
+            json={"path": str(tmp_path / "old.ipynb"), "cells": cells, "pages": state["pages"]},
+        )
+    )
+    raw = json.loads(Path(kept["path"]).read_text())
+    assert raw["metadata"]["swissarmygrid"] == {"next_cell": 2}
+    assert raw["cells"][0]["metadata"]["swissarmygrid"] == {"height": 300, "number": 1}
+
+
+# ===== export: a folder that runs alone =====
 
 
 def test_export_writes_a_folder_that_needs_nothing_of_this_app(
     served: tuple[TestClient, FakeRunner], tmp_path: Path
 ) -> None:
     client, _ = served
-    app = _open(client)["app"]
+    path = str(_notebook(tmp_path))
+    app = _canvas(client)["app"]
     base = f"/streamlit/apps/{app}"
-    target = tmp_path / "exported" / "sales app"
     assert (
-        client.post(f"{base}/export", headers=AUTH, json={"folder": str(target)}).status_code == 400
-    )  # no page
-    _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Sales overview", "cell": 5, "w": 12}))
-    _ok(client.post(f"{base}/pages/p1/pieces", headers=AUTH, json={"cell": 4, "w": 4}))
-    _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Filter only", "cell": 4}))
-    orders_grid = next(
-        g["grid"] for g in client.get("/grids", headers=AUTH).json()["grids"] if g["dataset"] == "orders"
+        client.post(f"{base}/export", headers=AUTH, json={"folder": str(tmp_path / "out")}).status_code == 400
     )
-    step = {"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 20}}
-    client.post(f"/grids/{orders_grid}/steps", headers=AUTH, json={"steps": [step]})
-    assert (
-        client.post(f"{base}/export", headers=AUTH, json={"folder": str(target)}).status_code == 404
-    )  # no parent
-    target.parent.mkdir()
-    (target.parent / "a file").write_text("x")
-    assert (
+    _ok(
         client.post(
-            f"{base}/export", headers=AUTH, json={"folder": str(target.parent / "a file")}
-        ).status_code
-        == 404
+            f"{base}/pages",
+            headers=AUTH,
+            json={"name": "Sales overview", "document": path, "cell": 4, "w": 12},
+        )
     )
-    done = _ok(client.post(f"{base}/export", headers=AUTH, json={"folder": str(target)}))
-    assert done["folder"] == str(target) and done["problems"] == [] and done["tables"] == ["orders"]
+    _ok(client.post(f"{base}/pages/p1/blocks", headers=AUTH, json={"document": path, "cell": 3}))
+    done = _ok(client.post(f"{base}/export", headers=AUTH, json={"folder": str(tmp_path / "out")}))
+    out = tmp_path / "out"
+    assert done["folder"] == str(out) and done["problems"] == [] and done["tables"] == ["orders"]
     assert done["files"] == [
         "README.txt",
         "app.py",
-        "app_pages/filter_only.py",
         "app_pages/sales_overview.py",
         "data/orders.parquet",
         "requirements.txt",
     ]
-    assert sorted(str(p.relative_to(target)) for p in target.rglob("*") if p.is_file()) == done["files"]
-    # The data is each table after its steps; the code names nothing of this app.
-    assert pq.read_table(target / "data" / "orders.parquet").to_pydict()["amount"] == [100, 250, 40, 75]
-    assert (target / "requirements.txt").read_text() == "streamlit>=1.36\npandas\npyarrow\n"
-    for file in target.rglob("*.py"):
-        text = file.read_text()
-        ast.parse(text)
-        assert "import swissarmygrid" not in text and "sag." not in text
-    assert "streamlit run app.py" in (target / "README.txt").read_text()
-    # Exported again into the same folder: its files are replaced, nothing else is touched.
-    (target / "notes.txt").write_text("mine")
-    _ok(client.post(f"{base}/export", headers=AUTH, json={"folder": str(target)}))
-    assert (target / "notes.txt").read_text() == "mine"
-
-
-# ===== an app opened from its file (the agent, without the Workbench window) =====
-
-
-def test_the_agent_opens_a_saved_notebooks_app_and_works_its_pages(live: Live, tmp_path: Path) -> None:  # noqa: F811
-    cells = [
-        {"kind": "code", "source": "x = 1"},
-        {"kind": "streamlit", "source": FILTER},
-        {"kind": "streamlit", "source": TOTAL},
-    ]
-    path = str(tmp_path / "sales.ipynb")
-    command(
-        "workbench_save",
-        path=path,
-        cells=cells,
-        pages=[{"name": "Sales overview", "pieces": [{"cell": 3, "w": 12}]}],
-    )
-    opened = data_of(execute("workbench_open", {"path": path}))
-    assert [c["kind"] for c in opened["cells"]] == ["code", "streamlit", "streamlit"]
-    assert opened["pages"][0]["name"] == "Sales overview"
-    app = command("streamlit_open", path=path)
-    assert app["title"] == "sales.ipynb" and [p["cell"] for p in app["pieces"]] == [2, 3]
-    assert [p["id"] for p in app["pages"]] == ["p1"]
-    assert command("streamlit_apps")["apps"][0]["app"] == app["app"]
-    pushed = command("streamlit_piece_push", app=app["app"], page="p1", cell=2, w=4)
-    assert pushed["piece"] == "s2"
-    placed = command("streamlit_piece_place", app=app["app"], page="p1", piece="s2", index=0, w=5, h=3)
-    assert placed["pages"][0]["pieces"][0] == {"id": "s2", "cell": 2, "w": 5, "h": 3}
+    assert pq.read_table(out / "data" / "orders.parquet").to_pydict() == ORDERS.to_pydict()
+    ast.parse((out / "app_pages" / "sales_overview.py").read_text())
+    assert client.post(f"{base}/export", headers=AUTH, json={}).status_code == 400
     assert (
-        command("streamlit_piece_place", app=app["app"], page="p1", piece="s2", h=0)["pages"][0]["pieces"][0][
-            "h"
+        client.post(
+            f"{base}/export", headers=AUTH, json={"folder": str(tmp_path / "no" / "where")}
+        ).status_code
+        == 404
+    )
+
+
+# ===== projects: data.ipynb -> data.py, the canvas -> pages/*.py; Save as =====
+
+
+def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp_path: Path) -> None:
+    csv = tmp_path / "orders.csv"
+    csv.write_text("order_id,region,amount\n1,East,100\n2,West,250\n3,East,40\n4,North,75\n")
+    with make_client(tmp_path / "state") as client:
+        client.app.state.ctx.streamlit._runner = FakeRunner()  # type: ignore[attr-defined]
+        opened = client.post("/datasets/orders/load", headers=AUTH, json={"path": str(csv)})
+        assert opened.status_code == 200, opened.text
+        grid = opened.json()["grid"]
+        step = {"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 50}}
+        assert client.post(f"/grids/{grid}/steps", headers=AUTH, json={"steps": [step]}).status_code == 200
+        pasted = client.post(
+            "/datasets/customers/paste", headers=AUTH, content="name\tregion\nAcme\tEast\nGlobex\tWest\n"
+        )
+        assert pasted.status_code == 200, pasted.text
+        made = _ok(
+            client.post(
+                "/projects",
+                headers=AUTH,
+                json={"folder": str(tmp_path), "name": "sales", "notebooks": ["analysis", "mockups"]},
+            )
+        )
+        folder = tmp_path / "sales"
+        assert made["folder"] == str(folder) and made["name"] == "sales"
+        # The Workbench opens data.ipynb first, then the canvas, then the notebooks; data.py is an export.
+        assert [Path(p).name for p in made["files"]] == [
+            "data.ipynb",
+            "sales.stapp.json",
+            "analysis.ipynb",
+            "mockups.ipynb",
         ]
-        is None
-    )
-    added = command("streamlit_page_add", app=app["app"], name="Second")
-    assert added["page"] == "p2"
+        assert sorted(p.name for p in folder.iterdir()) == [
+            "analysis.ipynb",
+            "data.ipynb",
+            "data.py",
+            "mockups.ipynb",
+            "requirements.txt",
+            "sales.stapp.json",
+        ]
+        # data.ipynb: each open table's read-only cell. data.py: its export.
+        cells, _ = notebooks.read_document((folder / "data.ipynb").read_text())
+        assert [c.table for c in cells if c.role == "transformations"] == ["customers", "orders"]
+        data = (folder / "data.py").read_text()
+        ast.parse(data)
+        assert f"orders = duckdb.read_csv({str(csv)!r}).df()" in data and '"amount" > 50' in data
+        assert (
+            "Acme" not in data and "# ===== FILL IN: customers =====" in data
+        )  # no rows: a pasted table is a stub
+        first, _ = notebooks.read_document((folder / "analysis.ipynb").read_text())
+        assert first[0].source == "from data import customers, orders"
+        assert (folder / "requirements.txt").read_text() == "streamlit>=1.36\npandas\nduckdb\n"
+        # Made twice: refused, nothing written over.
+        assert (
+            client.post(
+                "/projects", headers=AUTH, json={"folder": str(tmp_path), "name": "sales"}
+            ).status_code
+            == 409
+        )
+        assert (
+            client.post("/projects", headers=AUTH, json={"folder": str(tmp_path), "name": "a/b"}).status_code
+            == 400
+        )
+        again = _ok(client.post("/projects/open", headers=AUTH, json={"folder": str(folder)}))
+        assert again["files"] == made["files"]
+        assert client.post("/projects/open", headers=AUTH, json={"folder": str(tmp_path)}).status_code == 404
+        # The user works in data.ipynb: a code cell that shapes a variable. Open in a window, not
+        # saved: Export data.py takes it as it is.
+        every = [
+            {"kind": c.kind, "source": c.source, "role": c.role, "table": c.table, "number": c.number}
+            for c in cells
+        ]
+        every.append(
+            {
+                "kind": "code",
+                "source": "big = orders[orders['amount'] > 200]",
+                "role": "",
+                "table": None,
+                "number": 50,
+            }
+        )
+        _open(
+            client,
+            title="data.ipynb",
+            document=str(folder / "data.ipynb"),
+            cells=[{"cell": 50, "code": every[-1]["source"]}],
+            every=every,
+            unsaved=True,
+        )
+        exported = _ok(client.post("/projects/export-data", headers=AUTH, json={"folder": str(folder)}))
+        assert exported["names"] == ["customers", "orders", "big"] and exported["fill_in"] == ["customers"]
+        assert "big = orders[orders['amount'] > 200]" in (folder / "data.py").read_text()
+        # A mock-up notebook's cells on the app's canvas; Save as.
+        notebook = _notebook(
+            folder,
+            "mockups.ipynb",
+            '# Total\nst.metric("Total", int(orders[orders["region"] == region]["amount"].sum()) + len(big))',
+        )
+        app = _ok(
+            client.post("/streamlit/apps", headers=AUTH, json={"path": str(folder / "sales.stapp.json")})
+        )["app"]
+        base = f"/streamlit/apps/{app}"
+        _ok(
+            client.post(
+                f"{base}/pages",
+                headers=AUTH,
+                json={"name": "Overview", "document": str(notebook), "cell": 4, "w": 12},
+            )
+        )
+        state = _ok(
+            client.post(f"{base}/pages/p1/blocks", headers=AUTH, json={"document": str(notebook), "cell": 3})
+        )
+        outside = _notebook(tmp_path, "elsewhere.ipynb")
+        state = _ok(
+            client.post(
+                f"{base}/pages", headers=AUTH, json={"name": "Filter", "document": str(outside), "cell": 3}
+            )
+        )
+        _ok(
+            client.post(
+                "/workbench/save",
+                headers=AUTH,
+                json={"path": str(folder / "sales.stapp.json"), "pages": state["pages"], "force": True},
+            )
+        )
+        # Play writes data.py again and gives the page the names it reads from it.
+        ran = _ok(client.post(f"{base}/run", headers=AUTH))
+        live = Path(ran["folder"])
+        page = next(live.glob("page_p1_*.py")).read_text()
+        assert (
+            "from data import big" in page
+            and 'orders = _table("orders"' in page
+            and (live / "data.py").is_file()
+        )
+        done = _ok(client.post(f"{base}/save-as", headers=AUTH, json={"path": str(tmp_path / "sales-app")}))
+        assert done["path"] == str(tmp_path / "sales-app.zip") and done["project"] == str(folder)
+        assert done["files"] == [
+            "README.txt",
+            "data.ipynb",
+            "data.py",
+            "elsewhere.ipynb",
+            "mockups.ipynb",
+            "pages/filter.py",
+            "pages/overview.py",
+            "requirements.txt",
+            "sales.stapp.json",
+        ]
+        assert done["data"] == ["orders", "big"] and done["fill_in"] == ["customers"]
+        assert any("data.ipynb has changes that are not saved" in p for p in done["problems"])
+        assert any("data.py cannot read customers again" in p for p in done["problems"])
+        # The project's own exports were written again.
+        overview = (folder / "pages" / "overview.py").read_text()
+        ast.parse(overview)
+        assert overview.startswith(
+            "# Overview\nimport pandas as pd\nimport streamlit as st\n\nfrom data import orders, big\n"
+        )
+        assert sorted(p.name for p in (folder / "pages").iterdir()) == ["filter.py", "overview.py"]
+        with zipfile.ZipFile(done["path"]) as held:
+            names = sorted(held.namelist())
+            texts = {name: held.read(name).decode("utf-8") for name in names}
+        assert names == done["files"]
+        # No rows anywhere: not the pasted table's, not an output's. No Parquet.
+        assert not any("Acme" in text or "Globex" in text for text in texts.values())
+        assert not any(name.endswith(".parquet") for name in names)
+        assert texts["pages/overview.py"] == overview and texts["data.py"] == (folder / "data.py").read_text()
+        assert "FILL IN: data.py cannot read customers again" in texts["README.txt"]
+        # The zip opens again: its canvas links to the files beside it.
+        unzipped = tmp_path / "unzipped"
+        with zipfile.ZipFile(done["path"]) as held:
+            held.extractall(unzipped)
+        back = _ok(
+            client.post("/streamlit/apps", headers=AGENT, json={"path": str(unzipped / "sales.stapp.json")})
+        )
+        assert [[(b["name"], b["missing"]) for b in p["blocks"]] for p in back["pages"]] == [
+            [("Total", None), ("Region filter", None)],
+            [("Region filter", None)],
+        ]
+        assert [Path(b["document"]).name for p in back["pages"] for b in p["blocks"]] == [
+            "mockups.ipynb",
+            "mockups.ipynb",
+            "elsewhere.ipynb",
+        ]
+        project = _ok(client.post("/projects/open", headers=AUTH, json={"folder": str(unzipped)}))
+        assert [Path(p).name for p in project["files"]] == [
+            "data.ipynb",
+            "sales.stapp.json",
+            "elsewhere.ipynb",
+            "mockups.ipynb",
+        ]
+        # The exported modules import cleanly where there is no Streamlit: data.py as it is.
+        sys.path.insert(0, str(unzipped))
+        try:
+            sys.modules.pop("data", None)
+            import data as exported_data  # type: ignore[import-not-found]
+
+            assert list(exported_data.orders["amount"]) == [100, 250, 75] and exported_data.customers is None
+            assert list(exported_data.big["region"]) == ["West"]
+        finally:
+            sys.path.remove(str(unzipped))
+            sys.modules.pop("data", None)
+        # An app that is not saved has no project to zip.
+        loose = _canvas(client)["app"]
+        assert (
+            client.post(
+                f"/streamlit/apps/{loose}/save-as", headers=AUTH, json={"path": str(tmp_path / "x.zip")}
+            ).status_code
+            == 409
+        )
+
+
+# ===== the agent: every action is a command =====
+
+
+def test_the_agent_builds_a_canvas_plays_it_and_saves_it(live: Live, tmp_path: Path) -> None:  # noqa: F811
+    command("datasets_paste", name="orders", text="order_id\tregion\tamount\n1\tEast\t100\n2\tWest\t250\n")
+    path = str(_notebook(tmp_path))
+    app = command("streamlit_open")["app"]
+    page = command("streamlit_page_add", app=app, name="Sales")["page"]
+    command("streamlit_block_place", app=app, page=page, document=path, cell=4, w=12)
+    placed = command("streamlit_block_place", app=app, page=page, document=path, cell=3, row=1, column=1, w=4)
+    assert placed["block"] == "b2" and placed["pages"][0]["rows"] == [["b2"], ["b1"]]
+    moved = command("streamlit_block_change", app=app, page=page, block="b2", row=2, column=9, h=4)
+    # The moved block keeps its place; the full-width one it would lie on goes below.
+    assert [(b["id"], b["row"], b["column"], b["h"]) for b in moved["pages"][0]["blocks"]] == [
+        ("b2", 1, 9, 4),
+        ("b1", 2, 1, None),
+    ]
+    fitted = command("streamlit_block_change", app=app, page=page, block="b2", h=0)
+    assert fitted["pages"][0]["blocks"][0]["h"] is None
+    command("streamlit_page_add", app=app)
+    command("streamlit_page_change", app=app, page="p2", name="Spare")
+    command("streamlit_block_change", app=app, page=page, block="b2", to_page="p2")
+    command("streamlit_block_remove", app=app, page="p2", block="b2")
+    assert [p["name"] for p in command("streamlit_page_remove", app=app, page="p2")["pages"]] == ["Sales"]
+    saved = command("streamlit_save", app=app, path=str(tmp_path / "sales"))
+    assert saved["path"] == str(tmp_path / "sales.stapp.json")
+    assert command("streamlit_app", app=app)["document"] == saved["path"]
+    assert [a["kind"] for a in command("streamlit_apps")["apps"]] == ["canvas"]
+    ran = command("streamlit_run", app=app)
+    if ran["problem"] is not None:  # this Python has no Streamlit: the agent is told how to install
+        assert (
+            ran["problem"]["kind"] == "missing" and command("streamlit_address", app=app)["running"] is False
+        )
+    out = command("streamlit_export", app=app, folder=str(tmp_path / "out"))
+    assert len(out["problems"]) == 1 and (tmp_path / "out" / "app.py").is_file()  # the filter was taken off
+    made = command("project_new", folder=str(tmp_path), name="proj", app=False, notebooks=["analysis"])
+    assert [Path(p).name for p in made["files"]] == ["data.ipynb", "analysis.ipynb"]
+    assert command("project_files", folder=made["folder"])["files"] == made["files"]
+    assert command("project_export_data", folder=made["folder"])["names"] == ["orders"]
+    zipped = command("streamlit_save_as", app=app, path=str(tmp_path / "done.zip"))
     assert (
-        command("streamlit_page_change", app=app["app"], page="p2", name="Details")["pages"][1]["name"]
-        == "Details"
+        "data.py" in zipped["files"]
+        and "pages/sales.py" in zipped["files"]
+        and (tmp_path / "data.ipynb").is_file()
     )
-    moved = command("streamlit_piece_place", app=app["app"], page="p1", piece="s2", to_page="p2")
-    assert [s["id"] for s in moved["pages"][1]["pieces"]] == ["s2"]
-    assert (
-        len(command("streamlit_piece_remove", app=app["app"], page="p2", piece="s2")["pages"][1]["pieces"])
-        == 0
-    )
-    assert [p["id"] for p in command("streamlit_page_remove", app=app["app"], page="p2")["pages"]] == ["p1"]
-    layout = command("streamlit_app", app=app["app"])["pages"][0]
-    assert layout["rows"] == [["s1"]] and layout["order"] == ["s1"]
-    synced = command("streamlit_sync", app=app["app"], pieces=[{"cell": 2, "code": "st.write(1)"}])
-    assert [p["name"] for p in synced["pieces"]] == ["Piece 2"]
-    assert command("streamlit_address", app=app["app"])["running"] is False
-    out = command("streamlit_export", app=app["app"], folder=str(tmp_path / "out"))
-    assert "app.py" in out["files"] and (tmp_path / "out" / "app.py").is_file()
-    assert command("streamlit_close", app=app["app"]) == {"ok": True}
+    command("streamlit_stop", app=app)
+    command("streamlit_close", app=app)
     with pytest.raises(CommandError, match="not open"):
-        execute("streamlit_app", {"app": app["app"]})
-    # A script's app: its numbered Streamlit cells and its pages block.
-    script = tmp_path / "sales.py"
-    script.write_text(
-        f"# %% [4] [streamlit]\n{FILTER}\n# %% [5] [streamlit]\n{TOTAL}\n# %% [streamlit-pages]\n"
-        '# {"id": "p1", "name": "Sales", "pieces": [{"id": "s1", "cell": 5, "w": 12}]}\n'
-    )
-    scripted = command("streamlit_open", path=str(script))
-    assert [p["cell"] for p in scripted["pieces"]] == [4, 5] and scripted["pages"][0]["name"] == "Sales"
-    with pytest.raises(CommandError, match="is not there"):
-        execute("streamlit_open", {"path": str(tmp_path / "missing.ipynb")})
+        command("streamlit_app", app=app)
 
 
-def test_running_a_notebook_as_the_agent_leaves_streamlit_cells_to_the_app(
+def test_running_a_notebook_as_the_agent_leaves_the_cells_that_call_streamlit_out(
     live: Live,  # noqa: F811
     tmp_path: Path,
 ) -> None:
-    path = str(tmp_path / "mixed.ipynb")
-    cells = [
-        {"kind": "code", "source": "x = 41 + 1\nx"},
-        {"kind": "streamlit", "source": "import nothing_like_this"},
-    ]
-    pages = [{"id": "p1", "name": "Kept", "pieces": [{"id": "s1", "cell": 2, "w": 12, "h": None}]}]
-    command("workbench_save", path=path, cells=cells, pages=pages)
-    ran = data_of(execute("workbench_run_notebook", {"path": path}))
-    command("workbench_kernel", kernel=ran["kernel"], action="stop")
-    assert ran["cells_run"] == 1  # the piece did not run in the kernel
-    assert (
-        data_of(execute("workbench_open", {"path": path}))["pages"] == pages
-    )  # and the pages were saved back
+    path = _notebook(tmp_path)
+    done = data_of(execute("workbench_run_notebook", {"path": str(path)}))
+    command("workbench_kernel", kernel=done["kernel"], action="stop")
+    # Cells 1 and 5 ran in the kernel; the two that call Streamlit did not (they would only warn).
+    assert done["cells_run"] == 2
+    cells, _ = notebooks.read_document(path.read_text())
+    assert [c.execution_count is not None for c in cells if c.kind == "code"] == [True, False, False, True]
 
 
 # ===== the door the live pages come through =====
@@ -563,7 +866,6 @@ def test_live_pages_need_the_apps_own_secret_and_only_this_computer(
 ) -> None:
     client, _ = served
     app = _open(client)["app"]
-    _ok(client.post(f"/streamlit/apps/{app}/pages", headers=AUTH, json={"cell": 4}))
     ran = _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH))
     path = ran["path"]
     # No token is asked for on these paths (a frame cannot send one): the secret in the path is.
@@ -589,8 +891,8 @@ def test_live_pages_need_the_apps_own_secret_and_only_this_computer(
     assert client.get("/streamlit/apps", headers=AUTH | {"Origin": "null"}).status_code == 403
     assert client.get("/streamlit/apps").status_code == 401
     assert client.post(f"/streamlit/apps/{app}/run").status_code == 401
-    # The designer's page shell is public like the Workbench's (no data in it).
-    assert client.get("/designer").status_code == 200
+    # The page designer's window is gone: the canvas is a Workbench document.
+    assert client.get("/designer").status_code in (401, 404)
     # A stopped app's address leads nowhere.
     client.post(f"/streamlit/apps/{app}/stop", headers=AUTH)
     assert client.get(f"{path}piece-4").status_code == 404
@@ -600,9 +902,9 @@ def test_the_frame_policy_of_the_workbench_is_as_it_was() -> None:
     """The live pages show inside the Workbench without weakening its policy: frames from this
     server only, as before."""
     static = Path(__file__).parents[1] / "web" / "static"
-    for page in ("workbench.html", "designer.html"):
-        text = (static / page).read_text(encoding="utf-8")
-        assert "frame-src 'self';" in text and "127.0.0.1:" not in text
+    text = (static / "workbench.html").read_text(encoding="utf-8")
+    assert "frame-src 'self';" in text and "127.0.0.1:" not in text
+    assert not (static / "designer.html").exists()
 
 
 # ===== the real thing: Streamlit itself =====
@@ -631,43 +933,59 @@ print(json.dumps(out))
 """
 
 
-def _app_test(python: str, page: Path, pick: str) -> dict[str, Any]:
+def _app_test(python: str, page: Path, pick: str, cwd: Path | None = None) -> dict[str, Any]:
     done = subprocess.run(  # noqa: S603 (the test's own Streamlit Python)
-        [python, "-c", APP_TEST, str(page), pick], capture_output=True, text=True, timeout=180, check=False
+        [python, "-c", APP_TEST, str(page), pick],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+        cwd=cwd,
     )
     assert done.returncode == 0, done.stderr[-2000:]
     return dict(json.loads(done.stdout.strip().splitlines()[-1]))
 
 
 @needs_streamlit
-def test_the_real_streamlit_runs_the_pieces_the_page_and_the_export(live: Live, tmp_path: Path) -> None:  # noqa: F811
+def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_saved_pages(
+    live: Live,  # noqa: F811
+    tmp_path: Path,
+) -> None:
     assert STREAMLIT_PYTHON is not None
-    grid = command(
-        "datasets_paste",
-        name="orders",
-        text="order_id\tregion\tamount\n1\tEast\t100\n2\tWest\t250\n3\tEast\t40\n4\tNorth\t75\n",
-    )["grid"]
-    opened = live.user(
-        "POST", "/streamlit/apps", {"title": "sales.ipynb", "pieces": PIECES, "python": STREAMLIT_PYTHON}
-    )
-    app = opened["app"]
-    # Pushed to a new page; the filter placed BELOW the total.
-    command("streamlit_page_add", app=app, name="Sales overview", cell=5, w=12)
-    command("streamlit_piece_push", app=app, page="p1", cell=4, w=4)
+    csv = tmp_path / "orders.csv"
+    csv.write_text("order_id,region,amount\n1,East,100\n2,West,250\n3,East,40\n4,North,75\n")
+    grid = command("datasets_load", name="orders", path=str(csv))["grid"]
+    project = command("project_new", folder=str(tmp_path), name="sales", notebooks=["mockups"])
+    folder = Path(project["folder"])
+    notebook = _notebook(folder, "mockups.ipynb")
+    # The notebook's own live cells, as the Workbench window shows them in their cells.
+    document = live.user(
+        "POST",
+        "/streamlit/apps",
+        {
+            "title": "mockups.ipynb",
+            "document": str(notebook),
+            "python": STREAMLIT_PYTHON,
+            "cells": [{"cell": 3, "code": FILTER}, {"cell": 4, "code": TOTAL}],
+        },
+    )["app"]
+    app = command("streamlit_open", path=str(folder / "sales.stapp.json"))["app"]
+    # The filter placed BELOW the total.
+    command("streamlit_page_add", app=app, name="Sales overview")
+    command("streamlit_block_place", app=app, page="p1", document=str(notebook), cell=4, w=12)
+    command("streamlit_block_place", app=app, page="p1", document=str(notebook), cell=3, w=4)
+    command("streamlit_save", app=app)
     ran = command("streamlit_run", app=app)
     assert ran["running"] is True and ran["problem"] is None, ran["problem"]
+    assert ran["python"] == STREAMLIT_PYTHON  # the linked notebook's own
+    alone = command("streamlit_run", app=document)
     try:
         where = command("streamlit_address", app=app)
         assert where["running"] is True and set(where["pages"]) == {"Sales overview"}
+        cells = command("streamlit_address", app=document)["cells"]
         # The process listens on 127.0.0.1 only, and answers through this server under the secret.
-        port = live.user("GET", f"/streamlit/apps/{app}")  # the state never names the Streamlit port
-        assert "port" not in json.dumps(port)
-        for address in (
-            where["app"],
-            where["pages"]["Sales overview"],
-            where["pieces"]["4"],
-            where["pieces"]["5"],
-        ):
+        assert "port" not in json.dumps(live.user("GET", f"/streamlit/apps/{app}"))
+        for address in (where["app"], where["pages"]["Sales overview"], cells["3"], cells["4"]):
             status, text = _fetch(address)
             assert status == 200 and "<title>" in text, address
         status, _ = _fetch(where["app"] + "_stcore/health")
@@ -679,33 +997,45 @@ def test_the_real_streamlit_runs_the_pieces_the_page_and_the_export(live: Live, 
         socket_address = where["app"].replace("http://", "ws://") + "_stcore/stream"
         with connect(socket_address, subprotocols=["streamlit"], open_timeout=20) as stream:  # type: ignore[list-item]
             assert stream.subprotocol == "streamlit"
-        # The pages as Streamlit runs them: the filter drives the total, though it sits below it.
-        folder = Path(ran["folder"])
-        assert folder.name.startswith("swissarmygrid-streamlit-")
-        page = _app_test(STREAMLIT_PYTHON, next(folder.glob("page_p1_*.py")), "West")
+        # The page as Streamlit runs it: the filter drives the total, though it sits below it.
+        temporary = Path(ran["folder"])
+        assert temporary.name.startswith("swissarmygrid-streamlit-")
+        page = _app_test(STREAMLIT_PYTHON, next(temporary.glob("page_p1_*.py")), "West")
         assert page["errors"] == [] and page["options"] == ["East", "North", "West"]
-        assert page["first"] == "140" and page["second"] == "250" and page["keys"] == ["s2_1"]
-        alone = _app_test(STREAMLIT_PYTHON, next(folder.glob("piece_5_*.py")), "North")
-        assert alone["errors"] == [] and alone["first"] == "140" and alone["second"] == "75"
-        # A grid step: out of date; run: the new data.
+        assert page["first"] == "140" and page["second"] == "250" and page["keys"] == ["b2_1"]
+        single = _app_test(STREAMLIT_PYTHON, next(Path(alone["folder"]).glob("piece_4_*.py")), "North")
+        assert single["errors"] == [] and single["first"] == "140" and single["second"] == "75"
+        # A grid step: out of date; Play: the new data.
         command("steps_add", grid=grid, kind="filter", params={"column": "amount", "op": "gt", "value": 50})
-        assert {p["state"] for p in command("streamlit_app", app=app)["pieces"]} == {"outOfDate"}
+        assert command("streamlit_app", app=app)["pages"][0]["out_of_date"] is True
         again = command("streamlit_run", app=app)
-        assert {p["state"] for p in again["pieces"]} == {"current"}
-        fresh = _app_test(STREAMLIT_PYTHON, next(folder.glob(f"page_p1_{again['generation']}.py")), "West")
+        assert again["pages"][0]["out_of_date"] is False
+        fresh = _app_test(STREAMLIT_PYTHON, next(temporary.glob(f"page_p1_{again['generation']}.py")), "West")
         assert (
             fresh["options"] == ["East", "North", "West"]
             and fresh["first"] == "100"
             and fresh["second"] == "250"
         )
-        # A second page; then the export, run by Streamlit with nothing of this app beside it.
-        command("streamlit_page_add", app=app, name="Filter only", cell=4)
+        # A second page; the export, run by Streamlit with nothing of this app beside it; Save as.
+        command("streamlit_page_add", app=app, name="Filter only")
+        command("streamlit_block_place", app=app, page="p2", document=str(notebook), cell=3)
         out = command("streamlit_export", app=app, folder=str(tmp_path / "exported"))
         assert out["problems"] == []
+        zipped = command("streamlit_save_as", app=app, path=str(tmp_path / "sales.zip"))
+        assert zipped["problems"] == [] and zipped["fill_in"] == []
     finally:
         stopped = command("streamlit_stop", app=app)
-    assert stopped["running"] is False and not folder.exists()
+        command("streamlit_close", app=document)
+    assert stopped["running"] is False and not temporary.exists()
     assert _fetch(where["app"])[0] == 404
+    # The saved pages run as pages of another app: they import their table from data.py, which
+    # reads the file again and applies the grid's step. Under Streamlit data.py's load is kept.
+    unzipped = tmp_path / "unzipped"
+    with zipfile.ZipFile(zipped["path"]) as held:
+        held.extractall(unzipped)
+    saved = _app_test(STREAMLIT_PYTHON, unzipped / "pages" / "sales_overview.py", "West", cwd=unzipped)
+    assert saved["errors"] == [] and saved["first"] == "100" and saved["second"] == "250"
+    assert "cache_resource" in (unzipped / "data.py").read_text()
     exported = tmp_path / "exported"
     module = _app_test(STREAMLIT_PYTHON, exported / "app_pages" / "sales_overview.py", "West")
     assert module["errors"] == [] and module["first"] == "100" and module["second"] == "250"

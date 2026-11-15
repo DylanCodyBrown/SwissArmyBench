@@ -32,6 +32,7 @@ from swissarmygrid.adapters.folders import ensure_own as ensure_own_folder
 from swissarmygrid.adapters.folders import listing as folder_listing
 from swissarmygrid.adapters.live_updates import LiveUpdates
 from swissarmygrid.adapters.packs import PackFolders
+from swissarmygrid.adapters.projects import ProjectFiles
 from swissarmygrid.adapters.state_files import (
     AuditLog,
     DashboardFiles,
@@ -64,6 +65,7 @@ from swissarmygrid.services.inbox import Inbox
 from swissarmygrid.services.packs import Packs
 from swissarmygrid.services.processes import ProcessRegistry, Sessions
 from swissarmygrid.services.profile import Profiles
+from swissarmygrid.services.projects import Projects
 from swissarmygrid.services.regression import Regression
 from swissarmygrid.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmygrid.services.snapshots import Snapshots
@@ -115,6 +117,7 @@ class Services:
     workbench_window: WorkbenchWindow
     table_cells: TableCells
     streamlit: StreamlitApps
+    projects: Projects
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -230,8 +233,10 @@ def bootstrap(
     )
     datasets.renamed.append(models.rename_table)
     documents = Documents(state_dir / "recent.json", settings.workbench_dir)
-    # A notebook's Streamlit app: its pieces and pages, written to a temporary folder of its own and
-    # run in the notebook's own Python (Streamlit is never this app's dependency).
+    table_cells = TableCells(ws, datasets.origins)
+    project_files = ProjectFiles()
+    # Streamlit: a canvas's pages and a document's live cells, written to a temporary folder of the
+    # app's own and run in the document's own Python (Streamlit is never this app's dependency).
     streamlit = StreamlitApps(
         ws,
         AppFiles(),
@@ -240,6 +245,9 @@ def bootstrap(
         now=time.time,
         read_document=documents.read,
         environment_of=documents.environment,
+        project_files=project_files,
+        table_cells=table_cells.group_cells,
+        arrange=table_cells.arrange,
     )
     return Services(
         settings=settings,
@@ -289,8 +297,15 @@ def bootstrap(
         tie_out=TieOut(compares),
         snapshots=Snapshots(ws),
         workbench_window=WorkbenchWindow(ws),
-        table_cells=TableCells(ws, datasets.origins),
+        table_cells=table_cells,
         streamlit=streamlit,
+        projects=Projects(
+            ws,
+            project_files,
+            table_cells.group_cells,
+            export_data=streamlit.export_data,
+            remember=lambda path: documents.remember(path, time.time()),
+        ),
         live=live,
         workers=workers,
     )

@@ -145,7 +145,6 @@ NOT_COMMANDS = {
     "/catalog": "page shell",
     "/workbench": "page shell: the Workbench window (the agent works its files and kernels directly)",
     "/static": "page files",
-    "/designer": "page shell: the page designer's window (the agent works its pages by streamlit_*)",
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
     "/agent/context": "current_table",
@@ -535,9 +534,12 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # a document's tables and their state, running a table's cell, going to a cell by its number.
     # HTML cells (2026-11-14) added six: add one, list them, run one, size its pane, fill a design,
     # the marks of its names.
-    # Streamlit pieces (2026-11-15) added 22: the cells in the window (add, list, run, push, size, open
-    # the designer) and the app by its id (open, read, sync, run, address, stop, close, install,
-    # export; pages: add, change, remove; pieces: push, place, remove).
+    # Streamlit pieces (2026-11-15) added 22. The Streamlit canvas (the same day) took those away
+    # (push to page, the designer, adding a Streamlit cell, sync) and has 31 of its own: in the window
+    # (new app, the canvas, Play, Edit, copy and paste a cell, live cells: list, run, size; pop a
+    # document out; open a project), projects (new, files, export data.py) and the app by its id
+    # (open, read, run, address, stop, close, install, save, export, Save as; pages: add, change,
+    # remove; blocks: place, change, remove). Nine more tools in the same budget: the words are shorter.
     # A Power BI workspace (2026-11-15) added two: a workspace's datasets, and adding a DAX cell.
     # A connection from your own Python (2026-11-15) added three: save (or test), its variables, its tables.
     assert size < 53_500, f"the tool list is {size} characters"

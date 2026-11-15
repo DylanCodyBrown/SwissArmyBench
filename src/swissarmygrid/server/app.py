@@ -17,7 +17,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_folders.py        the page's file chooser: a folder's contents, the user's alone
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
-  routes_streamlit.py      Streamlit pieces, the page designer's pages, the app's run and export
+  routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
+  routes_projects.py       projects: a new one, its files, data.py's entries
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
@@ -54,6 +55,7 @@ from swissarmygrid.server import (
     routes_grids,
     routes_packs,
     routes_processes,
+    routes_projects,
     routes_regression,
     routes_relationships,
     routes_snapshots,
@@ -123,10 +125,6 @@ def create_app(
         # Notebooks and scripts, always in a window of their own (the grid page's Workbench tab opens it).
         return FileResponse(settings.web_root / "workbench.html", headers={"Cache-Control": "no-store"})
 
-    async def designer_page(request: Request) -> Response:
-        # The page designer: a notebook's Streamlit pieces assembled on pages, in a window of its own.
-        return FileResponse(settings.web_root / "designer.html", headers={"Cache-Control": "no-store"})
-
     async def drop_silent_sessions() -> None:
         # A notebook that closes or crashes just stops reporting; the list notices within a few
         # seconds and tells the pages, so a dead session never lingers in the Open dialog.
@@ -164,6 +162,7 @@ def create_app(
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),
             *routes_streamlit.routes(ctx.streamlit),
+            *routes_projects.routes(ctx.projects),
             *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),
@@ -175,7 +174,6 @@ def create_app(
             Route("/workspace", workspace_page),
             Route("/catalog", catalog_page),
             Route("/workbench", workbench_page),
-            Route("/designer", designer_page),
             Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[Middleware(LocalOnlyGuard, port=port, token=token)],

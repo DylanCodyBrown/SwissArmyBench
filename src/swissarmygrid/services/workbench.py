@@ -138,7 +138,13 @@ class Workbench:
         python = self._documents.environment(full) or self._kernels.beside(self._folder_of(full))
         if kind == "notebook":
             read, next_cell = rules.read_document(text)
-            cells = [c.to_json() for c in read]
+            # A Python cell that calls Streamlit is shown live in its cell (and never runs in the kernel).
+            live = set(
+                streamlit_cells.live_cells([(c.number or 0, c.source) for c in read if c.kind == "code"])
+            )
+            cells = [
+                c.to_json() | ({"live": True} if c.kind == "code" and c.number in live else {}) for c in read
+            ]
             return {
                 "path": full,
                 "kind": kind,
@@ -146,10 +152,19 @@ class Workbench:
                 "cells": cells,
                 "python": python,
                 "next_cell": next_cell,  # the number the next new cell gets (never one used before)
-                # Its Streamlit pages (the page designer's), kept in the notebook's metadata.
-                "pages": rules.document_pages(text),
             }
-        # A script keeps its pages in its own text (a `# %% [streamlit-pages]` block of comments).
+        if kind == "app":
+            # A Streamlit app's canvas: its pages and blocks, each block's link as a whole path.
+            try:
+                pages = streamlit_cells.read_app(text, lambda link: streamlit_cells.resolve_link(full, link))
+            except streamlit_cells.StreamlitError as error:
+                raise ValueError(str(error)) from None
+            return {
+                "path": full,
+                "kind": kind,
+                "modified": modified,
+                "pages": streamlit_cells.pages_json(pages),
+            }
         return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python}
 
     def save(self, body: Any) -> dict[str, Any]:
@@ -164,8 +179,14 @@ class Workbench:
             text = rules.write_notebook(
                 rules.read_cells(body.get("cells")),
                 next_number=following if isinstance(following, int) and following > 0 else None,
-                pages=streamlit_cells.read_pages(body.get("pages")),
             )
+        elif kind == "app":
+            # Links are kept relative to the app's own file, so the two can move together.
+            try:
+                pages = streamlit_cells.read_pages(body.get("pages"))
+            except streamlit_cells.StreamlitError as error:
+                raise ValueError(str(error)) from None
+            text = streamlit_cells.write_app(pages, lambda d: streamlit_cells.relative_link(path, d))
         else:
             script = body.get("text")
             if not isinstance(script, str) or len(script) > rules.MAX_CELL_CHARS * 5:

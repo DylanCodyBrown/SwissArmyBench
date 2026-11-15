@@ -14,7 +14,7 @@ import pytest
 from swissarmygrid.client import table_cells as kernel_side
 from swissarmygrid.domain import notebooks, table_cells
 from swissarmygrid.domain import streamlit_cells as rules
-from swissarmygrid.domain.streamlit_cells import Block, Page, PieceCode, TableLoad
+from swissarmygrid.domain.streamlit_cells import Block, Page, PieceCode
 from swissarmygrid.domain.streamlit_use import other_st, uses_streamlit, usual_name
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
@@ -332,13 +332,14 @@ def test_pages_are_checked_and_given_ids() -> None:
     # An id used twice is made anew; a block past column 12 is pulled back to fit.
     assert [(b.id, b.column, b.w) for b in pages[1].blocks] == [("b3", 7, 6)]
     assert rules.read_pages(None) == []
-    for bad in (
+    bads: tuple[object, ...] = (
         {},
         [1],
         [{"blocks": [{"document": DOC, "cell": 0}]}],
         [{"blocks": [{"cell": 2}]}],
         [{"blocks": 5}],
-    ):
+    )
+    for bad in bads:
         with pytest.raises(rules.StreamlitError):
             rules.read_pages(bad)
     with pytest.raises(rules.StreamlitError, match="at most 30"):
@@ -716,86 +717,35 @@ def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
 
 # ===== Save as: pages to drop into another Streamlit app =====
 
-LOADS = {
-    "orders": TableLoad(
-        "orders",
-        ("import swissarmygrid as sag", "import duckdb"),
-        'orders = sag.sql(\'Warehouse\', """select * from sales.orders""")',
-        'orders = duckdb.sql("""SELECT * FROM orders WHERE amount > 10""").df()',
-        "the connection Warehouse, read with sag.sql.",
-        "SwissArmyGrid and its connection Warehouse on that computer.",
-    ),
-    "customers": TableLoad(
-        "customers", (), None, None, "customers was pasted into the grid: no rows are saved."
-    ),
-    "regions": TableLoad(
-        "regions",
-        ("import duckdb",),
-        "regions = duckdb.read_csv('/data/regions.csv').df()",
-        None,
-        "the file /data/regions.csv.",
-    ),
-}
 
-
-def test_save_as_makes_pages_for_another_app_and_a_module_that_loads_their_tables() -> None:
+def test_save_as_makes_pages_that_import_their_tables_from_data_py() -> None:
     pieces = _more_pieces() | {(DOC, 8): PieceCode(8, "Customers", "st.dataframe(customers)")}
     pages = [*_two_pages(), Page("p3", "Customers", [B("b4", 8)])]
-    made = rules.bundle("Sales app", pages, pieces, LOADS, app_file="sales.stapp.json")
+    made = rules.saved_pages(pages, pieces, ["orders", "customers", "regions"])
     assert sorted(made.files) == [
-        "README.txt",
         "pages/customers.py",
         "pages/sales_overview.py",
         "pages/sales_overview_2.py",
-        "requirements.txt",
-        "sales_app_tables.py",
     ]
-    for name, text in made.files.items():
-        if name.endswith(".py"):
-            ast.parse(text)
+    for text in made.files.values():
+        ast.parse(text)
     page = made.files["pages/sales_overview.py"]
-    # A page of somebody else's app: no app.py, no page config, no data folder; its tables by the module.
-    assert "import sales_app_tables" in page and "orders = sales_app_tables.orders()" in page
+    # A page of somebody else's app: no app.py, no page config, no data folder, no rows.
+    assert page.startswith(
+        "# Sales overview\nimport pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
+    )
     assert "_DATA" not in page and "set_page_config" not in page and "parquet" not in page
     assert page.index("with _slot_b2:") < page.index("with _slot_b1:") and "try:" not in page
-    module = made.files["sales_app_tables.py"]
-    # Each table is read again the way it was loaded, then its transformations; cached by Streamlit.
-    assert "@st.cache_data(show_spinner=False)\ndef orders():" in module
-    assert '    orders = sag.sql(\'Warehouse\', """select * from sales.orders""")\n' in module
-    assert (
-        '    orders = duckdb.sql("""SELECT * FROM orders WHERE amount > 10""").df()\n    return orders'
-        in module
-    )
-    assert "import duckdb\nimport swissarmygrid as sag\n" in module
-    # A table the app cannot load again is a stub, clearly marked, that fails until it is filled in.
-    assert "def _customers_source():\n    # ===== FILL IN: customers =====" in module
-    assert "raise NotImplementedError('Fill in _customers_source() in sales_app_tables.py" in module
-    assert (
-        "def customers():" in module and "    customers = _customers_source()\n    return customers" in module
-    )
-    assert "regions" not in module  # only the tables the pages name
-    assert made.tables == ("orders", "customers") and made.stubs == ("customers",)
-    assert made.files["requirements.txt"].startswith(
-        "streamlit>=1.36\npandas\nduckdb\naltair\n# swissarmygrid:"
-    )
-    readme = made.files["README.txt"]
-    assert (
-        "pages/*.py" in readme and "sales_app_tables.py" in readme and "workbench/sales.stapp.json" in readme
-    )
-    assert (
-        "orders: the connection Warehouse, read with sag.sql. Needs: SwissArmyGrid and its connection"
-        in readme
-    )
-    assert "customers: FILL IN _customers_source() in sales_app_tables.py." in readme
-    assert "No rows and no passwords" in readme
+    assert "from data import customers\n" in made.files["pages/customers.py"]
+    assert made.tables == ("orders", "customers") and made.problems == ()
+    assert made.requirements == ("streamlit>=1.36", "pandas", "altair")
     with pytest.raises(rules.StreamlitError, match="no page"):
-        rules.bundle("Empty", [], pieces, LOADS)
-    # A page that names no table needs no module.
-    plain = rules.bundle(
-        "Plain", [Page("p1", "Hi", [B("b1", 1)])], {(DOC, 1): PieceCode(1, "Hi", "st.write(1)")}, LOADS
+        rules.saved_pages([], pieces, [])
+    # A page that names no table imports nothing from data.py.
+    plain = rules.saved_pages(
+        [Page("p1", "Hi", [B("b1", 1)])], {(DOC, 1): PieceCode(1, "Hi", "st.write(1)")}, []
     )
-    assert sorted(plain.files) == ["README.txt", "pages/hi.py", "requirements.txt"]
-    assert plain.files["requirements.txt"] == "streamlit>=1.36\npandas\n"
+    assert "from data" not in plain.files["pages/hi.py"]
 
 
 def test_the_zips_workbench_files_have_names_of_their_own() -> None:
