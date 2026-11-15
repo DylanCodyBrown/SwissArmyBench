@@ -721,7 +721,7 @@ def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
 def test_save_as_makes_pages_that_import_their_tables_from_data_py() -> None:
     pieces = _more_pieces() | {(DOC, 8): PieceCode(8, "Customers", "st.dataframe(customers)")}
     pages = [*_two_pages(), Page("p3", "Customers", [B("b4", 8)])]
-    made = rules.saved_pages(pages, pieces, ["orders", "customers", "regions"])
+    made = rules.saved_pages(pages, pieces, ["orders", "customers", "regions"], app="sales.stapp.json")
     assert sorted(made.files) == [
         "pages/customers.py",
         "pages/sales_overview.py",
@@ -732,8 +732,14 @@ def test_save_as_makes_pages_that_import_their_tables_from_data_py() -> None:
     page = made.files["pages/sales_overview.py"]
     # A page of somebody else's app: no app.py, no page config, no data folder, no rows.
     assert page.startswith(
-        "# Sales overview\nimport pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
+        "# Sales overview\n"
+        "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
+        "import pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
     )
+    # Save as writes over (and takes away) only this app's own saved pages.
+    assert rules.is_saved_page(page, "sales.stapp.json")
+    assert not rules.is_saved_page(page, "other.stapp.json")
+    assert not rules.is_saved_page("import streamlit as st\nst.write('mine')\n", "sales.stapp.json")
     assert "_DATA" not in page and "set_page_config" not in page and "parquet" not in page
     assert page.index("with _slot_b2:") < page.index("with _slot_b1:") and "try:" not in page
     assert "from data import customers\n" in made.files["pages/customers.py"]
@@ -756,4 +762,9 @@ def test_the_zips_workbench_files_have_names_of_their_own() -> None:
         "/work/sales.ipynb": "sales.ipynb",
         "/other/sales.ipynb": "sales_2.ipynb",
         "C:\\x\\Charts.py": "Charts.py",
+    }
+    # Never a name the project's own files have in the zip.
+    assert rules.bundle_names(["/other/data.py", "/x/Analysis.ipynb"], ["data.py", "analysis.ipynb"]) == {
+        "/other/data.py": "data_2.py",
+        "/x/Analysis.ipynb": "Analysis_2.ipynb",
     }

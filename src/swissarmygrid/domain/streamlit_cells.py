@@ -1075,6 +1075,21 @@ class SavedPages:
     requirements: tuple[str, ...]  # what the pages' own code needs installed
 
 
+# A saved page's second line: whose export it is. Save as writes over (and takes away) only the
+# pages/*.py of the same app; a page of the user's own, or of another app in the folder, stays.
+PAGE_MARK: str = "# Written from {app} by SwissArmyGrid: change the canvas, not this file."
+
+
+def page_mark(app: str) -> str:
+    """The line a saved page of this app (its file's name: `sales.stapp.json`) carries."""
+    return PAGE_MARK.format(app=app.replace("\n", " "))
+
+
+def is_saved_page(text: str, app: str) -> bool:
+    """A pages/*.py this app's Save as wrote (and may write again or take away)."""
+    return page_mark(app) in text.split("\n", 3)[:3]
+
+
 def saved_pages(
     pages: Sequence[Page],
     pieces: Mapping[Key, PieceCode],
@@ -1082,10 +1097,12 @@ def saved_pages(
     found: Mapping[Key, Facts] | None = None,
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
+    app: str = "app.stapp.json",
 ) -> SavedPages:
     """The pages as a project's pages/*.py: each a page to drop into a Streamlit app, starting with
     `from data import ...` for the tables (and blade variables) it names. `tables`: the names data.py
-    can give. No data folder, no rows: data.py reads each table again."""
+    can give. No data folder, no rows: data.py reads each table again. `app`: the app's file's name,
+    on each page's second line (`page_mark`)."""
     if not pages:
         raise StreamlitError("There is no page to save yet.")
     files: dict[str, str] = {}
@@ -1108,7 +1125,8 @@ def saved_pages(
             gone=gone,
             loader="data",
         )
-        files[f"pages/{name}.py"] = made.code
+        title, _, rest = made.code.partition("\n")
+        files[f"pages/{name}.py"] = f"{title}\n{page_mark(app)}\n{rest}"
         used += [t for t in made.tables if t not in used]
         problems += [f"{page.name}: {p}" for p in made.problems]
         codes += [pieces[b.key].code for b in page.blocks if b.key in pieces]
@@ -1116,22 +1134,22 @@ def saved_pages(
     return SavedPages(files, tuple(used), tuple(problems), tuple(needed))
 
 
-def bundle_names(documents: Sequence[str]) -> dict[str, str]:
+def bundle_names(documents: Sequence[str], taken: Iterable[str] = ()) -> dict[str, str]:
     """The name in a saved project's zip of each linked file that is outside the project's folder:
-    its own name, one of a kind
-    (`analysis.ipynb`, `analysis_2.ipynb` for a second file of that name from another folder)."""
+    its own name, one of a kind (`analysis.ipynb`, `analysis_2.ipynb` for a second file of that name
+    from another folder, or when the zip already holds one: `taken`, the project's own files)."""
     names: dict[str, str] = {}
-    taken: set[str] = set()
+    held = {name.lower() for name in taken}
     for document in documents:
         if document in names:
             continue
         base = re.split(r"[\\/]", document)[-1] or "document"
         stem, dot, ending = base.partition(".")
         name, n = base, 2
-        while name.lower() in taken:
+        while name.lower() in held:
             name = f"{stem}_{n}{dot}{ending}"
             n += 1
-        taken.add(name.lower())
+        held.add(name.lower())
         names[document] = name
     return names
 

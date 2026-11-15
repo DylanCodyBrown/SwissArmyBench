@@ -158,7 +158,8 @@ def data_module(title: str, cells: Sequence[DataCell]) -> DataModule:
         if cell.role == "transformations" and cell.table:
             variable = variable_name(cell.table)
             found = _NO_LOAD.search(source)
-            if found or _PASTED.search(source):
+            pasted = _PASTED.search(source) is not None
+            if found or pasted:
                 why = "It was pasted into the grid." if not found else found.group(0)[2:].strip() + "..."
                 why = f"{cell.table} cannot be read again by the app. {why}".replace("...", ".")
                 # Without a cell of the user's that makes it, there is nothing to transform yet.
@@ -167,6 +168,10 @@ def data_module(title: str, cells: Sequence[DataCell]) -> DataModule:
                     for c in code_cells
                     if c.role != "transformations"
                 )
+                if pasted and made_above:
+                    # Its cell holds the pasted rows: left out (no rows leave), the user's cell stays.
+                    skipped.append(f"{label}: {cell.table}'s cell holds the rows pasted into the grid.")
+                    continue
                 if not made_above:
                     parts.append(_stub(cell.table, variable, why.split("\n")[0]))
                     fill_in.append(cell.table)
@@ -233,6 +238,20 @@ def without_rows(cells: Sequence[DataCell]) -> list[DataCell]:
         else:
             out.append(cell)
     return out
+
+
+def script_without_rows(text: str) -> str:
+    """A script for a zip: each pasted table's read-only cell (its rows written out) a stub, on the
+    lines it held; everything else as it is."""
+    lines = text.split("\n")
+    for cell in reversed(table_cells.outline(text)["cells"]):
+        body = "\n".join(lines[cell["line"] : cell["end"]])
+        if cell["role"] == "transformations" and cell["table"] and _PASTED.search(body):
+            stub = _stub(
+                cell["table"], variable_name(cell["table"]), f"{cell['table']} was pasted into the grid."
+            )
+            lines[cell["line"] : cell["end"]] = [*stub.split("\n"), ""]
+    return "\n".join(lines)
 
 
 def data_requirements(text: str) -> list[str]:

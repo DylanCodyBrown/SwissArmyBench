@@ -18,7 +18,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
-  routes_projects.py       projects: a new one, its files, data.py's entries
+  routes_projects.py       projects: a new one, its files, Export data.py
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list

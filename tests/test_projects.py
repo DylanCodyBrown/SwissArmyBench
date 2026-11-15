@@ -120,10 +120,31 @@ def test_a_table_the_app_cannot_read_again_is_a_stub_and_no_rows_are_written(tmp
         "sales", [DataCell("code", "clients = load_clients()", "maker", "clients", 1), *cells[1:]]
     )
     assert filled.fill_in == () and "LIMIT 5" in filled.text and "clients = load_clients()" in filled.text
+    # A pasted table's cell holds its rows: with a cell of the user's that makes it, the user's cell
+    # is the table and the pasted rows still stay out.
+    own = rules.data_module(
+        "sales", [DataCell("code", "customers = load_customers()", number=5), cells[0], cells[2]]
+    )
+    assert "Acme" not in own.text and "VALUES" not in own.text and "customers = None" not in own.text
+    assert "customers = load_customers()" in own.text and own.fill_in == ()
+    assert own.skipped == ("cell 1: customers's cell holds the rows pasted into the grid.",)
     # A notebook for a zip: the pasted rows are taken out of the cell.
     zipped = rules.without_rows(cells)
     assert "Acme" not in zipped[0].source and "FILL IN: customers" in zipped[0].source
     assert zipped[1:] == cells[1:]
+
+
+def test_a_script_for_a_zip_has_no_pasted_rows() -> None:
+    script = (
+        "# region Tables\n# %% [1] [transformations] customers\n"
+        f"{PASTED}\n# endregion\n# %%\n\n# %% [2] Total\nprint(len(customers))\n"
+    )
+    zipped = rules.script_without_rows(script)
+    assert "Acme" not in zipped and "VALUES" not in zipped
+    assert "# %% [1] [transformations] customers\n# ===== FILL IN: customers =====" in zipped
+    # The rest of the script is as it was.
+    assert zipped.endswith("# endregion\n# %%\n\n# %% [2] Total\nprint(len(customers))\n")
+    assert rules.script_without_rows("x = 1\n") == "x = 1\n"
 
 
 def test_requirements_keep_the_users_lines() -> None:

@@ -15,6 +15,7 @@ import ast
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 import time
@@ -36,6 +37,7 @@ from swissarmygrid.server import streamlit_apps
 from tests.conftest import AGENT, AUTH, BASE, make_client, push
 from tests.test_cli import Live, data_of, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
+from tests.test_connections import sqlite_connection
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
 TOTAL = '# Total\nst.metric("Total", int(orders[orders["region"] == region]["amount"].sum()))'
@@ -711,6 +713,10 @@ def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp
         )
         # Play writes data.py again and gives the page the names it reads from it.
         ran = _ok(client.post(f"{base}/run", headers=AUTH))
+        # A page of the user's own in pages/ (and one named as a page of this app will be) stays.
+        (folder / "pages").mkdir()
+        (folder / "pages" / "mine.py").write_text("import streamlit as st\nst.write('mine')\n")
+        (folder / "pages" / "filter.py").write_text("import streamlit as st\nst.write('my filter')\n")
         live = Path(ran["folder"])
         page = next(live.glob("page_p1_*.py")).read_text()
         assert (
@@ -734,13 +740,23 @@ def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp
         assert done["data"] == ["orders", "big"] and done["fill_in"] == ["customers"]
         assert any("data.ipynb has changes that are not saved" in p for p in done["problems"])
         assert any("data.py cannot read customers again" in p for p in done["problems"])
+        assert any(p.startswith("pages/filter.py is not a page this app saved") for p in done["problems"])
+        assert (folder / "pages" / "filter.py").read_text().endswith("st.write('my filter')\n")
+        assert (folder / "pages" / "mine.py").is_file()
         # The project's own exports were written again.
         overview = (folder / "pages" / "overview.py").read_text()
         ast.parse(overview)
         assert overview.startswith(
-            "# Overview\nimport pandas as pd\nimport streamlit as st\n\nfrom data import orders, big\n"
+            "# Overview\n"
+            "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
+            "import pandas as pd\nimport streamlit as st\n\nfrom data import orders, big\n"
         )
-        assert sorted(p.name for p in (folder / "pages").iterdir()) == ["filter.py", "overview.py"]
+        assert sorted(p.name for p in (folder / "pages").iterdir()) == ["filter.py", "mine.py", "overview.py"]
+        # A page this app saved and no longer has goes; the user's own stay.
+        _ok(client.delete(f"{base}/pages/p1", headers=AUTH))
+        again = _ok(client.post(f"{base}/save-as", headers=AUTH, json={"path": str(tmp_path / "again.zip")}))
+        assert sorted(p.name for p in (folder / "pages").iterdir()) == ["filter.py", "mine.py"]
+        assert "pages/filter.py" in again["files"] and "pages/overview.py" not in again["files"]
         with zipfile.ZipFile(done["path"]) as held:
             names = sorted(held.namelist())
             texts = {name: held.read(name).decode("utf-8") for name in names}
@@ -793,6 +809,49 @@ def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp
             ).status_code
             == 409
         )
+
+
+def test_a_project_from_a_connection_reads_it_again_in_a_plain_python(
+    live: Live,  # noqa: F811
+    tmp_path: Path,
+) -> None:
+    """data.py reads a connection's table again: `sag.sql` on the connection, then the grid's steps as
+    one DuckDB query. It imports in a Python of its own with no Streamlit (as a notebook's kernel)."""
+    database = tmp_path / "shop.sqlite"
+    with sqlite3.connect(database) as made_up:
+        made_up.execute("CREATE TABLE orders (order_id INTEGER, region TEXT, amount INTEGER)")
+        made_up.executemany(
+            "INSERT INTO orders VALUES (?, ?, ?)",
+            [(1, "East", 100), (2, "West", 250), (3, "East", 40), (4, "North", 75)],
+        )
+    live.user("POST", "/connections", sqlite_connection(database))
+    grid = live.user("POST", "/connections/Shop/open", {"table": "orders"})["grid"]
+    step = {"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 50}}
+    live.user("POST", f"/grids/{grid}/steps", {"steps": [step]})
+    made = live.user("POST", "/projects", {"folder": str(tmp_path), "name": "shop"})
+    folder = Path(made["folder"])
+    data = (folder / "data.py").read_text()
+    ast.parse(data)
+    # The connection by name (never its code or a password), then the steps as one DuckDB query.
+    assert "sag.sql('Shop', " in data and '"amount" > 50' in data and "sqlite3" not in data
+    assert data.index("sag.sql('Shop', ") < data.index('"amount" > 50')
+    assert "# swissarmygrid:" in (folder / "requirements.txt").read_text()
+    code = (
+        "import json, sys\nsys.path.insert(0, sys.argv[1])\nimport data\n"
+        "print(json.dumps(sorted(int(a) for a in data.orders['amount'])))\n"
+        "print('streamlit' in sys.modules)"
+    )
+    done = subprocess.run(  # noqa: S603 (this Python, on the project the test made)
+        [sys.executable, "-c", code, str(folder)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+        env=os.environ | {"SWISSARMYGRID_OPEN": "0"},
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    shown, streamlit = done.stdout.strip().splitlines()[-2:]
+    assert json.loads(shown) == [75, 100, 250] and streamlit == "False"
 
 
 # ===== the agent: every action is a command =====
@@ -934,6 +993,25 @@ print(json.dumps(out))
 """
 
 
+MULTI_PAGE = """
+import json, sys
+from streamlit.testing.v1 import AppTest
+at = AppTest.from_file(sys.argv[1], default_timeout=60).run()
+def seen():
+    return {
+        "errors": [e.value for e in at.error] + [str(e.value) for e in at.exception],
+        "metrics": [m.value for m in at.metric],
+        "boxes": [w.key for w in at.selectbox],
+    }
+out = {"first": seen()}
+at.selectbox[0].set_value("West").run()
+out["picked"] = seen()
+at.switch_page("pages/filter_only.py").run()
+out["second"] = seen()
+print(json.dumps(out))
+"""
+
+
 def _app_test(python: str, page: Path, pick: str, cwd: Path | None = None) -> dict[str, Any]:
     done = subprocess.run(  # noqa: S603 (the test's own Streamlit Python)
         [python, "-c", APP_TEST, str(page), pick],
@@ -1037,6 +1115,28 @@ def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_sa
     saved = _app_test(STREAMLIT_PYTHON, unzipped / "pages" / "sales_overview.py", "West", cwd=unzipped)
     assert saved["errors"] == [] and saved["first"] == "100" and saved["second"] == "250"
     assert "cache_resource" in (unzipped / "data.py").read_text()
+    # And dropped into a multi-page app of the user's own: its st.navigation over the saved pages, each
+    # page run in turn in one session (their widgets' keys do not clash; data.py is loaded once).
+    (unzipped / "app.py").write_text(
+        "import streamlit as st\n\nst.navigation([\n"
+        '    st.Page("pages/sales_overview.py", title="Sales overview", default=True),\n'
+        '    st.Page("pages/filter_only.py", title="Filter only"),\n'
+        "]).run()\n"
+    )
+    walked = subprocess.run(  # noqa: S603 (the test's own Streamlit Python)
+        [STREAMLIT_PYTHON, "-c", MULTI_PAGE, str(unzipped / "app.py")],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+        cwd=unzipped,
+    )
+    assert walked.returncode == 0, walked.stderr[-2000:]
+    assert json.loads(walked.stdout.strip().splitlines()[-1]) == {
+        "first": {"errors": [], "metrics": ["100"], "boxes": ["b2_1"]},
+        "picked": {"errors": [], "metrics": ["250"], "boxes": ["b2_1"]},
+        "second": {"errors": [], "metrics": [], "boxes": ["b3_1"]},
+    }
     exported = tmp_path / "exported"
     module = _app_test(STREAMLIT_PYTHON, exported / "app_pages" / "sales_overview.py", "West")
     assert module["errors"] == [] and module["first"] == "100" and module["second"] == "250"

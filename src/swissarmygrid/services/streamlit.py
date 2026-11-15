@@ -86,7 +86,7 @@ class ProjectFiles(Protocol):
 
     def write(self, folder: str, name: str, text: str) -> str: ...
 
-    def replace_pages(self, folder: str, files: dict[str, str]) -> None: ...
+    def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]: ...
 
     def relative(self, folder: str, path: str) -> str | None: ...
 
@@ -767,7 +767,11 @@ class StreamlitApps:
             # the tables (the tables come from the grid) are imported from a copy of it.
             given: tuple[str, ...] = ()
             if app.document:
-                exported = await self._data(self._project.folder_of(app.document), app.title)
+                try:
+                    exported = await self._data(self._project.folder_of(app.document), app.title)
+                except OSError as error:  # data.py cannot be written (read-only): the page runs without it
+                    exported = None
+                    notes.append(f"data.py was not written: {error}")
                 if exported is not None:
                     given = exported.names
                     files["data.py"] = exported.text
@@ -1025,18 +1029,16 @@ class StreamlitApps:
 
     @staticmethod
     def _for_zip(path: str, text: str) -> str:
-        """A notebook as it goes into a zip: its outputs dropped and a pasted table's rows taken out
-        (no rows leave). A script is as it is."""
+        """A notebook or script as it goes into a zip: a pasted table's rows taken out and a notebook's
+        outputs dropped (no rows leave)."""
         if notebooks.kind_of(path) != "notebook":
-            return text
+            return projects.script_without_rows(text)
         cells, following = notebooks.read_document(text)
         kept = projects.without_rows([DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells])
         for cell, data in zip(cells, kept, strict=True):
             cell.source = data.source
             cell.outputs = []
             cell.execution_count = None
-            if data.source != cell.source or "FILL IN" in data.source:
-                cell.steps = cell.steps
         return notebooks.write_notebook(cells, next_number=following)
 
     # ===== save as: the project as one zip =====
@@ -1074,7 +1076,8 @@ class StreamlitApps:
             data = await self._data(folder, app.title)
             if data is None:
                 raise Conflict(f"{folder}'s data.ipynb cannot be read: data.py was not written.")
-            made = rules.saved_pages(app.pages, pieces, data.names, found, where, gone)
+            app_name = _name(app.document)
+            made = rules.saved_pages(app.pages, pieces, data.names, found, where, gone, app_name)
             problems = list(made.problems)
             lacking = [t for t in named if t not in data.names]
             if lacking:
@@ -1087,7 +1090,15 @@ class StreamlitApps:
                     f"data.py cannot read {', '.join(data.fill_in)} again (pasted, dropped, or sent from "
                     "Python): add the code that reads it to data.ipynb."
                 )
-            self._project.replace_pages(folder, made.files)
+            # Only this app's own saved pages are written over or taken away: one of the user's
+            # (or of another app in the folder) stays as it is.
+            kept = self._project.replace_pages(
+                folder, made.files, lambda text: rules.is_saved_page(text, app_name)
+            )
+            problems += [
+                f"{name} is not a page this app saved: it was left as it is, and the zip has this app's."
+                for name in kept
+            ]
             needed = [*made.requirements, *projects.data_requirements(data.text)]
             requirements = projects.merged_requirements(
                 self._project.read(folder, projects.REQUIREMENTS_FILE), list(dict.fromkeys(needed))
@@ -1099,7 +1110,16 @@ class StreamlitApps:
         # zip's top under its own name, and the zip's copy of the app's file links to it there.
         documents = list(dict.fromkeys(b.document for p in app.pages for b in p.blocks))
         inside = {d: self._project.relative(folder, d) for d in documents}
-        outside = rules.bundle_names([d for d in documents if inside[d] is None])
+        own = [
+            projects.DATA_FILE,
+            projects.DATA_NOTEBOOK,
+            projects.REQUIREMENTS_FILE,
+            "README.txt",
+            app_name,
+            *made.files,
+            *(name for name in inside.values() if name),
+        ]
+        outside = rules.bundle_names([d for d in documents if inside[d] is None], own)
         placed = {d: inside[d] or outside[d] for d in documents}
         files: dict[str, str] = {
             projects.DATA_FILE: data.text,
@@ -1125,7 +1145,6 @@ class StreamlitApps:
                 f"{_name(document)} has changes that are not saved: the exports have them, the zip's copy "
                 "of the file does not."
             )
-        app_name = _name(app.document)
         files[app_name] = rules.write_app(app.pages, lambda d: placed.get(d, d))
         files["README.txt"] = projects.readme(
             app.title, [p.name for p in app.pages], app_name, data.fill_in, [placed[d] for d in documents]

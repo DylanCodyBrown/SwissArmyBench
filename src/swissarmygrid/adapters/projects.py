@@ -1,15 +1,17 @@
 """A project's folder on disk (domain/projects.py has the rules; services/projects.py and
 services/streamlit.py the use cases): made, listed, its own files read and written, zipped.
 
-Everything here is at the user's own word: a folder they named (New project), a file they asked to
-change (an entry of data.py), a zip they chose (Save as). A file that is there is replaced only where
-the use case says so: data.py is never written over by New project.
+Everything here is at the user's own word: a folder they named (New project), the project's exports
+(data.py, pages/*.py), a zip they chose (Save as). A file that is there is replaced only where the use
+case says so: data.py is never written over by New project, and a page of pages/ only when the use
+case says it is its own.
 """
 
 from __future__ import annotations
 
 import os
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 
 MAX_TEXT_BYTES: int = 20_000_000
@@ -79,16 +81,30 @@ class ProjectFiles:
         os.replace(partial, file)
         return str(file)
 
-    def replace_pages(self, folder: str, files: dict[str, str]) -> None:
-        """The project's pages/*.py as the canvas has them now: each written, and a page module the
-        canvas no longer has taken away (pages/ is written from the canvas; nothing else is there)."""
-        for name, text in files.items():
-            self.write(folder, name, text)
+    def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]:
+        """The project's pages/*.py as the canvas has them now: each written, and a page the canvas
+        no longer has taken away; but only a page `own` says is the app's (by its text). Another file
+        there is left as it is: the names of those that were not written over."""
         pages = self._folder(folder) / "pages"
-        kept = {Path(name).name for name in files}
+
+        def mine(file: Path) -> bool:
+            try:
+                return own(file.read_bytes()[:4096].decode("utf-8-sig", "replace"))
+            except OSError:
+                return False
+
+        left: list[str] = []
+        for name, text in files.items():
+            file = self._folder(folder) / name
+            if file.is_file() and not mine(file):
+                left.append(name)
+                continue
+            self.write(folder, name, text)
+        written = {Path(name).name for name in files}
         for old in pages.glob("*.py") if pages.is_dir() else []:
-            if old.name not in kept:
+            if old.name not in written and mine(old):
                 old.unlink(missing_ok=True)
+        return left
 
     def relative(self, folder: str, path: str) -> str | None:
         """A file's path inside the project, with forward slashes (None: it is outside)."""
