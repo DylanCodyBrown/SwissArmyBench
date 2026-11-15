@@ -463,6 +463,11 @@ def test_the_datasets_are_listed_from_the_catalog_or_from_power_bi(
     client: TestClient, standin: made_up.StandIn
 ) -> None:
     saved_connection(client)
+    # A page that only lists (the Workbench's DAX picker) never asks Power BI: none until the catalog.
+    before = len(standin.requests)
+    quiet = client.get("/connections/Finance/datasets?live=0", headers=AUTH).json()
+    assert quiet == {"connection": "Finance", "datasets": [], "from": "none"}
+    assert len(standin.requests) == before
     # No catalog yet: asked of Power BI, names and ids, each named as a DAX cell names it.
     asked = client.get("/connections/Finance/datasets", headers=AGENT)
     assert asked.status_code == 200, asked.text
@@ -480,6 +485,7 @@ def test_the_datasets_are_listed_from_the_catalog_or_from_power_bi(
     before = len(standin.requests)
     listed = client.get("/connections/Finance/datasets", headers=AUTH).json()
     assert listed["from"] == "catalog" and len(standin.requests) == before
+    assert client.get("/connections/Finance/datasets?live=0", headers=AUTH).json() == listed
     assert [d["cell"] for d in listed["datasets"]] == [
         "Finance/Broken model", "Finance/Budget model", "Finance/Sales model",
     ]  # fmt: skip
@@ -540,6 +546,7 @@ def test_the_connection_is_made_from_the_vault_and_no_secret_is_ever_answered(
     # Test connection (nothing saved): the vault runs first, the sign-in carries its three values.
     tested = call("POST", "/connections/test", draft)
     assert tested["ok"] is True and tested["type"].endswith("PowerBI")
+    assert tested["found"] == "signed in and found 3 datasets"  # what Test says it did
     token = next(r for r in standin.requests if r["what"] == "token")
     assert (token["tenant"], token["form"]["client_id"], token["form"]["client_secret"]) == (
         made_up.TENANT, made_up.CLIENT, made_up.SECRET,
@@ -635,6 +642,9 @@ def test_a_table_opens_as_a_grid_its_first_rows_counted_then_all(
     ).json()
     assert preview["columns"] == ["CustomerKey", "Customer Name", "Region"] and len(preview["rows"]) == 8
     assert preview["rows"][2][2] is None  # a customer with no region
+    # In a notebook the table's cell reads it again the way the docs teach: sag.dax, on its dataset.
+    cells = {t["name"]: t for t in client.get("/workbench/tables", headers=AUTH).json()["tables"]}
+    assert "Sales = sag.dax('Finance/Sales model', \"\"\"\nEVALUATE 'Sales'\n" in cells["Sales"]["loaded"]
     # The second dataset's table: its rows come from that dataset, the count too.
     second = client.post(
         "/connections/Finance/open", json={"schema": BUDGET, "table": "Budget"}, headers=AUTH
@@ -837,6 +847,15 @@ def test_a_dax_cell_is_a_code_cell_that_starts_with_its_dax_line() -> None:
         ("dax", "Finance/Sales model", "EVALUATE TOPN(10, 'Sales')"),
         ("sql", "Warehouse", "SELECT 1"),
     ]
+    # A cell saved before DAX cells, `%%sql Finance/Sales model`, opens as a DAX cell: only a
+    # workspace's dataset is named with a slash. A SQL cell on a plain connection stays one.
+    old = json.loads(text)
+    old["cells"][0]["source"] = ["%%sql 'Finance/Sales model'\n", "EVALUATE 'Sales'"]
+    old["cells"][0]["metadata"] = {"swissarmygrid": {"kind": "sql", "connection": "Finance/Sales model"}}
+    assert [(c.kind, c.connection) for c in notebooks.read_notebook(json.dumps(old))] == [
+        ("dax", "Finance/Sales model"),
+        ("sql", "Warehouse"),
+    ]
     # Read by its first line alone (a notebook written in Jupyter, no marks).
     plain = json.loads(text)
     for one in plain["cells"]:
@@ -857,7 +876,7 @@ def test_a_dax_cell_is_a_code_cell_that_starts_with_its_dax_line() -> None:
 
 
 def test_a_script_keeps_a_dax_cell_as_python_under_its_marker() -> None:
-    from swissarmygrid.domain.table_cells import parse_script, write_script
+    from swissarmygrid.domain.table_cells import arrange_script, parse_script
 
     script = (
         "import swissarmygrid as sag\n"
@@ -868,8 +887,26 @@ def test_a_script_keeps_a_dax_cell_as_python_under_its_marker() -> None:
     )
     parsed = parse_script(script)
     assert parsed.cells[-1].title == "[dax] Sales by region" and parsed.cells[-1].number == 1
-    assert write_script(parsed) == script  # the file runs as plain Python, and is kept as written
+    assert arrange_script(script, [])[0] == script  # the file runs as plain Python, and is kept as written
     compile(script, "script.py", "exec")
+
+
+def test_a_dax_cell_gets_no_uses_line() -> None:
+    """DAX names its dataset's own tables, never the kernel's: `Sales` in a DAX cell is not the open
+    table Sales, so the app writes no uses line on it (a SQL cell beside it gets one)."""
+    from swissarmygrid.domain.table_cells import PlanCell, TableSpec, arrange
+
+    cells = [
+        PlanCell(1, "code", "Sales = 1"),
+        PlanCell(2, "dax", "EVALUATE TOPN(10, Sales)"),
+        PlanCell(3, "sql", "SELECT * FROM Sales"),
+    ]
+    spec = TableSpec(
+        "Sales", 'import duckdb\n\nSales = duckdb.sql("""\nSELECT * FROM Sales\n""").df()', "", 1
+    )
+    arranged = {c.number: c for c in arrange(cells, [spec], 4).cells if c.kind in ("dax", "sql")}
+    assert arranged[2].uses is None and arranged[2].source == "EVALUATE TOPN(10, Sales)"
+    assert arranged[3].uses is not None and arranged[3].uses.startswith("-- uses Sales @cell")
 
 
 def test_the_uses_line_reads_dax_without_breaking() -> None:
@@ -977,7 +1014,7 @@ def test_import_its_relationships_merges_into_the_current_model(
     # Several datasets and none named: refused, naming them.
     unnamed = client.post("/connections/Finance/relationships", json={}, headers=AGENT)
     assert unnamed.status_code == 400
-    assert unnamed.json()["error"] == (
+    assert unnamed.text == (
         "Finance has several datasets: name the one to import. It has: Sales model, Budget model, "
         "Broken model."
     )

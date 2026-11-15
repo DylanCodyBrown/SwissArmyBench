@@ -38,7 +38,7 @@ import { chooseFile } from "./fileChooser";
 import { effectiveTheme } from "./theme";
 import { allCommands, answerAgent, type Command, openPalette, registerCommands, runCommand } from "./workbenchCommands";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
-import { forgetCatalogs, pythonCompleter, setDialects } from "./workbenchCompletion";
+import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./workbenchCompletion";
 import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
 import { mountLayout } from "./workbenchLayout";
@@ -101,6 +101,8 @@ let counter = 0;
 let homeFolder = "";
 let pythons: PythonChoice[] = [];
 let connectionNames: string[] = [];
+let workspaceNames: string[] = []; // the Power BI workspaces
+let datasetNames: string[] = []; // their datasets, as a DAX cell names them: Finance/Sales model
 let bladeNames: string[] = [];
 let codeNames: { name: string; connection: string; kind: string }[] = [];
 let editingBlade = false;
@@ -110,20 +112,29 @@ const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 async function loadConnections(): Promise<void> {
   try {
     const every = (await api<{ blades: { name: string; connection?: string | null; code_name?: string | null; dialect?: string | null }[] }>("/blades")).blades;
-    setDialects(every); // a cell on a Power BI dataset holds DAX
-    connectionNames = every.filter((b) => b.connection && b.connection !== "vault").map((b) => b.name); // a SQL cell's sources
+    setDialects(every);
+    // A SQL cell's sources: every connection but a Power BI workspace, whose datasets are a DAX cell's.
+    connectionNames = every.filter((b) => b.connection && b.connection !== "vault" && b.dialect !== "dax").map((b) => b.name);
+    workspaceNames = every.filter((b) => b.connection && b.dialect === "dax").map((b) => b.name);
     bladeNames = every.filter((b) => !b.connection).map((b) => b.name);
     codeNames = every.filter((b) => b.code_name).map((b) => ({ name: b.code_name!, connection: b.name, kind: b.connection ?? "" }));
   } catch {
     connectionNames = [];
+    workspaceNames = [];
     bladeNames = [];
     codeNames = [];
   }
+  await loadDatasets();
+}
+
+/** The workspaces' datasets, from their catalogs (asked again when a catalog loads). */
+async function loadDatasets(): Promise<void> {
+  datasetNames = await listDatasets(workspaceNames);
 }
 
 // ===== documents =====
 
-const names = (): { connections: string[]; blades: string[]; codeNames: typeof codeNames } => ({ connections: connectionNames, blades: bladeNames, codeNames });
+const names = (): { connections: string[]; blades: string[]; codeNames: typeof codeNames; datasets: string[] } => ({ connections: connectionNames, blades: bladeNames, codeNames, datasets: datasetNames });
 const hooks = {
   cursor: (line: number, column: number): void => {
     cursor = { line, column };
@@ -316,6 +327,7 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
     opened: cells.length > 0, // from a file or a reload: its tables' cells have not run since
     restoreSteps,
     tablesChanged: () => doc === current && drawTablesTool(),
+    datasets: () => datasetNames,
   });
   doc.element.append(doc.notebook.element);
   show(doc);
@@ -563,6 +575,7 @@ function drawToolbar(): void {
       ? [
           button("Python", () => doc.notebook!.add("code"), { icon: "plus", title: "Add Python cell (B)" }),
           button("SQL", () => doc.notebook!.add("sql"), { icon: "sql", title: "Add SQL cell" }),
+          button("DAX", () => doc.notebook!.add("dax"), { icon: "group", title: "Add DAX cell: a query on a Power BI workspace's dataset" }),
           button("HTML", () => doc.notebook!.add("html"), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
           button("Markdown", () => doc.notebook!.add("markdown"), { icon: "edit", title: "Add Markdown cell" }),
           button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" }),
@@ -570,6 +583,7 @@ function drawToolbar(): void {
       : [
           button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" }),
           button("Run statement", () => void doc.script!.runSelection(), { icon: "play", title: "Run statement (Ctrl+Enter)" }),
+          button("DAX", () => void doc.script!.addDax(datasetNames[0] ?? ""), { icon: "group", title: "Add DAX cell: a query on a Power BI workspace's dataset" }),
           button("HTML", () => void doc.script!.addHtml(), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
         ];
   clear(
@@ -644,11 +658,11 @@ const rail = mountRail({
     show(doc);
   },
   connectionsByName: true,
-  showSchema: (label, catalog, dialect) => {
+  showSchema: (label, catalog, dialect, schema, note) => {
     let doc = docs.find((d) => d.kind === "table");
     if (!doc) doc = makeDoc("table", "Explorer", null, null);
     doc.title = label;
-    clear(doc.element, ...schemaDetails(label, catalog, dialect));
+    clear(doc.element, ...schemaDetails(label, catalog, dialect, schema, note));
     show(doc);
   },
 });
@@ -791,9 +805,9 @@ const tablesView = (): NotebookView | ScriptView => {
   if (!view) throw new Error("No notebook or script is in front.");
   return view;
 };
-const kindArg = (args: Record<string, unknown>): "code" | "sql" | "html" | "markdown" => {
+const kindArg = (args: Record<string, unknown>): "code" | "sql" | "dax" | "html" | "markdown" => {
   const kind = text(args, "kind") ?? "code";
-  if (kind !== "code" && kind !== "sql" && kind !== "html" && kind !== "markdown") throw new Error('kind is "code", "sql", "html" or "markdown".');
+  if (kind !== "code" && kind !== "sql" && kind !== "dax" && kind !== "html" && kind !== "markdown") throw new Error('kind is "code", "sql", "dax", "html" or "markdown".');
   return kind;
 };
 const step = (by: 1 | -1): void => {
@@ -856,8 +870,8 @@ const COMMANDS: Command[] = [
   { id: "run.interrupt", group: "Run", title: "Interrupt", when: isCode, whyNot: "no notebook or script is in front", run: () => kernelOf().interrupt() },
   { id: "run.restart", group: "Run", title: "Restart the kernel", when: isCode, whyNot: "no notebook or script is in front", run: () => restartKernel(kernelOf()) },
   // Cells
-  { id: "cell.insertAbove", group: "Cell", title: "Insert a cell above", keys: "A", args: "kind: code, sql, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("above", kindArg(a), text(a, "source") ?? "") },
-  { id: "cell.insertBelow", group: "Cell", title: "Insert a cell below", keys: "B", args: "kind: code, sql, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("below", kindArg(a), text(a, "source") ?? "") },
+  { id: "cell.insertAbove", group: "Cell", title: "Insert a cell above", keys: "A", args: "kind: code, sql, dax, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("above", kindArg(a), text(a, "source") ?? "") },
+  { id: "cell.insertBelow", group: "Cell", title: "Insert a cell below", keys: "B", args: "kind: code, sql, dax, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("below", kindArg(a), text(a, "source") ?? "") },
   { id: "cell.select", group: "Cell", title: "Select a cell", args: "index (from 0); edit: true to put the cursor in it", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().select(num(a, "index") ?? 0, a.edit === true) },
   { id: "cell.delete", group: "Cell", title: "Delete the cell", keys: "D D", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().remove(num(a, "index")) },
   { id: "cell.undo", group: "Cell", title: "Undo a cell's delete or move", keys: "Z", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().undo() },
@@ -866,6 +880,18 @@ const COMMANDS: Command[] = [
   { id: "cell.toCode", group: "Cell", title: "Make it a Python cell", keys: "Y", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("code") },
   { id: "cell.toMarkdown", group: "Cell", title: "Make it a Markdown cell", keys: "M", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("markdown") },
   { id: "cell.toSql", group: "Cell", title: "Make it a SQL cell", keys: "S", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("sql") },
+  { id: "cell.toDax", group: "Cell", title: "Make it a DAX cell", keys: "X", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("dax") },
+  { id: "cell.addDax", group: "Cell", title: "Add a DAX cell", args: "dataset: a Power BI workspace's dataset, as Finance/Sales model (default: the first); source: its DAX", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => {
+    const source = text(a, "source") ?? "";
+    const dataset = text(a, "dataset") ?? datasetNames[0] ?? "";
+    if (current?.notebook) {
+      current.notebook.insert("below", "dax", source);
+      if (dataset) current.notebook.setConnection(dataset);
+      return { document: current.title, index: current.notebook.selected(), dataset: dataset || null };
+    }
+    await script().addDax(dataset, source);
+    return { document: current!.title, dataset: dataset || null };
+  } },
   { id: "cell.toHtml", group: "Cell", title: "Make it an HTML cell", keys: "H", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("html") },
   { id: "cell.edit", group: "Cell", title: "Edit the cell (an HTML or Markdown cell that shows as drawn)", keys: "Enter", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().editSelected() },
   { id: "cell.duplicate", group: "Cell", title: "Duplicate the cell", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().duplicate() },
@@ -1029,6 +1055,7 @@ onNotice((notice) => {
   if (notice.type === "catalogs_changed") {
     void rail.loadCatalogs();
     forgetCatalogs(); // completion asks the catalogs again
+    void loadDatasets(); // a workspace's datasets are its catalog's
   }
   if (notice.type === "blades_changed") {
     void rail.loadBlades();

@@ -360,6 +360,22 @@ input.needs-value {
   font-size: 0.82em;
 }
 
+/* A schema the source could not list (a Power BI workspace's dataset that could not be read): the
+   mark is a shape and a letter, not colour alone; the reason is its title and on the dataset's page. */
+.node-error {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border: 1px solid var(--error);
+  border-radius: 50%;
+  color: var(--error);
+  font-size: 0.78em;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
 .node.more {
   color: var(--accent);
 }

@@ -140,7 +140,8 @@ const envFor = (secret: string): string => {
   return (/^\d/.test(w) ? `_${w}` : w).slice(0, 128);
 };
 /** What a Test answers: a vault reads its variables; a connection makes something (a file: is there). */
-// A Power BI dataset's test signs in and asks the dataset one question: say that, not its class's name.
+// A Power BI workspace's test signs in and lists its datasets (`found` says how many); a connection saved
+// for one dataset asks it one question: say that, not its class's name.
 const worked = (r: { type?: string; found?: string; variables?: string[] }): string =>
   r.variables ? `read ${r.variables.join(", ")}` : (r.found ?? (r.type === "PowerBI" ? "signed in and reached the dataset" : `made a ${r.type}`));
 
@@ -203,15 +204,18 @@ async function openConnection(name: string): Promise<void> {
   }
 }
 
-/** A Power BI dataset's own relationships, merged into the current model (the Diagram and the Key
- * Finder's known joins then show them). */
-export async function importRelationships(connection: string): Promise<void> {
-  toast(`Reading ${connection}'s relationships…`);
+/** One Power BI dataset's own relationships (`dataset`: the one of the workspace `connection`),
+ * merged into the current model (the Diagram and the Key Finder's known joins then show them). It is
+ * offered on a dataset in the catalog (its right-click menu and its page) and when one of its tables
+ * opens as a grid. */
+export async function importRelationships(connection: string, dataset = ""): Promise<void> {
+  const from = dataset || connection;
+  toast(`Reading ${from}'s relationships…`);
   try {
-    const answer = await api<{ imported: unknown[]; changed: string[] }>(`/connections/${encodeURIComponent(connection)}/relationships`, "POST", {});
+    const answer = await api<{ imported: unknown[]; changed: string[] }>(`/connections/${encodeURIComponent(connection)}/relationships`, "POST", dataset ? { dataset } : {});
     const n = answer.imported.length;
     const changed = answer.changed.length ? ` Changed: ${answer.changed.join("; ")}.` : "";
-    toast(`${n.toLocaleString()} relationship${n === 1 ? "" : "s"} from ${connection} ${n === 1 ? "is" : "are"} in the model.${changed}`);
+    toast(`${n.toLocaleString()} relationship${n === 1 ? "" : "s"} from ${from} ${n === 1 ? "is" : "are"} in the model.${changed}`);
   } catch (e) {
     toast(errorText(e), "error");
   }
@@ -259,7 +263,8 @@ export async function openConnections(): Promise<void> {
           c.description ? h("div", { class: "hint" }, c.description) : null,
           c.entries
             ? h("div", { class: "vault-entries" }, c.every ? h("span", { class: "badge" }, "Every secret") : null, ...c.entries.map((e) => h("code", { class: "hint", title: `${e.secret} in the vault` }, `${e.env} ← ${e.secret}`)))
-            : h("code", { class: "hint" }, `sag.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
+            : // A Power BI workspace's cells are DAX cells, each on one of its datasets.
+              h("code", { class: "hint" }, c.dialect === "dax" ? `sag.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>` : `sag.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
         ),
         h(
           "span",
@@ -268,7 +273,6 @@ export async function openConnections(): Promise<void> {
           readOnly ? null : button("Edit", () => void showForm({ edit: c.name }), { icon: "edit" }),
           button("Test", () => void testSaved(c.name), { icon: "play" }),
           c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
-          c.dialect === "dax" ? button("Import its relationships", () => void importRelationships(c.name), { icon: "link" }) : null,
           c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sag.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
           readOnly
             ? null
@@ -486,7 +490,7 @@ export async function openConnections(): Promise<void> {
       return h(
         "fieldset",
         { class: "connection-passwords" },
-        // A Power BI dataset's are an app registration's values (two ids and a secret), not passwords alone.
+        // A Power BI workspace's are an app registration's values (two ids and a secret), not passwords alone.
         h("legend", {}, form.dialect === "dax" ? "App registration" : "Passwords"),
         ...form.secrets.map((s) => {
           const inVault = vaults.find((v) => v.entries.some((e) => e.env === s)) ?? vaults.find((v) => v.name === pointedAt.get(s));

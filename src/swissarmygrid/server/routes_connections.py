@@ -14,7 +14,8 @@ answer holds a password's value:
   POST   /connections/{name}/open     a table as a grid {database, schema, table, all} (a file: its file)
   POST   /connections/{name}/preview  a table's first rows {database, schema, table} (nothing kept)
   GET    /connections/{name}/datasets a Power BI workspace's datasets: from its loaded catalog, or
-                                      (?live=1, or no catalog yet) from Power BI itself, with their ids
+                                      (?live=1, or no catalog yet) from Power BI itself, with their ids;
+                                      ?live=0 never asks Power BI (none until the catalog is loaded)
   POST   /connections/{name}/relationships   {dataset}: one of a Power BI workspace's datasets' own
                                       relationships, merged into the current model (the Diagram, the
                                       Key Finder's known joins)
@@ -126,7 +127,8 @@ def routes(connections: ConnectionService, blades: BladeService, loading: Catalo
     async def datasets(request: Request) -> Response:
         try:
             name = request.path_params["name"]
-            live = request.query_params.get("live") in ("1", "true")
+            asked = request.query_params.get("live")
+            live = None if asked is None else asked in ("1", "true")
             return json_response(await connections.datasets(name, {}, live))
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)

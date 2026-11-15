@@ -391,6 +391,10 @@ def _tested(value: Any) -> dict[str, Any]:
         if path.is_file():
             return made | {"found": f"a file of {path.stat().st_size:,} bytes"}
         return {"error": f"{path} is not there: check the path (and that this computer can reach it)."}
+    lister = getattr(value, "datasets", None)
+    if module == "__blade__" and callable(lister):  # a Power BI workspace: it signed in and listed them
+        count = len(lister())
+        return made | {"found": f"signed in and found {count} dataset{'' if count == 1 else 's'}"}
     return made
 
 

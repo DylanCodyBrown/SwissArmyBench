@@ -278,8 +278,8 @@ class ConnectionService:
             dataset = powerbi.grid_name(within, place["table"], await self._shared(blade.name))
         else:
             dataset = rules.dataset_name(place["table"])
-        origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sag.sql(origin, sql)
-        stored = await self._tables.store(dataset, table, who, opened, origin, sql)
+        origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sag.dax(origin, sql)
+        stored = await self._tables.store(dataset, table, who, opened, origin, sql, dax)
         return stored | {"shown": shown, "total": total}
 
     async def _shared(self, name: str) -> set[str]:
@@ -315,12 +315,16 @@ class ConnectionService:
             )
         return blade
 
-    async def datasets(self, name: str, body: Any, live: bool = False) -> dict[str, Any]:
+    async def datasets(self, name: str, body: Any, live: bool | None = None) -> dict[str, Any]:
         """A Power BI workspace's datasets. From its loaded catalog (each name, and the note of one
         that could not be read); with `live`, or before the catalog is loaded, from Power BI itself
-        (names and ids). Each is named for a DAX cell too: `Finance/Sales model`."""
+        (names and ids). `live` False never asks Power BI (a page that only lists: no sign-in window
+        opens for it): none until the catalog is loaded. Each is named for a DAX cell too:
+        `Finance/Sales model`."""
         blade = self._workspace(name)
         listed = None if live or self._catalogs is None else await self._catalogs.schema_names(blade.name)
+        if listed is None and live is False:
+            return {"connection": blade.name, "datasets": [], "from": "none"}
         if listed is not None:
             found = [
                 {"name": str(s["schema"])} | ({"note": s["note"]} if s.get("note") else {}) for s in listed
@@ -394,7 +398,14 @@ class Tables(Protocol):
     """Where a connection's table goes as a grid (services/datasets.py)."""
 
     async def store(
-        self, name: str, table: Any, who: str, opened: Opened | None, connection: str = "", sql: str = ""
+        self,
+        name: str,
+        table: Any,
+        who: str,
+        opened: Opened | None,
+        connection: str = "",
+        sql: str = "",
+        dax: bool = False,
     ) -> dict[str, Any]: ...
 
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]: ...

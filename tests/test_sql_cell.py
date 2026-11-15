@@ -170,6 +170,7 @@ def test_the_magics_run_a_cell_keep_the_result_and_choose_a_default(
     assert sql_cell.register(shell) == [
         "%%sag",
         "%%sql",
+        "%%dax",
         "%sag_connect",
         "%sag_connections",
         "%sql_connect",

@@ -203,6 +203,9 @@ def read_document(text: str) -> tuple[list[Cell], int]:
                     named = " ".join(shlex.split(words[1])) if len(words) > 1 else None
                 except ValueError:
                     named = words[1] if len(words) > 1 else None
+                # A `%%sql Finance/Sales model` cell saved before DAX cells: only a Power BI
+                # workspace's dataset is named with a slash (no connection's name has one).
+                dax = dax or "/" in (named or "").split(" -> ")[0]
                 cell = Cell("dax" if dax else "sql", rest, named or None)
             elif _HTML_LINE.match(first):
                 cell = Cell("html", rest)
