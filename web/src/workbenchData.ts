@@ -20,7 +20,7 @@
 import type { BladeSummary } from "./bladeEditor";
 import { DROP_TYPE } from "./catalogRail";
 import { button, h, icon } from "./dom";
-import { CELL_DRAG, type PaneDocument, partsOf } from "./workbenchStreamlit";
+import { CELL_DRAG, type PaneCell, type PaneDocument, partsOf } from "./workbenchStreamlit";
 
 export interface DataTable {
   name: string;
@@ -256,52 +256,62 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     if (!blades.length) bladeList.append(h("li", { class: "wb-data-empty" }, "No blades"));
   }
 
-  // ----- the Streamlit cells pane
+  // ----- the Streamlit cells pane: the cells that call Streamlit, then (under Text) the Markdown and
+  // HTML cells, which go on a page too (docs/ideas.md, text cells on the canvas, 2026-11-15)
   function drawStreamlit(): void {
     const count = paneDocs.reduce((n, d) => n + d.cells.length, 0);
     streamlitHead.setAttribute("aria-expanded", String(!streamlitFolded));
     streamlitHead.replaceChildren(icon(streamlitFolded ? "expand" : "down"), h("span", {}, "Streamlit cells"), ...(count ? [h("span", { class: "wb-data-count" }, String(count))] : []));
     streamlitList.hidden = streamlitFolded;
     if (streamlitFolded) return;
-    streamlitList.replaceChildren(
-      ...paneDocs.map((d) =>
+    const item = (d: PaneDocument, c: PaneCell): HTMLElement => {
+      const on = d.document !== null && placed.has(`${d.document}#${c.cell}`);
+      const parts = partsOf(c);
+      const text = c.kind === "markdown" || c.kind === "html";
+      const kind = c.kind === "markdown" ? "A Markdown cell" : "An HTML cell";
+      return h(
+        "li",
+        { class: "wb-data-item" },
         h(
+          "button",
+          {
+            type: "button",
+            class: `wb-data-card wb-st-cell${on ? " placed" : ""}${c.named ? " named" : ""}${text ? ` text kind-${c.kind}` : ""}`,
+            title: `Go to ${c.where}${text ? ` (${kind.toLowerCase()})` : ""}`,
+            draggable: "true",
+            dataset: { document: d.document ?? "", cell: String(c.cell) },
+            onclick: () => host.goToCell(d.document, d.title, c.cell),
+            ondragstart: (event: DragEvent) => {
+              // The same link a cell's own drag carries: a canvas places it.
+              event.dataTransfer?.setData(CELL_DRAG, JSON.stringify({ document: d.document, cell: c.cell, title: d.title }));
+              event.dataTransfer?.setData("text/plain", `@cell${c.cell}`);
+              if (event.dataTransfer) event.dataTransfer.effectAllowed = "copyLink";
+            },
+          },
+          h(
+            "span",
+            { class: "wb-data-name" },
+            text ? h("span", { class: "wb-st-t", title: kind, "aria-label": kind }, "T") : null,
+            h("span", { class: "wb-data-label" }, c.name),
+            on ? h("span", { class: "wb-st-placed", title: "On the canvas page in front", "aria-label": "On the canvas page in front" }, icon("check")) : null,
+          ),
+          h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
+        ),
+      );
+    };
+    streamlitList.replaceChildren(
+      ...paneDocs.map((d) => {
+        const live = d.cells.filter((c) => c.kind !== "markdown" && c.kind !== "html");
+        const texts = d.cells.filter((c) => c.kind === "markdown" || c.kind === "html");
+        return h(
           "div",
           { class: "wb-st-doc" },
           h("div", { class: "wb-st-doc-name", title: d.document ?? d.title }, d.title),
-          h(
-            "ul",
-            { class: "wb-data-list", "aria-label": d.title },
-            ...d.cells.map((c) => {
-              const on = d.document !== null && placed.has(`${d.document}#${c.cell}`);
-              const parts = partsOf(c);
-              return h(
-                "li",
-                { class: "wb-data-item" },
-                h(
-                  "button",
-                  {
-                    type: "button",
-                    class: `wb-data-card wb-st-cell${on ? " placed" : ""}${c.named ? " named" : ""}`,
-                    title: `Go to ${c.where}`,
-                    draggable: "true",
-                    dataset: { document: d.document ?? "", cell: String(c.cell) },
-                    onclick: () => host.goToCell(d.document, d.title, c.cell),
-                    ondragstart: (event: DragEvent) => {
-                      // The same link a cell's own drag carries: a canvas places it.
-                      event.dataTransfer?.setData(CELL_DRAG, JSON.stringify({ document: d.document, cell: c.cell, title: d.title }));
-                      event.dataTransfer?.setData("text/plain", `@cell${c.cell}`);
-                      if (event.dataTransfer) event.dataTransfer.effectAllowed = "copyLink";
-                    },
-                  },
-                  h("span", { class: "wb-data-name" }, h("span", { class: "wb-data-label" }, c.name), on ? h("span", { class: "wb-st-placed", title: "On the canvas page in front", "aria-label": "On the canvas page in front" }, icon("check")) : null),
-                  h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
+          live.length ? h("ul", { class: "wb-data-list", "aria-label": d.title }, ...live.map((c) => item(d, c))) : null,
+          texts.length ? h("div", { class: "wb-st-text-head" }, "Text") : null,
+          texts.length ? h("ul", { class: "wb-data-list wb-st-texts", "aria-label": `${d.title}: text` }, ...texts.map((c) => item(d, c))) : null,
+        );
+      }),
     );
     if (!paneDocs.length) streamlitList.append(h("p", { class: "wb-data-empty" }, "No cells call Streamlit"));
   }

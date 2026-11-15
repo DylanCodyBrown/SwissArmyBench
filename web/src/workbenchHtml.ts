@@ -117,6 +117,14 @@ export async function fillHtml(html: string, values: Record<string, HtmlValue>):
   return api<Filled>("/workbench/html/fill", "POST", { html, values });
 }
 
+/** A Markdown cell's text with its names filled as text (docs/ideas.md, text cells on the canvas,
+ *  2026-11-15): the same values as an HTML cell's, written by the server's rules (domain/html_cells.py
+ *  fill_markdown), so a value can neither format nor link nor become markup. Plain Markdown is itself. */
+export async function fillMarkdown(text: string, values: Record<string, HtmlValue>): Promise<{ markdown: string; missing: string[]; notes: string[] }> {
+  if (!htmlNames(text).length) return { markdown: text, missing: [], notes: [] };
+  return api<{ markdown: string; missing: string[]; notes: string[] }>("/workbench/html/fill", "POST", { markdown: text, values });
+}
+
 export interface HtmlRunResult {
   ok: boolean;
   run: HtmlRun | null;

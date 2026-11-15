@@ -4,26 +4,34 @@
  * Notes may come from an agent, so the renderer builds DOM nodes and sets text, never HTML:
  * headings, paragraphs, bullet and numbered lists, tables (GitHub style: a header row, a |---| rule,
  * numbers right-aligned), fenced code blocks, quotes, rules (---), **bold**, *italic*, `code`, and
- * http(s) links (opened in a new tab without access back to this page). Anything else shows as text.
+ * http(s) links (opened in a new tab without access back to this page). A backslash before punctuation
+ * and the references HTML escaping writes (&lt; &amp;...) show as their characters. Anything else shows as text.
  */
 import { h } from "./dom";
 
+// A backslash before ASCII punctuation is that character as text (Markdown's own escape), and the
+// five references HTML's escaping writes are their characters: a Markdown cell's filled values are
+// written so (domain/html_cells.py markdown_text), and read as text here as in Jupyter and Streamlit.
+const REFERENCES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'", "&#39;": "'" };
+const plain = (text: string): string => text.replace(/&(?:amp|lt|gt|quot|#x27|#39);/g, (m) => REFERENCES[m] ?? m);
+
 function inline(text: string): Node[] {
   const out: Node[] = [];
-  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g;
+  const pattern = /(\\[!-/:-@[-`{-~]|\*\*(?:\\.|[^*\\])+\*\*|\*(?:\\.|[^*\\])+\*|`[^`]+`|\[(?:\\.|[^\]\\])+\]\(https?:\/\/[^)\s]+\))/g;
   let last = 0;
   for (const match of text.matchAll(pattern)) {
     const token = match[0];
-    if (match.index > last) out.push(document.createTextNode(text.slice(last, match.index)));
-    if (token.startsWith("**")) out.push(h("strong", {}, token.slice(2, -2)));
+    if (match.index > last) out.push(document.createTextNode(plain(text.slice(last, match.index))));
+    if (token.startsWith("\\")) out.push(document.createTextNode(token.slice(1)));
+    else if (token.startsWith("**")) out.push(h("strong", {}, ...inline(token.slice(2, -2))));
     else if (token.startsWith("`")) out.push(h("code", {}, token.slice(1, -1)));
     else if (token.startsWith("[")) {
-      const [, label, href] = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token) ?? [];
-      out.push(h("a", { href, target: "_blank", rel: "noopener noreferrer" }, label ?? token));
-    } else out.push(h("em", {}, token.slice(1, -1)));
+      const [, label, href] = /^\[(.+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token) ?? [];
+      out.push(h("a", { href, target: "_blank", rel: "noopener noreferrer" }, ...inline(label ?? token)));
+    } else out.push(h("em", {}, ...inline(token.slice(1, -1))));
     last = match.index + token.length;
   }
-  if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  if (last < text.length) out.push(document.createTextNode(plain(text.slice(last))));
   return out;
 }
 

@@ -155,7 +155,7 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     # ----- a new app: a canvas, as a tab beside the notebook
     menu(workbench, "Workbench menu", "New Streamlit app")
     expect(tabs).to_have_count(2)
-    expect(workbench.locator(".cv-empty")).to_have_text("Drag a Python cell here")
+    expect(workbench.locator(".cv-empty")).to_have_text("Drag a cell here: Python, Markdown or HTML")
     expect(workbench.get_by_role("button", name="Push to page")).to_have_count(0)
     # Edit | Play: one pair, Edit the mode in front. The status bar has no word for the tab's kind.
     edit_mode = workbench.get_by_role("button", name="Edit", exact=True)

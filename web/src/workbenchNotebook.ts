@@ -56,7 +56,7 @@ import { loadEditors } from "./workbenchConsole";
 import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
-import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
+import { changedNames, type DesignPane, designPane, fillHtml, fillMarkdown, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
 import { CELL_DRAG, cleanName, copiedCell, copyCell, type EveryCell, MAX_CELL_NAME, mayUseStreamlit, PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
@@ -135,6 +135,8 @@ interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | 
   area: OutputArea;
   /** A Markdown cell drawn as text. */
   view: HTMLElement;
+  /** A Markdown cell's line above its text, when it has names: its state and Run (empty when current). */
+  textBar: { element: HTMLElement; status: HTMLElement; run: HTMLElement };
   count: HTMLElement;
   kindPicker: HTMLSelectElement;
   connectionPicker: HTMLSelectElement;
@@ -165,6 +167,11 @@ const KINDS: CellKind[] = ["code", "sql", "dax", "html", "markdown"];
 const drawn = (kind: CellKind): boolean => kind === "html";
 /** A Python cell that calls Streamlit: it has two faces, like an HTML cell (its code, the live page). */
 const isLive = (cell: { kind: CellKind; live: boolean }): boolean => cell.kind === "code" && cell.live;
+/** A Markdown or HTML cell: it goes on a Streamlit page as text (docs/ideas.md, text cells on the canvas). */
+const isText = (kind: CellKind): boolean => kind === "markdown" || kind === "html";
+/** A cell whose `{{ name }}` values are filled from the kernel: an HTML cell, or a Markdown cell with names. */
+const filledCell = (cell: { kind: CellKind; source: string; editor: CodeEditor | null }): boolean =>
+  cell.kind === "html" || (cell.kind === "markdown" && htmlNames(cell.editor ? cell.editor.value() : cell.source).length > 0);
 /** A cell that shows something drawn in place of its code while it is not being edited. */
 const twoFaced = (cell: { kind: CellKind; live: boolean }): boolean => drawn(cell.kind) || isLive(cell);
 // A DAX cell names its dataset's own tables, never the kernel's: it gets no uses line (a `-- uses` one it has goes).
@@ -335,9 +342,43 @@ export function notebookView(
     cell.element.classList.add("selected");
   };
 
+  /** A Markdown cell as text. With `{{ name }}` (docs/ideas.md, text cells on the canvas, 2026-11-15)
+   *  its names are filled from its last run's values by the server's rules (a value is always text),
+   *  and the line above says when it is out of date, as an HTML cell's design does. */
   const showMarkdown = (cell: Cell): void => {
-    cell.view.replaceChildren(renderMarkdown(cell.editor?.value() ?? cell.source));
+    const text = cell.editor?.value() ?? cell.source;
     cell.element.classList.add("rendered");
+    if (!htmlNames(text).length) {
+      cell.htmlNotes = [];
+      cell.view.replaceChildren(renderMarkdown(text));
+      return;
+    }
+    void drawMarkdown(cell, text);
+  };
+
+  const drawMarkdown = async (cell: Cell, text: string): Promise<void> => {
+    const mine = ++cell.drawn;
+    let filled: { markdown: string; missing: string[]; notes: string[] };
+    try {
+      filled = await fillMarkdown(text, cell.htmlRun?.values ?? {});
+    } catch {
+      filled = { markdown: text, missing: [], notes: ["The server is away: the names show as written."] };
+    }
+    if (mine !== cell.drawn || cell.kind !== "markdown" || !cell.element.classList.contains("rendered")) return;
+    cell.htmlNotes = [...filled.missing.map((n) => `{{ ${n} }} was not found in the kernel.`), ...filled.notes];
+    const notes = cell.htmlNotes.length ? h("div", { class: "wb-design-notes hint" }, ...cell.htmlNotes.map((n) => h("div", {}, n))) : null;
+    cell.view.replaceChildren(cell.textBar.element, renderMarkdown(filled.markdown), ...(notes ? [notes] : []));
+    drawMarkdownState(cell);
+  };
+
+  /** A Markdown cell's state line: only what needs the user (out of date, not run), with Run. */
+  const drawMarkdownState = (cell: Cell): void => {
+    const state = htmlState(sourceOf(cell), cell.htmlRun);
+    cell.textBar.element.hidden = !state.label;
+    cell.textBar.status.textContent = state.label;
+    cell.textBar.status.className = `wb-design-state ${state.kind}`;
+    cell.textBar.run.hidden = !state.runnable;
+    cell.element.classList.toggle("stale", state.kind === "outOfDate");
   };
 
   const editMarkdown = (cell: Cell): void => {
@@ -353,6 +394,7 @@ export function notebookView(
   const htmlStateOf = (cell: Cell): HtmlState => htmlState(htmlOf(cell), cell.htmlRun);
 
   const drawHtmlState = (cell: Cell): void => {
+    if (cell.kind === "markdown") return drawMarkdownState(cell);
     if (!cell.design) return;
     const state = htmlStateOf(cell);
     cell.design.setState(state, cell.htmlNotes);
@@ -390,13 +432,15 @@ export function notebookView(
     setTimeout(() => cell.editor?.layout(), 0);
   };
 
-  /** Run an HTML cell: plain HTML only draws; with names, each is read from the kernel's variables. */
+  /** Run an HTML cell: plain HTML only draws; with names, each is read from the kernel's variables. A
+   *  Markdown cell with names runs the same way (its values are an HTML cell's), and shows as text. */
   const runHtmlCell = async (cell: Cell): Promise<boolean> => {
     const html = cell.source;
+    const face = (c: Cell): void => (c.kind === "markdown" ? showMarkdown(c) : showDesign(c));
     cell.area.set([]);
     if (!html.trim()) return true;
     if (!htmlNames(html).length) {
-      showDesign(cell);
+      face(cell);
       return true;
     }
     cell.count.textContent = "[*]";
@@ -411,7 +455,7 @@ export function notebookView(
       cell.element.classList.toggle("failed", !done.ok);
       if (done.run) cell.htmlRun = { ...done.run, code: withUses(html, null, "html") };
       edited();
-      showDesign(cell);
+      face(cell);
       return done.ok;
     } catch (e) {
       cell.area.finish();
@@ -431,7 +475,7 @@ export function notebookView(
   /** After a run: which HTML cells name a variable that would now draw something else. */
   let marksTimer: number | null = null;
   const checkMarks = async (): Promise<void> => {
-    const ran = cells.filter((c) => c.kind === "html" && c.htmlRun && c.htmlRun.code !== null);
+    const ran = cells.filter((c) => (c.kind === "html" || c.kind === "markdown") && c.htmlRun && c.htmlRun.code !== null);
     if (!ran.length) return;
     const changed = await changedNames(kernel, ran.map((c) => c.htmlRun!));
     if (!changed) return;
@@ -524,6 +568,7 @@ export function notebookView(
     for (const c of cells) c.editor?.setProblems([]); // the last failure's marks describe code that ran before
     if (isHeading(cell.role)) return true;
     if (cell.kind === "markdown") {
+      if (htmlNames(cell.source).length) return runHtmlCell(cell); // its names, from the kernel
       showMarkdown(cell);
       return true;
     }
@@ -608,6 +653,7 @@ export function notebookView(
     cell.part.textContent = "";
     cell.element.classList.remove("kind-code", "kind-sql", "kind-dax", "kind-markdown", "kind-html", "kind-streamlit", "stale");
     cell.element.classList.add(`kind-${kind}`);
+    if (cell.htmlRun && (kind === "markdown" || kind === "html")) cell.htmlRun = undefined; // the other kind's values
     if (wasHtml || drawn(kind)) {
       // Its outputs were the other kind's: an HTML cell keeps a design, not a run's output.
       cell.element.classList.remove("rendered");
@@ -771,6 +817,10 @@ export function notebookView(
       openResult: (n) => hooks.openResult?.(n, resultName(self?.editor?.value() ?? self?.source ?? "")),
     });
     const view = h("div", { class: "wb-markdown-view" });
+    // A Markdown cell with names: its state above its text, as an HTML cell's design bar.
+    const textStatus = h("span", { class: "wb-design-state", role: "status" });
+    const textRun = button("Run", () => void run(cell), { icon: "play", class: "ghost wb-design-run", title: "Run: fill the names from the kernel (Ctrl+Enter)" });
+    const textBar = { element: h("div", { class: "wb-design-bar wb-text-bar" }, textStatus, h("span", { class: "spacer" }), textRun), status: textStatus, run: textRun };
     const count = h("span", { class: "wb-count" }, data.execution_count ? `[${data.execution_count}]` : "[ ]");
     const kindPicker = h("select", { "aria-label": "Cell kind" }, ...KINDS.map((k) => h("option", { value: k, selected: k === data.kind }, KIND_NAMES[k]))) as HTMLSelectElement;
     const connectionPicker = h("select", { "aria-label": "Connection", class: "wb-connection", title: "Connection" }) as HTMLSelectElement;
@@ -806,7 +856,7 @@ export function notebookView(
     nameButton.addEventListener("blur", () => setName(cell, nameButton.value));
     nameButton.addEventListener("click", (e) => e.stopPropagation());
     // A Python cell of the user's is dragged by its number (or its head) onto a Streamlit app's canvas.
-    const draggable = data.kind === "code" && !isApp(role);
+    const draggable = (data.kind === "code" || isText(data.kind)) && !isApp(role);
     if (draggable) numberLabel.draggable = true;
     const part = h("span", { class: "wb-part hint" });
     const status = role === "transformations" ? h("span", { class: "wb-table-state", role: "status" }) : null;
@@ -849,6 +899,7 @@ export function notebookView(
       editor: null,
       area,
       view,
+      textBar,
       count,
       kindPicker,
       connectionPicker,
@@ -905,7 +956,7 @@ export function notebookView(
       head.draggable = true;
       head.addEventListener("mousedown", (e) => (pressed = e.target as HTMLElement));
       head.addEventListener("dragstart", (e) => {
-        if (cell.kind !== "code" || (e.target === head && pressed?.closest("button, select, input, a"))) return e.preventDefault();
+        if ((cell.kind !== "code" && !isText(cell.kind)) || (e.target === head && pressed?.closest("button, select, input, a"))) return e.preventDefault();
         e.dataTransfer?.setData(CELL_DRAG, JSON.stringify(linkOf(cell)));
         e.dataTransfer?.setData("text/plain", `@cell${cell.number}`);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyLink";
@@ -980,7 +1031,7 @@ export function notebookView(
         // The uses line follows the typing, after a short pause (never an undo: that would undo the undo).
         if (!change.undo && !isApp(cell.role)) typedSoon();
         if (cell.role === "transformations") redraw();
-        if (cell.kind === "html") drawHtmlState(cell);
+        if (cell.kind === "html" || cell.kind === "markdown") drawHtmlState(cell);
       });
       if (hooks.cursor) cell.editor.onCursor(hooks.cursor);
       if (cell.wantsFocus) focusEditor(cell);
@@ -1115,7 +1166,7 @@ export function notebookView(
 
   /** The language of the snippets a cell of this kind takes (none: Markdown, SQL, the app's cells). */
   const snippetLanguage = (cell: Cell): SnippetLanguage | null =>
-    isApp(cell.role) ? null : cell.kind === "dax" ? "dax" : cell.kind === "html" ? "html" : cell.kind === "code" ? "streamlit" : null;
+    isApp(cell.role) ? null : cell.kind === "dax" ? "dax" : cell.kind === "html" ? "html" : cell.kind === "markdown" ? "markdown" : cell.kind === "code" ? "streamlit" : null;
 
   /** Put a filled snippet into a cell, where it was dropped or at the cursor (an empty cell takes it
    *  whole). A Streamlit piece names the cell it goes into, unless it has a name. */
@@ -1133,6 +1184,7 @@ export function notebookView(
     edited();
     typedSoon();
     if (cell.kind === "html" && !cell.editor?.hasFocus()) showDesign(cell);
+    if (cell.kind === "markdown" && !cell.editor?.hasFocus()) showMarkdown(cell);
   };
 
   /** A snippet dropped on a cell (or the list, `cell` null: a new cell of its kind at the end). A cell
@@ -1542,7 +1594,7 @@ export function notebookView(
     if (any) redraw();
     // An HTML cell's names were that kernel's variables: it has not run in the new one.
     for (const cell of cells) {
-      if (cell.kind !== "html" || !cell.htmlRun || cell.htmlRun.code === null) continue;
+      if ((cell.kind !== "html" && cell.kind !== "markdown") || !cell.htmlRun || cell.htmlRun.code === null) continue;
       cell.htmlRun = { ...cell.htmlRun, code: null, at: null, changed: [] };
       drawHtmlState(cell);
     }
@@ -1693,10 +1745,11 @@ export function notebookView(
       if (record) records.set(to, record);
       records.delete(from);
     },
-    htmlCells: () => cells.filter((c) => c.kind === "html").map(htmlReport),
+    // A Markdown cell with names runs as an HTML cell does (text cells on the canvas, 2026-11-15).
+    htmlCells: () => cells.filter(filledCell).map(htmlReport),
     runHtml: async (number) => {
-      const some = number === undefined ? cells.filter((c) => c.kind === "html" && htmlStateOf(c).runnable) : cells.filter((c) => c.kind === "html" && c.number === number);
-      if (number !== undefined && !some.length) throw new Error(`This notebook has no HTML cell ${number}.`);
+      const some = number === undefined ? cells.filter((c) => filledCell(c) && htmlStateOf(c).runnable) : cells.filter((c) => filledCell(c) && c.number === number);
+      if (number !== undefined && !some.length) throw new Error(`This notebook has no HTML cell (or Markdown cell with names) ${number}.`);
       for (const cell of some) {
         if (!(await run(cell))) break;
       }
@@ -1711,7 +1764,11 @@ export function notebookView(
     editSelected: () => {
       if (selected) edit(selected);
     },
-    pieces: () => cells.filter((c) => c.kind === "code" && (c.role === "" || c.role === "maker") && sourceOf(c).trim()).map((c) => ({ cell: c.number, code: sourceOf(c), ...(c.name ? { name: c.name } : {}) })),
+    // Its Python cells, and its Markdown and HTML cells (they go on a page too: text cells on the canvas).
+    pieces: () =>
+      cells
+        .filter((c) => (c.kind === "code" ? c.role === "" || c.role === "maker" : isText(c.kind) && c.role === "") && sourceOf(c).trim())
+        .map((c) => ({ cell: c.number, code: sourceOf(c), ...(isText(c.kind) ? { kind: c.kind as "markdown" | "html" } : {}), ...(c.name ? { name: c.name } : {}) })),
     everyCells: () => cells.map((c) => ({ kind: c.kind, source: sourceOf(c), role: c.role, table: c.table, number: c.number })),
     copy: (number) => {
       const cell = number === undefined ? selected : byNumber(number);

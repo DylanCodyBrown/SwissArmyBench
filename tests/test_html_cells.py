@@ -539,6 +539,19 @@ def test_an_html_cell_runs_in_a_kernel_and_goes_out_of_date_with_its_variables(t
         assert again["policy"] == rules.FRAME_POLICY
         waiting = client.post("/workbench/html/fill", headers=AUTH, json={"html": "<b>{{ later }}</b>"})
         assert waiting.json()["waiting"] == ["later"]
+        # A Markdown cell runs the same way (its names' values) and is filled as text, a table as a
+        # pipe table when it stands alone on its line (text cells on the canvas, 2026-11-15).
+        text = "**{{ total }}** orders\n{{ sales }}\n{{ nope }}"
+        ran = run(client, kernel, {"code": text, "kind": "html"})
+        values = next(i for i in ran if i.get("output_type") == "display_data")["data"][kernel_side.MIME]
+        md = client.post(
+            "/workbench/html/fill", headers=AUTH, json={"markdown": text, "values": values["values"]}
+        ).json()
+        assert (
+            md["markdown"].startswith("**42** orders\n\n| store | amount |")
+            and "&lt;North&gt;" in md["markdown"]
+        )
+        assert md["missing"] == ["nope"] and "policy" not in md and "html" not in md
 
         # A variable it names changes: its mark does, and only its.
         path = f"/workbench/kernels/{kernel}/html-marks"
@@ -592,6 +605,12 @@ def test_the_agent_runs_fills_and_checks_an_html_cell(live: Live, tmp_path: Path
             execute("workbench_html_fill", {"html": "<i>{{ total }}</i>", "values": cell["values"]})
         )
         assert again["html"] == "<i>42</i>"
+        said = data_of(
+            execute(
+                "workbench_html_fill", {"html": "*{{ total }}*", "values": cell["values"], "markdown": True}
+            )
+        )
+        assert said["markdown"] == "*42*"
         marks = command("workbench_html_marks", kernel=kernel, names=["total"])
         assert marks == {"busy": False, "marks": {"total": cell["marks"]["total"]}}
         book = tmp_path / "story.ipynb"

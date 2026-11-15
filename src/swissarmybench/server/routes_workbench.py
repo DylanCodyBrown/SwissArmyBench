@@ -22,7 +22,8 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   POST   /workbench/kernels/{id}/inspect    {"code", "offset"}: the signature and help of the name there
   GET    /workbench/kernels/{id}/variables  the Variables overlay (values of secrets never included)
   POST   /workbench/kernels/{id}/grid       {"name"}: open a table variable as a grid
-  POST   /workbench/html/fill               {"html", "values"}: an HTML cell's design, its names filled
+  POST   /workbench/html/fill               {"html" or "markdown", "values"}: an HTML cell's design (a
+                                            Markdown cell's text), its names filled
   POST   /workbench/kernels/{id}/html-marks {"names"}: a mark of what each name would draw now
   POST   /workbench/kernels/{id}/interrupt, /restart       DELETE /workbench/kernels/{id}
   POST   /workbench/handoffs  {"document", "kernel"?, "to"?}   a document moving to another window

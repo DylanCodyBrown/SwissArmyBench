@@ -537,15 +537,24 @@ class Workbench:
     def html_fill(body: Any) -> dict[str, Any]:
         """An HTML cell's design: its HTML with each `{{ name }}` filled from `values` (what the cell's
         last run gave; none: every name shows as written, marked). Nothing runs; the filling is
-        domain/html_cells.py's, so data can never become markup or script."""
-        if not isinstance(body, dict) or not isinstance(body.get("html"), str):
-            raise ValueError('Send {"html": "...", "values": {name: value}} (values as a run gave them).')
-        if len(body["html"]) > rules.MAX_CELL_CHARS:
-            raise ValueError("An HTML cell holds at most a million characters.")
+        domain/html_cells.py's, so data can never become markup or script. A Markdown cell's text comes
+        as {"markdown": "..."} instead: its names filled as text (text cells on the canvas, 2026-11-15)."""
+        markdown = isinstance(body, dict) and isinstance(body.get("markdown"), str)
+        if not isinstance(body, dict) or not (markdown or isinstance(body.get("html"), str)):
+            raise ValueError(
+                'Send {"html": "...", "values": {name: value}} (values as a run gave them), or '
+                '{"markdown": "...", "values": ...} for a Markdown cell.'
+            )
+        text = str(body["markdown"] if markdown else body["html"])
+        if len(text) > rules.MAX_CELL_CHARS:
+            raise ValueError("A cell holds at most a million characters.")
         sent = body.get("values") or {}
         if not isinstance(sent, dict) or not all(isinstance(v, dict) for v in sent.values()):
             raise ValueError("values is {name: value}, as an HTML cell's run gave them.")
-        return html_cells.fill(body["html"], sent).to_json() | {"policy": html_cells.FRAME_POLICY}
+        if markdown:
+            filled = html_cells.fill_markdown(text, sent).to_json()
+            return {"markdown": filled.pop("html")} | filled
+        return html_cells.fill(text, sent).to_json() | {"policy": html_cells.FRAME_POLICY}
 
     async def html_marks(self, kernel_id: str, body: Any) -> dict[str, Any]:
         """A mark of what each name would draw in an HTML cell now. The page compares it with the mark

@@ -423,7 +423,7 @@ def markdown_text(text: str) -> str:
     return "".join(_REFERENCES.get(c) or (f"\\{c}" if c in _MARKDOWN_MARKS else c) for c in flat)
 
 
-def _markdown_code(text: str) -> list[tuple[int, int]]:
+def markdown_code(text: str) -> list[tuple[int, int]]:
     """Where Markdown holds code, as (start, end): fenced blocks, then the code spans outside them
     (a run of backticks up to the next run of the same length)."""
     spans: list[tuple[int, int]] = []
@@ -469,7 +469,7 @@ def fill_markdown(text: str, values: Mapping[str, Mapping[str, Any]]) -> Filled:
     run gives), as `Filled` (its `html` holds the Markdown). Among the words a value is escaped text; a
     table alone on its line is a pipe table, elsewhere its size; a name with no value yet shows as
     written; one the kernel does not hold says "not found". In code only plain words and numbers go."""
-    code = _markdown_code(text)
+    code = markdown_code(text)
     out: list[str] = []
     notes: list[str] = []
     missing: list[str] = []

@@ -375,7 +375,7 @@ interface Draft {
   template: string | null;
   description: string;
   tags: string;
-  /** A snippet's: dax, html or streamlit; the name a Streamlit piece gives its cell; its family. */
+  /** A snippet's: dax, html, markdown or streamlit; the name a Streamlit piece gives its cell; its family. */
   language: string;
   cellName: string;
   family: string;
@@ -659,7 +659,7 @@ export async function editBlade(
 
   /** A snippet's language, and for a Streamlit piece the name its cell takes when it is dropped. */
   function snippetEditor(): HTMLElement {
-    const language = h("select", { "aria-label": "Language" }, ...([["dax", "DAX"], ["html", "HTML"], ["streamlit", "Streamlit"]] as const).map(([value, label]) => h("option", { value, selected: draft.language === value }, label))) as HTMLSelectElement;
+    const language = h("select", { "aria-label": "Language" }, ...([["dax", "DAX"], ["html", "HTML"], ["markdown", "Markdown"], ["streamlit", "Streamlit"]] as const).map(([value, label]) => h("option", { value, selected: draft.language === value }, label))) as HTMLSelectElement;
     const cellName = h("input", { type: "text", value: draft.cellName, maxlength: "120", "aria-label": "Its cell's name", spellcheck: "false" });
     const named = h("label", { hidden: draft.language !== "streamlit" }, h("span", {}, "Its cell's name"), cellName);
     language.addEventListener("change", () => {

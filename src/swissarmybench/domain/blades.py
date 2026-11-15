@@ -1098,7 +1098,7 @@ class Blade:
     template: str | None = None
     description: str = ""
     tags: list[str] = field(default_factory=list)
-    # A snippet's language (dax, html or streamlit), and the name a Streamlit piece gives its cell.
+    # A snippet's language (dax, html, markdown or streamlit), and the name a Streamlit piece gives its cell.
     language: str = ""
     cell_name: str = ""
     # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit), kept on a copy.
