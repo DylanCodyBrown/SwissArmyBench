@@ -6,20 +6,23 @@ browser. Everything stays on your machine: 127.0.0.1 only, a token on every data
 in memory, nothing sent anywhere.
 
 What a grid page does:
-- **Grid:** scroll millions of rows (the server sends only the rows on screen). Each header
-  shows its distinct count, its blank percentage and a small histogram; its arrow button sorts
-  on the server. The horizontal scrollbar is always on screen.
+- **Grid:** scroll millions of rows (the server sends only the rows on screen). A header can
+  show its column's distinct count, blank percentage and a small histogram (the switch is in the
+  grid's top-left corner, above the row numbers); its arrow button sorts on the server. Enter or
+  F2 on a cell opens its whole value. The horizontal scrollbar is always on screen.
 - **Excel-style selection:** click or drag the row numbers to select rows, a header to select its
   column, drag across cells for a block, the corner (or Ctrl+A) for everything; Shift extends,
   Ctrl adds. The status bar shows Count, Average and Sum over the whole selection, loaded or not,
   and Ctrl+C copies it as tab-separated text.
 - **Ribbon:** the transformation tools grouped by what they act on: **Table** (filter, sort,
-  columns, group by, distinct, SQL, profile, export), **Column** (sort, filter, rename, remove,
-  keep, clean, bucket, categorize, group by and profile, for the selected columns) and **Cell**
-  (keep or exclude rows with the selected values, view, copy).
+  columns, group by, distinct, profile, analyze, export) and **Column** (sort, filter, rename,
+  remove, keep, clean, bucket, categorize, group by and profile, for the selected columns); a
+  cell's tools (keep or exclude rows with its value, view, copy) are on its right-click menu.
+  **Ctrl+Shift+P** lists every action of the page by name.
 - **Steps** (like Power Query's applied steps): filter, sort, choose and rename columns, group
   by, distinct, keep first rows, clean text, bucket, categorize and SQL. The grid has the whole
-  page: a strip under its title counts the steps and offers Undo and Clear; **Edit steps** opens
+  page: a strip under its title counts the steps (a header sort among them), lists them on
+  hover with a remove button each, and offers Undo, Redo (Ctrl+Z, Ctrl+Y) and Clear; **Edit steps** opens
   Table Transformations in a tab of its own, where each step can be edited, turned off or reordered, with row counts as it goes.
 - **Cell viewer:** double-click a cell. JSON objects and arrays show as tables you can open one
   layer at a time, markdown is formatted, and long text wraps.
@@ -91,8 +94,11 @@ What a grid page does:
   and the values an inner join would drop.
 - **Export:** CSV, delimited text, Excel or Parquet, with provenance and formula neutralization.
 - **Tabs, split and compare:** every grid is a tab in one window (they wrap onto more rows, up
-  to 50). Drag a tab onto another to see two side by side; the key picker opens with the Key
-  Finder already run, and compare keeps both grids aligned row by row (outer, anti or cross).
+  to 50). Right-click a tab for **Compare with…** (or drag a tab onto another) to see two side
+  by side; the key picker opens with the Key Finder already run and the key that is unique on both
+  sides ticked, and compare keeps both grids aligned row by row (outer, anti, cross, or diff: only
+  the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
+  lists every table: open, closed (each with Open) and in your Python sessions.
 - **The Sandbox tab** (always first): a dashboard of cards for any table: Vega-Lite charts, notes,
   result tables, Mermaid and Graphviz diagrams, Plotly and ECharts figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
@@ -115,7 +121,8 @@ What a grid page does:
 - **Jupyter and Python in the terminal** are where code goes: drag a blade, table or column from the
   blades page into a cell or an editor for its line, query or name.
 - **Themes:** light, dark, high contrast light and high contrast dark, following the system by
-  default; Windows forced colors are supported. Zoom with Ctrl+= and Ctrl+-.
+  default; Windows forced colors are supported. One zoom for the whole page, the Sandbox
+  included: Ctrl+= and Ctrl+-.
 
 The design is [Plans/swissarmygrid-build-plan.md](Plans/swissarmygrid-build-plan.md); what has
 been checked against real versions is in [docs/verified.md](docs/verified.md); decisions and
@@ -465,7 +472,7 @@ It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turn
 
 ## The agent commands: `sag` and the MCP server
 
-**The golden rule: everything you can do, the agent can do too** (183 commands, each an MCP tool):
+**The golden rule: everything you can do, the agent can do too** (187 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
@@ -473,7 +480,7 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 183 of
+Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 187 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
@@ -485,7 +492,7 @@ run it:
 - `swissarmygrid-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
-  the whole tool list is about 11,000 tokens for 183 tools (a test holds it under a budget). `guide` and
+  the whole tool list is about 11,000 tokens for 187 tools (a test holds it under a budget). `guide` and
   `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
 - `sag` is the same commands in a terminal (standard library only, in the plain wheel):
@@ -544,6 +551,10 @@ cd web; npm run typecheck
 
 `tools\screenshots.py` photographs every screen into `docs\screenshots\`, and
 `tools\vscode_check.py <url> <png>` checks a grid inside VS Code's browser.
+
+## Credits
+
+SwissArmyGrid is built with Claude, by Anthropic.
 
 ## License
 

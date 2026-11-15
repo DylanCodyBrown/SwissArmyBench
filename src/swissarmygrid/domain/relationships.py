@@ -44,6 +44,7 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
 
+from swissarmygrid.domain.analysis import is_identifier
 from swissarmygrid.domain.datasets import Column
 from swissarmygrid.domain.diff import DiffOptions
 from swissarmygrid.domain.grids import POS
@@ -528,14 +529,22 @@ KEY_COVERAGE = 0.5  # a key to line two tables up on finds at least half of eith
 def preferred_key(pairs: list[dict[str, Any]]) -> tuple[str, str] | None:
     """The key a compare of two tables starts with, from the Key Finder's pairs (best first): the best
     pair that is unique on both sides, since one row then lines up with one row; else the best pair.
-    Either must cover at least half of one side's values. A pair that scores highest only because a
+    Either must cover at least half of one side's values. Among pairs unique on both sides, one whose
+    columns are named like identifiers comes first. A pair that scores highest only because a
     few values repeat on both sides (quantity = quantity) is not a key when an identifier is there."""
 
     def covers(p: dict[str, Any]) -> bool:
         return max(float(p["source_found"]), float(p["target_found"])) >= KEY_COVERAGE
 
+    def named(p: dict[str, Any]) -> bool:
+        # By name only (order_id, customer key): the same rule the analysis forms use.
+        return all(is_identifier(str(p[side]), "VARCHAR") for side in ("source_column", "target_column"))
+
     usable = [p for p in pairs if covers(p)]
     both = [p for p in usable if p["source_unique"] and p["target_unique"]]
+    # Two columns can both be unique on both sides (an order's id and its date): the one named like
+    # an identifier is the key. sorted() keeps the finder's order within each group.
+    both.sort(key=lambda p: not named(p))
     best = (both or usable)[:1]
     return (str(best[0]["source_column"]), str(best[0]["target_column"])) if best else None
 

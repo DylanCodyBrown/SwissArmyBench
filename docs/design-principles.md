@@ -34,14 +34,15 @@ the user will use them.
 **2.1 Three actions or fewer.** A task that takes more than three clicks or actions, and could take
 fewer, is a defect.
 - Example: the Key Finder runs as soon as its window opens; an empty diagram offers Find relationships,
-  which opens the finder already running.
+  which opens the finder already running; a closed table is back in two (the Tables list, Open).
 - The owner (2026-11-14): "if it takes more than 3 clicks or actions and can be reduced then it should
   considered as an improvement"
 
 **2.2 Do the obvious work, let the user change it after.** When the app can work out what the user
 means, it fills it in.
 - Example: a blade's settings are read from its code and offered as one-click suggestions; a key vault
-  lists its secret names by itself; the tie-out report suggests the totals.
+  lists its secret names by itself; the tie-out report suggests the totals; an analysis form starts on
+  the first number column that is not an identifier, a compare on the key unique on both sides.
 - The owner (2026-11-13): "diff columns over top of each other simply by pulling two tables side by
   side and pushing a button"
 
@@ -64,7 +65,8 @@ page of instructions.
 **3.1 A control sits beside the thing it controls.** If a feature takes extra steps because of where it
 lives, it is in the wrong place.
 - Example: the steps strip sits under the table's title; a card's actions sit on the card; a file
-  field's Browse… sits beside the field.
+  field's Browse… sits beside the field; the switch for column profiles in the headers is in the
+  grid's own corner, not in Settings.
 - The owner (2026-11-14): "If it takes extra steps or a feature isn't conveniently located beside the
   thing that it's controlling or to features work better side by side on the screen then it should be
   considered as well"
@@ -134,7 +136,8 @@ Application row stays.
 **5.2 The tab strip.** Fixed app tabs first (Sandbox, Diagram, Workbench), then one tab per open
 document, then "+" to make a new one. The open tab is bold with a 2px accent line on its top edge.
 Tabs are 32px high, 90 to 240px wide, long names cut with an ellipsis. Drag to reorder; drag one tab
-onto another to show the two side by side.
+onto another to show the two side by side. A tab's right-click menu holds what can be done with it
+(Compare with…, Rename, Close). After "+": the list of every table (open, closed, in Python).
 
 **5.3 Side bars.** A side bar holds what you bring into the main area (connections, saved code, the
 data explorer), on the left, opened and closed by one key (Ctrl+B). A results panel sits on the right

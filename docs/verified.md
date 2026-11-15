@@ -592,3 +592,70 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   and did before this work (4 of 12 runs at bf17b95, alone): the HTML cell's "undoing the edit
   clears it by itself". Undo there works only when pressed straight after Edit HTML; a moment later
   the editor no longer undoes the edit, so the cell stays out of date. It passed in the final run.
+- (2026-11-15) Round 3 of the usability test's fixes (docs/ideas.md has each decision and what was
+  decided while building). Checked in a real browser, each with the user's actions counted:
+  **Compare (5):** a tab's right-click offers Compare with…, Rename and Close; with two tables open
+  a compare is three actions (right-click, Compare with…, Compare), the key picker opening with
+  order_id ticked where it had ticked quantity = quantity; Diff shows the key and the one column that
+  differs on both sides, with Only differing columns pressed; switched off, both halves go to the
+  first differing column; scrolling either half sideways takes the other with it, by column; a
+  column's own button takes both halves to it; after a reload the split, the mode, the counts and the
+  rows are back with no key picker, and a stopped compare stays stopped.
+  **Analysis (6, 7):** Odds, Outliers, Find predictors and Fit test open on quantity, not order_id;
+  Time series and Forecast on the row count; a selected column is used as it is; a regression opens
+  with every column but its target and order_id ticked, follows a change of target, keeps a box the
+  user changed, and fits on the third action.
+  **After sending (8):** Send to Sandbox leaves the window and its result; the toast's Show closes
+  the window, goes to the Sandbox and outlines the card; Open as grid closes its window and the new
+  tab is in front.
+  **Reopen (9):** the status bar has no Datasets button; ≡ opens Tables with the budget's numbers,
+  the open tables and the Python sessions; a closed table is back in two actions, the same table at
+  the same version with one grid and no copy.
+  **Connections (11 to 14):** a file connection is named after a picked or a typed path, tests with
+  an empty name and shows its columns and first rows; Install sits beside the driver's command and
+  the note goes when the install is done (the install itself was answered by the test: nothing was
+  downloaded); Entry in the vault lists a made-up vault's secrets by name with no value anywhere on
+  the page, and picking one writes it into the code; Trino, PostgreSQL and SQL Server read server,
+  port, catalog or database, then the user and a labelled password, then the certificate and Trust
+  server certificate.
+  **First save (15):** with the app's folder deleted, Save opened the chooser in it (made, empty)
+  and saved in three actions; any other missing folder is still refused and not made.
+  **Steps (17):** the strip counts a header sort; hovering the count lists the steps in plain words
+  and a step's remove button takes it out; Ctrl+Z walks back through a removal, the header's two
+  clicks and the filter, and does nothing (and says nothing) when there is nothing left; Ctrl+Y and
+  Ctrl+Shift+Z redo; in a tab's rename box the keys leave the steps alone.
+  **Keyboard (18):** Ctrl+Shift+P lists a command for every button of the Application, Table, Column
+  and Compare rows, the steps strip and the tab strip (the test compares the list with the buttons on
+  the page), the Analyze menu's entries, the tabs and the cell's menu; a command that cannot run is
+  greyed with its reason and its keys; a filter, an undo, Keep these, Go to Sandbox, an analysis and
+  Compare with… each ran from it with no mouse. Enter and F2 on a cell open the value viewer; on a
+  header they do not.
+  **Settings (19):** the switch in the grid's corner turns the header profiles on and off, Select all
+  still works beside it, Settings keeps the theme and has no profiles checkbox; the Sandbox has no
+  zoom of its own and its text grows and shrinks with the Application row's zoom.
+  **Relationships (20):** in a 900 by 520 window the diagram shows whole with no scrolling, Actual
+  size makes it larger than the window, Fit puts it back, and a smaller window shrinks it; a Key
+  Finder row's Add as relationship saves a many-to-one join and crowns the row, and Compare on these
+  puts the two tables side by side in the grid window, lined up, with no key picker; Import
+  relationships is the one name in the Diagram tab and the Relationships window, and takes a model as
+  JSON (applied) or a .tang (reviewed, then applied).
+  **Found since:** the HTML cell's "undo works only right after Edit HTML" was the browser's own
+  undo, reached when Ctrl+Z was pressed before the editor had the keyboard; the editor's undo was
+  never broken (it takes typing back a few words at a time, as in any cell). The test now waits and
+  presses Ctrl+Z until the HTML is as it was (8 of 8 runs; it failed about 1 run in 6 before).
+  `test_a_connection_is_added_with_a_form_tested_and_saved` failed 3 of 20 runs: the file chooser
+  put the first folder's path in front of the path being typed ("/root" + "/tmp/…"), which could not
+  be opened. Fixed in the chooser: 25 of 25 runs passed.
+  Over HTTP: the identifier rule and the forms' defaults, the suggested key, the compare's
+  only_differing (which does not rebuild the mapping), the list of running compares, compare_shown,
+  a file connection's test preview, the forms' order, the app's own folder, undo and redo over every
+  way steps change, and blades_install's body.
+  Then: ruff, format, mypy (244 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,064 passed, none skipped (1,994 before; 70 new), twice. 187 commands (183 before:
+  analyze_defaults, compare_list, steps_undo, steps_redo). The guide's screenshots were retaken with
+  made-up data (all but the blades page's two, which did not change).
+  Not checked: Edge (the tests ran in this machine's Chromium); a real driver install from the form
+  (the browser test answers the install itself; the route is the blades page's, unchanged); a real
+  key vault (a made-up one in plain Python stands in); the palette and the keys on macOS (Cmd is
+  read as Ctrl in the code, not tried); Windows paths in a file connection's name (the rule is
+  tested as text).

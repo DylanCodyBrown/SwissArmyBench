@@ -205,6 +205,11 @@ def test_the_suggested_key_is_the_best_pair_unique_on_both_sides() -> None:
     assert preferred_key([thin]) is None
     assert preferred_key([thin, pairs[0]]) == ("quantity", "quantity")
     assert preferred_key([]) is None
+    # Two pairs unique on both sides (each order has its own date): the identifier, whichever the
+    # finder listed first.
+    dated = [pair("order_date", "order_date", 0.95, 0.95, True, True), pairs[1]]
+    assert preferred_key(dated) == ("order_id", "order_id")
+    assert preferred_key(dated[:1]) == ("order_date", "order_date")  # no identifier: the best there is
 
 
 def test_the_key_finder_suggests_the_key_unique_on_both_sides(client: TestClient) -> None:

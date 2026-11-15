@@ -9,7 +9,8 @@
  *   Application, Table, Column, Compare   every button of the ribbon's rows, as it stands: its
  *                    words, whether it can be used now, and why not (its tooltip). The Analyze
  *                    menu is listed entry by entry
- *   Steps            the strip's Undo, Redo, Clear the steps, Edit steps, and a Remove per step
+ *   Steps            the strip's Undo, Redo, Clear the steps and Edit steps (a step's own Remove is
+ *                    in the list under "N steps", which the palette does not open)
  *   Tabs             Go to each tab; New table from a query, Open file…, Tables; for the table in
  *                    front: Compare with…, Rename, Close
  *   Cell             the cell menu's entries, on the cell in front (View value, Copy, Keep these…)

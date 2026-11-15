@@ -2881,6 +2881,32 @@ body.agent-view .titlebar {
   margin-bottom: 18px;
 }
 
+/* Open and closed tables: the same columns in both sections, so the two lists read as one. */
+.open-tables table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.open-tables td:nth-child(1) {
+  width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.open-tables td:nth-child(2),
+.open-tables td:nth-child(3) {
+  width: 16%;
+}
+
+.open-tables td:nth-child(4) {
+  width: 14%;
+}
+
+.open-tables td:nth-child(5) {
+  width: 8%;
+  text-align: right;
+}
+
 .open-session > header {
   display: flex;
   align-items: baseline;

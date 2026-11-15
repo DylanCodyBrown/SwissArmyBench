@@ -26,23 +26,30 @@ Without Python: the folder button beside + opens a file (CSV, Parquet, JSON, Arr
 
 ## The workspace
 
-![The workspace: the tab bar, the title with its steps strip, the ribbon rows, the grid and the status bar.](images/01-workspace.png)
+![The workspace: the tab bar (with +, the folder and the ≡ Tables list), the title with its steps strip, the Application, Table and Column rows, the grid and the status bar.](images/01-workspace.png)
 
 The page has these parts:
 
-- **Tab bar.** The Agent tab comes first and cannot be closed. Each open grid has its own tab after it, and the + after the last tab starts a new table from a query (see below).
-- **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has, with Undo (the last step), Clear and Edit steps. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
-- **Application row.** Above the ribbon, on every tab: **Settings**, **Blades and catalog**, **Notebook** and **Tour** (the question mark): a one-minute tour of every word SwissArmyGrid uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
+- **Tab bar.** The Sandbox, Diagram and Workbench tabs come first and cannot be closed. Each open grid has its own tab after them. Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
+- **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
+- **Application row.** Above the ribbon, on every tab: **Settings**, **Connections**, **Blades and catalog**, **Tour** (the question mark) and **Zoom**: a one-minute tour of every word SwissArmyGrid uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
-- **Status bar.** The row count and the selection summary. The memory meter shows only once the data is past 80% of its budget (**Datasets** always has the numbers), and "not live: push again" only when the page has lost the server.
+- **Status bar.** The row count and the selection summary. The memory meter shows only once the data is past 80% of its budget (click it for the Tables list, which always has the numbers), and "not live: push again" only when the page has lost the server.
+- **Every action by name.** Ctrl+Shift+P opens the command palette: type a few letters of any button, menu entry or tab, and press Enter. A command that cannot run now is greyed, and says why.
+
+### Tables: open, closed and in Python
+
+The ≡ button beside + opens **Tables**. **Open tables** are the ones with a tab. **Closed tables** are still in memory after their tabs were closed: **Open** puts the table itself back as a tab (the same table, not a copy). **Python sessions** lists the tables in your running notebooks and scripts, with Open and Reload. The line under the title says how much of the data budget is in use; the bin removes a table from memory.
 
 ### Settings
 
-Open **Settings** from the Application row. It holds the settings for this browser (the theme, and whether column headers show their profile), the setup prompt for connecting an agent and the agent activity list described below.
+Open **Settings** from the Application row. It holds the theme (for this browser), the setup prompt for connecting an agent and the agent activity list described below.
 
-![The Settings window: the header profile switch, the theme, the setup prompt with its copy button and the agent activity list.](images/02-preferences.png)
+![The Settings window: the theme, the setup prompt with its copy button and the agent activity list.](images/02-preferences.png)
+
+Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, the Sandbox included.
 
 The "Connect an agent" box holds a prompt you can copy into Claude Code or another agent that has a shell. It tells that agent how to add the SwissArmyGrid MCP server.
 
@@ -66,7 +73,7 @@ Scrolling sideways is free: the view stops wherever you leave it, even in the mi
 
 ### Ribbon tools
 
-The Table row holds the tools for the whole view: matching, Filter, Sort, Choose columns, Rename, Group by, Distinct rows, Keep first rows, Clean text, Auto width, Profile, Key Finder, Relationships, Export and the zoom control.
+The Table row holds the tools for the whole view: matching, Filter, Sort, Choose columns, Rename, Group by, Distinct rows, Keep first rows, Clean text, Auto width, Profile, Analyze, Key Finder, Relationships and Export.
 
 The Column row acts on the selected column. It has Sort A to Z and Z to A, Filter, Rename, Auto width, Remove, Keep only, Clean text, Bucket, Categorize, Group by and Profile; Fit test and Outliers for a column are in the Analyze menu and on the column header's right-click menu. Right-click a cell to keep or exclude rows with the selected cell's value, see the full value or copy.
 
@@ -78,7 +85,7 @@ The Column row acts on the selected column. It has Sort A to Z and Z to A, Filte
 
 ![Table Transformations, in its own tab, with one filter step that keeps rows where region equals North (40 rows to 10).](images/05-filter-step.png)
 
-Each step there has a checkbox to switch it off, a pencil to edit it and a trash icon to delete it; the grid follows at once. Turning a step off shows the grid without it, which is the quickest way to check what a step changed. **Undo** on the strip drops the last step.
+Each step there has a checkbox to switch it off, a pencil to edit it and a trash icon to delete it; the grid follows at once. Turning a step off shows the grid without it, which is the quickest way to check what a step changed. **Undo** on the strip, or Ctrl+Z, takes back the last change to the steps, whatever it was: a step added, removed or edited, the steps cleared, a header sort. **Redo**, Ctrl+Y or Ctrl+Shift+Z makes it again. The keys work while a grid is in front and the cursor is not in a text box.
 
 ### SQL: in the notebook
 
@@ -110,7 +117,7 @@ Profile in the Table row profiles every column at once, with the type, blank cou
 
 ### Fit test
 
-Select one or more columns, then **Fit test** in the Column row. It asks: could the difference between what a column holds and what you expect be chance? (Pearson's chi-square goodness of fit.) Pick what you expect:
+Select one or more columns, then **Fit test** in the Analyze menu (or on the column header's right-click menu). It asks: could the difference between what a column holds and what you expect be chance? (Pearson's chi-square goodness of fit.) Pick what you expect:
 
 - **Even:** every value as likely (regions, weekdays, shifts).
 - **First digit** or **first two digits (Benford's law):** in natural amounts (invoices, expenses, populations) about 30% start with 1 and under 5% with 9. Numbers someone made up rarely do. The result also gives Nigrini's conformity rating, from close conformity to nonconformity.
@@ -143,7 +150,9 @@ Select one column, then **Outliers** in the Column row:
 
 Each form has a **Data shape** panel: a made-up table in the shape the analysis needs (long: one row per order, the category and the outcome as columns), one that does not work and why (already counted, wide with one column per month, numbers stored as text), tips, and a check of your grid ("region: 4 values: fine", "this table looks wide"). It can go to the Sandbox too.
 
-Every result has four buttons: **Send to Sandbox** (the result in words, as a note), **Open as grid** (the result's table as a new grid), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmygrid.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
+The forms never start on an identifier column (one whose name ends in id or key, or where every row holds a different whole number or text): Odds, Fit test, Find predictors, Outliers and Regression start on the first number column that is not one, Time series and Forecast start on the row count, and a regression starts with every column but its target and the identifiers ticked. A column you selected first is used as it is.
+
+Every result has four buttons: **Send to Sandbox** (the result in words, as a note; the window stays open, and the toast's **Show** closes it and goes to the card), **Open as grid** (the result's table as a new grid: the window closes and the new tab is in front), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmygrid.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
 
 ### Auto width
 
@@ -153,7 +162,7 @@ Auto width in the Table row fits every column to its header and the rows on scre
 
 ### Value viewer
 
-Double-click a cell that holds a long text or a JSON value to open it in the value viewer. A JSON object shows as a table of keys and values, and the JSON tab shows the raw text. Long text shows its length and wraps.
+Double-click a cell that holds a long text or a JSON value, or press Enter or F2 on it, to open it in the value viewer. A JSON object shows as a table of keys and values, and the JSON tab shows the raw text. Long text shows its length and wraps.
 
 ![The value viewer showing a JSON object as a key and value table.](images/10-value-viewer-json.png)
 
@@ -163,22 +172,22 @@ Double-click a cell that holds a long text or a JSON value to open it in the val
 
 Export in the Table row writes the grid as CSV, text, Excel or Parquet. The file is built from the grid's steps, so it matches what you see. Choose a download or the export folder.
 
-The zoom control in the Table row changes the text and row size of the grid. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
+The zoom control in the Application row changes the text and row size of the whole page: the grid, the ribbon and the Sandbox. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
 
 ## Comparing two tables
 
 Two grids can sit side by side, and they can be lined up row for row on a key.
 
-1. Drag one grid's tab onto the middle of another grid's tab. The two grids show side by side, and the key picker opens.
+1. Right-click a table's tab and choose **Compare with…** (with more than two tables open, pick the other one), or drag one tab onto the middle of another. The two grids show side by side, and the key picker opens.
 2. The picker lists the column pairs that share values, best first. Tick the pair that identifies the same row in both tables. To use a key made of two columns, tick both pairs.
 3. If no pair fits, choose the columns in the "Or pick a pair yourself" row and press Add.
 4. Press Compare.
 
 ![The key picker with the order_id pair ticked for orders and orders_v2.](images/13-split-key-picker.png)
 
-The Key Finder runs when the picker opens. It ranks the pairs by the share of values that match on each side. Read the list before you trust the first row. In this sample, order_date ranked above order_id, because its values also match on both sides. Tick the key you mean. When the two tables have a known relationship (see Relationships below), its columns come first with a crown, already ticked.
+The Key Finder runs when the picker opens. It ranks the pairs by the share of values that match on each side. The pair that starts ticked is the best one that is unique on both sides (one row lines up with one row), so a column whose few values all match, such as a quantity, does not win over the identifier. Read the list all the same, and tick the key you mean. When the two tables have a known relationship (see Relationships below), its columns come first with a crown, already ticked.
 
-The Key Finder also runs on its own from the Table row. It opens in a window of its own, titled "Possible Join Keys for" your table, so you can keep it beside the grids. Choose the table to compare with and press Find keys. Each row shows your column, the other table and its column, the relationship it looks like, the share of each table's values found in the other (headed by the table names) and the shared values as fractions. Click a row to see sample values that match and values that do not. Known relationships carry a crown.
+The Key Finder also runs on its own from the Table row. It opens in a window of its own, titled "Possible Join Keys for" your table, so you can keep it beside the grids. Choose the table to compare with and press Find keys. Each row shows your column, the other table and its column, the relationship it looks like, the share of each table's values found in the other (headed by the table names) and the shared values as fractions. Click a row to see sample values that match and values that do not. Known relationships carry a crown. Each row has two buttons: **Compare on these** puts the two tables side by side in the grid window, lined up on that pair, and **Add as relationship** makes the pair a known relationship.
 
 Above the pairs, every run also shows the most distinct column combination in your table: the fewest columns that together tell every row apart, which is usually the table's primary key. It reads the first 400,000 rows of the grid as it stands after its steps. The search starts with the column that has the most distinct values, then adds whichever column tells the most remaining rows apart, one at a time. Each of those rows shows the share of rows the combination tells apart. The last row, marked with an accent edge, is the answer. Any other combination just as small that is also unique per row is listed under it. If no combination tells every row apart, the table repeats whole rows, and the answer says how many. The search adds one column at a time, so it finds a small key quickly, but a different key of the same size can exist. Check one you mean with a count in the notebook.
 
@@ -192,7 +201,7 @@ Once compared, the two grids always line up. Row N on the left and row N on the 
 
 Cells that differ between the two sides are marked with a coloured bar. Click any row to highlight every row with the same key on both sides, so you can see the same order on the left and the right at once.
 
-![A key group highlighted after a click. Order 1003 shows 129 on the left and 92 on the right, and the cells that differ are marked.](images/15-compare-key-group.png)
+![A key group highlighted after a click on order 1003: the same order is lit on both sides, and the cells that differ (its quantity, and order 1010's price) are marked.](images/15-compare-key-group.png)
 
 ### Compare modes
 
@@ -204,6 +213,8 @@ The Compare row in the ribbon switches the mode.
 - **Diff** lines the two grids up as Outer join does and keeps only the rows that differ: a changed cell in a column both tables have (names matched ignoring letter case, the keys left out), or a key on one side only. Changed cells are marked on both sides. The Compare row says how many matched rows differ and has a button per changed column with its count ("price 280"): click one to see only the rows where that column changed, and again to go back. **How values compare…** sets a tolerance for numbers (an amount, or a percentage of the left value), whether text ignores spaces at either end (on) and letter case (off), and which columns are compared; a blank equals a blank, and an empty text is a blank. **Every row** goes back to Outer join.
 - **Tie-out…** answers "do these two tables add up the same?". Tick the columns to group by (a shared text column with few values, such as region, starts ticked) and the totals (every shared number column), and how far apart still counts as equal (an amount, or a percentage of the left total). The report has one row per group: rows on each side, each total on each side, the difference and its percentage, and **ties** or **off**. Groups that are off come first, the largest first, and a grand total ends it; a group on one side only is off by its whole total. Columns match by name ignoring letter case, and values meet the way compare keys do (" North" meets "North", 42 meets 42.0). Each side is read as its grid shows it, after its steps. **Click a group** to filter both grids to its rows. **Send to Sandbox** keeps it as a note and a table; **Download CSV** saves it. A grand total that ties can still hide groups whose differences cancel out: the words say so.
 - The ribbon's counts (matched, only on one side) follow each grid's steps.
+- In **Diff**, each side shows only its key and the columns that differ, so the changes are in front of you; **Only differing columns** in the Compare row (on to start) switches every column back on. Both halves scroll sideways together and start at the first column that differs; a column's own button takes both halves to it.
+- A compare survives a reload of the page: the two grids come back side by side, in the same mode.
 - **Stop compare** returns to two independent grids. The side-by-side view stays, with no keys.
 
 ## The Sandbox tab
@@ -296,14 +307,16 @@ Draw ERD adds a copy of the diagram to the Sandbox; the ERD tab always shows the
 
 The ERD tab sits right after the Sandbox tab and can't be closed. It draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
 
-![The ERD tab with no relationships yet, offering to import a file or apply a model.](images/18-erd-empty.png)
+![The Diagram tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)
 
 With no relationships for the open tables it says so and offers these ways in:
 
-1. **Import a relationship file**: a model JSON file, such as one a colleague exported.
+1. **Import relationships**: a `.tang` file (reviewed first: what it would change) or a model as a JSON file, such as one a colleague exported. The Relationships window has the same button.
 2. **Apply a shared model**: when a model in the shared library fits the open tables, it is listed with an Apply button.
 
 ![The ERD for orders, orders_v2 and customers, with the keys and the crow's-foot joins between them.](images/19-erd.png)
+
+The diagram is fitted to the window as it is drawn, and follows the window's size. **Actual size** shows a large diagram at its own size (it then scrolls); **Fit** puts it back.
 
 ## The Workbench
 
@@ -355,6 +368,11 @@ their own, run in an IPython kernel on this computer.
 ## Connections and key vaults
 
 **Connections** in the Application row lists your databases, files and key vaults, and **Add connection** makes one with a form for its type. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
+
+- **Every database form reads in the same order:** the server, the port and the catalog or database; then the user and the password, each under its own label; then the certificate file and **Trust server certificate** together.
+- **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows.
+- **A driver that is not installed** is said under the form with its install command and an **Install** button beside it, which installs it into SwissArmyGrid's own Python. The note goes when the install is done.
+- **A password from a key vault:** choose the vault, and **Entry in the vault** lists the vault's secrets by name (never a value). Picking one applies it. A secret the vault does not list can be named by hand (**A secret by name…**).
 
 - **SQL Server and Azure SQL** ask how to sign in: **Windows sign-in**, **User name and password** (a SQL login; the password from any of the three places) or **MFA (Microsoft Entra)**, which opens Microsoft's sign-in window. Switching keeps the server and database you typed. **Trust server certificate** is a checkbox (off by default; tick it for a server whose certificate this computer does not know, such as a self-signed one), and so is **Encrypt**.
 - **Trino** connects over https with a password and your company's certificate file (**Browse…** for a `.pem`); **Trust server certificate** skips the check, for testing only.

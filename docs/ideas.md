@@ -654,28 +654,113 @@ The tests' server has it off unless a test is about it (child processes in every
 
 An agent drove every area of the app in a browser with made-up data against two rules from the owner: "if it takes more than 3 clicks or actions and can be reduced then it should be considered as an improvement", and placement ("if ... a feature isn't conveniently located beside the thing that it's controlling or two features work better side by side on the screen then it should be considered as well"). It found 20 improvements and 11 bugs; the owner chose, one at a time:
 
-1. Open a file: "Open file…" button beside "+" (app file picker) AND drop a file anywhere on the page. Workbook with several sheets: ask which sheets (first ticked), each ticked sheet its own tab.
-2. Open as grid: on the catalog table (tree and page), on a file connection's row, and in the catalog tree's right-click menu. Row limit: configured per connection, with a clear warning on the grid that it is truncated, the source's full row count, and a button to retrieve all. The catalog table page shows a preview of the first rows beside its column list.
-3. Column tools: double-click a header to rename in place; Sort A to Z, Sort Z to A, Filter…, Rename…, Remove, Keep only, Group by… in the header's right-click menu (above the analyses); the Column row's Rename… opens only the selected column, focused. No header menu button.
-4. Step forms: cursor in the first empty field, Enter presses Add step, Escape closes. (No prefill from the cell.)
-5. Compare: keep the tab drag; add "Compare with…" on a tab's right-click (NOT a Table row button). Diff: both halves scroll together to the first differing column; "Only differing columns" toggle, on by default (key + differing columns). Keep the compare across a reload; prefer the key unique on both sides.
-6. Analysis defaults: never default to an identifier column; Time series and Forecast start on the row count; others on the first number column that is not an ID.
-7. Regression: every column but the target and IDs ticked to start.
-8. After sending: the window stays; the toast has a Show button that closes the window and goes to the destination. Open as grid closes the window and shows the new tab.
-9. Reopen: each closed table in the Datasets list gets Open (the original, not a copy); the list moves to the ≡ button beside "+" in the tab strip. (No Ctrl+Shift+T. Finders and closed tables: not chosen here; raise again with the bugs.)
-10. Paste: a name box in the "Pasted" toast (cursor in it, Enter); double-click a tab's title to rename that table everywhere. (No "paste here" line.)
-11. File connections: Name filled from the picked file (and used by Test when empty); Test shows the first rows and the columns. (Placeholder paths and the word "blade" not chosen.)
-12. Driver: an Install button beside the "not installed" note in the Connections form; the form updates when done; the command stays visible.
-13. Vault picker: "Entry in the vault" lists the vault's secrets by name (read in the background); picking one applies it.
-14. Database forms: Server, Port, Catalog/Database; then User and Password; then Certificate file and Trust server certificate together. Same order on every database form. Label the password box.
-15. First save: create the SwissArmyGrid folder in the home folder the first time it is needed.
-16. Workbench: Open as grid on every table output (DataFrame, SQL result); in a notebook the console starts as a thin bar and grows when used or dragged; New notebook puts the cursor in the first cell. (Variables icon unchanged.)
-17. Steps: Ctrl+Z undoes the last step, Ctrl+Y / Ctrl+Shift+Z redoes; the strip counts a header sort as a step; hovering "N steps" lists the steps in plain words, each with a remove ×. (No recipes list.)
-18. Keyboard: Ctrl+Shift+P command palette on the grid page (every grid-page action); Enter / F2 on a cell opens the value viewer. (No Alt+G, no access keys.)
-19. Settings: a header-profiles toggle in the grid's top-left corner (above the row numbers); one zoom for the page, the Sandbox included. (Theme stays in Settings; the tour pill stays.)
-20. Relationships: the diagram fits the window when drawn plus a Fit button; Key Finder rows get "Compare on these" and "Add as relationship"; one name for the relationship file everywhere: "Import relationships".
+1. Open a file: "Open file…" button beside "+" (app file picker) AND drop a file anywhere on the page. Workbook with several sheets: ask which sheets (first ticked), each ticked sheet its own tab. **Built (rounds 1 and 2).**
+2. Open as grid: on the catalog table (tree and page), on a file connection's row, and in the catalog tree's right-click menu. Row limit: configured per connection, with a clear warning on the grid that it is truncated, the source's full row count, and a button to retrieve all. The catalog table page shows a preview of the first rows beside its column list. **Built (rounds 1 and 2).**
+3. Column tools: double-click a header to rename in place; Sort A to Z, Sort Z to A, Filter…, Rename…, Remove, Keep only, Group by… in the header's right-click menu (above the analyses); the Column row's Rename… opens only the selected column, focused. No header menu button. **Built (rounds 1 and 2).**
+4. Step forms: cursor in the first empty field, Enter presses Add step, Escape closes. (No prefill from the cell.) **Built (rounds 1 and 2).**
+5. Compare: keep the tab drag; add "Compare with…" on a tab's right-click (NOT a Table row button). Diff: both halves scroll together to the first differing column; "Only differing columns" toggle, on by default (key + differing columns). Keep the compare across a reload; prefer the key unique on both sides. **Built (round 3).**
+6. Analysis defaults: never default to an identifier column; Time series and Forecast start on the row count; others on the first number column that is not an ID. **Built (round 3).**
+7. Regression: every column but the target and IDs ticked to start. **Built (round 3).**
+8. After sending: the window stays; the toast has a Show button that closes the window and goes to the destination. Open as grid closes the window and shows the new tab. **Built (round 3).**
+9. Reopen: each closed table in the Datasets list gets Open (the original, not a copy); the list moves to the ≡ button beside "+" in the tab strip. (No Ctrl+Shift+T. Finders and closed tables: not chosen here; raise again with the bugs.) **Built (round 3).**
+10. Paste: a name box in the "Pasted" toast (cursor in it, Enter); double-click a tab's title to rename that table everywhere. (No "paste here" line.) **Built (rounds 1 and 2).**
+11. File connections: Name filled from the picked file (and used by Test when empty); Test shows the first rows and the columns. (Placeholder paths and the word "blade" not chosen.) **Built (round 3).**
+12. Driver: an Install button beside the "not installed" note in the Connections form; the form updates when done; the command stays visible. **Built (round 3).**
+13. Vault picker: "Entry in the vault" lists the vault's secrets by name (read in the background); picking one applies it. **Built (round 3).**
+14. Database forms: Server, Port, Catalog/Database; then User and Password; then Certificate file and Trust server certificate together. Same order on every database form. Label the password box. **Built (round 3).**
+15. First save: create the SwissArmyGrid folder in the home folder the first time it is needed. **Built (round 3).**
+16. Workbench: Open as grid on every table output (DataFrame, SQL result); in a notebook the console starts as a thin bar and grows when used or dragged; New notebook puts the cursor in the first cell. (Variables icon unchanged.) **Built (rounds 1 and 2).**
+17. Steps: Ctrl+Z undoes the last step, Ctrl+Y / Ctrl+Shift+Z redoes; the strip counts a header sort as a step; hovering "N steps" lists the steps in plain words, each with a remove ×. (No recipes list.) **Built (round 3).**
+18. Keyboard: Ctrl+Shift+P command palette on the grid page (every grid-page action); Enter / F2 on a cell opens the value viewer. (No Alt+G, no access keys.) **Built (round 3).**
+19. Settings: a header-profiles toggle in the grid's top-left corner (above the row numbers); one zoom for the page, the Sandbox included. (Theme stays in Settings; the tour pill stays.) **Built (round 3).**
+20. Relationships: the diagram fits the window when drawn plus a Fit button; Key Finder rows get "Compare on these" and "Add as relationship"; one name for the relationship file everywhere: "Import relationships". **Built (round 3).**
 
 Bugs: fix all 11 (Workbench: SQL error panel "s.notes is not iterable", new SQL cell's connection box; Connections: empty-Name Test message, stale "Not installed" note on a vault; Compare and relationships: Diff jump scrolls only the left, Find relationships includes closed tables and both directions of a pair, Key Finder crowns ship_date over order_date, compare lost on reload, wrong key pre-ticked; Server: stop lingers and crashes on open long-polls). Kernels of a closed Workbench window stop a minute after it closes.
+
+**Round 3, built on 2026-11-15** (decisions 5 to 9, 11 to 15 and 17 to 20; docs/verified.md has what was
+checked). Decided while building; confirm or change:
+
+- **5. Compare.** A tab's right-click menu has Compare with…, Rename and Close. With one other table
+  open, Compare with… takes it at once; with several it lists them. The right-clicked table goes on
+  the left. *Only differing columns* is a toggle in the Compare row, shown in Diff mode, on to start;
+  it is the compare's own option (`diff.only_differing`), so the agent sets it and it survives a
+  reload, and it does not join the two sides again. Both halves scroll sideways together **by column,
+  not by pixel** (each side sizes its columns to its own values). "A compare survives a reload": the
+  page remembers which compare is its own; the server kept it all along, and a compare whose grid
+  has closed is now stopped and its table dropped. The key ticked to start is the best pair that is
+  **unique on both sides** and covers half of either table, else the best pair that covers half
+  (`preferred_key`); a known relationship still comes first.
+- **6. An identifier** (one rule, `domain/analysis.py is_identifier`): by name, a column whose last
+  word is id, key, uuid or guid (a *number* column also: number, no, num, nr, code, zip, postcode,
+  phone); by its values, a whole-number or text column where every one of more than 20 filled rows
+  is different (counted over the view's first 10,000 rows). A date or a number with decimals is never
+  one. **A column the user selected first is still used as it is,** identifier or not: for Time
+  series and Forecast that means a number column whose *header* is selected (not a clicked cell).
+- **7. Regression.** The ticks follow a change of target until the user touches a box; then they stay.
+  A text column with a different value in every row (a note, a name) is an identifier by the rule
+  above, so it is offered and not ticked.
+- **8. After sending.** Show closes every open window, goes to the Sandbox and outlines the card for a
+  moment. Toasts raised while a window is open now sit inside it (a modal window makes the rest of the
+  page unusable, so a toast's button could not be pressed). Open as grid also closes the Connections
+  window on the grid page. In the Workbench's window the grid is another window, so nothing closes
+  there, and the Key Finder's own window has no Sandbox tab, so its toast has no Show.
+- **9. Reopen.** The list is called **Tables** (the button's name; it was "Open a table from Python").
+  Open on a closed table makes a grid on the table itself. The bin removes a table from memory and
+  asks first, as before. **The memory meter stayed in the status bar** (principle 5.9 puts it there,
+  only past 80% of the budget) and a click on it opens the list; the budget's numbers, which the old
+  Datasets list had, moved with the list.
+- **11. File connections.** Test shows the first 20 rows. A workbook shows its first sheet; a folder
+  has no one table, so no preview. A file that cannot be read still passes its test (it is there) and
+  says why its rows could not be shown.
+- **12. Driver.** Install puts the packages into the app's own Python (where Test and Refresh run).
+  The command stays in view until the install is done; then the note goes, since nothing is left to
+  do (principle 7.9).
+- **13. Vault picker.** Entry in the vault lists the vault's saved entries and every secret it holds;
+  picking applies at once. "A secret by name…" stays, for a vault that does not list its secrets.
+- **14. Database forms.** The rule is `domain/connections.py form_order`: server (or account,
+  project, data source, path), port, catalog, database, then anything else in the code's order; the
+  user (after Sign in, where a type has several ways); each password as two labelled boxes ("Password
+  comes from", "Password"); then encrypt, the certificate file and Trust server certificate.
+- **15. First save.** The folder is made when the file chooser first looks at it (the Workbench's Save
+  and Open start there), as well as on a save into it. Only that folder is ever made.
+  `SWISSARMYGRID_WORKBENCH_DIR` sets it, for tests.
+- **17. Steps.** Undo takes back **the last change to the steps**, whatever it was (a step added,
+  removed, edited, switched off or moved, the steps cleared, a header sort, a step a chart or a
+  tie-out added), 100 changes deep, for each grid; a new change ends what can be redone. The strip's
+  Undo used to drop the last step in the list; it is the same undo now, with Redo beside it. A
+  header's two clicks (ascending, then descending) are two changes. The steps list opens on hover,
+  focus or a click, and a step that is switched off is listed as off.
+- **18. Keyboard.** The palette is the Workbench's, fed from this page's own buttons each time it
+  opens, so a button added to a row is a command the same day. Also listed: the Analyze menu's
+  entries, the tabs, and the cell menu on the cell in front. **No agent command was added for the
+  palette itself:** every action in it already has one.
+- **19. Settings.** The corner holds the profiles switch and, in the room left, Select all as before.
+  The Sandbox's own zoom control is gone.
+- **20. Relationships.** The diagram also follows the window's size while fitted. **Actual size was
+  added beside Fit** (not asked for): without it Fit had nothing to undo, and a large diagram fitted
+  to a small window cannot be read. Compare on these puts the two tables side by side *in the grid
+  window* (the Key Finder has its own). Import relationships takes a .tang (reviewed first) or a
+  model as JSON, in both places.
+
+**Where a decision met a later one, and what was done:**
+
+- Decision 9 said the memory meter "moves with the list" if it lived in the Datasets list. Since the
+  cleanup the meter shows only past 80% of the budget, in the status bar (principle 5.9). It stayed
+  there, and a click on it opens the list; the budget's numbers moved with the list.
+- Decision 17's strip had "Undo (the last step)". With a real undo that button would have been a
+  second, different undo beside Ctrl+Z, so it became the same one.
+- Decision 18 says "every grid-page action". The Cell row is gone (the cleanup), so a cell's actions
+  are listed from its right-click menu, on the cell in front. Send the row to Sandbox is not listed:
+  it needs the row a right-click gives.
+- Decision 8's toasts and principle 7.9 (no confirmation labels): "In the Sandbox: …" and "Opened as
+  …" are on the cleanup's list of real feedback, so they stay; Show was added to the first.
+- Decision 19 takes a setting out of Settings; the theme stays there, as decided.
+
+**Also fixed in round 3:** the file chooser put the first folder's path in front of a path being
+typed (one browser test in six failed on it); `blades_install` sent a bare list the route refused;
+Ctrl+Z outside an editor in the Workbench could reach the browser's own undo and change an editor's
+text unseen (what the HTML cell's "undo works only right after Edit HTML" turned out to be: the
+editor's undo was never broken, it takes typing back a few words at a time).
 
 ## Every table has a read-only cell: its transformations in DuckDB SQL (2026-11-14, the owner's calls; built)
 
@@ -956,7 +1041,7 @@ action) and the app's purpose (DuckDB SQL does the transforming).
       `tabs_create_grid` gives one for a table with none), and unlike `agent_query` it also takes
       CREATE TABLE ... AS SELECT, as the user's own SQL does (the golden rule).
     `/agent/query` and `/agent/view-state` are gone; `/agent/read`, `/agent/describe` and
-    `/agent/profile` stay because `row_read` and `table_profile` use them. 183 commands.
+    `/agent/profile` stay because `row_read` and `table_profile` use them. 183 commands (187 after round 3).
 11. **The Variables pane's "Connections and blades" block** (the side bar lists them). A connection a
     cell has opened shows under Your variables. The Environment block shows only when there are
     variables of a vault, a secret blade or a password to list (no heading over "None"). The agent's
