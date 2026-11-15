@@ -203,15 +203,6 @@ pre,
   font-size: 0.95em;
 }
 
-.visually-hidden {
-  position: absolute !important;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 /* ===== buttons ===== */
 
 .btn {
@@ -1226,10 +1217,6 @@ table.small td.num {
 }
 
 /* ===== grid extras ===== */
-
-.ag-theme-host {
-  height: 100%;
-}
 
 .cell-number,
 .header-number .sab-header-name {
@@ -7072,17 +7059,6 @@ body.dropping-file::after {
 .tab-item.drop {
   outline: 2px dashed var(--accent);
   outline-offset: -2px;
-}
-
-.wb-project {
-  align-self: center;
-  margin-right: 6px;
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 0.85em;
-  white-space: nowrap;
 }
 
 
