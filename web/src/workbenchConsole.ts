@@ -31,6 +31,8 @@ export interface ConsoleView {
   /** What the log shows, as text (for the agent's workbench_window "console.read"). */
   text: () => string;
   setTheme: (theme: string) => void;
+  /** The document closed: free the prompt's editor. */
+  dispose: () => void;
 }
 
 let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
@@ -48,6 +50,7 @@ export function consoleView(
   let back = 0;
   let draft = "";
   let prompt: CodeEditor | null = null;
+  let disposed = false;
   let stick = true;
   const running = new Set<Element>();
   const dark = (): boolean => theme().endsWith("dark");
@@ -127,6 +130,7 @@ export function consoleView(
   };
 
   void loadEditors().then((m) => {
+    if (disposed) return; // closed before the editor loaded
     prompt = m.createCodeEditor(promptHost, {
       language: "python",
       value: "",
@@ -177,5 +181,9 @@ export function consoleView(
     focus: () => prompt?.focus(),
     text: () => log.innerText,
     setTheme: (t) => prompt?.setTheme(t),
+    dispose: () => {
+      disposed = true;
+      prompt?.dispose();
+    },
   };
 }

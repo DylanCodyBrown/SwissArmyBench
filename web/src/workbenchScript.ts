@@ -105,6 +105,8 @@ export interface ScriptView {
   nameCell: (number: number | undefined, name: string) => { cell: number; name: string | null };
   /** The cursor to the end of the cursor's cell's marker line, where its name is typed. */
   editName: () => void;
+  /** The document closed: free its editor and its panes. */
+  dispose: () => void;
 }
 
 /** A script's live cell (it calls Streamlit) as the page holds it: its place in the outline, its page. */
@@ -213,6 +215,7 @@ export function scriptView(
   let asked = 0;
   let quiet: number | null = null;
   let applying = false;
+  let disposed = false;
   // The first look at a script only gives its cells their numbers: that does not count as a change
   // (the numbers come out the same the next time it opens; they are saved when the user saves).
   let quietly = true;
@@ -738,6 +741,7 @@ export function scriptView(
   };
 
   void loadEditors().then((m) => {
+    if (disposed) return; // closed before the editor loaded
     editor = m.createCodeEditor(editorHost, {
       language: "python",
       value: initial,
@@ -991,6 +995,16 @@ export function scriptView(
       // Its markers carry the name: `# %% [8] [transformations] orders`.
       const marker = new RegExp(`^(# ?%%(?: \\[\\d+\\])? \\[(?:table|transformations)\\] )${from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`, "gm");
       if (editor) editor.replaceText(editor.value().replace(marker, `$1${to}`));
+    },
+    dispose: () => {
+      disposed = true;
+      if (quiet !== null) window.clearTimeout(quiet);
+      if (marksTimer !== null) window.clearTimeout(marksTimer);
+      quiet = marksTimer = null;
+      for (const held of [...htmlCells.values(), ...pieceCells.values()]) held.pane.dispose();
+      htmlCells.clear();
+      pieceCells.clear();
+      editor?.dispose();
     },
   };
 }

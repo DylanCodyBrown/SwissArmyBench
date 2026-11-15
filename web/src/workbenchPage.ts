@@ -687,6 +687,10 @@ function close(doc: Doc, moved = false): void {
   doc.kernel?.stop();
   doc.streamlit?.close(); // its Streamlit process and temporary folder go with it
   doc.canvas?.close();
+  // Its Monaco editors and design frames go too (they were kept alive, detached, before).
+  doc.notebook?.dispose();
+  doc.script?.dispose();
+  doc.console?.dispose();
   docs.splice(docs.indexOf(doc), 1);
   tablesSent.delete(doc);
   if (doc.kind === "blade") editingBlade = false;

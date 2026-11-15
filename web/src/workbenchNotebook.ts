@@ -260,6 +260,8 @@ export interface NotebookView {
   insertSnippet: (name: string, values: Record<string, unknown>, number?: number) => Promise<{ cell: number; kind: CellKind; name: string | null }>;
   /** The palette's Insert a snippet…: pick one for the selected cell's language, fill its form. */
   insertSnippetHere: () => void;
+  /** The document closed: free its editors, its designs' frames and its window listener. */
+  dispose: () => void;
 }
 
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
@@ -324,6 +326,7 @@ export function notebookView(
   let asked = 0;
   let quiet: number | null = null;
   let building = true;
+  let disposed = false;
   const sourceOf = (c: Cell): string => (c.editor ? c.editor.value() : c.source);
   const byNumber = (number: number): Cell | undefined => cells.find((c) => c.number === number);
   const infoOf = (table: string | null): TableInfo | undefined => tableInfos.find((t) => t.name === table);
@@ -1031,7 +1034,7 @@ export function notebookView(
     });
     if (role === "transformations") kindPicker.hidden = true;
     void loadEditors().then((m) => {
-      if (!cells.includes(cell)) return; // deleted before its editor loaded
+      if (disposed || !cells.includes(cell)) return; // deleted (or the notebook closed) before its editor loaded
       cell.editor = m.createCodeEditor(editorHost, {
         language: LANGUAGE[cell.kind],
         value: cell.source,
@@ -1635,13 +1638,14 @@ export function notebookView(
     }, 300);
   });
   // A click inside a design goes to the design; its cell is the selected one from then on.
-  window.addEventListener("blur", () => {
+  const designClicked = (): void => {
     setTimeout(() => {
       const frame = document.activeElement;
       const cell = frame instanceof HTMLIFrameElement ? cells.find((c) => c.element.contains(frame)) : undefined;
       if (cell) select(cell);
     }, 0);
-  });
+  };
+  window.addEventListener("blur", designClicked);
 
   for (const data of initial.length ? initial : [empty()]) make(data, cells.length);
   building = false;
@@ -1825,6 +1829,17 @@ export function notebookView(
     insertSnippetHere: () => {
       if (!selected || !snippetLanguage(selected)) return toast("Select a Python, DAX or HTML cell of yours first.", "error");
       void insertSnippetInto(selected);
+    },
+    dispose: () => {
+      disposed = true;
+      window.removeEventListener("blur", designClicked);
+      if (quiet !== null) window.clearTimeout(quiet);
+      if (marksTimer !== null) window.clearTimeout(marksTimer);
+      quiet = marksTimer = null;
+      for (const cell of cells) {
+        cell.editor?.dispose();
+        cell.design?.dispose();
+      }
     },
   };
 }
