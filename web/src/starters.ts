@@ -84,7 +84,7 @@ export async function copyAsOwn(name: string): Promise<string | null> {
 /** Whether a snippet of `language` goes into a cell of `kind`; the message when it does not. */
 export function refusal(language: SnippetLanguage, kind: string): string | null {
   if (SNIPPET_CELL[language] === kind) return null;
-  return `${{ dax: "A DAX snippet", html: "An HTML snippet", markdown: "A Markdown snippet", streamlit: "A Streamlit piece" }[language]} goes in ${CELL_WORDS[language]}.`;
+  return `${{ dax: "A DAX snippet", html: "An HTML snippet", markdown: "A Markdown snippet", streamlit: "A Streamlit starter" }[language]} goes in ${CELL_WORDS[language]}.`;
 }
 
 /** What a drag carries, when it is a snippet. */
@@ -251,7 +251,7 @@ export async function pickSnippet(language: SnippetLanguage): Promise<string | n
     toast((error as Error).message, "error");
     return null;
   }
-  const { body, foot, close } = openDialog(`Insert ${{ dax: "a DAX snippet", html: "an HTML snippet", markdown: "a Markdown snippet", streamlit: "a Streamlit piece" }[language]}`);
+  const { body, foot, close } = openDialog(`Insert ${{ dax: "a DAX snippet", html: "an HTML snippet", markdown: "a Markdown snippet", streamlit: "a Streamlit starter" }[language]}`);
   return await new Promise<string | null>((resolve) => {
     let done = false;
     const finish = (name: string | null): void => {

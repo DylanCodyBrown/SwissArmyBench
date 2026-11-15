@@ -2484,7 +2484,9 @@ def workbench_run(a: dict[str, Any]) -> Any:
 )
 def workbench_script_settings(a: dict[str, Any]) -> Any:
     if a.get("set") is not None:
-        return api.call("PUT", "/workbench/scripts/settings", {"path": a["path"], **dict(a["set"])})
+        if not isinstance(a["set"], dict):
+            raise CommandError('set is {"arguments": "...", "variables": [...]}.')
+        return api.call("PUT", "/workbench/scripts/settings", {"path": a["path"], **a["set"]})
     return api.call("GET", f"/workbench/scripts/settings?path={_q(a['path'])}")
 
 

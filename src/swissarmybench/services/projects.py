@@ -193,7 +193,10 @@ class Projects:
             )
         if not isinstance(body.get("tables"), list):
             # A project's folder: its data.ipynb's tables and descriptions, as saved.
-            text = self._files.read(self._folder(body), rules.DATA_NOTEBOOK)
+            try:
+                text = self._files.read(self._folder(body), rules.DATA_NOTEBOOK)
+            except (OSError, ValueError) as error:
+                raise NotFound(str(error)[:300]) from None
             if text is None:
                 raise NotFound("This folder has no data.ipynb.")
             cells = notebooks.read_document(text)[0]
