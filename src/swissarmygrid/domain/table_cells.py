@@ -33,6 +33,7 @@ from typing import Any
 from swissarmygrid.domain import html_cells
 from swissarmygrid.domain.codegen import output_call, python_string, variable_name
 from swissarmygrid.domain.datasets import Column, quote
+from swissarmygrid.domain.streamlit_use import uses_streamlit, usual_name
 
 # A link to a cell in a comment: `# see @cell7`.
 CELL_LINK: re.Pattern[str] = re.compile(r"@cell(\d+)\b")
@@ -305,8 +306,7 @@ class PlanCell:
     title: str = ""  # a script marker's own words (`# %% Load the data`)
     uses: str | None = None  # the uses line it should start with (None: none)
     html: bool = False  # a script's HTML cell: its lines hold the HTML as one Python string
-    streamlit: bool = False  # a script's Streamlit cell (domain/streamlit_cells.py): plain Python
-    height: int | None = None  # that cell's pane, in pixels
+    height: int | None = None  # the pane of an HTML cell, or of a Python cell shown live, in pixels
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -420,7 +420,17 @@ def arrange(
     users = [c for c in numbered if c.role not in app]
     if move:
         users = [replace(c, role="", table=None, grouped=False) for c in users]
-    known = {id(c): facts(split_uses(c.source)[1]) if c.kind == "code" else Facts() for c in users}
+    # A cell that calls Streamlit runs in a Streamlit page, never in the kernel: it makes no table.
+    usual = usual_name(tuple(c.source for c in users if c.kind == "code" and not c.html))
+    live = {
+        id(c)
+        for c in users
+        if c.kind == "code" and not c.html and not c.fixed and uses_streamlit(split_uses(c.source)[1], usual)
+    }
+    known = {
+        id(c): facts(split_uses(c.source)[1]) if c.kind == "code" and id(c) not in live else Facts()
+        for c in users
+    }
     places = {id(c): i for i, c in enumerate(users)}
 
     def cell_facts(cell: PlanCell) -> Facts:
@@ -612,7 +622,7 @@ def arrange(
         own = cell.role == "" and id(cell) not in maker_ids and not cell.fixed
         if own and cell.html and links:
             cell = replace(cell, uses=script_html_uses(cell.source, links))
-        elif own and cell.kind in ("code", "sql", "html", "streamlit") and links:
+        elif own and cell.kind in ("code", "sql", "html") and links:
             cell = replace(cell, uses=uses_line(cell.source, links, cell.kind == "sql", cell.kind == "html"))
         else:
             cell = replace(cell, uses=None)
@@ -657,7 +667,8 @@ REGION_START: str = "# region Tables"
 REGION_END: str = "# endregion"
 _MARKER = re.compile(
     r"^# ?%%(?: \[(?P<number>\d+)\])?(?: \[(?P<role>table|transformations)\] (?P<table>[A-Za-z_][\w-]*))?"
-    r"(?: \[(?P<html>html|streamlit)\](?: height=(?P<height>\d{1,5}))?)?"
+    # `[streamlit]` was a kind of cell once (before the Streamlit canvas): it reads as a plain cell.
+    r"(?: \[(?P<html>html|streamlit)\])?(?: height=(?P<height>\d{1,5}))?"
     r"(?P<title>(?: .*)?)$"
 )
 _REGION_START = re.compile(r"^# ?region Tables\s*$")
@@ -712,9 +723,7 @@ def parse_script(text: str) -> Script:
             role, table = _marker_role(found, True)
             number = int(found.group("number")) if found.group("number") else None
             # An HTML marker inside the group is kept as the user's own words.
-            words = (f"[{found.group('html')}] " if found.group("html") else "") + found.group(
-                "title"
-            ).strip()
+            words = ("[html] " if found.group("html") == "html" else "") + found.group("title").strip()
             current = PlanCell(number, "code", "", role, table, True, title=words.strip())
             grouped.append(current)
             body = []
@@ -740,18 +749,15 @@ def parse_script(text: str) -> Script:
         number = int(found.group("number")) if found.group("number") else None
         # Outside the group only a table's own cell keeps a role; a maker there is found again.
         role = role if role == "transformations" else ""
-        streamlit = found.group("html") == "streamlit" and not role
         current = PlanCell(
             number,
-            # A Streamlit cell is a piece of a page, never the cell that makes a table.
-            "streamlit" if streamlit else "code",
+            "code",
             "",
             role,
             table if role else None,
             False,
             title=found.group("title").strip(),
             html=found.group("html") == "html" and not role,
-            streamlit=streamlit,
             height=html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
         )
         rest.append(current)
@@ -779,9 +785,10 @@ def _marker_line(cell: PlanCell) -> str:
         parts.append(f"[transformations] {cell.table}")
     elif cell.role == "maker" and cell.table and cell.grouped:
         parts.append(f"[table] {cell.table}")
-    if cell.html or cell.streamlit:
-        word = "[html]" if cell.html else "[streamlit]"
-        parts.append(word + (f" height={cell.height}" if cell.height is not None else ""))
+    if cell.html:
+        parts.append("[html]")
+    if cell.height is not None and not cell.role:
+        parts.append(f"height={cell.height}")
     if cell.title:
         parts.append(cell.title)
     return " ".join(parts)
@@ -833,7 +840,8 @@ def arrange_script(text: str, specs: Sequence[TableSpec], move: bool = True) -> 
 def outline(text: str) -> dict[str, Any]:
     """Where a script's cells are, for the editor: each cell's marker line and last line (1-based), its
     number, role and table, its first line of code; and the Tables group's first and last line. An
-    HTML cell also says the HTML its lines hold (or what is wrong with them) and its pane's height."""
+    HTML cell also says the HTML its lines hold (or what is wrong with them) and its pane's height.
+    A Python cell that calls Streamlit has the kind "streamlit" here: the editor shows it live."""
     lines = text.split("\n")
     first = sum(1 for _ in _leading(lines))
     end = next((i for i, line in enumerate(lines) if i > first and _REGION_END.match(line)), None)
@@ -878,10 +886,18 @@ def outline(text: str) -> dict[str, Any]:
             "role": role if inside or role == "transformations" else "",
             "table": table,
             "grouped": inside,
-            "kind": found.group("html") if found.group("html") and not inside and not role else "code",
+            "kind": "html" if found.group("html") == "html" and not inside and not role else "code",
             "height": html_cells.check_height(int(found.group("height"))) if found.group("height") else None,
         }
     close(len(lines))
+    # A Python cell that calls Streamlit is shown live in its cell (domain/streamlit_use.py).
+    own = [c for c in cells if c["kind"] == "code" and not c["grouped"] and not c["role"]]
+    codes = {id(c): split_uses("\n".join(lines[c["line"] : c["end"]]))[1] for c in own}
+    # Whether `st` means Streamlit is the whole file's to say (its main code too).
+    usual = usual_name((text, *codes.values()))
+    for cell in own:
+        if uses_streamlit(codes[id(cell)], usual):
+            cell["kind"] = "streamlit"
     return {"region": region, "cells": cells}
 
 

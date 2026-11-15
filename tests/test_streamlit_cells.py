@@ -1,7 +1,8 @@
-"""Streamlit cells (docs/ideas.md, 2026-11-15): the cell in a notebook file and in a script, both
-ways, with the saved pages and their layouts; the names each piece makes and reads, the run order and a
-cycle; the page as one Streamlit page (slots first, pieces in name order, keys of their own); the
-tables a page names; the export folder's files. Made-up data only."""
+"""The Streamlit canvas's rules (docs/ideas.md, 2026-11-15): the app's file both ways and its links;
+which Python cells call Streamlit; a notebook or script saved when there was a Streamlit kind of cell
+reading cleanly; the grid's rows; the names each cell makes and reads, the run order and a cycle; the
+page as one Streamlit page (slots first, blocks in name order, keys of their own); a missing cell;
+the export folder's files; the Save as zip's files. Made-up data only."""
 
 from __future__ import annotations
 
@@ -13,60 +14,115 @@ import pytest
 from swissarmygrid.client import table_cells as kernel_side
 from swissarmygrid.domain import notebooks, table_cells
 from swissarmygrid.domain import streamlit_cells as rules
-from swissarmygrid.domain.streamlit_cells import Page, PieceCode, Placed
+from swissarmygrid.domain.streamlit_cells import Block, Page, PieceCode, TableLoad
+from swissarmygrid.domain.streamlit_use import other_st, uses_streamlit, usual_name
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
 TOTAL = '# Total\nst.metric("Total", int(orders[orders["region"] == region]["amount"].sum()))'
 CHART = "# Chart\nimport altair as alt\nst.altair_chart(alt.Chart(orders).mark_bar())"
-
-PIECES = {4: PieceCode(4, "Region filter", FILTER), 5: PieceCode(5, "Total", TOTAL)}
-
-# ===== the cell in a file, both ways =====
+DOC = "/work/sales.ipynb"
 
 
-def test_a_notebook_streamlit_cell_is_a_marked_code_cell_and_reads_back() -> None:
-    cells = [
-        notebooks.Cell("code", "import pandas as pd"),
-        notebooks.Cell("streamlit", FILTER, height=320),
-        notebooks.Cell("streamlit", TOTAL),
-    ]
-    pages = [Page("p1", "Sales overview", [Placed("s1", 3, 12), Placed("s2", 2, 4, 5)])]
-    text = notebooks.write_notebook(cells, pages=pages)
-    raw = json.loads(text)
-    # In the file: a code cell whose first line is a comment, so plain Jupyter runs it as Python.
-    assert raw["cells"][1]["cell_type"] == "code"
-    assert "".join(raw["cells"][1]["source"]) == f"# %% [streamlit]\n{FILTER}"
-    assert raw["cells"][1]["metadata"]["swissarmygrid"] == {"kind": "streamlit", "height": 320, "number": 2}
-    ast.parse("".join(raw["cells"][1]["source"]))
-    assert raw["metadata"]["swissarmygrid"]["streamlit"]["pages"] == [
-        {
-            "id": "p1",
-            "name": "Sales overview",
-            "pieces": [{"id": "s1", "cell": 3, "w": 12, "h": None}, {"id": "s2", "cell": 2, "w": 4, "h": 5}],
-        }
-    ]
-    back, _ = notebooks.read_document(text)
-    assert [(c.kind, c.source, c.height, c.number) for c in back] == [
+def B(
+    block: str,
+    cell: int,
+    row: int = 1,
+    column: int = 1,
+    w: int = 12,
+    h: int | None = None,
+    document: str = DOC,
+) -> Block:
+    return Block(block, document, cell, row, column, w, h)
+
+
+PIECES = {
+    (DOC, 4): PieceCode(4, "Region filter", FILTER, "sales.ipynb @cell4"),
+    (DOC, 5): PieceCode(5, "Total", TOTAL, "sales.ipynb @cell5"),
+}
+
+# ===== which Python cells call Streamlit =====
+
+
+def test_a_cell_that_calls_streamlit_is_found_by_pythons_parser() -> None:
+    assert uses_streamlit(FILTER) and uses_streamlit(TOTAL)
+    assert uses_streamlit("with st.sidebar:\n    pass") and uses_streamlit("left, right = st.columns(2)")
+    assert uses_streamlit("import streamlit as sl\nsl.write('hi')")
+    assert uses_streamlit("import streamlit\nstreamlit.title('Sales')")
+    assert uses_streamlit("from streamlit import metric\nmetric('Total', 3)")
+    assert uses_streamlit("x = st.sidebar.selectbox('Region', ['East'])")
+    # An import alone draws nothing, and the kernel still needs the other names.
+    assert not uses_streamlit("import streamlit as st\nimport pandas as pd")
+    assert not uses_streamlit("from streamlit import metric")
+    # Plain Python; a word in a text or a comment; `st` as something else's attribute.
+    assert not uses_streamlit("total = orders['amount'].sum()")
+    assert not uses_streamlit('note = "st.write(1)"  # st.write(2)')
+    assert not uses_streamlit("x = thing.st.write(1)")
+    # Another `st`: scipy's stats, a variable, a function's argument.
+    assert not uses_streamlit("from scipy import stats as st\np = st.norm.cdf(1.96)")
+    assert not uses_streamlit("st = open('log.txt')\nst.write('x')")
+    assert other_st("import statistics as st") and not other_st("import streamlit as st")
+    # The document says so too: one cell gives `st` another value, the others do not mean Streamlit.
+    cells = ["from scipy import stats as st", "p = st.norm.cdf(1.96)"]
+    assert not usual_name(cells) and not uses_streamlit(cells[1], usual_name(cells))
+    assert usual_name([FILTER, TOTAL])
+    # Half-typed code is not a live cell yet.
+    assert not uses_streamlit("region = st.selectbox(")
+    assert rules.live_cells([(1, "import pandas as pd"), (4, FILTER), (5, TOTAL), (6, "")]) == [4, 5]
+    assert rules.live_cells([(1, "# uses orders @cell3\nst.dataframe(orders)")]) == [1]
+
+
+# ===== a notebook or script saved when there was a Streamlit kind of cell =====
+
+
+def _old_notebook() -> str:
+    """A notebook as it was saved before the canvas: a marked cell, and pages in its metadata."""
+    cell = {
+        "cell_type": "code",
+        "id": "cell-2",
+        "metadata": {"swissarmygrid": {"kind": "streamlit", "height": 320, "number": 2}},
+        "source": ["# %% [streamlit]\n", *FILTER.splitlines(keepends=True)],
+        "outputs": [],
+        "execution_count": None,
+    }
+    plain = {
+        "cell_type": "code",
+        "id": "cell-1",
+        "metadata": {"swissarmygrid": {"number": 1}},
+        "source": ["import pandas as pd"],
+        "outputs": [],
+        "execution_count": None,
+    }
+    pages = [{"id": "p1", "name": "Sales", "pieces": [{"id": "s1", "cell": 2, "w": 12, "h": None}]}]
+    own = {"next_cell": 3, "streamlit": {"pages": pages}}
+    return json.dumps({"cells": [plain, cell], "metadata": {"swissarmygrid": own}, "nbformat": 4})
+
+
+def test_an_old_notebooks_streamlit_cell_opens_as_a_python_cell_with_nothing_lost() -> None:
+    cells, following = notebooks.read_document(_old_notebook())
+    assert [(c.kind, c.source, c.height, c.number) for c in cells] == [
         ("code", "import pandas as pd", None, 1),
-        ("streamlit", FILTER, 320, 2),
-        ("streamlit", TOTAL, None, 3),
+        ("code", FILTER, 320, 2),  # the marker line is gone; the code, the height and the number stay
     ]
-    assert notebooks.document_pages(text) == rules.pages_json(pages)
-    # A notebook with no pages keeps no word about them, and one from plain Jupyter has none.
-    assert "streamlit" not in json.loads(notebooks.write_notebook(cells))["metadata"]["swissarmygrid"]
-    assert notebooks.document_pages('{"cells": [], "nbformat": 4}') == []
-    assert notebooks.document_pages("not a notebook") == []
+    assert following == 3
+    # Saved again: a plain code cell that keeps its pane's height; no kind, no marker, no pages.
+    raw = json.loads(notebooks.write_notebook(cells, next_number=following))
+    assert "".join(raw["cells"][1]["source"]) == FILTER
+    assert raw["cells"][1]["metadata"]["swissarmygrid"] == {"height": 320, "number": 2}
+    assert raw["metadata"]["swissarmygrid"] == {"next_cell": 3}
+    assert not hasattr(notebooks, "document_pages")
 
 
-def test_the_page_sends_streamlit_cells_and_they_are_checked() -> None:
+def test_the_page_may_still_send_the_old_kind_and_it_is_a_python_cell() -> None:
     sent = [{"kind": "streamlit", "source": FILTER, "height": 5000}]
-    assert notebooks.read_cells(sent)[0].height == 2000
-    with pytest.raises(notebooks.NotebookError, match="streamlit"):
+    cell = notebooks.read_cells(sent)[0]
+    assert (cell.kind, cell.height) == ("code", 2000)
+    assert notebooks.code_of(cell) == FILTER
+    with pytest.raises(notebooks.NotebookError, match='"html" or "markdown"'):
         notebooks.read_cells([{"kind": "dash", "source": ""}])
-    assert notebooks.code_of(notebooks.Cell("streamlit", "x = 1")) == "# %% [streamlit]\nx = 1"
+    assert "streamlit" not in notebooks.KINDS
 
 
-SCRIPT = f"""import pandas as pd
+OLD_SCRIPT = f"""import pandas as pd
 
 # %% [4] [streamlit] height=300
 {FILTER}
@@ -74,121 +130,265 @@ SCRIPT = f"""import pandas as pd
 {TOTAL}
 # %% [6]
 print("plain")
+# %% [streamlit-pages]
+# The pages of this file's Streamlit app (SwissArmyGrid's page designer keeps this block).
+# {{"id": "p1", "name": "Sales", "pieces": [{{"id": "s1", "cell": 5, "w": 12, "h": null}}]}}
 """
+SCRIPT = (
+    OLD_SCRIPT.replace(" [streamlit] height=300", " height=300")
+    .replace("[5] [streamlit]", "[5]")
+    .replace("# %% [streamlit-pages]", "# %% [7] [streamlit-pages]")  # a cell of comments, numbered like any
+)
 
 
-def test_a_script_streamlit_cell_is_plain_python_under_its_marker() -> None:
-    ast.parse(SCRIPT)  # the file still runs as Python
-    script = table_cells.parse_script(SCRIPT)
-    found = [(c.number, c.kind, c.streamlit, c.height) for c in script.cells if not c.fixed]
-    assert found == [(4, "streamlit", True, 300), (5, "streamlit", True, None), (6, "code", False, None)]
-    assert rules.script_pieces(SCRIPT) == [(4, FILTER + "\n"), (5, TOTAL + "\n")]
-    # Arranged with no tables, the file comes back as it was: markers, heights and all.
-    again, arrangement = table_cells.arrange_script(SCRIPT, [])
+def test_an_old_scripts_streamlit_marker_reads_as_a_plain_cell() -> None:
+    ast.parse(OLD_SCRIPT)
+    script = table_cells.parse_script(OLD_SCRIPT)
+    found = [(c.number, c.kind, c.height, c.title) for c in script.cells if not c.fixed]
+    assert found[:3] == [(4, "code", 300, ""), (5, "code", None, ""), (6, "code", None, "")]
+    # The old pages block is not read: it stays in the file as the comments it always was.
+    assert found[3][3] == "[streamlit-pages]" and not hasattr(rules, "script_pages")
+    # Arranged, the markers are plain ones: the number, and the pane's height.
+    again, arrangement = table_cells.arrange_script(OLD_SCRIPT, [])
     assert again == SCRIPT and arrangement.tables == []
+    assert table_cells.arrange_script(SCRIPT, [])[0] == SCRIPT
+    # The editor still shows the two cells live: they call Streamlit.
     outline = table_cells.outline(SCRIPT)
-    assert [(c["kind"], c["number"], c["height"]) for c in outline["cells"]] == [
+    assert [(c["kind"], c["number"], c["height"]) for c in outline["cells"]][:3] == [
         ("streamlit", 4, 300),
         ("streamlit", 5, None),
         ("code", 6, None),
     ]
+    assert rules.document_cells("/work/sales.py", SCRIPT)[:3] == [
+        (4, FILTER),
+        (5, TOTAL),
+        (6, 'print("plain")'),
+    ]
 
 
-def test_a_streamlit_cell_is_never_the_cell_that_makes_a_table() -> None:
+def test_a_cell_that_calls_streamlit_is_never_the_cell_that_makes_a_table() -> None:
     # It gives `orders` a value, and no other cell does: it still stays where it is, with its uses line.
-    script = "# %% [4] [streamlit]\norders = orders.dropna()\nst.dataframe(orders)\n"
+    script = "# %% [4]\norders = orders.dropna()\nst.dataframe(orders)\n"
     spec = table_cells.TableSpec("orders", "# orders: no steps", "# load\n# orders: no steps")
     text, arrangement = table_cells.arrange_script(script, [spec])
     assert arrangement.tables[0].maker is None
-    assert "# %% [4] [streamlit]\n# uses orders @cell" in text
-    plan = [table_cells.PlanCell(4, "streamlit", "orders = orders.dropna()")]
+    assert "# %% [4]\n# uses orders @cell" in text
+    plan = [table_cells.PlanCell(4, "code", "orders = orders.dropna()\nst.dataframe(orders)")]
     done = table_cells.arrange(plan, [spec], 5)
     piece = next(c for c in done.cells if c.number == 4)
     assert piece.role == "" and piece.uses is not None and piece.uses.startswith("# uses orders @cell")
+    # The same cell without Streamlit does make the table.
+    plain = table_cells.arrange([table_cells.PlanCell(4, "code", "orders = load()")], [spec], 5)
+    assert plain.tables[0].maker == 4
 
 
-def test_run_file_leaves_a_scripts_streamlit_cells_out_on_the_same_lines() -> None:
-    safe = kernel_side.safe_source(SCRIPT)
-    assert len(safe.split("\n")) == len(SCRIPT.split("\n"))
-    assert "st.selectbox" not in safe and "st.metric" not in safe
-    assert 'print("plain")' in safe and "import pandas as pd" in safe
-    assert safe.split("\n").index('print("plain")') == SCRIPT.split("\n").index('print("plain")')
+def test_run_file_leaves_the_cells_that_call_streamlit_out_on_the_same_lines() -> None:
+    for text in (SCRIPT, OLD_SCRIPT):
+        safe = kernel_side.safe_source(text)
+        assert len(safe.split("\n")) == len(text.split("\n"))
+        assert "st.selectbox" not in safe and "st.metric" not in safe
+        assert 'print("plain")' in safe and "import pandas as pd" in safe
+        assert safe.split("\n").index('print("plain")') == text.split("\n").index('print("plain")')
+    # A script whose `st` is something else runs whole.
+    other = "from scipy import stats as st\n# %% [2]\nprint(st.norm.cdf(1.96))\n"
+    assert kernel_side.safe_source(other) == other
 
 
-# ----- a script's pages: a block of comments -----
+# ===== the app's file, both ways; links =====
+
+APP = """{
+  "swissarmygrid": "streamlit-app",
+  "version": 1,
+  "pages": [
+    {
+      "name": "Sales overview",
+      "blocks": [
+        {"document": "sales.ipynb", "cell": 4, "row": 1, "column": 1, "width": 4, "height": null},
+        {"document": "sales.ipynb", "cell": 5, "row": 1, "column": 7, "width": 6, "height": 5},
+        {"document": "../shared/charts.py", "cell": 2, "row": 2, "column": 1, "width": 12, "height": null}
+      ]
+    },
+    {
+      "name": "Détails",
+      "blocks": []
+    }
+  ]
+}
+"""
 
 
-def test_a_scripts_pages_are_a_block_of_comments_both_ways() -> None:
-    pages = [
-        Page("p1", "Sales overview", [Placed("s1", 5, 12), Placed("s2", 4, 4, 6)]),
-        Page("p2", "Détails", []),
+def test_the_apps_file_is_small_readable_and_reads_back() -> None:
+    app = "/work/apps/sales.stapp.json"
+    pages = rules.read_app(APP, lambda link: rules.resolve_link(app, link))
+    assert [(p.id, p.name, len(p.blocks)) for p in pages] == [
+        ("p1", "Sales overview", 3),
+        ("p2", "Détails", 0),
     ]
-    text = rules.with_script_pages(SCRIPT, pages)
-    ast.parse(text)  # comments only: the file still runs
-    assert text.startswith(SCRIPT) and "# %% [streamlit-pages]\n" in text
-    assert [p.to_json() for p in rules.script_pages(text)] == [p.to_json() for p in pages]
-    # Changed where it is; nothing else in the file is touched, wherever the block sits.
-    moved = text.replace(SCRIPT, "") + SCRIPT
-    renamed = rules.with_script_pages(moved, [Page("p1", "Overview", [Placed("s1", 5, 12)])])
-    assert renamed.endswith(SCRIPT) and renamed.count("[streamlit-pages]") == 1
-    assert [p.name for p in rules.script_pages(renamed)] == ["Overview"]
-    # The marker may carry the cell's number (the app numbers every cell).
-    numbered = text.replace("# %% [streamlit-pages]", "# %% [9] [streamlit-pages]")
-    assert len(rules.script_pages(numbered)) == 2
-    # No pages: the block goes, and a script without one stays as it is.
-    assert rules.with_script_pages(text, []) == SCRIPT
-    assert rules.with_script_pages(SCRIPT, []) == SCRIPT and rules.script_pages(SCRIPT) == []
-    # A line someone broke is passed over; the rest still read.
-    broken = text.replace('# {"id": "p2"', '# {"id" "p2"')
-    assert [p.id for p in rules.script_pages(broken)] == ["p1"]
-    # The pages block is not a Streamlit cell.
-    assert rules.script_pieces(text) == rules.script_pieces(SCRIPT)
+    assert [b.to_json() for b in pages[0].blocks] == [
+        {
+            "id": "b1",
+            "document": "/work/apps/sales.ipynb",
+            "cell": 4,
+            "row": 1,
+            "column": 1,
+            "w": 4,
+            "h": None,
+        },
+        {"id": "b2", "document": "/work/apps/sales.ipynb", "cell": 5, "row": 1, "column": 7, "w": 6, "h": 5},
+        {
+            "id": "b3",
+            "document": "/work/shared/charts.py",
+            "cell": 2,
+            "row": 2,
+            "column": 1,
+            "w": 12,
+            "h": None,
+        },
+    ]
+    # Written again it is the same text: one block a line, links relative to the file, no ids, no code.
+    assert rules.write_app(pages, lambda document: rules.relative_link(app, document)) == APP
+    assert json.loads(APP)["pages"][0]["blocks"][1] == {
+        "document": "sales.ipynb",
+        "cell": 5,
+        "row": 1,
+        "column": 7,
+        "width": 6,
+        "height": 5,
+    }
+    assert (
+        rules.write_app([]) == '{\n  "swissarmygrid": "streamlit-app",\n  "version": 1,\n  "pages": []\n}\n'
+    )
+    assert rules.read_app(rules.write_app([])) == []
+    # Not an app's file, or one from a newer version, says so.
+    with pytest.raises(rules.StreamlitError, match="not a Streamlit app's file"):
+        rules.read_app("[1, 2]")
+    with pytest.raises(rules.StreamlitError, match="not a Streamlit app's file"):
+        rules.read_app('{"cells": []}')
+    with pytest.raises(rules.StreamlitError, match="newer"):
+        rules.read_app('{"swissarmygrid": "streamlit-app", "version": 2, "pages": []}')
+    with pytest.raises(rules.StreamlitError, match="cell's own number"):
+        rules.read_app(APP.replace('"cell": 4', '"cell": "four"'))
+    assert notebooks.kind_of("/work/Sales.STAPP.json") == "app" and rules.is_app("x.stapp.json")
+    assert (
+        rules.app_title("C:\\work\\sales.stapp.json") == "sales" and rules.app_title(None) == "Streamlit app"
+    )
+
+
+def test_a_link_is_relative_to_the_apps_own_folder() -> None:
+    app = "/work/apps/sales.stapp.json"
+    assert rules.relative_link(app, "/work/apps/sales.ipynb") == "sales.ipynb"
+    assert rules.relative_link(app, "/work/notebooks/q3/sales.ipynb") == "../notebooks/q3/sales.ipynb"
+    assert rules.resolve_link(app, "../notebooks/q3/sales.ipynb") == "/work/notebooks/q3/sales.ipynb"
+    assert rules.resolve_link(app, "/else/x.py") == "/else/x.py"
+    # An app without a file yet keeps whole paths.
+    assert rules.relative_link(None, "/work/sales.ipynb") == "/work/sales.ipynb"
+    assert rules.resolve_link(None, "sales.ipynb") == "sales.ipynb"
+    # Windows: backslashes in, forward slashes in the file; another drive stays whole.
+    win = "C:\\work\\apps\\sales.stapp.json"
+    assert rules.relative_link(win, "C:\\work\\nb\\sales.ipynb") == "../nb/sales.ipynb"
+    assert rules.resolve_link(win, "../nb/sales.ipynb") == "C:\\work\\nb\\sales.ipynb"
+    assert rules.relative_link(win, "D:\\data\\x.py") == "D:\\data\\x.py"
+    assert rules.same_file("C:\\Work\\a.py", "c:/work/A.py") and not rules.same_file("/w/a.py", "/w/A.py")
+
+
+def test_a_linked_files_python_cells_are_the_ones_a_block_can_name() -> None:
+    cells = [
+        notebooks.Cell("markdown", "# Sales"),
+        notebooks.Cell("code", FILTER),
+        notebooks.Cell("sql", "select 1"),
+        notebooks.Cell(
+            "code", "import duckdb\norders = duckdb.sql('...').df()", role="transformations", table="orders"
+        ),
+        notebooks.Cell("code", TOTAL),
+    ]
+    text = notebooks.write_notebook(cells)
+    assert rules.document_cells("/work/sales.ipynb", text) == [(2, FILTER), (5, TOTAL)]
+    # A script's cell without a number (never opened here) cannot be linked; its main code never.
+    assert rules.document_cells("/work/s.py", "x = 1\n# %%\ny = 2\n# %% [3] Named\nz = 3\n") == [(3, "z = 3")]
+
+
+# ===== pages and the grid =====
 
 
 def test_pages_are_checked_and_given_ids() -> None:
     pages = rules.read_pages(
         [
-            {"name": "  Overview  ", "pieces": [{"cell": 4}, {"cell": 4, "id": "s1", "w": 99, "h": 0.4}]},
-            {"id": "p1", "pieces": []},
-            {"id": "bad id!", "name": "Third"},
+            {
+                "name": " Sales ",
+                "blocks": [{"document": DOC, "cell": 4}, {"document": DOC, "cell": 5, "w": 99, "h": 0}],
+            },
+            {
+                "id": "p1",
+                "name": "",
+                "blocks": [{"id": "b1", "document": DOC, "cell": 4, "column": 11, "w": 6}],
+            },
         ]
     )
-    assert [(p.id, p.name) for p in pages] == [("p1", "Overview"), ("p2", "Page 2"), ("p3", "Third")]
-    assert [(s.id, s.cell, s.w, s.h) for s in pages[0].pieces] == [("s1", 4, 6, None), ("s2", 4, 12, 1)]
+    assert [(p.id, p.name) for p in pages] == [("p1", "Sales"), ("p2", "Page 2")]
+    assert [(b.id, b.row, b.column, b.w, b.h) for b in pages[0].blocks] == [
+        ("b1", 1, 1, 6, None),
+        ("b2", 2, 1, 12, 1),
+    ]
+    # An id used twice is made anew; a block past column 12 is pulled back to fit.
+    assert [(b.id, b.column, b.w) for b in pages[1].blocks] == [("b3", 7, 6)]
     assert rules.read_pages(None) == []
     for bad in (
-        {"a": 1},
+        {},
         [1],
-        [{"name": "x\ny"}],
-        [{"pieces": [{"cell": 0}]}],
-        [{"pieces": [{"cell": True}]}],
+        [{"blocks": [{"document": DOC, "cell": 0}]}],
+        [{"blocks": [{"cell": 2}]}],
+        [{"blocks": 5}],
     ):
         with pytest.raises(rules.StreamlitError):
             rules.read_pages(bad)
-    with pytest.raises(rules.StreamlitError, match="at most"):
-        rules.read_pages([{}] * (rules.MAX_PAGES + 1))
+    with pytest.raises(rules.StreamlitError, match="at most 30"):
+        rules.read_pages([{"name": f"P{i}"} for i in range(31)])
+    assert rules.next_id("b", ["b1", "b2", "b4"]) == "b3"
     assert rules.page_title(1, ["Page 1", "Page 2"]) == "Page 3"
 
 
-def test_the_board_flows_pieces_into_rows_of_twelve_columns() -> None:
-    placed = [Placed("a", 1, 4), Placed("b", 2, 8), Placed("c", 3, 6), Placed("d", 4, 7), Placed("e", 5, 12)]
-    assert [[p.id for p in row] for row in rules.rows(placed)] == [["a", "b"], ["c"], ["d"], ["e"]]
+def test_the_grid_keeps_blocks_in_rows_none_on_top_of_another() -> None:
+    blocks = [
+        B("a", 1, 1, 1, 4),
+        B("b", 2, 1, 7, 6),
+        B("c", 3, 3, 3, 6),
+        B("d", 4, 3, 5, 6),
+        B("e", 5, 9, 1, 12),
+    ]
+    rules.settle(blocks)
+    # `d` would lie on `c`: it starts a row of its own below. Rows are counted from 1, none empty.
+    assert [(b.id, b.row, b.column) for b in blocks] == [
+        ("a", 1, 1),
+        ("b", 1, 7),
+        ("c", 2, 3),
+        ("d", 3, 5),
+        ("e", 4, 1),
+    ]
+    assert [[b.id for b in row] for row in rules.rows(blocks)] == [["a", "b"], ["c"], ["d"], ["e"]]
     assert rules.rows([]) == []
+    # A new block goes beside the last one when the row has room, else below.
+    assert rules.free_place([]) == (1, 1)
+    assert rules.free_place([B("a", 1, 1, 1, 6)]) == (1, 7)
+    assert rules.free_place([B("a", 1, 1, 1, 6), B("b", 2, 1, 7, 6)]) == (2, 1)
+    assert rules.free_place([B("a", 1, 1, 1, 8)]) == (2, 1) and rules.free_place([B("a", 1, 1, 1, 8)], 4) == (
+        1,
+        9,
+    )
 
 
-# ===== a piece: its name, what it makes and reads =====
+# ===== a cell: its title, what it makes and reads =====
 
 
-def test_a_pieces_name_is_its_first_comment() -> None:
+def test_a_blocks_title_is_the_cells_first_comment_or_first_line() -> None:
     assert rules.piece_name(FILTER, 4) == "Region filter"
     assert rules.piece_name("# uses orders @cell3\n# Total by region\nst.write(1)", 5) == "Total by region"
     assert rules.piece_name("\n\n## Big  \nx = 1", 5) == "Big"
-    assert rules.piece_name("st.write(1)\n# not a name", 7) == "Piece 7"
-    assert rules.piece_name("# uses orders @cell3\nst.write(orders)", 7) == "Piece 7"
-    assert rules.piece_name("", 2) == "Piece 2"
+    assert rules.piece_name("st.write(1)\n# not a name", 7) == "st.write(1)"
+    assert rules.piece_name("# uses orders @cell3\nst.write(orders)", 7) == "st.write(orders)"
+    assert rules.piece_name("", 2) == "Cell 2" and len(rules.piece_name("x = " + "1" * 200, 2)) == 80
 
 
-def test_the_names_a_piece_makes_and_reads() -> None:
+def test_the_names_a_cell_makes_and_reads() -> None:
     found = rules.facts(FILTER)
     assert found.makes == ("region",) and found.reads == ("st", "orders") and found.problem is None
     total = rules.facts(TOTAL)
@@ -198,7 +398,7 @@ def test_the_names_a_piece_makes_and_reads() -> None:
         "low, high = st.slider('x', 0, 9, (1, 5))\ndef show(n):\n    return n + low\nprint(len([high]))"
     )
     assert own.makes == ("low", "high", "show") and own.reads == ("st",)
-    # The uses line is the app's, not the piece's.
+    # The uses line is the app's, not the cell's.
     assert rules.facts("# uses orders @cell3\nx = 1").makes == ("x",)
     assert rules.facts(CHART).modules == ("altair",)
     assert rules.facts("from plotly import express as px\nimport os.path").modules == ("plotly", "os.path")
@@ -206,28 +406,28 @@ def test_the_names_a_piece_makes_and_reads() -> None:
     assert half.problem is not None and half.problem.startswith("line 1") and half.makes == ("region",)
 
 
-def test_the_tables_a_piece_names_are_real_names_only() -> None:
+def test_the_tables_a_cell_names_are_real_names_only() -> None:
     code = 'st.write(orders)\nx = "customers"  # products\ny = other.products\nz = orders_2026'
     assert rules.tables_named(code, ["orders", "customers", "products"]) == ["orders"]
     assert rules.tables_named("# uses orders @cell3\nst.write(1)", ["orders"]) == []
 
 
-# ===== the order pieces run in =====
+# ===== the order blocks run in =====
 
 
-def test_pieces_run_in_the_order_their_names_need() -> None:
+def test_blocks_run_in_the_order_their_names_need() -> None:
     total, picker = rules.facts(TOTAL), rules.facts(FILTER)
     # The total is placed first (above the filter) and still runs after it.
     ordered = rules.run_order([("total", total), ("filter", picker)])
     assert ordered.order == ("filter", "total") and ordered.cycle == ()
     assert ordered.links == (("total", "region", "filter"),)
-    # With nothing to link, pieces run as they are placed.
+    # With nothing to link, blocks run as they are placed.
     plain = rules.facts("st.write('a')")
     assert rules.run_order([("b", plain), ("a", plain)]).order == ("b", "a")
     # A chain, placed backwards.
     a, b, c = rules.facts("x = 1"), rules.facts("y = x + 1"), rules.facts("st.write(y)")
     assert rules.run_order([("c", c), ("b", b), ("a", a)]).order == ("a", "b", "c")
-    # Two copies of one piece: the first placed makes the name; neither waits on the other.
+    # Two blocks of one cell: the first placed makes the name; neither waits on the other.
     twice = rules.run_order([("one", picker), ("two", picker), ("total", total)])
     assert twice.order == ("one", "two", "total") and twice.links == (("total", "region", "one"),)
 
@@ -242,8 +442,11 @@ def test_a_cycle_is_reported_and_the_rest_still_run() -> None:
     assert ordered.cycle == ("a", "b")  # `after` only waits on the cycle: it is not part of it
     made = rules.page_code(
         "Loop",
-        [Placed("a", 1, 6), Placed("b", 2, 6)],
-        {1: PieceCode(1, "First", "first = second + 1"), 2: PieceCode(2, "Second", "second = first + 1")},
+        [B("a", 1, 1, 1, 6), B("b", 2, 1, 7, 6)],
+        {
+            (DOC, 1): PieceCode(1, "First", "first = second + 1"),
+            (DOC, 2): PieceCode(2, "Second", "second = first + 1"),
+        },
         [],
     )
     ast.parse(made.code)
@@ -313,86 +516,120 @@ def test_indenting_leaves_the_lines_inside_a_text_alone() -> None:
 # ===== the page as one Streamlit page =====
 
 
-def test_a_page_draws_its_slots_first_then_runs_pieces_in_name_order() -> None:
+def test_a_page_draws_its_slots_first_then_runs_blocks_in_name_order() -> None:
     # The filter is placed BELOW the total; the total still gets `region`.
-    placed = [Placed("s1", 5, 12), Placed("s2", 4, 4, 3)]
+    placed = [B("b1", 5, 1, 1, 12), B("b2", 4, 2, 1, 4, 3)]
     made = rules.page_code("Sales overview", placed, PIECES, ["orders", "customers"])
     ast.parse(made.code)
     code = made.code
-    assert made.order == ("s2", "s1") and made.problems == () and made.tables == ("orders",)
-    slots = code.index("_slot_s1 = st.container()"), code.index("_slot_s2 = _row_2[0].container(height=120)")
-    assert "_row_2 = st.columns([4, 8])" in code  # the spare columns keep the piece 4 wide
-    first_piece = code.index("with _slot_")
-    assert max(slots) < first_piece  # every slot is drawn before any piece runs
-    assert code.index("with _slot_s2:") < code.index("with _slot_s1:")  # the filter runs first
+    assert made.order == ("b2", "b1") and made.problems == () and made.tables == ("orders",)
+    slots = code.index("_slot_b1 = st.container()"), code.index("_slot_b2 = _row_2[0].container(height=120)")
+    assert "_row_2 = st.columns([4, 8])" in code  # the spare columns keep the block 4 wide
+    first_block = code.index("with _slot_")
+    assert max(slots) < first_block  # every slot is drawn before any block runs
+    assert code.index("with _slot_b2:") < code.index("with _slot_b1:")  # the filter runs first
     assert slots[0] < slots[1]  # and the total's slot is above the filter's
-    # Each piece fills its own slot, its widgets keyed by its place; a failure stays in its slot.
-    assert 'region = st.selectbox("Region", sorted(orders["region"].unique()), key="s2_1")' in code
+    # Each block fills its own slot, its widgets keyed by its place; a failure stays in its slot.
+    assert 'region = st.selectbox("Region", sorted(orders["region"].unique()), key="b2_1")' in code
     assert code.count("except Exception as _error:") == 2 and "st.exception(_error)" in code
-    assert "# Region filter (cell 4): makes region" in code
-    # Two copies of the filter do not clash.
-    twice = rules.page_code("Two", [Placed("s1", 4, 6), Placed("s2", 4, 6)], PIECES, ["orders"])
-    assert 'key="s1_1"' in twice.code and 'key="s2_1"' in twice.code
+    assert "# Region filter (sales.ipynb @cell4): makes region" in code
+    # Two blocks of the filter do not clash.
+    twice = rules.page_code("Two", [B("b1", 4, 1, 1, 6), B("b2", 4, 1, 7, 6)], PIECES, ["orders"])
+    assert 'key="b1_1"' in twice.code and 'key="b2_1"' in twice.code
     assert "_row_1 = st.columns([6, 6])" in twice.code
 
 
+def test_a_block_sits_in_its_own_columns_with_the_gaps_left_empty() -> None:
+    placed = [B("b1", 4, 1, 3, 4), B("b2", 5, 1, 9, 3), B("b3", 4, 2, 7, 6)]
+    code = rules.page_code("Gaps", placed, PIECES, ["orders"]).code
+    # Columns 1-2 empty, the block on 3-6, 7-8 empty, the block on 9-11, column 12 empty.
+    assert "_row_1 = st.columns([2, 4, 2, 3, 1])" in code
+    assert "_slot_b1 = _row_1[1].container()" in code and "_slot_b2 = _row_1[3].container()" in code
+    assert "_row_2 = st.columns([6, 6])" in code and "_slot_b3 = _row_2[1].container()" in code
+
+
 def test_the_preamble_reads_only_the_tables_the_page_names() -> None:
-    made = rules.page_code("Sales", [Placed("s1", 4, 12)], PIECES, ["orders", "customers"])
+    made = rules.page_code("Sales", [B("b1", 4)], PIECES, ["orders", "customers"])
     assert 'orders = _table("orders", (_DATA / "orders.parquet").stat().st_mtime)' in made.code
     assert "customers" not in made.code and made.tables == ("orders",)
     assert '_DATA = Path(__file__).resolve().parent / "data"' in made.code and "@st.cache_data" in made.code
     # A page that names no table reads none (and needs no data folder).
     plain = rules.page_code(
-        "Plain", [Placed("s1", 1, 12)], {1: PieceCode(1, "Hi", 'st.write("hi")')}, ["orders"]
+        "Plain", [B("b1", 1)], {(DOC, 1): PieceCode(1, "Hi", 'st.write("hi")')}, ["orders"]
     )
     assert "_table" not in plain.code and "Path" not in plain.code and plain.tables == ()
     assert plain.code.startswith("# Plain\nimport pandas as pd\nimport streamlit as st\n")
     # A table named only in a text or a comment is not read.
-    quiet = {1: PieceCode(1, "Hi", 'st.write("orders")  # orders')}
-    assert rules.page_code("Quiet", [Placed("s1", 1, 12)], quiet, ["orders"]).tables == ()
+    quiet = {(DOC, 1): PieceCode(1, "Hi", 'st.write("orders")  # orders')}
+    assert rules.page_code("Quiet", [B("b1", 1)], quiet, ["orders"]).tables == ()
 
 
 def test_a_page_says_what_it_cannot_run_and_runs_the_rest() -> None:
     pieces = {
-        4: PieceCode(4, "Region filter", FILTER),
-        5: PieceCode(5, "Total", TOTAL),
-        6: PieceCode(6, "Half", "x = st.slider(\n"),
-        7: PieceCode(7, "Notes", "# Notes\n"),
+        (DOC, 5): PieceCode(5, "Total", TOTAL, "sales.ipynb @cell5"),
+        (DOC, 6): PieceCode(6, "Half", "x = st.slider(\n", "sales.ipynb @cell6"),
+        (DOC, 7): PieceCode(7, "Notes", "# Notes\n"),
     }
-    placed = [Placed("s1", 5, 6), Placed("s2", 6, 6), Placed("s3", 9, 6), Placed("s4", 7, 6)]
-    found = {cell: rules.facts(p.code) for cell, p in pieces.items()}
+    placed = [
+        B("b1", 5, 1, 1, 6),
+        B("b2", 6, 1, 7, 6),
+        B("b3", 9, 2, 1, 6),
+        B("b4", 7, 2, 7, 6),
+        B("b5", 2, 3, 1, 6, None, "/work/gone.ipynb"),
+    ]
+    # Every Python cell of the linked files: the filter is in the notebook, but not on this page.
+    found = {key: rules.facts(p.code) for key, p in pieces.items()} | {(DOC, 4): rules.facts(FILTER)}
+    where = {(DOC, 4): "sales.ipynb @cell4"}
     page = Page("p1", "Sales", placed)
-    made = rules.page_code("Sales", placed, pieces, ["orders"], elsewhere=rules.elsewhere(page, found))
+    gone = {
+        "b3": "sales.ipynb has no cell 9 now: it was deleted. Take the block off the page.",
+        "b5": "/work/gone.ipynb is missing: the block links to its cell 2.",
+    }
+    made = rules.page_code(
+        "Sales", placed, pieces, ["orders"], elsewhere=rules.elsewhere(page, found, where), gone=gone
+    )
     ast.parse(made.code)
-    assert len(made.problems) == 3
+    assert len(made.problems) == 4
     said = "\n".join(made.problems)
     assert (
-        "Total reads region (the piece in cell 4), which is not on this page: push that piece here too."
+        "Total reads region (sales.ipynb @cell4), which is not on this page: place that cell here too."
         in said
     )
-    assert "Half (cell 6) is not whole Python yet: line 1" in said
-    assert "The piece from cell 9 is gone" in said
+    assert "Half (sales.ipynb @cell6) is not whole Python yet: line 1" in said
+    assert "sales.ipynb has no cell 9 now" in said and "/work/gone.ipynb is missing" in said
     assert "st.metric" not in made.code and "st.slider" not in made.code
-    assert "with _slot_s4:\n    try:\n        pass\n" in made.code  # a piece of comments runs nothing
+    assert "with _slot_b4:\n    try:\n        pass\n" in made.code  # a cell of comments runs nothing
+    # A name that is an open table is the table, whatever cell also makes it.
+    loads = found | {(DOC, 1): rules.facts("orders = pd.read_csv('orders.csv')")}
+    only = Page("p1", "Only", [B("b1", 4)])
+    quiet = rules.page_code(
+        "Only",
+        only.blocks,
+        {(DOC, 4): PIECES[(DOC, 4)]},
+        ["orders"],
+        elsewhere=rules.elsewhere(only, loads, where),
+    )
+    assert quiet.problems == ()
 
 
-def test_a_piece_alone_shows_with_the_pieces_that_make_its_names() -> None:
+def test_a_cell_alone_shows_with_the_cells_that_make_its_names() -> None:
     order = [4, 5]
-    alone = rules.preview_code(5, PIECES, order, ["orders"])
+    pieces = {4: PIECES[(DOC, 4)], 5: PIECES[(DOC, 5)]}
+    alone = rules.preview_code(5, pieces, order, ["orders"])
     ast.parse(alone.code)
     assert alone.order == ("c4", "c5") and alone.tables == ("orders",)
-    assert "st.caption('region comes from the piece in cell 4')" in alone.code
+    assert "st.caption('region comes from cell 4')" in alone.code
     assert alone.code.index("_slot_c4 = st.container()") < alone.code.index("_slot_c5 = st.container()")
-    # A piece that reads no other piece's name is alone.
-    assert rules.preview_code(4, PIECES, order, ["orders"]).order == ("c4",)
+    # A cell that reads no other cell's name is alone.
+    assert rules.preview_code(4, pieces, order, ["orders"]).order == ("c4",)
     # The nearest maker above wins; one below is used when none is above; inputs of inputs come too.
-    pieces = {
+    more = {
         1: PieceCode(1, "A", "base = 1"),
         2: PieceCode(2, "B", "level = base + st.slider('x', 0, 9)"),
         3: PieceCode(3, "C", "st.write(level)"),
         4: PieceCode(4, "D", "level = 100"),
     }
-    found = rules.makers({c: p.code for c, p in pieces.items()}, [1, 2, 3, 4])
+    found = rules.makers({c: p.code for c, p in more.items()}, [1, 2, 3, 4])
     assert rules.inputs_of(3, found, [1, 2, 3, 4]) == [(1, "base"), (2, "level")]
     assert rules.inputs_of(3, found, [3, 4]) == [(4, "level")]
     assert rules.inputs_of(1, found, [1, 2, 3, 4]) == []
@@ -410,16 +647,23 @@ def test_the_live_entry_and_the_names_of_modules() -> None:
 # ===== export =====
 
 
-def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
-    pieces = PIECES | {
-        6: PieceCode(6, "Chart", CHART),
-        7: PieceCode(7, "Extra", "import sklearn, os, swissarmygrid"),
+def _more_pieces() -> dict[tuple[str, int], PieceCode]:
+    return PIECES | {
+        (DOC, 6): PieceCode(6, "Chart", CHART, "sales.ipynb @cell6"),
+        (DOC, 7): PieceCode(7, "Extra", "import sklearn, os, swissarmygrid"),
     }
-    pages = [
-        Page("p1", "Sales overview", [Placed("s1", 5, 12), Placed("s2", 4, 4)]),
-        Page("p2", "Sales overview", [Placed("s3", 6, 12)]),
+
+
+def _two_pages() -> list[Page]:
+    return [
+        Page("p1", "Sales overview", [B("b1", 5, 1, 1, 12), B("b2", 4, 2, 1, 4)]),
+        Page("p2", "Sales overview", [B("b3", 6)]),
     ]
-    made = rules.export("Sales app", pages, pieces, ["orders", "customers"])
+
+
+def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
+    pieces = _more_pieces()
+    made = rules.export("Sales app", _two_pages(), pieces, ["orders", "customers"])
     assert sorted(made.files) == [
         "README.txt",
         "app.py",
@@ -437,12 +681,12 @@ def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
         and "st.navigation(" in app
     )
     first = made.files["app_pages/sales_overview.py"]
-    # Laid out as designed, pieces in name order, plain code (no guard), data beside app.py.
-    assert first.index("with _slot_s2:") < first.index("with _slot_s1:")
-    assert "try:" not in first and "swissarmygrid" not in first.lower().replace("# sales overview", "")
+    # Laid out as designed, blocks in name order, plain code (no guard), data beside app.py.
+    assert first.index("with _slot_b2:") < first.index("with _slot_b1:")
+    assert "try:" not in first and "swissarmygrid" not in first.lower()
     assert '_DATA = Path(__file__).resolve().parent.parent / "data"' in first
     assert made.tables == ("orders",) and made.problems == ()
-    # What the pages import, and only the pieces that are on a page.
+    # What the pages import, and only the cells that are on a page.
     assert made.files["requirements.txt"] == "streamlit>=1.36\npandas\npyarrow\naltair\n"
     assert "streamlit run app.py" in made.files["README.txt"]
     assert rules.requirements(["import sklearn, os, swissarmygrid\nimport PIL.Image"]) == [
@@ -454,9 +698,112 @@ def test_the_export_is_a_folder_that_runs_without_the_app() -> None:
     ]
     with pytest.raises(rules.StreamlitError, match="no page"):
         rules.export("Empty", [], pieces, [])
-    # A page that cannot run a piece says so in the export's answer too.
-    lone = rules.export("Lone", [Page("p1", "Only total", [Placed("s1", 5, 12)])], pieces, ["orders"])
-    assert lone.problems == (
-        "Only total: Total reads region (the piece in cell 4), which is not on this page: "
-        "push that piece here too.",
+    # A page that cannot run a block says so in the export's answer too.
+    found = {key: rules.facts(p.code) for key, p in pieces.items()}
+    lone = rules.export(
+        "Lone",
+        [Page("p1", "Only total", [B("b1", 5)])],
+        pieces,
+        ["orders"],
+        found,
+        {(DOC, 4): "sales.ipynb @cell4"},
     )
+    assert lone.problems == (
+        "Only total: Total reads region (sales.ipynb @cell4), which is not on this page: "
+        "place that cell here too.",
+    )
+
+
+# ===== Save as: pages to drop into another Streamlit app =====
+
+LOADS = {
+    "orders": TableLoad(
+        "orders",
+        ("import swissarmygrid as sag", "import duckdb"),
+        'orders = sag.sql(\'Warehouse\', """select * from sales.orders""")',
+        'orders = duckdb.sql("""SELECT * FROM orders WHERE amount > 10""").df()',
+        "the connection Warehouse, read with sag.sql.",
+        "SwissArmyGrid and its connection Warehouse on that computer.",
+    ),
+    "customers": TableLoad(
+        "customers", (), None, None, "customers was pasted into the grid: no rows are saved."
+    ),
+    "regions": TableLoad(
+        "regions",
+        ("import duckdb",),
+        "regions = duckdb.read_csv('/data/regions.csv').df()",
+        None,
+        "the file /data/regions.csv.",
+    ),
+}
+
+
+def test_save_as_makes_pages_for_another_app_and_a_module_that_loads_their_tables() -> None:
+    pieces = _more_pieces() | {(DOC, 8): PieceCode(8, "Customers", "st.dataframe(customers)")}
+    pages = [*_two_pages(), Page("p3", "Customers", [B("b4", 8)])]
+    made = rules.bundle("Sales app", pages, pieces, LOADS, app_file="sales.stapp.json")
+    assert sorted(made.files) == [
+        "README.txt",
+        "pages/customers.py",
+        "pages/sales_overview.py",
+        "pages/sales_overview_2.py",
+        "requirements.txt",
+        "sales_app_tables.py",
+    ]
+    for name, text in made.files.items():
+        if name.endswith(".py"):
+            ast.parse(text)
+    page = made.files["pages/sales_overview.py"]
+    # A page of somebody else's app: no app.py, no page config, no data folder; its tables by the module.
+    assert "import sales_app_tables" in page and "orders = sales_app_tables.orders()" in page
+    assert "_DATA" not in page and "set_page_config" not in page and "parquet" not in page
+    assert page.index("with _slot_b2:") < page.index("with _slot_b1:") and "try:" not in page
+    module = made.files["sales_app_tables.py"]
+    # Each table is read again the way it was loaded, then its transformations; cached by Streamlit.
+    assert "@st.cache_data(show_spinner=False)\ndef orders():" in module
+    assert '    orders = sag.sql(\'Warehouse\', """select * from sales.orders""")\n' in module
+    assert (
+        '    orders = duckdb.sql("""SELECT * FROM orders WHERE amount > 10""").df()\n    return orders'
+        in module
+    )
+    assert "import duckdb\nimport swissarmygrid as sag\n" in module
+    # A table the app cannot load again is a stub, clearly marked, that fails until it is filled in.
+    assert "def _customers_source():\n    # ===== FILL IN: customers =====" in module
+    assert "raise NotImplementedError('Fill in _customers_source() in sales_app_tables.py" in module
+    assert (
+        "def customers():" in module and "    customers = _customers_source()\n    return customers" in module
+    )
+    assert "regions" not in module  # only the tables the pages name
+    assert made.tables == ("orders", "customers") and made.stubs == ("customers",)
+    assert made.files["requirements.txt"].startswith(
+        "streamlit>=1.36\npandas\nduckdb\naltair\n# swissarmygrid:"
+    )
+    readme = made.files["README.txt"]
+    assert (
+        "pages/*.py" in readme and "sales_app_tables.py" in readme and "workbench/sales.stapp.json" in readme
+    )
+    assert (
+        "orders: the connection Warehouse, read with sag.sql. Needs: SwissArmyGrid and its connection"
+        in readme
+    )
+    assert "customers: FILL IN _customers_source() in sales_app_tables.py." in readme
+    assert "No rows and no passwords" in readme
+    with pytest.raises(rules.StreamlitError, match="no page"):
+        rules.bundle("Empty", [], pieces, LOADS)
+    # A page that names no table needs no module.
+    plain = rules.bundle(
+        "Plain", [Page("p1", "Hi", [B("b1", 1)])], {(DOC, 1): PieceCode(1, "Hi", "st.write(1)")}, LOADS
+    )
+    assert sorted(plain.files) == ["README.txt", "pages/hi.py", "requirements.txt"]
+    assert plain.files["requirements.txt"] == "streamlit>=1.36\npandas\n"
+
+
+def test_the_zips_workbench_files_have_names_of_their_own() -> None:
+    names = rules.bundle_names(
+        ["/work/sales.ipynb", "/other/sales.ipynb", "C:\\x\\Charts.py", "/work/sales.ipynb"]
+    )
+    assert names == {
+        "/work/sales.ipynb": "sales.ipynb",
+        "/other/sales.ipynb": "sales_2.ipynb",
+        "C:\\x\\Charts.py": "Charts.py",
+    }

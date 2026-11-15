@@ -55,6 +55,7 @@ CLIENT_MODULES = (
     "swissarmygrid.domain.blades",
     "swissarmygrid.domain.catalogs",
     "swissarmygrid.domain.html_cells",
+    "swissarmygrid.domain.streamlit_use",
     "swissarmygrid.adapters.blade_run",
 )
 # Standard library modules that do I/O, start something or read the clock: not for the domain.
