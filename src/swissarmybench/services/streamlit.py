@@ -69,6 +69,10 @@ class Files(Protocol):
 
     def helper(self) -> str: ...  # the text of domain/html_cells.py: a page's sab_text.py
 
+    def lineage_helper(self) -> str: ...  # client/lineage_values.py's text: a live page's sab_lineage.py
+
+    def read_trace(self, folder: str, page: str) -> str | None: ...  # what a live page noted of its blocks
+
     def write(self, folder: str, files: dict[str, str], keep: set[str]) -> None: ...
 
     def touch(self, folder: str, name: str) -> None: ...
@@ -681,6 +685,27 @@ class StreamlitApps:
             "pages": pages,
         }
 
+    # ===== what a lineage reads (services/lineage.py) =====
+
+    def held(self, path: str) -> App | None:
+        """The open notebook or script that holds a file: its cells as its window has them now."""
+        return self._open_document(path)
+
+    def canvas(self, app_id: str) -> App:
+        return self._app(app_id, canvas=True)
+
+    def page_trace(self, app: App, page_id: str) -> dict[str, Any] | None:
+        """What a playing page noted of each block at its last run: {"run", "blocks": {id: {"values",
+        "error"}}} (client/lineage_values.py). None: the page is not playing, or noted nothing yet."""
+        if app.folder is None or not app.running() or page_id not in app.laid:
+            return None
+        text = self._files.read_trace(app.folder, page_id)
+        try:
+            found = json.loads(text) if text else None
+        except ValueError:
+            return None
+        return found if isinstance(found, dict) and isinstance(found.get("blocks"), dict) else None
+
     async def _changed(self, app: App) -> None:
         await self.ws.live.broadcast({"type": "streamlit_changed", "app": app.id})
 
@@ -956,6 +981,7 @@ class StreamlitApps:
                     elsewhere=rules.elsewhere(page, found, where),
                     gone=gone,
                     imports=given,
+                    trace=page.id,
                 )
                 name = f"page_{page.id}_{stamp}.py"
                 files[name] = made.code
@@ -965,6 +991,7 @@ class StreamlitApps:
                 for block in page.blocks:
                     code = linked.code(block.key)
                     ran[block.key] = None if code is None else rules.body(code)
+            files[rules.TRACE_FILE] = self._files.lineage_helper()
             if any(rules.uses_text_module(piece.code) for piece in pieces.values()):
                 # A Markdown or HTML block names a value: the rules that fill it, beside the pages.
                 files[rules.TEXT_FILE] = rules.text_file(self._files.helper())

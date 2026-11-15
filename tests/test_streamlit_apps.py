@@ -420,12 +420,14 @@ def test_play_runs_the_linked_cells_current_code_and_says_when_a_page_is_out_of_
     ran = _ok(client.post(f"{base}/run", headers=AUTH))
     assert ran["running"] is True and ran["problem"] is None and ran["notes"] == []
     root = _files(runner)
+    # sab_lineage.py: the playing page notes each block's values for the lineage overlay (only here).
     assert sorted(p.name for p in root.iterdir()) == [
         "app.py",
         "data",
         "home.py",
         "manifest.json",
         "page_p1_1.py",
+        "sab_lineage.py",
     ]
     assert pq.read_table(root / "data" / "orders.parquet").to_pydict() == ORDERS.to_pydict()
     code = (root / "page_p1_1.py").read_text()
@@ -1185,6 +1187,9 @@ def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_sa
         page = _app_test(STREAMLIT_PYTHON, next(temporary.glob("page_p1_*.py")), "West")
         assert page["errors"] == [] and page["options"] == ["East", "North", "West"]
         assert page["first"] == "140" and page["second"] == "250" and page["keys"] == ["b2_1"]
+        # The page noted each block's values as it ran, for the lineage overlay (the filter's choice too).
+        noted = json.loads((temporary / "lineage-p1.json").read_text(encoding="utf-8"))
+        assert noted["blocks"]["b2"]["values"]["region"]["text"] == "West"
         single = _app_test(STREAMLIT_PYTHON, next(Path(alone["folder"]).glob("piece_4_*.py")), "North")
         assert single["errors"] == [] and single["first"] == "140" and single["second"] == "75"
         # A grid step: out of date; Play: the new data.

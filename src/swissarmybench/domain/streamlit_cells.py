@@ -112,6 +112,10 @@ TEXT_HEADER: str = (
 )
 # st.html runs a block's own scripts with unsafe_allow_javascript, which Streamlit 1.52 brought.
 SCRIPT_STREAMLIT: str = "streamlit>=1.52"
+# A live page notes each block's values after it runs, for the lineage overlay (domain/lineage.py): a
+# copy of client/lineage_values.py beside the page (standard library only), only while it plays here.
+TRACE_MODULE: str = "sab_lineage"
+TRACE_FILE: str = f"{TRACE_MODULE}.py"
 
 # A block's cell: the linked file's path (as the app holds it) and the cell's own number. A piece
 # shown alone in its own document has "" for the path.
@@ -920,6 +924,7 @@ def page_code(
     gone: Mapping[str, str] | None = None,
     loader: str | None = None,
     imports: Iterable[str] = (),
+    trace: str | None = None,
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -937,6 +942,8 @@ def page_code(
     cell is. `gone`: what to say for a block whose cell is not there, by the block's id. `loader`:
     the tables come from that module (a saved project's pages). `imports`: the other names the
     project's data.py gives; the ones the page reads are imported from it (`from data import TAX`).
+    `trace`: the page's id, while it plays in the app: after each block runs, its names' values are
+    noted for the lineage overlay (TRACE_MODULE), and its error when it fails.
     """
     known = [b for b in placed if b.key in pieces]
     found = {b.id: facts(pieces[b.key].code) for b in known}
@@ -959,6 +966,8 @@ def page_code(
         out += ["", f"from data import {', '.join(also)}"]
     out.append("")
 
+    if trace is not None:
+        out += [f"import {TRACE_MODULE} as _sab_lineage", "", f"_sab_lineage.start(__file__, {trace!r})", ""]
     out.append("# The layout: empty slots, drawn before any block runs.")
     out += _layout(placed)
     out.append("")
@@ -1010,11 +1019,19 @@ def page_code(
         if not runs_something(text):
             text = "pass"
         out.append(f"with _slot_{b.id}:")
+        noted = ""
+        if trace is not None:
+            getters = ", ".join(f"{name!r}: lambda: {name}" for name in mine.makes if name not in PROVIDED)
+            noted = f"_sab_lineage.note(__file__, {trace!r}, {b.id!r}, {{{getters}}}"
         if guard:
             out.append("    try:")
             out.append(indented(text, "        "))
+            if noted:
+                out.append(f"        {noted})")
             out.append("    except Exception as _error:")
             out.append("        st.exception(_error)")
+            if noted:
+                out.append(f"        {noted}, _error)")
         else:
             out.append(indented(text))
         out.append("")

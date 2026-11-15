@@ -353,6 +353,20 @@ class Kernel:
             return None
         return dict(json.loads(text)) if isinstance(text, str) else None
 
+    async def lineage_values(self, names: list[str]) -> dict[str, Any] | None:
+        """Each name's value, summarised for the lineage overlay (client/lineage_values.py): a table's
+        shape and first rows, a value as itself. None while the kernel is busy, or in a Python without
+        the package."""
+        try:
+            text = await self.evaluate(
+                "__import__('swissarmybench.client.lineage_values', fromlist=['summaries'])"
+                f".summaries({sorted(names)!r})"
+            )
+        except KernelError:
+            return None
+        found = json.loads(text) if isinstance(text, str) else None
+        return found if isinstance(found, dict) else None
+
     async def error_detail(self) -> dict[str, Any] | None:
         """The last error, taken apart (client/kernel_errors.py): its chain, frames, the failing
         expression's values. None when the kernel cannot say (busy, or a Python without the helper)."""

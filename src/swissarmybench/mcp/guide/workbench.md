@@ -33,6 +33,17 @@ their own (the grid page's Workbench tab opens it; code never opens in the grid 
   `workbench_html_fill` (without the window), `workbench_html_marks`.
 - Snippets: `workbench_snippet_insert` (topic blades).
 
+## Lineage and approved outputs
+- `workbench_lineage(document, cell)` or `(app, page, block)`: back through every cell to the data
+  (makes and reads, `@cell` links, a table's grid steps and origin, data.ipynb, controllers): nodes in
+  flow order, edges, Mermaid text, and each node's value summarised (a table's shape, first rows and
+  row change; a value; an error). Values are the user's data. `workbench_lineage_show` opens the
+  overlay on the user's screen.
+- An approved output is kept in the notebook's cell metadata; a later run that differs is "Changed
+  since approved". `workbench_cell_approve(number)` (`remove`), `workbench_approvals` (each one's state),
+  `workbench_approval_check(outputs, approved)` (no window). Headless:
+  `python -m swissarmybench.client.standalone data.ipynb --check-approved` (exit 1 and a report).
+
 ## Every table has a read-only cell
 - Each open table has a cell holding its grid steps as one DuckDB query over the table by its own name,
   in the Tables group at the top of the document whose kernel made it. It changes only with the grid

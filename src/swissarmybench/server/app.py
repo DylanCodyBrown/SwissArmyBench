@@ -17,6 +17,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_folders.py        the page's file chooser: a folder's contents, the user's alone
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
+  routes_lineage.py        a cell's or a canvas block's lineage, back to the data, with each step's value
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
@@ -56,6 +57,7 @@ from swissarmybench.server import (
     routes_datasets,
     routes_folders,
     routes_grids,
+    routes_lineage,
     routes_packs,
     routes_panels,
     routes_processes,
@@ -171,6 +173,7 @@ def create_app(
             *routes_folders.routes(ctx.folders),
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),
+            *routes_lineage.routes(ctx.lineage),
             *routes_streamlit.routes(ctx.streamlit),
             *routes_projects.routes(ctx.projects),
             *routes_panels.routes(ctx.panels),

@@ -2779,6 +2779,64 @@ def workbench_cell_name(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "workbench_lineage",
+    "A cell's or a canvas block's lineage back to the data: nodes, edges, Mermaid, each value summarised",
+    opt("document", "The notebook or script (its path)."),
+    opt("cell", "The cell's own number.", "int"),
+    opt("app", "Or a canvas: its app id (streamlit_read)."),
+    opt("page", "The block's page id."),
+    opt("block", "The block's id."),
+    opt("values", "false: the graph alone.", "bool"),
+    values=True,
+)
+def workbench_lineage(a: dict[str, Any]) -> Any:
+    keys = ("document", "cell", "app", "page", "block", "values")
+    return api.call("POST", "/workbench/lineage", {k: a[k] for k in keys if a.get(k) is not None})
+
+
+@command(
+    "workbench_lineage_show",
+    "Show the lineage overlay in the Workbench: a cell of the front document, or a block of its canvas",
+    opt("number", "The cell's own number (default: the selected cell)."),
+    opt("block", "Or a block's id on the front canvas's page."),
+)
+def workbench_lineage_show(a: dict[str, Any]) -> Any:
+    args = {k: a[k] for k in ("number", "block") if a.get(k) is not None}
+    if "number" in args:
+        args["number"] = int(args["number"])
+    return _window("lineage.open", args)
+
+
+@command(
+    "workbench_cell_approve",
+    "Approve a cell's output in the front notebook (a later run that differs says so); remove=true undoes",
+    opt("number", "The cell's own number (default: the selected cell).", "int"),
+    opt("remove", "true: take the approval away.", "bool"),
+)
+def workbench_cell_approve(a: dict[str, Any]) -> Any:
+    args = {k: a[k] for k in ("number", "remove") if a.get(k) is not None}
+    return _window("cell.approve", args)
+
+
+@command("workbench_approvals", "The front notebook's approved cells: each one changed since approved or not")
+def workbench_approvals(a: dict[str, Any]) -> Any:
+    return _window("approvals.list", {})
+
+
+@command(
+    "workbench_approval_check",
+    "Compare a cell's output records with its approval (or, without one, make the approval)",
+    req("outputs", "The cell's output records (nbformat).", "json"),
+    opt("approved", "Its approval, as the notebook keeps it.", "json"),
+    values=True,
+)
+def workbench_approval_check(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST", "/workbench/approvals", {k: a[k] for k in ("outputs", "approved") if a.get(k) is not None}
+    )
+
+
+@command(
     "streamlit_cells",
     "Every Python cell that calls Streamlit, and every Markdown and HTML cell (kind), by document (the "
     "Streamlit cells pane)",
