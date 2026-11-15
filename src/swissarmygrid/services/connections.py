@@ -11,9 +11,11 @@ from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
 from swissarmygrid.domain import connections as rules
+from swissarmygrid.domain import powerbi
 from swissarmygrid.domain.blades import Blade, BladeError, Template
 from swissarmygrid.domain.catalogs import count_sql, select_sql
 from swissarmygrid.domain.datasets import Opened
+from swissarmygrid.domain.relationships import Model
 from swissarmygrid.services.blades import BladeService
 
 
@@ -25,6 +27,7 @@ class ConnectionService:
         on_saved: Callable[[str], None] = lambda name: None,
         catalog_state: Callable[[str], dict[str, str] | None] = lambda name: None,
         tables: Tables | None = None,
+        models: RelationshipModels | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -33,6 +36,8 @@ class ConnectionService:
         self._catalog_state = catalog_state
         # Where an opened table goes: the datasets (services/datasets.py), as a grid.
         self._tables = tables
+        # Where a Power BI dataset's relationships go: the current model (services/relationships.py).
+        self._models = models
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -254,6 +259,9 @@ class ConnectionService:
         )
         answer = await self._blades.rows(blade, sql, count, body)
         table, total = answer["table"], answer.get("total")
+        if table.num_columns == 0:
+            # Power BI names an answer's columns only on its rows: an empty table comes with none.
+            raise BladeError(f"{place['table']} has no rows, so there is nothing to open.")
         shown = int(table.num_rows)
         opened = (
             Opened(blade.name, place["database"], place["schema"], place["table"], shown, int(total))
@@ -280,6 +288,44 @@ class ConnectionService:
         )
         table = (await self._blades.rows(blade, sql, None, body))["table"]
         return {"columns": list(table.column_names), "rows": [list(r.values()) for r in table.to_pylist()]}
+
+    # ===== a Power BI dataset's own relationships, into the current model =====
+
+    async def import_relationships(self, name: str, body: Any, who: str) -> dict[str, Any]:
+        """Read a Power BI dataset's relationships (DAX's INFO functions, on the connection) and merge
+        them into the current model, the tables named as they open as grids: the Diagram and the Key
+        Finder's known joins then show them. Answers the model, what the merge changed, and what came."""
+        if self._models is None:
+            raise BladeError("Importing relationships needs the relationship model.")
+        blade = self._blades.get(name)
+        if blade.dialect != powerbi.DIALECT:
+            raise BladeError(
+                f"{blade.name} is not a Power BI dataset: only a dataset's own relationships are read "
+                "this way. For other tables, find them (Find relationships) or import a .tang."
+            )
+        answer = await self._blades.queries(blade, powerbi.RELATIONSHIP_QUERIES, body)
+        try:
+            model, skipped = powerbi.relationships_model(
+                blade.name, int(answer["attempt"]), list(answer["results"])
+            )
+        except powerbi.PowerBIError as error:
+            raise BladeError(str(error)) from None
+        if not model.relationships:
+            raise BladeError(f"{blade.name} has no relationships to import.")
+        merged = await self._models.apply(model, who)
+        return {
+            "model": {k: v for k, v in merged.items() if k != "changed"},
+            "changed": merged.get("changed", []),
+            "imported": [r.to_json() for r in model.relationships],
+            "tables": sorted(model.tables()),
+            "skipped": skipped,  # those of the date tables Power BI makes by itself
+        }
+
+
+class RelationshipModels(Protocol):
+    """The current relationship model (services/relationships.py Models)."""
+
+    async def apply(self, model: Model, who: str) -> dict[str, Any]: ...
 
 
 class Tables(Protocol):

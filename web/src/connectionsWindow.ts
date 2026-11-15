@@ -4,7 +4,10 @@
  * [WIRE + EXPORT]
  *
  *   [LIST]   each connection: its type, its catalog, Edit, Test, Refresh catalog, Copy for Python, Remove;
- *            a key vault shows its entries (variable <- secret in the vault) instead
+ *            a key vault shows its entries (variable <- secret in the vault) instead; a Power BI
+ *            dataset has Import its relationships (into the current model: the Diagram shows them)
+ *   [POWER BI] its form signs in three ways; the first reads the app registration's tenant id, client
+ *            id and client secret from a key vault (each box starts on "A key vault")
  *   [ADD]    pick a type (Databases, Files, Vaults), then its form:
  *   [ORDER]  every database form reads the same way (the owner's decision 14; the rule is
  *            domain/connections.py form_order): where it is (server, port, catalog or database, then the
@@ -28,9 +31,10 @@
  *          [FIELD] POST /blades/fill (the value into the code)   [CODE] POST /blades/inspect (its fields again)
  *          [TEST]  POST /connections/test        [SAVE] POST /connections, PUT /connections/{name}
  *          [VAULT] POST /connections/vaults/secrets (the names in it); GET /connections/vaults (a password's)
+ *          [RELATIONSHIPS] POST /connections/{name}/relationships (a Power BI dataset's, merged)
  *          [INSTALL] POST /blades/install {packages}, then POST /blades/inspect (is it installed now?)
  */
-import { api, onNotice } from "./api";
+import { api, errorText, onNotice } from "./api";
 import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { pickSheets } from "./openFile";
@@ -73,6 +77,8 @@ interface Form {
   row_limit?: number | null;
   /** Ways to sign in, each its own code; `mark` is text only that code holds. */
   sign_ins?: { label: string; mark: string; code: string }[];
+  /** Where a new one's passwords are first offered from: "vault" (a Power BI dataset's app registration). */
+  secrets_from?: string;
 }
 
 interface Mapping {
@@ -191,7 +197,21 @@ async function openConnection(name: string): Promise<void> {
     shownAsTab();
     toast(`${answer.dataset} is open as a grid.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    toast(errorText(e), "error");
+  }
+}
+
+/** A Power BI dataset's own relationships, merged into the current model (the Diagram and the Key
+ * Finder's known joins then show them). */
+export async function importRelationships(connection: string): Promise<void> {
+  toast(`Reading ${connection}'s relationships…`);
+  try {
+    const answer = await api<{ imported: unknown[]; changed: string[] }>(`/connections/${encodeURIComponent(connection)}/relationships`, "POST", {});
+    const n = answer.imported.length;
+    const changed = answer.changed.length ? ` Changed: ${answer.changed.join("; ")}.` : "";
+    toast(`${n.toLocaleString()} relationship${n === 1 ? "" : "s"} from ${connection} ${n === 1 ? "is" : "are"} in the model.${changed}`);
+  } catch (e) {
+    toast(errorText(e), "error");
   }
 }
 
@@ -246,6 +266,7 @@ export async function openConnections(): Promise<void> {
           readOnly ? null : button("Edit", () => void showForm({ edit: c.name }), { icon: "edit" }),
           button("Test", () => void testSaved(c.name), { icon: "play" }),
           c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
+          c.dialect === "dax" ? button("Import its relationships", () => void importRelationships(c.name), { icon: "link" }) : null,
           c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sag.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
           readOnly
             ? null
@@ -283,7 +304,7 @@ export async function openConnections(): Promise<void> {
       const r = await api<{ type?: string; found?: string; variables?: string[] }>(`/blades/${encodeURIComponent(name)}/test`, "POST");
       toast(`${name} works: ${worked(r)}.`);
     } catch (e) {
-      toast((e as Error).message, "error");
+      toast(errorText(e), "error");
     }
   };
 
@@ -294,7 +315,7 @@ export async function openConnections(): Promise<void> {
       toast(`${name}: ${r.catalog.tables} tables, ${r.catalog.columns} columns`);
       void showList();
     } catch (e) {
-      toast((e as Error).message, "error");
+      toast(errorText(e), "error");
     }
   };
 
@@ -463,10 +484,13 @@ export async function openConnections(): Promise<void> {
       return h(
         "fieldset",
         { class: "connection-passwords" },
-        h("legend", {}, "Passwords"),
+        // A Power BI dataset's are an app registration's values (two ids and a secret), not passwords alone.
+        h("legend", {}, form.dialect === "dax" ? "App registration" : "Passwords"),
         ...form.secrets.map((s) => {
           const inVault = vaults.find((v) => v.entries.some((e) => e.env === s)) ?? vaults.find((v) => v.name === pointedAt.get(s));
-          const origin = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : "keyring");
+          // A starter may say its passwords come from a key vault first (a Power BI dataset's app registration).
+          const first = form.secrets_from === "vault" && !editing && labels.get(s) === s ? "vault" : "keyring";
+          const origin = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : first);
           const from = h("select", { "aria-label": `Where ${label(s)} comes from` }, h("option", { value: "keyring", selected: origin === "keyring" }, "Saved on this computer"), h("option", { value: "env", selected: origin === "env" }, "An environment variable"), h("option", { value: "vault", selected: origin === "vault" }, "A key vault"));
           const slot = h("span", { class: "field-row" });
           // The box's own label, above it: what to type or pick there.
@@ -687,8 +711,7 @@ export async function openConnections(): Promise<void> {
         : {}),
     });
     const failed = (e: unknown): void => {
-      const message = (e as Error).message;
-      result.replaceChildren(h("p", { class: "status-error" }, message));
+      result.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
     };
     const test = async (): Promise<void> => {
       result.replaceChildren(h("p", { class: "hint" }, isVault ? "Reading…" : "Connecting…"));

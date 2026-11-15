@@ -249,6 +249,7 @@ def bootstrap(
             on_saved=catalog_loading.saved,
             catalog_state=catalog_loading.state,
             tables=ConnectionTables(datasets),
+            models=models,
         ),
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),

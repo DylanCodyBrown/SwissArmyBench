@@ -319,6 +319,12 @@ class BladeService:
         typed = self._typed_values(blade, body)
         return await self._run_blade(blade, "rows", typed, {"sql": sql, "count_sql": count})
 
+    async def queries(self, blade: Blade, attempts: Sequence[Sequence[str]], body: Any) -> dict[str, Any]:
+        """Several statements on a connection, signed in once, in a child process as Refresh is. The
+        first group of `attempts` the source answers whole: {"attempt", "results": [{"columns", "rows"}]}."""
+        typed = self._typed_values(blade, body)
+        return await self._run_blade(blade, "queries", typed, {"attempts": [list(a) for a in attempts]})
+
     async def vault_names(self, data: Any) -> dict[str, Any]:
         """A vault's secret names (its names()), saved (`{"name"}`) or a draft (the form: code, variable,
         typed passwords), in a child process. Names only: `{"names": [{"secret", "env"}] or None}`, None

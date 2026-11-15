@@ -32,13 +32,13 @@
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { api, ApiError, connect, onNotice, openedWith, tellFocus } from "./api";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
-import { mountRail, tableDetails, watchTheme } from "./catalogRail";
+import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { button, clear, h, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { effectiveTheme } from "./theme";
 import { allCommands, answerAgent, type Command, openPalette, registerCommands, runCommand } from "./workbenchCommands";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
-import { forgetCatalogs, pythonCompleter } from "./workbenchCompletion";
+import { forgetCatalogs, pythonCompleter, setDialects } from "./workbenchCompletion";
 import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
 import { mountLayout } from "./workbenchLayout";
@@ -109,7 +109,8 @@ const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 
 async function loadConnections(): Promise<void> {
   try {
-    const every = (await api<{ blades: { name: string; connection?: string | null; code_name?: string | null }[] }>("/blades")).blades;
+    const every = (await api<{ blades: { name: string; connection?: string | null; code_name?: string | null; dialect?: string | null }[] }>("/blades")).blades;
+    setDialects(every); // a cell on a Power BI dataset holds DAX
     connectionNames = every.filter((b) => b.connection && b.connection !== "vault").map((b) => b.name); // a SQL cell's sources
     bladeNames = every.filter((b) => !b.connection).map((b) => b.name);
     codeNames = every.filter((b) => b.code_name).map((b) => ({ name: b.code_name!, connection: b.name, kind: b.connection ?? "" }));
@@ -643,11 +644,11 @@ const rail = mountRail({
     show(doc);
   },
   connectionsByName: true,
-  showSchema: (label, catalog) => {
+  showSchema: (label, catalog, dialect) => {
     let doc = docs.find((d) => d.kind === "table");
     if (!doc) doc = makeDoc("table", "Explorer", null, null);
     doc.title = label;
-    clear(doc.element, h("h2", {}, label), h("p", { class: "hint" }, `Schema in ${catalog}`));
+    clear(doc.element, ...schemaDetails(label, catalog, dialect));
     show(doc);
   },
 });

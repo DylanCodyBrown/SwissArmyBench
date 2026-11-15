@@ -102,9 +102,16 @@ _SQL_QUIET = re.compile(r"--[^\n]*|/\*.*?\*/|'(?:[^']|'')*'", re.DOTALL)
 _SQL_NAME = re.compile(r"(?<![\w.$])([A-Za-z_]\w*)(?![\w$])")
 
 
+# A bracketed or double-quoted name of several words ([Total Sales], a DAX measure; [Order Lines] in SQL
+# Server; "Total Sales", a column's name in SQL and text in DAX): one name, never the table one of its
+# words happens to spell. A one-word [orders] or "orders" is still read.
+_SQL_BRACKETED = re.compile(r"\[[^\]\n]*[^\w\]\n][^\]\n]*\]|\"[^\"\n]*[^\w\"\n][^\"\n]*\"")
+
+
 def _sql_names(code: str) -> list[str]:
-    """The names in SQL, in order: not in a string or a comment, not after a dot."""
-    text = _SQL_QUIET.sub(" ", code)
+    """The names in SQL (or DAX, in a cell on a Power BI dataset), in order: not in a string or a
+    comment, not after a dot, not a word of a bracketed name of several."""
+    text = _SQL_BRACKETED.sub(" ", _SQL_QUIET.sub(" ", code))
     text = re.sub(r'(?<![\w.])"([A-Za-z_]\w*)"', r"\1", text)
     names: list[str] = []
     for match in _SQL_NAME.finditer(text):

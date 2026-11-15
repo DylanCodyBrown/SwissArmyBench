@@ -910,12 +910,16 @@ class Models:
             raise NotFound(f"No tang named {name!r} in the library.")
         return entry[0]
 
+    async def apply(self, model: Model, who: str) -> dict[str, Any]:
+        """Merge a model into the current one (the later one wins a join or a key both name); the answer
+        names what it changed there."""
+        changed = conflicts(self.model, model)
+        self.model = merge(self.model, model)
+        return await self._changed(who, model.name) | {"changed": changed}
+
     async def apply_library(self, name: str, who: str) -> dict[str, Any]:
         """Apply (merge) one library tang; the answer names what it changed in the current one."""
-        tang = self._named(name)
-        changed = conflicts(self.model, tang)
-        self.model = merge(self.model, tang)
-        return await self._changed(who, tang.name) | {"changed": changed}
+        return await self.apply(self._named(name), who)
 
     # ===== tangs: save, export, review and apply a .tang file =====
 

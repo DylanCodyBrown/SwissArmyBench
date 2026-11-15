@@ -1391,6 +1391,8 @@ class Template:
     # Ways to sign in, each its own code (the form's Sign in): (label, a text only that code holds, code).
     # The first is `code`.
     sign_ins: tuple[tuple[str, str, str], ...] = ()
+    # Where the form first offers its passwords from: "vault" (a key vault), else saved on this computer.
+    secrets_from: str = ""
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -1409,4 +1411,5 @@ class Template:
             "vault_mapping": [{"env": e, "secret": s} for e, s in self.vault_mapping],
             "note": self.note,
             "sign_ins": [{"label": label, "mark": mark, "code": code} for label, mark, code in self.sign_ins],
+            "secrets_from": self.secrets_from,
         }

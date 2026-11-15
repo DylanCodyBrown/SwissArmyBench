@@ -1,5 +1,5 @@
-"""Starter blades: the most used databases, common file patterns, vaults and a few analyses (plan, the
-owner's request).
+"""Starter blades: the most used databases, a Power BI dataset, common file patterns, vaults and a few
+analyses (plan, the owner's request).
 
 Each template is a starting point the user edits on the save screen: the driver's import, the
 connection with placeholders (`my-server`, `my_database`), `secret("password")` where a password goes,
@@ -118,9 +118,21 @@ def _db(
     note: str = "",
     language: str = "sql",
     sign_ins: tuple[tuple[str, str, str], ...] = (),
+    secrets_from: str = "",
 ) -> Template:
     return Template(
-        id, label, "Databases", "sql", code, "conn", dialect, language, catalog, note=note, sign_ins=sign_ins
+        id,
+        label,
+        "Databases",
+        "sql",
+        code,
+        "conn",
+        dialect,
+        language,
+        catalog,
+        note=note,
+        sign_ins=sign_ins,
+        secrets_from=secrets_from,
     )
 
 
@@ -147,6 +159,246 @@ def _sql_server(server: str, sign_in: str) -> str:
 
 SQLSERVER_WINDOWS = _sql_server("my-server", _WINDOWS)
 AZURE_MFA = _sql_server(_AZURE_SERVER, _MFA)
+
+
+# ===== a Power BI dataset (semantic model), read with DAX =====
+#
+# The code signs in and sends DAX to Power BI's Execute Queries request, and is shaped like a database
+# connection (cursor, execute, description, fetchall), so the catalog, Open as grid and %%sql cells use
+# it as they use a database. Its web requests are the standard library's: the app registration's
+# sign-in needs no package at all (so the same code runs in an Azure Function as it is); only the
+# browser sign-in needs Microsoft's azure-identity. Two environment variables move it to another
+# cloud (or, in the tests, to a stand-in on this computer): POWERBI_API_URL and POWERBI_LOGIN_URL.
+
+_POWERBI_IMPORTS = """import json
+import os
+import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime
+"""
+
+_POWERBI_WHERE = """
+workspace_id = "my-workspace-id"
+dataset_id = "my-dataset-id"
+"""
+
+_POWERBI_APP = '''
+# Sign in as an app registration (service principal). Its values are read by name: from a key vault
+# here; in an Azure Function, from the environment (the function app's Key Vault references).
+tenant_id = TENANT
+client_id = CLIENT
+client_secret = secret("client secret")
+
+
+def sign_in():
+    """Microsoft's client credentials request: the token, and when it runs out."""
+    login = os.environ.get("POWERBI_LOGIN_URL", "https://login.microsoftonline.com")
+    form = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": "https://analysis.windows.net/powerbi/api/.default",
+    }
+    sent = urllib.parse.urlencode(form).encode()
+    answer = post(f"{login}/{tenant_id}/oauth2/v2.0/token", sent, {}, "The sign-in")
+    return answer["access_token"], time.time() + int(answer.get("expires_in", 3600))
+'''
+
+_POWERBI_BROWSER = '''
+# Sign in as yourself, in a browser window: for trying a dataset by hand.
+tenant_id = "organizations"
+credential = InteractiveBrowserCredential(tenant_id=tenant_id)
+
+
+def sign_in():
+    """The token Microsoft gave for Power BI, and when it runs out."""
+    found = credential.get_token("https://analysis.windows.net/powerbi/api/.default")
+    return found.token, found.expires_on
+'''
+
+_POWERBI_CONNECTION = r'''
+
+class PowerBIError(RuntimeError):
+    """The sign-in or Power BI refused. The message is its own words, and what usually causes it."""
+
+
+def post(url, data, headers, what):
+    request = urllib.request.Request(url, data, headers)
+    try:
+        with urllib.request.urlopen(request, timeout=120) as answer:
+            return json.loads(answer.read())
+    except urllib.error.HTTPError as refused:
+        raise PowerBIError(why(what, refused.code, refused.read())) from None
+    except urllib.error.URLError as error:
+        host = urllib.parse.urlsplit(url).netloc
+        raise PowerBIError(f"{what} could not reach {host}: {error.reason}") from None
+
+
+def why(what, status, body):
+    """A refusal in plain words: the service's own message, then what usually causes that status."""
+    try:
+        said = json.loads(body)
+        error = said.get("error_description") or said.get("error") or said
+    except (ValueError, AttributeError):
+        error = body.decode("utf-8", "replace")[:300]
+    if isinstance(error, dict):
+        details = (error.get("pbi.error") or {}).get("details") or []
+        words = [(d.get("detail") or {}).get("value") for d in details if d.get("code") == "DetailsMessage"]
+        error = " ".join(w for w in words if w) or error.get("message") or error.get("code") or "no reason"
+    hints = {
+        401: "Check the tenant id, the client id and the client secret.",
+        403: "The tenant must allow the Execute Queries request (Dataset Execute Queries REST API) and, "
+        "for an app registration, service principals to use the Power BI APIs; the sign-in needs Read "
+        "and Build permission on the dataset.",
+        404: "Check the workspace id and the dataset id, and that this sign-in is a member of the workspace.",
+        429: "Power BI takes 120 queries a minute from one user: wait a minute.",
+    }
+    first = str(error).strip().splitlines()[0] if str(error).strip() else "no reason"
+    return f"{what} was refused ({status}): {first} {hints.get(status, '')}".strip()
+
+
+def clean_names(keys):
+    """Power BI names an answer's columns Sales[Amount] and [Total Sales]: Amount and Total Sales
+    here. A name two tables share keeps its table."""
+    bare = [re.sub(r"^.*?\[(.*)\]$", r"\1", key) for key in keys]
+    return [name if bare.count(name) == 1 else key for key, name in zip(keys, bare)]
+
+
+def dates(column):
+    """Power BI writes a date as text (2026-01-31T00:00:00): a column of them becomes dates."""
+    filled = [value for value in column if value is not None]
+    written = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z?$")
+    if not filled or not all(isinstance(value, str) and written.match(value) for value in filled):
+        return column
+    try:
+        return [None if v is None else datetime.fromisoformat(v.rstrip("Z")[:26]) for v in column]
+    except ValueError:
+        return column
+
+
+class PowerBI:
+    """A dataset (semantic model) read with DAX through Power BI's Execute Queries request. Shaped
+    like a database connection (cursor, execute, description, fetchall), so a %%sql cell, Open as
+    grid and the catalog use it as they use a database."""
+
+    # Power BI's limits for one query: 100,000 rows or 1,000,000 values (rows times columns),
+    # whichever comes first, and 15 MB of data; one query in a request; 120 requests a minute for
+    # each user. An answer cut at 15 MB cannot be told from a whole one by its size alone.
+    MAX_ROWS = 100_000
+    MAX_VALUES = 1_000_000
+
+    def __init__(self, workspace_id, dataset_id, sign_in):
+        api = os.environ.get("POWERBI_API_URL", "https://api.powerbi.com")
+        self.url = f"{api}/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/executeQueries"
+        self.sign_in, self.token, self.expires = sign_in, "", 0.0
+        self.description, self.rows = None, []
+        self.execute('EVALUATE ROW("ok", 1)')  # signs in and reaches the dataset now: Test means it
+
+    def cursor(self):
+        return self
+
+    def close(self):
+        pass
+
+    def execute(self, dax):
+        if time.time() > self.expires - 300:
+            self.token, self.expires = self.sign_in()
+        body = {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}}
+        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        answer = post(self.url, json.dumps(body).encode(), headers, "The query")
+        result = (answer.get("results") or [{}])[0]
+        table = (result.get("tables") or [{}])[0]
+        rows = table.get("rows") or []
+        keys = list(dict.fromkeys(key for row in rows for key in row))
+        stopped = answer.get("error") or result.get("error") or table.get("error")
+        if isinstance(stopped, dict):
+            stopped = stopped.get("message") or stopped.get("code")
+        if len(rows) >= self.MAX_ROWS or len(rows) * len(keys) >= self.MAX_VALUES or (stopped and rows):
+            raise PowerBIError(
+                f"Power BI gives at most {self.MAX_ROWS:,} rows or {self.MAX_VALUES:,} values (rows times "
+                f"columns) for one query. This answer reached that ({len(rows):,} rows of {len(keys)} "
+                "columns), so it is not whole: ask for fewer rows or columns, or summarize in DAX."
+                + (f" Power BI said: {stopped}" if stopped else "")
+            )
+        if stopped:
+            raise PowerBIError(f"The query was refused: {stopped}")
+        columns = [dates([row.get(key) for row in rows]) for key in keys]
+        self.description = [(name, None, None, None, None, None, None) for name in clean_names(keys)]
+        self.rows = list(zip(*columns))
+        return self
+
+    def fetchall(self):
+        rows, self.rows = self.rows, []
+        return rows
+
+
+conn = PowerBI(workspace_id, dataset_id, sign_in)'''
+
+
+def _powerbi(sign_in: str, imports: str = "") -> str:
+    return _POWERBI_IMPORTS + imports + _POWERBI_WHERE + sign_in + _POWERBI_CONNECTION
+
+
+def _powerbi_app(tenant: str, client: str) -> str:
+    return _powerbi(_POWERBI_APP.replace("TENANT", tenant).replace("CLIENT", client))
+
+
+POWERBI_VAULT = _powerbi_app('secret("tenant id")', 'secret("client id")')
+POWERBI_TYPED = _powerbi_app('"my-tenant-id"', '"my-client-id"')
+POWERBI_BROWSER = _powerbi(_POWERBI_BROWSER, "\nfrom azure.identity import InteractiveBrowserCredential\n")
+
+# Tables, columns (with types) and measures, each measure listed on its own table and marked. The
+# model's own description (INFO.VIEW) first; an older model's numbered form; then, for a sign-in that
+# may not read the model's description, the columns' statistics (no types, no measures).
+POWERBI_CATALOG = """def read(dax):
+    conn.execute(dax)
+    columns = [d[0] for d in conn.description]
+    return [dict(zip(columns, row)) for row in conn.fetchall()]
+
+
+def own(table):  # the date tables Power BI makes by itself
+    return str(table).startswith(("LocalDateTable_", "DateTableTemplate_"))
+
+
+try:
+    found = read("EVALUATE INFO.VIEW.COLUMNS()")
+    columns = [(c["Table"], c["Name"], c.get("DataType") or "") for c in found]
+    found = read("EVALUATE INFO.VIEW.MEASURES()")
+    measures = [(m["Table"], m["Name"], m.get("DataType") or "") for m in found]
+except (PowerBIError, KeyError):
+    try:  # the numbered form: ids for tables, numbers for types
+        types = {2: "Text", 6: "Integer", 8: "Double", 9: "DateTime", 10: "Decimal", 11: "Boolean"}
+        tables = {t["ID"]: t["Name"] for t in read("EVALUATE INFO.TABLES()")}
+        columns = [
+            (
+                tables.get(c["TableID"]),
+                c.get("ExplicitName") or c.get("InferredName"),
+                types.get(c.get("ExplicitDataType"), ""),
+            )
+            for c in read("EVALUATE INFO.COLUMNS()")
+            if c.get("Type") != 3  # 3: each table's hidden row number
+        ]
+        measures = [
+            (tables.get(m["TableID"]), m["Name"], types.get(m.get("DataType"), ""))
+            for m in read("EVALUATE INFO.MEASURES()")
+        ]
+    except (PowerBIError, KeyError):
+        found = read("EVALUATE COLUMNSTATISTICS()")
+        columns = [(c["Table Name"], c["Column Name"], "") for c in found]
+        measures = []
+
+catalog = [
+    {"table_name": table, "column_name": name, "data_type": kind}
+    for table, name, kind in columns
+    if table and name and not own(table) and not str(name).startswith("RowNumber-")
+] + [
+    {"table_name": table, "column_name": name, "data_type": f"measure, {kind}" if kind else "measure"}
+    for table, name, kind in measures
+    if table and name
+]"""
 
 
 DATABASES: tuple[Template, ...] = (
@@ -436,6 +688,22 @@ conn = pyodbc.connect("DSN=my_data_source")""",
         ODBC_CATALOG,
         "Uses a data source set up in the ODBC Data Source Administrator.",
         language="python",
+    ),
+    _db(
+        "powerbi",
+        "Power BI dataset",
+        "dax",
+        POWERBI_VAULT,
+        POWERBI_CATALOG,
+        "Reads a dataset (semantic model) with DAX. Both ids are in the dataset's address in Power BI: "
+        ".../groups/<workspace id>/datasets/<dataset id>.",
+        language="python",
+        sign_ins=(
+            ("App registration, from a key vault", "tenant_id = secret(", POWERBI_VAULT),
+            ("App registration, ids typed here", 'client_id = "', POWERBI_TYPED),
+            ("Browser sign-in, as yourself", "InteractiveBrowserCredential", POWERBI_BROWSER),
+        ),
+        secrets_from="vault",
     ),
 )
 

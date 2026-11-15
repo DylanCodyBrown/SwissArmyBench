@@ -377,6 +377,9 @@ def mermaid_erd(model: Model, columns: dict[str, list[tuple[str, str]]], only: s
             hub_first = spokes[hub] % 2 == 0  # odd spokes rank above the hub, even ones below
             if (left == hub) != hub_first:
                 left, ends, right = right, _REVERSED[r.kind], left
+        if not r.active:
+            # A join that does not filter (Power BI's inactive relationship): a dashed line, said so.
+            ends, label = ends.replace("--", ".."), label or "inactive"
         lines.append(f'    {_ident(left)} {ends} {_ident(right)} : "{label}"')
     return "\n".join(lines)
 

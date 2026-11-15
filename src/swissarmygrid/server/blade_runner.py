@@ -54,7 +54,7 @@ def payload(
         rows = {"rows": encoded, "columns": extra.get("columns", [])}
     return {
         **rows,
-        "mode": mode,  # "catalog", "test" or "analysis"
+        "mode": mode,  # "catalog", "test", "rows", "queries", "names" or "analysis"
         "label": blade.name,
         "kind": blade.kind,
         "code": blade.code,
@@ -80,6 +80,8 @@ def payload(
         # connection, whose answer is the file it reaches.
         "sql": (extra or {}).get("sql"),
         "count_sql": (extra or {}).get("count_sql"),
+        # mode "queries": groups of statements, tried in order (a Power BI dataset's relationships).
+        "attempts": (extra or {}).get("attempts"),
     }
 
 
@@ -207,6 +209,8 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
             return _names(job, secrets)
         if job["mode"] == "rows":
             return _rows(job, secrets)
+        if job["mode"] == "queries":
+            return _queries(job, secrets)
         if job["kind"] == "vault":
             every = bool(job.get("vault_all"))
             values = run_vault(
@@ -266,6 +270,31 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     return {"arrow": base64.b64encode(sink.getvalue()).decode("ascii"), "total": total}
 
 
+def _queries(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
+    """Several statements on the connection, signed in once. `attempts` is groups of statements, tried
+    in order: the first group whose every statement the source answers is the answer ({"attempt": which
+    group, "results": [{"columns", "rows"}, ...]}); when none does, the first group's refusal."""
+    from swissarmygrid.adapters.blade_run import BladeRunError, _sql_rows, close_quietly, run_code
+
+    value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
+    refused: BaseException | None = None
+    try:
+        for at, statements in enumerate(job.get("attempts") or []):
+            try:
+                results = []
+                for statement in statements:
+                    columns, rows = _sql_rows(value, str(statement))
+                    results.append({"columns": columns, "rows": rows})
+                return {"attempt": at, "results": results}
+            except BaseException as error:
+                if isinstance(error, KeyboardInterrupt | SystemExit):
+                    raise
+                refused = refused or error
+    finally:
+        close_quietly(value)
+    raise BladeRunError(f"{job['label']} did not answer: {type(refused).__name__}: {refused}")
+
+
 def _names(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     """A vault's secret names, from its `names()`: names only, no value is read. None when the vault's
     code has no names() (the user types the names instead)."""
@@ -319,7 +348,12 @@ def _tested(value: Any) -> dict[str, Any]:
     import os
     from pathlib import Path
 
-    made = {"ok": True, "type": f"{type(value).__module__}.{type(value).__qualname__}"}
+    # A class the connection's own code defines (a Power BI dataset's) is named by itself.
+    module = type(value).__module__
+    made = {
+        "ok": True,
+        "type": type(value).__qualname__ if module == "__blade__" else f"{module}.{type(value).__qualname__}",
+    }
     if isinstance(value, os.PathLike):
         path = Path(value).expanduser()
         made["path"] = str(path)  # where it is, for a file connection's preview (services/connections.py)

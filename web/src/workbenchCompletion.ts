@@ -7,6 +7,8 @@
  *   SQL CELL   the data explorer's catalog of the cell's connection (every catalog when it has none):
  *              schemas, tables, views and columns, `orders.` gives orders' columns; the kernel's names
  *              too once it runs (a file connection's own tables); SQL's words
+ *   DAX CELL   a SQL cell on a Power BI dataset holds DAX: its tables as 'Sales', its columns as
+ *              'Sales'[Amount], its measures as [Total Sales], and DAX's words; never SQL's
  *
  * The catalog answers are kept in the page (by what was asked), so typing on asks the server little.
  * Before the kernel starts nothing runs on the user's computer to complete: the catalog still answers.
@@ -30,6 +32,31 @@ const SQL_WORDS = [
   "IN", "IS NULL", "IS NOT NULL", "LIKE", "BETWEEN", "LIMIT", "TOP", "WITH", "UNION ALL", "INSERT INTO", "UPDATE",
   "DELETE", "CAST", "COALESCE", "DESC", "ASC",
 ];
+
+// A cell on a Power BI dataset holds DAX: its own words, never SQL's.
+const DAX_WORDS = [
+  "EVALUATE", "DEFINE", "MEASURE", "VAR", "RETURN", "ORDER BY", "START AT", "ASC", "DESC", "TOPN", "ROW", "FILTER",
+  "CALCULATE", "CALCULATETABLE", "SUMMARIZECOLUMNS", "SUMMARIZE", "ADDCOLUMNS", "SELECTCOLUMNS", "VALUES", "DISTINCT",
+  "ALL", "ALLEXCEPT", "RELATED", "RELATEDTABLE", "USERELATIONSHIP", "COUNTROWS", "DISTINCTCOUNT", "SUM", "SUMX",
+  "AVERAGE", "AVERAGEX", "MIN", "MAX", "DIVIDE", "IF", "SWITCH", "ISBLANK", "BLANK", "TREATAS", "KEEPFILTERS",
+];
+
+// Each connection's dialect by its name without regard to case (the Workbench tells it as it lists them).
+const dialects = new Map<string, string>();
+
+/** The connections' dialects, as the page last listed them. */
+export function setDialects(found: { name: string; dialect?: string | null }[]): void {
+  dialects.clear();
+  for (const c of found) if (c.dialect) dialects.set(c.name.toLowerCase(), c.dialect);
+}
+
+/** Whether a SQL cell on this connection holds DAX (a Power BI dataset). */
+export function holdsDax(connection: string | null): boolean {
+  return connection !== null && dialects.get(connection.toLowerCase()) === "dax";
+}
+
+const daxTable = (table: string): string => `'${table.replaceAll("'", "''")}'`;
+const daxColumn = (column: string): string => `[${column.replaceAll("]", "]]")}]`;
 
 let catalogList: Promise<string[]> | null = null;
 let catalogsAt = 0;
@@ -77,7 +104,7 @@ function columnsOf(catalog: string, schema: string | null, table: string): Promi
 /** Connections whose catalog this page asked to load (first use), so it asks once. */
 const askedToLoad = new Set<string>();
 
-async function catalogSuggestions(token: string, connection: string | null): Promise<Suggestion[]> {
+async function catalogSuggestions(token: string, connection: string | null, dax = false): Promise<Suggestion[]> {
   const names = await catalogs();
   const own = names.filter((c) => connection && c.toLowerCase() === connection.toLowerCase());
   // First use: the cell's connection has no catalog yet; it loads in the background and arrives
@@ -108,6 +135,16 @@ async function catalogSuggestions(token: string, connection: string | null): Pro
     if (!token) continue;
     const found = await search(catalog, token);
     const lower = token.toLowerCase();
+    if (dax) {
+      // DAX names: a table 'Sales', a column 'Sales'[Amount], a measure [Total Sales] (no table).
+      for (const t of found.tables) if (t.table.toLowerCase().startsWith(lower)) out.push({ label: t.table, insert: daxTable(t.table), kind: "table", detail: `${t.columns} columns and measures · ${catalog}` });
+      for (const c of found.columns) {
+        if (!c.column.toLowerCase().startsWith(lower)) continue;
+        const measure = c.type.startsWith("measure");
+        out.push({ label: c.column, insert: measure ? daxColumn(c.column) : daxTable(c.table) + daxColumn(c.column), kind: measure ? "function" : "column", detail: `${c.table} · ${c.type}` });
+      }
+      continue;
+    }
     for (const t of found.tables) if (t.table.toLowerCase().startsWith(lower)) out.push({ label: t.table, kind: t.kind === "view" ? "view" : "table", detail: `${t.schema ? `${t.schema} · ` : ""}${t.columns} columns · ${catalog}` });
     for (const t of found.tables) if (t.schema && t.schema.toLowerCase().startsWith(lower)) out.push({ label: t.schema, kind: "schema", detail: catalog });
     for (const c of found.columns) if (c.column.toLowerCase().startsWith(lower)) out.push({ label: c.column, kind: "column", detail: `${c.table} · ${c.type}` });
@@ -160,6 +197,15 @@ export function pythonCompleter(kernel: Kernel, names: () => { connections: stri
 /** A SQL cell: its connection's catalog, the kernel's names (as the %%sql cell it runs as), SQL's words. */
 export function sqlCompleter(kernel: Kernel, connection: () => string | null) {
   return async (text: string, offset: number): Promise<Suggestion[]> => {
+    const dax = holdsDax(connection());
+    if (dax) {
+      // DAX: the dataset's tables, columns and measures, and DAX's own words. No SQL words, and
+      // nothing from the kernel (it would complete the text as SQL).
+      const word = /\w*$/.exec(text.slice(0, offset))![0];
+      if (!word) return [];
+      const names = (await catalogSuggestions(word, connection(), true)).map((s) => ({ ...s, start: offset - word.length, end: offset }));
+      return [...names, ...DAX_WORDS.filter((w) => w.toLowerCase().startsWith(word.toLowerCase())).map((w) => ({ label: w, kind: "keyword" }))];
+    }
     const token = /[\w."]*$/.exec(text.slice(0, offset))![0];
     const header = `${sqlLine(connection())}\n`;
     const [fromCatalog, fromKernel] = await Promise.all([

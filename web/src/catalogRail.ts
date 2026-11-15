@@ -8,9 +8,9 @@
  *
  * The tree loads lazily, so a catalog of half a million columns opens at once.
  */
-import { api, query } from "./api";
+import { api, errorText, query } from "./api";
 import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor";
-import { openConnections } from "./connectionsWindow";
+import { importRelationships, openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
 import { button, clear, formatCount, h, recall, remember, showMenu, toast } from "./dom";
 
@@ -104,15 +104,28 @@ export interface TableView {
   database?: string;
 }
 
-/** A catalog's table as a grid, on the connection the catalog came from (a catalog is named after it). */
-export async function openTableAsGrid(catalog: string, where: { schema?: string; table: string; database?: string }): Promise<void> {
+/** Whether the current model already holds this dataset's relationships (its tables say where they came from). */
+async function relationshipsImported(connection: string): Promise<boolean> {
+  try {
+    const model = await api<{ tables: Record<string, { source?: string }> }>("/relationships");
+    return Object.values(model.tables).some((t) => t.source === `${connection} (Power BI)`);
+  } catch {
+    return true; // not known: nothing extra is offered
+  }
+}
+
+/** A catalog's table as a grid, on the connection the catalog came from (a catalog is named after it).
+ * A Power BI dataset's table (`dax`) arrives with an offer to bring the dataset's relationships too,
+ * until they are in the model. */
+export async function openTableAsGrid(catalog: string, where: { schema?: string; table: string; database?: string }, dax = false): Promise<void> {
   toast(`Opening ${where.table}…`);
   try {
     const answer = await api<{ dataset: string; shown?: number; total?: number | null }>(`/connections/${encodeURIComponent(catalog)}/open`, "POST", where);
     const cut = answer.total && answer.shown !== undefined && answer.total > answer.shown;
-    toast(cut ? `${answer.dataset}: the first ${answer.shown!.toLocaleString()} of ${answer.total!.toLocaleString()} rows open as a grid.` : `${answer.dataset} is open as a grid.`);
+    const offer = dax && !(await relationshipsImported(catalog)) ? { label: "Import its relationships", run: () => void importRelationships(catalog) } : undefined;
+    toast(cut ? `${answer.dataset}: the first ${answer.shown!.toLocaleString()} of ${answer.total!.toLocaleString()} rows open as a grid.` : `${answer.dataset} is open as a grid.`, "info", offer);
   } catch (e) {
-    toast((e as Error).message, "error");
+    toast(errorText(e), "error");
   }
 }
 
@@ -130,7 +143,7 @@ function previewOf(view: TableView): HTMLElement {
           h("tbody", {}, ...found.rows.map((r) => h("tr", {}, ...r.map((v) => h("td", {}, v === null ? "" : String(v)))))),
         ),
       ),
-    (e: Error) => host.replaceChildren(h("p", { class: "hint" }, e.message.split("\n")[0] ?? "")),
+    (e: Error) => host.replaceChildren(h("p", { class: "hint" }, errorText(e).split("\n")[0] ?? "")),
   );
   return host;
 }
@@ -143,7 +156,8 @@ export interface RailHost {
   /** True while the editor holds unsaved work: the tree then keeps the page as it is. */
   isEditing(): boolean;
   showTable(view: TableView): void;
-  showSchema?(label: string, catalog: string): void;
+  /** A schema's page; a Power BI dataset's one node is its model (`dialect` "dax"). */
+  showSchema?(label: string, catalog: string, dialect: string): void;
   /** In the Workbench every connection is there by its name: drag and copy give the name alone. */
   connectionsByName?: boolean;
 }
@@ -168,8 +182,23 @@ export function copy(text: string, what: string): void {
   );
 }
 
-/** A table's columns and a first SELECT, for the page to show (main area or dialog). */
+/** A schema's page. A Power BI dataset has one node, its model, with Import its relationships. */
+export function schemaDetails(label: string, catalog: string, dialect: string): HTMLElement[] {
+  if (dialect !== "dax") return [h("h2", {}, label), h("p", { class: "hint" }, `Schema in ${catalog}`)];
+  return [
+    h("h2", {}, label),
+    h("p", { class: "hint" }, `The Power BI dataset ${catalog}: its tables, columns and measures`),
+    h("div", { class: "row-actions" }, button("Import its relationships", () => void importRelationships(catalog), { icon: "import", class: "primary" })),
+  ];
+}
+
+/** A table's columns and a first SELECT (a Power BI dataset's: a first EVALUATE), for the page to show
+ * (main area or dialog). */
 export function tableDetails(view: TableView): HTMLElement[] {
+  const dax = view.dialect === "dax";
+  const first = dax ? "EVALUATE" : "SELECT";
+  const measures = view.columns.filter((c) => c.type.startsWith("measure")).length;
+  const counted = dax && measures ? `${view.columns.length - measures} columns, ${measures} measure${measures === 1 ? "" : "s"} · DAX` : `${view.columns.length} columns · ${dax ? "DAX" : view.dialect}`;
   const rows = view.columns.map((c) =>
     h(
       "tr",
@@ -185,15 +214,15 @@ export function tableDetails(view: TableView): HTMLElement[] {
   );
   return [
     h("h2", {}, view.table, view.kind === "view" ? h("span", { class: "hint" }, "  view") : null),
-    h("p", { class: "hint" }, `${view.where} · ${view.columns.length} columns · ${view.dialect}`),
+    h("p", { class: "hint" }, `${view.where} · ${counted}`),
     h(
       "div",
       { class: "row-actions" },
-      button("Open as grid", () => void openTableAsGrid(view.catalog, { schema: view.schema, table: view.table, database: view.database }), { icon: "rows", class: "primary" }),
+      button("Open as grid", () => void openTableAsGrid(view.catalog, { schema: view.schema, table: view.table, database: view.database }, dax), { icon: "rows", class: "primary" }),
       button("Copy the name", () => copy(view.name, "the name"), { icon: "copy" }),
-      button("Copy the SELECT", () => copy(view.select, "the SELECT"), { icon: "sql" }),
+      button(`Copy the ${first}`, () => copy(view.select, `the ${first}`), { icon: "sql" }),
     ),
-    h("pre", { class: "code-box", "aria-label": "A first SELECT" }, view.select),
+    h("pre", { class: "code-box", "aria-label": `A first ${first}` }, view.select),
     h(
       "table",
       { class: "columns-table" },
@@ -221,6 +250,7 @@ export function mountRail(host: RailHost): Rail {
   // ===== quoting for the source's dialect (as engine/catalog.py) =====
 
   function quoteName(name: string, dialect: string): string {
+    if (dialect === "dax") return `'${name.replaceAll("'", "''")}'`; // a table: 'Order Lines'
     if (dialect === "sqlserver") return `[${name.replaceAll("]", "]]")}]`;
     if (dialect === "mysql") return `\`${name.replaceAll("`", "``")}\``;
     return `"${name.replaceAll('"', '""')}"`;
@@ -228,6 +258,7 @@ export function mountRail(host: RailHost): Rail {
 
   function qualified(row: { database: string; schema: string; table: string }): string {
     const dialect = current?.dialect ?? "other";
+    if (dialect === "dax") return quoteName(row.table, dialect); // a dataset has no schemas
     const parts = [current && current.databases > 1 ? row.database : "", row.schema, row.table].filter(Boolean);
     return parts.map((p) => quoteName(p, dialect)).join(".");
   }
@@ -503,8 +534,17 @@ export function mountRail(host: RailHost): Rail {
         event.preventDefault();
         event.stopPropagation();
         showMenu(event.clientX, event.clientY, data.table ?? "table", [
-          ["rows", "Open as grid", () => void openTableAsGrid(current?.name ?? "", { schema: data.schema, table: data.table ?? "", database: current && current.databases > 1 ? data.database : undefined })],
+          ["rows", "Open as grid", () => void openTableAsGrid(current?.name ?? "", { schema: data.schema, table: data.table ?? "", database: current && current.databases > 1 ? data.database : undefined }, current?.dialect === "dax")],
         ]);
+      });
+    }
+    if (data.kind === "schema" && current?.dialect === "dax") {
+      // A Power BI dataset's model: its relationships come from here too.
+      node.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const name = current?.name ?? "";
+        showMenu(event.clientX, event.clientY, name, [["import", "Import its relationships", () => void importRelationships(name)]]);
       });
     }
     if (data.kind === "table" || data.kind === "column") {
@@ -521,6 +561,7 @@ export function mountRail(host: RailHost): Rail {
   }
 
   function dragText(data: NodeData): string {
+    if (data.kind === "column" && data.column && current?.dialect === "dax") return daxColumn(data.column, data.table ?? "", data.type ?? "");
     if (data.kind === "column" && data.column) return quoteName(data.column, current?.dialect ?? "other");
     return qualified({ database: data.database, schema: data.schema, table: data.table ?? "" });
   }
@@ -531,8 +572,15 @@ export function mountRail(host: RailHost): Rail {
     return { text: dragText(data), imports: [] };
   }
 
+  /** A DAX name: a column 'Sales'[Amount]; a measure, which has no table in front, [Total Sales]. */
+  function daxColumn(column: string, table: string, type: string): string {
+    const name = `[${column.replaceAll("]", "]]")}]`;
+    return type.startsWith("measure") ? name : quoteName(table, "dax") + name;
+  }
+
   function schemaLabel(row: { database: string; schema: string }): string {
-    const schema = row.schema || "(no schema)";
+    // A Power BI dataset has no schemas: its one node is the model itself.
+    const schema = row.schema || (current?.dialect === "dax" ? "Model" : "(no schema)");
     return current && current.databases > 1 && row.database ? `${row.database}.${schema}` : schema;
   }
 
@@ -735,7 +783,7 @@ export function mountRail(host: RailHost): Rail {
       return;
     }
     if (data.kind === "table" || data.kind === "column") await showTable(data, data.column);
-    if (data.kind === "schema") host.showSchema?.(schemaLabel(data), current.name);
+    if (data.kind === "schema") host.showSchema?.(schemaLabel(data), current.name, current.dialect);
   }
 
   async function showTable(data: NodeData, focusColumn?: string): Promise<void> {
@@ -839,7 +887,7 @@ export function mountRail(host: RailHost): Rail {
       ),
       h("div", { class: "result-group" }, `Columns (${formatCount(found.total_columns)})`),
       ...found.columns.map((c) =>
-        hit(`${c.table}.${c.column}`, c.type, () => void reveal(c.database, c.schema, c.table, c.column), quoteName(c.column, dialect)),
+        hit(`${c.table}.${c.column}`, c.type, () => void reveal(c.database, c.schema, c.table, c.column), dialect === "dax" ? daxColumn(c.column, c.table, c.type) : quoteName(c.column, dialect)),
       ),
       found.total_tables + found.total_columns === 0 ? h("p", { class: "empty" }, "Nothing matches.") : null,
     );

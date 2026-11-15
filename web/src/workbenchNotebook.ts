@@ -42,7 +42,7 @@ import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { loadEditors } from "./workbenchConsole";
-import { pythonCompleter, sqlCompleter } from "./workbenchCompletion";
+import { holdsDax, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
@@ -612,7 +612,8 @@ export function notebookView(
       clear(
         connectionPicker,
         h("option", { value: "" }, "(%sql_connect)"),
-        ...names.map((n) => h("option", { value: n, selected: n === current }, n)),
+        // A Power BI dataset's cells hold DAX, not SQL: said beside its name.
+        ...names.map((n) => h("option", { value: n, selected: n === current }, holdsDax(n) ? `${n} (DAX)` : n)),
         ...(current && !names.includes(current) ? [h("option", { value: current, selected: true }, `${current} (not found)`)] : []),
       );
     };
@@ -736,7 +737,7 @@ export function notebookView(
         grow: true,
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
-        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "html" ? "HTML" : undefined,
+        placeholder: cell.kind === "sql" ? (holdsDax(cell.connection) ? "DAX" : "SQL") : cell.kind === "html" ? "HTML" : undefined,
         // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog.
         complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "code" ? python(text, offset) : Promise.resolve([])),
         help: (text, offset) => (cell.kind === "code" ? kernel.help(text, offset) : Promise.resolve("")),

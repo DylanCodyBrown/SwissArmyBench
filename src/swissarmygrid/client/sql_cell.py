@@ -25,6 +25,8 @@ what the connection's code makes:
                             as the connection's catalog names them)
     a table (DataFrame)     a blade that makes one: DuckDB, in this Python, the table under its
                             variable's name
+    a Power BI dataset      the dataset itself, and the cell holds DAX, not SQL:
+                            `EVALUATE TOPN(10, 'Sales')`
 
 A database statement that returns no rows (an UPDATE, an INSERT) is committed and says how many rows it
 changed. `%%sql` is taken only when no other extension has it (JupySQL keeps its own); `%%sag` always
@@ -255,6 +257,13 @@ def _runs_sql(value: Any) -> bool:
     )
 
 
+def _language(dialect: Any) -> str:
+    """What a database connection's cells are written in: its SQL, or DAX for a Power BI dataset."""
+    if not dialect or dialect == "other":
+        return ""
+    return " (DAX)" if dialect == "dax" else f" ({dialect} SQL)"
+
+
 def open_connection(name: str) -> Connection:
     """Run the connection's code in this Python and keep what it makes for the cells to use."""
     record = _record(name)
@@ -272,13 +281,10 @@ def open_connection(name: str) -> Connection:
         found = _open_tables(label, value, str(record.get("variable") or ""))
     elif _runs_sql(value):
         dialect = record.get("dialect")
-        found = Connection(
-            label,
-            "database",
-            value,
-            f"{type(value).__module__.split('.')[0]} connection"
-            + (f" ({dialect} SQL)" if dialect and dialect != "other" else ""),
+        made = (
+            "a Power BI dataset" if dialect == "dax" else f"{type(value).__module__.split('.')[0]} connection"
         )
+        found = Connection(label, "database", value, made + _language(dialect))
     else:
         raise SqlCellError(
             f"{label} makes a {type(value).__name__}, which can't run SQL. A cell can use a database "
@@ -470,7 +476,7 @@ def listing() -> list[tuple[str, str]]:
     for c in blades_client._call("GET", "/connections")["connections"]:
         if c.get("connection") == "database":
             dialect = c.get("dialect")
-            what = "database" + (f" ({dialect} SQL)" if dialect and dialect != "other" else "")
+            what = ("a Power BI dataset" if dialect == "dax" else "database") + _language(dialect)
         else:
             what = f"{FILE_TEMPLATES.get(str(c.get('template')), 'a file')}, read by DuckDB here"
         out.append((str(c["name"]), what))

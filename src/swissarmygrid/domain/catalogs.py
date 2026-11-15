@@ -33,6 +33,7 @@ DIALECTS: tuple[str, ...] = (
     "snowflake",
     "oracle",
     "trino",
+    "dax",  # a Power BI dataset (semantic model): its language is DAX, not SQL
     "other",
 )
 _DIALECT_ALIASES: dict[str, str] = {
@@ -44,6 +45,8 @@ _DIALECT_ALIASES: dict[str, str] = {
     "redshift": "postgres",
     "mariadb": "mysql",
     "presto": "trino",
+    "powerbi": "dax",
+    "power bi": "dax",
 }
 
 # Normalized column -> the source column names it is read from, in order of preference.
@@ -177,6 +180,8 @@ def normalizing_select(source: str, picked: dict[str, str]) -> str:
 
 
 def quote_identifier(name: str, dialect: str) -> str:
+    if dialect == "dax":
+        return dax_table(name)
     if dialect == "sqlserver":
         return "[" + name.replace("]", "]]") + "]"
     if dialect == "mysql":
@@ -184,7 +189,20 @@ def quote_identifier(name: str, dialect: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def dax_table(name: str) -> str:
+    """A table's name in DAX: 'Order Lines' (a quote inside it doubled)."""
+    return "'" + name.replace("'", "''") + "'"
+
+
+def dax_column(column: str, table: str = "") -> str:
+    """A column's name in DAX: 'Order Lines'[Unit Price]; a measure's has no table: [Total Sales].
+    A closing bracket inside the name is doubled."""
+    return (dax_table(table) if table else "") + "[" + column.replace("]", "]]") + "]"
+
+
 def _source(dialect: str, database: str, schema: str, table: str) -> str:
+    if dialect == "dax":  # a dataset has no schemas: a table is named by itself
+        return dax_table(table)
     return ".".join(quote_identifier(p, dialect) for p in (database, schema, table) if p)
 
 
@@ -196,6 +214,10 @@ def select_sql(
     in it)."""
     dialect = normalize_dialect(dialect)
     source = _source(dialect, database, schema, table)
+    if dialect == "dax":
+        # The whole table: a catalog lists a table's measures beside its columns, and a measure is not
+        # a column to pick. TOPN without an order gives any `rows` rows, as a SELECT's LIMIT does.
+        return f"EVALUATE {source}" if rows is None else f"EVALUATE TOPN({rows}, {source})"
     picked = ", ".join(quote_identifier(c, dialect) for c in columns) or "*"
     if rows is None:
         return f"SELECT {picked}\nFROM {source}"
@@ -208,4 +230,6 @@ def select_sql(
 
 def count_sql(dialect: str, database: str, schema: str, table: str) -> str:
     """How many rows the table holds (the grid says how many it was not shown)."""
+    if normalize_dialect(dialect) == "dax":
+        return f'EVALUATE ROW("n", COUNTROWS({dax_table(table)}))'
     return f"SELECT COUNT(*) FROM {_source(normalize_dialect(dialect), database, schema, table)}"  # noqa: S608

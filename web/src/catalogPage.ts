@@ -8,7 +8,7 @@
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { connect, onNotice, openedWith } from "./api";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
-import { mountRail, tableDetails, watchTheme } from "./catalogRail";
+import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { button, clear, h } from "./dom";
 
 watchTheme();
@@ -57,8 +57,7 @@ const rail = mountRail({
     clear(detail, ...tableDetails(view));
     detail.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" });
   },
-  showSchema: (label, catalog) =>
-    clear(detail, h("h2", {}, label), h("p", { class: "hint" }, `Schema in ${catalog}`)),
+  showSchema: (label, catalog, dialect) => clear(detail, ...schemaDetails(label, catalog, dialect)),
 });
 
 showWelcome();

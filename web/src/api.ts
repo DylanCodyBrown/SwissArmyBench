@@ -145,6 +145,19 @@ export class ApiError extends Error {
   }
 }
 
+/** An error's words. A connection that failed to run answers {"error": "..."} (with the package to
+ * install, when one is missing): its message is shown, not the JSON around it. */
+export function errorText(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  if (!message.startsWith("{")) return message;
+  try {
+    const said = JSON.parse(message) as { error?: unknown; message?: unknown };
+    return typeof said.error === "string" ? said.error : typeof said.message === "string" ? said.message : message;
+  } catch {
+    return message;
+  }
+}
+
 function headers(json: boolean): Record<string, string> {
   const out: Record<string, string> = { Authorization: `Bearer ${token}` };
   if (json) out["Content-Type"] = "application/json";

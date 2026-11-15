@@ -2095,6 +2095,18 @@ def connections_preview_table(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "connections_import_relationships",
+    "Import a Power BI dataset's own relationships into the current relationship model (merged: the "
+    "dataset's wins for a join both name). Tables are named as they open as grids; an inactive "
+    "relationship stays inactive. Answers the model, what the merge changed, and what was imported. To "
+    "run DAX on the dataset, use workbench_run with a `%%sql <connection>` cell or sag.sql().",
+    req("name", "The Power BI dataset connection's name."),
+)
+def connections_import_relationships(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/relationships", {})
+
+
+@command(
     "connections_load_catalog",
     "Load a connection's catalog (its tables and columns) in the background now; it arrives for completion "
     "and catalog_* tools. Catalogs also load themselves when a connection is saved and when the app starts.",

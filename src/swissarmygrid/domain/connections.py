@@ -150,6 +150,8 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "vault_all": bool(template.get("vault_all")),
         # Ways to sign in, each its own code (SQL Server, Azure SQL): the form's Sign in.
         "sign_ins": list(template.get("sign_ins") or []),
+        # Where a new one's passwords are first offered from ("vault": the Power BI dataset's way).
+        "secrets_from": str(template.get("secrets_from") or ""),
     }
 
 
