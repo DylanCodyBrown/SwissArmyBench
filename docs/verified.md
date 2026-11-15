@@ -714,3 +714,60 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   ones read (Table, Name, DataType; FromTable, FromColumn, ToTable, ToColumn, FromCardinality,
   ToCardinality, CrossFilteringBehavior, IsActive), which are from memory of Microsoft's pages; how
   the real service marks an answer cut at 15 MB; Microsoft's sign-in window itself; Edge.
+- (2026-11-15) Power BI per workspace, and the DAX cell (docs/ideas.md has the owner's words and the
+  decisions). **Not run against a real Power BI tenant:** the stand-in (tests/powerbi_standin.py) is now
+  a workspace of three made-up datasets: Sales model, Budget model (a Date table of its own) and Broken
+  model, which answers every query with an error. Checked by tests/test_powerbi.py (36 tests) and one
+  browser test (tests/e2e/test_powerbi_page.py):
+  **The connection:** the starter is "Power BI workspace"; its form asks for the workspace id and the
+  sign-in and has no dataset id; Test connection says "signed in and found 3 datasets"; the three
+  sign-ins and the vault are as before, and no secret is in any answer. `conn.datasets()`,
+  `conn.dataset(name or id).cursor()` and `conn.cursor(dataset=...)` reach each dataset; `conn.cursor()`
+  is refused with the datasets' names when there are several. A connection saved for one dataset still
+  loads, opens tables and imports relationships as a workspace of one.
+  **The catalog:** each dataset is a schema with its tables, columns and measures; the INFO fallbacks
+  work per dataset; the broken dataset is a schema with its reason and no tables while the other two
+  load; the cap (25 datasets) leaves the rest marked "Not read". In the browser the broken one has
+  the error mark and its page says why.
+  **Open as grid:** `EVALUATE TOPN(...)` and the count go to the table's own dataset, with the row
+  limit and first N of M; with the catalog loaded, the two Date tables open as `Sales_model_Date` and
+  `Budget_model_Date`, and other tables under their own names. The table's cell in a notebook loads it
+  with `sag.dax('Finance/Sales model', ...)`.
+  **Relationships:** imported per dataset (by name or id), only that dataset asked; the model's tables
+  are named as the grids are; several datasets and none named is refused with their names; the broken
+  dataset says Power BI's words and changes nothing. In the browser: the offer on the "is open as a
+  grid" message imports the Budget model's two, and the Diagram draws Budget, Department and
+  Budget_model_Date. The Connections row has no Import button.
+  **The DAX cell:** `%%dax` is registered beside `%%sql`; `sag.dax("Finance/Sales model", ...)` gives a
+  DataFrame; the workspace alone with several datasets is refused naming them; a SQL connection is
+  refused for DAX. A notebook writes and reads a DAX cell as a `%%dax 'Finance/Sales model'` code cell
+  (by its first line alone too); an old `%%sql Finance/Sales model` cell reads as a DAX cell; a DAX
+  cell gets no uses line. In the browser: the kind picker and the X key make a DAX cell; its picker
+  lists only the three datasets (the unreadable one last) and a SQL cell's lists no Power BI
+  connection; completion offers EVALUATE, then `'Customer'`, `[Region]` after `'Customer'[`, and
+  `[Total Sales]`, each replacing the quote or bracket already typed, never the other dataset's tables
+  and never SQL's WHERE; the cell runs and shows four rows; a script's DAX button and the agent's
+  command write `# %% [dax]` over one `sag.dax()` call, and the text compiles.
+  **The agent:** `connections_datasets`, `connections_import_relationships` with `dataset`,
+  `workbench_dax_add`, and `workbench_run` with kind `dax`. 190 commands (188 before).
+  **Found on the way, and fixed: a kernel's output could be lost.** In the whole run
+  `test_outputs_keep_up_with_many_prints_colours_and_progress_bars` failed once; alone it failed about
+  one time in three while other work kept this computer busy, and it failed the same way on the code
+  from before this change. A script printing 6,000 lines showed fewer (lines missing from the middle),
+  or its run never ended. Cause: ZeroMQ keeps 1,000 unread messages on the reading side and 1,000 on
+  the kernel's, a local socket holds little more, and past that the kernel drops what it prints,
+  the message that ends the run included. The server's side now has no limit
+  (server/kernels.py `_client`). A new test holds it: 6,000 lines printed while nothing reads for five
+  seconds all arrive and the run ends (it times out without the fix). The browser test then passed ten
+  times in a row under the same load.
+  Then: ruff, format, mypy (248 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,112 passed, none skipped (2,095 before).
+  Screenshots looked at, against the stand-in: the form, the tree with three datasets, the broken
+  dataset's page, the Budget table as a grid, a DAX cell with its picker and completion (coloured by
+  Monaco's DAX grammar), the Diagram after one dataset's relationships.
+  Not checked: a real tenant; whether the datasets list names datasets the sign-in may not query;
+  more than 25 datasets against the real 120-queries-a-minute limit; `%%dax` in plain Jupyter outside
+  the Workbench (the magic is the same function the Workbench's kernel runs, tested through IPython's
+  registration); Tab completion of names inside a `%%dax` cell in Jupyter (sag.complete is SQL's);
+  a table opened before the catalog has loaded takes its own name even when another dataset shares
+  it; Edge.

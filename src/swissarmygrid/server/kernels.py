@@ -22,6 +22,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
+import zmq
 from jupyter_client.kernelspec import KernelSpec
 from jupyter_client.manager import AsyncKernelManager
 
@@ -93,10 +94,21 @@ def candidates(folders: list[str]) -> list[str]:
     return found[:12]
 
 
+def _client(manager: AsyncKernelManager) -> Any:
+    """The manager's client, with no limit on the kernel's messages waiting to be read here.
+    ZeroMQ keeps 1,000 by default; past that (and the 1,000 the kernel's side keeps, and what a
+    local socket holds, which is little) the kernel drops what it prints, without a word. A script
+    printing 6,000 lines while this computer was busy lost lines from the middle, and the message
+    that ends the run, so the run never ended (found 2026-11-15, the whole suite under load)."""
+    client = manager.client()
+    client.context.setsockopt(zmq.RCVHWM, 0)  # for the sockets start_channels() makes
+    return client
+
+
 class Kernel:
     def __init__(self, manager: AsyncKernelManager, python: str, sockets: str | None = None) -> None:
         self.manager = manager
-        self.client = manager.client()
+        self.client = _client(manager)
         self.python = python
         self._sockets = sockets  # the private folder of its local sockets, removed when it ends
         self._lock = asyncio.Lock()
@@ -354,7 +366,7 @@ class Kernel:
         self._interrupts += 1
         await self.manager.restart_kernel(now=True)
         self.client.stop_channels()
-        self.client = self.manager.client()
+        self.client = _client(self.manager)
         await self.ready()
 
     async def shutdown(self) -> None:
