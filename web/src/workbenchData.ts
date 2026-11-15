@@ -51,8 +51,6 @@ export interface DataPanelHost {
   /** "+ Table": what can bring a table in. */
   addTable(anchor: HTMLElement): void;
   openBlade(name: string): void;
-  /** A variable's value as the focused kernel holds it ("" when it does not). */
-  valueOf(variable: string): string;
   /** Folded or opened (the page redraws what depends on it). */
   toggled(collapsed: boolean): void;
 }
@@ -208,7 +206,6 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     bladeList.replaceChildren(
       ...blades.map((b) => {
         const name = b.variable ?? b.name;
-        const value = b.variable ? host.valueOf(b.variable) : "";
         const line = b.kind === "vault" || b.kind === "secret" || !b.variable ? `sag.blade(${JSON.stringify(b.name)})` : `${b.variable} = sag.blade(${JSON.stringify(b.name)})`;
         return h(
           "li",
@@ -226,7 +223,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
                 event.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: line, imports: ["import swissarmygrid as sag"] }));
               },
             },
-            h("span", { class: "wb-data-name" }, h("span", { class: "wb-data-label" }, name), value ? h("span", { class: "wb-data-count wb-data-value" }, value) : null),
+            h("span", { class: "wb-data-name" }, h("span", { class: "wb-data-label" }, name)),
             h("span", { class: "wb-data-meta" }, icon("bolt"), h("span", {}, b.description || b.name)),
           ),
         );

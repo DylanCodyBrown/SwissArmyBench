@@ -894,7 +894,6 @@ const data = mountDataPanel({
   goToTable: (name) => goToTable(name),
   addTable: (anchor) => void openMenu(anchor, "Add a table", tableEntries()),
   openBlade: (name) => bladeDoc(name),
-  valueOf: (variable) => variables.snapshot()?.variables.find((v) => v.name === variable)?.value ?? "",
   toggled: () => remember(),
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);

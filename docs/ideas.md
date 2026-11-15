@@ -1448,3 +1448,75 @@ data and tables." Decided:
   The user guide gets "Learning Streamlit with the starter pieces": one page built from five pieces, then
   every piece by what it is for.
 - Built after the Power BI per-workspace work is merged (the Power BI actions use that connection).
+
+## The Workbench redesign (2026-11-15, the owner's calls; built)
+
+"So visually try to redesign the workbench a bit to make notebook/script and app page optional and two
+separate spaces." "Right now it's all crammed together." "Or you can have two notebooks here one for
+data analysis and one for streamlit mocks. And multiple pages." "Should be able to arrange and add as
+many tabs a you want to the workbench." "Data.ipynb is the canvas for data.py export." The owner chose
+a mockup (a top row, a Data panel, tab groups, a status bar) and said: "build no fable". Built on its
+own branch (`workbench-redesign`); the app pages themselves (a canvas of blocks linked to cells, Play
+and Edit), projects and data.py are another branch's, which this one leaves room for. Decided:
+
+- **One row on top:** the app's mark, the focused document's name with a dot while it has unsaved
+  changes, Save, Save as…, and "…" (New notebook, New script, Open…, Recent, Split right, Split down,
+  collapse the Data panel, Layout, Commands). It replaces the toolbar's three rows. Until projects exist
+  the name is the focused document's; a project's name takes its place when there is one.
+- **The Data panel, on the left,** in place of the side bar. **Tables:** the tables open in the grid,
+  each with its rows, where it came from (the file's name, the connection's name, Python, Pasted,
+  Query; the server's table listing now gives `rows` and `source`) and its steps. A click goes to the
+  table's read-only cell in the focused document (a message when it has none); a drag gives its name
+  to code. **Variables:** the blades that are not connections (a click opens one, a drag gives its
+  `sag.blade` line; its value shows when the focused kernel holds it). **Files:** a folded section at
+  the bottom, hidden until a project exists (`setFiles`, the hook for the app pages' branch). The arrow
+  (or Ctrl+B) folds the panel to a narrow bar; remembered in this browser.
+- **"+ Table" and "+ Blade" keep what the side bar offered,** without a permanent rail: "+ Table" is a
+  menu (Open file…, each connection, Search the catalog…, Add connection…); a connection or the search
+  opens the catalog (its picker, search and tree, unchanged) in a panel beside the Data panel, and a
+  table there opens its page as before. "+ Blade" opens the saved blades and connections the same way
+  (New blade, import, export, folders, packs). Escape or a click elsewhere puts the panel away.
+- **Tab groups, as Visual Studio Code's editor groups** (workbenchGroups.ts): any number of tabs of any
+  kind; drag a tab along a row to reorder it; drag it over a group for the five-way guide (the middle
+  moves it there, an edge splits that side: right, left, up or down); splitters between groups (drag,
+  arrow keys, a double-click shares evenly); a group goes with its last tab. A document is in one group
+  at a time (no second view of the same notebook: two editors on one kernel's cells would fight).
+  Splitting needs a second tab in the group: one stays, one moves (the command says so, the menu entry
+  is disabled with that reason).
+- **Each tab shows its kind:** an icon and a thin colour mark on its top edge. Data (blue, the
+  palette's second colour: a notebook named data.ipynb), Notebook (steel grey: notebooks, scripts, a
+  blade being edited, a catalog table's page), App page (the accent red: registered by the app pages
+  later). The kinds are a registry (`registerTabKind`): a kind with `start` is offered by a group's "+"
+  and by the empty state.
+- **One row per group:** its tabs and "+" on the left; when it is focused, its document's controls on
+  the right. A notebook: "+ Cell ▾" (Python, SQL, DAX, HTML, Streamlit, Markdown), Run all, "…". A
+  script: "+ Cell ▾" (DAX, HTML, Streamlit), Run file, "…". "…" holds the rest (Run statement or Clear
+  every output, Open…, Recent, Save as…, Interrupt, Restart, the Streamlit app's entries when it has
+  pieces, Split right, Split down, Close). Run tables stays in the row, and only while a table's cell
+  waits (principle 7.9). Unfocused groups show only their tabs. A narrow group shows the controls'
+  icons without their words.
+- **The status bar** (for the focused document): the kernel, with a menu (Interrupt, Restart); the
+  environment picker; the cursor's line and column; then Console and Variables, pressed while open.
+  The kernel's state is said only while it is not ready ("not started", "starting…", "running…"):
+  a ready kernel says nothing (principle 7.9), where the mockup said "Kernel idle". The console and
+  Variables open as before (under the groups, on the right) but start closed; a run in the console (a
+  script's Run file, the agent's `console.run`) opens it so its output is seen. A notebook's console no
+  longer shows as a title bar.
+- **Nothing open:** two icons and two buttons, "Start a notebook" and "Start an app". "Start an app" is
+  disabled (its tooltip says app pages are not here yet) until the app pages register their kind; it
+  looked right disabled, so it stays rather than hiding. No Recent list there any more (it is in "…").
+- **The layout comes back after a reload** with the documents: the groups, which tabs where, the one
+  in front of each, the sizes and the focused group, kept in the window's session storage with the
+  rest. A blade being edited or a catalog table's page is not kept, as before.
+- **Every new window action is a command** (the palette, the keys, the agent's `workbench_window`):
+  `group.splitRight` (`Ctrl+\`), `group.splitDown`, `group.moveTab` (a group, a place in its row, or a
+  side to split), `group.moveToNext`, `group.focus`, `group.focusNext`, `group.focusPrevious`,
+  `tab.moveLeft`, `tab.moveRight`, `view.toggleSidebar` (now the Data panel, with `collapsed`),
+  `view.toggleConsole` and `view.toggleRight` (with `show`), `data.goToTable`, `data.openFile`,
+  `data.browse`, `data.blades`, `data.closeFlyout`, `data.addConnection`, and `data.list` for the agent.
+  `documents` lists the groups.
+- **Words:** full words everywhere ("Collapse the Data panel", "Document menu", "Add cell"); menus show
+  their keys beside each entry; no explaining text was added.
+- **Kept out of this branch,** so the two merge cleanly: the app pages, projects, data.py and the
+  removal of the Streamlit cell; and the notebook's cell logic (one style rule lets a cell's editor
+  follow a narrower group).

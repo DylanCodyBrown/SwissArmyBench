@@ -4759,10 +4759,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   white-space: nowrap;
 }
 
-.wb-data-value {
-  font-family: "Cascadia Code", Consolas, monospace;
-}
-
 .wb-data-meta {
   display: flex;
   align-items: center;

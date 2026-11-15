@@ -115,7 +115,7 @@ their own window.
 | Place | Holds |
 |---|---|
 | The data page | the tab strip, the Application row, the ribbon, the strip under the title, the table, the status bar |
-| The code window | notebooks and scripts, their consoles, Variables, the side bar, the error panel |
+| The code window | notebooks and scripts in tab groups, their consoles, Variables, the Data panel, the error panel |
 | The dashboard tab | resizable cards: charts, notes, tables, diagrams, pictures, results |
 | The library page | saved code, catalogs and shared packs, with their save screen |
 | Dialogs | one task each: a step, an analysis, an export, a connection, the settings |

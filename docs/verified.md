@@ -864,3 +864,38 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   plain Python stands in); a real vendor library or web service; code pasted from the clipboard into
   the editor (the test types unindented lines); a connection whose `conn` is a DB-API connection in a
   SQL cell (the SQL cell's own tests cover any `.cursor()`; none was written for this type).
+- (2026-11-15) The Workbench redesign (docs/ideas.md has the owner's words and each decision; branch
+  `workbench-redesign`). Made-up data only.
+  **In a browser** (tests/e2e/test_workbench_groups.py, 5 new tests): Split right by the agent's
+  command, Split down from the palette after focusing the first group, the refusal when a group has
+  one tab ("only this tab"), only the focused group's row has controls, a splitter moved by keyboard,
+  and after a reload the three groups, their tabs, the focused group and the splitter's place; a
+  group goes with its last tab. By drag: a tab dragged before the first one reorders the row; dragged
+  to a group's right edge the five-way guide shows "Split right" with the ghost tab, and the drop
+  splits right; dragged to the lower part of another group it splits down; dropped in the middle of a
+  group a group's only tab moves there and its group goes; Escape mid-drag puts it back; a splitter
+  dragged by its grip; `tab.moveLeft` and `group.moveTab`. The Data panel: folded by its arrow, still
+  folded after a reload, opened by Ctrl+B and `view.toggleSidebar`; "+ Table" → Open file… opens the
+  file chooser and the table arrives with "3 rows" and "orders.csv", a step in the grid shows as
+  "orders.csv · 1 step", a click on it selects the table's read-only cell; "+ Table" → a connection
+  opens its catalog beside the panel with that connection picked, a table there opens its page with
+  Open as grid; Escape puts the catalog away; "+ Blade" shows the blades and connections, a click
+  elsewhere puts them away. The status bar: hidden while nothing is open, "not started" before a run
+  and nothing once ready, the Environment picker, the Kernel menu (Interrupt, Restart; Restart says
+  "Restarted"), Console and Variables pressed while open, `view.toggleConsole`; the top bar's name and
+  unsaved dot. Every old toolbar action found in the top bar's "…", "+ Cell" (six kinds for a
+  notebook, three for a script), Run all or Run file, the Document menu, and "+".
+  The existing browser tests that clicked the old toolbar now use the new places (test_workbench_page,
+  test_workbench_outputs, test_html_cells_page, test_streamlit_page, test_table_cells_page,
+  test_powerbi_page); none was removed. The tables listing's new `source` has a unit test.
+  Then: ruff, format, mypy (262 files), the TypeScript check, the build, and the whole suite with the
+  browser tests in this machine's Chromium: 2,251 passed, none failed, none skipped.
+  Screenshots at twice the size, looked at against the mockup: nothing open, a notebook, its Variables,
+  the menus (Workbench, Document, + Cell, + Table, Kernel), two groups, a drag with the guide, three
+  groups, the blades beside the panel, the panel folded, the console, the dark theme. Two things found
+  and fixed that way: a cell's editor kept the width it was made at when its notebook moved to a
+  narrower group (a grid track sized to its content), and the group row's controls lost their words
+  in a group of normal width (the narrow rule now starts at 480 pixels).
+  Not checked: Edge (Chromium here); the high contrast themes and forced colours; touch (the drag uses
+  pointer events, untried with a finger); a window under 1,100 pixels with several groups; how it
+  merges with the app pages' branch.
