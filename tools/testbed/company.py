@@ -201,6 +201,7 @@ def make_company(seed: int = SEED) -> Company:
     for line in lines:
         amounts[line["order_id"]] = amounts.get(line["order_id"], 0.0) + line_amount(line)
     invoices: list[dict[str, Any]] = []
+    regions = {c["customer_id"]: c["region"] for c in customers}
     seen: set[int] = set()
     for order in orders:
         if order["order_id"] in seen or order["status"].strip().lower() in ("cancelled", "test"):
@@ -219,6 +220,7 @@ def make_company(seed: int = SEED) -> Company:
                 "invoice_id": f"INV-{issued.year}-{len(invoices) + 1:05d}",
                 "order_id": order["order_id"],
                 "customer_id": order["customer_id"],
+                "region": regions[order["customer_id"]],
                 "invoice_date": issued,
                 "due_date": due,
                 "amount": round(amounts.get(order["order_id"], 0.0), 2),

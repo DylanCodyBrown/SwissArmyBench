@@ -39,6 +39,11 @@ class Documents:
         # Each document's environment (document path -> its Python), as the user chose or made it.
         self._environments = environments_file or recent_file.with_name("environments.json")
 
+    def made_default_folder(self) -> str:
+        """The app's own folder, made the first time it is needed: a document not saved yet runs there."""
+        self.default_folder.mkdir(parents=True, exist_ok=True)
+        return str(self.default_folder)
+
     def read(self, path: str) -> tuple[str, str, float]:
         """The file's text, its full path and when it was last changed."""
         try:

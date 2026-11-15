@@ -42,6 +42,8 @@ class Documents(Protocol):
 
     def scratch(self, text: str) -> str: ...
 
+    def made_default_folder(self) -> str: ...
+
 
 class Kernel(Protocol):
     python: str
@@ -272,7 +274,11 @@ class Workbench:
             raise Conflict(f"{MAX_KERNELS} kernels are running: close a notebook or script first.")
         python = body.get("python") or self.pythons()["pythons"][0]["python"]
         path = body.get("path")
-        folder = self._folder_of(path) if isinstance(path, str) and path else None
+        # A document not saved yet runs where Save as puts it first (the app's own folder), so a relative
+        # path in its code names the same file in the Workbench and in a scheduled run of the saved file.
+        folder = (
+            self._folder_of(path) if isinstance(path, str) and path else self._documents.made_default_folder()
+        )
         from_vaults: dict[str, str] = {}
         problems: list[str] = []
         if self._vault_environment is not None:

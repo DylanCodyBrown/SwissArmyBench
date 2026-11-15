@@ -192,6 +192,7 @@ SCHEMAS: dict[str, dict[str, str]] = {
         "invoice_id": "VARCHAR(20)",
         "order_id": "INTEGER",
         "customer_id": "INTEGER",
+        "region": "VARCHAR(10)",
         "invoice_date": "DATE",
         "due_date": "DATE",
         "amount": "DECIMAL(12,2)",

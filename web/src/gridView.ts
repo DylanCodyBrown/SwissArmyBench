@@ -677,6 +677,11 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     // (trim, then lower case) needs no second click on its header.
     const columnsStay = selection.kind === "columns" && selection.columns.every((c) => next.some((n) => n.name === c));
     if (!columnsStay) selection.clear();
+    else {
+      // Its count and sums are the new view's: asked again.
+      window.clearTimeout(statsTimer);
+      statsTimer = window.setTimeout(() => void loadSelectionStats(), 120);
+    }
     const reshaped = JSON.stringify(next) !== JSON.stringify(columns);
     if (reshaped) {
       const added = next.filter((c) => !columns.some((old) => old.name === c.name));
