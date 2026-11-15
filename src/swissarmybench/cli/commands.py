@@ -2470,6 +2470,46 @@ def workbench_run(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "workbench_script_settings",
+    "A script's run settings: arguments, the variables it needs and each one's source (never a value); "
+    "with set, change them",
+    req("path", "The script (.py)."),
+    opt(
+        "set",
+        '{"arguments": "--region all", "variables": [{"name": "REPORT_FOLDER", "from": "env"}, '
+        '{"name": "HOST", "from": "value", "value": "db1"}, {"name": "PASSWORD", "from": "vault", '
+        '"vault": "Team vault", "secret": "warehouse-password"}]}',
+        "json",
+    ),
+)
+def workbench_script_settings(a: dict[str, Any]) -> Any:
+    if a.get("set") is not None:
+        return api.call("PUT", "/workbench/scripts/settings", {"path": a["path"], **dict(a["set"])})
+    return api.call("GET", f"/workbench/scripts/settings?path={_q(a['path'])}")
+
+
+@command(
+    "workbench_script_run",
+    "Run as scheduled: the script as a fresh process with no app, its settings' arguments and variables; "
+    "its exit code, time, sources and log (the history keeps it)",
+    req("path", "The script (.py)."),
+    opt("python", "The Python (default: the script's own environment)."),
+)
+def workbench_script_run(a: dict[str, Any]) -> Any:
+    body = {"path": a["path"]} | ({"python": a["python"]} if a.get("python") else {})
+    return api.call("POST", "/workbench/scripts/run", body)
+
+
+@command(
+    "workbench_script_history",
+    "A script's run history (Run as scheduled and Run file), the newest first, with each run's log",
+    req("path", "The script (.py)."),
+)
+def workbench_script_history(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/workbench/scripts/history?path={_q(a['path'])}")
+
+
+@command(
     "workbench_input",
     "Answer a run the user started that waits at input(), getpass or pdb",
     req("kernel", "The kernel's id."),
@@ -2875,6 +2915,16 @@ def project_files(a: dict[str, Any]) -> Any:
 )
 def project_export_data(a: dict[str, Any]) -> Any:
     return api.call("POST", "/projects/export-data", {"folder": a["folder"]})
+
+
+@command(
+    "project_dictionary",
+    "The data dictionary of a project's data.ipynb (as saved): each table's columns, plain types, "
+    "descriptions, where each comes from (the open window's: workbench_window dictionary.list)",
+    req("folder", "The project's folder."),
+)
+def project_dictionary(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/dictionary", {"folder": a["folder"]})
 
 
 @command("streamlit_apps", "The open Streamlit apps: canvases, and each open document's own")

@@ -339,11 +339,14 @@ def write_notebook(
     cells: list[Cell],
     python_version: str = "3",
     next_number: int | None = None,
+    dictionary: dict[str, Any] | None = None,
 ) -> str:
     """The cells as an .ipynb file's text (nbformat 4.5). Each cell's number is in its metadata, and
     the notebook's keeps the next number to give, so a deleted cell's number is never given again."""
     following = number_cells(cells, next_number or 1)
     own: dict[str, Any] = {"next_cell": following}
+    if dictionary:  # a project's data.ipynb: its data dictionary's descriptions (domain/dictionary.py)
+        own["dictionary"] = dictionary
     out: list[dict[str, Any]] = []
     for i, cell in enumerate(cells):
         marks = cell.marks()

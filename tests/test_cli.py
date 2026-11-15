@@ -132,6 +132,8 @@ NOT_COMMANDS = {
     "/files/dropped-sheets": "a dropped workbook's sheets: the agent asks datasets_sheets by path",
     "/agent/export-approval/{}": "reached through table_export, which asks first",
     "/workbench/window/{}": "the Workbench window's own answer to workbench_window (not the agent's)",
+    "/workbench/notebook/flow": "the window's reading of an open notebook's run order: the agent reads "
+    "it with workbench_window notebook.runOrder",
     "/workspace/active": "the page reports which tab is in front (page plumbing)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",

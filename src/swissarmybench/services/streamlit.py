@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import app_settings as page_settings
+from swissarmybench.domain import dictionary as data_dictionary
 from swissarmybench.domain import html_cells, notebooks, projects
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.app_settings import AppSettings
@@ -159,6 +160,7 @@ class App:
     live: list[int] = field(default_factory=list)
     # Every cell of the document, as the window holds it (only a project's data.ipynb sends them).
     every: list[DataCell] | None = None
+    dictionary: dict[str, Any] | None = None  # a project's data.ipynb: its descriptions, as held
     pages: list[Page] = field(default_factory=list)  # a canvas's
     settings: AppSettings = field(default_factory=AppSettings)  # a canvas's page settings
     # What was last written: each cell's code (None: it was missing), each page's layout, each
@@ -405,6 +407,8 @@ class StreamlitApps:
                     for block in page.blocks:
                         block.document = rules.resolve_link(app.document, block.document)
             return False
+        if isinstance(body.get("dictionary"), dict):
+            app.dictionary = data_dictionary.read(body["dictionary"])
         if isinstance(body.get("every"), list):
             app.every = [
                 DataCell(
@@ -1269,7 +1273,12 @@ class StreamlitApps:
             return None
         if cells is None:
             return None
-        made = projects.data_module(title, cells)
+        held = self._open_document(self._project.path(folder, projects.DATA_NOTEBOOK))
+        if held is not None and held.dictionary is not None:
+            said = held.dictionary
+        else:
+            said = data_dictionary.of_notebook(self._project.read(folder, projects.DATA_NOTEBOOK))
+        made = projects.data_module(title, cells, said)
         self._project.write(folder, projects.DATA_FILE, made.text)
         return made
 
