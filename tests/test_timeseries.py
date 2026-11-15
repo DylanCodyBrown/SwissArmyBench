@@ -45,6 +45,19 @@ def test_periods_step_and_gaps_are_named() -> None:
     assert periods == [date(2024, 1, 1), date(2024, 2, 1), date(2024, 3, 1)] and values == [5.0, None, 7.0]
 
 
+def test_a_last_period_that_is_not_over_is_found() -> None:
+    """The test bed's use case 9: invoices to 2026-11-01 forecast by month counted November's one day
+    as a month (a fall of 99%), and the held-back check was off by 2,918%."""
+    starts = [date(2026, m, 1) for m in range(1, 12)]
+    to_the_end = [date(2026, m, 28) for m in range(1, 12)]
+    assert T.partial_last(starts, [*to_the_end[:-1], date(2026, 11, 1)], "month")
+    assert not T.partial_last(starts, to_the_end, "month")  # every month whole
+    assert not T.partial_last(starts, starts, "month")  # a row per month on its 1st: a budget
+    assert not T.partial_last(starts[:3], [*to_the_end[:2], date(2026, 3, 1)], "month")  # too few to say
+    days = [date(2026, 1, d) for d in range(1, 12)]
+    assert not T.partial_last(days, days, "day")  # a day is never part over
+
+
 @pytest.mark.parametrize("seed", [4, 5, 6, 7])
 def test_the_planted_season_spike_and_step_are_found_and_nothing_else(seed: int) -> None:
     periods, values = monthly(seed=seed)
@@ -146,6 +159,19 @@ def test_the_forecast_over_http_with_a_predictor(client: TestClient, grid: str) 
         f"/grids/{grid}/forecast", json={"date": "amount", "metric": "amount"}, headers=AUTH
     )
     assert refused.status_code == 400 and "not a date or timestamp column" in refused.text
+
+
+def test_a_last_month_not_over_is_left_out_of_the_series_and_the_forecast(client: TestClient) -> None:
+    sales = sales_rows()
+    one_more = pa.table({"sold_on": [date(2025, 1, 1)], "store": ["North"], "amount": [40.0]})
+    grid = grid_id(push(client, "sales_so_far", pa.concat_tables([sales, one_more])))
+    body = {"date": "sold_on", "metric": "amount", "period": "month"}
+    series = post(client, grid, "time-series", **body)
+    assert len(series["points"]) == 72 and [a["period"] for a in series["anomalies"]] == ["2021-06-01"]
+    left_out = "Left out 2025-01-01: its rows stop on 2025-01-01, before the month is over."
+    assert series["left_out"] == "2025-01-01" and left_out in series["words"]
+    forecast = post(client, grid, "forecast", **body, horizon=3)
+    assert forecast["forecast"][0]["period"] == "2025-01-01" and left_out in forecast["words"]
 
 
 def test_the_notebook_code_gives_the_windows_series_and_forecast(client: TestClient, grid: str) -> None:

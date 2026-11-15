@@ -132,10 +132,9 @@ def write_files(company: Company, files: Path) -> dict[str, str]:
     sheet["A2"] = "Unit 4, Made-up Trading Estate"
     sheet["E1"] = "INVOICE"
     sheet["E1"].font = Font(bold=True, size=14)
-    for row, label in enumerate(("Customer", "Customer id", "Invoice date", "Invoices"), 4):
+    for row, label in enumerate(("Customer", "Customer id", "Statement date", "Open invoices"), 4):
         sheet.cell(row, 1, label).font = Font(bold=True)
-    for column, label in enumerate(("Invoice", "Order", "Date", "Due", "Amount"), 1):
-        sheet.cell(9, column, label).font = Font(bold=True)
+    sheet.column_dimensions["A"].width = 18  # the open invoices go from A9 down, under their headings
     book.save(files / "invoice_template.xlsx")
     products = pa.Table.from_pylist(company.products)
     pq.write_table(products, files / "products.parquet")

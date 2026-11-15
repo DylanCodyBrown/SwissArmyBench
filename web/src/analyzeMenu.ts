@@ -132,7 +132,12 @@ export async function showTheMath(analysis: string, result: unknown): Promise<vo
 export async function sendCards(cards: SandboxCard[]): Promise<void> {
   try {
     let first: unknown;
-    for (const card of cards) first ??= await api(`${grid}/cards`, "POST", card);
+    // Each card is sent; the first is the one Show goes to. (`first ??= await api(...)` sent only the
+    // note: ??= does not run its right side once `first` is set, so the chart never arrived.)
+    for (const card of cards) {
+      const made = await api(`${grid}/cards`, "POST", card);
+      first ??= made;
+    }
     sentToast(`In the Sandbox: ${cards.length === 1 ? "a note" : "a note and its chart"}.`, first);
   } catch (e) {
     toast((e as Error).message, "error");

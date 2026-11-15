@@ -290,7 +290,7 @@ class ConnectionService:
                 else None
             )
             again = python_connections.read_call(blade.name, place["schema"], place["table"])
-            dataset = rules.dataset_name(place["table"])
+            dataset = self._grid_name(rules.dataset_name(place["table"]), blade.name)
             stored = await self._tables.store(dataset, table, who, opened, blade.name, code=again)
             return stored | {"shown": shown, "total": total}
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
@@ -315,6 +315,7 @@ class ConnectionService:
             dataset = powerbi.grid_name(within, place["table"], await self._shared(blade.name))
         else:
             dataset = rules.dataset_name(place["table"])
+        dataset = self._grid_name(dataset, blade.name)
         origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sab.dax(origin, sql)
         # The table came whole: the notebook reads it whole again (no LIMIT), so a run next month, with
         # more rows than Rows to open, is not cut without a word. A table that was cut keeps its LIMIT,
@@ -323,6 +324,11 @@ class ConnectionService:
         again = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], None)
         stored = await self._tables.store(dataset, table, who, opened, origin, again if whole else sql, dax)
         return stored | {"shown": shown, "total": total}
+
+    def _grid_name(self, name: str, connection: str) -> str:
+        """Its own name, or the connection's before it when that name is open from elsewhere."""
+        opened_from = self._tables.opened_from(name) if self._tables is not None else None
+        return rules.table_grid_name(name, connection, opened_from)
 
     async def _shared(self, name: str) -> set[str]:
         return set() if self._catalogs is None else await self._catalogs.shared_tables(name)
@@ -471,6 +477,11 @@ class Tables(Protocol):
     ) -> dict[str, Any]: ...
 
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]: ...
+
+    def opened_from(self, name: str) -> str | None:
+        """Where the open table of this name came from: its connection ("" when not a connection's;
+        None when no table of that name is open)."""
+        ...
 
     async def sheets(self, path: str) -> list[str]: ...
 

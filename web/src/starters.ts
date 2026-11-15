@@ -124,7 +124,10 @@ function likely(placeholder: Placeholder, columns: string[], taken: string[]): s
     const match = columns.find((c) => found.test(c) && !taken.includes(c)) ?? columns.find((c) => found.test(c));
     if (match) return match;
   }
-  return columns.find((c) => !taken.includes(c)) ?? columns[0] ?? placeholder.default;
+  // No hint fits: the first column not taken that is not an identifier (a filter on order_id, a total of
+  // customer_id mean nothing; the test bed's invoices start with three of them).
+  const identifier = /(^|_)id$|[a-z]Id$|ID$/;
+  return columns.find((c) => !taken.includes(c) && !identifier.test(c)) ?? columns.find((c) => !taken.includes(c)) ?? columns[0] ?? placeholder.default;
 }
 
 /** A snippet's form; Insert gives its filled text (null: closed without inserting). With no

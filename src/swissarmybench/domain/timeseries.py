@@ -75,7 +75,8 @@ def bucket_sql(column: str, period: str) -> str:
 def series_query(
     relation: str, date_column: str, period: str, total: str, metric: str | None, split: str | None
 ) -> str:
-    """(period, [split value,] total, rows) per period, in order."""
+    """(period, split value or NULL, total, rows) per period, in order; without a split, also each
+    period's last day with a row (partial_last)."""
     value = "count(*)" if total == "count" else f"{total}(CAST({quote(metric or '')} AS DOUBLE))"
     keep = f"{quote(date_column)} IS NOT NULL" + (
         f" AND isfinite(CAST({quote(metric)} AS DOUBLE))" if metric and total != "count" else ""
@@ -88,8 +89,9 @@ def series_query(
             f"SELECT {bucket_sql(date_column, period)}, {g}, {value}, count(*) FROM {relation} "
             f"WHERE {keep} AND {g} IN (SELECT s FROM top) GROUP BY 1, 2 ORDER BY 2, 1"
         )
+    last_day = f"max(CAST(CAST({quote(date_column)} AS TIMESTAMP) AS DATE))"
     return (
-        f"SELECT {bucket_sql(date_column, period)}, NULL, {value}, count(*) FROM {relation} "
+        f"SELECT {bucket_sql(date_column, period)}, NULL, {value}, count(*), {last_day} FROM {relation} "
         f"WHERE {keep} GROUP BY 1 ORDER BY 1 LIMIT {MAX_PERIODS + 1}"
     )
 
@@ -103,6 +105,22 @@ def step_period(day: date, period: str, steps: int = 1) -> date:
     months = {"month": 1, "quarter": 3, "year": 12}[period] * steps
     index = day.year * 12 + day.month - 1 + months
     return date(index // 12, index % 12 + 1, 1)
+
+
+def partial_last(starts: list[date], last_days: list[date], period: str) -> bool:
+    """Whether the last period is not over yet: its rows stop early in it (on the 1st of a month)
+    while the periods before it typically run past their middle, as a table read in the middle of a
+    month does. A table of one row on each period's first day (a budget) is never partial, nor is a
+    day; four periods at least, to say what is typical."""
+    if period == "day" or len(starts) < 4:
+        return False
+
+    def share(start: date, last: date) -> float:
+        return (last - start).days / (step_period(start, period) - start).days
+
+    earlier = sorted(share(s, d) for s, d in zip(starts[:-1], last_days[:-1], strict=True))
+    typical = earlier[len(earlier) // 2]
+    return typical >= 0.5 and share(starts[-1], last_days[-1]) < typical / 2
 
 
 def complete(points: list[tuple[date, float]], period: str) -> tuple[list[date], list[float | None]]:

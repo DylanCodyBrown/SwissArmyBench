@@ -37,6 +37,21 @@ def test_the_chi_square_p_value_matches_known_values(statistic: float, df: int, 
     assert A.chi_square_p(statistic, df) == pytest.approx(p, rel=1e-9)
 
 
+def test_a_number_in_the_words_is_never_written_in_e_notation() -> None:
+    """The test bed's use case 9: a forecast said "about 7.377e+04 amount (between 3.043e+04 and
+    117,105)": numbers from 10,000 to 99,999 came out in e notation, the ones above them did not."""
+    assert [A.short_number(v) for v in (73_771.2, 30_430.4, 117_105.3, 9_876.54, 12.345, 0.35, 1250.0)] == [
+        "73,771",
+        "30,430",
+        "117,105",
+        "9,877",
+        "12.35",
+        "0.35",
+        "1,250",
+    ]
+    assert "e" not in A.short_number(-45_678.9)
+
+
 def test_benford_shares_add_up_and_start_with_thirty_percent_ones() -> None:
     one, two = A.benford_shares(1), A.benford_shares(2)
     assert sum(one.values()) == pytest.approx(1.0) and sum(two.values()) == pytest.approx(1.0)

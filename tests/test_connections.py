@@ -18,6 +18,7 @@ from swissarmybench.domain.connections import (
     name_from_path,
     opens_in_code,
     picker,
+    table_grid_name,
 )
 from tests.conftest import AGENT, AUTH
 from tests.fake_keyring import memory_keyring
@@ -579,6 +580,49 @@ def test_a_database_table_opens_as_a_grid_its_first_rows_then_all(client: TestCl
     preview = client.post("/connections/Shop/preview", json={"table": "orders"}, headers=AUTH).json()
     assert preview["columns"] == ["order_id", "region", "ordered"] and len(preview["rows"]) == 30
     assert client.post("/connections/Shop/open", json={}, headers=AUTH).status_code == 400  # name it
+
+
+def test_a_table_open_from_elsewhere_is_not_replaced_by_one_of_the_same_name() -> None:
+    """The test bed's use case 6: customers from PostgreSQL, then customers from MariaDB. The second
+    took the first one's name and replaced its rows under its grid without a word."""
+    assert table_grid_name("customers", "Warehouse", None) == "customers"  # none open
+    assert table_grid_name("customers", "Warehouse", "Warehouse") == "customers"  # its own: again
+    assert table_grid_name("customers", "Warehouse", "Shop") == "Warehouse_customers"
+    assert table_grid_name("customers", "Warehouse", "") == "Warehouse_customers"  # a file, Python
+    assert table_grid_name("Date", "Finance", "Finance/Sales model") == "Date"  # the same workspace
+    assert table_grid_name("orders", "Order book", "Shop") == "Order_book_orders"
+
+
+def test_a_same_named_table_from_another_connection_opens_beside_the_first(
+    client: TestClient, tmp_path: Path
+) -> None:
+    for name in ("shop", "warehouse"):
+        with sqlite3.connect(tmp_path / f"{name}.sqlite") as made_up:
+            made_up.execute("CREATE TABLE customers (customer_id INTEGER, town TEXT)")
+            made_up.execute("INSERT INTO customers VALUES (1, ?)", (f"{name} town",))
+            invoices = "Invoices" if name == "warehouse" else "invoices"
+            made_up.execute(f"CREATE TABLE {invoices} (n INTEGER)")
+            made_up.execute(f"INSERT INTO {invoices} VALUES (1)")  # noqa: S608 (a made-up table name)
+    shop = sqlite_connection(tmp_path / "shop.sqlite")
+    warehouse = sqlite_connection(tmp_path / "warehouse.sqlite") | {"name": "Warehouse"}
+    for body in (shop, warehouse):
+        assert client.post("/connections", json=body, headers=AUTH).status_code == 200
+    first = client.post("/connections/Shop/open", json={"table": "customers"}, headers=AUTH).json()
+    second = client.post("/connections/Warehouse/open", json={"table": "customers"}, headers=AGENT).json()
+    again = client.post("/connections/Warehouse/open", json={"table": "customers"}, headers=AUTH).json()
+    assert (first["dataset"], second["dataset"], again["dataset"]) == (
+        "customers",
+        "Warehouse_customers",
+        "Warehouse_customers",
+    )
+    rows = client.get(f"/grids/{first['grid']}/rows?start=0&end=5", headers=AUTH).json()
+    assert "shop town" in str(rows)  # the first grid still shows its own rows
+    # Names that differ only in case are one table to DuckDB: Invoices (a Power BI dataset's, in the
+    # test bed) and invoices (PostgreSQL's) once refused the second.
+    upper = client.post("/connections/Warehouse/open", json={"table": "Invoices"}, headers=AUTH).json()
+    lower = client.post("/connections/Shop/open", json={"table": "invoices"}, headers=AUTH)
+    assert lower.status_code == 200, lower.text
+    assert (upper["dataset"], lower.json()["dataset"]) == ("Invoices", "Shop_invoices")
 
 
 def test_a_file_connection_and_a_folders_file_open_as_grids(client: TestClient, tmp_path: Path) -> None:
