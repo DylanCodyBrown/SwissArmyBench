@@ -108,6 +108,12 @@ class Kernel:
         self._warm: asyncio.Task[Any] | None = None
 
     async def ready(self) -> None:
+        # No limit on the messages waiting to be read here. ZeroMQ's own (1,000) made the kernel drop
+        # output without a word when this server was slow to read it: 6,000 quick prints on a busy
+        # computer arrived with lines missing from their middle.
+        import zmq
+
+        self.client.context.setsockopt(zmq.RCVHWM, 0)
         self.client.start_channels()
         try:
             await self.client.wait_for_ready(timeout=_START_SECONDS)
