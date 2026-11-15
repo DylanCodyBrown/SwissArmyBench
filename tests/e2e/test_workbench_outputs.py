@@ -1,6 +1,6 @@
 # ruff: noqa: F811
 """The Workbench's usability fixes (the usability test, 2026-11-14): a new notebook has the cursor in its
-first cell, its console is a title bar until it is used, and a table result opens as a grid from beside
+first cell, its console is closed until it is wanted, and a table result opens as a grid from beside
 it. Made-up data only."""
 
 from __future__ import annotations
@@ -11,21 +11,21 @@ from typing import Any
 from playwright.sync_api import Browser, expect
 
 from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
-from tests.e2e.test_workbench_page import open_workbench
+from tests.e2e.test_workbench_page import open_workbench, start, status
 
 
 def test_a_new_notebook_types_at_once_and_a_table_result_opens_as_a_grid(
     browser: Browser, orders_url: str, server: dict[str, Any]
 ) -> None:
     workbench = open_workbench(open_grid(browser, orders_url))
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     cell = workbench.locator(".wb-cell").first
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
     # No click first: the cursor is in the first cell.
     expect(cell.locator(".monaco-editor.focused")).to_be_visible(timeout=10000)
-    # The console is its title bar: the cells have the column.
+    # The console is closed (the redesign of 2026-11-15): the cells have the column.
     panes = workbench.locator(".wb-panes")
-    expect(panes).to_have_class(re.compile("console-compact"))
+    expect(panes).to_have_class(re.compile("no-console"))
     expect(workbench.locator(".wb-console-log")).to_be_hidden()
 
     frame = "{'city': ['Springfield', 'Riverton'], 'rain_mm': [3.5, 0.0]}"
@@ -48,9 +48,9 @@ def test_a_new_notebook_types_at_once_and_a_table_result_opens_as_a_grid(
     rows = {d["name"]: d["rows"] for d in call(server, "GET", "/datasets")["datasets"]}
     assert rows["rainfall"] == 2 and rows["out_2"] == 8  # describe() did not replace the table
 
-    # A click on the console's bar opens it at its size, and it stays open for this notebook.
-    workbench.locator(".wb-console-head").click()
+    # The status bar's Console opens it at its size.
+    status(workbench, "Console")
     expect(workbench.locator(".wb-console-log")).to_be_visible()
-    expect(panes).not_to_have_class(re.compile("console-compact"))
+    expect(panes).not_to_have_class(re.compile("no-console"))
     for name in ("rainfall", "out_2"):
         call(server, "DELETE", f"/datasets/{name}")

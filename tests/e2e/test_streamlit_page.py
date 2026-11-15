@@ -28,6 +28,7 @@ from playwright.sync_api import Browser, FrameLocator, Locator, Page, expect
 from swissarmygrid.client import push_client
 from tests.e2e.test_table_cells_page import close_tables, open_workbench, type_cell, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_workbench_page import add_cell, menu
 from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
@@ -90,7 +91,7 @@ def notebook_with_python(server: dict[str, Any], path: Path, python: str | None)
 
 
 def add_piece(workbench: Page, index: int, code: str) -> Locator:
-    workbench.locator(".wb-toolbar").get_by_role("button", name="Streamlit", exact=True).click()
+    add_cell(workbench, "Streamlit")
     cell = workbench.locator(".wb-cell").nth(index)
     expect(cell).to_have_class(re.compile("kind-streamlit"))
     type_cell(workbench, index, code)
@@ -241,7 +242,7 @@ def test_pieces_live_in_their_cells_assembled_on_a_page_and_exported(
     # ----- export as Streamlit app, into a folder picked with the file chooser
     target = tmp_path / "exported"
     target.mkdir()
-    workbench.get_by_role("button", name="Streamlit app").click()
+    menu(workbench, "Document menu", "Streamlit app…")
     workbench.get_by_role("menuitem", name="Export as Streamlit app…").click()
     folder = workbench.locator(".file-chooser input[aria-label=Folder]")
     folder.fill(str(target))
@@ -343,7 +344,7 @@ def test_a_python_without_streamlit_says_so_with_install(
     assert state["running"] is False and state["problem"]["kind"] == "missing"
     assert "streamlit" in state["problem"]["packages"]
     # The kind picker, the palette and the command-mode key all make a Streamlit cell.
-    workbench.locator(".wb-toolbar").get_by_role("button", name="Python", exact=True).click()
+    add_cell(workbench, "Python")
     plain = workbench.locator(".wb-cell").nth(2)
     expect(plain.locator("select[aria-label='Cell kind'] option")).to_have_text(
         ["Python", "SQL", "DAX", "HTML", "Streamlit", "Markdown"]

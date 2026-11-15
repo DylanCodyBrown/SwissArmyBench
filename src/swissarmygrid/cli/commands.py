@@ -2442,8 +2442,9 @@ def agent_inbox(a: dict[str, Any]) -> Any:
 @command(
     "workbench_window",
     "Do what the user does in the open Workbench window: any command of its palette (Ctrl+Shift+P). "
-    'command "documents" says what is open; "commands" lists every command and its args; e.g. '
-    '"cell.insertBelow" {"kind": "code", "source": "..."}, "run.cell", "view.focus", "doc.show"',
+    'command "documents" says what is open (its tab groups too); "commands" lists every command and its '
+    'args; e.g. "cell.insertBelow" {"kind": "code", "source": "..."}, "run.cell", "view.focus", "doc.show", '
+    '"group.splitRight", "group.moveTab" {"group": 1}, "data.goToTable" {"table": "orders"}',
     req("command", 'A command\'s id, such as "documents", "commands", "run.statement" or "cell.delete".'),
     opt("args", 'The command\'s arguments, as an object (see "commands").', "json"),
 )

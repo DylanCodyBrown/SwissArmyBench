@@ -154,6 +154,7 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
   let root: Node<T> = { group: makeGroup() };
   let focused = (root as { group: Group<T> }).group;
   let reported: T | null | undefined;
+  let reportedGroup: Group<T> | null = null;
 
   // ----- the tree
 
@@ -230,7 +231,7 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
         host.close(tab);
       }, { icon: "close", iconOnly: true, class: "tab-close" });
       close.addEventListener("pointerdown", (e) => e.stopPropagation());
-      el = h("div", { class: "tab-item wb-tab", role: "tab" }, h("span", { class: "wb-tab-icon" }), h("span", { class: "wb-tab-dirty", "aria-hidden": "true" }), h("span", { class: "tab-label" }), close);
+      el = h("div", { class: "tab-item wb-tab", role: "tab" }, h("span", { class: "wb-tab-icon" }), h("span", { class: "wb-tab-dirty", title: "Unsaved changes" }), h("span", { class: "tab-label" }), close);
       el.addEventListener("pointerdown", (e) => press(tab, e));
       el.addEventListener("auxclick", (e) => {
         if (e.button === 1) host.close(tab);
@@ -254,7 +255,8 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
       iconHost.setAttribute("data-icon", kind?.icon ?? "");
       iconHost.replaceChildren(icon(kind?.icon ?? "code"));
     }
-    el.querySelector(".wb-tab-dirty")!.toggleAttribute("hidden", !tab.dirty);
+    // The unsaved dot: a character, so the tab's text says it too ("● analysis.ipynb").
+    el.querySelector(".wb-tab-dirty")!.textContent = tab.dirty ? "●" : "";
     el.classList.toggle("dirty", tab.dirty);
     el.querySelector(".tab-label")!.textContent = tab.title;
     const close = el.querySelector(".tab-close") as HTMLButtonElement;
@@ -348,10 +350,12 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
 
   // ----- focus
 
+  /** Tell the page when the focused group or its tab changed (the controls follow both). */
   function report(): void {
     const tab = focused.active;
-    if (tab === reported) return;
+    if (tab === reported && focused === reportedGroup) return;
     reported = tab;
+    reportedGroup = focused;
     host.focused(tab);
   }
 

@@ -534,21 +534,21 @@ const groups = mountGroups<Doc>({
   kindOf,
   focused,
   close: (doc) => close(doc),
-  plus: (anchor) => void openMenu(anchor, "New tab", newEntries()),
+  plus: (anchor) => void openMenu(anchor, "New tab", newEntries(anchor)),
   changed: () => remember(),
 });
 const empty = h("div", { class: "wb-welcome wb-empty", hidden: true });
 layout.source.append(groups.element, empty);
 
 /** What a group's "+" and the top bar's "…" make: each kind that starts from there, then Open and Recent. */
-function newEntries(): MenuEntry[] {
+function newEntries(anchor: HTMLElement): MenuEntry[] {
   return [
     ...tabKinds()
       .filter((k) => k.start)
       .map((k) => ({ label: k.start!.label, icon: k.icon, run: k.start!.run })),
     null,
     { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
-    { label: "Recent…", icon: "more", run: () => recentMenu(document.activeElement instanceof HTMLElement && document.activeElement.closest(".wb-gstrip, .wb-top") ? document.activeElement : top) },
+    { label: "Recent…", icon: "more", run: () => recentMenu(anchor) },
   ];
 }
 
@@ -730,7 +730,7 @@ function drawTop(): void {
 function topEntries(): MenuEntry[] {
   const folded = data.collapsed();
   return [
-    ...newEntries(),
+    ...newEntries(topMenu),
     null,
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
     { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },

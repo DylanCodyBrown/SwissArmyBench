@@ -5102,13 +5102,12 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
 
 .wb-tab-dirty {
   flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--fg);
+  color: var(--fg);
+  font-size: 0.75em;
+  line-height: 1;
 }
 
-.wb-tab-dirty[hidden] {
+.wb-tab-dirty:empty {
   display: none;
 }
 
@@ -5167,8 +5166,14 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   color: var(--muted);
 }
 
+/* A document in a narrower group follows its width: a cell's editor is not held at the width it was
+   made at (a grid track sizes to its content unless told not to). */
+.wb-gbody .wb-cells {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 /* A narrow group: the controls keep their icons, the tabs come closer. */
-@container (max-width: 640px) {
+@container (max-width: 480px) {
   .wb-gcontrols .btn .btn-label {
     display: none;
   }

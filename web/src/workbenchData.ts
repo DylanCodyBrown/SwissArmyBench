@@ -105,7 +105,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
   let files: ProjectFiles | null = null;
 
   const tableList = h("ul", { class: "wb-data-list", "aria-label": "Tables" });
-  const bladeList = h("ul", { class: "wb-data-list", "aria-label": "Variables" });
+  const bladeList = h("ul", { class: "wb-data-list", "aria-label": "Blade variables" });
   const addTable = button("Table", (e) => host.addTable(e.currentTarget as HTMLElement), { icon: "plus", class: "ghost wb-data-add", title: "Add a table" });
   addTable.setAttribute("aria-label", "Add a table");
   addTable.setAttribute("aria-haspopup", "menu");
@@ -125,7 +125,8 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     "div",
     { class: "wb-data-body" },
     h("section", { class: "wb-data-section", "aria-labelledby": "wb-data-tables" }, h("h3", {}, h("span", { id: "wb-data-tables" }, "Tables"), addTable), tableList),
-    h("section", { class: "wb-data-section", "aria-labelledby": "wb-data-variables" }, h("h3", {}, h("span", { id: "wb-data-variables" }, "Variables"), addBlade), bladeList),
+    // Named apart from the Variables pane (what the kernel holds): these are the blades' values.
+    h("section", { class: "wb-data-section", "aria-label": "Blade variables" }, h("h3", {}, h("span", {}, "Variables"), addBlade), bladeList),
     filesSection,
   );
 

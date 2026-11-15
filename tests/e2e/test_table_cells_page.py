@@ -15,6 +15,7 @@ from playwright.sync_api import Browser, Page, expect
 
 from swissarmygrid.domain import notebooks
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_workbench_page import add_cell, start
 
 SALES = "sales = pd.DataFrame({'store': ['North', 'South', 'East', 'West'], 'amount': [10, 20, 30, 40]})"
 OVER_15 = [{"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 15}}]
@@ -71,7 +72,7 @@ def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
 ) -> None:
     close_tables(server)
     workbench = open_workbench(browser, server)
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     type_cell(workbench, 0, "import pandas as pd")
     workbench.keyboard.press("Shift+Enter")
     type_cell(workbench, 1, SALES)
@@ -170,7 +171,7 @@ def test_the_uses_line_follows_the_typing_and_a_cell_link_goes_to_its_cell(
 ) -> None:
     close_tables(server)
     workbench = open_workbench(browser, server)
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     type_cell(workbench, 0, "import pandas as pd\n" + SALES)
     workbench.keyboard.press("Shift+Enter")
     expect(workbench.locator(".wb-cell").first.locator(".wb-count")).to_have_text("[1]", timeout=60000)
@@ -227,7 +228,7 @@ def test_the_uses_line_follows_the_typing_and_a_cell_link_goes_to_its_cell(
     assert window(server, "cell.goTo", number=2) == {"cell": 2}
     expect(user).to_have_class(re.compile(r"\bselected\b"))
     # A SQL cell gets the line in SQL's own comment.
-    workbench.get_by_role("button", name="SQL", exact=True).click()
+    add_cell(workbench, "SQL")
     sql = workbench.locator(".wb-cell").last
     expect(sql.locator(".monaco-editor")).to_be_visible(timeout=20000)
     sql.locator(".monaco-editor").click()
@@ -241,7 +242,7 @@ def test_a_maker_that_needs_something_further_down_stays_put_with_a_link(
 ) -> None:
     close_tables(server)
     workbench = open_workbench(browser, server)
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     type_cell(
         workbench,
         0,
@@ -317,7 +318,7 @@ def test_a_saved_notebook_opens_folded_runs_top_to_bottom_and_keeps_its_numbers(
     assert call(server, "GET", f"/grids/{grid}/count")["row_count"] == 3
     # A new cell gets a number never used before (the file says 9 comes next), and saving keeps them.
     workbench.locator(".wb-cell").last.click()
-    workbench.get_by_role("button", name="Python", exact=True).click()
+    add_cell(workbench, "Python")
     expect(workbench.locator(".wb-cell").last.locator(".wb-number")).to_have_text("#9")
     with workbench.expect_response(lambda r: "/workbench/save" in r.url, timeout=20000):
         workbench.keyboard.press("Control+s")

@@ -57,6 +57,7 @@ export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[
         role: "menuitem",
         disabled: entry.disabled,
         title: entry.title,
+        "aria-keyshortcuts": entry.keys,
         onclick: () => {
           closeMenu();
           anchor.setAttribute("aria-expanded", "false");
@@ -65,7 +66,8 @@ export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[
       },
       entry.icon ? icon(entry.icon) : h("span", { class: "wb-menu-gap", "aria-hidden": "true" }),
       h("span", { class: "wb-menu-text" }, entry.label),
-      entry.keys ? h("kbd", {}, entry.keys) : null,
+      // The keys are seen, not read into the entry's name (aria-keyshortcuts carries them).
+      entry.keys ? h("kbd", { "aria-hidden": "true" }, entry.keys) : null,
     );
     menu.append(item);
   }
