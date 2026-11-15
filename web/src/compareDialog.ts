@@ -18,6 +18,7 @@
 import { api } from "./api";
 import { button, clear, formatCount, h, icon, openDialog, toast } from "./dom";
 import { currentCompare, startCompare } from "./compare";
+import { pct } from "./keyFinder";
 import type { Context } from "./panes";
 import { isKnownPair, knownPairs, loadRelationships } from "./relationships";
 
@@ -30,8 +31,6 @@ interface Pair {
   relationship: string;
   score: number;
 }
-
-const pct = (share: number): string => `${(Math.round(share * 1000) / 10).toLocaleString()}%`;
 
 export function openCompareDialog(left: Context, right: Context): void {
   const { body, foot, close } = openDialog(`Compare ${left.dataset} with ${right.dataset}`, true);

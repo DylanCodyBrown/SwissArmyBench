@@ -87,7 +87,7 @@ export function openKeyFinderWindow(): void {
   else win.focus();
 }
 
-const pct = (share: number): string => `${(Math.round(share * 1000) / 10).toLocaleString()}%`;
+export const pct = (share: number): string => `${(Math.round(share * 1000) / 10).toLocaleString()}%`;
 
 /** The Key Finder's pairs as a Sandbox note: which columns share values, and how much of each side. */
 function keyFinderCards(result: Result): SandboxCard[] {
