@@ -677,6 +677,18 @@ IDE hands Claude the open file. It prints nothing when no server is running.
 Build the one wheel (the page inside it) with `python build.py`; `python build.py --vsix`
 packages the VS Code extension around it too.
 
+## Beta mode: the beta log and notes
+
+During the beta, Swiss Army Bench keeps a **beta log** in `~/.swissarmybench/logs`: server errors with
+their stacks, slow requests, kernel, Streamlit, blade and catalog processes, page errors, and the notes
+you leave by right-clicking anything and choosing **Leave a note…**. It holds no cell values, SQL, code,
+secrets or full paths; table and column names are aliases (`table#1`, `col#3`). A note's picture is
+there only when you tick "Attach a picture of this window".
+
+**Settings, Beta, Export beta log…** writes one zip: **send this zip to Claude.** **Beta mode** turns the
+log and the notes off or on (kept across restarts; `SWISSARMYBENCH_BETA=0` or `1` wins). The agent reads
+the same redacted log with `app_beta_log` and `app_beta_notes`.
+
 ## Iterate on the page
 
 ```powershell

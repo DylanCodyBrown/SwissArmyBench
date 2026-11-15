@@ -430,6 +430,21 @@ A connected agent sees everything the page shows: every table, its rows and colu
 
 Settings lists the agent's activity: what it asked for, newest first. It never includes cell values.
 
+## Beta notes and the log
+
+While **beta mode** is on (a **Beta** mark sits in the status bar), Swiss Army Bench keeps a beta log on
+your computer: errors and their stacks, slow requests, the kernels' and Streamlit's starts and crashes,
+page errors, and your notes. No cell values, SQL, code, passwords or full paths go in it; tables and
+columns appear as `table#1`, `col#3`.
+
+- **Leave a note:** right-click anything (a button, a cell, a tab, a block, a code editor) and choose
+  **Leave a note…**. Say what is wrong and Save. The note keeps what you clicked and what you did just
+  before. **Attach a picture of this window** is off: tick it only if the picture may show your data.
+- **Send it:** Settings, Beta, **Export beta log…** (or the Workbench's "…", or the Beta mark's menu)
+  saves one zip: **send this zip to Claude.**
+- **Beta mode** in Settings turns the log and the notes off or on, at once; it stays as you set it.
+  **Clear the log** removes the log, notes and pictures. Text boxes keep their own right-click menu.
+
 ## Blades and the catalog
 
 **Blades and catalog** in the Application row opens the blades page in a tab of its own, so it can sit on another screen.

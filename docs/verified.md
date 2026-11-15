@@ -1185,3 +1185,16 @@ environment with Streamlit 1.67.0 and pandas (SWISSARMYBENCH_STREAMLIT_PYTHON).
   caught. Two changes: the watcher no longer gives up on a table after one refused send (any error but
   too large or an unreadable type is tried again, up to 5 times, then said once; tests/test_watch.py has
   both cases), and the test waits up to 60 seconds on a busy machine.
+
+## Beta log (2026-11-15)
+
+- Starlette 1.9's router puts the matched route on the request's scope (`scope["route"]`, its `.path` the
+  pattern `/grids/{grid_id}/rows`) on the same dict a pure ASGI middleware passed down: the beta log
+  reads the pattern there, never the URL.
+- jupyter_client 8: `manager.provisioner.process.returncode` is a dead kernel's exit code (`os._exit(3)`
+  reads 3); tests/test_cli.py checks it.
+- Monaco 0.57: `editor.addAction({precondition: "key"})` with a key from `editor.createContextKey` hides the
+  context menu entry while the key is false (not only greys it); setting the key in `onMouseDown` on the
+  right button is in time for the menu that follows. The menu ignores a click right as it opens (the
+  browser test waits 400 ms, as the Send to the agent test does).
+- html-to-image's `toPng(document.body, {filter})` leaves the note's own dialog out of the picture by node.

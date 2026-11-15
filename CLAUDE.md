@@ -56,7 +56,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   notes go in [docs/ideas.md](docs/ideas.md).
 - **Data is sensitive.** Use only made-up data in tests, examples and screenshots. Keep the
   posture: 127.0.0.1 only, token on every data route, DuckDB locked (`adapters/database.py`),
-  nothing written to disk except explicit exports, saved dashboards, and the audit log.
+  nothing written to disk except explicit exports, saved dashboards, the audit log and, in beta mode,
+  the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
+  the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
 
 ## Layout
 
@@ -147,6 +149,8 @@ src/swissarmybench/
     packs.py             a pack (a Claude Code plugin with blades/ and tangs/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
+    beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
+                         secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -175,6 +179,7 @@ src/swissarmybench/
                          a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
+    beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     streamlit.py         Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
@@ -202,6 +207,7 @@ src/swissarmybench/
     codegen.py           runs copied code and compares it with the grid
     export.py            CSV, Excel and Parquet writers; the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
+    beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     live_updates.py      the pages' and VS Code windows' sockets
@@ -219,6 +225,7 @@ src/swissarmybench/
                          panels). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
+    beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
