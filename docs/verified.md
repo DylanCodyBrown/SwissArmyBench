@@ -60,6 +60,9 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   work on it; re-import shows the removed operation, writes, and keeps the variables' sources; a file not
   made by Add API and a connection of that name not its own are refused (409). No answer, file or the state
   folder holds the key. The browser test adds one from a file and one from the form (the AWS preset).
+- **The whole suite** with Chromium and the Streamlit Python: 2,677 passed, 9 skipped, 1 failed (the
+  check that no file outside server/ names the browser module: the made file's OAuth code did; fixed, it
+  passes with Add API's tests). `ruff`, `mypy`, `npm run typecheck` and `npm run build` clean.
 - **Not checked:** Windows paths in Connect (the path goes in as a JSON-quoted literal, which Python reads
   the same); a real browser window for OAuth's authorization code; the keyring holding a refresh token on a
   real desktop.
