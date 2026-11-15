@@ -1803,3 +1803,22 @@ holds the user's own files, and recent files point into it): it stays the folder
 `~/SwissArmyBench`. Machine-facing names that cannot hold a space (the keyring service, the Windows mutex,
 that folder) are `SwissArmyBench`. The release notes of 1.0.0 to 1.6.0 are history and keep the old name.
 The installers remove the old `swissarmygrid` uv tool first, since the new one brings the old commands.
+
+## A desktop app for Windows (2026-11-15, parked on the owner's call)
+
+Asked: "is there a better way to deliver this app than the way we are. Like could it be packaged into a .exe and
+feel more like a legitimate windows app?" The owner's answer: "No keep the UV installer as is for now."
+
+Kept here in case it comes back:
+- **Not a frozen .exe** (PyInstaller, Nuitka). The app starts real Python processes: blades (`python -I`),
+  Jupyter kernels, each notebook's own environment made with uv, and Streamlit in the notebook's Python.
+  A frozen exe has no Python to start.
+- **An installer that brings its own Python instead:** the standalone Python builds uv uses, with the wheel
+  installed, in the app's folder.
+- **A native window shell:** pywebview, on Windows' own Edge engine (WebView2), the engine the browser tests
+  target. Workbench pop-outs become real windows. Electron would add about 150 MB for nothing.
+- **Install and update:** Velopack (a Setup.exe and updates in the background), or MSIX.
+- **Signing:** Azure Trusted Signing, so there is no SmartScreen warning.
+- **Windows touches:** a tray icon, file associations (.stapp.json, .blade.py), and `winget install`.
+- **Needs before starting:** the owner's approval of two new dependencies (pywebview, Velopack) and of signing
+  under a verified identity. A real Windows machine is needed to test dragging between two native windows.
