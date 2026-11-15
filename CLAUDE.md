@@ -35,7 +35,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
   added with a form; a Power BI workspace, its datasets read with DAX, a dataset's relationships
-  imported; a connection made of the user's own Python, its environment variables mapped), the SQL
+  imported; a connection made of the user's own Python, its environment variables mapped; Add API: an
+  OpenAPI document or a form made into API_<name>.py and its connection, every auth type), the SQL
   cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`, `sab.dax`), the
   Workbench (notebooks, scripts,
   completion, per-notebook environments), every table's read-only cell there (its transformations as
@@ -120,6 +121,12 @@ src/swissarmybench/
                          Read a table): the environment variables its code reads (found with ast), where
                          each comes from (environment, keyring, a vault's entry, a plain value), the
                          catalog's shape, what Read returned ((rows, total), the limit)
+    apis.py              Add API: an OpenAPI document (2.0, 3.x) or a form read into operations and tables, the
+                         auth types (their settings and variables), the Azure, AWS and Google presets, the
+                         connection's three boxes, what a re-import changes
+    api_clients.py       Add API's made file, API_<name>.py: one stdlib class (a method per operation, retries,
+                         paging, DataFrames, each auth type's signing), its mark, its methods read back, and
+                         the file pasted inline (the exporter)
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
@@ -190,6 +197,7 @@ src/swissarmybench/
                          browser-window sign-in), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
+    apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
                          a document moving to another window (handoffs: its state and its kernel)
@@ -230,6 +238,7 @@ src/swissarmybench/
     beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
+    apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
@@ -241,8 +250,8 @@ src/swissarmybench/
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, folders, workbench, table_cells, lineage, streamlit, projects,
-                         panels, controllers). Every route serves
+                         processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
+                         projects, panels, controllers). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -284,7 +293,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (246 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (248 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -307,6 +316,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (catalogPage.ts, static/catalog.html); bladeEditor.ts is the save screen;
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
                          connectionsWindow.ts is the Application row's Connections (a form per type);
+                         addApi.ts is its Add API (an OpenAPI document or endpoints, the sign-in, the preview);
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
@@ -356,7 +366,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          test_architecture.py (the layers, the depth, the plain client),
                          powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
                          workspace of three made-up datasets), orders_service.py (a made-up web service
-                         on 127.0.0.1, for a Python connection)
+                         on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
+                         orders service, every sign-in it takes stood in for)
 tools/                   screenshots.py, vscode_check.py
 plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)

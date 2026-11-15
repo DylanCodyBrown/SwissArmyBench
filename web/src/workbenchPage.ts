@@ -1298,6 +1298,13 @@ const data = mountDataPanel({
 (document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);
 paneReady = true;
 
+/** Add API: API_<name>.py beside data.py when a project is open (else in the Workbench's folder). */
+function addApi(): Promise<void> {
+  const data = docs.find(isData);
+  const folder = data?.path ? folderOf(data.path) : project?.folder;
+  return openConnections({ addApi: true, folder }).then(() => void rail.loadBlades());
+}
+
 /** "+ Table": a file, a connection's tables, the catalog's search, a new connection. */
 function tableEntries(): MenuEntry[] {
   const sources = [...connectionNames, ...workspaceNames];
@@ -1308,6 +1315,7 @@ function tableEntries(): MenuEntry[] {
     ...sources.map((name) => ({ label: name, icon: "sql", run: () => browse(name) })),
     { label: "Search the catalog…", icon: "zoom", run: () => browse() },
     { label: "Add connection…", icon: "plus", run: () => void openConnections().then(() => void rail.loadBlades()) },
+    { label: "Add API…", icon: "plus", run: () => void addApi() },
   ];
 }
 
@@ -1909,6 +1917,7 @@ const COMMANDS: Command[] = [
   { id: "data.blades", group: "Data", title: "Show the blades and connections", run: () => data.flyout("blades") },
   { id: "data.closeFlyout", group: "Data", title: "Close the catalog or the blades beside the Data panel", when: () => data.flyoutShown() !== null, whyNot: "neither is open", run: () => data.flyout(null) },
   { id: "data.addConnection", group: "Data", title: "Add connection…", run: () => openConnections().then(() => void rail.loadBlades()) },
+  { id: "data.addApi", group: "Data", title: "Add API…", run: () => addApi() },
   { id: "view.variablesRefresh", group: "View", title: "Read the variables again", when: isCode, whyNot: "no notebook or script is in front", run: () => variables.refresh().then(() => variables.snapshot()) },
   // Help
   { id: "help.atCursor", group: "Help", title: "Help on the name at the cursor", keys: "F1", when: isCode, whyNot: "no notebook or script is in front", run: () => showHelp() },

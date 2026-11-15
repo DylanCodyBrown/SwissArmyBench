@@ -31,6 +31,9 @@ what the connection's code makes:
                             as the connection's catalog names them)
     a table (DataFrame)     a blade that makes one: DuckDB, in this Python, the table under its
                             variable's name
+    your own Python         a connection made of it (an Add API one among them): DuckDB, in this
+                            Python, over the tables its List the tables names, each read by its Read a
+                            table the first time a cell names it
     a Power BI workspace    one of its datasets, named after the connection and a slash
                             (`Finance/Sales model`; a workspace with one dataset needs no name), in a
                             `%%dax` cell, which holds DAX, not SQL: `EVALUATE TOPN(10, 'Sales')`
@@ -95,6 +98,8 @@ class Connection:
     workbooks: dict[str, float] = field(default_factory=dict)  # a workbook's path -> when it was read
     sources: list[Path] = field(default_factory=list)
     language: str = "sql"  # "dax": a Power BI workspace's dataset
+    # A connection made of your own Python: each table's reader, run the first time a cell names it.
+    pending: dict[str, Any] = field(default_factory=dict)
 
 
 _connections: dict[str, Connection] = {}
@@ -270,6 +275,56 @@ def _open_tables(name: str, value: Any, variable: str) -> Connection:
     )
 
 
+def _open_python(label: str) -> Connection:
+    """A connection made of your own Python (an Add API one among them): DuckDB, here, over the tables
+    its List the tables names, each read whole by its Read a table box the first time a cell names it
+    (as `orders`, or `api.orders` with its schema)."""
+    try:
+        listed, read = blades_client.python_tables(label)
+    except ValueError as error:
+        raise SqlCellError(f"{error} A cell reads its tables through them.") from None
+    con = _duckdb().connect()
+
+    def reader(schema: str, table: str) -> Any:
+        def load() -> None:
+            con.register(table, _as_frame(read(schema, table)))
+            if schema and schema.lower() not in _RESERVED_SCHEMAS:
+                con.execute(f"CREATE SCHEMA IF NOT EXISTS {_quote(schema)}")
+                con.execute(
+                    f"CREATE OR REPLACE VIEW {_quote(schema)}.{_quote(table)} AS FROM {_quote(table)}"
+                )
+
+        return load
+
+    pending: dict[str, Any] = {}
+    for schema, table in listed:
+        pending.setdefault(table, reader(schema, table))
+    made = f"{label}'s tables, each read by its Read a table, in DuckDB here"
+    return Connection(label, "tables", con, made, pending=pending)
+
+
+def _as_frame(rows: Any) -> Any:
+    """What Read a table returned, as something DuckDB registers: a frame or an Arrow table as it is,
+    a list of dicts as a DataFrame (or an Arrow table, without pandas)."""
+    if isinstance(rows, tuple) and len(rows) == 2:
+        rows = rows[0]
+    if not isinstance(rows, list):
+        return rows
+    try:
+        import pandas as pd
+
+        return pd.DataFrame.from_records(rows)
+    except ImportError:
+        return import_module("pyarrow").Table.from_pylist(rows)
+
+
+def _load_named(found: Connection, sql: str) -> None:
+    """The tables of a connection made of your own Python that this SQL names, read now (once)."""
+    for table in list(found.pending):
+        if re.search(rf"(?<!\w){re.escape(table)}(?!\w)", sql, re.IGNORECASE):
+            found.pending.pop(table)()
+
+
 def _runs_sql(value: Any) -> bool:
     module = type(value).__module__
     return callable(getattr(value, "cursor", None)) or module.startswith(
@@ -320,6 +375,10 @@ def open_connection(name: str, fresh: bool = True) -> Connection:
     dax = record.get("dialect") == "dax"
     if dataset.strip() and not dax:
         raise SqlCellError(f"{label} is not a Power BI workspace: name it alone, as {label}.")
+    if record.get("connection") == "python":
+        found = _open_python(label)
+        _connections[found.name.casefold()] = found
+        return found
     value = None if fresh or not dax else _workspaces.get(label.casefold())
     if value is None:
         value = blades_client.blade(label)
@@ -366,6 +425,7 @@ def tables(found: Connection) -> list[str]:
     ).fetchall()
     # A registered DataFrame is a view too (temporary, in main).
     names = [t if s == "main" else f"{s}.{t}" for s, t in rows if not t.startswith("__sab_")]
+    names += list(found.pending)  # a Python connection's tables not read yet
     return list(dict.fromkeys(sorted(names, key=lambda n: ("." in n, n.lower()))))
 
 
@@ -459,6 +519,7 @@ def run(found: Connection, sql: str) -> Any:
     if found.kind == "database":
         return _run_database(found.target, text.rstrip(";") if text.count(";") == 1 else text)
     _refresh(found)
+    _load_named(found, text)
     return _duck_result(found.target.sql(text))
 
 

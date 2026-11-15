@@ -4529,6 +4529,77 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   white-space: nowrap;
 }
 
+/* ----- Add API (addApi.ts): the source, the sign-in, and what it would write */
+.add-api .field-row {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.add-api .field-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-api .segmented {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 6px;
+}
+
+.add-api-endpoint {
+  display: grid;
+  grid-template-columns: 7.5em minmax(10em, 2fr) minmax(8em, 1.5fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.add-api-endpoint .field-flag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.add-api-auth .connection-fields {
+  margin: 6px 0 0;
+}
+
+.add-api-operations {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.add-api-operations li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.add-api-operations li.removed {
+  text-decoration: line-through;
+}
+
+.add-api-method {
+  min-width: 4.5em;
+  font-weight: 600;
+}
+
+.add-api-file,
+.add-api-variables {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ===== THE WORKBENCH (workbench.html: workbenchPage.ts, workbenchNotebook.ts, workbenchScript.ts) =====
    The redesign of 2026-11-15 (docs/ideas.md): one row on top, the Data panel on the left, tab groups
    (workbenchGroups.ts) with one row of controls each, a status bar under them. */

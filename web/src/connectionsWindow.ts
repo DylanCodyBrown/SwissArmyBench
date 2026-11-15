@@ -24,6 +24,8 @@
  *   [PYTHON] "Python (your own code)", under Your own code: its own form (pythonConnectionForm.ts:
  *            three code boxes and the environment variables they read); its row's Test shows the first
  *            table's first rows under it
+ *   [API]    Add API (addApi.ts): an OpenAPI document or a form made into API_<name>.py and a Python
+ *            connection, then that connection's form (where each variable comes from)
  *   [VAULT]  a vault's form lists its secrets by name (never a value) as soon as it can be read (its
  *            address filled in, or opened to edit). Each becomes an environment variable: left empty,
  *            under the vault's own name (shown faintly); typed, under that name. Every secret (new ones
@@ -37,6 +39,7 @@
  *          [RELATIONSHIPS] POST /connections/{name}/relationships (a Power BI dataset's, merged)
  *          [INSTALL] POST /blades/install {packages}, then POST /blades/inspect (is it installed now?)
  */
+import { showAddApi } from "./addApi";
 import { api, errorText, onNotice } from "./api";
 import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
@@ -230,7 +233,7 @@ export function connectionsButton(): HTMLButtonElement {
   return button("Connections", () => void openConnections(), { icon: "link", class: "ribbon-btn" });
 }
 
-export async function openConnections(): Promise<void> {
+export async function openConnections(start: { addApi?: boolean; folder?: string } = {}): Promise<void> {
   const { body, foot, close } = openDialog("Connections", true);
   let drawing = 0;
   const showList = async (): Promise<void> => {
@@ -311,7 +314,7 @@ export async function openConnections(): Promise<void> {
           )
         : h("p", { class: "empty-note" }, "No connections"),
     );
-    foot.append(button("Add connection", () => void showTypes(), { icon: "plus", class: "primary" }), button("Close", close));
+    foot.append(button("Add connection", () => void showTypes(), { icon: "plus", class: "primary" }), button("Add API", () => showApi(), { icon: "plus" }), button("Close", close));
   };
 
   const testSaved = async (name: string, under?: HTMLElement): Promise<void> => {
@@ -877,5 +880,13 @@ export async function openConnections(): Promise<void> {
     readWhenReady(); // a vault opened to edit is read at once; a new one when its address is filled in
   };
 
-  await showList();
+  // ===== Add API (addApi.ts): an OpenAPI document or a form; then the connection's own form =====
+  const showApi = (): void => {
+    listShowing = null;
+    drawing++;
+    showAddApi({ body, foot, folder: start.folder, back: () => void showList(), added: (name) => void showForm({ edit: name }) });
+  };
+
+  if (start.addApi) showApi();
+  else await showList();
 }

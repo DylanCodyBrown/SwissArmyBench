@@ -20,9 +20,17 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from typing import Any
 
-from swissarmybench.adapters.blade_run import BladeRunError, read_table, run_code, run_vault, set_variables
+from swissarmybench.adapters.blade_run import (
+    BladeRunError,
+    list_tables,
+    read_table,
+    run_code,
+    run_vault,
+    set_variables,
+)
 from swissarmybench.client import standalone
 from swissarmybench.client.push_client import (
     ServerNotRunningError,
@@ -204,3 +212,31 @@ def read(connection: str, table: str, schema: str = "", limit: int | None = None
             raise ImportError(missing_module_hint(error.missing_module)) from None
         raise
     return rows
+
+
+def python_tables(connection: str) -> tuple[list[tuple[str, str]], Callable[[str, str], Any]]:
+    """A connection made of your own Python, connected once in this Python: the (schema, table) pairs
+    its List the tables names, and a reader that runs its Read a table for one of them (every row).
+    What a SQL cell on it reads (client/sql_cell.py)."""
+    spec = _spec(connection)
+    python = spec.get("python") or {}
+    label = str(spec["name"])
+    if not python.get("tables") or not python.get("read"):
+        raise ValueError(
+            f"{label} has no List the tables and Read a table boxes: fill them in its form (Connections)."
+        )
+    _, names = _made(spec)
+    columns, rows = list_tables(names, str(python["tables"]), spec["secrets"], label)
+    lowered = [c.strip().lower() for c in columns]
+    table_at = next(i for i, c in enumerate(lowered) if c in ("table", "table_name"))
+    schema_at = next((i for i, c in enumerate(lowered) if c in ("schema", "table_schema")), None)
+    found = [
+        ("" if schema_at is None or row[schema_at] is None else str(row[schema_at]), str(row[table_at]))
+        for row in rows
+    ]
+
+    def reader(schema: str, table: str) -> Any:
+        got, _ = read_table(names, str(python["read"]), schema, table, None, spec["secrets"], label)
+        return got
+
+    return list(dict.fromkeys(found)), reader
