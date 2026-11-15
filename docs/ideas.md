@@ -1075,3 +1075,32 @@ counts.
   `~/.swissarmygrid/recipes`.
 - `table_profile` takes `grid` as a named argument now (`sag table_profile --grid <id>`), since it can
   take `dataset` instead.
+
+## Power BI datasets, and a real-world test bed (2026-11-15, the owner's calls)
+
+The owner's work: notebooks scheduled and run in an Azure Function app; notebooks that make Excel
+invoices and CSVs; models built here and taken into Power BI dashboards. Decided:
+
+- **A "Power BI dataset" connection that reads** a dataset (semantic model) with DAX, through Power BI's
+  Execute Queries web request, signed in with Microsoft's `azure-identity` (browser sign-in, or a service
+  principal for unattended runs). Its catalog lists tables, columns and measures; Open as grid runs
+  `EVALUATE TOPN(<rows to open>, 'Table')`; a notebook's SQL cell on it holds DAX.
+- **It also reads the dataset's relationships** into the app's relationship model (the Diagram, the Key
+  Finder's known joins, tangs), so an existing Power BI model's joins arrive with its tables.
+- Not chosen: exporting the app's model as a Power BI project.
+- **The test bed stages what runs here:** real SQLite, DuckDB, PostgreSQL and MariaDB in the container,
+  and realistic made-up CSVs, workbooks, Parquet and JSON; cloud services (SQL Server, Azure Key Vault,
+  Power BI) are checked against local stand-ins. Made-up data only.
+- **Scheduling:** no export feature. The test bed proves a saved notebook runs top to bottom without
+  the app, with its passwords from environment variables, as an Azure Function would run it.
+- **Ten real-world use cases** to run end to end in a real browser, counting actions:
+  1. orders from a database, cleaned in the grid, the notebook saved;
+  2. that notebook run headless;
+  3. the same with passwords from environment variables;
+  4. Excel invoices, one workbook per customer from a template;
+  5. a daily CSV export;
+  6. a CSV folder, workbook sheets and a database table combined, joins found;
+  7. an existing Power BI dataset's tables and relationships read in;
+  8. a Power BI dataset tied out against its source database;
+  9. a forecast as a Sandbox report, printed to PDF;
+  10. a story notebook with HTML cells.
