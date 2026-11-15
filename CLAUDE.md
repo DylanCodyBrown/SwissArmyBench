@@ -49,7 +49,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start), the
   Analyze menu, the Sandbox, compare's diff and tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
-  (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells). Not built: M9 (sandbox)
+  (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
+  your own HTML and JavaScript as Streamlit pieces, four of them two-way). Not built: M9 (sandbox)
   and the Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
   notes go in [docs/ideas.md](docs/ideas.md).
