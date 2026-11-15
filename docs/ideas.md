@@ -1202,3 +1202,30 @@ streamlit cell in the notebook so I can build streamlit widgets/pages from the d
   layout, the data as Parquet, requirements.txt).
 - Streamlit runs from the notebook's own Python (installed with Install, like a driver); it is not a
   dependency of the app. Built after the Power BI connection, before the real-world test bed.
+
+## A starter pack of blades (2026-11-15, the owner's calls)
+
+"Can we preload a bunch of useful blades for calling the powerbi workspace like refresh dataset/dataflow,
+get refresh status, and other useful blades, as well as some excel and flat file based blades for
+manipulating excel files like add sheet, format, add border to cell, set cell values; some dax blades
+for dax manipulation cells, and some html blades for creating a wide variety of basic html objects from
+data and tables." Decided:
+
+- **A built-in starter pack** ("SwissArmyGrid starters") in every install's blade list, grouped by family:
+  Power BI, Excel, Files, DAX, HTML. Read-only; any one can be copied and changed as the user's own.
+  Updates arrive with new versions of the app.
+- **Power BI workspace actions:** refresh a dataset; refresh a dataflow; the refresh status (latest and
+  history); refresh and wait until done; list datasets, reports and dataflows; read and update a
+  dataset's parameters; take over a dataset; read the refresh schedule. They sign in through the user's
+  Power BI workspace connection (its vault sign-in), never their own copy of the secret.
+- **Excel and flat files** (openpyxl, already the app's): add a sheet, set cell values, write a table to
+  a sheet, borders, fonts and fills, number formats, autofit widths, freeze panes, merge cells,
+  conditional colours, a range as an Excel table, copy a template workbook; combine a folder of CSVs,
+  split a CSV by a column, change a file's delimiter or encoding.
+- **DAX and HTML pieces drop into a cell:** a new blade kind, Snippet. Dragged onto a DAX or HTML cell
+  (or picked from the cell's menu), its settings ask for the names it needs (a measure, a table, a
+  column) and it is inserted as text to edit. DAX: year to date, same period last year, running total,
+  top N by a measure, percent of total, a measure by month, date-table checks, the INFO functions for
+  documenting a model. HTML: a styled table from a DataFrame, a KPI tile, a row of KPI cards, a progress
+  bar, a badge, a bar chart in CSS, a list, a header block, a card grid, an invoice layout.
+- Built after the Power BI per-workspace work is merged (the Power BI actions use that connection).
