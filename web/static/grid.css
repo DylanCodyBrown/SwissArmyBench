@@ -6838,11 +6838,54 @@ body.dropping-file::after {
   gap: 6px;
 }
 
-.cv-play.cv-stale {
+/* Edit | Play: one control, the mode in front raised and underlined in the accent (the mockup's
+   c-app-edit and d-app-play); the other flat on the track. Not the usual pressed toggle's fill and
+   check mark: here one of the two is always the mode. */
+.cv-mode {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.cv-mode .btn {
+  border-color: transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.cv-mode .btn:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--fg);
+}
+
+.cv-mode .btn[aria-pressed="true"] {
+  border-color: var(--border);
+  background: var(--raised);
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.cv-mode .btn[aria-pressed="true"]::before {
+  content: none;
+}
+
+/* A busy Play stays the mode in front, not a greyed-out button. */
+.cv-mode .btn[aria-pressed="true"]:disabled {
+  opacity: 1;
+}
+
+.cv-mode .cv-play.cv-stale {
   border-color: var(--warn);
   background: var(--warn-soft);
-  color: var(--text);
-  font-weight: 600;
+  color: var(--fg);
+  box-shadow: inset 0 -2px 0 var(--warn);
 }
 
 .cv-notes {
@@ -6868,7 +6911,7 @@ body.dropping-file::after {
   border: 1px solid var(--warn);
   border-radius: 6px;
   background: var(--warn-soft);
-  color: var(--text);
+  color: var(--fg);
 }
 
 /* The grid: each row is 12 columns; a block sits in its own columns of its row. */

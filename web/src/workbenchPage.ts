@@ -320,6 +320,9 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
     chooseFolder: () => chooseFile({ title: "Export: choose the app's folder", mode: "folder", start: folderOf(doc.path) }),
     chooseZip: () => chooseFile({ title: "Save as", mode: "save", start: folderOf(doc.path), name: `${doc.path ? baseName(doc.path).slice(0, -APP_ENDING.length) : "app"}.zip` }),
     save: () => save(doc),
+    drew: () => {
+      if (doc === current) drawStatus();
+    },
   });
   doc.element.append(doc.canvas.element);
   show(doc);
@@ -779,15 +782,16 @@ function useEnvironment(doc: Doc, python: string): void {
   drawStatus();
 }
 
+/** A Python by its environment's last two folders (project/.venv); this app's own by those words. */
+function pythonName(python: string): string {
+  if (python === pythons[0]?.python) return "This app's Python";
+  return python.replace(/[\\/](bin[\\/]python[\d.]*|Scripts[\\/]python\.exe)$/i, "").split(/[\\/]/).filter(Boolean).slice(-2).join("/");
+}
+
 function pythonPicker(doc: Doc): HTMLElement {
   const select = h("select", { class: "wb-env-pick", "aria-label": "Environment", title: "Environment" }) as HTMLSelectElement;
   const own = pythons[0];
-  const label = (p: PythonChoice): string => {
-    // An environment by its last two folders (project/.venv), the whole path in the option's title.
-    const folder = p.python.replace(/[\\/](bin[\\/]python[\d.]*|Scripts[\\/]python\.exe)$/i, "").split(/[\\/]/).filter(Boolean);
-    const where = p === own ? "This app's Python" : folder.slice(-2).join("/");
-    return `${where}${p.version ? ` (${p.version})` : ""}${p.ipykernel ? "" : ", no ipykernel"}`;
-  };
+  const label = (p: PythonChoice): string => `${pythonName(p.python)}${p.version ? ` (${p.version})` : ""}${p.ipykernel ? "" : ", no ipykernel"}`;
   for (const p of pythons) select.append(h("option", { value: p.python, title: p.python, selected: (doc.python ?? own?.python) === p.python }, label(p)));
   select.append(h("option", { value: "__new" }, "New environment…"), h("option", { value: "__other" }, "Another Python…"));
   select.addEventListener("change", async () => {
@@ -971,8 +975,19 @@ function drawStatus(): void {
       clear(envHost, pythonPicker(doc));
       envHost.dataset.doc = String(doc.id);
     }
+  } else if (doc?.canvas) {
+    // A Streamlit app: the Python it runs in (its first linked file's), and Play's state while it
+    // is starting. Its other states are on the canvas itself (out of date, missing, a problem).
+    const python = doc.canvas.state()?.python;
+    clear(
+      kernelHost,
+      python ? h("span", { class: "hint wb-app-python", title: python }, pythonName(python)) : null,
+      doc.canvas.busy() ? h("span", { class: "wb-state starting" }, "starting…") : null,
+    );
+    clear(envHost);
+    envHost.dataset.doc = "";
   } else {
-    clear(kernelHost, doc ? h("span", { class: "hint" }, doc.kind === "blade" ? "Blade" : doc.kind === "app" ? "Streamlit app" : "Table") : null);
+    clear(kernelHost, doc ? h("span", { class: "hint" }, doc.kind === "blade" ? "Blade" : "Table") : null);
     clear(envHost);
     envHost.dataset.doc = "";
   }

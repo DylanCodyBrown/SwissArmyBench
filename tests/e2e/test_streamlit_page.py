@@ -154,6 +154,12 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     expect(tabs).to_have_count(2)
     expect(workbench.locator(".cv-empty")).to_have_text("Drag a Python cell here")
     expect(workbench.get_by_role("button", name="Push to page")).to_have_count(0)
+    # Edit | Play: one pair, Edit the mode in front. The status bar has no word for the tab's kind.
+    edit_mode = workbench.get_by_role("button", name="Edit", exact=True)
+    play_mode = workbench.get_by_role("button", name="Play", exact=True)
+    expect(edit_mode).to_have_attribute("aria-pressed", "true")
+    expect(play_mode).to_have_attribute("aria-pressed", "false")
+    expect(workbench.locator(".wb-status")).not_to_contain_text("Streamlit app")
     tabs.nth(0).click()
 
     # ----- drag two cells onto the canvas (its tab: both are tabs of one window): links, not copies
@@ -202,6 +208,11 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     assert is_above(metric(page), page.locator('[data-testid="stSelectbox"]'))
     pick(page, workbench, "West")
     expect(metric(page)).to_have_text("260")
+    # Play is the mode in front now, not Edit.
+    expect(play_mode).to_have_attribute("aria-pressed", "true")
+    expect(edit_mode).to_have_attribute("aria-pressed", "false")
+    # The status bar: the Python the app runs in (the linked notebook's own).
+    expect(workbench.locator(".wb-app-python")).to_have_attribute("title", STREAMLIT_PYTHON)
     shot(workbench, "3-the-live-page-after-play")
 
     # ----- Edit goes back to the blocks; Play again shows the page
@@ -313,7 +324,9 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
         "sales.stapp.json",
     ]
     assert page_text.startswith(
-        "# Page 1\nimport pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
+        "# Page 1\n"
+        "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
+        "import pandas as pd\nimport streamlit as st\n\nfrom data import orders\n"
     )
     assert not any(name.endswith(".parquet") for name in names)
 
@@ -326,6 +339,16 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     expect(gone).to_have_count(1, timeout=20000)
     expect(gone.locator(".cv-block-missing")).to_have_text(f"sales.ipynb has no Python cell 3 now ({book}).")
     shot(workbench, "5-a-missing-cell")
+
+    # ----- the dark theme: the canvas's colours are the theme's tokens; the live page is Streamlit's dark
+    workbench.emulate_media(color_scheme="dark")
+    expect(workbench.locator("html")).to_have_attribute("data-theme", "dark")
+    expect(edit_mode).to_have_attribute("aria-pressed", "true")
+    shot(workbench, "7-dark-theme-blocks")
+    play_mode.click()
+    expect(metric(page)).to_have_text("145", timeout=LONG)
+    assert "embed_options=dark_theme" in (workbench.locator(".cv-frame").get_attribute("src") or "")
+    shot(workbench, "8-dark-theme-live-page")
     workbench.close()
 
 

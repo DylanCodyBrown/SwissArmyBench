@@ -48,6 +48,8 @@ export interface CanvasHost {
   chooseZip: () => Promise<string | null>;
   /** Save the app's file (true: it is saved): Save as needs its folder. */
   save: () => Promise<boolean>;
+  /** The canvas was drawn again (its state, or Play starting): the status bar follows. */
+  drew: () => void;
 }
 
 export interface CanvasView {
@@ -59,6 +61,8 @@ export interface CanvasView {
   /** The pages, as the app's file keeps them. */
   pages: () => SavedPage[];
   mode: () => "edit" | "live";
+  /** Play is starting the app. */
+  busy: () => boolean;
   /** Play: run the app, then show the page live. */
   play: (page?: string) => Promise<CanvasState | null>;
   edit: () => void;
@@ -321,14 +325,18 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       });
       return tab;
     });
+    // Edit | Play: one pair, the mode in front pressed (the mockup's segmented control). Play while
+    // the page shows runs it again; it says so when the page is out of date.
     const stale = mode === "live" && !!page?.out_of_date;
+    const editButton = button("Edit", () => edit(), { icon: "edit", class: "cv-edit", title: "The blocks", pressed: mode === "edit" && !busy });
     const playButton = button(busy ? "Starting…" : stale ? "Out of date · Play" : "Play", () => void play(), {
       icon: "play",
-      class: stale ? "cv-play cv-stale" : mode === "live" ? "ghost cv-play" : "primary cv-play",
-      title: stale ? "A linked cell, a table it reads or the layout changed: Play shows it" : "Play: run the page from the linked cells as they are now",
+      class: stale ? "cv-play cv-stale" : "cv-play",
+      title: stale ? "A linked cell, a table it reads or the layout changed: Play shows it" : mode === "live" ? "Play again: the page from the linked cells as they are now" : "Play: run the page from the linked cells as they are now",
+      pressed: mode === "live" || busy,
     });
     playButton.disabled = busy || !page;
-    const editButton = mode === "live" ? button("Edit", () => edit(), { icon: "edit", class: "cv-edit", title: "Back to the blocks" }) : null;
+    const modes = h("span", { class: "cv-mode", role: "group", "aria-label": "Edit or play" }, editButton, playButton);
     const exportButton = button("Export…", () => void exportApp().catch((e: Error) => toast(e.message, "error")), { icon: "export", class: "cv-export", title: "Export an app that runs alone: app.py, its pages, the data as Parquet" });
     const saveAsButton = button("Save as zip…", () => void saveAs().catch((e: Error) => toast(e.message, "error")), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
     exportButton.disabled = saveAsButton.disabled = !pages.length;
@@ -346,7 +354,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
         }), { icon: "plus", class: "ghost cv-new-page" }),
       ),
     );
-    clear(tools, playButton, editButton, exportButton, saveAsButton);
+    clear(tools, modes, exportButton, saveAsButton);
   }
 
   // ===== what needs the user: the app's problem, the page's problems =====
@@ -450,7 +458,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
         others.length ? button("Move to another page", (e) => moveMenu(page, block, e.currentTarget as HTMLElement), { icon: "forward", iconOnly: true, class: "ghost" }) : null,
         button(`Take ${name} off the page`, () => void change(path, "DELETE"), { icon: "close", iconOnly: true, class: "ghost cv-remove" }),
       ),
-      h("div", { class: "hint cv-block-where", title: block.document }, block.where),
+      // A cell that is gone has no name: its title is already where it was.
+      block.name === null ? null : h("div", { class: "hint cv-block-where", title: block.document }, block.where),
       partsOf(block) ? h("div", { class: "cv-block-parts" }, partsOf(block)) : null,
       block.missing ? h("div", { class: "cv-block-missing", role: "alert" }, block.missing) : null,
       block.problem ? h("div", { class: "cv-block-missing", role: "alert" }, `Not whole Python yet: ${block.problem}`) : null,
@@ -628,6 +637,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     drawNotes();
     drawBoard();
     drawLive();
+    host.drew();
   }
 
   draw();
@@ -640,6 +650,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     state: () => state,
     pages: () => savedPages(state ? state.pages : initial),
     mode: () => mode,
+    busy: () => busy,
     play,
     edit,
     place,
