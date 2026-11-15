@@ -2110,3 +2110,19 @@ Planned:
   is written, and the user's own code lives in their notebooks, never in the made file.
 - **Tests:** made-up specs (2.0 and 3.x, each auth type) against a local stand-in service, and the made file
   imported in a plain Python.
+- **Auth types (the owner: "Support oauth2 and API keys and jwt"):**
+  - **API keys:** in a header (any name, `x-functions-key` included), a query parameter, or a cookie.
+  - **OAuth 2.0:**
+    - client credentials (unattended runs, the Azure Function);
+    - authorization code with PKCE in the browser, for trying it by hand, with the refresh token kept in the keyring;
+    - device code for machines with no browser;
+    - tokens cached until shortly before they expire;
+    - the vault's app registration for Microsoft APIs.
+  - **JWT:**
+    - a ready-made bearer token (from the vault or keyring);
+    - a token got from the API's own login endpoint (username and password, or a key) and refreshed on 401;
+    - a JWT the client signs itself: HS256 with the standard library; RS256 and ES256 through `cryptography`
+      when the user's Python has it (the made file says so; it is not a dependency of the app).
+  - **Basic and bearer,** as before.
+  - Every secret comes from an environment variable mapped to the vault or keyring, never written in
+    `API_<name>.py`. The spec's `securitySchemes` (or `securityDefinitions`) pick the type and fill the form.
