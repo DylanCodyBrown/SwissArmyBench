@@ -241,13 +241,14 @@ def main() -> None:
         page.wait_for_timeout(700)
         page.screenshot(path=str(SHOTS / "panel-max.png"))
         page.get_by_role("button", name="Restore the panel").click()
+        # One zoom for the page, the Sandbox included: the Application row's.
         for _ in range(4):
-            page.get_by_role("button", name="Zoom in the panel").click()
+            page.get_by_role("button", name="Zoom in", exact=True).click()
         page.locator(".card .chart svg").first.wait_for(timeout=20000)
         page.wait_for_timeout(700)
         page.screenshot(path=str(SHOTS / "panel-zoom-140.png"))
         for _ in range(4):
-            page.get_by_role("button", name="Zoom out the panel").click()
+            page.get_by_role("button", name="Zoom out", exact=True).click()
         page.context.close()
 
         for theme in ("light", "hc-light", "hc-dark"):

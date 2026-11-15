@@ -183,6 +183,7 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
                 h("th", { class: "num", title: "Found in the other table" }, result.source),
                 h("th", { class: "num", title: "Found here" }, result.targets.length === 1 ? result.targets[0]!.dataset : "Other table"),
                 h("th", { class: "num" }, "Shared values"),
+                h("th", { "aria-label": "Actions" }),
               ),
             ),
             h("tbody", {}, ...shown.flatMap((pair) => row(pair))),
@@ -204,7 +205,35 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
   const row = (pair: Pair): HTMLElement[] => {
     const key = `${pair.source_column}|${pair.target_grid}|${pair.target_column}`;
     const expanded = open === key;
-    const sampleSlot = h("td", { colspan: "7" });
+    const sampleSlot = h("td", { colspan: "8" });
+    const known = isKnownPair(sourceName, pair.target_dataset, pair.source_column, pair.target_column);
+    const self = pair.target_grid === gridId;
+    // The row's own actions (the owner's decision 20), which leave the row's click alone.
+    const act = (label: string, iconName: string, run: () => Promise<void>, why: string | false): HTMLButtonElement => {
+      const b = button(label, (e) => { e.stopPropagation(); void run(); }, { icon: iconName, class: "small", title: why || label });
+      b.disabled = Boolean(why);
+      b.addEventListener("keydown", (e) => e.stopPropagation());
+      return b;
+    };
+    const compareOn = async (): Promise<void> => {
+      try {
+        await api("/compares", "POST", { left: gridId, right: pair.target_grid, keys: [[pair.source_column, pair.target_column]], show: true });
+        toast(`${sourceName} and ${pair.target_dataset} are side by side in the grid window, lined up on ${pair.source_column}${pair.source_column === pair.target_column ? "" : ` = ${pair.target_column}`}.`);
+      } catch (e) {
+        toast((e as Error).message, "error");
+      }
+    };
+    const addRelationship = async (): Promise<void> => {
+      const kind = pair.relationship.split(" ").slice(0, 3).join("-"); // "many to one (the target…)" -> many-to-one
+      const join = { from: sourceName, from_columns: [pair.source_column], to: pair.target_dataset, to_columns: [pair.target_column], kind, evidence: `Key Finder: ${pct(pair.source_found)} of ${sourceName} found, ${formatCount(pair.shared)} shared values` };
+      try {
+        await api("/relationships", "POST", { model: { relationships: [join] } });
+        await loadRelationships();
+        draw(); // the row now wears the crown, and its button says so
+      } catch (e) {
+        toast((e as Error).message, "error");
+      }
+    };
     const tr = h(
       "tr",
       {
@@ -215,7 +244,7 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
         onclick: () => { open = expanded ? null : key; draw(); },
         onkeydown: (e: KeyboardEvent) => { if (e.key === "Enter") { open = expanded ? null : key; draw(); } },
       },
-      h("td", {}, isKnownPair(sourceName, pair.target_dataset, pair.source_column, pair.target_column) ? h("span", { class: "known-pair", title: "Known relationship" }, icon("crown")) : null, h("strong", {}, pair.source_column)),
+      h("td", {}, known ? h("span", { class: "known-pair", title: "Known relationship" }, icon("crown")) : null, h("strong", {}, pair.source_column)),
       h("td", {}, h("span", { class: "kf-target" }, pair.target)),
       h("td", {}, h("strong", {}, pair.target_column)),
       h("td", {}, pair.relationship),
@@ -223,6 +252,12 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
       h("td", { class: "num" }, bar(pair.target_found), pct(pair.target_found)),
       // Shared values as fractions: of this table's distinct values, and (below) of the other's.
       h("td", { class: "num", title: `${formatCount(pair.shared)} values in both: out of ${formatCount(pair.source_distinct)} distinct here and ${formatCount(pair.target_distinct)} in ${pair.target}` }, `${formatCount(pair.shared)}/${formatCount(pair.source_distinct)}`, h("div", { class: "hint" }, `${formatCount(pair.shared)}/${formatCount(pair.target_distinct)} of theirs`)),
+      h(
+        "td",
+        { class: "kf-actions" },
+        act("Compare on these", "columns", compareOn, self ? "A table is not compared with itself" : false),
+        act("Add as relationship", "crown", addRelationship, known ? "Already a relationship" : self ? "A relationship joins two tables" : false),
+      ),
     );
     if (!expanded) return [tr];
     void showSample(pair, sampleSlot);

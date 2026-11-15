@@ -6,8 +6,9 @@
  * or a repository) are searched for .tang files, so a tang one person saves there is in a coworker's
  * list the next time this window opens.
  *
- *   TANGS     every tang found (the person's own and the shared ones): search, apply, run; import a
- *             .tang (reviewed first: what it would change), export the current joins, save them as a
+ *   TANGS     every tang found (the person's own and the shared ones): search, apply, run; Import
+ *             relationships (one name everywhere, the Diagram tab too: a .tang, reviewed first for
+ *             what it would change, or a model as JSON), export the current joins, save them as a
  *             tang (into the person's own tangs or a shared folder)
  *   FIND      the relationship finder: how the open tables join, worked out from the data, each
  *             suggestion with its evidence; tick and accept, or reject
@@ -83,6 +84,62 @@ function when(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Import relationships (one name, wherever it is offered: this window's footer and the Diagram
+ * tab). The file is a tang (a .tang: reviewed first, what it would change, then applied, kept or
+ * shared) or a relationship model as JSON (applied as it is). `after`: once something was applied. */
+export async function importRelationships(picked: File, after: () => Promise<void> = async () => {}): Promise<void> {
+  const text = await picked.text();
+  // A model as JSON ({"tables", "relationships"}): merged into the joins in use, as before.
+  let model: unknown;
+  try {
+    model = JSON.parse(text);
+  } catch {
+    model = undefined;
+  }
+  // A tang is JSON too, marked "swissarmygrid": "tang": it goes to the review below.
+  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmygrid" in model)) {
+    try {
+      await api("/relationships", "POST", { model });
+      await after();
+    } catch (e) {
+      toast(`Could not import ${picked.name}: ${(e as Error).message}`, "error");
+    }
+    return;
+  }
+  let review: { tang: { name: string; description: string; tags?: string[]; author?: string; relationships: Join[] }; open_tables: string[]; missing_tables: string[]; changes: string[] };
+  let shared: string[] = [];
+  try {
+    review = await api("/relationships/import", "POST", { text });
+    shared = (await api<Library>("/relationships/library")).shared_folders;
+  } catch (e) {
+    toast(`${picked.name}: ${(e as Error).message}`, "error");
+    return;
+  }
+  const t = review.tang;
+  const { body: rb, foot: rf, close: rc } = openDialog(`Import ${t.name}`);
+  const where = h("select", { "aria-label": "Keep it in" }, h("option", { value: "" }, "Just apply it"), h("option", { value: "mine" }, "Apply and keep it in my tangs"), ...shared.map((f) => h("option", { value: f }, `Apply and share it: ${f}`)));
+  append(
+    rb,
+    t.description ? h("p", {}, t.description) : null,
+    t.tags?.length ? h("div", { class: "chips" }, ...t.tags.map((g) => h("span", { class: "chip" }, g))) : null,
+    h("p", { class: "hint" }, `${t.relationships.length} joins${t.author ? `, saved by ${t.author}` : ""}. Tables open: ${review.open_tables.join(", ") || "none"}${review.missing_tables.length ? `; not open: ${review.missing_tables.join(", ")}` : ""}.`),
+    review.changes.length ? h("div", { class: "warning-text" }, h("strong", {}, "It changes what you use now: "), h("ul", {}, ...review.changes.map((c) => h("li", {}, c)))) : h("p", { class: "hint" }, "Only adds; changes nothing."),
+    h("ul", { class: "hint" }, ...t.relationships.slice(0, 30).map((r) => h("li", {}, `${r.from} → ${r.to} on ${on(r)} (${r.kind})`))),
+    h("label", { class: "field" }, h("span", {}, "Then"), where),
+  );
+  rf.append(
+    button("Cancel", rc, { class: "ghost" }),
+    button("Apply", () => {
+      const save = where.value !== "";
+      void api<{ where?: string }>("/relationships/import", "POST", { text, apply: true, save, folder: save && where.value !== "mine" ? where.value : null }).then(async (a) => {
+        rc();
+        toast(`Applied ${t.name}${a.where ? ` and kept it (${a.where === "shared" ? "shared" : "yours"})` : ""}.`);
+        await after();
+      }, (e: Error) => toast(e.message, "error"));
+    }, { class: "primary", icon: "check" }),
+  );
+}
+
 /** The Relationships window; `startFinding` runs the finder at once (the empty ERD tab's button). */
 export function openRelationships(startFinding = false): void {
   const { body, foot, close } = openDialog("Relationships and tangs", true);
@@ -98,10 +155,10 @@ export function openRelationships(startFinding = false): void {
     findHost,
     currentHost,
   );
-  const file = h("input", { type: "file", accept: ".tang", hidden: true, onchange: () => void importFile() }) as HTMLInputElement;
+  const file = h("input", { type: "file", accept: ".tang,.json,application/json", hidden: true, onchange: () => void importFile() }) as HTMLInputElement;
   foot.append(
     file,
-    button("Import a tang", () => file.click(), { icon: "import", title: "Review before applying" }),
+    button("Import relationships", () => file.click(), { icon: "import", title: "A .tang file (reviewed before it is applied) or a model as JSON" }),
     button("Export", () => void exportTang(), { icon: "export", title: "Download as .tang" }),
     button("Save as tang", () => saveDialog(), { icon: "save" }),
     button("Draw diagram", () => void drawErd(close), { icon: "link", title: "To the Sandbox" }),
@@ -317,38 +374,10 @@ export function openRelationships(startFinding = false): void {
     const picked = file.files?.[0];
     file.value = "";
     if (!picked) return;
-    const text = await picked.text();
-    let review: { tang: { name: string; description: string; tags?: string[]; author?: string; relationships: Join[] }; open_tables: string[]; missing_tables: string[]; changes: string[] };
-    try {
-      review = await api("/relationships/import", "POST", { text });
-    } catch (e) {
-      toast(`${picked.name}: ${(e as Error).message}`, "error");
-      return;
-    }
-    const t = review.tang;
-    const { body: rb, foot: rf, close: rc } = openDialog(`Import ${t.name}`);
-    const where = h("select", { "aria-label": "Keep it in" }, h("option", { value: "" }, "Just apply it"), h("option", { value: "mine" }, "Apply and keep it in my tangs"), ...library.shared_folders.map((f) => h("option", { value: f }, `Apply and share it: ${f}`)));
-    append(
-      rb,
-      t.description ? h("p", {}, t.description) : null,
-      t.tags?.length ? h("div", { class: "chips" }, ...t.tags.map((g) => h("span", { class: "chip" }, g))) : null,
-      h("p", { class: "hint" }, `${t.relationships.length} joins${t.author ? `, saved by ${t.author}` : ""}. Tables open: ${review.open_tables.join(", ") || "none"}${review.missing_tables.length ? `; not open: ${review.missing_tables.join(", ")}` : ""}.`),
-      review.changes.length ? h("div", { class: "warning-text" }, h("strong", {}, "It changes what you use now: "), h("ul", {}, ...review.changes.map((c) => h("li", {}, c)))) : h("p", { class: "hint" }, "Only adds; changes nothing."),
-      h("ul", { class: "hint" }, ...t.relationships.slice(0, 30).map((r) => h("li", {}, `${r.from} → ${r.to} on ${on(r)} (${r.kind})`))),
-      h("label", { class: "field" }, h("span", {}, "Then"), where),
-    );
-    rf.append(
-      button("Cancel", rc, { class: "ghost" }),
-      button("Apply", () => {
-        const save = where.value !== "";
-        void api<{ where?: string }>("/relationships/import", "POST", { text, apply: true, save, folder: save && where.value !== "mine" ? where.value : null }).then(async (a) => {
-          rc();
-          toast(`Applied ${t.name}${a.where ? ` and kept it (${a.where === "shared" ? "shared" : "yours"})` : ""}.`);
-          await loadLibrary();
-          await renderCurrent();
-        }, (e: Error) => toast(e.message, "error"));
-      }, { class: "primary", icon: "check" }),
-    );
+    await importRelationships(picked, async () => {
+      await loadLibrary();
+      await renderCurrent();
+    });
   }
 
   async function exportTang(): Promise<void> {

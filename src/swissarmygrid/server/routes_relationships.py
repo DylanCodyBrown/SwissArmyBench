@@ -28,6 +28,7 @@
        -> a few shared values and a few this column has that the target lacks (page only)
 
   POST   /compares                 {"left", "right", "keys": [[l, r], ...], "mode", "anti_side"}
+                                   ("show": true puts the two grids side by side on the grid page)
   GET    /compares                 the compares that are running (a page reloading takes its own up again)
   GET    /compares/{id}            the compare, with its counts (matched, left only, right only)
   PATCH  /compares/{id}            change keys, mode or anti_side

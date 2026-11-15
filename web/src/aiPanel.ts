@@ -15,13 +15,13 @@
  *
  * Split-panel styles: the panel sits to the right of the grid or below it, its size drags
  * (or moves with the arrow keys on the splitter), it collapses to a slim rail or maximizes
- * over the grid. Zooming: the panel has its own zoom level, and any chart opens large with
+ * over the grid. Zooming: the page has one zoom (the Application row's, Ctrl+= and Ctrl+-), which
+ * the Sandbox follows (the owner's decision 19: it had one of its own); any chart opens large with
  * wheel zoom and drag-to-pan. Layout, size and zoom are remembered per viewer.
  *
  * ROUTING: [SPLITTER]        drag / arrows / double-click -> setSize()
  *          [LAYOUT BUTTON]   -> setLayout("right" | "bottom")
  *          [COLLAPSE / MAX]  -> setMode("open" | "collapsed" | "max")
- *          [PANEL ZOOM]      -> setPanelZoom()
  *          [CARDS]           from GET /cards (every table); [ADD CHART]/[ADD NOTE] -> chartDialog() / noteDialog()
  *          [CARD ACTIONS]    pin / expand (zoom) / image / HTML / Altair / remove
  *          [CARD TABLE]      each card's table name -> read-only, from the card's grid
@@ -37,7 +37,7 @@ import { onShowCard } from "./sandboxShow";
 import { dashboardsDialog } from "./sandboxDashboards";
 import { applySandboxTheme, loadThemes, sandboxDark, sandboxTheme, themeControls } from "./sandboxThemes";
 import { PAPERS, fitPages, makeMovable, moveCard, paginate, printPages, type Paper } from "./sandboxPages";
-import { effectiveTheme, onThemeChange, setTheme, themeChoice } from "./theme";
+import { effectiveTheme, gridZoom, onThemeChange, setTheme, themeChoice } from "./theme";
 import type { Drawn } from "./lazy/charts";
 
 type CardKind = "chart" | "note" | "table" | "diagram" | "graphviz" | "plotly" | "echarts" | "vegalite" | "image";
@@ -206,7 +206,6 @@ function fitDrawing(host: HTMLElement, draw: (width: number, height: number) => 
 
 let workspace: HTMLElement;
 let panel: HTMLElement;
-let panelZoom = Number(recall("panel.zoom") ?? "1") || 1;
 let chartsModule: Promise<typeof import("./lazy/charts")> | null = null;
 
 let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
@@ -244,7 +243,6 @@ export function mountAiPanel(space: HTMLElement, host: HTMLElement, splitter: HT
   // Narrow windows (VS Code's side browser, a laptop split) start with the panel collapsed.
   const saved = Number(recall(`panel.size.${workspace.dataset.layout}`));
   if (saved) setSize(saved, false);
-  setPanelZoom(panelZoom, false);
 
   splitter.setAttribute("role", "separator");
   splitter.setAttribute("tabindex", "0");
@@ -313,14 +311,6 @@ export function setMode(mode: "open" | "collapsed" | "max", save = true): void {
   }
 }
 
-function setPanelZoom(z: number, save = true): void {
-  panelZoom = Math.min(1.8, Math.max(0.7, Math.round(z * 10) / 10));
-  workspace.style.setProperty("--panel-zoom", String(panelZoom));
-  if (save) {
-    remember("panel.zoom", String(panelZoom));
-    void render();
-  }
-}
 
 
 // ===== live notices =====
@@ -347,13 +337,6 @@ async function render(): Promise<void> {
       { class: "panel-header" },
       // The table picker first, at the far left, where it is easy to find.
       h("span", { class: "panel-header-gap" }),
-      h(
-        "span",
-        { class: "zoom-control", role: "group", "aria-label": "Panel zoom" },
-        button("Zoom out the panel", () => setPanelZoom(panelZoom - 0.1), { icon: "minus", iconOnly: true }),
-        h("output", { "aria-live": "polite" }, `${Math.round(panelZoom * 100)}%`),
-        button("Zoom in the panel", () => setPanelZoom(panelZoom + 0.1), { icon: "plus", iconOnly: true }),
-      ),
       button(layout === "bottom" ? "Dock the panel to the right" : "Dock the panel below the grid", () => setLayout(layout === "bottom" ? "right" : "bottom"), { icon: layout === "bottom" ? "right" : "bottom", iconOnly: true, class: "ghost" }),
       button(mode === "max" ? "Restore the panel" : "Maximize the panel", () => setMode(mode === "max" ? "open" : "max"), { icon: mode === "max" ? "restore" : "max", iconOnly: true, class: "ghost" }),
       h(
@@ -636,7 +619,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
       drawn = await m.drawChart(chart, card.vega_lite!, {
         onSelect: (value, y2) => void crossFilter(card, value, y2),
         height: Math.max(120, height - 40), // room for the axis labels under the plot
-        fontScale: panelZoom,
+        fontScale: gridZoom(), // one zoom for the page: the Application row's, here too
         large: workspace.dataset.panel === "max",
       });
     });

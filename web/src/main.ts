@@ -38,7 +38,7 @@ import { renderKeyFinder } from "./keyFinder";
 import { settingsButton } from "./settingsWindow";
 import { connectionsButton } from "./connectionsWindow";
 import { tourButton } from "./tour";
-import { restoreCompare } from "./compare";
+import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
 import { openCompareDialog } from "./compareDialog";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, dropGrid, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids } from "./panes";
@@ -127,6 +127,8 @@ function onLiveNotice(notice: Notice): void {
     }
   }
   if (notice.type === "relationships_updated") void loadRelationships();
+  // A compare started for this page to show (the Key Finder's window, the agent).
+  if (notice.type === "compare_shown" && notice.compare && !popout && !keysWindow) void showCompare(notice.compare);
   handleNotice(notice);
   handleAgentNotice(notice);
 }

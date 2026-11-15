@@ -1385,6 +1385,11 @@ def catalog_search(a: dict[str, Any]) -> Any:
     req("keys", "[[left column, right column], ...]", "json"),
     opt("mode", "outer (default), anti, cross or diff."),
     opt("anti_side", "For anti: left or right."),
+    opt(
+        "show",
+        "true: the user's grid page puts the two grids side by side, lined up (the Key Finder's Compare on these).",
+        "bool",
+    ),
 )
 def compare_create(a: dict[str, Any]) -> Any:
     body: dict[str, Any] = {
@@ -1395,6 +1400,8 @@ def compare_create(a: dict[str, Any]) -> Any:
     }
     if a.get("anti_side"):
         body["anti_side"] = a["anti_side"]
+    if a.get("show") is not None:
+        body["show"] = a["show"]
     return api.call("POST", "/compares", body)
 
 

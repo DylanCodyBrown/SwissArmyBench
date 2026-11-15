@@ -684,10 +684,17 @@ class Compares:
             raise ValueError('Send {"left": grid id, "right": grid id, "keys": [[left col, right col]]}.')
         if body["left"] == body["right"]:
             raise ValueError("Compare two different grids.")
+        show = body.get("show", False)
+        if not isinstance(show, bool):
+            raise ValueError("show must be true or false.")
         spec = CompareSpec.from_json(body)
         cmp = Compare(secrets.token_hex(4), body["left"], body["right"], spec)
         await self._run(lambda cur: self._ensure(cur, cmp))
         self._compares[cmp.id] = cmp
+        if show:  # started away from the grid page (the Key Finder's window, the agent): show it there
+            await self.ws.live.broadcast(
+                {"type": "compare_shown", "compare": cmp.id, "left": cmp.left, "right": cmp.right}
+            )
         self.ws.audit.write(who, "compare", f"{cmp.left}:{cmp.right}", keys=len(spec.keys), mode=spec.mode)
         return cmp.to_json()
 

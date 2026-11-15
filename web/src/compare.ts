@@ -20,6 +20,8 @@
  *          [DIFF COLUMNS]   diff mode: each side shows its keys and the columns that differ (the ribbon's
  *                           Only differing columns, on to start) -> showDiffColumns(); both halves scroll
  *                           sideways together and start at the first column that differs -> lockSideways()
+ *          [SHOWN]          a compare started in the Key Finder's window or by the agent (the server's
+ *                           compare_shown notice) -> showCompare(id)
  *          [RELOAD]         the page remembers its compare; a reload puts the split and the compare back
  *                           -> restoreCompare()
  */
@@ -81,6 +83,25 @@ function changed(): void {
   // The page remembers which compare is its own, so a reload takes it up again (restoreCompare).
   remember("workspace.compare", current ? JSON.stringify({ compare: current.compare, left: current.left, right: current.right }) : "");
   for (const listener of listeners) listener();
+}
+
+/** A compare started away from this page for it to show (the Key Finder's Compare on these, the
+ * agent's compare_create with show): the two grids go side by side, lined up. No key picker. */
+export async function showCompare(id: string): Promise<void> {
+  let found: CompareInfo;
+  try {
+    found = await api<CompareInfo>(`/compares/${encodeURIComponent(id)}`);
+  } catch {
+    return; // stopped again already
+  }
+  if (!contextOf(found.left) || !contextOf(found.right)) return;
+  if (current && current.compare !== found.compare) await stopCompare();
+  restored = true;
+  await splitWith(found.right, found.left, "right", true);
+  const pair = splitPair();
+  if (!pair || pair[0].id !== found.left || pair[1].id !== found.right) return;
+  current = found;
+  apply(pair, true);
 }
 
 // Until the page has looked for its remembered compare, a change of split is not a reason to

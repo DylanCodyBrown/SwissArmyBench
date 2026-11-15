@@ -36,11 +36,11 @@ import {
   type IHeaderParams,
 } from "ag-grid-community";
 import { api, clientId, download, query, type ColumnInfo, type Row, type RowsResponse } from "./api";
-import { formatCount, h, icon, isDateType, isNumericType, toast } from "./dom";
+import { button, formatCount, h, icon, isDateType, isNumericType, toast } from "./dom";
 import { onRelationshipsChange, primaryKey } from "./relationships";
 import { GridSelection } from "./selection";
 import type { PageState } from "./state";
-import { gridRowHeight, gridTheme, gridZoom, headerProfiles, onHeaderProfilesChange, onThemeChange } from "./theme";
+import { gridRowHeight, gridTheme, gridZoom, headerProfiles, onHeaderProfilesChange, onThemeChange, setHeaderProfiles } from "./theme";
 import { openValueViewer } from "./valueViewer";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -279,14 +279,23 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
   class CornerHeader implements IHeaderComp {
     private gui!: HTMLElement;
 
+    // The grid's top-left corner, above the row numbers: Select all (Excel's corner), and the switch
+    // for column profiles in the headers, beside the headers it changes (the owner's decision 19).
     init(): void {
-      this.gui = h("button", {
-        type: "button",
-        class: "sag-corner",
-        title: "Select all (Ctrl+A)",
-        "aria-label": "Select all",
-        onclick: () => selection.selectAll(),
+      const on = headerProfiles();
+      const profilesSwitch = button("Column profiles in the headers", () => setHeaderProfiles(!headerProfiles()), {
+        icon: "profile",
+        iconOnly: true,
+        class: "ghost sag-corner-profiles",
+        pressed: on,
+        title: on ? "Hide the column profiles in the headers" : "Show each column's profile in its header",
       });
+      this.gui = h(
+        "div",
+        { class: "sag-corner-cell" },
+        profilesSwitch,
+        h("button", { type: "button", class: "sag-corner", title: "Select all (Ctrl+A)", "aria-label": "Select all", onclick: () => selection.selectAll() }),
+      );
     }
 
     getGui(): HTMLElement {
@@ -294,7 +303,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     }
 
     refresh(): boolean {
-      return true;
+      return false; // drawn again, so the switch shows what it is now
     }
   }
 

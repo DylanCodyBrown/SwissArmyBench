@@ -11,7 +11,7 @@ from typing import Any
 import pyarrow as pa
 from starlette.testclient import TestClient
 
-from tests.conftest import AUTH, grid_id, push
+from tests.conftest import AGENT, AUTH, PORT, grid_id, push
 
 # Left: ids 1, 2, 2 (a duplicate), 3, 10 and a blank; amounts.
 LEFT = pa.table(
@@ -133,3 +133,20 @@ def test_key_group_is_every_compare_row_sharing_the_key(client: TestClient) -> N
     assert (group(2)["first"], group(2)["last"]) == (1, 2)
     assert (group(0)["first"], group(0)["last"]) == (0, 0)  # key 1, once on each side
     assert (group(7)["first"], group(7)["last"]) == (7, 7)  # a blank key matches nothing
+
+
+def test_a_compare_started_elsewhere_is_shown_on_the_page_when_asked(client: TestClient) -> None:
+    """The Key Finder's window (and the agent) start a compare for the grid page to show: with
+    "show", the pages are told to put the two grids side by side. Without it nothing is said (a
+    page starts its own; the agent's quick counts come and go)."""
+    left = grid_id(push(client, "left_side", LEFT))
+    right = grid_id(push(client, "right_side", RIGHT))
+    body = {"left": left, "right": right, "keys": [["id", "cust_id"]]}
+    with client.websocket_connect("/ws", headers=AUTH | {"Host": f"127.0.0.1:{PORT}"}) as ws:
+        quiet = client.post("/compares", json=body, headers=AUTH).json()
+        shown = client.post("/compares", json=body | {"show": True}, headers=AGENT).json()
+        notice = ws.receive_json()  # the first thing said is about the second compare
+    assert notice == {"type": "compare_shown", "compare": shown["compare"], "left": left, "right": right}
+    assert quiet["compare"] != shown["compare"]
+    bad = client.post("/compares", json=body | {"show": "yes"}, headers=AUTH)
+    assert bad.status_code == 400 and "show" in bad.text

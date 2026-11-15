@@ -95,6 +95,8 @@ export interface Notice {
   scale?: number;
   process?: string;
   to?: string; // dataset_renamed: the new name
+  /** compare_shown: the compare to put on screen. */
+  compare?: string;
 }
 
 // ===== the token and the grid id, from the address =====

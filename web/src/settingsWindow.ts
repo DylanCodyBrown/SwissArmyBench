@@ -1,21 +1,21 @@
 /**
  * settingsWindow.ts: the Settings window (the cog at the far left of the tab bar). [WIRE + EXPORT]
  *
- * The theme and whether column headers show their profile, remembered per viewer and never sent
- * anywhere; and what the agent has done (agentAccess.ts, from the server's audit log). How a
+ * The theme, remembered per viewer and never sent anywhere; and what the agent has done (agentAccess.ts, from the server's audit log). How a
  * table compares text is a table setting, so it lives on the ribbon's Table row (textMatching.ts).
  * Everything here applies as you change it, so the window only has Close.
  *
  * ROUTING: [SETTINGS BUTTON]      -> openSettings()
  *          [THEME CHOICE]         -> setTheme(choice)  (every open tab and window follows)
- *          [COLUMN PROFILES]      -> setHeaderProfiles(on)  (off by default)
+ *          (Column profiles in the headers are switched in the grid's own top-left corner, beside
+ *           what they change: gridView.ts CornerHeader. The zoom is the Application row's.)
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
  *          [CLOSE]                -> close()
  *          [AGENT ACCESS]         -> agentAccess.agentAccessSection()  (agent activity)
  */
 import { agentAccessSection } from "./agentAccess";
 import { button, h, openDialog, toast } from "./dom";
-import { THEME_LABELS, headerProfiles, setHeaderProfiles, setTheme, themeChoice, type ThemeChoice } from "./theme";
+import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 
 export function settingsButton(): HTMLButtonElement {
   // First in the Application row: always there, whichever tab is open.
@@ -53,19 +53,7 @@ export function openSettings(): void {
       label,
     ),
   );
-  const profiles = h("input", { type: "checkbox", checked: headerProfiles(), onchange: () => setHeaderProfiles(profiles.checked) });
   body.append(
-    h(
-      "fieldset",
-      { class: "fieldset" },
-      h("legend", {}, "Grid"),
-      h(
-        "label",
-        { class: "choice" },
-        profiles,
-        h("span", {}, h("strong", {}, "Show column profiles in the headers")),
-      ),
-    ),
     h(
       "fieldset",
       { class: "fieldset" },

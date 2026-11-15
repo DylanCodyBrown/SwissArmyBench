@@ -183,18 +183,32 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
     expect(page.locator("#grid-title")).to_contain_text("orders")
     wait_for_cell(page, 0, "order_id", "1")
     expect(page.locator("#status")).to_contain_text("of 5,000")
-    # Column profiles in the headers are off until turned on in Settings.
+    # Column profiles in the headers are off until switched on in the grid's top-left corner, above
+    # the row numbers (decision 19): one action, beside the headers it changes. Not in Settings.
     assert page.locator(".sag-header-stats").count() == 0
-    page.get_by_role("button", name="Settings").click()
-    page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles")).check()
-    page.keyboard.press("Escape")
+    corner = page.locator(".ag-header-cell[col-id='__sag_rownum']")
+    switch = corner.get_by_role("button", name="Column profiles in the headers")
+    expect(switch).to_have_attribute("aria-pressed", "false")
+    switch.click()
     expect(page.locator(".ag-header-cell[col-id='region'] .sag-header-stats")).to_contain_text(
         "distinct", timeout=10000
     )
-    page.get_by_role("button", name="Settings").click()
-    page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles")).uncheck()
-    page.keyboard.press("Escape")
+    expect(switch).to_have_attribute("aria-pressed", "true")
+    switch.click()
     expect(page.locator(".sag-header-stats")).to_have_count(0)
+    expect(switch).to_have_attribute("aria-pressed", "false")
+    # The corner still selects everything, in the room beside the switch.
+    corner.get_by_role("button", name="Select all").click()
+    expect(page.locator("#status").locator("xpath=following-sibling::span[1]")).to_contain_text(
+        "All selected"
+    )
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Settings").click()
+    expect(page.locator("dialog").get_by_role("radio").first).to_be_visible()  # the theme stays there
+    expect(page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles"))).to_have_count(
+        0
+    )
+    page.keyboard.press("Escape")
     expect(page.locator("#live")).to_be_hidden()  # live says nothing; only "not live" is words
     wait_for_cell(page, 0, "note", "(blank)")  # blanks carry text, not just color
 
@@ -776,8 +790,17 @@ def test_agent_panel_lives_only_in_the_agent_tab(browser: Browser, orders_url: s
     expect(page.locator("#ai-panel")).to_be_hidden()  # the grid gets the full width
     panel = open_agent(page)
     expect(panel).to_be_visible()
-    page.get_by_role("button", name="Zoom in the panel").click()
-    expect(panel.locator(".zoom-control output")).to_have_text("110%")
+    # One zoom for the page, the Sandbox included: it has no zoom of its own, and follows the
+    # Application row's (which stays on every tab).
+    expect(panel.locator(".zoom-control")).to_have_count(0)
+    size = "getComputedStyle(document.querySelector('#ai-panel-body')).fontSize"
+    before = float(page.evaluate(size).removesuffix("px"))
+    page.locator(".app-row").get_by_role("button", name="Zoom in", exact=True).click()
+    expect(page.locator(".app-row .zoom-control output")).to_have_text("110%")
+    assert float(page.evaluate(size).removesuffix("px")) == pytest.approx(before * 1.1, rel=0.02)
+    page.keyboard.press("Control+0")
+    expect(page.locator(".app-row .zoom-control output")).to_have_text("100%")
+    assert float(page.evaluate(size).removesuffix("px")) == pytest.approx(before, rel=0.02)
     back_to_grid(page, orders_url)
     expect(page.locator("#ai-panel")).to_be_hidden()
 
@@ -1702,7 +1725,7 @@ def test_the_erd_tab_shows_keys_or_says_none_are_defined(browser: Browser, serve
     tabs.nth(1).click()
     erd = page.locator("#erd-view")
     expect(erd).to_contain_text("No relationships yet")
-    expect(erd.get_by_role("button", name="Import a relationship file")).to_be_visible()
+    expect(erd.get_by_role("button", name="Import relationships")).to_be_visible()
     model = {
         "name": "erd_test",
         "tables": {
