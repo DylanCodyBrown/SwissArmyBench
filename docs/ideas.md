@@ -2066,3 +2066,17 @@ cells are available for streamlit." Built, for the first beta (0.0.1):
   inlined into every page through `st.html` with scripts allowed) or a headless browser to draw it to
   SVG when the page is written (Node and Chromium, not this app's to install). The page shows the
   diagram's text; nothing is loaded from a CDN. To be decided by the owner if wanted.
+
+## Power Apps: a separate future project (the owner, 2026-11-15)
+
+Considered: importing a connection from a custom connector's OpenAPI file, a Dataverse connection,
+building Power Apps code apps (TypeScript, `pac code`) or canvas apps, and blades for pac's first-class
+connectors. The owner: "Power Apps need to remain in their own workbench so that might be a future project
+and would actually lend itself to a VS Code extension much better." Not built here.
+
+Kept in case they come back on their own:
+- **OpenAPI file → a "Python (your own code)" connection.** GET operations that return arrays become
+  tables, the response schemas become their columns, the security type maps to the vault, and other
+  operations become action blades. This works for any OpenAPI service, not only Power Platform.
+- **Dataverse:** reads through its read-only TDS endpoint (SQL Server style) and writes through the
+  Web API, signed in with the vault's app registration as Power BI is.
