@@ -1040,7 +1040,9 @@ def render_script(made: Plan, file: str) -> Exported:
         if block.markdown:
             run_body += [f"# {line}".rstrip() for line in block.lines]
         else:
-            if not all(line.startswith("#") for line in block.lines):
+            if not all(
+                line.startswith("#") or not line.strip() for line in "\n".join(block.lines).split("\n")
+            ):
                 run_body += [f"# ----- {block.label} -----", f"log.info({block.label!r})"]
             run_body += "\n".join(block.lines).split("\n")
         run_body.append("")

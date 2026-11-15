@@ -326,6 +326,8 @@ def test_what_only_shows_something_is_left_out_with_a_line_that_says_so() -> Non
     )
     assert "# frame.head(): shown in the notebook only" in body and "    # ## Notes" in body
     assert "st.metric" not in body and not made.problems
+    # A cell whose first line is a comment the export left still has its heading and its log line.
+    assert "# ----- cell 3 -----\n    log.info('cell 3')\n    # Swiss Army Bench" in body
     compile(made.text, "script", "exec")
 
 
