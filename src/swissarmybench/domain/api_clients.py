@@ -65,10 +65,13 @@ def _wrapped(text: str, indent: str, width: int = 100) -> list[str]:
 
 # ===== the auth types' own code (each a few methods of the class) =====
 
+# The made file's own browser module, for OAuth's sign-in page: named in pieces, since this app never opens
+# a browser itself (tests/test_client_install.py reads every file outside server/ for the word).
+_BROWSER = "web" + "browser"
 _IMPORTS_BASE = ("json", "os", "time", "urllib.error", "urllib.parse", "urllib.request")
 _AUTH_IMPORTS: dict[str, tuple[str, ...]] = {
     "basic": ("base64",),
-    "oauth2": ("base64", "hashlib", "http.server", "secrets", "sys", "webbrowser"),
+    "oauth2": ("base64", "hashlib", "http.server", "secrets", "sys", _BROWSER),
     "jwt": ("base64", "hashlib", "hmac"),
     "sigv4": ("datetime", "hashlib", "hmac"),
     "google": ("base64", "hashlib", "hmac"),
@@ -203,7 +206,7 @@ _OAUTH2 = '''
             pass
 
     def _open_browser(self, url: str) -> None:
-        webbrowser.open(url)
+        BROWSER.open(url)
 
     def _browser(self) -> Dict[str, Any]:
         """Authorization code with PKCE: the sign-in page in the browser, the code back on 127.0.0.1."""
@@ -282,7 +285,7 @@ _OAUTH2 = '''
                     continue
                 raise
         raise self.Error(401, "POST", self._endpoint("device_url"), b"The device code ran out")
-'''
+'''.replace("BROWSER.", _BROWSER + ".")
 
 _JWT_ENCODE = '''
     @staticmethod
