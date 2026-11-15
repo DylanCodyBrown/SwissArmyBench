@@ -220,6 +220,23 @@ def test_the_page_follows_the_theme(browser: Browser, warehouse: str) -> None:
     page.close()
 
 
+def test_a_theme_remembered_before_the_rename_is_still_followed(browser: Browser, warehouse: str) -> None:
+    """Swiss Army Bench was SwissArmyGrid: a setting this browser kept under the old prefix is read while
+    the new key is empty (web/src/dom.ts, test_renamed.py), and the new key wins once it is set."""
+    page = open_page(browser, warehouse)
+    page.evaluate("localStorage.setItem('swissarmygrid.theme', 'hc-dark')")
+    page.reload()
+    page.goto(warehouse)
+    expect(page.locator("html")).to_have_attribute("data-theme", "hc-dark")
+    page.evaluate("localStorage.setItem('swissarmybench.theme', 'hc-light')")
+    page.reload()
+    page.goto(warehouse)
+    expect(page.locator("html")).to_have_attribute("data-theme", "hc-light")
+    for key in ("swissarmygrid.theme", "swissarmybench.theme"):
+        page.evaluate(f"localStorage.removeItem('{key}')")
+    page.close()
+
+
 def test_the_grid_page_opens_the_blades_page_in_its_own_tab(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     with page.context.expect_page() as opened:
