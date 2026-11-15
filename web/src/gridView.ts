@@ -405,6 +405,13 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         return;
       }
       if (sort !== sentSort) {
+        // A request that began before the sort was set from the server (an undo, a redo, another
+        // window) still carries the old sort: it is stale, not a header click, and sending it would
+        // record a new change (wiping redo). Only the grid's current sort is the user's.
+        if (gridApi && sort !== currentSort()) {
+          params.failCallback();
+          return;
+        }
         state.gen += 1;
         sentSort = sort;
         state.info = await api(`${grid}/header-sort`, "POST", { keys: JSON.parse(sort), gen: state.gen, client: clientId });
@@ -682,6 +689,14 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     if (reshaped) gridApi.purgeInfiniteCache();
     else gridApi.refreshInfiniteCache();
     void loadHeaderStats();
+  }
+
+  /** The grid's sort as it stands now, in the form loadWindow sends. */
+  function currentSort(): string {
+    const sorted = (gridApi?.getColumnState() ?? [])
+      .filter((c) => c.sort && c.colId !== MARKER)
+      .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+    return JSON.stringify(sorted.map((c) => [c.colId, c.sort]));
   }
 
   /** Make the grid's sort arrows match the header-sort step on the server. */

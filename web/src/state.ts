@@ -45,6 +45,9 @@ export class PageState {
   previewUpto: number | null = null;
   /** Bumped on every view change; rows requests carry it, older answers are ignored. */
   gen = 0;
+  /** The gen of the last step change whose answer was applied: an older answer arriving late (two
+   *  quick Ctrl+Y presses) is not allowed to put back the steps it saw. */
+  private stepsGen = 0;
   selection: SelectionSummary | null = null;
   /** Set while a SQL result replaces the grid: the bottom bar reports it instead. */
   sqlResult: { rows: number; milliseconds: number; capped: boolean } | null = null;
@@ -86,7 +89,11 @@ export class PageState {
       client: clientId,
     };
     if (settings) body.settings = settings;
-    this.info = await api<GridInfo>(`${this.base}/steps`, "POST", body);
+    const mine = this.gen;
+    const info = await api<GridInfo>(`${this.base}/steps`, "POST", body);
+    if (mine < this.stepsGen) return this.info ?? info; // a newer change already answered
+    this.stepsGen = mine;
+    this.info = info;
     if (this.previewUpto !== null && this.previewUpto > steps.length) this.previewUpto = null;
     this.emit("info");
     this.emit("view");
@@ -95,8 +102,11 @@ export class PageState {
 
   /** One change the server makes to the steps itself: undo, redo, or a step removed by its id. */
   async stepOp(body: Record<string, unknown>): Promise<GridInfo> {
-    this.gen += 1;
-    this.info = await api<GridInfo>(`${this.base}/step-ops`, "POST", { ...body, gen: this.gen, client: clientId });
+    const mine = (this.gen += 1);
+    const info = await api<GridInfo>(`${this.base}/step-ops`, "POST", { ...body, gen: mine, client: clientId });
+    if (mine < this.stepsGen) return this.info ?? info; // a newer change already answered
+    this.stepsGen = mine;
+    this.info = info;
     if (this.previewUpto !== null && this.previewUpto > this.info.steps.length) this.previewUpto = null;
     this.emit("info");
     this.emit("view");
