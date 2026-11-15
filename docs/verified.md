@@ -1292,3 +1292,19 @@ and `role-${role}` counted as used); identical function bodies in two modules.
 - (2026-11-15) The whole suite after merging Beta mode: 2,622 passed, 9 skipped, 1 failed: the chart click by date
   (`test_chart_clicks_filter_by_date_by_heatmap_cell_and_never_by_a_whole_line`), which then passed 3 of 3 alone: a
   timing failure under the whole suite's load, not a bug. Browser tests are not part of the release workflow.
+
+## Kind colours and the Workbench's modes (2026-11-15, branch wb-modes)
+
+- **Checked:** every kind colour token per theme against the page, panels and captions (WCAG, a test);
+  a chosen colour made readable in all four themes and never amber (a test). Streamlit 1.67: a page with
+  the State tail runs under AppTest and writes its session (a selectbox's key, a list, a DataFrame as
+  "DataFrame, 2 rows"); `embed_options=dark_theme` / `light_theme` on a frame's address switch the live
+  page's theme (the browser test sees the dark page in the phone frame); `.streamlit/config.toml` in the
+  folder Streamlit runs in carries the theme colours (Streamlit's documented place); `st.logo` and
+  `st.set_page_config(page_icon=...)` as written in the entry. Run as scheduled: a script run with
+  `SWISSARMYBENCH_INFO` naming a missing file finds no app (`push_client._read_info()` is None), its
+  arguments, plain values and exit codes come back, a failing run keeps its traceback.
+- **Not checked:** a key vault as a scheduled run's source against a real vault (the code path is the
+  Python connections' vault jobs, tested there); a logo file on a real page (only the generated calls);
+  the theme colours rendered by a real Streamlit page; the wiring drawn at zoom levels other than 80 and
+  100%; Edge (the browser tests ran in Chromium).

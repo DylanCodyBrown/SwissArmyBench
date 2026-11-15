@@ -46,7 +46,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   the page live in place; a Python cell that calls Streamlit is live in its cell; Export; Save as),
   projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), named
   cells, the Data panel's Streamlit cells pane, tabs that pop out into windows of their own (and move
-  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start), the
+  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
   Analyze menu, the Sandbox, compare's diff and tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
@@ -149,6 +149,18 @@ src/swissarmybench/
     packs.py             a pack (a Claude Code plugin with blades/ and tangs/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
+    kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's default, a
+                         chosen colour made readable in every theme, never amber
+    app_settings.py      App mode: a Streamlit app's page settings (title, icon, layout, logo, theme
+                         colours) as st.set_page_config, st.logo, .streamlit/config.toml; the live page's
+                         session state for the State panel (the tail each live page runs, its rows)
+    notebook_flow.py     Notebook mode: each cell's state from the run order (notRun, edited, outOfDate
+                         with the names made again) and the Outline (headings, named cells)
+    script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
+                         plain value, a key vault, never a secret's value), the variables a script needs,
+                         a scheduled run's plan, a run's record
+    dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
+                         data.ipynb's metadata and written into data.py, where each column comes from)
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
 
@@ -179,6 +191,10 @@ src/swissarmybench/
                          a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
+    kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
+                         restarts (kind_colours.json)
+    script_runs.py       a script's run settings (run_settings.json), Run as scheduled, its run history
+                         (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
@@ -222,7 +238,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, folders, workbench, table_cells, streamlit, projects,
-                         panels). Every route serves
+                         panels, kind_colours, script_runs). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -234,6 +250,7 @@ src/swissarmybench/
                          127.0.0.1 only, ended with the server (Streamlit is never the app's dependency)
     streamlit_proxy.py   the live Streamlit pages passed through this server under the app's own secret
                          (its websocket too), so a page's frame policy stays `frame-src 'self'`
+    script_runner.py     Run as scheduled: `python <script> <arguments>` as a fresh process with no app
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
@@ -319,7 +336,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Streamlit, their state; a cell's link, dragged or copied); workbenchCanvas.ts
                          is a Streamlit app's canvas, a document tab (pages as tabs, blocks on a
                          12-column grid, Play showing the page live in place, Edit, Export, Save as);
-                         projects (New project, Open project, Export data.py) are in workbenchPage.ts
+                         projects (New project, Open project, Export data.py) are in workbenchPage.ts;
+                         kindColours.ts the kind colours (Settings' section, the tokens on <html>);
+                         the Workbench's modes: workbenchModes.ts (each document's own panels beside it
+                         in its group, the status bar's toggles), workbenchApp.ts (App: Properties, page
+                         settings, State), workbenchStarters.ts (the Data panel's Starters gallery),
+                         workbenchDocModes.ts (Notebook's Outline, Script's Run settings and Run history,
+                         Data's Dictionary and Lineage's place); the canvas's selection, wiring, undo,
+                         align, duplicate, zoom and Play's preview are in workbenchCanvas.ts
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/static/              index.html, grid.css (all theme tokens), build/ (gitignored); design.html is the

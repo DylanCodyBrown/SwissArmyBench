@@ -29,3 +29,12 @@ drives the cells on the same page that read it.
   `project_export_data` (data.py again), `workbench_project_open` (its files as tabs).
 - A pasted table has no source to read again: data.py gets a marked stub. When data.ipynb would hold
   pasted rows, `project_new` and `streamlit_save_as` wait for the user's Allow.
+
+## App mode
+- `streamlit_page_settings` (title, icon, layout wide or centered, logo, theme colours: written into the
+  saved pages and the zip as st.set_page_config, st.logo and .streamlit/config.toml); `streamlit_state`
+  (the live page's session state, each key with its block).
+- In the window: "canvas.select", "canvas.properties", "canvas.settings", "canvas.session",
+  "canvas.resetState", "canvas.undo", "canvas.redo", "canvas.duplicate", "canvas.align", "canvas.zoom",
+  "canvas.preview" (desktop, tablet, phone; light or dark), "canvas.addStarter" (a starter written as a
+  named cell of the mockups notebook, then placed), "data.starters", "data.starterList".
