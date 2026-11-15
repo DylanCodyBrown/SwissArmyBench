@@ -350,7 +350,7 @@ class StreamlitApps:
             del self._apps[app.id]
             raise
         self.ws.audit.write(who, "open_streamlit_app", app.title)
-        if app.live:
+        if self._shown(app):  # its live cells, or its Markdown and HTML cells
             await self._cells_changed()
         return self._state(app)
 
@@ -1091,7 +1091,7 @@ class StreamlitApps:
         if app is not None:
             await self._stop(app)
             await self._changed(app)
-            if app.live:
+            if self._shown(app):
                 await self._cells_changed()
 
     async def kernel_stopped(self, kernel_id: str) -> None:

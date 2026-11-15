@@ -7205,6 +7205,17 @@ body.dropping-file::after {
   border-left-color: var(--muted);
 }
 
+/* The T mark, then the name at the start of the line (the check mark still at its end). */
+.wb-st-cell.text .wb-data-name {
+  align-items: center;
+  gap: 0;
+}
+
+.wb-st-cell.text .wb-data-label {
+  flex: 1;
+  min-width: 0;
+}
+
 .wb-st-t {
   display: inline-flex;
   flex: none;
@@ -7224,7 +7235,12 @@ body.dropping-file::after {
 
 /* A Markdown cell with names: its state line above its text (an HTML cell's design bar). */
 .wb-markdown-view .wb-text-bar {
-  margin: -2px 0 6px;
+  margin: 0 0 6px;
+}
+
+.wb-markdown-view > .note-body,
+.wb-markdown-view > .wb-design-notes {
+  padding: 2px 12px 6px;
 }
 
 .wb-markdown-view .wb-text-bar[hidden] {

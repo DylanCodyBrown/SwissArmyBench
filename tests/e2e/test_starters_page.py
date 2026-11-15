@@ -123,7 +123,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
     expect(listed.locator(".blade-group", has_text="Starters")).to_be_visible(timeout=20000)
     # Each family folds to one line with its count, in the pack's order.
     expect(listed.locator(".starter-family")).to_have_text(
-        ["Power BI13", "Excel12", "Files3", "DAX11", "HTML10", "Streamlit29"]
+        ["Power BI13", "Excel12", "Files3", "DAX11", "HTML10", "Markdown10", "Streamlit29"]
     )
     expect(listed.locator(".starter-item")).to_have_count(0)
     family(listed, "Streamlit")

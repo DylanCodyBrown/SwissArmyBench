@@ -340,7 +340,9 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     workbench.locator(".cv-tab").nth(0).click()
     gone = workbench.locator(".cv-block.gone")
     expect(gone).to_have_count(1, timeout=20000)
-    expect(gone.locator(".cv-block-missing")).to_have_text(f"sales.ipynb has no Python cell 3 now ({book}).")
+    expect(gone.locator(".cv-block-missing")).to_have_text(
+        f"sales.ipynb has no cell 3 for a page now ({book})."
+    )
     shot(workbench, "5-a-missing-cell")
 
     # ----- the dark theme: the canvas's colours are the theme's tokens; the live page is Streamlit's dark
