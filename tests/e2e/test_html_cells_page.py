@@ -347,12 +347,27 @@ def test_names_are_filled_from_the_kernel_and_the_cell_goes_out_of_date(
     workbench.keyboard.press("Escape")
     expect(frame.locator("#new")).to_have_text("New: 1300", timeout=20000)
     expect(state).to_have_text(re.compile(r"^Out of date · last run \d\d:\d\d$"))
-    # Undoing the edit clears it by itself.
+
+    # Undoing the edit clears it by itself. The editor's own undo, as in any cell: it takes the typing
+    # back a few words at a time, so Ctrl+Z is pressed until the HTML is as it was. After a pause, so
+    # the keys reach the editor: pressed in the instant after Edit HTML they once reached the page
+    # before the editor had the keyboard, and the browser's own undo took the whole edit back in one
+    # go, which is what this test used to pass on (and fail on, whenever the editor was quicker).
+    def html_now() -> str:
+        return str(next(c["source"] for c in window(server, "doc.read")["cells"] if c["kind"] == "html"))
+
     cell.get_by_role("button", name="Edit HTML").click()
-    workbench.keyboard.press("Control+z")
-    workbench.keyboard.press("Control+z")
+    expect(cell.locator(".monaco-editor")).to_be_visible()
+    workbench.wait_for_timeout(700)
+    assert html_now().startswith("<h2 id='new'>")
+    presses = 0
+    while html_now() != STORY and presses < 30:
+        workbench.keyboard.press("Control+z")
+        presses += 1
+    assert html_now() == STORY and 1 <= presses < 30, presses
     workbench.keyboard.press("Escape")
     expect(cell.locator(".wb-design-bar")).to_be_hidden(timeout=20000)
+    expect(frame.locator("#new")).to_have_count(0)
     # Ctrl+Enter in the HTML runs it.
     cell.get_by_role("button", name="Edit HTML").click()
     workbench.keyboard.press("Control+End")

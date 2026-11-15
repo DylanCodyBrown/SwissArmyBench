@@ -385,20 +385,18 @@ textarea {
 /* ===== workspace and split panels ===== */
 
 .workspace {
-  /* Narrow windows keep most of the width for the grid (at 420px it was 100px wide). */
-  --steps-width: min(320px, 40vw);
   --panel-size: 380px;
   position: relative;
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) 8px var(--panel-size) var(--steps-col, 0px);
+  grid-template-columns: minmax(0, 1fr) 8px var(--panel-size) 0;
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "center splitter panel steps";
 }
 
 .workspace[data-layout="bottom"] {
-  grid-template-columns: minmax(0, 1fr) var(--steps-col, 0px);
+  grid-template-columns: minmax(0, 1fr) 0;
   grid-template-rows: minmax(0, 1fr) 8px var(--panel-size);
   grid-template-areas:
     "center steps"
@@ -411,11 +409,11 @@ textarea {
 }
 
 .workspace[data-panel="max"] {
-  grid-template-columns: 0 8px minmax(0, 1fr) var(--steps-col, 0px);
+  grid-template-columns: 0 8px minmax(0, 1fr) 0;
 }
 
 .workspace[data-layout="bottom"][data-panel="max"] {
-  grid-template-columns: minmax(0, 1fr) var(--steps-col, 0px);
+  grid-template-columns: minmax(0, 1fr) 0;
   grid-template-rows: 0 8px minmax(0, 1fr);
 }
 
@@ -2662,7 +2660,7 @@ button.link {
    column. The layout is pinned here, not left to --panel-size: setSize() writes a saved size
    inline, which would beat a stylesheet value and leave a blank band below the grid. */
 .workspace[data-panel="detached"] {
-  grid-template-columns: minmax(0, 1fr) 0 0 var(--steps-col, 0px) !important;
+  grid-template-columns: minmax(0, 1fr) 0 0 0 !important;
   grid-template-rows: minmax(0, 1fr) !important;
   grid-template-areas: "center splitter panel steps" !important;
 }

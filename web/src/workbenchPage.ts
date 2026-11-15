@@ -990,8 +990,11 @@ document.addEventListener(
 document.addEventListener("keydown", (e) => {
   // Ctrl+Z outside an editor: a notebook's cell delete or move comes back (inside, the editor's own undo).
   const inEditor = (e.target as HTMLElement | null)?.closest?.(".monaco-editor, input, textarea, select");
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !inEditor && current?.notebook) {
-    if (current.notebook.undo()) e.preventDefault();
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !inEditor) {
+    // Never the browser's own undo: with the keyboard on a button it took back the last text typed
+    // into some editor, whole and unseen (an HTML cell's edit, in the instant after Edit HTML).
+    e.preventDefault();
+    current?.notebook?.undo();
   }
 });
 window.addEventListener("beforeunload", (e) => {
