@@ -63,6 +63,7 @@ from swissarmygrid.services.folders import Folders
 from swissarmygrid.services.grids import GridService
 from swissarmygrid.services.inbox import Inbox
 from swissarmygrid.services.packs import Packs
+from swissarmygrid.services.panels import Panels
 from swissarmygrid.services.processes import ProcessRegistry, Sessions
 from swissarmygrid.services.profile import Profiles
 from swissarmygrid.services.projects import Projects
@@ -118,6 +119,7 @@ class Services:
     table_cells: TableCells
     streamlit: StreamlitApps
     projects: Projects
+    panels: Panels
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -298,6 +300,7 @@ def bootstrap(
         snapshots=Snapshots(ws),
         workbench_window=WorkbenchWindow(ws),
         table_cells=table_cells,
+        panels=Panels(ws),
         streamlit=streamlit,
         projects=Projects(
             ws,

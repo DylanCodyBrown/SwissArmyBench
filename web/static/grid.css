@@ -7195,3 +7195,38 @@ body.dropping-file::after {
   opacity: 0.55;
   pointer-events: none;
 }
+
+
+/* ===== panels turned off in Settings (panels.ts): gone, not folded ===== */
+
+body.panel-off-workbench-data .wb-data,
+body.panel-off-workbench-tables .wb-data-section[data-panel="tables"],
+body.panel-off-workbench-blades .wb-data-section[data-panel="blades"],
+body.panel-off-workbench-streamlit .wb-data-section[data-panel="streamlit"],
+body.panel-off-workbench-console .wb-status .wb-console-toggle,
+body.panel-off-workbench-variables .wb-status .wb-variables-toggle,
+body.panel-off-workbench-status .wb-status,
+body.panel-off-grid-ribbon .ribbon,
+body.panel-off-grid-steps .steps-strip,
+body.panel-off-grid-status .statusbar {
+  display: none !important;
+}
+
+.panel-switches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px 24px;
+}
+
+.panel-page {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.panel-page h4 {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 0.86em;
+  font-weight: 600;
+}

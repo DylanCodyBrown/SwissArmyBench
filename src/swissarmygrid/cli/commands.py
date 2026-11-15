@@ -2589,6 +2589,17 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
 # app by its id; the project_* commands on a project's folder.
 
 
+@command(
+    "app_panels",
+    "The panels' switches in Settings (all on at each start); with set, turn some off or on",
+    opt("set", '{"workbench.console": false, "grid.ribbon": true}', "json"),
+)
+def app_panels(a: dict[str, Any]) -> Any:
+    if a.get("set") is not None:
+        return api.call("PUT", "/panels", a["set"])
+    return api.call("GET", "/panels")
+
+
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
 def workbench_new_app(a: dict[str, Any]) -> Any:
     return _window("file.newApp", {})

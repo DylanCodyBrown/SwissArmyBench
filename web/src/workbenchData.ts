@@ -134,7 +134,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
   });
   const streamlitHead = h("button", { type: "button", class: "wb-data-fold-head", id: "wb-data-streamlit", "aria-expanded": String(!streamlitFolded) });
   const streamlitList = h("div", { class: "wb-st-list", "aria-labelledby": "wb-data-streamlit" });
-  const streamlitSection = h("section", { class: "wb-data-section wb-st", "aria-label": "Streamlit cells" }, h("h3", {}, streamlitHead), streamlitList);
+  const streamlitSection = h("section", { class: "wb-data-section wb-st", "data-panel": "streamlit", "aria-label": "Streamlit cells" }, h("h3", {}, streamlitHead), streamlitList);
   streamlitHead.addEventListener("click", () => {
     streamlitFolded = !streamlitFolded;
     keep(STREAMLIT_KEY, streamlitFolded);
@@ -145,9 +145,9 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
   const body = h(
     "div",
     { class: "wb-data-body" },
-    h("section", { class: "wb-data-section", "aria-labelledby": "wb-data-tables" }, h("h3", {}, h("span", { id: "wb-data-tables" }, "Tables"), addTable), tableList),
+    h("section", { class: "wb-data-section", "data-panel": "tables", "aria-labelledby": "wb-data-tables" }, h("h3", {}, h("span", { id: "wb-data-tables" }, "Tables"), addTable), tableList),
     // Named apart from the Variables pane (what the kernel holds): these are the blades' values.
-    h("section", { class: "wb-data-section", "aria-label": "Blade variables" }, h("h3", {}, h("span", {}, "Variables"), addBlade), bladeList),
+    h("section", { class: "wb-data-section", "data-panel": "blades", "aria-label": "Blade variables" }, h("h3", {}, h("span", {}, "Variables"), addBlade), bladeList),
     streamlitSection,
     filesSection,
   );

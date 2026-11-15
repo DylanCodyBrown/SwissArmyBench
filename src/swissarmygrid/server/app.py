@@ -19,6 +19,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_projects.py       projects: a new one, its files, Export data.py
+  routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
@@ -54,6 +55,7 @@ from swissarmygrid.server import (
     routes_folders,
     routes_grids,
     routes_packs,
+    routes_panels,
     routes_processes,
     routes_projects,
     routes_regression,
@@ -163,6 +165,7 @@ def create_app(
             *routes_table_cells.routes(ctx.table_cells),
             *routes_streamlit.routes(ctx.streamlit),
             *routes_projects.routes(ctx.projects),
+            *routes_panels.routes(ctx.panels),
             *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),

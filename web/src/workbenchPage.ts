@@ -63,6 +63,8 @@ import { mountDataPanel } from "./workbenchData";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, tabKinds } from "./workbenchGroups";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
+import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
+import { openSettings } from "./settingsWindow";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
@@ -638,7 +640,7 @@ function openScript(path: string | null, text: string, modified: number | null):
 
 /** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
-  if (doc !== current || layout.state().console) return;
+  if (doc !== current || layout.state().console || !panelOn("workbench.console")) return;
   layout.toggle("console", true);
   drawStatus();
 }
@@ -934,11 +936,12 @@ function topEntries(): MenuEntry[] {
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
     { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
     null,
-    { label: folded ? "Expand the Data panel" : "Collapse the Data panel", icon: folded ? "expand" : "collapse", keys: "Ctrl+B", run: () => void data.toggle() },
+    ...(panelOn("workbench.data") ? [{ label: folded ? "Expand the Data panel" : "Collapse the Data panel", icon: folded ? "expand" : "collapse", keys: "Ctrl+B", run: () => void data.toggle() }] : []),
     { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
     { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
     null,
     { label: "Commands…", icon: "steps", keys: "Ctrl+Shift+P", run: () => openPalette() },
+    { label: "Settings…", icon: "cog", run: () => openSettings() },
   ];
 }
 
@@ -1033,11 +1036,11 @@ const cursorHost = h("span", { class: "wb-status-cursor" });
 const consoleToggle = button("Console", () => {
   layout.toggle("console");
   drawStatus();
-}, { class: "ghost wb-toggle", pressed: false });
+}, { class: "ghost wb-toggle wb-console-toggle", pressed: false });
 const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
-}, { class: "ghost wb-toggle", pressed: false });
+}, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
 layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), consoleToggle, variablesToggle);
 
 function drawCursor(): void {
@@ -1629,17 +1632,17 @@ const COMMANDS: Command[] = [
   // View
   { id: "palette", group: "View", title: "Show every command", keys: "Ctrl+Shift+P", run: () => openPalette() },
   { id: "view.source", group: "View", title: "Go to the source", keys: "Ctrl+1", run: () => layout.focus("source") },
-  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", run: () => layout.focus("variables") },
+  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
-  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
-  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", run: (a) => {
+  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", when: () => panelOn("workbench.data"), whyNot: turnedOff("The Data panel"), run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
+  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();
     drawStatus();
     return { shown };
   } },
-  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", run: (a) => {
+  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.console"), whyNot: turnedOff("The Console"), run: (a) => {
     const shown = layout.toggle("console", typeof a.show === "boolean" ? a.show : undefined);
     drawStatus();
     return { shown };
@@ -1820,7 +1823,16 @@ onNotice((notice) => {
   }
 });
 
+// A panel turned off in Settings is gone (grid.css, by <body>'s class); an open console or Variables
+// closes with it, and stays closed until it is turned on again and opened.
+onPanels(() => {
+  if (!panelOn("workbench.console") && layout.state().console) layout.toggle("console", false);
+  if (!panelOn("workbench.variables") && layout.state().right) layout.toggle("right", false);
+  drawStatus();
+});
+
 void Promise.all([
+  loadPanels(),
   refreshHome(),
   loadConnections(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),

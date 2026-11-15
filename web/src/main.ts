@@ -36,6 +36,7 @@ import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, h, toast } from "./dom";
 import { renderKeyFinder } from "./keyFinder";
 import { settingsButton } from "./settingsWindow";
+import { loadPanels } from "./panels";
 import { connectionsButton } from "./connectionsWindow";
 import { tourButton } from "./tour";
 import { restoreCompare, showCompare } from "./compare";
@@ -187,6 +188,7 @@ async function start(): Promise<void> {
   $(".titlebar").append(strip);
   mountStepsStrip(strip);
   mountBottomBar($(".statusbar"));
+  void loadPanels(); // a panel turned off in Settings is gone (grid.css, by <body>'s class)
   mountAiPanel(workspace, $("#ai-panel"), $(".splitter"));
   mountErd($("#erd-view"));
   // Before the panes: a built table's pane gets its query tray as the pane is made.

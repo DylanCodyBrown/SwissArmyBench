@@ -9,13 +9,50 @@
  *          [THEME CHOICE]         -> setTheme(choice)  (every open tab and window follows)
  *          (Column profiles in the headers are switched in the grid's own top-left corner, beside
  *           what they change: gridView.ts CornerHeader. The zoom is the Application row's.)
+ *          [PANELS]               a switch for each panel of the Workbench and the grid page -> panels.ts
+ *                                 (the server's, for every window; all on again at each start)
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
  *          [CLOSE]                -> close()
  *          [AGENT ACCESS]         -> agentAccess.agentAccessSection()  (agent activity)
  */
 import { agentAccessSection } from "./agentAccess";
 import { button, h, openDialog, toast } from "./dom";
+import { loadPanels, panelList, setPanel } from "./panels";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
+
+/** One switch for each panel, by page. A panel turned off is gone from every window at once. */
+function panelsSection(): HTMLElement {
+  const grid = h("div", { class: "panel-switches" });
+  const draw = (): void => {
+    const pages = [...new Set(panelList().map((p) => p.page))];
+    grid.replaceChildren(
+      ...pages.map((page) =>
+        h(
+          "div",
+          { class: "panel-page", role: "group", "aria-label": page },
+          h("h4", {}, page),
+          ...panelList()
+            .filter((p) => p.page === page)
+            .map((p) =>
+              h(
+                "label",
+                { class: "check" },
+                h("input", {
+                  type: "checkbox",
+                  checked: p.on,
+                  dataset: { panel: p.id },
+                  onchange: (e: Event) => void setPanel(p.id, (e.target as HTMLInputElement).checked).catch((error: Error) => toast(error.message, "error")),
+                }),
+                p.name,
+              ),
+            ),
+        ),
+      ),
+    );
+  };
+  void loadPanels().then(draw);
+  return h("fieldset", { class: "fieldset panels-fieldset" }, h("legend", {}, "Panels"), grid);
+}
 
 export function settingsButton(): HTMLButtonElement {
   // First in the Application row: always there, whichever tab is open.
@@ -60,6 +97,7 @@ export function openSettings(): void {
       h("legend", {}, "Theme"),
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
+    panelsSection(),
     h(
       "fieldset",
       { class: "fieldset" },
