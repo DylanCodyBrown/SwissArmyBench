@@ -5776,17 +5776,23 @@ body.dropping-file::after {
 /* ===== HTML cells (docs/ideas.md, 2026-11-14): the design drawn from a cell's HTML ===== */
 
 /* Two faces: the HTML while it is edited, the design when it is not. */
-.wb-cell:not(.kind-html) > .wb-design,
+.wb-cell:not(.kind-html):not(.kind-streamlit) > .wb-design,
 .wb-cell.kind-html:not(.rendered) > .wb-design,
-.wb-cell.kind-html.rendered > .wb-editor {
+.wb-cell.kind-html.rendered > .wb-editor,
+.wb-cell.kind-streamlit.rendered > .wb-editor,
+/* A piece's bar (its state, Push to page) shows with its code too; the live piece only when drawn. */
+.wb-cell.kind-streamlit:not(.rendered) > .wb-design > .wb-design-stage,
+.wb-cell.kind-streamlit:not(.rendered) > .wb-design > .wb-design-grip {
   display: none;
 }
 
-.wb-cell.kind-html .wb-cell-head {
+.wb-cell.kind-html .wb-cell-head,
+.wb-cell.kind-streamlit .wb-cell-head {
   background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
-.wb-cell.kind-html.stale {
+.wb-cell.kind-html.stale,
+.wb-cell.kind-streamlit.stale {
   border-left-color: var(--warn);
 }
 
@@ -5794,7 +5800,8 @@ body.dropping-file::after {
   display: none;
 }
 
-.wb-cell.kind-html.rendered .wb-edit-html {
+.wb-cell.kind-html.rendered .wb-edit-html,
+.wb-cell.kind-streamlit.rendered .wb-edit-html {
   display: inline-flex;
 }
 
@@ -5818,8 +5825,35 @@ body.dropping-file::after {
 
 .wb-design-bar[hidden],
 .wb-design-notes[hidden],
-.wb-design-run[hidden] {
+.wb-design-run[hidden],
+.wb-design-state[hidden],
+.wb-piece-install[hidden],
+.wb-piece-pages[hidden] {
   display: none;
+}
+
+/* A Streamlit piece's bar: the pages it is on (each opens the page designer), Push to page. */
+.wb-piece-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+  font-size: 0.85em;
+}
+
+.wb-piece-pages::before {
+  content: "on";
+  color: var(--muted);
+}
+
+.wb-cell.kind-streamlit:not(.rendered) > .wb-design > .wb-design-bar {
+  border-bottom: 0;
+  border-top: 1px dashed var(--border);
+}
+
+/* Streamlit draws on its own background: the frame takes the app's surface behind it. */
+.wb-piece-frame {
+  background: var(--raised);
 }
 
 .wb-design-bar .spacer {
@@ -5915,4 +5949,286 @@ body.dropping-file::after {
 
 .wb-design.in-script.stale {
   border-left-color: var(--warn);
+}
+
+/* ===== THE PAGE DESIGNER (designer.html: designerPage.ts; docs/ideas.md, 2026-11-15) ===== */
+.designer-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dz-top {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.dz-tabs {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dz-tab {
+  cursor: pointer;
+}
+
+.dz-rename {
+  width: 14ch;
+  padding: 1px 4px;
+  font: inherit;
+}
+
+.dz-tools {
+  flex: none;
+  padding-bottom: 6px;
+}
+
+.dz-run.dz-stale {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dz-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.dz-rail {
+  flex: none;
+  width: 260px;
+  padding: 10px 12px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.dz-rail h2 {
+  margin: 0 0 8px;
+  font-size: 1em;
+}
+
+.dz-piece-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dz-piece {
+  position: relative;
+  padding: 6px 36px 6px 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--raised);
+  cursor: grab;
+}
+
+.dz-piece-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dz-piece-name .hint {
+  font-weight: 400;
+}
+
+.dz-piece-parts {
+  font-size: 0.85em;
+}
+
+.dz-piece-problem {
+  color: var(--error);
+  font-size: 0.85em;
+}
+
+.dz-piece .dz-add {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.dz-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The layout: 12 columns; pieces flow in order, a row holding as many as fit. */
+.dz-board {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 8px;
+  max-height: 42vh;
+  padding: 12px;
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.dz-board.dropping {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.dz-board > .dz-empty,
+.dz-board > .dz-problem {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.dz-empty {
+  padding: 14px;
+  color: var(--muted);
+}
+
+.dz-problem {
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--text);
+}
+
+.dz-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 8px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--raised);
+  cursor: grab;
+}
+
+.dz-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dz-card.stale {
+  border-left-color: var(--warn);
+}
+
+.dz-card.gone {
+  border-left-color: var(--error);
+}
+
+.dz-card.dragging {
+  opacity: 0.45;
+}
+
+.dz-card.resizing {
+  outline: 2px solid var(--accent);
+}
+
+.dz-card.drop-before::before,
+.dz-card.drop-after::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.dz-card.drop-before::before {
+  left: -6px;
+}
+
+.dz-card.drop-after::after {
+  right: -6px;
+}
+
+.dz-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dz-card-head .spacer {
+  flex: 1;
+}
+
+.dz-card-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dz-card-parts {
+  overflow: hidden;
+  font-size: 0.9em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dz-size {
+  font-size: 0.8em;
+}
+
+.dz-live {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--raised);
+}
+
+.dz-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--raised);
+}
+
+.dz-stopped {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+/* The app on its own (view=app): one frame, the whole window. */
+.dz-app-only .dz-top,
+.dz-app-only .dz-rail,
+.dz-app-only .dz-board {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .dz-rail {
+    width: 180px;
+  }
 }

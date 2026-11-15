@@ -1,14 +1,14 @@
 /**
- * workbenchNotebook.ts: a notebook in the Workbench: cells of Python, SQL on a connection, HTML or
- * Markdown, run in the document's IPython kernel. [WIRE]
+ * workbenchNotebook.ts: a notebook in the Workbench: cells of Python, SQL on a connection, HTML,
+ * Streamlit or Markdown, run in the document's IPython kernel. [WIRE]
  *
- *   [CELL]     its kind (Python, SQL, HTML, Markdown); a SQL cell's connection; Run; More: run above, run
+ *   [CELL]     its kind (Python, SQL, HTML, Streamlit, Markdown); a SQL cell's connection; Run; More: run above, run
  *              below, insert above or below, duplicate, clear or hide its output; move up and down; delete
  *   [EDIT]     Shift+Enter runs and goes to the next cell (a new one after the last); Ctrl+Enter runs in
  *              place; Escape leaves the editor for command mode; a Markdown cell shows as text until
  *              double-clicked (or Enter)
  *   [COMMAND]  Jupyter's keys on the selected cell: Enter edits; A and B insert above and below; D D
- *              deletes; Y, M, S and H make it Python, Markdown, SQL or HTML; J and K (or Down and Up) move the
+ *              deletes; Y, M, S, H and T make it Python, Markdown, SQL, HTML or Streamlit; J and K (or Down and Up) move the
  *              selection; Z undoes a delete or move; Shift+Enter and Ctrl+Enter run
  *   [OUTPUTS]  as the run streams them (workbenchOutputs.ts), kept with the cell and saved with it; a
  *              box when the code asks for a line (input()); a word when the kernel stopped or restarted
@@ -33,6 +33,11 @@
  *              cell turns yellow (Out of date · Run) when its HTML or a variable it names changes. A
  *              click inside the design goes to the design (its buttons work): the cell's head, its Edit
  *              button or Enter open the HTML
+ *   [STREAMLIT] a Streamlit cell (docs/ideas.md, 2026-11-15; workbenchStreamlit.ts) is a piece of a page:
+ *              Python that draws with st.*. It has two faces too: its code while it is edited, the piece
+ *              live (its widgets working) when it is not. It runs in the document's Streamlit app, not in
+ *              the kernel; it turns yellow when its code or a table it names changes. Push to page sends
+ *              it to the page designer
  *
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
@@ -47,6 +52,7 @@ import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourF
 import { type Kernel, runInto } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
+import { PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
 
 /** A SQL cell's first line as the kernel runs it (domain/notebooks.py sql_line). */
@@ -55,7 +61,7 @@ export function sqlLine(connection: string | null): string {
   return /\s/.test(connection) ? `%%sql '${connection.replace(/'/g, "'\"'\"'")}'` : `%%sql ${connection}`;
 }
 
-export type CellKind = "code" | "sql" | "html" | "markdown";
+export type CellKind = "code" | "sql" | "html" | "streamlit" | "markdown";
 export interface CellData {
   kind: CellKind;
   source: string;
@@ -71,7 +77,7 @@ export interface CellData {
   grouped?: boolean;
   /** A transformations cell's steps as the grid holds them. */
   steps?: unknown[] | null;
-  /** An HTML cell's pane, in pixels (null: the design's own height). */
+  /** An HTML or Streamlit cell's pane, in pixels (null: the design's own height, the usual one). */
   height?: number | null;
 }
 
@@ -120,8 +126,11 @@ interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | 
   connectionPicker: HTMLSelectElement;
   /** Give it the keyboard once its editor exists, unless the focus went elsewhere meanwhile. */
   wantsFocus: boolean;
-  /** An HTML cell's design (null: a heading). */
+  /** An HTML cell's design, or a Streamlit cell's live piece (null: a heading). */
   design: DesignPane | null;
+  /** A Streamlit cell's own tools in its pane's bar. */
+  tools: PieceTools | null;
+  editorHost: HTMLElement;
   /** What an HTML cell's last run gave. */
   htmlRun: HtmlRun | undefined;
   /** What the design left out, and the names the kernel does not hold. */
@@ -133,9 +142,11 @@ interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | 
 /** What Undo puts back. */
 type Undo = { kind: "delete"; data: CellData; at: number; filler: Cell | null } | { kind: "move"; cell: Cell; from: number };
 
-const LANGUAGE: Record<CellKind, "python" | "sql" | "markdown" | "html"> = { code: "python", sql: "sql", markdown: "markdown", html: "html" };
-const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", html: "HTML", markdown: "Markdown" };
-const KINDS: CellKind[] = ["code", "sql", "html", "markdown"];
+const LANGUAGE: Record<CellKind, "python" | "sql" | "markdown" | "html"> = { code: "python", sql: "sql", markdown: "markdown", html: "html", streamlit: "python" };
+const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", html: "HTML", streamlit: "Streamlit", markdown: "Markdown" };
+const KINDS: CellKind[] = ["code", "sql", "html", "streamlit", "markdown"];
+/** The kinds with two faces: the code while it is edited, what it draws when it is not. */
+const drawn = (kind: CellKind): boolean => kind === "html" || kind === "streamlit";
 const usesForm = (kind: CellKind): UsesForm => (kind === "sql" ? "sql" : kind === "html" ? "html" : "python");
 const empty = (kind: CellKind = "code", connection: string | null = null): CellData => ({ kind, source: "", connection, outputs: [], execution_count: null });
 
@@ -194,6 +205,14 @@ export interface NotebookView {
   resizeHtml: (number: number, height: number | null) => void;
   /** Open the selected cell's code (an HTML or Markdown cell that shows as drawn). */
   editSelected: () => void;
+  /** Its Streamlit cells, in order: each a piece of the document's app. */
+  pieces: () => PieceSource[];
+  /** The app's state changed: each Streamlit cell is drawn again. */
+  drawPieces: () => void;
+  /** Size a Streamlit cell's pane (null: the usual height). */
+  resizePiece: (number: number, height: number | null) => void;
+  /** The place (from 0) of the cell with this number, or -1. */
+  indexOfNumber: (number: number) => number;
 }
 
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
@@ -221,6 +240,8 @@ export function notebookView(
     restoreSteps?: (grid: string, steps: unknown[]) => void;
     /** The tables' state changed (for the toolbar). */
     tablesChanged?: () => void;
+    /** The document's Streamlit app, for its Streamlit cells. */
+    streamlit?: StreamlitHost;
   } = {},
 ): NotebookView {
   const python = pythonCompleter(kernel, () => ({ connections: connections(), blades: blades(), codeNames: codeNames() }));
@@ -255,7 +276,12 @@ export function notebookView(
   const edited = (): void => {
     version++;
     changed();
+    if (hadPieces || cells.some((c) => c.kind === "streamlit")) {
+      hadPieces = cells.some((c) => c.kind === "streamlit");
+      hooks.streamlit?.changed();
+    }
   };
+  let hadPieces = false;
 
   const label = (cell: Cell): string => `Cell ${indexOf(cell) + 1} of ${cells.length}, ${KIND_NAMES[cell.kind]}`;
   const relabel = (): void => {
@@ -377,6 +403,54 @@ export function notebookView(
     }
   };
 
+  // ===== Streamlit cells: the piece live, its state, its run =====
+
+  const pane = (kind: CellKind, height: number | null, cell: () => Cell): { design: DesignPane; tools: PieceTools | null } => {
+    const tools = kind === "streamlit" ? pieceTools(hooks.streamlit, () => cell().number) : null;
+    const design = designPane({
+      dark,
+      height: drawn(kind) ? height : null,
+      resized: () => edited(),
+      run: () => void run(cell()),
+      ...(tools ? { fit: PIECE_HEIGHT, tools: tools.elements } : {}),
+    });
+    return { design, tools };
+  };
+
+  /** Draw a Streamlit cell from the app's state: the piece live once it has run, what needs doing. */
+  const drawPiece = (cell: Cell): void => {
+    if (cell.kind !== "streamlit" || !cell.design) return;
+    const view = pieceView(hooks.streamlit?.state() ?? null, cell.number, !!sourceOf(cell).trim());
+    cell.design.showAddress(view.address);
+    cell.design.setState(view.state, view.notes);
+    cell.tools?.draw(view);
+    cell.part.textContent = view.part;
+    cell.element.classList.toggle("stale", view.state.kind === "outOfDate");
+    // Its code shows while it is being edited, and while there is nothing to show yet.
+    if (!view.address) cell.element.classList.remove("rendered");
+    else if (!cell.editorHost.contains(document.activeElement)) cell.element.classList.add("rendered");
+  };
+
+  /** Run the document's Streamlit app (every piece: they share it). */
+  const runPieces = async (from: Cell | null): Promise<boolean> => {
+    const some = cells.filter((c) => c.kind === "streamlit");
+    for (const c of some) c.element.classList.add("running");
+    try {
+      const ok = hooks.streamlit ? await hooks.streamlit.run() : false;
+      if (from) from.element.classList.toggle("failed", !ok);
+      if (ok && from && sourceOf(from).trim()) {
+        toCommandMode(from); // out of the code: the piece shows
+        drawPiece(from);
+      }
+      return ok;
+    } catch (e) {
+      toast((e as Error).message, "error");
+      return false;
+    } finally {
+      for (const c of some) c.element.classList.remove("running");
+    }
+  };
+
   const run = async (cell: Cell): Promise<boolean> => {
     if (cell.editor) cell.source = cell.editor.value();
     for (const c of cells) c.editor?.setProblems([]); // the last failure's marks describe code that ran before
@@ -387,6 +461,7 @@ export function notebookView(
     }
     if (cell.role === "transformations") return runTransformations(cell);
     if (cell.kind === "html") return runHtmlCell(cell);
+    if (cell.kind === "streamlit") return runPieces(cell);
     if (!cell.source.trim()) return true;
     cell.area.set([]);
     cell.element.classList.remove("output-hidden");
@@ -431,9 +506,13 @@ export function notebookView(
 
   /** Run cells in order, stopping at the first that fails (or a stopped kernel), as Jupyter does. */
   const runEach = async (some: Cell[]): Promise<void> => {
+    let pieces = false;
     for (const cell of some) {
-      if (!(await run(cell))) break;
+      // The pieces run together, once, in the document's Streamlit app: after the cells before them.
+      if (cell.kind === "streamlit" && sourceOf(cell).trim()) pieces = true;
+      else if (!(await run(cell))) return;
     }
+    if (pieces) await runPieces(null);
   };
 
   const setKind = (cell: Cell, kind: CellKind): void => {
@@ -446,12 +525,21 @@ export function notebookView(
       if (cell.editor) cell.editor.replaceText(bare);
       cell.source = bare;
     }
-    const wasHtml = cell.kind === "html";
+    const wasHtml = drawn(cell.kind);
+    if (cell.design && (cell.kind === "streamlit" || kind === "streamlit")) {
+      // A piece's pane has its own tools: the pane is made anew for the new kind.
+      const made = pane(kind, null, () => cell);
+      cell.design.element.replaceWith(made.design.element);
+      cell.design.dispose();
+      cell.design = made.design;
+      cell.tools = made.tools;
+    }
     cell.kind = kind;
     cell.kindPicker.value = kind;
-    cell.element.classList.remove("kind-code", "kind-sql", "kind-markdown", "kind-html", "stale");
+    cell.part.textContent = "";
+    cell.element.classList.remove("kind-code", "kind-sql", "kind-markdown", "kind-html", "kind-streamlit", "stale");
     cell.element.classList.add(`kind-${kind}`);
-    if (wasHtml || kind === "html") {
+    if (wasHtml || drawn(kind)) {
       // Its outputs were the other kind's: an HTML cell keeps a design, not a run's output.
       cell.element.classList.remove("rendered");
       cell.area.set([]);
@@ -468,6 +556,7 @@ export function notebookView(
     relabel();
     edited();
     typedSoon();
+    drawPiece(cell);
   };
 
   const cellMenu = (cell: Cell, anchor: HTMLElement): void => {
@@ -626,14 +715,7 @@ export function notebookView(
     const runButton = button("Run cell", () => void run(cell), { icon: "play", iconOnly: true, class: "ghost", title: "Run cell (Ctrl+Enter)" });
     // An HTML cell that shows its design: back to its HTML.
     const editButton = button("Edit HTML", () => edit(cell), { icon: "edit", iconOnly: true, class: "ghost wb-edit-html", title: "Edit the HTML (Enter)" });
-    const design = isHeading(role)
-      ? null
-      : designPane({
-          dark,
-          height: data.kind === "html" ? (data.height ?? null) : null,
-          resized: () => edited(),
-          run: () => void run(cell),
-        });
+    const { design, tools } = isHeading(role) ? { design: null, tools: null } : pane(data.kind, data.height ?? null, () => cell);
     const head =
       role === "transformations"
         ? h("div", { class: "wb-cell-head" }, numberLabel, count, part, h("span", { class: "spacer" }), status, runButton, button("Delete cell", () => removeCell(cell), { icon: "trash", iconOnly: true, class: "ghost wb-delete-table" }))
@@ -680,6 +762,8 @@ export function notebookView(
       status,
       part,
       design,
+      tools,
+      editorHost,
       htmlRun: data.kind === "html" ? runFromOutputs(data.outputs) : undefined,
       htmlNotes: [],
       drawn: 0,
@@ -710,21 +794,22 @@ export function notebookView(
     element.addEventListener("dblclick", () => {
       if (cell.kind === "markdown" && element.classList.contains("rendered")) editMarkdown(cell);
     });
-    // An HTML cell that shows its design: a click on the cell itself (its head, not a button, and not
-    // the design, whose clicks are the design's own) opens its HTML.
+    // An HTML cell that shows its design (a Streamlit cell its piece): a click on the cell itself (its
+    // head, not a button, and not the design, whose clicks are the design's own) opens its code.
     element.addEventListener("click", (e) => {
       const target = e.target as HTMLElement;
-      if (cell.kind !== "html" || !element.classList.contains("rendered")) return;
+      if (!drawn(cell.kind) || !element.classList.contains("rendered")) return;
       if (target.closest(".wb-design, button, select, a, input")) return;
       editHtml(cell);
     });
     // Left: it draws by itself. (Another window in front is not leaving: the HTML stays open.)
     editorHost.addEventListener("focusout", () => {
       setTimeout(() => {
-        if (cell.kind !== "html" || element.classList.contains("rendered") || !cells.includes(cell)) return;
+        if (!drawn(cell.kind) || element.classList.contains("rendered") || !cells.includes(cell)) return;
         const now = document.activeElement as HTMLElement | null;
         if (!document.hasFocus() || (now && (editorHost.contains(now) || now.closest(".context-view, .monaco-menu, .overflowingContentWidgets")))) return;
-        if (sourceOf(cell).trim()) showDesign(cell);
+        if (cell.kind === "streamlit") drawPiece(cell);
+        else if (sourceOf(cell).trim()) showDesign(cell);
       }, 0);
     });
     if (role === "transformations") kindPicker.hidden = true;
@@ -737,10 +822,10 @@ export function notebookView(
         grow: true,
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
-        placeholder: cell.kind === "sql" ? (holdsDax(cell.connection) ? "DAX" : "SQL") : cell.kind === "html" ? "HTML" : undefined,
+        placeholder: cell.kind === "sql" ? (holdsDax(cell.connection) ? "DAX" : "SQL") : cell.kind === "html" ? "HTML" : cell.kind === "streamlit" ? "Python that draws with st.*" : undefined,
         // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog.
-        complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "code" ? python(text, offset) : Promise.resolve([])),
-        help: (text, offset) => (cell.kind === "code" ? kernel.help(text, offset) : Promise.resolve("")),
+        complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "code" || cell.kind === "streamlit" ? python(text, offset) : Promise.resolve([])),
+        help: (text, offset) => (cell.kind === "code" || cell.kind === "streamlit" ? kernel.help(text, offset) : Promise.resolve("")),
         sendToAgent: (what, ask) => sendToAgent(codeItem(`cell ${indexOf(cell) + 1} of ${currentDocument()}${what.startLine === what.endLine ? `, line ${what.startLine}` : `, lines ${what.startLine} to ${what.endLine}`}`, what, LANGUAGE[cell.kind]), ask),
         keys: {
           shiftEnter: () => void run(cell).then(() => next(cell)),
@@ -762,7 +847,8 @@ export function notebookView(
     if (cell.kind === "markdown" && cell.source.trim()) showMarkdown(cell);
     else if (cell.kind === "html") {
       if (cell.source.trim()) showDesign(cell);
-    } else area.set(data.outputs);
+    } else if (cell.kind === "streamlit") drawPiece(cell);
+    else area.set(data.outputs);
     cells.splice(at, 0, cell);
     list.insertBefore(element, list.children[at] ?? null);
     relabel();
@@ -796,12 +882,13 @@ export function notebookView(
   const edit = (cell: Cell): void => {
     select(cell);
     if (cell.kind === "markdown" && cell.element.classList.contains("rendered")) editMarkdown(cell);
-    else if (cell.kind === "html" && cell.element.classList.contains("rendered")) editHtml(cell);
+    else if (drawn(cell.kind) && cell.element.classList.contains("rendered")) editHtml(cell);
     else focusEditor(cell);
   };
 
   const next = (cell: Cell): void => {
     const following = cells[indexOf(cell) + 1] ?? make(empty(cell.kind === "markdown" || cell.kind === "html" ? "code" : cell.kind, cell.connection), cells.length);
+    if (following.kind === "streamlit" && following.element.classList.contains("rendered")) return toCommandMode(following);
     select(following);
     following.element.scrollIntoView({ block: "nearest" });
     focusEditor(following);
@@ -839,14 +926,14 @@ export function notebookView(
     source: sourceOf(c),
     connection: c.kind === "sql" ? c.connection : null,
     // An HTML cell keeps its last run's output: the filled design (what plain Jupyter shows) and the values.
-    outputs: c.kind === "markdown" ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
+    outputs: c.kind === "markdown" || c.kind === "streamlit" ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
     execution_count: c.execution_count,
     number: c.number,
     role: c.role,
     table: c.table,
     grouped: c.grouped,
     steps: c.role === "transformations" ? c.steps : null,
-    height: c.kind === "html" ? (c.design?.height() ?? null) : null,
+    height: drawn(c.kind) ? (c.design?.height() ?? null) : null,
   });
 
   const removeCell = (cell: Cell): void => {
@@ -945,6 +1032,7 @@ export function notebookView(
     else if (plain && key === "m" && !isApp(cell.role)) setKind(cell, "markdown");
     else if (plain && key === "s" && !isApp(cell.role)) setKind(cell, "sql");
     else if (plain && !e.shiftKey && key === "h" && !isApp(cell.role)) setKind(cell, "html");
+    else if (plain && !e.shiftKey && key === "t" && !isApp(cell.role)) setKind(cell, "streamlit");
     else if (plain && key === "z") undo();
     else if (plain && (key === "j" || e.key === "ArrowDown")) {
       const below = cells.slice(at + 1).find((c) => !c.element.hidden); // a folded group's cells are passed over
@@ -1335,5 +1423,16 @@ export function notebookView(
     editSelected: () => {
       if (selected) edit(selected);
     },
+    pieces: () => cells.filter((c) => c.kind === "streamlit" && sourceOf(c).trim()).map((c) => ({ cell: c.number, code: sourceOf(c) })),
+    drawPieces: () => {
+      for (const c of cells) drawPiece(c);
+    },
+    resizePiece: (number, height) => {
+      const cell = cells.find((c) => c.kind === "streamlit" && c.number === number);
+      if (!cell?.design) throw new Error(`This notebook has no Streamlit cell ${number}.`);
+      cell.design.setHeight(height);
+      edited();
+    },
+    indexOfNumber: (number) => cells.findIndex((c) => c.number === number),
   };
 }

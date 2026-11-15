@@ -26,6 +26,9 @@
  *              (docs/ideas.md, 2026-11-14): the document whose kernel sent it, else the one that
  *              already holds its cell, else the one in front. The toolbar offers Run tables when a
  *              table's cell is out of date or has not run
+ *   [STREAMLIT] a document with Streamlit cells has an app (workbenchStreamlit.ts): its pieces show live
+ *              in their cells; Push to page sends one to the page designer (a window of its own); the
+ *              toolbar's Streamlit app menu runs it, opens the designer or the app, and exports it
  *
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
@@ -48,6 +51,7 @@ import { variablesPanel } from "./workbenchVariables";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
+import { type AppState, type ExportResult, openApp, openDesigner, problemText, pushMenu, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
 watchTheme();
 
@@ -67,6 +71,8 @@ interface Doc {
   console?: ConsoleView;
   /** A notebook's console was used (clicked, focused, run in): shown at its size from then on. */
   consoleUsed?: boolean;
+  /** Its Streamlit app (its Streamlit cells' pieces and their pages). */
+  streamlit?: StreamlitDoc;
 }
 
 interface PythonChoice {
@@ -205,6 +211,130 @@ function drawTablesTool(): void {
   );
 }
 
+// ===== Streamlit: each document's app (its pieces, its pages, its run) =====
+
+const hasPieces = (doc: Doc | null): boolean => !!doc && !!viewOf(doc) && viewOf(doc)!.pieces().length > 0;
+
+/** A document's app: made with the document, opened on the server once it holds a piece. */
+function attachStreamlit(doc: Doc, pages: SavedPage[]): void {
+  doc.streamlit = new StreamlitDoc(
+    { title: () => doc.title, path: () => doc.path, python: () => doc.python, kernel: () => doc.kernel?.id ?? null, window: WINDOW_ID, pieces: () => viewOf(doc)?.pieces() ?? [] },
+    pages,
+    (changedPages) => {
+      viewOf(doc)?.drawPieces();
+      // The pages are saved inside the document's file: a notebook's with its cells, a script's in
+      // its own `# %% [streamlit-pages]` block.
+      if (changedPages) {
+        if (doc.script) doc.script.setPages(doc.streamlit!.pages());
+        else markChanged(doc)();
+      }
+      if (doc === current) drawToolbar();
+    },
+  );
+}
+
+/** Run or refresh a document's app (false: it did not start; its cells say why). */
+async function runApp(doc: Doc): Promise<boolean> {
+  if (!doc.streamlit) return false;
+  const state = await doc.streamlit.run();
+  if (state.problem?.kind === "failed") toast(problemText(state.problem), "error");
+  return state.running && !state.problem;
+}
+
+async function installStreamlit(doc: Doc): Promise<void> {
+  if (!doc.streamlit) return;
+  toast("Installing Streamlit into this document's Python…");
+  try {
+    await doc.streamlit.install();
+  } catch (e) {
+    toast((e as Error).message, "error");
+  }
+}
+
+/** Push a piece to a page (`page`: its id; without one, a new page named `name`), then show where it went. */
+async function pushPiece(doc: Doc, cell: number, page?: string, name?: string): Promise<{ app: string; page: string; state: AppState }> {
+  if (!doc.streamlit) throw new Error("The document in front has no Streamlit cells.");
+  const done = await doc.streamlit.push(cell, page, name);
+  return { app: doc.streamlit.app!, page: done.page, state: done.state };
+}
+
+async function showDesigner(doc: Doc, page?: string): Promise<{ app: string }> {
+  if (!doc.streamlit) throw new Error("The document in front has no Streamlit cells.");
+  const app = await doc.streamlit.ensure();
+  openDesigner(app, page);
+  return { app };
+}
+
+async function showApp(doc: Doc): Promise<{ app: string; address: string | null }> {
+  if (!doc.streamlit) throw new Error("The document in front has no Streamlit cells.");
+  if (!doc.streamlit.state?.running && !(await runApp(doc))) throw new Error("The app did not start.");
+  openApp(doc.streamlit.app!);
+  return { app: doc.streamlit.app!, address: doc.streamlit.state?.address ?? null };
+}
+
+/** Export as Streamlit app: the designed pages as a folder that runs without this app. */
+async function exportApp(doc: Doc, folder?: string): Promise<ExportResult | null> {
+  if (!doc.streamlit) throw new Error("The document in front has no Streamlit cells.");
+  if (!doc.streamlit.pages().length) throw new Error("There is no page to export yet: push a piece to a page first.");
+  const chosen = folder ?? (await chooseFile({ title: "Export as Streamlit app: choose its folder", mode: "folder", start: folderOf(doc.path) }));
+  if (!chosen) return null;
+  const done = await doc.streamlit.export(chosen);
+  // Where it went, and how to run it: what the user needs next.
+  toast(`${done.folder}: ${done.run}`, done.problems.length ? "error" : "info");
+  for (const problem of done.problems) toast(problem, "error");
+  return done;
+}
+
+const streamlitHost = (doc: Doc): StreamlitHost => ({
+  state: () => doc.streamlit?.state ?? null,
+  changed: () => {
+    doc.streamlit?.syncSoon();
+    if (doc === current) drawToolbarSoon();
+  },
+  run: () => runApp(doc),
+  install: () => void installStreamlit(doc),
+  push: (cell, anchor) => {
+    const state = doc.streamlit?.state;
+    const on = state?.pieces.find((p) => p.cell === cell)?.pages ?? [];
+    pushMenu(anchor, (state?.pages ?? doc.streamlit?.pages() ?? []).map((p) => ({ id: p.id, name: p.name })), on, (page) => void pushPiece(doc, cell, page ?? undefined).catch((e: Error) => toast(e.message, "error")));
+  },
+  designer: (page) => void showDesigner(doc, page).catch((e: Error) => toast(e.message, "error")),
+});
+
+/** The toolbar's Streamlit app menu: run, the designer, the app, export, stop. */
+function streamlitMenu(doc: Doc, anchor: HTMLElement): void {
+  document.querySelector(".menu")?.remove();
+  const state = doc.streamlit?.state;
+  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+  const item = (text: string, act: () => void, off = false): HTMLElement => h("button", { type: "button", role: "menuitem", disabled: off, onclick: () => { menu.remove(); act(); } }, text);
+  const menu = h(
+    "div",
+    { class: "menu", role: "menu", "aria-label": "Streamlit app" },
+    item(state?.running ? "Refresh the app" : "Run the app", guarded(() => runApp(doc))),
+    item("Page designer", guarded(() => showDesigner(doc))),
+    item("Open the app in its own window", guarded(() => showApp(doc))),
+    item("Export as Streamlit app…", guarded(() => exportApp(doc)), !doc.streamlit?.pages().length),
+    state?.running ? item("Stop the app", guarded(() => doc.streamlit!.stop())) : null,
+  );
+  document.body.append(menu);
+  const box = anchor.getBoundingClientRect();
+  menu.style.top = `${box.bottom + 4}px`;
+  menu.style.left = `${Math.max(8, Math.min(box.left, innerWidth - menu.offsetWidth - 8))}px`;
+  (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
+  setTimeout(() => document.addEventListener("mousedown", function away(e) { if (!menu.contains(e.target as Node)) { menu.remove(); document.removeEventListener("mousedown", away); } }));
+  menu.addEventListener("keydown", (e) => { if (e.key === "Escape") { menu.remove(); anchor.focus(); } });
+}
+
+let toolbarTimer: number | null = null;
+function drawToolbarSoon(): void {
+  if (toolbarTimer !== null) return;
+  toolbarTimer = window.setTimeout(() => {
+    toolbarTimer = null;
+    // Only when what it shows changed (the Streamlit app menu comes with the first piece).
+    if (!!document.querySelector(".wb-streamlit-app") !== hasPieces(current)) drawToolbar();
+  }, 300);
+}
+
 const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => toast(e.message, "error"));
 
 function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified: number | null): Doc {
@@ -305,8 +435,9 @@ const markChanged = (doc: Doc) => (): void => {
   remember();
 };
 
-function openNotebook(path: string | null, cells: CellData[], modified: number | null, nextCell?: number): Doc {
+function openNotebook(path: string | null, cells: CellData[], modified: number | null, nextCell?: number, pages: SavedPage[] = []): Doc {
   const doc = makeDoc("notebook", path ? baseName(path) : `Untitled notebook ${counter + 1}`, path, modified);
+  attachStreamlit(doc, pages);
   doc.notebook = notebookView(cells, doc.kernel!, () => connectionNames, () => effectiveTheme(), markChanged(doc), () => bladeNames, () => codeNames, {
     ...hooks,
     fix: pageFix(doc),
@@ -316,9 +447,11 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
     opened: cells.length > 0, // from a file or a reload: its tables' cells have not run since
     restoreSteps,
     tablesChanged: () => doc === current && drawTablesTool(),
+    streamlit: streamlitHost(doc),
   });
   doc.element.append(doc.notebook.element);
   show(doc);
+  doc.streamlit!.syncSoon(); // a file's pieces: the app knows them, and each cell says its state
   // A new notebook is for typing: the cursor waits in its first cell.
   if (!path && !cells.length) doc.notebook.select(0, true);
   return doc;
@@ -332,9 +465,11 @@ function openScript(path: string | null, text: string, modified: number | null):
     // from a private copy).
     saveFirst: async (): Promise<boolean> => (!doc.path || !doc.dirty ? true : save(doc)),
   };
-  doc.script = scriptView(text, doc.kernel!, doc.console!, () => effectiveTheme(), markChanged(doc), names, file, { ...hooks, fix: pageFix(doc), openFile: (path, line) => void openAt(path, line), openGrid: (name) => void openGrid(doc, name), openResult: (n, name) => void openResult(doc, n, name), tablesChanged: () => doc === current && drawTablesTool() });
+  doc.script = scriptView(text, doc.kernel!, doc.console!, () => effectiveTheme(), markChanged(doc), names, file, { ...hooks, fix: pageFix(doc), openFile: (path, line) => void openAt(path, line), openGrid: (name) => void openGrid(doc, name), openResult: (n, name) => void openResult(doc, n, name), tablesChanged: () => doc === current && drawTablesTool(), streamlit: streamlitHost(doc) });
+  attachStreamlit(doc, doc.script.pages());
   doc.element.append(doc.script.element);
   show(doc);
+  doc.streamlit!.syncSoon();
   return doc;
 }
 
@@ -363,6 +498,7 @@ function show(doc: Doc): void {
 function close(doc: Doc): void {
   if (doc.dirty && !confirm(`${doc.title} has changes that are not saved. Close it anyway?`)) return;
   doc.kernel?.stop();
+  doc.streamlit?.close(); // its Streamlit process and temporary folder go with it
   docs.splice(docs.indexOf(doc), 1);
   tablesSent.delete(doc);
   remember();
@@ -396,8 +532,8 @@ async function open(path?: string): Promise<void> {
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
   try {
-    const found = await api<{ path: string; kind: "notebook" | "script"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number }>("/workbench/open", "POST", { path: chosen });
-    if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell);
+    const found = await api<{ path: string; kind: "notebook" | "script"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; pages?: SavedPage[] }>("/workbench/open", "POST", { path: chosen });
+    if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell, found.pages ?? []);
     else openScript(found.path, found.text ?? "", found.modified);
     // Its own environment, as remembered (or the .venv beside it): the picker shows it, Run uses it.
     if (found.python && current) {
@@ -423,7 +559,8 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     if (!path.toLowerCase().endsWith(ending)) path += ending;
   }
   // A notebook keeps the next cell number with it, so a deleted cell's number is never given again.
-  const body = doc.kind === "notebook" ? { cells: doc.notebook!.cells(), next_cell: doc.notebook!.nextCell() } : { text: doc.script!.text() };
+  // Its Streamlit pages go with it too (a script's are in its text).
+  const body = doc.kind === "notebook" ? { cells: doc.notebook!.cells(), next_cell: doc.notebook!.nextCell(), pages: doc.streamlit?.pages() ?? [] } : { text: doc.script!.text() };
   const send = async (force: boolean): Promise<void> => {
     const saved = await api<{ path: string; modified: number }>("/workbench/save", "POST", { path, ...body, modified: as ? null : doc.modified, force });
     const first = doc.path === null;
@@ -564,6 +701,7 @@ function drawToolbar(): void {
           button("Python", () => doc.notebook!.add("code"), { icon: "plus", title: "Add Python cell (B)" }),
           button("SQL", () => doc.notebook!.add("sql"), { icon: "sql", title: "Add SQL cell" }),
           button("HTML", () => doc.notebook!.add("html"), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
+          button("Streamlit", () => doc.notebook!.add("streamlit"), { icon: "bucket", title: "Add Streamlit cell: a piece of a page (a chart, a filter, a number), live in its cell" }),
           button("Markdown", () => doc.notebook!.add("markdown"), { icon: "edit", title: "Add Markdown cell" }),
           button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" }),
         ]
@@ -571,7 +709,10 @@ function drawToolbar(): void {
           button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" }),
           button("Run statement", () => void doc.script!.runSelection(), { icon: "play", title: "Run statement (Ctrl+Enter)" }),
           button("HTML", () => void doc.script!.addHtml(), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
+          button("Streamlit", () => void doc.script!.addStreamlit(), { icon: "bucket", title: "Add Streamlit cell: a piece of a page (a chart, a filter, a number), live in its cell" }),
         ];
+  // A document with pieces has an app: run it, design its pages, open it, export it.
+  const app = hasPieces(doc) ? [button("Streamlit app", (e) => streamlitMenu(doc, e.currentTarget as HTMLElement), { icon: "more", class: "wb-streamlit-app", title: "This document's Streamlit app: run, page designer, open, export" })] : [];
   clear(
     toolbar,
     h("div", { class: "ribbon-tools" }, ...file),
@@ -579,6 +720,7 @@ function drawToolbar(): void {
       "div",
       { class: "ribbon-tools" },
       ...run,
+      ...app,
       button("Interrupt", () => void kernel.interrupt(), { icon: "stop" }),
       button("Restart", () => void restartKernel(kernel), { icon: "back" }),
       pythonPicker(doc),
@@ -664,6 +806,7 @@ interface Remembered {
   text?: string;
   cells?: CellData[];
   next_cell?: number;
+  pages?: SavedPage[];
 }
 const SESSION_KEY = "workbench-documents";
 let rememberTimer: number | null = null;
@@ -683,7 +826,7 @@ function rememberNow(): void {
         dirty: d.dirty,
         python: d.python,
         // A saved document comes back from its file; only changed ones keep their text here.
-        ...(d.dirty || !d.path ? (d.notebook ? { cells: d.notebook.cells().map((c) => (withOutputs ? c : { ...c, outputs: [] })), next_cell: d.notebook.nextCell() } : { text: d.script!.text() }) : {}),
+        ...(d.dirty || !d.path ? (d.notebook ? { cells: d.notebook.cells().map((c) => (withOutputs ? c : { ...c, outputs: [] })), next_cell: d.notebook.nextCell(), pages: d.streamlit?.pages() ?? [] } : { text: d.script!.text() }) : {}),
       }));
   const at = current ? docs.filter((d) => d.notebook || d.script).indexOf(current) : -1;
   try {
@@ -721,7 +864,7 @@ async function restore(): Promise<boolean> {
       if (reopened) opened.push(reopened);
       continue;
     }
-    const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell) : openScript(r.path, r.text ?? "", r.modified);
+    const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.pages ?? []) : openScript(r.path, r.text ?? "", r.modified);
     doc.python = r.python;
     if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmygrid: true });
     doc.dirty = r.dirty;
@@ -791,11 +934,27 @@ const tablesView = (): NotebookView | ScriptView => {
   if (!view) throw new Error("No notebook or script is in front.");
   return view;
 };
-const kindArg = (args: Record<string, unknown>): "code" | "sql" | "html" | "markdown" => {
+const kindArg = (args: Record<string, unknown>): "code" | "sql" | "html" | "streamlit" | "markdown" => {
   const kind = text(args, "kind") ?? "code";
-  if (kind !== "code" && kind !== "sql" && kind !== "html" && kind !== "markdown") throw new Error('kind is "code", "sql", "html" or "markdown".');
+  if (kind !== "code" && kind !== "sql" && kind !== "html" && kind !== "streamlit" && kind !== "markdown") throw new Error('kind is "code", "sql", "html", "streamlit" or "markdown".');
   return kind;
 };
+const hasApp = (): boolean => hasPieces(current);
+const NO_PIECES = "the document in front has no Streamlit cells";
+/** The front document's Streamlit cells as the app sees them now: for the agent. */
+async function pieceReport(): Promise<unknown> {
+  const doc = current!;
+  const pieces = viewOf(doc)!.pieces();
+  const state = pieces.length ? await doc.streamlit!.sync() : null;
+  return {
+    document: doc.title,
+    app: state?.app ?? null,
+    running: state?.running ?? false,
+    problem: state?.problem ?? null,
+    cells: (state?.pieces ?? []).map((p) => ({ number: p.cell, name: p.name, makes: p.makes, reads: p.reads, tables: p.tables, state: p.state, changed: p.changed, problem: p.problem, pages: p.pages })),
+    pages: (state?.pages ?? []).map((p) => ({ id: p.id, name: p.name, pieces: p.pieces })),
+  };
+}
 const step = (by: 1 | -1): void => {
   if (!current || docs.length < 2) return;
   show(docs[(docs.indexOf(current) + by + docs.length) % docs.length]!);
@@ -856,8 +1015,8 @@ const COMMANDS: Command[] = [
   { id: "run.interrupt", group: "Run", title: "Interrupt", when: isCode, whyNot: "no notebook or script is in front", run: () => kernelOf().interrupt() },
   { id: "run.restart", group: "Run", title: "Restart the kernel", when: isCode, whyNot: "no notebook or script is in front", run: () => restartKernel(kernelOf()) },
   // Cells
-  { id: "cell.insertAbove", group: "Cell", title: "Insert a cell above", keys: "A", args: "kind: code, sql, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("above", kindArg(a), text(a, "source") ?? "") },
-  { id: "cell.insertBelow", group: "Cell", title: "Insert a cell below", keys: "B", args: "kind: code, sql, html or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("below", kindArg(a), text(a, "source") ?? "") },
+  { id: "cell.insertAbove", group: "Cell", title: "Insert a cell above", keys: "A", args: "kind: code, sql, html, streamlit or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("above", kindArg(a), text(a, "source") ?? "") },
+  { id: "cell.insertBelow", group: "Cell", title: "Insert a cell below", keys: "B", args: "kind: code, sql, html, streamlit or markdown; source", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().insert("below", kindArg(a), text(a, "source") ?? "") },
   { id: "cell.select", group: "Cell", title: "Select a cell", args: "index (from 0); edit: true to put the cursor in it", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().select(num(a, "index") ?? 0, a.edit === true) },
   { id: "cell.delete", group: "Cell", title: "Delete the cell", keys: "D D", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().remove(num(a, "index")) },
   { id: "cell.undo", group: "Cell", title: "Undo a cell's delete or move", keys: "Z", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().undo() },
@@ -867,6 +1026,7 @@ const COMMANDS: Command[] = [
   { id: "cell.toMarkdown", group: "Cell", title: "Make it a Markdown cell", keys: "M", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("markdown") },
   { id: "cell.toSql", group: "Cell", title: "Make it a SQL cell", keys: "S", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("sql") },
   { id: "cell.toHtml", group: "Cell", title: "Make it an HTML cell", keys: "H", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("html") },
+  { id: "cell.toStreamlit", group: "Cell", title: "Make it a Streamlit cell", keys: "T", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("streamlit") },
   { id: "cell.edit", group: "Cell", title: "Edit the cell (an HTML or Markdown cell that shows as drawn)", keys: "Enter", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().editSelected() },
   { id: "cell.duplicate", group: "Cell", title: "Duplicate the cell", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().duplicate() },
   { id: "cell.clearOutput", group: "Cell", title: "Clear the cell's output", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().clearOutput(num(a, "index")) },
@@ -920,6 +1080,47 @@ const COMMANDS: Command[] = [
       current.notebook.select(at.index, true);
     } else script().editHtml(number);
     return { cell: number };
+  } },
+  // Streamlit: each Streamlit cell is a piece; pieces are pushed to pages and linked by shared names
+  { id: "streamlit.add", group: "Streamlit", title: "Add a Streamlit cell (a piece)", args: "source: its Python (its first comment line is its name); height: its pane in pixels", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => {
+    const source = text(a, "source") ?? "";
+    const height = num(a, "height") ?? null;
+    if (current?.notebook) {
+      current.notebook.insert("below", "streamlit", source);
+      const number = current.notebook.cells()[current.notebook.selected()]?.number ?? null;
+      if (number !== null && height !== null) current.notebook.resizePiece(number, height);
+      if (source.trim()) current.notebook.commandMode();
+    } else await script().addStreamlit(source, height);
+    return pieceReport();
+  } },
+  { id: "streamlit.list", agentOnly: true, group: "Streamlit", title: "The document's Streamlit cells: name, makes, reads, state, pages; and its app", when: isCode, whyNot: "no notebook or script is in front", run: () => pieceReport() },
+  { id: "streamlit.run", group: "Streamlit", title: "Run or refresh the Streamlit app", when: hasApp, whyNot: NO_PIECES, run: async () => {
+    await runApp(current!);
+    return pieceReport();
+  } },
+  { id: "streamlit.push", group: "Streamlit", title: "Push the selected Streamlit cell to a page", args: "number: the cell's own number (default: the selected cell); page: a page's id (default: the first page; a new one when there is none); name: a new page's name", when: hasApp, whyNot: NO_PIECES, run: async (a) => {
+    const doc = current!;
+    const selected = doc.notebook ? doc.notebook.cells()[doc.notebook.selected()] : undefined;
+    const number = num(a, "number") ?? (selected?.kind === "streamlit" ? (selected.number ?? undefined) : undefined);
+    if (number === undefined) throw new Error("Send the Streamlit cell's number (or select the cell).");
+    if (!viewOf(doc)!.pieces().some((p) => p.cell === number)) throw new Error(`There is no Streamlit cell ${number} with code in the document in front.`);
+    const name = text(a, "name");
+    const page = name ? undefined : (text(a, "page") ?? doc.streamlit!.pages()[0]?.id);
+    const done = await pushPiece(doc, number, page, name);
+    return { app: done.app, page: done.page, pages: done.state.pages.map((p) => ({ id: p.id, name: p.name, pieces: p.pieces })) };
+  } },
+  { id: "streamlit.resize", group: "Streamlit", title: "Size a Streamlit cell's pane", args: "number: the cell's own number; height: pixels (60 to 2000; without it: the usual height)", when: hasApp, whyNot: NO_PIECES, run: (a) => {
+    const number = num(a, "number");
+    if (number === undefined) throw new Error("Send the cell's number.");
+    viewOf(current!)!.resizePiece(number, num(a, "height") ?? null);
+    return { cell: number, height: num(a, "height") ?? null };
+  } },
+  { id: "streamlit.designer", group: "Streamlit", title: "Open the page designer", args: "page: the page to show", when: hasApp, whyNot: NO_PIECES, run: (a) => showDesigner(current!, text(a, "page")) },
+  { id: "streamlit.open", group: "Streamlit", title: "Open the Streamlit app in its own window", when: hasApp, whyNot: NO_PIECES, run: () => showApp(current!) },
+  { id: "streamlit.export", group: "Streamlit", title: "Export as Streamlit app…", args: "folder: where it goes (without it, the file chooser opens)", when: hasApp, whyNot: NO_PIECES, run: (a) => exportApp(current!, text(a, "folder")) },
+  { id: "streamlit.stop", group: "Streamlit", title: "Stop the Streamlit app", when: () => !!current?.streamlit?.state?.running, whyNot: "the app is not running", run: async () => {
+    await current!.streamlit!.stop();
+    return pieceReport();
   } },
   // Console
   { id: "console.focus", group: "Console", title: "Go to the console", keys: "Ctrl+2", when: isCode, whyNot: "no notebook or script is in front", run: () => layout.focus("console") },
@@ -1044,7 +1245,13 @@ onNotice((notice) => {
       tableOwner.delete(dataset);
     }
   }
-  if (["grid_updated", "grid_shown", "grid_closed", "dataset_updated", "dataset_closed", "dataset_renamed"].includes(notice.type)) refreshTablesSoon();
+  if (["grid_updated", "grid_shown", "grid_closed", "dataset_updated", "dataset_closed", "dataset_renamed"].includes(notice.type)) {
+    refreshTablesSoon();
+    // A piece that names a changed table is out of date now.
+    for (const doc of docs) doc.streamlit?.tablesChanged();
+  }
+  // An app's pages or run changed somewhere (the page designer, the agent).
+  if (notice.type === "streamlit_changed") for (const doc of docs) doc.streamlit?.noticed((notice as unknown as { app: string }).app);
 });
 
 void Promise.all([

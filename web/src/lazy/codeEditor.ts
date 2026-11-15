@@ -78,7 +78,7 @@ export interface ScriptOutline {
     grouped: boolean;
     first: string;
     /** html: an HTML cell (its lines hold the HTML as one Python string). */
-    kind?: "code" | "html";
+    kind?: "code" | "html" | "streamlit";
     /** An HTML cell's HTML (null: its lines are not one string yet; `problem` says why). */
     html?: string | null;
     problem?: string | null;

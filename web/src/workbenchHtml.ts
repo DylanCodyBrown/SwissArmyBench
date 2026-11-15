@@ -144,10 +144,17 @@ export async function changedNames(kernel: Kernel, runs: HtmlRun[]): Promise<Map
 
 // ===== the pane =====
 
+/** What a live Streamlit page may do in its frame: run its scripts, send its forms, save a download.
+ *  Never the app's origin (no allow-same-origin): it cannot read the app's token or storage. */
+export const FRAME_SANDBOX = "allow-scripts allow-forms allow-downloads";
+
 export interface DesignPane {
   element: HTMLElement;
   /** Draw this HTML (its names already filled). */
   show: (html: string) => void;
+  /** Show a page of this server's instead (a Streamlit piece, live): the same frame while the address
+   *  is the same, so its widgets keep what they hold. */
+  showAddress: (address: string | null) => void;
   /** The cell's state and what the filling left out (plain HTML: no state). */
   setState: (state: HtmlState, notes: string[]) => void;
   /** The saved height (null: the design's own). */
@@ -197,20 +204,26 @@ export function designPane(options: {
   /** The user sized the pane (null: back to the design's own height). */
   resized: (height: number | null) => void;
   run: () => void;
+  /** The height without a saved one, until the design says its own (a Streamlit piece never does). */
+  fit?: number;
+  /** More for the bar's right end (a piece's Push to page); the bar then always shows. */
+  tools?: HTMLElement[];
 }): DesignPane {
   listen();
   let saved = options.height;
-  let fit = 160; // the design's own height, once it says
+  let fit = options.fit ?? 160; // the design's own height, once it says
   let html = "";
   let frame: HTMLIFrameElement | null = null;
   const stage = h("div", { class: "wb-design-stage" });
   const status = h("span", { class: "wb-design-state", role: "status" });
   const run = button("Run", () => options.run(), { icon: "play", class: "ghost wb-design-run", title: "Run: fill the names from the kernel (Ctrl+Enter)" });
-  const bar = h("div", { class: "wb-design-bar" }, status, h("span", { class: "spacer" }), run);
+  const bar = h("div", { class: "wb-design-bar" }, status, h("span", { class: "spacer" }), run, ...(options.tools ?? []));
+  let address: string | null = null;
   const notes = h("div", { class: "wb-design-notes hint" });
   const grip = h("div", { class: "wb-design-grip", role: "separator", tabindex: 0, "aria-orientation": "horizontal", "aria-label": "Resize the design", "aria-valuemin": HEIGHT_MIN, "aria-valuemax": HEIGHT_MAX, title: "Drag to resize the design (arrow keys too; double-click fits it)" });
   const element = h("div", { class: "wb-design" }, bar, stage, notes, grip);
-  bar.hidden = true;
+  bar.hidden = !options.tools;
+  status.hidden = true;
   notes.hidden = true;
 
   const now = (): number => Math.max(HEIGHT_MIN, Math.min(saved ?? Math.min(fit, AUTO_MAX), HEIGHT_MAX));
@@ -277,10 +290,26 @@ export function designPane(options: {
       // A new frame each time: the old design's scripts stop, and the new one starts clean.
       const fresh = h("iframe", { class: "wb-design-frame", sandbox: "allow-scripts", title: "Design", src: "/static/design.html", referrerpolicy: "no-referrer" }) as HTMLIFrameElement;
       frame = fresh;
+      address = null;
+      stage.replaceChildren(fresh);
+    },
+    showAddress: (next) => {
+      if (next === address) return;
+      address = next;
+      html = "";
+      if (next === null) {
+        frame = null;
+        stage.replaceChildren();
+        return;
+      }
+      // Sandboxed without the app's origin, as a design is: the page cannot reach the app or its token.
+      const fresh = h("iframe", { class: "wb-design-frame wb-piece-frame", sandbox: FRAME_SANDBOX, title: "Streamlit piece", src: next, referrerpolicy: "no-referrer" }) as HTMLIFrameElement;
+      frame = fresh;
       stage.replaceChildren(fresh);
     },
     setState: (state, said) => {
-      bar.hidden = !state.label; // a cell that is current says nothing
+      bar.hidden = !state.label && !options.tools; // a cell that is current says nothing
+      status.hidden = !state.label;
       status.textContent = state.label;
       status.className = `wb-design-state ${state.kind}`;
       run.hidden = !state.runnable;

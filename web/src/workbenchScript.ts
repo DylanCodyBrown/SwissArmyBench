@@ -28,6 +28,11 @@
  *              shows under the marker, in a pane that resizes (the height is written on the marker).
  *              `{{ name }}` is filled from the kernel when the cell runs (Ctrl+Enter in it, or Run
  *              file); such a cell says Out of date when its HTML or a variable it names changes
+ *   [STREAMLIT] a Streamlit cell (docs/ideas.md, 2026-11-15; workbenchStreamlit.ts): `# %% [10] [streamlit]`,
+ *              then plain Python that draws with st.*: a piece of a page. It runs in the document's
+ *              Streamlit app, not in the kernel (Run file leaves its lines out). With the cursor
+ *              elsewhere its lines are put away and the piece shows live under the marker. The app's
+ *              pages are kept in the file's `# %% [streamlit-pages]` block (comments only)
  *
  * ROUTING: POST /workbench/statement {code, line}: the statement's lines
  *          POST /workbench/tables/arrange {kind: "script", text, tables, move}: the text as it should
@@ -44,6 +49,7 @@ import type { Kernel } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runHtml, scriptBody } from "./workbenchHtml";
 import type { HtmlReport, TableReport } from "./workbenchNotebook";
 import type { ErrorHooks } from "./workbenchOutputs";
+import { PIECE_HEIGHT, type PieceSource, type PieceTools, pieceTools, pieceView, type SavedPage, scriptPages, type StreamlitHost, withScriptPages } from "./workbenchStreamlit";
 import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, tableLineRest, tableState } from "./workbenchTables";
 
 export interface ScriptView {
@@ -81,6 +87,54 @@ export interface ScriptView {
   resizeHtml: (number: number, height: number | null) => void;
   /** The cursor into an HTML cell's lines, so they show. */
   editHtml: (number: number) => void;
+  /** Add a Streamlit cell after the cursor's cell (at the end without one), with the cursor in it. */
+  addStreamlit: (source?: string, height?: number | null) => Promise<void>;
+  /** Its Streamlit cells, in order: each a piece of the document's app. */
+  pieces: () => PieceSource[];
+  /** The app's state changed: each Streamlit cell is drawn again. */
+  drawPieces: () => void;
+  /** Size a Streamlit cell's pane (null: the usual height): written on its marker. */
+  resizePiece: (number: number, height: number | null) => void;
+  /** The app's pages, as the file's `# %% [streamlit-pages]` block holds them. */
+  pages: () => SavedPage[];
+  /** Write the app's pages into the file's block. */
+  setPages: (pages: SavedPage[]) => void;
+}
+
+/** A script's Streamlit cell as the page holds it: its place in the outline, its live piece. */
+interface PieceCell {
+  key: string;
+  cell: ScriptOutline["cells"][number];
+  pane: DesignPane;
+  tools: PieceTools;
+  /** The live piece shows (it has run). */
+  shown: boolean;
+  room: number;
+}
+
+const PIECE_MARKER = /^# ?%% \[(\d+)\] \[streamlit\](?:\s|$)/;
+
+/** A script's Streamlit cells from its text: each numbered `# %% [n] [streamlit]` cell's lines (the
+ *  Tables group's own cells left out). */
+export function scriptPieces(text: string): PieceSource[] {
+  const found: PieceSource[] = [];
+  let current: { cell: number; lines: string[] } | null = null;
+  let grouped = false;
+  const close = (): void => {
+    if (current && current.lines.some((l) => l.trim())) found.push({ cell: current.cell, code: current.lines.join("\n").replace(/\s+$/, "") });
+    current = null;
+  };
+  for (const line of text.split("\n")) {
+    if (/^# ?region Tables\s*$/.test(line)) grouped = true;
+    else if (/^# ?endregion\b/.test(line)) grouped = false;
+    if (/^# ?(%%|region Tables\s*$|endregion\b)/.test(line)) {
+      close();
+      const marker = grouped ? null : PIECE_MARKER.exec(line);
+      if (marker) current = { cell: Number(marker[1]), lines: [] };
+    } else if (current) current.lines.push(line);
+  }
+  close();
+  return found;
 }
 
 /** A script's HTML cell as the page holds it: its place in the outline, its design, its last run. */
@@ -132,7 +186,7 @@ export function scriptView(
   changed: () => void,
   names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[] },
   file: ScriptFile,
-  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void } = {},
+  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost } = {},
 ): ScriptView {
   const editorHost = h("div", { class: "wb-script-editor" });
   let editor: CodeEditor | null = null;
@@ -158,6 +212,9 @@ export function scriptView(
   let outlineVersion = -1; // the text version the outline describes (hidden lines are only set from a fresh one)
   let laidOut = "";
   let marksTimer: number | null = null;
+  // ===== Streamlit cells =====
+  const pieceCells = new Map<string, PieceCell>();
+  let hadPieces = /^# ?%%(?: \[\d+\])? \[streamlit\]/m.test(initial);
   const dark = (): boolean => theme().endsWith("dark");
   const stateOf = (line: TableLine) => tableState(line.code, records.get(line.name));
   const variableOf = (name: string): string => tableInfos.find((t) => t.name === name)?.variable ?? name.replace(/\W/g, "_");
@@ -188,6 +245,14 @@ export function scriptView(
         const steps = (starts.get(line.name) === cell.line || !cell.grouped) && line.steps !== null && line.steps > 0 ? plural(line.steps, "step") : line.steps === null ? "not open in the grid" : "";
         words = [steps, "read-only: it follows the grid", state.label, state.runnable ? "Ctrl+Enter runs it" : ""].filter(Boolean).join(" · ");
       } else if (line && state && cell.role === "maker" && cell.grouped) words = tableLineRest(line, state);
+      const piece = cell.kind === "streamlit" ? [...pieceCells.values()].find((e) => e.cell === cell) : undefined;
+      if (piece) {
+        const view = pieceView(hooks.streamlit?.state() ?? null, cell.number ?? -1, true);
+        const shown = piece.shown && !inPiece(piece);
+        words = ["Streamlit", view.part, shown ? "click this line to edit" : "", view.state.label, view.state.runnable ? "Ctrl+Enter runs it" : "", ...(shown ? [] : view.notes)].filter(Boolean).join(" · ");
+        notes.push({ line: cell.line, text: words, tone: view.state.kind === "outOfDate" ? "stale" : "plain", marker: true });
+        continue;
+      }
       const held = cell.kind === "html" ? [...htmlCells.values()].find((e) => e.cell === cell) : undefined;
       if (held) {
         const now = htmlStateOf(held);
@@ -263,16 +328,86 @@ export function scriptView(
   };
 
   /** The marker of an HTML cell with its pane's height on it (`height=320`), or without one. */
-  const writeHeight = (held: HtmlCell, height: number | null): void => {
+  const writeHeight = (held: { cell: ScriptOutline["cells"][number] }, height: number | null): void => {
     if (!editor) return;
     const lines = editor.value().split("\n");
-    const numbered = held.cell.number === null ? null : new RegExp(`^# ?%% \\[${held.cell.number}\\] \\[html\\]`);
+    const numbered = held.cell.number === null ? null : new RegExp(`^# ?%% \\[${held.cell.number}\\] \\[(?:html|streamlit)\\]`);
     const at = numbered ? lines.findIndex((l) => numbered.test(l)) : held.cell.line - 1;
-    const found = /^(# ?%%(?: \[\d+\])? \[html\])(?: height=\d+)?(.*)$/.exec(lines[at] ?? "");
+    const found = /^(# ?%%(?: \[\d+\])? \[(?:html|streamlit)\])(?: height=\d+)?(.*)$/.exec(lines[at] ?? "");
     if (!found) return;
     lines[at] = `${found[1]}${height === null ? "" : ` height=${height}`}${found[2]}`;
     editor.replaceText(lines.join("\n"));
   };
+
+  // ===== Streamlit cells: each piece live under its marker while the cursor is elsewhere =====
+
+  /** The cursor is in the piece's cell (and the editor has the keyboard): its lines show. */
+  function inPiece(held: PieceCell): boolean {
+    if (!editor?.hasFocus()) return false;
+    const line = editor.cursorLine();
+    return line >= held.cell.line && line <= Math.max(held.cell.end, held.cell.line);
+  }
+
+  function drawPiece(held: PieceCell): void {
+    const view = pieceView(hooks.streamlit?.state() ?? null, held.cell.number ?? -1, true);
+    held.pane.showAddress(view.address);
+    held.pane.setState(view.state, view.notes);
+    held.tools.draw(view);
+    held.shown = view.address !== null;
+  }
+
+  /** The Streamlit cells as the outline has them: each keeps its pane by its number. */
+  function syncPieces(): void {
+    const seen = new Set<string>();
+    for (const cell of outline.cells) {
+      if (cell.kind !== "streamlit" || cell.number === null) continue;
+      const key = `p${cell.number}`;
+      seen.add(key);
+      let held = pieceCells.get(key);
+      if (!held) {
+        const tools = pieceTools(hooks.streamlit, () => made.cell.number ?? -1);
+        const made: PieceCell = {
+          key,
+          cell,
+          tools,
+          shown: false,
+          room: PIECE_HEIGHT + 40,
+          pane: designPane({ dark, height: cell.height ?? null, fit: PIECE_HEIGHT, tools: tools.elements, resized: (height) => writeHeight(made, height), run: () => void runPieces() }),
+        };
+        made.pane.element.classList.add("in-script");
+        new ResizeObserver(() => {
+          const room = Math.ceil(made.pane.element.getBoundingClientRect().height);
+          if (room && room !== made.room) {
+            made.room = room;
+            layoutHtml();
+          }
+        }).observe(made.pane.element);
+        pieceCells.set(key, (held = made));
+      }
+      held.cell = cell;
+      if ((cell.height ?? null) !== held.pane.height() && !held.pane.element.classList.contains("dragging")) held.pane.setHeight(cell.height ?? null);
+      drawPiece(held);
+    }
+    for (const [key, held] of pieceCells) {
+      if (seen.has(key)) continue;
+      held.pane.dispose();
+      pieceCells.delete(key);
+    }
+  }
+
+  /** Run the document's Streamlit app (every piece: they share it). */
+  const runPieces = async (): Promise<boolean> => {
+    if (!hooks.streamlit) return false;
+    if (outlineVersion !== version) await arrange(false); // a cell just typed has its number first
+    try {
+      return await hooks.streamlit.run();
+    } catch (e) {
+      console.note((e as Error).message);
+      return false;
+    }
+  };
+
+  const pieceAt = (line: number): PieceCell | undefined => [...pieceCells.values()].find((e) => line >= e.cell.line && line <= Math.max(e.cell.end, e.cell.line));
 
   /** Which lines are put away and which designs show, from the outline (only a fresh one: lines are
    *  never hidden by an outline of an older text). */
@@ -280,6 +415,13 @@ export function scriptView(
     if (!editor || outlineVersion !== version) return;
     const zones: { id: string; afterLine: number; height: number; element: HTMLElement }[] = [];
     const hidden: [number, number][] = [];
+    for (const held of pieceCells.values()) {
+      const show = held.shown && !inPiece(held);
+      held.pane.element.hidden = !show;
+      if (!show) continue;
+      zones.push({ id: held.key, afterLine: held.cell.line, height: held.room, element: held.pane.element });
+      if (held.cell.end > held.cell.line) hidden.push([held.cell.line + 1, held.cell.end]);
+    }
     for (const held of htmlCells.values()) {
       const cell = held.cell;
       const active = isActive(held);
@@ -408,6 +550,7 @@ export function scriptView(
         draw();
       }
       outlineVersion = version;
+      syncPieces();
       syncHtml();
       return;
     }
@@ -430,7 +573,11 @@ export function scriptView(
       tableLines = done.tables;
       editor.setOutline(outline);
       draw();
+      syncPieces();
       syncHtml();
+      // A piece just given its number is one the app can know now.
+      if (hadPieces || pieceCells.size) hooks.streamlit?.changed();
+      hadPieces = pieceCells.size > 0;
       if (foldOnce && outline.region) {
         foldOnce = false;
         // Once Monaco has the folds: each table, then the group (a file's group starts folded).
@@ -460,6 +607,11 @@ export function scriptView(
   const safeLines = (start: number, end: number): string => {
     if (!editor) return "";
     const lines = editor.lines(start, end).split("\n");
+    // A Streamlit cell is a piece of a page: it runs in the document's app, never in the kernel.
+    for (const cell of outline.cells) {
+      if (cell.kind !== "streamlit") continue;
+      for (let at = Math.max(cell.line + 1, start); at <= Math.min(cell.end, end); at++) lines[at - start] = "";
+    }
     for (const cell of outline.cells) {
       if (cell.role !== "transformations" || !cell.table || cell.line + 1 < start || cell.end > end || cell.end <= cell.line) continue;
       const from = cell.line + 1 - start;
@@ -492,6 +644,13 @@ export function scriptView(
     return true;
   };
 
+  /** The marker of the cell a line is in ("" when it is in none). */
+  const lineAbove = (line: number): string => {
+    const lines = (editor ? editor.value() : text).split("\n");
+    for (let at = Math.min(line, lines.length); at >= 1; at--) if (/^# ?(%%|region Tables|endregion)/.test(lines[at - 1]!)) return lines[at - 1]!;
+    return "";
+  };
+
   const statementAt = async (line: number): Promise<Statement> => {
     try {
       return await api<Statement>("/workbench/statement", "POST", { code: editor ? editor.value() : text, line });
@@ -513,6 +672,8 @@ export function scriptView(
     if (ok) for (const table of ran) records.set(table.name, { code: table.code, at: new Date(), opened: false });
     // And its HTML cells' names are read from what the run left.
     if (ok) for (const held of [...htmlCells.values()]) if (htmlNames(held.cell.html ?? "").length) await runHtmlCell(held);
+    // Its pieces run in the document's Streamlit app (the file's own run leaves their lines out).
+    if (ok && pieceCells.size) await runPieces();
     draw();
     if (ok) void arrange(true);
   };
@@ -536,6 +697,9 @@ export function scriptView(
     // In an HTML cell: its Run (its names filled, its design drawn).
     const held = outlineVersion === version ? htmlAt(line) : undefined;
     if (held) return void (await runHtmlCell(held));
+    // In a Streamlit cell: the app runs (every piece), and the cursor leaves so the piece shows.
+    const piece = outlineVersion === version ? pieceAt(line) : /^# ?%%(?: \[\d+\])? \[streamlit\]/.test(lineAbove(line)) ? null : undefined;
+    if (piece !== undefined) return void (await runPieces());
     const found = await statementAt(line);
     if (found.start === null || found.end === null) {
       // A blank line or a comment: on to the next line with code.
@@ -579,6 +743,7 @@ export function scriptView(
       version++;
       for (const held of htmlCells.values()) if (held.run) drawHtmlState(held);
       if (!(applying && quietly)) changed();
+      if (hadPieces || pieceCells.size) hooks.streamlit?.changed();
       // The uses lines and the cells' places follow the typing, after a short pause (never an undo).
       if (!applying && !change.undo) typedSoon();
     });
@@ -728,6 +893,48 @@ export function scriptView(
       const held = htmlByNumber(number);
       editor?.focus();
       editor?.moveTo(Math.min(held.cell.line + 1, held.cell.end));
+    },
+    addStreamlit: async (source = "", height = null) => {
+      if (!editor) throw new Error("The script's editor is not ready yet.");
+      const lines = editor.value().split("\n");
+      if (lines[lines.length - 1] === "") lines.pop();
+      const here = outlineVersion === version ? outline.cells.find((c) => editor!.cursorLine() >= c.line && editor!.cursorLine() <= c.end && !c.grouped) : undefined;
+      // Before the pages block, which stays the file's last cell.
+      const block = lines.findIndex((l) => /^# ?%%(?: \[\d+\])? \[streamlit-pages\]/.test(l));
+      const last = block >= 0 ? block : lines.length;
+      const at = here && !/\[streamlit-pages\]/.test(lines[here.line - 1] ?? "") ? Math.min(here.end, last) : last;
+      const after = lines.slice(at);
+      const closing = after.some((l) => l.trim()) && !/^# ?%%/.test(after.find((l) => l.trim()) ?? "") ? ["# %%"] : [];
+      const marker = `# %% [streamlit]${height === null ? "" : ` height=${Math.max(60, Math.min(2000, Math.round(height)))}`}`;
+      const body = (source.trim() ? source.replace(/\n+$/, "") : "# Piece\n").split("\n");
+      editor.replaceText([...lines.slice(0, at), marker, ...body, ...closing, ...after].join("\n") + "\n");
+      editor.focus();
+      editor.moveTo(at + 1 + body.length);
+      if (quiet !== null) window.clearTimeout(quiet);
+      quiet = null;
+      await arrange(true);
+    },
+    pieces: () => scriptPieces(editor ? editor.value() : text),
+    drawPieces: () => {
+      for (const held of pieceCells.values()) drawPiece(held);
+      laidOut = "";
+      layoutHtml();
+      draw();
+    },
+    resizePiece: (number, height) => {
+      const held = pieceCells.get(`p${number}`);
+      if (!held) throw new Error(`This script has no Streamlit cell ${number}.`);
+      const size = height === null ? null : Math.max(60, Math.min(2000, Math.round(height)));
+      held.pane.setHeight(size);
+      writeHeight(held, size);
+    },
+    pages: () => scriptPages(editor ? editor.value() : text),
+    setPages: (pages) => {
+      const now = editor ? editor.value() : text;
+      const next = withScriptPages(now, pages);
+      if (next === now) return;
+      if (editor) editor.replaceText(next);
+      else text = next;
     },
     renameTable: (from, to) => {
       const record = records.get(from);
