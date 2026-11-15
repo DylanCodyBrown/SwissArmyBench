@@ -254,8 +254,9 @@ export const formatCount = (n: number): string => grouping.format(n);
 
 // ===== context menus (right-click) =====
 
-/** A menu entry: [icon, words, action], or "-" for a rule. */
-export type MenuItem = [string, string, () => void] | "-";
+/** A menu entry: [icon, words, action], or "-" for a rule. A fourth part says why the entry cannot
+ * be used now: it shows disabled, with that reason as its tooltip. */
+export type MenuItem = [string, string, () => void, string?] | "-";
 
 /** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
 export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
@@ -267,13 +268,13 @@ export function showMenu(x: number, y: number, label: string, items: MenuItem[])
     ...items.map((item) =>
       item === "-"
         ? h("div", { class: "menu-rule", role: "separator" })
-        : h("button", { type: "button", role: "menuitem", onclick: () => { menu.remove(); item[2](); } }, icon(item[0]), item[1]),
+        : h("button", { type: "button", role: "menuitem", disabled: Boolean(item[3]), title: item[3], onclick: () => { menu.remove(); item[2](); } }, icon(item[0]), item[1]),
     ),
   );
   document.body.append(menu);
   menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
-  (menu.querySelector("button") as HTMLButtonElement | null)?.focus();
+  (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
   setTimeout(() => {
     const away = (event: Event): void => {
       if (!menu.contains(event.target as Node)) {
@@ -286,7 +287,7 @@ export function showMenu(x: number, y: number, label: string, items: MenuItem[])
     document.addEventListener("contextmenu", away);
   });
   menu.addEventListener("keydown", (event) => {
-    const buttons = [...menu.querySelectorAll<HTMLButtonElement>("button")];
+    const buttons = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (event.key === "Escape") menu.remove();
     else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();

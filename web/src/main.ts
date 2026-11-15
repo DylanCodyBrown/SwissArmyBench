@@ -38,6 +38,7 @@ import { renderKeyFinder } from "./keyFinder";
 import { settingsButton } from "./settingsWindow";
 import { connectionsButton } from "./connectionsWindow";
 import { tourButton } from "./tour";
+import { restoreCompare } from "./compare";
 import { openCompareDialog } from "./compareDialog";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, dropGrid, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids } from "./panes";
 import { mountRibbon, zoomControl } from "./ribbon";
@@ -222,6 +223,8 @@ async function start(): Promise<void> {
     if (again) void resyncGrids().catch(() => undefined);
   }, { workspace: "1" });
   await openGrids(gridId || openedWith.get("grid"));
+  // A compare this page was showing before a reload comes back with its split.
+  await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();
 
   document.addEventListener("keydown", (e) => {

@@ -219,6 +219,12 @@ function compareGroup(): HTMLElement | null {
       : []),
     tool("Cross compare", "zoom", () => void changeCompare({ mode: "cross" }), { disabled: noKeys, pressed: cmp?.mode === "cross" }),
     tool("Diff", "check", () => void changeCompare({ mode: "diff", diff: { column: null } }), { disabled: noKeys, pressed: cmp?.mode === "diff" }),
+    cmp?.mode === "diff"
+      ? tool("Only differing columns", "columns", () => void changeCompare({ diff: { only_differing: !cmp.diff.only_differing } }), {
+          pressed: cmp.diff.only_differing,
+          title: cmp.diff.only_differing ? "Showing the keys and the columns that differ" : "Showing every column",
+        })
+      : null,
     cmp?.mode === "diff" ? tool("How values compare…", "settings", () => openDiffOptions(cmp)) : null,
     tool("Tie-out…", "check", () => cmp && void openTieOut(cmp, pair), { disabled: noKeys }),
     tool("Stop compare", "close", () => void stopCompare(), { disabled: noKeys }),

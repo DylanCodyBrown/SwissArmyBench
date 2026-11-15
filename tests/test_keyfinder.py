@@ -11,7 +11,7 @@ from typing import Any
 import pyarrow as pa
 from starlette.testclient import TestClient
 
-from swissarmygrid.domain.relationships import score
+from swissarmygrid.domain.relationships import preferred_key, score
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 N = 2000
@@ -171,3 +171,57 @@ def test_score_rewards_overlap_and_enough_shared_values() -> None:
     assert score(2, 2, 2) < 0.15
     assert score(0, 10, 10) == 0.0
     assert score(500, 1000, 1000) < score(1000, 1000, 1000)
+
+
+# ===== the key a compare starts ticked: unique on both sides first =====
+
+
+def pair(
+    source: str, target: str, score: float, found: float, s_unique: bool, t_unique: bool
+) -> dict[str, Any]:
+    return {
+        "source_column": source,
+        "target_column": target,
+        "score": score,
+        "source_found": found,
+        "target_found": found,
+        "source_unique": s_unique,
+        "target_unique": t_unique,
+    }
+
+
+def test_the_suggested_key_is_the_best_pair_unique_on_both_sides() -> None:
+    # quantity = quantity scores highest (every value shared), but it repeats on both sides.
+    pairs = [
+        pair("quantity", "quantity", 0.99, 1.0, False, False),
+        pair("order_id", "order_id", 0.95, 0.97, True, True),
+        pair("order_id", "quantity", 0.2, 0.6, True, False),
+    ]
+    assert preferred_key(pairs) == ("order_id", "order_id")
+    # No pair unique on both sides: the best pair that covers half of either table.
+    assert preferred_key([pairs[0], pairs[2]]) == ("quantity", "quantity")
+    # A pair unique on both sides that covers too little is not a key for lining the tables up.
+    thin = pair("code", "code", 0.4, 0.1, True, True)
+    assert preferred_key([thin]) is None
+    assert preferred_key([thin, pairs[0]]) == ("quantity", "quantity")
+    assert preferred_key([]) is None
+
+
+def test_the_key_finder_suggests_the_key_unique_on_both_sides(client: TestClient) -> None:
+    """Two copies of made-up orders: quantity matches itself perfectly, yet order_id is the key."""
+    rows = 400
+    orders = pa.table(
+        {
+            "quantity": pa.array([i % 50 + 1 for i in range(rows)], pa.int64()),
+            "order_id": pa.array(range(1, rows + 1), pa.int64()),
+            "region": pa.array([("North", "South", "East", "West")[i % 4] for i in range(rows)]),
+        }
+    )
+    later = orders.slice(0, rows - 11)  # a few orders went missing
+    left = grid_id(push(client, "jan", orders))
+    right = grid_id(push(client, "jan_v2", later))
+    result = run(client, left, right)
+    assert result["suggested_key"] == ["order_id", "order_id"]
+    # Against several grids at once there is no one pair of tables, so nothing is suggested.
+    push(client, "customers", CUSTOMERS)
+    assert run(client, left, "*")["suggested_key"] is None

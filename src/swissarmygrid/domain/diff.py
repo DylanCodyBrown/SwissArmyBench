@@ -30,6 +30,9 @@ class DiffOptions:
     ignore_case: bool = False
     skip: tuple[str, ...] = ()  # left column names left out of the comparison
     column: str | None = None  # only the rows where this (left) column changed
+    # The page shows each side's key and the columns that differ, and hides the rest (the owner's
+    # decision 5; on unless switched off). It changes what is shown, never what is compared.
+    only_differing: bool = True
 
     @staticmethod
     def from_json(raw: Any) -> DiffOptions:
@@ -47,6 +50,9 @@ class DiffOptions:
         column = raw.get("column")
         if column is not None and not isinstance(column, str):
             raise ValueError("The diff's column is one column's name.")
+        only = raw.get("only_differing", True)
+        if not isinstance(only, bool):
+            raise ValueError("The diff's only_differing is true or false.")
         return DiffOptions(
             float(tolerance),
             bool(raw.get("percent", False)),
@@ -54,6 +60,7 @@ class DiffOptions:
             bool(raw.get("ignore_case", False)),
             tuple(dict.fromkeys(skip)),
             column or None,
+            only,
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -64,7 +71,12 @@ class DiffOptions:
             "ignore_case": self.ignore_case,
             "skip": list(self.skip),
             "column": self.column,
+            "only_differing": self.only_differing,
         }
+
+    def compared_json(self) -> dict[str, Any]:
+        """What decides the compare's rows and counts: everything but what the page shows."""
+        return {k: v for k, v in self.to_json().items() if k != "only_differing"}
 
 
 @dataclass(frozen=True)
@@ -167,10 +179,22 @@ def kept_sql(diffed: str, keys: int, compared: list[Pair], options: DiffOptions,
     return f"SELECT lp, rp, {sort} FROM ({diffed}) WHERE {where} ORDER BY {order}"
 
 
-def summary(row: tuple[Any, ...], compared: list[Pair]) -> dict[str, Any]:
+def summary(
+    row: tuple[Any, ...], compared: list[Pair], keys: tuple[tuple[str, str], ...] = ()
+) -> dict[str, Any]:
+    """The counts, and what the page shows when only the differing columns are wanted: `shown`, each
+    side's key columns then its columns that differ (in that grid's order, under its own names), and
+    `first`, the first column that differs on each side (the place both halves scroll to)."""
     matched, differ, left_only, right_only = (int(v or 0) for v in row[:4])
     columns = {p.left.name: int(row[4 + i] or 0) for i, p in enumerate(compared)}
+    changed = [p for i, p in enumerate(compared) if int(row[4 + i] or 0)]
+    right_first = sorted(changed, key=lambda p: p.right_index)
     return {
+        "shown": {
+            "left": [*dict.fromkeys(k[0] for k in keys), *(p.left.name for p in changed)],
+            "right": [*dict.fromkeys(k[1] for k in keys), *(p.right.name for p in right_first)],
+        },
+        "first": {"left": changed[0].left.name, "right": changed[0].right.name} if changed else None,
         "matched": matched,
         "differ": differ,
         "left_only": left_only,

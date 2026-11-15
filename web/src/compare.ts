@@ -17,10 +17,15 @@
  *                           cross: a click filters the other grid to that key -> pick(side, row)
  *          [FOCUS BANNER]   per pane -> clearFocus()
  *          [CENTER SCROLLBAR] while aligned, one scrollbar between the grids drives both -> showSharedScroll()
+ *          [DIFF COLUMNS]   diff mode: each side shows its keys and the columns that differ (the ribbon's
+ *                           Only differing columns, on to start) -> showDiffColumns(); both halves scroll
+ *                           sideways together and start at the first column that differs -> lockSideways()
+ *          [RELOAD]         the page remembers its compare; a reload puts the split and the compare back
+ *                           -> restoreCompare()
  */
 import { api } from "./api";
-import { button, clear, formatCount, h, toast } from "./dom";
-import { contextOf, onSplitChange, splitPair, type Context } from "./panes";
+import { button, clear, formatCount, h, recall, remember, toast } from "./dom";
+import { contextOf, onSplitChange, splitPair, splitWith, type Context } from "./panes";
 
 export interface DiffOptions {
   tolerance: number;
@@ -29,6 +34,8 @@ export interface DiffOptions {
   ignore_case: boolean;
   skip: string[];
   column: string | null;
+  /** Show only each side's keys and the columns that differ (on unless switched off). */
+  only_differing: boolean;
 }
 
 export interface CompareInfo {
@@ -42,7 +49,18 @@ export interface CompareInfo {
   row_count: number;
   counts: { matched: number; left_only: number; right_only: number };
   /** Diff mode: matched rows that differ, and each column's changes (most first). */
-  differ: { matched: number; differ: number; left_only: number; right_only: number; columns: Record<string, number>; compared: string[] } | null;
+  differ: {
+    matched: number;
+    differ: number;
+    left_only: number;
+    right_only: number;
+    columns: Record<string, number>;
+    compared: string[];
+    /** Each side's keys, then its columns that differ, under that side's own names. */
+    shown: { left: string[]; right: string[] };
+    /** The first column that differs, on each side (null: nothing differs). */
+    first: { left: string; right: string } | null;
+  } | null;
   focus: { side: "left" | "right"; rows: number; key: unknown[] } | null;
 }
 
@@ -60,12 +78,44 @@ export function onCompareChange(listener: () => void): void {
 }
 
 function changed(): void {
+  // The page remembers which compare is its own, so a reload takes it up again (restoreCompare).
+  remember("workspace.compare", current ? JSON.stringify({ compare: current.compare, left: current.left, right: current.right }) : "");
   for (const listener of listeners) listener();
+}
+
+// Until the page has looked for its remembered compare, a change of split is not a reason to
+// forget it (the tabs are still opening).
+let restored = false;
+
+/** After a reload: the compare this page was showing, if the server still runs it and both its
+ * grids are still open, comes back as it was (the split, the mode, the keys). No key picker. */
+export async function restoreCompare(): Promise<void> {
+  let was: { compare?: string; left?: string; right?: string } = {};
+  try {
+    was = JSON.parse(recall("workspace.compare") || "{}") as typeof was;
+  } catch {
+    was = {};
+  }
+  restored = true;
+  if (!was.compare || !was.left || !was.right || !contextOf(was.left) || !contextOf(was.right)) return;
+  let found: CompareInfo;
+  try {
+    found = await api<CompareInfo>(`/compares/${encodeURIComponent(was.compare)}`);
+  } catch {
+    remember("workspace.compare", ""); // stopped meanwhile, or the server restarted: nothing to put back
+    return;
+  }
+  await splitWith(found.right, found.left, "right", true);
+  const pair = splitPair();
+  if (!pair || pair[0].id !== found.left || pair[1].id !== found.right) return;
+  current = found;
+  apply(pair, true);
 }
 
 // The compare belongs to the two grids it was made for: a different split (or none) ends it.
 onSplitChange(() => {
   const pair = splitPair();
+  if (!restored) return;
   if (current && (!pair || pair[0].id !== current.left || pair[1].id !== current.right)) void stopCompare();
   else changed();
 });
@@ -80,7 +130,7 @@ export async function startCompare(keys: [string, string][], mode: CompareInfo["
     toast((e as Error).message, "error");
     return;
   }
-  apply(pair);
+  apply(pair, true);
   toast(`Aligned on ${keys.map(([l, r]) => (l === r ? l : `${l} = ${r}`)).join(" + ")}: ${formatCount(current.counts.matched)} matched, ${formatCount(current.counts.left_only)} left only, ${formatCount(current.counts.right_only)} right only.`);
 }
 
@@ -88,13 +138,19 @@ export async function changeCompare(patch: Partial<Pick<CompareInfo, "keys" | "m
   if (patch.diff && current) patch = { ...patch, diff: { ...current.diff, ...patch.diff } };
   const pair = splitPair();
   if (!current || !pair) return;
+  const was = current;
   try {
     current = await api<CompareInfo>(`/compares/${encodeURIComponent(current.compare)}`, "PATCH", patch);
   } catch (e) {
     toast((e as Error).message, "error");
     return;
   }
-  apply(pair);
+  // Only what is shown changed (Only differing columns): the rows on screen are still right.
+  const sameRows = JSON.stringify({ ...was, diff: { ...was.diff, only_differing: true } }) === JSON.stringify({ ...current, diff: { ...current.diff, only_differing: true } });
+  if (sameRows) {
+    showDiffColumns(pair, true);
+    changed();
+  } else apply(pair, true);
 }
 
 let recounting = 0;
@@ -110,6 +166,9 @@ async function recount(grid: string): Promise<void> {
       .then((now) => {
         if (current?.compare !== was.compare) return;
         current = { ...now, focus: current.focus };
+        // A step on either side can change which columns differ.
+        const pair = splitPair();
+        if (pair) showDiffColumns(pair);
         changed();
       })
       .catch(() => undefined);
@@ -125,15 +184,18 @@ export async function stopCompare(): Promise<void> {
   for (const ctx of compared) {
     if (!ctx) continue;
     ctx.view?.setCompare(null);
+    ctx.view?.showOnly(null);
     banner(ctx, null);
   }
   hideSharedScroll();
+  unlockSideways();
   if (was) await api(`/compares/${encodeURIComponent(was.compare)}`, "DELETE").catch(() => undefined);
   changed();
 }
 
-/** Point both panes at the compare, keep their scrolling level, and draw any focus banner. */
-function apply([left, right]: [Context, Context]): void {
+/** Point both panes at the compare, keep their scrolling level, and draw any focus banner. `jump`:
+ * the compare was just started or changed, so diff mode goes to the first column that differs. */
+function apply([left, right]: [Context, Context], jump = false): void {
   const cmp = current!;
   left.view?.setCompare({ id: cmp.compare, side: "left" });
   right.view?.setCompare({ id: cmp.compare, side: "right" });
@@ -162,7 +224,88 @@ function apply([left, right]: [Context, Context]): void {
   // Aligned grids share one scrollbar in the center; in cross compare each scrolls on its own.
   if (cmp.mode === "cross") hideSharedScroll();
   else showSharedScroll(left, right);
+  showDiffColumns([left, right], jump);
   changed();
+}
+
+// ===== diff mode: only the columns that differ, both halves scrolling sideways together =====
+
+/** In diff mode each side shows its keys and the columns that differ (unless Only differing columns
+ * is off), the two halves scroll sideways as one, and with `jump` both go to the first column that
+ * differs (or the one whose changes are being looked at). Any other mode shows every column. */
+function showDiffColumns([left, right]: [Context, Context], jump = false): void {
+  const cmp = current;
+  const differ = cmp?.mode === "diff" ? cmp.differ : null;
+  if (!cmp || !differ) {
+    left.view?.showOnly(null);
+    right.view?.showOnly(null);
+    unlockSideways();
+    return;
+  }
+  const only = cmp.diff.only_differing;
+  left.view?.showOnly(only ? differ.shown.left : null);
+  right.view?.showOnly(only ? differ.shown.right : null);
+  lockSideways(left, right);
+  if (!jump) return;
+  const focused = cmp.diff.column;
+  const to = focused ? { left: focused, right: counterpart(focused, "left") ?? focused } : differ.first;
+  if (!to) return;
+  // After the columns have been shown or hidden: both halves, each to its own name for the column.
+  setTimeout(() => {
+    left.view?.revealColumn(to.left);
+    right.view?.revealColumn(to.right);
+  }, 0);
+}
+
+/** The other side's name for a column: its key partner, else the column of the same name ignoring
+ * case (how diff mode pairs columns). */
+function counterpart(name: string, from: "left" | "right"): string | null {
+  const pair = splitPair();
+  if (!current || !pair) return null;
+  const key = current.keys.find((k) => k[from === "left" ? 0 : 1] === name);
+  if (key) return key[from === "left" ? 1 : 0];
+  const other = (from === "left" ? pair[1] : pair[0]).view?.viewColumns() ?? [];
+  return other.find((c) => c.name.toLowerCase() === name.toLowerCase())?.name ?? null;
+}
+
+const sideways: { off: () => void; pair: [Context, Context] | null } = { off: () => {}, pair: null };
+
+/** Keep the two halves at the same column while either scrolls sideways. By column, not by pixel:
+ * the two sides size their columns to their own values. Moving the other half raises its own scroll
+ * event; that echo is known by where it lands, and is not followed back. */
+function lockSideways(left: Context, right: Context): void {
+  if (sideways.pair?.[0] === left && sideways.pair[1] === right) return;
+  unlockSideways();
+  const echo = new Map<HTMLElement, number>(); // a half we moved -> where we put it
+  const last = new Map<HTMLElement, number>();
+  const sides: [Context, "left" | "right", Context][] = [[left, "left", right], [right, "right", left]];
+  const offs = sides.map(([mine, side, other]) => {
+    const element = mine.view?.sideways();
+    if (!element) return () => {};
+    const follow = (): void => {
+      if (last.get(element) === element.scrollLeft) return; // scrolled up or down only
+      last.set(element, element.scrollLeft);
+      const put = echo.get(element);
+      echo.delete(element);
+      if (put !== undefined && Math.abs(put - element.scrollLeft) <= 1) return;
+      const at = mine.view?.horizontal();
+      const name = at ? counterpart(at.column, side) : null;
+      const target = other.view?.sideways();
+      if (!at || !name || !target) return;
+      other.view?.setHorizontal(name, at.inset);
+      if (target.scrollLeft !== last.get(target)) echo.set(target, target.scrollLeft);
+    };
+    element.addEventListener("scroll", follow, { passive: true });
+    return () => element.removeEventListener("scroll", follow);
+  });
+  sideways.pair = [left, right];
+  sideways.off = () => offs.forEach((off) => off());
+}
+
+function unlockSideways(): void {
+  sideways.off();
+  sideways.off = () => {};
+  sideways.pair = null;
 }
 
 // ===== the shared scrollbar between two aligned grids =====

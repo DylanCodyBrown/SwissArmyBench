@@ -57,6 +57,7 @@ from swissarmygrid.domain.relationships import (
     normalized,
     parse_model,
     path_between,
+    preferred_key,
     read_tang,
     relationship,
     rename_table,
@@ -428,6 +429,7 @@ class KeyFinder:
                 checked = found["source_checked"]
                 skipped["source"] = found["source_skipped"]
             pairs.sort(key=lambda p: (-p["score"], -p["shared"]))
+            one = len(chosen) == 1
             # This grid's own key: timed on its own, so a slow view still returns the pairs.
             limit = settings.key_finder_unique_rows
             # The grid's first rows, so this one reads the view in its order.
@@ -443,6 +445,8 @@ class KeyFinder:
                 "source": source.dataset,
                 "pairs": pairs[:MAX_PAIRS],
                 "pair_count": len(pairs),
+                # Between two tables: the key a compare starts ticked (unique on both sides first).
+                "suggested_key": list(preferred_key(pairs) or []) or None if one else None,
                 "source_checked": checked,
                 "skipped": skipped,
                 "targets": [{"grid": t.id, "label": _label(t), "dataset": t.dataset} for t in chosen],
@@ -560,7 +564,9 @@ class Compares:
                 s.grid.settings.to_json(),
             ]
 
-        return json.dumps([one(left), one(right), spec.to_json()], default=str)
+        # What the page shows (only the differing columns) is not part of what is lined up.
+        compared = spec.to_json() | {"diff": spec.diff.compared_json()}
+        return json.dumps([one(left), one(right), compared], default=str)
 
     def _ensure(self, cur: SqlSession, cmp: Compare) -> tuple[Side, Side]:
         """Both sides, with the mapping table and the counts up to date."""
@@ -628,7 +634,7 @@ class Compares:
             row = cur.execute(diff.summary_sql(f"SELECT * FROM {staged}", compared)).fetchone() or (0,) * (
                 4 + len(compared)
             )
-            cmp.differ = diff.summary(tuple(row), compared)
+            cmp.differ = diff.summary(tuple(row), compared, cmp.spec.keys)
             cmp.tallies = {
                 "matched": cmp.differ["matched"],
                 "left_only": cmp.differ["left_only"],
@@ -648,9 +654,30 @@ class Compares:
 
     def get(self, compare_id: str) -> Compare:
         cmp = self._compares.get(compare_id)
-        if cmp is None:
+        if cmp is None or not self._both_open(cmp):
             raise LookupError("No such compare; it may have been stopped or the server restarted.")
         return cmp
+
+    def _both_open(self, cmp: Compare) -> bool:
+        return all(self.ws.grids.get(side) is not None for side in (cmp.left, cmp.right))
+
+    async def running(self) -> dict[str, Any]:
+        """The compares that are running, oldest first, each with its two tables' names. One whose
+        grid has closed has nothing left to line up: it is stopped here, and its mapping dropped."""
+        for gone in [c.id for c in self._compares.values() if not self._both_open(c)]:
+            await self.remove(gone)
+        listed = []
+        for cmp in self._compares.values():
+            names = {
+                f"{side}_dataset": grid.dataset
+                for side, grid in (
+                    ("left", self.ws.grids.get(cmp.left)),
+                    ("right", self.ws.grids.get(cmp.right)),
+                )
+                if grid is not None
+            }
+            listed.append(cmp.to_json() | names)
+        return {"compares": listed}
 
     async def create(self, body: Any, who: str) -> dict[str, Any]:
         if not isinstance(body, dict) or not all(isinstance(body.get(k), str) for k in ("left", "right")):

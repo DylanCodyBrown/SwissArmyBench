@@ -9,7 +9,8 @@
  *
  * A known relationship (the relationship model) goes first, with a crown, and starts ticked.
  *
- * ROUTING: [PAIR CHECKBOX]   -> read-only form state (a known pair, else the best pair covering half of either table, starts ticked)
+ * ROUTING: [PAIR CHECKBOX]   -> read-only form state (a known pair, else the server's suggested key, starts ticked:
+ *                              the best pair unique on both sides, else the best pair covering half of either table)
  *          [ADD A PAIR]      left column + right column -> addPair()
  *          [COMPARE]         -> startCompare(checked pairs)
  *          [CLOSE]           -> close(): the split stays, no keys
@@ -83,7 +84,7 @@ export function openCompareDialog(left: Context, right: Context): void {
   void (async () => {
     try {
       const [result] = await Promise.all([
-        api<{ pairs: Pair[]; pair_count: number }>(`/grids/${encodeURIComponent(left.id)}/key-finder`, "POST", { target: right.id }),
+        api<{ pairs: Pair[]; pair_count: number; suggested_key: [string, string] | null }>(`/grids/${encodeURIComponent(left.id)}/key-finder`, "POST", { target: right.id }),
         loadRelationships(),
       ]);
       // A known relationship goes first and decides the keys, before any guess.
@@ -92,12 +93,16 @@ export function openCompareDialog(left: Context, right: Context): void {
       const top = result.pairs.slice(0, 20);
       clear(status, top.length ? `${formatCount(result.pair_count)} column pair${result.pair_count === 1 ? "" : "s"} share values.` : "No shared values.");
       const keep = new Set((existing?.keys ?? []).map((k) => k.join("\u0000")));
-      top.forEach((p, i) => {
+      // With no known relationship, the suggested key starts ticked: the best pair unique on both
+      // sides, else the best pair, covering at least half of either table (domain preferred_key).
+      const suggested = result.suggested_key?.join("\u0000");
+      top.forEach((p) => {
         const pair: [string, string] = [p.source_column, p.target_column];
-        // The best pair starts ticked when it covers at least half of either table's values.
-        const ticked = keep.size ? keep.has(pair.join("\u0000")) : !known.length && i === 0 && Math.max(p.source_found, p.target_found) >= 0.5;
+        const ticked = keep.size ? keep.has(pair.join("\u0000")) : !known.length && pair.join("\u0000") === suggested;
         addRow(pair, [pct(p.source_found), pct(p.target_found), formatCount(p.shared), p.relationship], ticked);
       });
+      // The suggested key is usually among the best 20; when it is not, it is still offered, ticked.
+      if (!keep.size && !known.length && result.suggested_key && !rows.some((r) => r.pair.join("\u0000") === suggested)) addRow(result.suggested_key, ["", "", "", "unique on both sides"], true);
       for (const k of existing?.keys ?? []) if (!top.some((p) => p.source_column === k[0] && p.target_column === k[1])) addRow(k, ["", "", "", "current key"], true);
     } catch (e) {
       status.textContent = (e as Error).message;

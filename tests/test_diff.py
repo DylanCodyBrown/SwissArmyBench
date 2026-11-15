@@ -125,3 +125,59 @@ def test_the_python_and_sql_rules_agree_on_edge_values() -> None:
         "A", "a", False, diff.DiffOptions(ignore_case=True)
     )
     assert "isnan" in diff.differs_sql(number, options)
+
+
+# ===== only the differing columns, and the compares that are running =====
+
+
+def test_diff_mode_names_the_columns_to_show_the_keys_and_what_differs(
+    client: TestClient, compare: dict[str, Any]
+) -> None:
+    # On by default: each side's key, then the columns that differ, in that grid's own order and names.
+    assert compare["diff"]["only_differing"] is True
+    assert compare["differ"]["shown"] == {
+        "left": ["sku", "region", "price"],
+        "right": ["SKU", "Region", "Price"],
+    }
+    assert compare["differ"]["first"] == {"left": "region", "right": "Region"}
+    # Looking at one column's changes does not change which columns differ in all.
+    focused = change(client, compare, column="price")
+    assert focused["differ"]["shown"]["left"] == ["sku", "region", "price"]
+    # Nothing differs within the tolerance: the keys alone, and no first column.
+    calm = change(client, compare, column=None, tolerance=10, percent=True, ignore_case=True)
+    assert calm["differ"]["shown"] == {"left": ["sku"], "right": ["SKU"]} and calm["differ"]["first"] is None
+    # Switched off, the answer says so and still names the columns (the page shows every column).
+    off = change(client, compare, only_differing=False, tolerance=0, percent=False, ignore_case=False)
+    assert off["diff"]["only_differing"] is False
+    assert off["differ"]["first"] == {"left": "region", "right": "Region"}
+    assert (
+        client.patch(
+            f"/compares/{compare['compare']}", json={"diff": {"only_differing": "yes"}}, headers=AUTH
+        ).status_code
+        == 400
+    )
+
+
+def test_showing_every_column_again_does_not_join_the_sides_again(
+    client: TestClient, compare: dict[str, Any]
+) -> None:
+    app: Any = client.app
+    held = app.state.ctx.compares.get(compare["compare"])
+    before = held.signature
+    change(client, compare, only_differing=False)
+    assert held.signature == before  # the mapping table was kept as it was
+    change(client, compare, tolerance=0.05)
+    assert held.signature != before  # what counts as a change does rebuild it
+
+
+def test_the_running_compares_are_listed_until_stopped_or_a_grid_closes(
+    client: TestClient, compare: dict[str, Any]
+) -> None:
+    listed = client.get("/compares", headers=AGENT).json()["compares"]
+    assert [c["compare"] for c in listed] == [compare["compare"]]
+    assert listed[0]["mode"] == "diff" and listed[0]["left"] == compare["left"]
+    assert listed[0]["left_dataset"] == "prices_before" and listed[0]["right_dataset"] == "prices_after"
+    # A compare whose grid has closed is gone: there is nothing left to line up.
+    assert client.delete(f"/grids/{compare['right']}", headers=AUTH).status_code == 200
+    assert client.get("/compares", headers=AUTH).json()["compares"] == []
+    assert client.get(f"/compares/{compare['compare']}", headers=AUTH).status_code == 404

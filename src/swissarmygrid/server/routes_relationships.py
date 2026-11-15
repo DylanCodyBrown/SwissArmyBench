@@ -28,6 +28,7 @@
        -> a few shared values and a few this column has that the target lacks (page only)
 
   POST   /compares                 {"left", "right", "keys": [[l, r], ...], "mode", "anti_side"}
+  GET    /compares                 the compares that are running (a page reloading takes its own up again)
   GET    /compares/{id}            the compare, with its counts (matched, left only, right only)
   PATCH  /compares/{id}            change keys, mode or anti_side
   DELETE /compares/{id}
@@ -109,6 +110,12 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
     async def create(request: Request) -> Response:
         try:
             return json_response(await compares.create(await read_json(request), actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def running(request: Request) -> Response:
+        try:
+            return json_response(await compares.running())
         except Exception as error:
             return error_response(error)
 
@@ -235,6 +242,7 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
         Route("/grids/{grid_id}/key-finder", candidates),
         Route("/grids/{grid_id}/key-finder", find, methods=["POST"]),
         Route("/grids/{grid_id}/key-finder/sample", sample, methods=["POST"]),
+        Route("/compares", running),
         Route("/compares", create, methods=["POST"]),
         Route("/compares/{compare_id}", read),
         Route("/compares/{compare_id}", change, methods=["PATCH"]),

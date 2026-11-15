@@ -83,6 +83,16 @@ export interface GridView {
   setKeyRows: (rows: { first: number; last: number } | null) => void;
   /** A data row was clicked (cross compare filters the other side to its key). */
   onRowPick: (listener: (row: number) => void) => void;
+  /** Show only these data columns (diff mode: the keys and what differs); null shows them all. */
+  showOnly: (names: string[] | null) => void;
+  /** Scroll sideways until this column shows. */
+  revealColumn: (name: string) => void;
+  /** Where the sideways scroll stands: the first data column in view and how far into it (pixels). */
+  horizontal: () => { column: string; inset: number } | null;
+  /** Put `column` at the left edge of the scrolling area, `inset` pixels in. */
+  setHorizontal: (column: string, inset: number) => void;
+  /** The element that scrolls, sideways too (AG Grid's viewport). */
+  sideways: () => HTMLElement | null;
   destroy: () => void;
 }
 
@@ -105,6 +115,8 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
   const diffs = new Set<string>(); // "row:col" cells that differ from the aligned row
   const pickListeners: ((row: number) => void)[] = [];
   let keyRows: { first: number; last: number } | null = null;
+  // Diff mode's "Only differing columns": the data columns shown (null: all of them).
+  let only: Set<string> | null = null;
   let columns: ColumnInfo[] = [];
   let sentSort = "[]";
   let headerStats: Record<string, { distinct: number; blank_percent: number }> = {};
@@ -334,6 +346,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       defs.push({
         colId: column.name,
         headerName: column.name,
+        hide: only !== null && !only.has(column.name),
         headerComponent: StatsHeader,
         valueGetter: (params) => params.data?.[index],
         valueFormatter: (params) =>
@@ -989,6 +1002,38 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       gridApi?.purgeInfiniteCache();
     },
     onRowPick: (listener) => pickListeners.push(listener),
+    showOnly: (names) => {
+      const next = names ? new Set(names) : null;
+      if ((only === null && next === null) || (only && next && only.size === next.size && [...next].every((n) => only!.has(n)))) return;
+      only = next;
+      const all = columns.map((c) => c.name);
+      gridApi?.setColumnsVisible(all.filter((n) => !only || only.has(n)), true);
+      gridApi?.setColumnsVisible(all.filter((n) => only && !only.has(n)), false);
+    },
+    revealColumn: (name) => {
+      if (columns.some((c) => c.name === name)) gridApi?.ensureColumnVisible(name, "start");
+    },
+    sideways: () => host.querySelector<HTMLElement>(".ag-grid-viewport"),
+    horizontal: () => {
+      const viewport = host.querySelector<HTMLElement>(".ag-grid-viewport");
+      if (!viewport || !gridApi) return null;
+      for (const column of gridApi.getAllDisplayedColumns()) {
+        const id = column.getColId();
+        const left = column.getLeft();
+        if (column.isPinned() || id === FILLER || left == null) continue;
+        if (left + column.getActualWidth() > viewport.scrollLeft) return { column: id, inset: viewport.scrollLeft - left };
+      }
+      return null;
+    },
+    setHorizontal: (name, inset) => {
+      const viewport = host.querySelector<HTMLElement>(".ag-grid-viewport");
+      const column = gridApi?.getColumn(name);
+      const left = column?.isVisible() ? column.getLeft() : null;
+      if (!viewport || !column || left == null) return;
+      // Never past the column's own end: a narrower column on this side stops at its right edge.
+      const next = Math.round(left + Math.max(0, Math.min(inset, column.getActualWidth() - 1)));
+      if (Math.abs(viewport.scrollLeft - next) > 1) viewport.scrollLeft = next;
+    },
     setKeyRows: (rows) => {
       keyRows = rows;
       gridApi?.redrawRows();

@@ -1379,6 +1379,15 @@ def compare_create(a: dict[str, Any]) -> Any:
     return api.call("POST", "/compares", body)
 
 
+@command(
+    "compare_list",
+    "The compares that are running (the user's too: the two grids side by side), each with its id, its "
+    "two grids and tables, keys, mode and counts.",
+)
+def compare_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/compares")
+
+
 @command("compare_read", "A compare's counts: matched, left only, right only.", req("compare", "Compare id."))
 def compare_read(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/compares/{_q(a['compare'])}")
@@ -1391,7 +1400,12 @@ def compare_read(a: dict[str, Any]) -> Any:
     opt("keys", "[[left column, right column], ...]", "json"),
     opt("mode", "outer, anti, cross or diff (only rows that differ)."),
     opt("anti_side", "left or right."),
-    opt("diff", "{tolerance, percent, trim, ignore_case, skip: [cols], column}.", "json"),
+    opt(
+        "diff",
+        "{tolerance, percent, trim, ignore_case, skip: [cols], column, only_differing: the page shows "
+        "only the keys and the columns that differ (true unless set false)}.",
+        "json",
+    ),
 )
 def compare_change(a: dict[str, Any]) -> Any:
     body = {k: a[k] for k in ("keys", "mode", "anti_side", "diff") if a.get(k) is not None}

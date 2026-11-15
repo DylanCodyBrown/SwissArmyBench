@@ -1799,6 +1799,13 @@ html {
   background: var(--surface-2);
 }
 
+/* An entry with nothing to act on: faded, its tooltip says why. */
+.menu button:disabled {
+  opacity: 0.55;
+  cursor: default;
+  background: none;
+}
+
 /* Bottom dock: shorter charts in a row that scrolls sideways, so nothing is cut off. */
 .workspace[data-layout="bottom"] .cards {
   grid-auto-flow: column;

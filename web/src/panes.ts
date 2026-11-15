@@ -21,6 +21,7 @@
  * ROUTING: [AGENT TAB]      click -> showAgentView()
  *          [TAB]            click -> activateGrid(id) + showGridView(); arrows, Home/End move; Delete closes
  *          [TAB CLOSE ×]    -> closeGrid(id)  (closes the grid on the server; the dataset stays)
+ *          [TAB RIGHT-CLICK] -> tabMenu(): Compare with… -> compareWith(id), Rename -> renameInPlace(), Close -> closeGrid(id)
  *          [DRAG TAB]       onto a tab's edge -> moveTab();  onto a tab's middle or the grid -> splitWith()
  *          [DRAFT TAB]      click -> showQueryView(); × -> closeDraft(); label -> renameDraft()
  *          [NEW TAB +]      -> newQueryTab()  (opens the draft, or brings the open one forward)
@@ -31,7 +32,7 @@
  *          [EMPTY STATE]    -> read-only, when no grid is open
  */
 import { api, token, useGrid } from "./api";
-import { button, clear, h, icon, recall, remember, toast } from "./dom";
+import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
 import { openMenuButton } from "./openMenu";
@@ -373,15 +374,52 @@ function layout(): void {
   if (was !== panesHost.dataset.pair) for (const listener of splitChanged) listener();
 }
 
-/** Put `dragged` beside `beside`, on `side`. */
-export async function splitWith(dragged: string, beside: string, side: "left" | "right"): Promise<void> {
+/** Put `dragged` beside `beside`, on `side`. `quiet`: a split put back after a reload, whose compare
+ * is already running, so the key picker does not open. */
+export async function splitWith(dragged: string, beside: string, side: "left" | "right", quiet = false): Promise<void> {
   if (dragged === beside || !contexts.has(dragged) || !contexts.has(beside)) return;
   const besideCtx = contexts.get(beside)!;
+  if (!besideCtx.state.info) await besideCtx.state.load();
   ensurePane(besideCtx);
   split = side === "left" ? [dragged, beside] : [beside, dragged];
+  showGridView();
   await activateGrid(dragged);
   const pair = splitPair();
-  if (pair) for (const listener of splitCreated) listener(pair[0], pair[1]);
+  if (pair && !quiet) for (const listener of splitCreated) listener(pair[0], pair[1]);
+}
+
+/** Compare with…: put another open table beside `id` (which stays on the left) and pick the keys,
+ * as dragging its tab onto this one does. One other table: that one, at once. Several: a list of
+ * them at (x, y), or at the tab. */
+export function compareWith(id: string, x?: number, y?: number): void {
+  const others = order.filter((o) => o !== id);
+  const go = (other: string): void => void splitWith(other, id, "right");
+  if (others.length === 1) {
+    go(others[0]!);
+    return;
+  }
+  if (!others.length) return;
+  const box = tabRow.querySelector<HTMLElement>(`.tab-item[data-grid="${CSS.escape(id)}"]`)?.getBoundingClientRect();
+  showMenu(x ?? box?.left ?? 8, y ?? box?.bottom ?? 40, `Compare ${label(id)} with`, others.map((o): MenuItem => ["columns", label(o), () => go(o)]));
+}
+
+/** A tab's right-click menu: what can be done with that table's tab. */
+function tabMenu(id: string, event: MouseEvent): void {
+  event.preventDefault();
+  const tab = event.currentTarget as HTMLElement;
+  // From the keyboard (the menu key, Shift+F10) the event has no place: open under the tab.
+  const box = tab.getBoundingClientRect();
+  const x = event.clientX || box.left;
+  const y = event.clientY || box.bottom;
+  showMenu(x, y, label(id), [
+    ["columns", "Compare with…", () => compareWith(id, x, y), order.length < 2 ? "Open another table to compare with" : undefined],
+    ["rename", "Rename", () => {
+      const name = tabRow.querySelector<HTMLElement>(`.tab-item[data-grid="${CSS.escape(id)}"] .tab-label`);
+      if (name) renameInPlace(name, contexts.get(id)!.dataset);
+    }],
+    "-",
+    ["close", "Close", () => void closeGrid(id)],
+  ]);
 }
 
 /** Back to one grid: `keep` stays on screen; the other remains open as a tab. */
@@ -519,6 +557,7 @@ function render(): void {
             void activateGrid(id);
           },
           onauxclick: (e: MouseEvent) => { if (e.button === 1) void closeGrid(id); },
+          oncontextmenu: (e: MouseEvent) => tabMenu(id, e),
           onkeydown: (e: KeyboardEvent) => onTabKey(e, id),
           ondragstart: (e: DragEvent) => { dragging = id; e.dataTransfer?.setData("text/plain", id); },
           ondragend: () => { dragging = null; delete panesHost.dataset.drop; },
