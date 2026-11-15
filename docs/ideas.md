@@ -2080,3 +2080,33 @@ Kept in case they come back on their own:
   operations become action blades. This works for any OpenAPI service, not only Power Platform.
 - **Dataverse:** reads through its read-only TDS endpoint (SQL Server style) and writes through the
   Web API, signed in with the vault's app registration as Power BI is.
+
+## Add API: an OpenAPI file or a short form, made into a ready-to-call connection (the owner, 2026-11-15; first after the beta)
+
+The owner: "if we could create a connection type that literally turns an openapi json into a ready to call
+connection type it would be a power feature. You could take a function app or lambda create an openapi.json
+then the app could create a new python script that lives beside data called API_Nameoffunctionapp.py where
+all the apis for that function app are accessible and we could add the connection in the same step. We
+could add a button to the app called ADD API. Or you could use a form to add as many endpoints as you want
+and select an auth type."
+
+Planned:
+- **An "Add API" button** in the Data panel, the Connections window and the palette, with an agent command too.
+- **Two ways in:**
+  - an OpenAPI file (2.0 or 3.x), from a file, a URL or pasted (an Azure Function app's OpenAPI extension, or
+    an AWS API Gateway export);
+  - **a form:** the base URL, an auth type (none; API key in a header or query; bearer; basic; Azure Function
+    key `x-functions-key`; OAuth 2.0 client credentials; the vault's app registration), and any number of
+    endpoints (method, path, parameters, and whether the answer is a table).
+- **In one step it writes `API_<name>.py` beside data.py:**
+  - a client class with one typed method per operation, documented from the spec, with paging and retries;
+  - array answers come back as DataFrames;
+  - standard library only, so the same file runs in an Azure Function;
+  - secrets read from environment variables mapped to the vault, never written in the file.
+- **It adds the connection in the same step** (the "Python (your own code)" kind): Connect imports the client,
+  List the tables lists the GET operations that return arrays, and Read a table calls one with the row limit.
+  The catalog, Open as grid, SQL cells and data.py all work as for any connection.
+- **Re-import when the spec changes:** the file is marked as made from the spec, the change is shown before it
+  is written, and the user's own code lives in their notebooks, never in the made file.
+- **Tests:** made-up specs (2.0 and 3.x, each auth type) against a local stand-in service, and the made file
+  imported in a plain Python.
