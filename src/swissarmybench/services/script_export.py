@@ -7,7 +7,8 @@ the Workbench window and the agent alike (the golden rule: `workbench_export_scr
             is written: it compiles, it holds no saved password's value and no row, and (when ruff is
             in the app's Python) Python's own checks find no undefined name. Something that cannot be
             exported is said by its cell; with `stub`, each such cell is a stub that raises FILL IN
-            and the rest is written
+            and the rest is written. An API_<name>.py beside the document that its code imports (one
+            Add API made: services/apis.py `inline`) is written inside it, so the import still works
 
 The script holds code only (no rows, no passwords), so the agent's export asks nothing; the file goes
 where it is sent, as a Save as does.
@@ -15,7 +16,7 @@ where it is sent, as a Save as does.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
 from swissarmybench.domain import notebooks
@@ -50,6 +51,7 @@ class ScriptExports:
         lint: Callable[[str], list[dict[str, Any]] | None],
         folder_of: Callable[[str], str],
         join: Callable[[str, str], str],
+        inline: Callable[[str, Iterable[str]], list[dict[str, str]]] = lambda folder, codes: [],
     ) -> None:
         self.ws = ws
         self._blades = blades
@@ -59,6 +61,7 @@ class ScriptExports:
         self._lint = lint  # ruff's findings (None: no ruff in the app's Python)
         self._folder_of = folder_of
         self._join = join
+        self._inline = inline  # the API clients the code imports, from beside the document
 
     # ===== the document =====
 
@@ -196,8 +199,14 @@ class ScriptExports:
             named = rules.file_name(path, rules.NOTEBOOK_SUFFIX if notebook else rules.SUFFIX)
             to = self._join(self._folder_of(path), named)
         file = to.replace("\\", "/").rsplit("/", 1)[-1]
+        codes = [c.source for c in cells if c.kind == "code"]
+        clients = (
+            [(c["module"], c["code"]) for c in self._inline(self._folder_of(path), codes)] if path else []
+        )
         render = rules.export_notebook if notebook else rules.export
-        made = render(title, path or f"{title}.ipynb", cells, pieces, names, stub=stub, file=file)
+        made = render(
+            title, path or f"{title}.ipynb", cells, pieces, names, stub=stub, file=file, clients=clients
+        )
         stopped = rules.check(made.python, values)
         if notebook:  # its file as a whole too (its Markdown): a value or a row anywhere in it
             stopped += [s for s in rules.check(made.text, values) if not s.startswith("line ")]

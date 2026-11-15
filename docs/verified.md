@@ -1441,3 +1441,12 @@ made-up tables only.
   without kaleido or vl-convert); the State panel (wb-modes) driving the cards (it reruns the page, the
   path checked here); the layout of a flow of more than a few dozen nodes; the one-script export's
   inlined check (that branch is not merged).
+
+## The integration branch: lineage, Add API, test-bed-2 and wb-modes merged (2026-11-15)
+
+- **Add API inline in the one-script export:** `test_an_add_api_client_the_notebook_imports_is_inline_and_the_export_runs_in_a_fresh_python`
+  (tests/test_script_export.py): a notebook that imports `API_Orders` (made against the made-up orders
+  API with an API key header) exported through the agent's `workbench_export_script` as a script and as
+  a notebook; both copied to another folder (no `API_Orders.py` there) and run in a fresh venv with only
+  their requirements: 17 open orders and 7 regions written; without the key, exit 1; the key never in
+  the files or the output.

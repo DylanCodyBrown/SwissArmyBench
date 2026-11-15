@@ -709,6 +709,7 @@ class Plan:
     problems: tuple[Problem, ...]
     stubs: tuple[str, ...]
     skipped: tuple[str, ...]
+    clients: tuple[tuple[str, str], ...] = ()  # (module, code): an API_<name>.py the code imports, inline
 
 
 def plan(
@@ -718,13 +719,16 @@ def plan(
     pieces: Mapping[str, Piece],
     code_names: Mapping[str, str],
     stub: bool = False,
+    clients: Sequence[tuple[str, str]] = (),
 ) -> Plan:
     """The document as steps: each cell translated (its connections' calls written out, what only
     shows left out, IPython's lines translated or refused), the pieces it uses, the settings they
     read. `pieces`: every connection, vault and blade by its name (the service gives those
     `references` named, and the vaults their passwords come from); `code_names`: each connection's
     variable in the Workbench (shop -> Shop). `stub`: a cell that cannot be exported is a stub that
-    raises FILL IN, and the rest is exported."""
+    raises FILL IN, and the rest is exported. `clients`: each API client Add API made that the code
+    imports, as (module, its code to paste: services/apis.py `inline`); it travels inside the export,
+    so `import API_Orders` still works, and the variables it reads are settings."""
     by_name = {name.casefold(): piece for name, piece in pieces.items()}
     problems: list[Problem] = []
     stubs: list[str] = []
@@ -881,6 +885,12 @@ def plan(
             for r in python_connections.env_reads(piece.code, piece.read)
             if not r.required and r.name not in {s.variable for s in piece.secrets}
         ]
+    inline = tuple((module, _FUTURE.sub("", code).strip("\n") + "\n") for module, code in clients)
+    for module, code in inline:
+        settings += [
+            Secret(r.name, r.name, "api", blade=f"{module}.py", required=False)
+            for r in python_connections.env_reads(code)
+        ]
     return Plan(
         title,
         source or title,
@@ -891,6 +901,7 @@ def plan(
         tuple(problems),
         tuple(dict.fromkeys(stubs)),
         tuple(skipped),
+        inline,
     )
 
 
@@ -905,6 +916,7 @@ class _Shared:
     pieces: tuple[str, ...]  # each connection, vault and blade as its function
     registry: str  # MADE, VARIABLES, VAULTS, READERS, connection(), and the SQL, DAX and Read helpers
     inlined: str  # what is written out, in words
+    clients: tuple[str, ...] = ()  # each API client, inline (its code, then what makes its import work)
 
 
 def _shared(made: Plan) -> _Shared:
@@ -961,7 +973,7 @@ def _shared(made: Plan) -> _Shared:
             registry.append(runtime.READ_HELPERS.strip("\n"))
     # What the requirements are read from: the pieces' code and the cells (the helpers import only
     # what those need: pandas for a query's table, duckdb for a file's or a table's SQL).
-    scan = "\n\n".join([*texts, all_text])
+    scan = "\n\n".join([*texts, *(code for _, code in made.clients), all_text])
     if any("def run_sql(" in r for r in registry):
         scan += "\nimport pandas\n"
         if any(
@@ -969,6 +981,8 @@ def _shared(made: Plan) -> _Shared:
         ):
             scan += "import duckdb\n"
     requirements = runtime.requirements_of(scan, made.extra)
+    for module, _ in made.clients:  # travels inline: not a package to install
+        requirements.pop(module, None)
     listing = "\n".join(f"    {m!r}: {r!r}," for m, r in requirements.items())
     requirements_text = (
         "# ===== REQUIREMENTS: what it needs installed (checked before anything of them is imported) =====\n"
@@ -982,6 +996,8 @@ def _shared(made: Plan) -> _Shared:
     words = []
     if pieces:
         words.append("its connections and blades")
+    if made.clients:
+        words.append("the API clients it imports (" + ", ".join(f"{m}.py" for m, _ in made.clients) + ")")
     if has_vault:
         words.append("the key vault lookups")
     words.append("the grid's steps (as DuckDB SQL)")
@@ -997,6 +1013,7 @@ def _shared(made: Plan) -> _Shared:
         tuple(texts),
         "\n\n\n".join(registry),
         inlined,
+        tuple(code.rstrip("\n") for _, code in made.clients),
     )
 
 
@@ -1023,9 +1040,10 @@ def export(
     code_names: Mapping[str, str],
     stub: bool = False,
     file: str | None = None,
+    clients: Sequence[tuple[str, str]] = (),
 ) -> Exported:
     """The document as one script (`plan` says what each argument is)."""
-    made = plan(title, source, cells, pieces, code_names, stub)
+    made = plan(title, source, cells, pieces, code_names, stub, clients)
     return render_script(made, file or file_name(source or title))
 
 
@@ -1096,6 +1114,15 @@ def render_script(made: Plan, file: str) -> Exported:
             "",
             shared.registry,
         ]
+    if shared.clients:
+        out += [
+            "",
+            "",
+            "# ===== the API clients it imports: each made by Add API, inline (its import finds it here) =====",
+            "",
+            "",
+            "\n\n\n".join(shared.clients),
+        ]
     out += [
         "",
         "",
@@ -1129,9 +1156,10 @@ def export_notebook(
     code_names: Mapping[str, str],
     stub: bool = False,
     file: str | None = None,
+    clients: Sequence[tuple[str, str]] = (),
 ) -> Exported:
     """The document as one self-contained, linear notebook (`plan` says what each argument is)."""
-    made = plan(title, source, cells, pieces, code_names, stub)
+    made = plan(title, source, cells, pieces, code_names, stub, clients)
     return render_notebook(made, file or file_name(source or title, NOTEBOOK_SUFFIX))
 
 
@@ -1216,6 +1244,8 @@ def render_notebook(made: Plan, file: str) -> Exported:
         add("code", piece_text, "a connection")
     if shared.registry:
         add("code", shared.registry, "the connections by name")
+    for (module, _), client in zip(made.clients, shared.clients, strict=True):
+        add("code", client, f"{module}.py")
     for problem in made.problems:
         add("markdown", f"**Not exported:** {problem}")
     for block in made.blocks:

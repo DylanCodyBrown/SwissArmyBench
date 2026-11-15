@@ -591,7 +591,7 @@ class Secret:
 
     name: str  # as the code asks for it
     variable: str  # the environment variable the script reads
-    where: str  # keyring, environment, vault, every (a vault that loads every secret), typed, value
+    where: str  # keyring, environment, vault, every (a vault that loads every secret), typed, value, api
     vault: str = ""  # the key vault's name (vault, every)
     entry: str = ""  # its entry's name (vault)
     blade: str = ""  # the secret blade that asks for it (typed)
@@ -768,6 +768,8 @@ def where_from(secret: Secret) -> str:
         return f"{owner}: a plain value in the app (no secret), its default here"
     if secret.where == "notebook":
         return f"{owner}: set with %env in the notebook; a secret, set it here"
+    if secret.where == "api":
+        return f"{owner}: the API client reads it when no argument gives it (optional)"
     if secret.where == "code":
         return f"{owner}: the notebook's own code reads it" + ("" if secret.required else " (optional)")
     return f"{owner}: this computer's environment in the app" + ("" if secret.required else " (optional)")

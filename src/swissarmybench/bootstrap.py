@@ -328,6 +328,8 @@ def bootstrap(
         models=models,
         catalogs=catalogs,
     )
+    # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
+    apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
     return Services(
         settings=settings,
         ws=ws,
@@ -347,8 +349,7 @@ def bootstrap(
         catalogs=catalogs,
         blades=blades,
         connections=connections,
-        # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
-        apis=Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder),
+        apis=apis,
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=workbench,
@@ -388,6 +389,7 @@ def bootstrap(
             lint=script_lint,
             folder_of=lambda path: str(Path(path).expanduser().parent),
             join=lambda folder, name: str(Path(folder) / name),
+            inline=apis.inline,  # an API_<name>.py the document imports travels inside the export
         ),
         live=live,
         workers=workers,

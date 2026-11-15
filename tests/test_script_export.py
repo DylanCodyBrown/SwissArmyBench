@@ -949,3 +949,87 @@ def test_a_notebook_exports_as_one_linear_notebook_that_runs_in_a_plain_kernel(
         and "SHOP_PASSWORD" in said
         and not (out / "report.xlsx").exists()
     )
+
+
+# ===== an Add API client the notebook imports travels inside the export =====
+
+
+def test_an_add_api_client_the_notebook_imports_is_inline_and_the_export_runs_in_a_fresh_python(
+    live: Live, tmp_path: Path
+) -> None:
+    """API_Orders.py (made by Add API, beside the notebook) is written inside the script and the
+    notebook, so `from API_Orders import OrdersApi` and `import API_Orders` work without the file; the
+    key it reads is a setting, never written. Against the made-up orders API (tests/api_standins.py)."""
+    import dataclasses
+
+    from swissarmybench.domain import api_clients, apis
+    from tests import api_standins as standin
+
+    service = standin.Service(mode="api_key_header").start()
+    try:
+        spec = apis.parse_spec(service.openapi(), service.url + "/openapi.json")
+        spec = dataclasses.replace(
+            spec, auth=apis.check_auth({"type": "api_key", "in": "header", "name": "X-Api-Key"})
+        )
+        work = tmp_path / "work"
+        work.mkdir()
+        (work / "API_Orders.py").write_text(
+            api_clients.write(spec, apis.names_for("Orders")), encoding="utf-8"
+        )
+        cells = [
+            {
+                "kind": "code",
+                "source": "import os\n\nfrom API_Orders import OrdersApi\n\n"
+                "orders = OrdersApi().list_orders()\nopen_orders = orders[orders['status'] == 'open']\n"
+                "open_orders.to_csv(os.environ['REPORT_FOLDER'] + '/open.csv', index=False)",
+                "number": 1,
+            },
+            {
+                "kind": "code",
+                "source": "import os\n\nimport API_Orders\n\nregions = API_Orders.OrdersApi().list_regions()\n"
+                "regions.to_csv(os.environ['REPORT_FOLDER'] + '/regions.csv', index=False)",
+                "number": 2,
+            },
+        ]
+        notebook = work / "Orders feed.ipynb"
+        live.user("POST", "/workbench/save", {"path": str(notebook), "cells": cells})
+        done = run("workbench_export_script", path=str(notebook))
+        assert done["path"] and not done["problems"] and not done["lint"], done
+        assert "API_Orders" not in " ".join(done["requirements"]) and "pandas>=2.0" in done["requirements"]
+        script = Path(done["path"])
+        text = script.read_text(encoding="utf-8")
+        assert "class OrdersApi" in text and '_sys.modules["API_Orders"] = API_Orders' in text
+        assert standin.API_KEY not in text
+        assert "'ORDERS_API_KEY': None,  # API_Orders.py's ORDERS_API_KEY: the API client reads it" in text
+        shown = run("workbench_export_script", path=str(notebook), format="notebook")
+        assert shown["path"] and not shown["problems"], shown
+        held = json.loads(Path(shown["path"]).read_text(encoding="utf-8"))
+        assert any("class OrdersApi" in "".join(c["source"]) for c in held["cells"])
+        # Run where the file is not: a fresh Python, in another folder, with only the requirements.
+        away = tmp_path / "elsewhere"
+        away.mkdir()
+        moved = away / script.name
+        shutil.copy(script, moved)
+        python = fresh_python(tmp_path / "venv")
+        install_from_this_machine(python, done["requirements"])
+        out = tmp_path / "out"
+        out.mkdir()
+        env = {"ORDERS_API_KEY": standin.API_KEY, "REPORT_FOLDER": str(out)}
+        ran = run_script(python, moved, env=env)
+        assert ran.returncode == 0, ran.stdout + ran.stderr
+        assert len((out / "open.csv").read_text(encoding="utf-8").splitlines()) == 1 + 17
+        assert len((out / "regions.csv").read_text(encoding="utf-8").splitlines()) == 1 + 7
+        assert standin.API_KEY not in ran.stdout + ran.stderr
+        # Without the key the API says no: the run fails (exit 1).
+        refused = run_script(python, moved, env={"REPORT_FOLDER": str(out)})
+        assert refused.returncode == 1, refused.stdout + refused.stderr
+        # The notebook too, in a plain kernel.
+        exported = away / Path(shown["path"]).name
+        shutil.copy(shown["path"], exported)
+        (out / "open.csv").unlink()
+        install_from_this_machine(python, [*shown["requirements"], "ipykernel"])
+        ok, said = run_notebook(python, exported, env)
+        assert ok, said
+        assert len((out / "open.csv").read_text(encoding="utf-8").splitlines()) == 1 + 17
+    finally:
+        service.stop()

@@ -2293,6 +2293,22 @@ Decided:
 - **Open:** an exported script cannot follow a closed table's grid steps (a table not open is exported as
   its cell last held it); a user's function that writes another cell's variable with `global` now writes
   the module's (the cells run inside `run()`).
+- **Add API's clients travel inline (the integration, 2026-11-15):** an `API_<name>.py` beside the
+  document that its code imports (`import API_Orders`, `from API_Orders import OrdersApi`), and that Add
+  API made (its mark), is written inside the script (its own section after the connections) and the
+  notebook (a cell of its own), followed by the lines that put it in `sys.modules`, so the import works
+  without the file (services/apis.py `inline`, given to the exporter by bootstrap). It is no
+  requirement; what it imports is (pandas, for its DataFrames). The variables it reads are SETTINGS
+  (optional: "the API client reads it when no argument gives it"), never their values. Not yet: a
+  notebook that reads the API through its connection (`sab.read("Orders", ...)`) exports the
+  connection's Connect, which loads the file from where it was written.
+- **Approved outputs in the export: not wired (the integration, 2026-11-15).** domain/approvals.py is
+  standalone, but the exported script drops what a cell only shows (its last bare expression,
+  display()), which is what an approval snapshots, and an approval holds a table's first rows, which an
+  export never writes. A `--check-approved` export needs the cells' outputs captured in `run()` and the
+  approvals carried without their rows (`without_rows`); `python -m swissarmybench.client.standalone
+  x.ipynb --check-approved` does the check meanwhile.
+
 ## Controllers, Test this page, thin cells, and two starter families (the owner, 2026-11-15: "Do it"; built)
 
 From the plan after the beta (controllers, thin cells) and "Non-data cells on the canvas" (the Text and
