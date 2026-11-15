@@ -434,7 +434,7 @@ Settings lists the agent's activity: what it asked for, newest first. It never i
 
 **Blades and catalog** in the Application row opens the blades page in a tab of its own, so it can sit on another screen.
 
-- **A blade** is any Python that reaches outside Python to load something: a database connection, a CSV file, an Excel workbook, an API, a vault. Press **New blade**, pick a starter (21 databases, 5 file patterns, 8 vaults) or paste your own code, and save it. Then in any Python: `conn = sab.blade("Warehouse")`.
+- **A blade** is any Python that reaches outside Python to load something: a database connection, a CSV file, an Excel workbook, an API, a vault. Press **New blade**, pick a template (21 databases, 5 file patterns, 8 vaults) or paste your own code, and save it (or copy one of the **Starters**, below). Then in any Python: `conn = sab.blade("Warehouse")`.
 - **Passwords** go in the code as `secret("password")`. Type the value on the save screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
 - **Analysis blades** are your own analyses. Pick **Analysis** as the kind (or a starter: a summary of every column, a Pareto of the selected column, correlations): the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Sandbox**.
 - **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable. **Secret blades** keep only variable names: you type the values once per session.
@@ -450,6 +450,50 @@ Settings lists the agent's activity: what it asked for, newest first. It never i
 ![The blades page: a database connection and a secret blade above the catalog tree, opened at main.orders.customer_id, with the table's columns, a first SELECT, Open as grid and the table's first rows on the right.](images/20-catalog.png)
 
 ![The save screen for a new PostgreSQL blade: its name, kind and settings, each value it still needs marked.](images/21-blade-save.png)
+
+### Starter blades
+
+Every install has a pack of ready-made blades and snippets, **Starters** at the bottom of the blade
+list (the blades page, and **+ Blade** in the Workbench), one line a family: click a family to open it.
+They are read-only and come with the app, so a new version brings new ones. **Copy as your own** (the
+copy button on its row, or on its page) makes it one of your blades, to change as you like; a new
+version never touches your copy.
+
+- **Python starters** make one function: `refresh = sab.blade("Power BI refresh dataset")`, then
+  `refresh("Sales model")`. Each one's first lines say how it is called and what it gives back.
+- **Snippets** are text for a cell, with blanks to fill in. Drag one onto a cell of its language (or
+  More: **Insert a snippet…** on the cell): a small form asks for the blanks, already filled from the
+  cell's dataset (a DAX cell's tables, columns and measures) or the open tables, and the text goes in
+  where you dropped it, ready to edit. A snippet dropped on a cell of another language is refused.
+- **Power BI** (through your Power BI workspace connection's own sign-in; name a dataset as
+  `Sales model`, or as `Finance/Sales model` with its connection): refresh dataset, refresh and wait
+  (until done, with a timeout), refresh status (the latest one), refresh history (a table), refresh
+  dataflow, dataflow history, list datasets, list reports, list dataflows, read parameters, update
+  parameters, take over dataset (make your sign-in its owner), refresh schedule.
+- **Excel** (the workbook is saved in place; a sheet or a file is written over only with
+  `overwrite=True`): add sheet, set cell values (a dict of cells, or rows from a cell), write table (a
+  DataFrame from a cell), borders (thin or thick, every cell or the outline), fonts and fills, number
+  formats (money, percent, dates, or your own), autofit columns, freeze panes, merge cells,
+  conditional colours (a simple rule: below 0 in red), range as table (an Excel table), copy template
+  (a new workbook from a template).
+- **Files:** combine CSVs (a folder of them as one table), split CSV (one file per value of a
+  column), change delimiter or encoding.
+- **DAX** (each a query a DAX cell runs, its measures defined at the top to copy into your model): year
+  to date (TOTALYTD), same period last year (SAMEPERIODLASTYEAR, with the change), running total, top N
+  by a measure (TOPN), percent of total, measure by month (SUMMARIZECOLUMNS over the date table), date
+  table checks (missing and repeated days), and the model's tables, columns, measures and relationships
+  (the INFO functions, to document a model).
+- **HTML** (inline styles only, readable in a light and a dark Workbench; a value can be one of the
+  kernel's variables in double braces, `{{ total }}`): styled table (a DataFrame by its name), KPI
+  tile, KPI row, progress bar, badge, bar chart (drawn in CSS from a table's rows), list, header block,
+  card grid, invoice layout.
+- **Streamlit pieces** (below: Learning Streamlit with the starter pieces): dropped into a notebook,
+  a piece fills an empty Python cell (or makes one) and names it, so it shows by name in the
+  Streamlit cells pane, ready for a canvas.
+- For the agent: `blades_starters` lists the pack, `blades_copy` copies one as yours, `blades_snippet`
+  gives a snippet's blanks (or its filled text), and `workbench_snippet_insert` puts one in a cell.
+
+![The blade list's Starters: a line for each family with its count, Streamlit open on its pieces.](images/22-starters.png)
 
 ### Every table has its own cell
 
@@ -647,6 +691,66 @@ of cell: write Python.
   (data.ipynb, the canvas, the notebooks it links to). No rows and no passwords go into the zip.
 - **Private.** The Streamlit process listens on this computer only, and stops when its window or the
   server does.
+
+### Learning Streamlit with the starter pieces
+
+Streamlit draws a web page from a Python script: each `st.` call puts something on the page (a
+dropdown, a number, a chart), in order. Two things make it different from a notebook:
+
+- **The whole script runs again, from the top, every time someone clicks, picks or types.** So a value
+  is always worked out from what is picked now. A plain variable starts over on each run; one kept in
+  `st.session_state` survives (the session state counter shows it).
+- **Every widget needs a name of its own on the page** (its `key=`): two dropdowns with the same label
+  would otherwise be taken for one ("duplicate widget").
+
+Every starter piece opens with what it does, the names it **makes** and **reads**, and each Streamlit
+function it uses in one line; the lines that trip people up are explained where they stand. **Filters
+make names, displays read them:** a filter makes the rows its pick leaves (`by_region`), and anything
+that reads `by_region` follows the filter, wherever the two sit on the page. A name that starts with
+`_` is the piece's own.
+
+**One page in five steps.** Open a table as `orders` (any table with a text column, a date and an
+amount), start a notebook, save it, and drag each piece onto an empty Python cell (or below the last):
+
+1. **Streamlit selectbox filter**, Table `orders`, Column `region`: a dropdown of the regions with All
+   first. Streamlit's `st.selectbox` draws it and gives back the pick; the piece makes `by_region`, the
+   rows of that region. The cell is named **Region filter**.
+2. **Streamlit date range filter**, Table `by_region` (the first filter's rows), Date column
+   `order_date`, Name `in_dates`: a calendar where you pick the first and last day (`st.date_input`).
+   It reads `by_region` and makes `in_dates`, so the two filters chain.
+3. **Streamlit metric row**, Table `in_dates`, Value column `amount`: three big numbers side by side,
+   the orders, the total and the average (`st.columns` makes the columns, `st.metric` each number).
+4. **Streamlit bar chart**, Table `in_dates`, X column `product`, Y column `amount`: one bar per product
+   (`st.bar_chart`; the totals are worked out first, since Streamlit draws what it is given).
+5. **Streamlit formatted table**, Table `in_dates`: the rows, the amount with two decimals and the date
+   as a date (`st.dataframe` with `st.column_config`).
+
+Then **New Streamlit app**, drag the five from the Streamlit cells pane onto the canvas, and **Play**:
+pick a region or a range and every number, bar and row follows, because each piece reads what the one
+before it made. The order on the canvas is yours; the order they run in comes from their names.
+
+![A canvas page made of the five pieces after Play: the region and date filters, three metrics, a bar chart by product and the formatted table.](images/23-streamlit-starter-page.png)
+
+**Every piece, by what you would use it for:**
+
+- **Let the reader choose rows** (each makes the rows its pick leaves): selectbox filter (one value),
+  multiselect filter (any number), date range filter, number range filter (a slider with two
+  handles), text search, toggle filter (only the rows where a yes/no column is yes), sidebar filters
+  (three in the sidebar, making the rows and each pick).
+- **Show a number:** metric with change (this month's total and its change from last month), metric
+  row (count, total, average), progress bar (a total towards a goal), status message (what was
+  checked, folded to one line when done).
+- **Show the rows:** formatted table (numbers and dates formatted), editable table (the reader types
+  in it; makes the rows as changed).
+- **Chart:** bar chart, line chart (a total per day), area chart (a total per day for each value of a
+  column), map (a dot for each row's latitude and longitude).
+- **Arrange:** tabs (a chart and the rows), expander (the rows, folded), columns (a number beside a
+  chart), bordered container (a box around a title, a number and a note).
+- **Act:** CSV download and Excel download (the rows as a file), form with submit (fields that take
+  effect together), file upload (a CSV or workbook the reader gives, as a table), session state
+  counter (a value kept between reruns), cached slow query (`st.cache_data`: worked out once, kept).
+- **Tell the reader:** check messages (an error, a warning or a success by what the rows hold), toast
+  (a short message in the corner after a click).
 
 ### Projects: start with the data
 

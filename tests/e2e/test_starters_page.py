@@ -126,11 +126,14 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
         ["Power BI13", "Excel12", "Files3", "DAX11", "HTML10", "Streamlit29"]
     )
     expect(listed.locator(".starter-item")).to_have_count(0)
+    family(listed, "Streamlit")
+    listed.evaluate("list => (list.scrollTop = 0)")
+    shot(page, "1-the-pack-in-the-blade-list")
+    listed.locator(".starter-family", has_text="Streamlit").click()  # folded again
     family(listed, "Power BI")
     family(listed, "Excel")
     expect(listed.locator(".starter-item")).to_have_count(25)
     expect(listed.locator(".starter-item").first.locator(".blade-kind")).to_have_text("Python")
-    shot(page, "1-the-pack-in-the-blade-list")
     # A search opens the families it finds something in.
     page.get_by_role("searchbox", name="Search blades").fill("toast")
     expect(listed.locator(".starter-item")).to_have_text(["StreamlitStreamlit toast"])

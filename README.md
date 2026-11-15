@@ -484,6 +484,30 @@ replaces the card in place when the cell runs again.
 sab.load(conn.execute("SELECT * FROM INFORMATION_SCHEMA.COLUMNS").df(), name="Warehouse", dialect="sqlserver")
 ```
 
+### The starter pack
+
+Every install has **Swiss Army Bench starters**, 78 read-only blades and snippets shipped inside the
+package (`src/swissarmybench/starters/*.blade.py`), listed under **Starters** in the blade list by
+family. **Copy as your own** makes one of your blades from a starter; a new version of the app brings
+new starters and never touches your copies.
+
+| Family | What | How it is used |
+|---|---|---|
+| Power BI (13) | refresh a dataset or a dataflow, refresh and wait, status and history, list datasets, reports and dataflows, read and update parameters, take over a dataset, the refresh schedule | `refresh = sab.blade("Power BI refresh dataset")`, `refresh("Finance/Sales model")`: signed in through the workspace connection's own sign-in (its new `conn.access_token()`), never a copy of the secret |
+| Excel (12) | add a sheet, set values, write a DataFrame, borders, fonts and fills, number formats, autofit, freeze panes, merge, conditional colours, a range as a table, copy a template | `add_sheet = sab.blade("Excel add sheet")`, `add_sheet("report.xlsx", "Summary")` (openpyxl; nothing written over without `overwrite=True`) |
+| Files (3) | combine a folder of CSVs, split a CSV by a column, change a delimiter or encoding | a function each |
+| DAX (11) | year to date, same period last year, running total, top N, percent of total, a measure by month, date table checks, the INFO functions | a **snippet**: dragged onto a DAX cell |
+| HTML (10) | a styled table, KPI tile and row, progress bar, badge, CSS bar chart, list, header, card grid, invoice | a snippet for an HTML cell |
+| Streamlit (29) | filters, metrics, tables, charts, a map, layout, downloads, a form, an upload, session state, a cache, messages | a snippet for a Python cell, documented for a learner; it names its cell |
+
+**Snippets** are a blade kind of their own: text for a cell with `<<name>>` placeholders
+(`<<measure>>`, `<<date column>>`, `<<name: by_{column}>>`), kept in their file as one Python string
+(`snippet = r"""..."""`) so a blade file stays Python. A placeholder asks for what its name says (a
+table, a column of it, a measure, a Python name, a number, text); the form fills it from a DAX cell's
+dataset or the open tables, and the server writes each value safely for where it stands (DAX's quotes
+doubled, Python strings escaped, names only where code goes, HTML escaped). `sab.blade("DAX year to
+date")` gives a snippet's text.
+
 ### Portable blades, blade folders, tags and favourites
 
 A blade travels as one plain Python file, `<name>.blade.py`: its own code under a header, like a
