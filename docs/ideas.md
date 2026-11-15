@@ -1785,7 +1785,7 @@ the `sab` terminal command, `%sab_run`, `%%sab_table`, `%%sab_html`, `%%sab`), a
 Claude Code plugin and its skill (`swissarmybench-use`), the marketplace, the VS Code extension, the
 installers, the release workflow, the state folder (`~/.swissarmybench`), the environment variables
 (`SWISSARMYBENCH_*`), the blade header, the notebook metadata key and the saved pages' mark line all
-follow. The GitHub repository keeps its name for now (the owner renames it later), so its URLs stay.
+follow. The GitHub repository keeps its name for now (the owner renames it later), so its URLs stay. (Renamed by the owner the same day: DylanCodyBrown/SwissArmyBench; the links were updated, and the PyPI trusted publisher names the new repository.)
 
 **The old names work for one release, then go** (all in `src/swissarmybench/renamed.py` or beside what
 they keep, each tested in `tests/test_renamed.py`): `import swissarmygrid` (a small package that is the new

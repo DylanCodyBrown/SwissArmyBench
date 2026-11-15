@@ -176,18 +176,18 @@ The old names still work for this release, and go in the next one:
 The installers remove the old `swissarmygrid` uv tool before installing the new one, which brings the old
 commands with it; by hand, that is `uv tool uninstall swissarmygrid`, then the install below. Update the
 VS Code extension too: the new one finds the new install (and still finds an old one). The GitHub
-repository keeps its old name for now.
+repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
 
 ## Install it: one package, two installs
 
 From a release (each release carries the wheel, the VS Code extension and two installers), one line:
 
 ```powershell
-irm https://github.com/DylanCodyBrown/SwissArmyGrid/releases/latest/download/install.ps1 | iex
+irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/latest/download/install.ps1 | iex
 ```
 
 ```bash
-curl -LsSf https://github.com/DylanCodyBrown/SwissArmyGrid/releases/latest/download/install.sh | sh
+curl -LsSf https://github.com/DylanCodyBrown/SwissArmyBench/releases/latest/download/install.sh | sh
 ```
 
 The installer sets up uv when it is missing, then downloads the release's wheel and installs the server
@@ -562,7 +562,7 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
   any plugin you install. Secrets never travel in a pack, only their names. The agent cannot list,
   make or fill packs.
 
-**This repository is a marketplace too.** `/plugin marketplace add DylanCodyBrown/SwissArmyGrid`
+**This repository is a marketplace too.** `/plugin marketplace add DylanCodyBrown/SwissArmyBench`
 offers two plugins: `swissarmybench` (the user guide as a skill, and the agent tools, the
 `swissarmybench-mcp` server the installer puts on your computer; remove a copy you added by hand so the
 tools are not listed twice) and `sample-store`, an example pack with a made-up blade and a tang holding

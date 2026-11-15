@@ -8,7 +8,7 @@
 #             (start the installed server, push the made-up store from a client-only environment).
 # 3. release: only when both pass, a GitHub release with the wheel, the .vsix and the two installers.
 # 4. pypi:    the same wheel to PyPI, by trusted publishing (no token: PyPI trusts this workflow file,
-#             release.yml, in the `pypi` environment of DylanCodyBrown/SwissArmyGrid).
+#             release.yml, in the `pypi` environment of DylanCodyBrown/SwissArmyBench).
 name: release
 
 on:

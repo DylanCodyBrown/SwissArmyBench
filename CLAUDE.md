@@ -11,7 +11,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
 
 - **Renamed (the owner, 2026-11-15):** SwissArmyGrid is now Swiss Army Bench: `swissarmybench`, alias `sab`.
   Write only the new names; the old ones are read for one release (`renamed.py`, README "Renamed from
-  SwissArmyGrid"). The GitHub repository keeps its old name until the owner renames it.
+  SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.

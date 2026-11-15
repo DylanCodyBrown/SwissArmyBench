@@ -2,13 +2,13 @@
 # Install Swiss Army Bench __VERSION__ (macOS and Linux): uv if it is missing, then the grid server as a uv tool,
 # with its own Python (uv downloads it; no system Python needed).
 #
-#   curl -LsSf https://github.com/DylanCodyBrown/SwissArmyGrid/releases/download/v__VERSION__/install.sh | sh
+#   curl -LsSf https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.sh | sh
 #   sh install.sh                                          # download the wheel from the GitHub release
 #   sh install.sh ./swissarmybench-__VERSION__-py3-none-any.whl  # or install a wheel you downloaded
 set -eu
 
 VERSION="__VERSION__"
-REPO="DylanCodyBrown/SwissArmyGrid"
+REPO="DylanCodyBrown/SwissArmyBench"
 WHEEL="swissarmybench-${VERSION}-py3-none-any.whl"
 
 say() { printf '%s\n' "$*"; }

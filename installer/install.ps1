@@ -1,14 +1,14 @@
 # Install Swiss Army Bench __VERSION__ (Windows): uv if it is missing, then the grid server as a uv tool, with
 # its own Python (uv downloads it; no system Python needed).
 #
-#   irm https://github.com/DylanCodyBrown/SwissArmyGrid/releases/download/v__VERSION__/install.ps1 | iex
+#   irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.ps1 | iex
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1 .\swissarmybench-__VERSION__-py3-none-any.whl
 param([string]$Wheel = "")
 
 $ErrorActionPreference = "Stop"
 $Version = "__VERSION__"
-$Repo = "DylanCodyBrown/SwissArmyGrid"
+$Repo = "DylanCodyBrown/SwissArmyBench"
 $WheelName = "swissarmybench-$Version-py3-none-any.whl"
 
 # throw, not exit: run as `irm ... | iex`, exit would close the person's PowerShell window.
