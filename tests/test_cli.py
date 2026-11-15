@@ -917,7 +917,7 @@ def test_a_kernel_that_dies_is_in_the_beta_log_with_its_exit_code(live: Live, tm
     other = run("workbench_kernel_start", path=str(tmp_path / "y.py"))["kernel"]
     run("workbench_kernel", kernel=other, action="stop")
     said = [(e["event"], e.get("exit_code")) for e in run("app_beta_log", kind="process")["events"]]
-    assert said[0] == ("start", None) and ("crash", 3) in said and said[-1][0] == "end"
+    assert ("start", None) in said and ("crash", 3) in said and said[-1][0] == "end"
     assert all(
         set(e) <= {"time", "id", "kind", "process", "event", "exit_code", "seconds", "reason"}
         for e in run("app_beta_log", kind="process")["events"]

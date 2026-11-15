@@ -11,6 +11,7 @@
  *          with {result} or {error}
  */
 import { api } from "./api";
+import { recordAction } from "./betaNotes";
 import { h } from "./dom";
 
 export interface Command {
@@ -56,6 +57,7 @@ export async function runCommand(id: string, args: Record<string, unknown> = {},
   const command = registry.get(id) ?? source().find((c) => c.id === id);
   if (!command) throw new Error(`No command "${id}". The command "commands" lists them.`);
   if (command.when && !command.when()) throw new Error(`"${command.title}" cannot run now: ${command.whyNot ?? "it does not apply to what is open"}.`);
+  recordAction(agent ? `agent:${id}` : id);
   return command.run(args, { agent });
 }
 
@@ -98,7 +100,11 @@ export function openPalette(): void {
     if (!c || (c.when && !c.when())) return;
     close();
     void Promise.resolve()
-      .then(() => (c.when && !c.when() ? undefined : c.run({}, { agent: false })))
+      .then(() => {
+        if (c.when && !c.when()) return undefined;
+        recordAction(c.id);
+        return c.run({}, { agent: false });
+      })
       .catch((e: Error) => import("./dom").then((m) => m.toast(e.message, "error")));
   };
   const draw = (): void => {

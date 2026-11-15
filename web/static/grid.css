@@ -7278,3 +7278,56 @@ body.panel-off-grid-status .statusbar {
 .wb-flyout .blade-list {
   max-height: calc(100vh - 230px);
 }
+
+/* Beta mode (betaNotes.ts): the quiet mark while it records, the note form and its outline. */
+.beta-mark {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: inherit;
+  font-size: max(0.85em, 11.5px);
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.beta-mark[hidden] {
+  display: none;
+}
+
+.cat-top .beta-mark {
+  margin-left: auto;
+}
+
+.beta-outline {
+  position: fixed;
+  z-index: 1;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
+
+.beta-note-where {
+  margin: 0 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.beta-note-text {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 110px;
+  margin-bottom: 8px;
+  resize: vertical;
+}
+
+.beta-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
