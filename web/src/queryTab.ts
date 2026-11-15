@@ -23,7 +23,7 @@ import { api } from "./api";
 import { button, clear, formatCount, h, icon, toast } from "./dom";
 import { contextOf, currentDraft, finishDraft, gridList, onAgentView, onPaneCreated, onPaneDropped, renameDraft, viewingQuery, type Context } from "./panes";
 import { effectiveTheme, gridTheme, onThemeChange } from "./theme";
-import type { SqlEditor } from "./lazy/sqlEditor";
+import type { SqlEditor } from "./lazy/codeEditor";
 
 /** What POST /datasets/{name}/query answers. */
 interface Built {
@@ -210,7 +210,7 @@ async function createTray(initial: string, onRun: () => void, firstStatus: strin
 /** Monaco when it loads (it is optional), else a plain text box that does the same job. */
 async function openEditor(editorHost: HTMLElement, initial: string, onRun: () => void): Promise<SqlEditor> {
   try {
-    const m = (await import(/* external */ "/static/build/lazy/sqlEditor.js" as string)) as typeof import("./lazy/sqlEditor");
+    const m = (await import(/* external */ "/static/build/lazy/codeEditor.js" as string)) as typeof import("./lazy/codeEditor");
     ensureMonacoCss();
     return m.createSqlEditor(editorHost, initial, onRun, effectiveTheme());
   } catch {
@@ -286,6 +286,6 @@ function rowsText(rows: number): string {
 
 /** Monaco's stylesheet, loaded once, the first time an editor is shown. */
 function ensureMonacoCss(): void {
-  if (document.querySelector("link[data-monaco]")) return;
-  document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/sqlEditor.css", "data-monaco": "true" }));
+  if (document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) return;
+  document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
 }

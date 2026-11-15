@@ -68,7 +68,7 @@ def pages_load_whole(info: dict[str, Any]) -> None:
     Workbench linked a stylesheet only an old build had left behind: a clean build's wheel lacked it.)"""
     base = f"http://127.0.0.1:{info['port']}"
     headers = {"Authorization": f"Bearer {info['token']}"}
-    linked: set[str] = {"/static/build/lazy/codeEditor.css", "/static/build/lazy/sqlEditor.css"}
+    linked: set[str] = {"/static/build/lazy/codeEditor.css"}
     for page in ("/workbench", "/catalog", "/g/smoke"):  # /g/<any id> serves the grid page
         request = urllib.request.Request(base + page, headers=headers)  # noqa: S310 (fixed local URL)
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (fixed local URL)
