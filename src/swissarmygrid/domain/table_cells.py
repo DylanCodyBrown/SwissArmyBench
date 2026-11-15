@@ -899,6 +899,8 @@ class Origin:
     filename: str | None = None
     connection: str | None = None
     sql: str | None = None  # the query a connection's table was read with, or a "+" tab's query
+    # The Python that reads it again from a connection that has no SQL: sag.read('Orders API', 'orders')
+    code: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {"kind": self.kind, "kernel": self.kernel}
@@ -982,6 +984,8 @@ def load_code(
     if origin.kind == "connection" and origin.connection and origin.sql:
         text = python_string(origin.sql)
         return ["import swissarmygrid as sag"], f"{var} = sag.sql({origin.connection!r}, {text})"
+    if origin.kind == "connection" and origin.connection and origin.code:
+        return ["import swissarmygrid as sag"], f"{var} = {origin.code}"
     if origin.kind == "query" and origin.sql:
         return [duck], f"{var} = {module}.sql({python_string(origin.sql.strip())}).df()"
     if origin.kind == "paste":

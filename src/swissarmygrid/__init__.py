@@ -29,7 +29,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from swissarmygrid.client.blades_client import blade, blades, load
+    from swissarmygrid.client.blades_client import blade, blades, load, read
     from swissarmygrid.client.blades_client import blade as connection
     from swissarmygrid.client.completion import complete
     from swissarmygrid.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
@@ -49,6 +49,7 @@ __all__ = [
     "connection",
     "load",
     "push",
+    "read",
     "sandbox",
     "sql",
     "unwatch",
@@ -63,6 +64,8 @@ _LAZY: dict[str, tuple[str, str]] = {
     "blades": ("swissarmygrid.client.blades_client", "blades"),
     # A connection (a database or file, added in the app's Connections) is run the way a blade is.
     "connection": ("swissarmygrid.client.blades_client", "blade"),
+    # A table by a connection's own Read a table box (a connection made of your own Python).
+    "read": ("swissarmygrid.client.blades_client", "read"),
     "sql": ("swissarmygrid.client.sql_cell", "sql"),
     "sandbox": ("swissarmygrid.client.sandbox_client", "sandbox"),
     "complete": ("swissarmygrid.client.completion", "complete"),

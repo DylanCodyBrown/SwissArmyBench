@@ -15,6 +15,9 @@ answer holds a password's value:
   POST   /connections/{name}/preview  a table's first rows {database, schema, table} (nothing kept)
   POST   /connections/{name}/relationships   a Power BI dataset's own relationships, merged into the
                                       current model (the Diagram, the Key Finder's known joins)
+  POST   /connections/variables       your own Python: the environment variables its three boxes read
+                                      {code, tables, read} (names only; nothing runs)
+  POST   /connections/{name}/tables   your own Python: run List the tables now; the tables it named
 
 Removing, secrets, Refresh, favourites and export are the blade routes' (routes_blades.py).
 The use cases are services/connections.py.
@@ -120,6 +123,23 @@ def routes(connections: ConnectionService, blades: BladeService, loading: Catalo
         except Exception as error:
             return error_response(error)
 
+    async def variables(request: Request) -> Response:
+        try:
+            return json_response(connections.variables(await read_json(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def tables(request: Request) -> Response:
+        try:
+            body = await read_json(request)
+            return json_response(await connections.tables(request.path_params["name"], body, actor(request)))
+        except NeedsValues as error:
+            return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
+        except RefreshError as error:
+            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+        except Exception as error:
+            return error_response(error)
+
     async def source(request: Request) -> Response:
         try:
             return json_response(await connections.source(await read_json(request)))
@@ -144,6 +164,8 @@ def routes(connections: ConnectionService, blades: BladeService, loading: Catalo
         Route("/connections/vaults", vaults),
         Route("/connections/vaults/secrets", vault_names, methods=["POST"]),
         Route("/connections/source", source, methods=["POST"]),
+        Route("/connections/variables", variables, methods=["POST"]),
+        Route("/connections/{name}/tables", tables, methods=["POST"]),
         Route("/connections/{name}/catalog", load_catalog, methods=["POST"]),
         Route("/connections/{name}/open", open_table, methods=["POST"]),
         Route("/connections/{name}/preview", preview, methods=["POST"]),

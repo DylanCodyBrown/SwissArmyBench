@@ -32,6 +32,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmygrid.domain import python_connections
 from swissarmygrid.domain.catalogs import CatalogError, check_name, normalize_dialect
 
 # ===== the code =====
@@ -369,7 +370,11 @@ def missing_module_hint(module: str) -> str:
 #     conn = pyodbc.connect(...)
 #
 # A vault blade adds `[vault]` (environment variable = secret name); a secret blade lists `env_names` and
-# has no code. Secret values are never written: `secrets` lists only the names the code asks for, which
+# has no code. A connection from your own Python (template "python") keeps its three boxes apart: the
+# code is Connect, `[catalog]` is List the tables, `[read]` is Read a table, and `[variables]` says where
+# each environment variable comes from (`ORDERS_API_KEY = { from = "vault", vault = "Team vault",
+# secret = "orders-api-key" }`; a plain value is written, a secret's never). A file without them loads
+# as it always did. Secret values are never written: `secrets` lists only the names the code asks for, which
 # the person importing types into their own vault. Several blades travel as a zip of these files.
 #
 # Reading never runs anything: it parses the header (tomllib) and checks the code is Python (ast).
@@ -434,8 +439,8 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         lines.append("tags = [" + ", ".join(_toml_string(str(t)) for t in blade["tags"]) + "]")
     if kind == "sql":
         lines.append(f"dialect = {_toml_string(str(blade.get('dialect') or 'other'))}")
-        if blade.get("row_limit"):
-            lines.append(f"row_limit = {int(blade['row_limit'])}")
+    if blade.get("row_limit") and (kind == "sql" or blade.get("template") == python_connections.TEMPLATE):
+        lines.append(f"row_limit = {int(blade['row_limit'])}")
     if kind == "vault" and blade.get("vault_all"):
         lines.append("vault_all = true  # every secret in the vault, each under its own name")
     if kind != "secret":
@@ -466,6 +471,18 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         lines += ["", "[vault]  # environment variable = the secret's name in the vault"]
         for row in blade.get("vault_mapping", []):
             lines.append(f"{row['env']} = {_toml_string(str(row['secret']))}")
+    read = blade.get("read")
+    if kind == "other" and isinstance(read, dict) and read.get("command"):
+        lines += [
+            "",
+            "[read]  # Read a table: conn, schema, table, limit (None: every row) -> its rows",
+            f"command = {_toml_string(str(read['command']), multiline=True)}",
+        ]
+    if kind == "other" and blade.get("variables"):
+        lines += ["", "[variables]  # environment variable = where its value comes from (no secret's value)"]
+        for row in blade["variables"]:
+            parts = ", ".join(f"{key} = {_toml_string(str(row[key]))}" for key in row if key != "name")
+            lines.append(f"{row['name']} = {{ {parts} }}")
     return lines
 
 
@@ -559,14 +576,27 @@ def read_blade(text: str) -> dict[str, Any]:
         blade |= {"code": code, "variable": str(header.get("variable") or "")}
         if kind == "sql":
             blade["dialect"] = str(header.get("dialect") or "other")
-            if isinstance(header.get("row_limit"), int):
-                blade["row_limit"] = header["row_limit"]
+        if isinstance(header.get("row_limit"), int):
+            blade["row_limit"] = header["row_limit"]
         catalog = header.get("catalog")
         if isinstance(catalog, dict) and isinstance(catalog.get("command"), str):
             blade["catalog"] = {
                 "language": str(catalog.get("language", "sql")),
                 "command": catalog["command"],
             }
+        read = header.get("read")
+        if isinstance(read, dict) and isinstance(read.get("command"), str):
+            blade["read"] = {"command": read["command"]}
+        variables = header.get("variables")
+        if isinstance(variables, dict):
+            if not all(
+                isinstance(v, dict) and all(isinstance(part, str) for part in v.values())
+                for v in variables.values()
+            ):
+                raise PortableError(
+                    'The [variables] table reads NAME = { from = "vault", vault = "...", secret = "..." }.'
+                )
+            blade["variables"] = [{"name": name, **source} for name, source in variables.items()]
         vault = header.get("vault", {} if header.get("vault_all") is True else None)
         if kind == "vault":
             if not isinstance(vault, dict) or not all(isinstance(v, str) for v in vault.values()):
@@ -1152,6 +1182,10 @@ class Blade:
     vault_all: bool = False
     # A database connection: how many rows a table opens with as a grid (None: the app's default).
     row_limit: int | None = None
+    # A connection from the user's own Python (domain/python_connections.py): the Read a table box, and
+    # where each environment variable its boxes read comes from (variable -> {"from", ...}).
+    read_command: str | None = None
+    variables: dict[str, dict[str, str]] = field(default_factory=dict)
     env_names: list[str] = field(default_factory=list)  # a secret blade's variables
     template: str | None = None
     description: str = ""
@@ -1163,13 +1197,25 @@ class Blade:
 
     @property
     def secrets(self) -> list[str]:
-        """The names its code asks for with secret("...")."""
+        """The names its code asks for with secret("..."). A connection from the user's own Python:
+        the variables saved on this computer too, and none of those that come from somewhere else."""
         if not self.code:
             return []
         try:
-            return read_code(self.code, self.name).secrets
+            found = read_code(self.code, self.name).secrets
         except BladeCodeError:
+            found = []
+        if not self.variables:
+            return found
+        kept = python_connections.keyring_names(self.variables)
+        return [s for s in found if s not in self.variables] + kept
+
+    @property
+    def env_reads(self) -> list[python_connections.EnvRead]:
+        """The environment variables a connection from the user's own Python reads, in its three boxes."""
+        if self.template != python_connections.TEMPLATE:
             return []
+        return python_connections.env_reads(self.code, self.catalog_command, self.read_command)
 
     @property
     def has_catalog(self) -> bool:
@@ -1190,6 +1236,8 @@ class Blade:
             "vault_mapping": [{"env": e, "secret": s} for e, s in self.vault_mapping.items()],
             "vault_all": self.vault_all,
             "row_limit": self.row_limit,
+            "read": {"command": self.read_command} if self.read_command else None,
+            "variables": python_connections.sources_json(self.variables),
             "env_names": list(self.env_names),
             "template": self.template,
             "description": self.description,
@@ -1319,17 +1367,7 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
             blade.dialect = normalize_dialect(_text(data, "dialect", 32) or None)
         except CatalogError as error:
             raise BladeError(str(error)) from None
-        limit = data.get("row_limit")
-        if limit not in (None, ""):
-            if (
-                isinstance(limit, bool)
-                or not isinstance(limit, int | str)
-                or not str(limit).strip().isdigit()
-            ):
-                raise BladeError("Rows to open is a whole number of rows.")
-            if not 1 <= int(limit) <= 50_000_000:
-                raise BladeError("Rows to open is between 1 and 50,000,000.")
-            blade.row_limit = int(limit)
+        blade.row_limit = _row_limit(data)
 
     if kind == "vault":
         mapping = data.get("vault_mapping") or []
@@ -1368,7 +1406,25 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
                 except BladeCodeError as error:
                     raise BladeError(str(error)) from None
             blade.catalog_language, blade.catalog_command = language, command
+    if kind == "other" and blade.template == python_connections.TEMPLATE:
+        blade.row_limit = _row_limit(data)
+        try:  # its Read a table box, and where each variable its three boxes read comes from
+            python_connections.fill(blade, data, previous, parse_code)
+        except (python_connections.PythonConnectionError, BladeCodeError) as error:
+            raise BladeError(str(error)) from None
     return blade
+
+
+def _row_limit(data: dict[str, Any]) -> int | None:
+    """Rows to open: how many rows a connection's table opens with as a grid (None: the app's default)."""
+    limit = data.get("row_limit")
+    if limit in (None, ""):
+        return None
+    if isinstance(limit, bool) or not isinstance(limit, int | str) or not str(limit).strip().isdigit():
+        raise BladeError("Rows to open is a whole number of rows.")
+    if not 1 <= int(limit) <= 50_000_000:
+        raise BladeError("Rows to open is between 1 and 50,000,000.")
+    return int(limit)
 
 
 # ===== a starter =====
@@ -1393,6 +1449,8 @@ class Template:
     sign_ins: tuple[tuple[str, str, str], ...] = ()
     # Where the form first offers its passwords from: "vault" (a key vault), else saved on this computer.
     secrets_from: str = ""
+    # A connection from the user's own Python: its Read a table box.
+    read_command: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -1412,4 +1470,5 @@ class Template:
             "note": self.note,
             "sign_ins": [{"label": label, "mark": mark, "code": code} for label, mark, code in self.sign_ins],
             "secrets_from": self.secrets_from,
+            "read": {"command": self.read_command} if self.read_command else None,
         }

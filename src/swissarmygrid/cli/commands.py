@@ -2061,6 +2061,88 @@ def connections_test(a: dict[str, Any]) -> Any:
     return api.call("POST", "/connections/test", body)
 
 
+# ----- a connection from your own Python: three boxes and where its variables come from -----
+
+_PYTHON_ARGS = (
+    req("connect", "Connect: Python that makes `conn`, any object."),
+    opt(
+        "tables",
+        "List the tables: Python returning conn's catalog, a list of dicts or a DataFrame with table, "
+        "column, and optionally schema, type, description. Empty: no catalog.",
+    ),
+    opt(
+        "read",
+        "Read a table: Python returning a table's rows given conn, schema, table, limit (None: all): a "
+        "DataFrame, Arrow table or list of dicts; or (rows, total).",
+    ),
+    opt(
+        "variables",
+        'Each environment variable\'s source: [{"name", "from": "env" | "keyring" | "vault" | "value", '
+        '"vault", "secret", "value"}]. env: this computer\'s (the default); keyring: saved here (its '
+        "value in secrets); vault: a key vault's secret; value: plain text, not a secret.",
+        "json",
+    ),
+    opt("secrets", '{"NAME": "value"} for keyring variables; never shown back.', "json"),
+    opt("description", "What it is for."),
+    opt("row_limit", "Rows a table opens with as a grid (default 10,000).", "int"),
+)
+
+
+def _python_body(a: dict[str, Any], name: str) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "name": name,
+        "kind": "other",
+        "template": "python",
+        "variable": "conn",
+        "code": a["connect"],
+        "catalog": {"language": "python", "command": a["tables"]} if a.get("tables") else None,
+        "read": {"command": a["read"]} if a.get("read") else None,
+        "variables": a.get("variables") or [],
+        "row_limit": a.get("row_limit"),
+    }
+    return body | {k: a[k] for k in ("secrets", "description") if a.get(k) is not None}
+
+
+@command(
+    "connections_python_variables",
+    "The environment variables a Python connection's boxes read (os.environ, os.getenv, secret): "
+    "names, whether needed, whether set on this computer",
+    opt("connect", "The Connect box."),
+    opt("tables", "The List the tables box."),
+    opt("read", "The Read a table box."),
+)
+def connections_python_variables(a: dict[str, Any]) -> Any:
+    body = {"code": a.get("connect"), "tables": a.get("tables"), "read": a.get("read")}
+    return api.call("POST", "/connections/variables", body)
+
+
+@command(
+    "connections_python_save",
+    "Save a connection made of your own Python (its three boxes and its variables' sources), new or "
+    "changed; test=true only runs it (Connect, the tables, the first table's first rows), saving nothing",
+    req("name", "Its name."),
+    opt("previous", "To change a saved one: its name now."),
+    opt("test", "Only test it.", "bool"),
+    *_PYTHON_ARGS,
+)
+def connections_python_save(a: dict[str, Any]) -> Any:
+    body = _python_body(a, a["name"])
+    if a.get("test"):
+        return api.call("POST", "/connections/test", body)
+    if a.get("previous"):
+        return api.call("PUT", f"/connections/{_q(a['previous'])}", body)
+    return api.call("POST", "/connections", body)
+
+
+@command(
+    "connections_python_tables",
+    "Run a Python connection's List the tables now: its tables and their columns (its catalog loads too)",
+    req("name", "The connection's name."),
+)
+def connections_python_tables(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/tables", {})
+
+
 @command("connections_vaults", "The vault blades a password can come from, with their entries (names only)")
 def connections_vaults(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections/vaults")
@@ -2078,7 +2160,8 @@ _TABLE_ARGS = (
     "connections_open_table",
     "Open a connection's table as a grid: a database table's first rows (the connection's Rows to open, "
     "10,000 unless set; all=true for every row), the grid told how many the source holds; a file "
-    "connection's file whole. A workbook with several sheets and no table named answers its sheets.",
+    "connection's file whole; a Python connection's by its Read a table. A workbook with several sheets "
+    "and no table named answers its sheets.",
     *_TABLE_ARGS,
     opt("all", "Every row, not the first Rows to open.", "bool"),
 )
@@ -2088,7 +2171,11 @@ def connections_open_table(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/connections/{_q(a['name'])}/open", body)
 
 
-@command("connections_preview_table", "A connection's table's first 50 rows (nothing is kept)", *_TABLE_ARGS)
+@command(
+    "connections_preview_table",
+    "A connection's table's first 50 rows (nothing is kept)",
+    *_TABLE_ARGS,
+)
 def connections_preview_table(a: dict[str, Any]) -> Any:
     body = {k: a[k] for k in ("table", "schema", "database") if a.get(k) is not None}
     return api.call("POST", f"/connections/{_q(a['name'])}/preview", body)

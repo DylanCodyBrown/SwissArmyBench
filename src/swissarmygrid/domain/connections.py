@@ -3,7 +3,9 @@
 A connection is a database blade (kind `sql`: its code makes a connection, its dialect says whose SQL),
 a file blade (made from a file starter: a CSV, a workbook, a Parquet or JSON file, a folder of them;
 its code makes the path) or a key vault (kind `vault`: its code reads a secret by name; each secret it
-maps becomes an environment variable in every Workbench kernel, the owner's call, 2026-11-14). They
+maps becomes an environment variable in every Workbench kernel, the owner's call, 2026-11-14) or the
+user's own Python (kind `other`, the `python` starter: three boxes that connect, list the tables and
+read one; domain/python_connections.py). They
 live in the blade store (one store: secrets, vaults, catalogs,
 folders, packs and the portable file all work the same); what this module decides is which blades are
 connections, what kind each is, and how a starter becomes the Add connection form. Pure rules: no I/O.
@@ -16,6 +18,7 @@ import re
 import unicodedata
 from typing import Any
 
+from swissarmygrid.domain import python_connections
 from swissarmygrid.domain.blades import env_name_for_secret
 
 __all__ = ["env_name_for_secret"]  # with the rules below: a vault's secret as a variable
@@ -34,7 +37,10 @@ _FOLDER_SETTINGS = frozenset({"folder", "directory"})
 
 
 def connection_kind(kind: str, template: str | None) -> str | None:
-    """The connection a blade is: database, file, vault, or None (a secret, an analysis, other code)."""
+    """The connection a blade is: database, file, vault, python (the user's own code: three boxes), or
+    None (a secret, an analysis, other code)."""
+    if kind == "other" and template == python_connections.TEMPLATE:
+        return "python"
     if kind == "sql":
         return "database"
     if kind == "vault":
@@ -62,14 +68,15 @@ def signs_in_interactively(code: str) -> bool:
 
 
 def has_catalog(connection: str | None) -> bool:
-    """A database or file connection lists its tables (a vault has none)."""
-    return connection in ("database", "file")
+    """A database, file or own-Python connection lists its tables (a vault has none)."""
+    return connection in ("database", "file", "python")
 
 
 def opens_in_code(connection: str | None) -> bool:
     """Whether the connection is a variable in the Workbench and a SQL cell's source: a database or a
-    file. A vault is not: its secrets are already environment variables there."""
-    return connection in ("database", "file")
+    file, or what the user's own Python makes. A vault is not: its secrets are already environment
+    variables there."""
+    return connection in ("database", "file", "python")
 
 
 def picker(setting: dict[str, Any], template: str | None) -> str | None:
@@ -152,6 +159,11 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "sign_ins": list(template.get("sign_ins") or []),
         # Where a new one's passwords are first offered from ("vault": the Power BI dataset's way).
         "secrets_from": str(template.get("secrets_from") or ""),
+        # A saved one's Rows to open (a database, the user's own Python); none: the app's 10,000.
+        "row_limit": template.get("row_limit"),
+        # The user's own Python: its Read a table box, and where each variable it reads comes from.
+        "read": template.get("read"),
+        "variables": list(template.get("variables") or []),
     }
 
 

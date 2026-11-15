@@ -24,7 +24,7 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from swissarmygrid.domain import blades
+from swissarmygrid.domain import blades, python_connections
 from swissarmygrid.domain.blades import Package
 from swissarmygrid.domain.blades import parse_code as parse
 from swissarmygrid.domain.blades import read_code as read
@@ -182,6 +182,86 @@ def run_catalog(
                 )
             return table_rows(result)
         raise BladeRunError(f"{what} must be sql or python, not {language!r}.")
+    except BaseException as error:
+        if isinstance(error, KeyboardInterrupt | SystemExit):
+            raise
+        raise _failure(error, secrets, what) from None
+
+
+# ===== a connection from the user's own Python: its variables, List the tables, Read a table =====
+
+
+def set_variables(
+    reads: list[python_connections.EnvRead],
+    plain: dict[str, str],
+    keyring: list[str],
+    secrets: dict[str, str],
+    label: str,
+) -> None:
+    """Give the code its environment variables before it runs: the plain values, and the ones saved on
+    this computer (a vault's are set by the vault, run first). A variable the code cannot run without
+    that still has no value is said here, by name, before the code fails on it."""
+    os.environ.update(plain)
+    os.environ.update({name: secrets[name] for name in keyring if name in secrets})
+    lacking = python_connections.missing(reads, lambda name: name in os.environ or name in secrets)
+    if lacking:
+        raise BladeRunError(python_connections.missing_message(lacking, label))
+
+
+def list_tables(
+    names: dict[str, Any], command: str, secrets: dict[str, str], label: str
+) -> tuple[list[str], list[list[Any]]]:
+    """Run List the tables after Connect, in the same names: its last expression (or `catalog`) as a
+    catalog's column names and rows, checked (a table and a column on every row)."""
+    what = f"{label}'s List the tables"
+    try:
+        result = _run(command, names, f"<blade {label} tables>")
+        if result is None:
+            result = names.get("catalog")
+        if result is None:
+            raise BladeRunError(
+                f"{what} gave nothing: end it with the tables ({python_connections.CATALOG_SHAPE})."
+            )
+        try:
+            columns, rows = table_rows(result)
+        except BladeRunError:
+            raise BladeRunError(
+                f"{what} returned a {type(result).__name__}. Return {python_connections.CATALOG_SHAPE}."
+            ) from None
+        return python_connections.check_catalog(columns, rows)
+    except python_connections.PythonConnectionError as error:
+        raise BladeRunError(_hide(f"{label}: {error}", secrets)) from None
+    except BaseException as error:
+        if isinstance(error, KeyboardInterrupt | SystemExit):
+            raise
+        raise _failure(error, secrets, what) from None
+
+
+def read_table(
+    names: dict[str, Any],
+    command: str,
+    schema: str,
+    table: str,
+    limit: int | None,
+    secrets: dict[str, str],
+    label: str,
+) -> tuple[Any, int | None]:
+    """Run Read a table after Connect, in the same names plus `schema`, `table` and `limit` (None: every
+    row): what it returned (its last expression, or `rows`) and the source's count when it gave one."""
+    what = f"{label}'s Read a table"
+    names |= {"schema": schema, "table": table, "limit": limit}
+    names.pop("rows", None)  # an earlier read's, in the same names
+    try:
+        result = _run(command, names, f"<blade {label} read>")
+        if result is None:
+            result = names.get("rows")
+        if result is None:
+            raise BladeRunError(
+                f"{what} gave nothing: end it with the rows ({python_connections.READ_SHAPE})."
+            )
+        return python_connections.split_read(result)
+    except python_connections.PythonConnectionError as error:
+        raise BladeRunError(_hide(f"{label}: {error}", secrets)) from None
     except BaseException as error:
         if isinstance(error, KeyboardInterrupt | SystemExit):
             raise

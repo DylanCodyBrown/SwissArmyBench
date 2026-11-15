@@ -106,6 +106,12 @@ class BladeStore:
             },
             vault_all=data.get("vault_all") is True,
             row_limit=data["row_limit"] if isinstance(data.get("row_limit"), int) else None,
+            read_command=(data.get("read") or {}).get("command"),
+            variables={
+                str(r["name"]): {k: str(v) for k, v in r.items() if k != "name"}
+                for r in data.get("variables", [])
+                if isinstance(r, dict) and "name" in r
+            },
             env_names=list(data.get("env_names", [])),
             template=data.get("template"),
             description=str(data.get("description") or ""),
