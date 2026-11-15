@@ -33,6 +33,7 @@ from starlette.testclient import TestClient
 
 from swissarmybench.cli.commands import CommandError, execute
 from swissarmybench.domain import notebooks
+from swissarmybench.renamed import env
 from swissarmybench.server import streamlit_apps
 from tests.conftest import AGENT, AUTH, BASE, make_client, push
 from tests.test_cli import Live, data_of, live  # noqa: F401 (the running server)
@@ -53,7 +54,8 @@ CUSTOMERS = pa.table({"customer": ["Acme", "Globex"], "region": ["East", "West"]
 
 def _streamlit_python() -> str | None:
     """A Python with Streamlit, pandas and pyarrow, for the tests that run the real thing."""
-    for python in (os.environ.get("SWISSARMYBENCH_STREAMLIT_PYTHON"), sys.executable):
+    # SWISSARMYGRID_STREAMLIT_PYTHON, its name before the rename, is still read (renamed.env).
+    for python in (env("SWISSARMYBENCH_STREAMLIT_PYTHON"), sys.executable):
         if not python or not Path(python).is_file():
             continue
         try:

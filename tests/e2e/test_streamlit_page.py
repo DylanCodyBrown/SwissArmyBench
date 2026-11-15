@@ -28,6 +28,7 @@ import pytest
 from playwright.sync_api import Browser, FrameLocator, Locator, Page, expect
 
 from swissarmybench.client import push_client
+from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.e2e.test_workbench_page import menu
@@ -44,7 +45,7 @@ ORDERS = pd.DataFrame(
     }
 )
 LONG = 60000  # Streamlit's first start, in milliseconds
-SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS")
+SHOTS = env("SWISSARMYBENCH_SHOTS") or None
 
 
 def open_window(browser: Browser, server: dict[str, Any], path: Path | None = None) -> Page:

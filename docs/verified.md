@@ -1019,3 +1019,28 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   Not checked: Edge (Chromium here); a real drag between two browser windows; a canvas with a running
   Streamlit app moved to another window (it restarts on Play there); a pasted table's rows in a
   script's zip copy beyond the read-only cell's own form; the panels with the high contrast themes.
+
+## The rename to Swiss Army Bench (2026-11-15)
+
+- **Checked:** `tests/test_renamed.py` (24 tests: the variables, the state folder's move and its
+  refusals, the old Workbench folder, the keyring on a memory vault, old notebooks, `%%sag` cells, blade
+  headers, tangs, Streamlit apps and saved pages, the magics, `import swissarmygrid`, `python -m
+  swissarmygrid.server`, the four old commands, the lent kernel copy, the old websocket subprotocol, an
+  old HTML cell's output), a browser test of a theme kept under the old storage prefix, and the VS Code
+  extension's tests (22, the old variables, state folder and uv tool among them).
+- **Installed:** `python build.py` made `swissarmybench-1.7.0b1-py3-none-any.whl` (with `swissarmygrid/`
+  inside it). In a made-up home with its own uv tool folders: the old `swissarmygrid` wheel (built from
+  e834b27) installed as a uv tool, with a state folder holding a made-up blade; then `install.sh` with the
+  new wheel removed the old tool and installed `swissarmybench` with all eight commands. `swissarmygrid
+  status`, `sag`, `swissarmygrid-context` and `import swissarmygrid` each said the new name and worked;
+  `swissarmygrid start` moved `~/.swissarmygrid` to `~/.swissarmybench` (the blade inside), said so once,
+  and a second start said nothing. `tools/smoke_install.py` passed as the release runs it (`uv run
+  --with <wheel>`) and with the installed tool's own Python.
+- **The whole suite** with the browser tests in this machine's Chromium and
+  SWISSARMYBENCH_STREAMLIT_PYTHON set (Streamlit 1.67): 2,336 passed, 1 failed:
+  `test_table_cells_live.py::test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_result`
+  (the watcher had not sent Run file's table within 20 s while the whole suite ran); it passed in eight
+  runs after, alone and with its file. A timing flake under load, as far as seen.
+- **Not checked:** Windows and macOS (install.ps1, the mutex, a folder held open by an old server), a
+  real keyring, a real Claude Code plugin install from the renamed marketplace, the VS Code extension in
+  VS Code itself, and PyPI (the new project name needs its trusted publisher).
