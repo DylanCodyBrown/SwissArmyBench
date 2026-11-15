@@ -1496,7 +1496,7 @@ the whole: "Essential we have built a data first style ide for streamlit". The f
   `_stop`, `_close`, `_install`, `_save`, `_export`, `_save_as`, `_page_add`, `_page_change`,
   `_page_remove`, `_block_place`, `_block_change`, `_block_remove`; `project_new`, `project_files`,
   `project_export_data`. Gone: `workbench_streamlit_*` (add, cells, run, push, resize, designer),
-  `streamlit_sync`, `streamlit_piece_*`. 224 commands (215 before); the tool list stays under 53,500
+  `streamlit_sync`, `streamlit_piece_*`. 224 commands (215 before; 228 after the review below); the tool list stays under 53,500
   characters (the descriptions are shorter).
 - **In the redesigned Workbench** (merged the same day): an app's canvas is the tab kind "page"
   (New Streamlit app in a group's "+" and the top bar's "…"; Start an app on the empty page); Play,
@@ -1690,3 +1690,88 @@ and Edit), projects and data.py are another branch's, which this one leaves room
 - **Kept out of this branch,** so the two merge cleanly: the app pages, projects, data.py and the
   removal of the Streamlit cell; and the notebook's cell logic (one style rule lets a cell's editor
   follow a narrower group).
+
+## The canvas's review, and four more of the owner's asks (2026-11-15)
+
+The Streamlit canvas and projects were reviewed end to end by another agent (the owner asked for the
+work to be checked without the builder's model). What changed, and why:
+
+- **Edit | Play is one pair** (the mockups c-app-edit and d-app-play): the mode in front raised and
+  underlined in the accent, the other flat on a grey track. Before, after Play the Edit button looked
+  pressed while the live page showed. Play while the page shows runs it again; out of date it reads
+  "Out of date · Play" in the warning colours.
+- **The status bar on a canvas** said "Streamlit app" (explaining text, principle 7.1). It shows the
+  Python the app runs in (its first linked file's, by its environment's last two folders, the whole
+  path in its tooltip) and "starting…" while Play starts it; nothing else.
+- **No rows leave, in two more places.** A script linked from the canvas went into Save as's zip as
+  it was, with a small pasted table's rows written out in its read-only cell: that cell is a stub now,
+  as a notebook's was. And data.py kept a pasted table's rows when a cell of the user's also made the
+  table: the pasted cell is left out (and said), the user's cell is the table.
+- **Save as writes over only its own pages.** It took away every pages/*.py the canvas did not write
+  this time and wrote over any file of the same name, so a page of the user's own, or of a second app
+  in the folder, was lost. A saved page's second line names its app's file (`# Written from
+  sales.stapp.json by SwissArmyGrid: change the canvas, not this file.`); only such pages of the same
+  app are written over or taken away, and Save as says which file it left alone.
+- **A linked file from outside the project** could take the name of the project's own file in the zip
+  (data.py, a notebook beside it) and replace it there: it gets a name of its own (`data_2.py`).
+- **Play runs when data.py cannot be written** (read-only) and says so; before, it failed outright.
+
+**Named cells** (the owner: "make it possible to name cells so the panel can show them by name").
+Any cell can have a name, one line of at most 80 characters; the cell's number stays its identity,
+so `@cell7` and canvas links never change with it.
+- A notebook keeps it in the cell's metadata, `swissarmygrid.name`, which plain Jupyter keeps.
+- **A script keeps it on the cell's marker line, as the marker's own words**: `# %% [7] Region filter`,
+  `# %% [9] [html] height=320 Report`. Those words were already kept (a marker's title) and are what
+  VS Code and Jupytext show as the cell's title, so a script needs no new syntax, and old scripts'
+  marker words become their cells' names. A name that would read as the marker's grammar (`[html]`,
+  `[3]`, `height=300`, or a backslash) is written after a backslash, which reading takes off.
+- It is typed in the cell's head after its number (hidden until the head is hovered or the cell
+  selected, while it has none), or set by More: Name…, the palette's Name the cell… and the agent's
+  `workbench_cell_name`. A canvas block and the Streamlit cells pane call a cell by its name; without
+  one, as before (its first comment line, else its first line).
+
+**The Streamlit cells pane** (the owner: "On the left under data add another pane that aggregates
+all the notebook cells that the are streamlit and make it so you can drag and drop from there"): a
+section of the Data panel under Tables and Variables, "Streamlit cells", folding like the files. Every
+Python cell that calls Streamlit (domain/streamlit_use.py) from the open notebooks and scripts (as
+their windows hold them, saved or not) and, with a project open, from the project's notebooks and
+scripts on disk; grouped by document; each by name, its `@cell` and "makes … · reads …". A drag places
+its link on a canvas (the same link a cell's own drag carries, so it works onto another window's canvas
+too); a click goes to the cell, opening its file when it is not open; a cell on the canvas page in front
+has a check mark (the front canvas, else the last one in front). The server says when the list changes
+(`streamlit_cells`); the agent lists it with `streamlit_cells` (by folder) and `data.streamlitCells`
+(the window's own, with the marks).
+
+**A tab pops out, and moves back** (the owner: "pop the notebook tab and app tab into two windows and
+drag and drop that way"). Before, Open in its own window saved the document, opened it again from its
+file in a new window and stopped its kernel.
+- **The document moves:** its unsaved text, its cell numbers and names, its outputs and its running
+  kernel. The server holds it on the way (memory, two minutes at most: `/workbench/handoffs`) and gives
+  the kernel to the window that takes it, so the kernel stops only a minute after that window is gone.
+  The window it leaves closes its tab once the other has taken it; if none takes it, it stays (never
+  two live copies, never none). A canvas moves with its pages; a running Streamlit app restarts on Play.
+- From the tab's right-click menu, the group's "…", the palette (Open the document in its own window,
+  Move the document to the main window) and the agent's `workbench_pop_out` and `workbench_move_back`.
+  "The main window" is one the user opened, not one a tab was popped into (a popped window remembers
+  that through a reload); with two such windows open, the first to answer takes the document.
+- A popped window is a Workbench window like any other (the Data panel, the Streamlit cells pane, its
+  own groups and layout, restored per window).
+
+**Panels in Settings** (the owner: "add app level settings with a option to hide or turn panels off
+if wanted by the user they default on every time sag is opened"). The Settings window (the grid page's
+cog; now also the Workbench's "…": Settings…) has a Panels section, a switch per panel: the
+Workbench's Data panel, its Tables, Blade variables and Streamlit cells, Console, Variables and the
+status bar; the grid page's ribbon, steps strip and status bar. A panel turned off is gone (not folded)
+from every window at once, and its commands say "… is turned off in Settings (Panels)". **How "they
+default on every time sag is opened" was read:** the switches are the server's, in memory, shared by
+every window; a reload keeps them; a new start of SwissArmyGrid shows every panel again. If the owner
+wants them remembered across starts, they would go to a small file in the state folder. The agent reads
+and sets them with `app_panels`. Not switchable: the grid page's Application row (Settings is there)
+and the Workbench's top bar (its "…" is how Settings is reached).
+
+**Held back** (the reviewer would choose differently, the owner did not decide, so the builder's
+choice stays): the copied cell lives on the Workbench's own clipboard (a BroadcastChannel), not the
+system clipboard; Export keeps its folder that runs alone with the data as Parquet beside Save as; an
+agent's Streamlit Export writes Parquet rows to a folder it names without the user's click (this
+predates the canvas; a grid export by the agent needs a ticket); the page's removal asks with the
+browser's own confirm box.

@@ -41,7 +41,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `{{ name }}` filled from the kernel), the Streamlit canvas (a Streamlit app is a Workbench document of
   its own, `.stapp.json`: pages of blocks, each a link to a Python cell, on a 12-column grid; Play shows
   the page live in place; a Python cell that calls Streamlit is live in its cell; Export; Save as),
-  projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), the Analyze menu, the Sandbox, compare's diff and tie-out,
+  projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), named
+  cells, the Data panel's Streamlit cells pane, tabs that pop out into windows of their own (and move
+  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start), the
+  Analyze menu, the Sandbox, compare's diff and tie-out,
   and Copy code on analysis results (the analysis as Python, on the clipboard). Not built: M9 (sandbox)
   and the Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
@@ -105,7 +108,8 @@ src/swissarmygrid/
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
     notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell, a DAX cell a
                          %%dax one, an HTML cell a %%html one with its pane's height in its metadata) and scripts;
-                         each cell's number (never changes, never reused) and its part in the Tables group
+                         each cell's number (never changes, never reused), its name (a label, in its
+                         metadata) and its part in the Tables group
     table_cells.py       every table's read-only cell: the names code makes, needs and uses; the uses
                          line (`# uses orders @cell3`); the Tables group's order and why a maker stays
                          put; a script's `# region Tables` and `# %% [7] [table] orders` markers; a
@@ -130,6 +134,7 @@ src/swissarmygrid/
                          run the cell that makes a name); where a SQL error points
     packs.py             a pack (a Claude Code plugin with blades/ and tangs/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
+    panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -154,8 +159,10 @@ src/swissarmygrid/
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
     folders.py           the page's file chooser (a folder's names: real paths)
-    workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered
+    workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
+                         a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
+    panels.py            the panels' switches: in memory, shared by every window (panels_changed)
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     streamlit.py         Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
@@ -196,7 +203,8 @@ src/swissarmygrid/
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, folders, workbench, table_cells, streamlit, projects). Every route serves
+                         processes, snapshots, packs, connections, folders, workbench, table_cells, streamlit, projects,
+                         panels). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmygrid`
@@ -229,7 +237,7 @@ src/swissarmygrid/
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (224 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (228 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -262,7 +270,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
                          layout as data for the session restore; the tab kind registry, registerTabKind,
                          where app pages are added), workbenchData.ts (the Data panel: the open tables,
-                         the blades' variables, a project's files once one exists (setFiles); "+ Table"
+                         the blades' variables, the Streamlit cells pane (every cell that calls
+                         Streamlit, by name: dragged onto a canvas), a project's files once one exists (setFiles); "+ Table"
                          and "+ Blade" open catalogRail.ts beside it; folds), workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
                          workbenchCommands.ts (every window action by one name: the palette, the keys, and

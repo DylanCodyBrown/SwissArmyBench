@@ -387,8 +387,9 @@ class Workbench:
 
     async def hand_off(self, body: Any) -> dict[str, Any]:
         """A document on its way to another window: {"document": the page's state of it, "kernel"?:
-        its running kernel, "to"?: a window's id (that window is told to take it; without it, the
-        window opened for it takes it by the id)}. Its one-time id."""
+        its running kernel, "to"?: a window's id, or "main" (a window the user opened, not one a tab
+        was popped into: the first to answer takes it), and that window is told; without it, the
+        window opened for it takes it by the id}. Its one-time id."""
         if not isinstance(body, dict) or not isinstance(body.get("document"), dict):
             raise ValueError('Send {"document": {...}, "kernel"?, "to"?}.')
         if body["document"].get("kind") not in ("notebook", "script", "app"):
@@ -423,7 +424,7 @@ class Workbench:
             raise ValueError('Send {"window": the Workbench window\'s id}.')
         if held["taken"]:
             raise Conflict("Another window took that document already.")
-        if held["to"] is not None and held["to"] != window:
+        if held["to"] not in (None, "main", window):
             raise Conflict("That document is on its way to another window.")
         held["taken"] = True
         kernel = held["kernel"] if held["kernel"] in self._running else None

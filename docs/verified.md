@@ -964,3 +964,58 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   Not checked: Edge (Chromium here); the high contrast themes and forced colours; touch (the drag uses
   pointer events, untried with a finger); a window under 1,100 pixels with several groups; how it
   merges with the app pages' branch.
+- (2026-11-15) The Streamlit canvas reviewed (docs/ideas.md, "The canvas's review, and four more of
+  the owner's asks", has each change and decision), and named cells, the Streamlit cells pane, tabs
+  that pop out and move back, and Settings' Panels. Branch `canvas-review`. Made-up data only.
+  **Checked that the builder could not:**
+  - *A project from a connection* (tests/test_streamlit_apps.py): a made-up SQLite file as the
+    connection "Shop", its table opened in the grid with a filter step, New project: data.py reads it
+    again with `sag.sql('Shop', ...)` then the step as one DuckDB query (`"amount" > 50`), names the
+    connection and never its code, and imports in a Python of its own with no Streamlit (as a
+    notebook's kernel), giving the filtered rows (75, 100, 250) through the running server.
+  - *The saved pages in a real multi-page app*: the zip unzipped, an `app.py` of the user's own with
+    `st.navigation` over `pages/sales_overview.py` and `pages/filter_only.py`, run in Streamlit 1.67's
+    AppTest in one session: the first page's metric 100, the filter picked (250), then the second page
+    by `switch_page`; no errors, each page's widget keys its own (b2_1, b3_1), data.py loaded once.
+    (The exported folder's own app.py was already served by a real `streamlit run`.)
+  - *The canvas in the dark theme*: screenshots (2x) of the blocks (a missing cell in red) and of the
+    live page after Play, whose frame asks Streamlit for its dark theme; looked at: the canvas's
+    colours are the theme's tokens, Edit | Play reads in both. One token the canvas used did not exist
+    (`--text`, on its warnings): it uses `--fg` now.
+  **The review's fixes, each with a test:** a script linked from the canvas zipped with a pasted
+  table's rows (now a stub); data.py keeping pasted rows when a user's cell also made the table; Save
+  as writing over and taking away pages/*.py that were not its own (a page of the user's own stays,
+  and is said); a linked file from outside the project taking a project file's name in the zip; Play
+  failing when data.py could not be written; Edit looking pressed during Play (now one Edit | Play
+  pair, `aria-pressed` on the mode in front: checked in the browser test both ways); "Streamlit app"
+  in the status bar (now the app's Python, checked by its tooltip, the whole path).
+  **Named cells:** a notebook's name in its metadata both ways (with brackets and a hash; one too long
+  from another tool dropped; old files without names); a script's on its marker line both ways, with
+  the escape for words that read as the marker's grammar, kept through arranging the script again;
+  the outline's names; a canvas block and a live cell called by a name. **The pane** over HTTP: an
+  open notebook's cells (names sent with the cells) and a project's file on disk, a plain script left
+  out, the agent's listing. **In a browser:** two cells named (in the head, and by the palette's
+  command), the pane listing them by name, one dragged from the pane onto a canvas, its block showing
+  the name and its link by number, the pane's mark, a click going to the cell, the names saved in the
+  metadata.
+  **Pop out:** on the server, a document handed to another window taken once, its kernel's variables
+  kept and its owner moved (the first window gone stops nothing), a move to a named window refused
+  to another, a cancel. **In two browser pages:** a notebook with a change not saved and a kernel that
+  holds `x = 41` popped out from the tab's right-click menu; the new page has the tab with its change,
+  its numbers, its name and its outputs, and `x + 1` gives 42 there; the first page has no copy; a
+  cell dropped onto a canvas in the first page (Playwright cannot drag between two pages, so the drop
+  is sent with the same data a cell's drag carries); moved back by the agent's command.
+  **Panels:** the defaults, a switch set and refused, all on again on a new server, the agent's
+  command; in a browser, Streamlit cells, Console and the grid's ribbon switched off in the
+  Workbench's Settings and gone there and in the grid page, the console's command refused with its
+  reason, still off after reloading both, on again from the grid page's Settings; the Data panel, both
+  status bars and the steps strip by the agent's command.
+  Then: ruff, format, mypy (273 files), the TypeScript check, the build, and the whole suite with the
+  browser tests in this machine's Chromium and SWISSARMYGRID_STREAMLIT_PYTHON set (Streamlit 1.67):
+  2,312 passed, none failed, none skipped (one run; the move-back change to "a main window" came
+  after it, and its tests, the Streamlit, panels and Workbench pages and the Workbench's unit tests,
+  67, passed again). 228 commands (224 before: workbench_cell_name, streamlit_cells,
+  workbench_move_back, app_panels); the tool list's budget raised to 54,500 characters.
+  Not checked: Edge (Chromium here); a real drag between two browser windows; a canvas with a running
+  Streamlit app moved to another window (it restarts on Play there); a pasted table's rows in a
+  script's zip copy beyond the read-only cell's own form; the panels with the high contrast themes.

@@ -45,7 +45,9 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 ### Settings
 
-Open **Settings** from the Application row. It holds the theme (for this browser), the setup prompt for connecting an agent and the agent activity list described below.
+Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, the setup prompt for connecting an agent and the agent activity list described below.
+
+**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time SwissArmyGrid starts.
 
 ![The Settings window: the theme, the setup prompt with its copy button and the agent activity list.](images/02-preferences.png)
 
@@ -616,17 +618,25 @@ of cell: write Python.
   Or copy it (**C** in command mode, More: Copy; in a script the palette's "Copy the cell") and paste
   on the canvas (**Ctrl+V**). The notebook must be saved first: a block links to a cell of a file.
   **V** in a notebook pastes the copied cell itself.
-- **A block** shows the cell's first comment line (or its first line), its file and `@cell` number,
+- **Name a cell:** type a name in its head, after its number (or More: Name…; in a script, the words
+  after its marker: `# %% [7] Region filter`). The name shows in the cell's head, on its block and in
+  the Streamlit cells pane; links still go by the cell's number.
+- **The Streamlit cells pane** (the Data panel, under Tables and Variables) lists every cell that calls
+  Streamlit, from the open notebooks and scripts and the project's files, by name. Drag one onto a
+  canvas to place it; click one to go to it. A cell already on the canvas page in front has a check.
+- **A block** shows the cell's name (or its first comment line, or its first line), its file and `@cell` number,
   and what it makes and reads. Drag it to move it (or the arrow keys), drag its corner to resize it
   (arrow keys on the corner; a double-click fits its height), Delete takes it off. The X of a page's
   tab removes the page; double-click a tab (or F2) renames it; **New page** adds one.
-- **Play** (in the tab's row of controls) runs the page from the linked cells as they are now (saved or not) and shows it live in
+- **Play** (in the tab's row of controls, beside **Edit**: the one in front is raised) runs the page from the linked cells as they are now (saved or not) and shows it live in
   place. **Edit** goes back to the blocks. When a linked cell, a table it reads or the layout changes
   while the page shows, the button says **Out of date · Play**. Nothing runs by itself.
 - **A block whose cell was deleted, or whose file is gone,** says so in red with the path and the
   number.
-- **Its own window:** the document's **…** menu (Open in its own window) moves a saved document (a canvas, a notebook) into a
-  Workbench window of its own, for another screen.
+- **Its own window:** a tab's right-click menu, or the document's **…** menu (Open in its own window),
+  moves a notebook, a script or a canvas into a Workbench window of its own, for another screen: its
+  unsaved changes and its running kernel go with it. **Move to the main window** brings it back. Drag
+  a cell (or a Streamlit cells entry) from one window onto a canvas in the other.
 - **Streamlit is not installed with SwissArmyGrid.** It runs in the notebook's own Python (its
   environment). If that Python lacks it, the cell or the canvas says so and offers **Install**
   (streamlit, pandas and pyarrow, into that Python).

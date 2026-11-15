@@ -50,7 +50,11 @@ What a grid page does:
   shows the page live in place; **Edit** goes back to the blocks. A cell that makes a name
   (`region = st.selectbox(...)`) drives every block on the page that reads it. **Export** writes a
   folder that runs on its own; **Save as zip** zips the project to add to your own app. Streamlit runs in
-  the notebook's own Python and is not installed with the app.
+  the notebook's own Python and is not installed with the app. Cells can be named; the Data panel's
+  **Streamlit cells** lists every cell that calls Streamlit by name, to drag onto a canvas. Any tab
+  pops out into a Workbench window of its own (its unsaved changes and kernel go with it), and back.
+- **Panels:** Settings can switch off any panel of the Workbench or the grid page; every one is on
+  again the next time SwissArmyGrid starts.
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
   variables; `data.py` is its export, and what your notebooks and pages import (`from data import
   orders`). The app's canvas exports `pages/*.py` the same way.

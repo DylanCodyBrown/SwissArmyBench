@@ -425,9 +425,19 @@ function projectEntries(): MenuEntry[] {
 // numbers, its outputs and its running kernel go with it, and this window's tab closes once the other
 // has taken it (the server holds it on the way: /workbench/handoffs). Never two live copies.
 
-/** The window this one was popped out of, and so on back to the first: "the main window". */
-const MAIN_WINDOW: string = openedWith.get("main") ?? WINDOW_ID;
-const isMainWindow = (): boolean => MAIN_WINDOW === WINDOW_ID;
+/** A window a tab was popped out into (else this is a main window: one the user opened). Kept in this
+ *  window's session storage, so a reload of a popped-out window still knows it. */
+const POPPED: boolean = ((): boolean => {
+  const key = "workbench-popped";
+  try {
+    if (openedWith.get("popped") === "1") sessionStorage.setItem(key, "1");
+    else if (openedWith.get("fresh") !== "1" && !openedWith.get("take")) return sessionStorage.getItem(key) === "1";
+    return openedWith.get("popped") === "1";
+  } catch {
+    return openedWith.get("popped") === "1";
+  }
+})();
+const isMainWindow = (): boolean => !POPPED;
 const moves = (doc: Doc): boolean => !!(doc.notebook || doc.script || doc.canvas);
 
 /** A document as it moves: everything the window holds of it. */
@@ -450,7 +460,7 @@ async function moveOut(doc: Doc, to: string | null): Promise<{ title: string; wi
   const kernel = doc.kernel?.id ?? null;
   const { id } = await api<{ id: string }>("/workbench/handoffs", "POST", { document: movingState(doc), kernel, to });
   if (to === null) {
-    const hash = new URLSearchParams({ token, take: id, fresh: "1", main: MAIN_WINDOW }).toString();
+    const hash = new URLSearchParams({ token, take: id, fresh: "1", popped: "1" }).toString();
     const opened = window.open(`/workbench#${hash}`, `swissarmygrid-workbench-${Date.now()}`, "popup,width=1200,height=800");
     if (!opened) {
       await api(`/workbench/handoffs/${id}`, "DELETE").catch(() => undefined);
@@ -483,7 +493,7 @@ const popOut = (doc: Doc): Promise<{ title: string; window: "new" | "main" }> =>
 /** A popped-out window's document back to the main window. */
 function moveToMain(doc: Doc): Promise<{ title: string; window: "new" | "main" }> {
   if (isMainWindow()) throw new Error("This is the main Workbench window.");
-  return moveOut(doc, MAIN_WINDOW);
+  return moveOut(doc, "main"); // the main window that takes it first (the server makes sure only one does)
 }
 
 /** Take a document another window handed to this one: as it was there, its kernel still running. */
@@ -1783,7 +1793,10 @@ onNotice((notice) => {
   handleAgentNotice(notice);
   // The agent's workbench_window: a command run here, as the palette would, and answered.
   // A document moved back to this (the main) window from one it was popped out into.
-  if (notice.type === "workbench_handoff" && (notice as unknown as { to: string }).to === WINDOW_ID) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => toast(e.message, "error"));
+  const handedTo = notice.type === "workbench_handoff" ? (notice as unknown as { to: string }).to : null;
+  if (handedTo !== null && (handedTo === WINDOW_ID || (handedTo === "main" && isMainWindow()))) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => {
+      if (!(e instanceof ApiError && e.status === 409)) toast(e.message, "error"); // another main window took it
+    });
   if (notice.type === "workbench_command") void answerAgent(notice as unknown as { id: string; command: string; args?: Record<string, unknown> });
   if (notice.type === "catalogs_changed") {
     void rail.loadCatalogs();

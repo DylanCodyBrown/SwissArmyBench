@@ -953,6 +953,13 @@ def test_a_document_moves_to_another_window_with_its_running_kernel(client: Test
         assert client.delete(f"/workbench/handoffs/{back.json()['id']}", headers=AUTH).json() == {
             "cancelled": True
         }
+        # To "main": a window the user opened takes it (the page knows it is one), the first only.
+        home = client.post("/workbench/handoffs", json={"document": document, "to": "main"}, headers=AUTH)
+        home_id = home.json()["id"]
+        took = client.post(f"/workbench/handoffs/{home_id}/take", json={"window": "window-a"}, headers=AUTH)
+        assert took.status_code == 200
+        late = client.post(f"/workbench/handoffs/{home_id}/take", json={"window": "window-d"}, headers=AUTH)
+        assert late.status_code == 409
         for bad in ({"document": {"kind": "blade"}}, {"document": document, "kernel": "nope"}, {}):
             assert client.post("/workbench/handoffs", json=bad, headers=AUTH).status_code in (400, 404)
     finally:
