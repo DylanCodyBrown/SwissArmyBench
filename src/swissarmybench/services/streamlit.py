@@ -42,7 +42,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmybench.domain import notebooks, projects
+from swissarmybench.domain import html_cells, notebooks, projects
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
@@ -66,6 +66,8 @@ _UNSET: Any = object()
 
 class Files(Protocol):
     def folder(self) -> str: ...
+
+    def helper(self) -> str: ...  # the text of domain/html_cells.py: a page's sab_text.py
 
     def write(self, folder: str, files: dict[str, str], keep: set[str]) -> None: ...
 
@@ -139,6 +141,8 @@ class App:
     order: list[int] = field(default_factory=list)
     codes: dict[int, str] = field(default_factory=dict)
     names: dict[int, str] = field(default_factory=dict)  # the cells that have a name of their own
+    # Its Markdown and HTML cells (their code is the page's: rules.text_code), by number.
+    kinds: dict[int, str] = field(default_factory=dict)
     live: list[int] = field(default_factory=list)
     # Every cell of the document, as the window holds it (only a project's data.ipynb sends them).
     every: list[DataCell] | None = None
@@ -173,8 +177,9 @@ class App:
 class Linked:
     """A canvas's linked cells as they are now."""
 
-    cells: dict[str, dict[int, str]] = field(default_factory=dict)  # by file: its Python cells' code
+    cells: dict[str, dict[int, str]] = field(default_factory=dict)  # by file: its cells' code (a page's)
     names: dict[str, dict[int, str]] = field(default_factory=dict)  # by file: its cells' own names
+    kinds: dict[str, dict[int, str]] = field(default_factory=dict)  # by file: its Markdown and HTML cells
     missing: dict[str, str] = field(default_factory=dict)  # a file that cannot be read, and why
     unsaved: list[str] = field(default_factory=list)  # the files an open document holds changes of
     python: str | None = None  # the first linked file's own Python
@@ -185,14 +190,24 @@ class Linked:
     def name(self, key: Key) -> str | None:
         return self.names.get(key[0], {}).get(key[1])
 
+    def kind(self, key: Key) -> str:
+        return self.kinds.get(key[0], {}).get(key[1], "code")
 
-def _cells(sent: Any) -> tuple[list[tuple[int, str]], dict[int, str]]:
-    """The Python cells a window sends ({"cell", "code", "name"?}): (number, code) in order, and
-    the names the cells have."""
+
+Cells = tuple[list[tuple[int, str]], dict[int, str], dict[int, str]]
+
+
+def _cells(sent: Any) -> Cells:
+    """The cells a window sends ({"cell", "code", "name"?, "kind"?}): (number, code) in order, the
+    names the cells have, and which are Markdown or HTML cells. A Markdown or HTML cell sends its text
+    (a script's HTML cell its lines, with "form": "script"); its code is the page's (rules.text_code)."""
     if not isinstance(sent, list) or len(sent) > rules.MAX_PIECES:
-        raise StreamlitError('Send the Python cells as a list: [{"cell": 4, "code": "...", "name"?}].')
+        raise StreamlitError(
+            'Send the cells as a list: [{"cell": 4, "code": "...", "name"?, "kind"?: "markdown" | "html"}].'
+        )
     found: list[tuple[int, str]] = []
     names: dict[int, str] = {}
+    kinds: dict[int, str] = {}
     seen: set[int] = set()
     for raw in sent:
         cell = raw.get("cell") if isinstance(raw, dict) else None
@@ -205,11 +220,30 @@ def _cells(sent: Any) -> tuple[list[tuple[int, str]], dict[int, str]]:
             name = notebooks.check_name(raw.get("name"))
         except notebooks.NotebookError as error:
             raise StreamlitError(str(error)) from None
+        kind = raw.get("kind", "code")
+        if kind not in ("code", *rules.TEXT_KINDS):
+            raise StreamlitError('A cell\'s kind is "code", "markdown" or "html".')
         seen.add(cell)
+        if kind != "code":
+            text = html_cells.read_script_body(code)[0] if raw.get("form") == "script" else code
+            if text is None:
+                continue  # a script's HTML cell whose string is not whole yet: not on a page
+            code = rules.text_code(kind, text, cell)
+            kinds[cell] = kind
         found.append((cell, code))
         if name:
             names[cell] = name
-    return found, names
+    return found, names, kinds
+
+
+def _read_cells(path: str, text: str) -> Cells:
+    """A notebook's or script's file as `_cells` gives a window's cells (rules.linkable)."""
+    found = rules.linkable(path, text)
+    return (
+        [(c.number, c.code) for c in found],
+        {c.number: c.name for c in found if c.name},
+        {c.number: c.kind for c in found if c.kind != "code"},
+    )
 
 
 def _name(path: str) -> str:
@@ -306,7 +340,7 @@ class StreamlitApps:
                 app.title = _name(full)
                 app.python = self._environment_of(full)
                 try:
-                    self._take(app, rules.document_cells(full, text), rules.document_names(full, text))
+                    self._take(app, *_read_cells(full, text))
                 except notebooks.NotebookError as error:
                     raise StreamlitError(str(error)) from None
         self._apps[app.id] = app
@@ -321,14 +355,16 @@ class StreamlitApps:
         return self._state(app)
 
     @staticmethod
-    def _take(app: App, cells: list[tuple[int, str]], names: dict[int, str]) -> bool:
-        """A document's Python cells as they are now (true: a cell's code or name changed)."""
+    def _take(app: App, cells: list[tuple[int, str]], names: dict[int, str], kinds: dict[int, str]) -> bool:
+        """A document's cells as they are now: its Python cells, and its Markdown and HTML cells as a
+        page writes them (true: a cell's code or name changed)."""
         codes = dict(cells)
-        changed = codes != app.codes or names != app.names
+        changed = codes != app.codes or names != app.names or kinds != app.kinds
         app.order = [cell for cell, _ in cells]
         app.codes = codes
         app.names = names
-        app.live = rules.live_cells(cells)
+        app.kinds = kinds
+        app.live = rules.live_cells(cells, kinds)
         return changed
 
     def _update(self, app: App, body: dict[str, Any]) -> bool:
@@ -456,14 +492,17 @@ class StreamlitApps:
             if held is not None:
                 found.cells[document] = dict(held.codes)
                 found.names[document] = dict(held.names)
+                found.kinds[document] = dict(held.kinds)
                 if held.unsaved:
                     found.unsaved.append(document)
                 python = held.python
             else:
                 try:
                     text, full, _ = self._read(document)
-                    found.cells[document] = dict(rules.document_cells(full, text))
-                    found.names[document] = rules.document_names(full, text)
+                    cells, names, kinds = _read_cells(full, text)
+                    found.cells[document] = dict(cells)
+                    found.names[document] = names
+                    found.kinds[document] = kinds
                 except FileNotFoundError:
                     found.missing[document] = f"{document} is missing"
                     continue
@@ -479,7 +518,7 @@ class StreamlitApps:
         if block.document in linked.missing:
             return f"{linked.missing[block.document]}: this block links to its cell {block.cell}."
         if linked.code(block.key) is None:
-            return f"{_name(block.document)} has no Python cell {block.cell} now ({block.document})."
+            return f"{_name(block.document)} has no cell {block.cell} for a page now ({block.document})."
         return None
 
     def _canvas_pieces(
@@ -610,6 +649,8 @@ class StreamlitApps:
                     block.to_json()
                     | {
                         "name": pieces[block.key].name if code is not None else None,
+                        # code, markdown or html: a text block is marked T on the canvas
+                        "kind": linked.kind(block.key) if code is not None else None,
                         "where": _where(block.document, block.cell),
                         "makes": rules.shown_makes(mine),
                         "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in named],
@@ -646,22 +687,34 @@ class StreamlitApps:
     # ===== the Streamlit cells pane: every cell that calls Streamlit, by document =====
 
     @staticmethod
-    def _pane_mark(app: App) -> str:
-        """What the pane shows of a document: its live cells' names and code."""
+    def _shown(app: App) -> list[int]:
+        """The cells the pane lists of a document: its live cells, then its Markdown and HTML cells
+        that show something (under their own heading, Text)."""
+        texts = [c for c in app.order if c in app.kinds and rules.runs_something(app.codes[c])]
+        return [*app.live, *texts]
+
+    @classmethod
+    def _pane_mark(cls, app: App) -> str:
+        """What the pane shows of a document: its live and text cells' names and code."""
         return json.dumps(
-            [app.title, app.document, [[c, app.names.get(c), app.codes[c]] for c in app.live]], default=str
+            [app.title, app.document, [[c, app.names.get(c), app.codes[c]] for c in cls._shown(app)]],
+            default=str,
         )
 
     async def _cells_changed(self) -> None:
         await self.ws.live.broadcast({"type": "streamlit_cells"})
 
-    def _pane_entry(self, document: str | None, cell: int, code: str, name: str | None) -> dict[str, Any]:
+    def _pane_entry(
+        self, document: str | None, cell: int, code: str, name: str | None, kind: str = "code"
+    ) -> dict[str, Any]:
         mine = rules.facts(code)
         tables = rules.tables_named(code, self._tables())
         return {
             "cell": cell,
             "name": rules.cell_title(code, cell, name),
             "named": bool(name),
+            # code, markdown or html: the pane lists a document's Markdown and HTML cells under Text
+            "kind": kind,
             "where": f"{_name(document)} @cell{cell}" if document else f"@cell{cell}",
             "makes": rules.shown_makes(mine),
             "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in tables],
@@ -669,19 +722,24 @@ class StreamlitApps:
         }
 
     def pane(self, folder: str | None = None) -> dict[str, Any]:
-        """The Streamlit cells pane: every Python cell that calls Streamlit, grouped by document. From
-        each open notebook and script (as its window holds it, saved or not), and, with `folder` (an
-        open project's), from the project's notebooks and scripts on disk that no window holds."""
+        """The Streamlit cells pane: every Python cell that calls Streamlit, and every Markdown and HTML
+        cell (they go on a page too), grouped by document. From each open notebook and script (as its
+        window holds it, saved or not), and, with `folder` (an open project's), from the project's
+        notebooks and scripts on disk that no window holds."""
         documents: list[dict[str, Any]] = []
         seen: list[str] = []
         for app in self._apps.values():
-            if app.canvas or not app.live:
+            shown = self._shown(app)
+            if app.canvas or not shown:
                 continue
             if app.document:
                 if any(rules.same_file(app.document, d) for d in seen):
                     continue
                 seen.append(app.document)
-            cells = [self._pane_entry(app.document, c, app.codes[c], app.names.get(c)) for c in app.live]
+            cells = [
+                self._pane_entry(app.document, c, app.codes[c], app.names.get(c), app.kinds.get(c, "code"))
+                for c in shown
+            ]
             documents.append({"document": app.document, "title": app.title, "open": True, "cells": cells})
         if folder:
             try:
@@ -694,12 +752,15 @@ class StreamlitApps:
                     continue
                 try:
                     text, full, _ = self._read(path)
-                    codes = rules.document_cells(full, text)
-                    named = rules.document_names(full, text)
+                    codes, named, kinds = _read_cells(full, text)
                 except (FileNotFoundError, OSError, ValueError):
                     continue  # a file that cannot be read has nothing to list
-                live = set(rules.live_cells(codes))
-                cells = [self._pane_entry(full, c, code, named.get(c)) for c, code in codes if c in live]
+                held = App("", "", name, order=[c for c, _ in codes], codes=dict(codes), kinds=kinds)
+                held.live = rules.live_cells(codes, kinds)
+                cells = [
+                    self._pane_entry(full, c, held.codes[c], named.get(c), kinds.get(c, "code"))
+                    for c in self._shown(held)
+                ]
                 if cells:
                     seen.append(full)
                     documents.append({"document": full, "title": name, "open": False, "cells": cells})
@@ -746,7 +807,10 @@ class StreamlitApps:
         if document in linked.missing:
             raise NotFound(f"{linked.missing[document]}.")
         if linked.code((document, cell)) is None:
-            raise StreamlitError(f"{_name(document)} has no Python cell {cell}.")
+            raise StreamlitError(
+                f"{_name(document)} has no cell {cell} for a page: a page takes a Python, Markdown "
+                "or HTML cell."
+            )
         width = rules.check_width(body.get("w", rules.DEFAULT_WIDTH))
         row, column = rules.free_place(page.blocks, width)
         taken = [b.id for p in app.pages for b in p.blocks]
@@ -901,6 +965,9 @@ class StreamlitApps:
                 for block in page.blocks:
                     code = linked.code(block.key)
                     ran[block.key] = None if code is None else rules.body(code)
+            if any(rules.uses_text_module(piece.code) for piece in pieces.values()):
+                # A Markdown or HTML block names a value: the rules that fill it, beside the pages.
+                files[rules.TEXT_FILE] = rules.text_file(self._files.helper())
             app.laid = {page.id: self._layout(page) for page in app.pages}
         else:
             codes = self._piece_codes(app)
@@ -1073,7 +1140,7 @@ class StreamlitApps:
         linked = self._linked(app)
         pieces, found, where = self._canvas_pieces(app, linked)
         gone = {b.id: said for p in app.pages for b in p.blocks if (said := self._gone(b, linked))}
-        made = rules.export(app.title, app.pages, pieces, tables, found, where, gone)
+        made = rules.export(app.title, app.pages, pieces, tables, found, where, gone, self._files.helper())
         try:
             target = self._files.export_target(folder)
         except FileNotFoundError as error:
@@ -1245,6 +1312,10 @@ class StreamlitApps:
                 self._project.read(folder, projects.REQUIREMENTS_FILE), list(dict.fromkeys(needed))
             )
             self._project.write(folder, projects.REQUIREMENTS_FILE, requirements)
+            # A Markdown or HTML block names a value: the rules that fill it go beside data.py.
+            helper = rules.text_file(self._files.helper()) if made.texts else None
+            if helper is not None:
+                self._project.write(folder, rules.TEXT_FILE, helper)
         except PermissionError as error:
             raise Conflict(str(error)) from None
         # The linked files: one inside the project keeps its place; one outside comes along at the
@@ -1256,6 +1327,7 @@ class StreamlitApps:
             projects.DATA_NOTEBOOK,
             projects.REQUIREMENTS_FILE,
             "README.txt",
+            rules.TEXT_FILE,
             app_name,
             *made.files,
             *(name for name in inside.values() if name),
@@ -1267,6 +1339,8 @@ class StreamlitApps:
             projects.REQUIREMENTS_FILE: requirements,
             **made.files,
         }
+        if helper is not None:
+            files[rules.TEXT_FILE] = helper
         notebook = self._project.read(folder, projects.DATA_NOTEBOOK)
         if notebook is not None:
             files[projects.DATA_NOTEBOOK] = self._for_zip(projects.DATA_NOTEBOOK, notebook)
@@ -1288,7 +1362,12 @@ class StreamlitApps:
             )
         files[app_name] = rules.write_app(app.pages, lambda d: placed.get(d, d))
         files["README.txt"] = projects.readme(
-            app.title, [p.name for p in app.pages], app_name, data.fill_in, [placed[d] for d in documents]
+            app.title,
+            [p.name for p in app.pages],
+            app_name,
+            data.fill_in,
+            [placed[d] for d in documents],
+            texts=helper is not None,
         )
         try:
             path, written = self._project.zip(target, files)

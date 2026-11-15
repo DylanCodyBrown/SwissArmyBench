@@ -351,13 +351,11 @@ def test_a_canvas_holds_links_to_cells_and_reads_them_as_they_are_now(
     )
     assert state["pages"][0]["order"] == ["b2", "b1"] and state["pages"][0]["problems"] == []
     assert blocks[0]["document"] == path and blocks[0]["missing"] is None and blocks[0]["state"] == "notRun"
-    # Any Python cell can be placed, one that never calls Streamlit too. Not Markdown; not a missing cell.
+    # Any Python cell can be placed, one that never calls Streamlit too; a Markdown or HTML cell too
+    # (text cells on the canvas, 2026-11-15). Not a SQL cell; not a missing cell.
     _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 5}))
-    for cell in (2, 99):
-        refused = client.post(
-            f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": cell}
-        )
-        assert refused.status_code == 400 and f"sales.ipynb has no Python cell {cell}" in refused.text
+    refused = client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 99})
+    assert refused.status_code == 400 and "sales.ipynb has no cell 99 for a page" in refused.text
     missing = client.post(
         f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": str(tmp_path / "no.ipynb"), "cell": 1}
     )
@@ -403,6 +401,11 @@ def test_a_canvas_holds_links_to_cells_and_reads_them_as_they_are_now(
             "pages": [{"id": "p1", "name": "Sales overview", "blocks": 2}],
         }
     ]
+    # The notebook's Markdown cell (2, "# Sales") goes on the page too: a text block, named by its words.
+    text = _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 2}))
+    block = next(b for b in text["pages"][0]["blocks"] if b["cell"] == 2)
+    assert (block["kind"], block["name"], block["makes"], block["reads"]) == ("markdown", "Sales", [], [])
+    assert {b["kind"] for b in text["pages"][0]["blocks"] if b["cell"] != 2} == {"code"}
 
 
 def test_play_runs_the_linked_cells_current_code_and_says_when_a_page_is_out_of_date(
@@ -467,7 +470,7 @@ def test_play_runs_the_linked_cells_current_code_and_says_when_a_page_is_out_of_
     _ok(client.put(f"/streamlit/apps/{doc}", headers=AUTH, json={"cells": less}))
     lost = _ok(client.get(base, headers=AUTH))["pages"][0]
     assert lost["blocks"][0]["state"] == "missing" and lost["out_of_date"] is True
-    assert lost["blocks"][0]["missing"] == f"sales.ipynb has no Python cell 4 now ({path})."
+    assert lost["blocks"][0]["missing"] == f"sales.ipynb has no cell 4 for a page now ({path})."
     assert lost["blocks"][0]["missing"] in lost["problems"][0]
     # The notebook closes and its file goes: every block of it says the file is missing.
     assert client.delete(f"/streamlit/apps/{doc}", headers=AUTH).status_code == 200

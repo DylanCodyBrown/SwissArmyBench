@@ -315,9 +315,21 @@ No rows and no passwords are in this zip: data.py reads each table again the way
 
 
 def readme(
-    title: str, pages: Sequence[str], app: str, fill_in: Sequence[str], documents: Sequence[str]
+    title: str,
+    pages: Sequence[str],
+    app: str,
+    fill_in: Sequence[str],
+    documents: Sequence[str],
+    texts: bool = False,
 ) -> str:
+    """The zip's README.txt. `texts`: a page has a Markdown or HTML block that names a value, so
+    sab_text.py comes along (and says that nothing new is needed)."""
     lines: list[str] = []
+    if texts:
+        lines.append(
+            f"\n{streamlit_cells.TEXT_FILE} fills the {{{{ names }}}} of the pages' Markdown and HTML blocks."
+            " It is standard library only, so they need nothing new installed: copy it beside data.py too.\n"
+        )
     if fill_in:
         lines.append(
             "\nFILL IN: data.py cannot read "
@@ -331,7 +343,8 @@ def readme(
 
 def project_files(names: Iterable[str]) -> list[str]:
     """Which of a project folder's files the Workbench opens, in order: data.ipynb first, then the
-    app's canvas, then the other notebooks, then scripts. data.py is an export: it is not opened."""
+    app's canvas, then the other notebooks, then scripts. data.py is an export, and sab_text.py the copy
+    that fills the pages' text blocks: neither is opened."""
 
     def rank(name: str) -> int:
         lowered = name.lower()
@@ -346,6 +359,6 @@ def project_files(names: Iterable[str]) -> list[str]:
         for n in set(names)
         if n.lower().endswith((".py", ".ipynb", ".stapp.json"))
         and not n.startswith(".")
-        and n.lower() != DATA_FILE
+        and n.lower() not in (DATA_FILE, streamlit_cells.TEXT_FILE)
     ]
     return sorted(wanted, key=lambda n: (rank(n), n.lower()))[:MAX_FILES]

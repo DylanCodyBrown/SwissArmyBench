@@ -13,12 +13,20 @@ import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
+from swissarmybench.domain import html_cells
+
 PREFIX: str = "swissarmybench-streamlit-"
 
 
 class AppFiles:
     def __init__(self) -> None:
         self._made: set[str] = set()
+
+    @staticmethod
+    def helper() -> str:
+        """The text of the HTML cells' rules (domain/html_cells.py, standard library only): a page with
+        a Markdown or HTML block that names a value carries a copy of it as sab_text.py."""
+        return Path(html_cells.__file__).read_text(encoding="utf-8")
 
     def folder(self) -> str:
         """A new temporary folder for one app (only this user reads it)."""

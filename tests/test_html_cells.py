@@ -607,3 +607,71 @@ def test_the_agent_runs_fills_and_checks_an_html_cell(live: Live, tmp_path: Path
         assert saved["outputs"][0]["data"]["text/html"] == "<h1>42 orders</h1>"
     finally:
         command("workbench_kernel", kernel=kernel, action="stop")
+
+
+# ===== Markdown cells: the same values, written for Markdown (text cells on the canvas, 2026-11-15) =====
+
+MARKED = "</script><b>*x*</b> [link](http://example.com) `tick` _under_ # | ~ $1 :red[no]"
+
+
+def test_a_value_in_markdown_is_always_text() -> None:
+    written = rules.markdown_text(MARKED)
+    # No raw markup, and every Markdown mark escaped: it can neither format nor link nor become markup.
+    assert "<" not in written and ">" not in written
+    for mark in "*_[]()`#|~$":
+        assert written.count(mark) == written.count("\\" + mark), mark
+    assert written.startswith("&lt;/script&gt;&lt;b&gt;\\*x\\*&lt;/b&gt;")
+    # One line: a line break would end a heading or a table's row.
+    assert rules.markdown_text("two\n\n  lines\r\nhere") == "two lines here"
+    filled = rules.fill_markdown("Hello {{ x }}!", {"x": rules.text_value(MARKED)})
+    assert filled.html == f"Hello {written}!" and filled.names == ("x",)
+
+
+def test_markdown_names_follow_the_html_cells_rules() -> None:
+    values = {"total": rules.text_value(1234.5), "gone": rules.missing_value("gone")}
+    filled = rules.fill_markdown("**{{ total }}** · {{ gone }} · {{ later }}", values)
+    # A value as text; a name the kernel does not hold says so; one not run yet shows as written.
+    assert filled.html == "**1234\\.5** · *\\{\\{ gone \\}\\} not found* · \\{\\{ later \\}\\}"
+    assert filled.missing == ("gone",) and filled.waiting == ("later",)
+    # Plain Markdown, with no names, is itself.
+    assert rules.fill_markdown("# Sales *by* region", {}).html == "# Sales *by* region"
+
+
+def test_inside_code_a_markdown_name_takes_only_plain_words() -> None:
+    values = {"region": rules.text_value("North"), "bad": rules.text_value("a`b <c>")}
+    text = "In `{{ region }}` and `{{ bad }}`\n```\nregion = {{ region }} {{ bad }}\n```\n{{ bad }}"
+    filled = rules.fill_markdown(text, values)
+    assert filled.html == ("In `North` and ``\n```\nregion = North \n```\na\\`b &lt;c&gt;")
+    assert filled.notes == ("{{ bad }} is left out of code: only plain words and numbers go there.",)
+
+
+def test_a_table_alone_on_its_line_is_a_pipe_table_and_elsewhere_its_size() -> None:
+    frame = pd.DataFrame({"region": ["North", "So|uth*"], "amount": [10, 20]})
+    table = rules.record_of(frame, "orders")
+    filled = rules.fill_markdown("Orders:\n{{ orders }}\nThat is {{ orders }}.", {"orders": table}).html
+    assert "| region | amount |\n| --- | --- |\n| North | 10 |\n| So\\|uth\\* | 20 |" in filled
+    assert filled.endswith("That is \\(orders\\: 2 rows, 2 columns\\).")
+    long = rules.record_of(pd.DataFrame({"n": range(120)}), "long")
+    assert rules.fill_markdown("{{ long }}", {"long": long}).html.strip().endswith("*first 50 of 120 rows*")
+
+
+def test_a_page_reads_its_values_where_it_stands() -> None:
+    def gone() -> Any:
+        raise NameError("nowhere")
+
+    getters = {"region": lambda: "</b>*West*", "nowhere": gone}
+    assert rules.page_markdown("For {{ region }}: {{ nowhere }}", getters) == (
+        "For &lt;/b&gt;\\*West\\*: *\\{\\{ nowhere \\}\\} not found*"
+    )
+    shown = rules.page_html("<p>{{ region }}</p><script>let r = {{ region }};</script>", getters)
+    assert shown == '<p>&lt;/b&gt;*West*</p><script>let r = "\\u003c/b\\u003e*West*";</script>'
+    frame = pd.DataFrame({"a": [1]})
+    assert "<table" in rules.page_html("{{ t }}", {"t": lambda: frame})
+
+
+def test_a_script_is_found_by_the_browsers_own_reading() -> None:
+    assert rules.has_script("<p>hi</p><script>let x = 1;</script>")
+    assert rules.has_script("<SCRIPT type=module>go()</SCRIPT>")
+    assert not rules.has_script("<p>hi</p><!-- <script>not run</script> -->")
+    assert not rules.has_script("<p>a script tag: &lt;script&gt;</p>")
+    assert not rules.has_script("<textarea><script>shown as text</script></textarea>")
