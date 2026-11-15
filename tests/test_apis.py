@@ -889,10 +889,11 @@ def test_a_file_or_a_name_that_is_not_add_apis_is_never_taken(client: TestClient
         ({"form": form, "spec_url": "https://x.example.com/o.json"}, 400, "one way"),
         ({"spec_path": str(tmp_path / "missing.json")}, 404, "is not a file"),
         ({"form": form, "folder": str(tmp_path / "nowhere")}, 404, "is not there"),
-        ({"spec": "openapi: 3.0.0\npaths: {}\n"}, 400, "no paths"),  # YAML, read where PyYAML is
+        # YAML: read where PyYAML is (no paths), refused plainly where it is not (no PyYAML).
+        ({"spec": "openapi: 3.0.0\npaths: {}\n"}, 400, "no paths|no PyYAML"),
     ):
         answer = client.post("/apis/preview", json=bad, headers=AUTH)
-        assert answer.status_code == status and why in answer.text, answer.text
+        assert answer.status_code == status and any(w in answer.text for w in why.split("|")), answer.text
 
 
 def test_with_no_project_the_file_goes_in_the_workbenchs_folder(client: TestClient, tmp_path: Path) -> None:
