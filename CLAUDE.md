@@ -161,6 +161,10 @@ src/swissarmybench/
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
                          (the package check, settings, the vault by managed identity, connections)
+    lineage.py           a cell's or a block's lineage back to the data: makes and reads, @cell links, a
+                         table's grid steps and origin, data.ipynb, controllers; nodes, edges, Mermaid
+    approvals.py         approved outputs: a cell's outputs as a snapshot, the comparison, its lines, no
+                         rows in a zip. Standard library only and standalone (an export can inline it)
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
 
@@ -191,6 +195,7 @@ src/swissarmybench/
                          a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
+    lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
@@ -198,6 +203,7 @@ src/swissarmybench/
                          from the open documents, saved or not, else from the files), a document's live
                          cells; run (the tables as Parquet in a temporary folder), state (missing, out
                          of date), install, export, data.ipynb -> data.py, Save as (the project's zip)
+    streamlit_ports.py   the ports those stand on: the app's temporary folder, a project's, the process
     controllers.py       a canvas page's controllers: the check, Test this page (the page written so each
                          block records its error, AppTest in the app's Python), a thin cell's move plan
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
@@ -235,7 +241,7 @@ src/swissarmybench/
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, folders, workbench, table_cells, streamlit, projects,
+                         processes, snapshots, packs, connections, folders, workbench, table_cells, lineage, streamlit, projects,
                          panels, controllers). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
@@ -265,6 +271,9 @@ src/swissarmybench/
   client/sandbox_client.py sab.sandbox: a figure, picture, table or text as a Sandbox card (duck-typed)
   client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
+  client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the
+                         kernel, and as sab_lineage.py beside a playing page (it notes each block's values)
+  client/standalone.py   connections and blades without the app; a notebook run headless (--check-approved)
   client/table_cells.py  a table's read-only cell run in the kernel (%%sab_table, %sab_run): it starts
                          from the original its maker made (a reference, never a copy), so a second run
                          changes nothing
@@ -275,7 +284,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (240 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (246 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -330,6 +339,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          frame, the names filled by the server's rules, the out-of-date state);
                          a DAX cell (its dataset picker, Monaco's DAX grammar) is drawn in
                          workbenchNotebook.ts, its completion in workbenchCompletion.ts;
+                         workbenchLineage.ts (the Lineage overlay: Mermaid flow, a value card per step;
+                         window.openLineage), workbenchApprovals.ts (Approve the output, the amber note);
                          workbenchStreamlit.ts (a document's live cells: the Python cells that call
                          Streamlit, their state; a cell's link, dragged or copied); workbenchCanvas.ts
                          is a Streamlit app's canvas, a document tab (pages as tabs, blocks on a

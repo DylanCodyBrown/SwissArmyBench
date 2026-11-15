@@ -7407,3 +7407,291 @@ body.panel-off-grid-status .statusbar {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* ===== lineage: a cell back to the data, its values beside the flow (workbenchLineage.ts) ===== */
+
+.lineage {
+  /* The kind colours (notebook blue, script green, app violet): the kind tokens when the theme has them. */
+  --lineage-notebook: var(--kind-notebook, var(--cat-2));
+  --lineage-script: var(--kind-script, var(--cat-3));
+  --lineage-app: var(--kind-app, var(--cat-7));
+}
+
+.wb-lineage-shade {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(0 0 0 / 0.25);
+}
+
+.wb-lineage {
+  position: absolute;
+  inset: 24px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.wb-lin-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-lin-top h2 {
+  margin: 0;
+  font-size: 1.08em;
+}
+
+.wb-lin-target {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wb-lin-body {
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
+.wb-lin-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.wb-lin-values {
+  position: relative;
+}
+
+.wb-lin-chart {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.wb-lin-chart svg {
+  height: auto;
+}
+
+.wb-lin-chart g.node {
+  cursor: pointer;
+}
+
+.wb-lin-chart g.node.picked :is(rect, polygon, path, circle, ellipse) {
+  stroke: var(--accent) !important;
+  stroke-width: 4px !important;
+}
+
+.wb-lin-card {
+  position: absolute;
+  right: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.wb-lin-card.doc-notebook,
+.wb-lin-card.doc-data {
+  border-left-color: var(--lineage-notebook);
+}
+
+.wb-lin-card.doc-script {
+  border-left-color: var(--lineage-script);
+}
+
+.wb-lin-card.target {
+  background: var(--accent-soft);
+}
+
+.wb-lin-card.picked {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wb-lin-card.broke {
+  border-color: var(--error);
+}
+
+.wb-lin-card:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.wb-lin-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wb-lin-label {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 650;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wb-lin-page {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--lineage-app);
+  border-radius: 999px;
+  color: var(--lineage-app);
+  font-size: 11.5px;
+}
+
+.wb-lin-where {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wb-lin-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.wb-lin-size {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-lin-name {
+  color: var(--muted);
+}
+
+.wb-lin-value {
+  max-height: 6.5em;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wb-lin-change {
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+
+.wb-lin-head {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.wb-lin-table {
+  border-collapse: collapse;
+  font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-lin-table :is(th, td) {
+  max-width: 12em;
+  padding: 1px 6px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.wb-lin-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.wb-lin-picture {
+  align-self: flex-start;
+  max-width: 100%;
+  max-height: 96px;
+  object-fit: contain;
+}
+
+.wb-lin-error {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.wb-lin-notes:empty {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .wb-lineage {
+    inset: 8px;
+  }
+
+  .wb-lin-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .wb-lin-card {
+    position: static;
+    margin-bottom: 8px;
+  }
+}
+
+/* ===== approved outputs: "Changed since approved" (workbenchApprovals.ts) ===== */
+
+.wb-approval {
+  margin: 4px 0;
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--warn-soft);
+}
+
+.wb-approval-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wb-approval-word {
+  color: var(--warn);
+  font-weight: 650;
+}
+
+.wb-approval-diff {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wb-approval-diff .add {
+  color: var(--ok);
+}
+
+.wb-approval-diff .del {
+  color: var(--error);
+}

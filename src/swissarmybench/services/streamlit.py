@@ -40,9 +40,9 @@ import re
 import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
-from swissarmybench.domain import controllers, html_cells, notebooks, projects
+from swissarmybench.domain import approvals, controllers, html_cells, notebooks, projects
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
@@ -54,6 +54,7 @@ from swissarmybench.domain.streamlit_cells import Block, Facts, Fallback, Key, P
 from swissarmybench.services.agent import Approvals
 from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.streamlit_ports import Files, Process, ProjectFiles, Runner
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 MAX_APPS: int = 80
@@ -62,67 +63,6 @@ ORPHAN_SECONDS: float = 60.0
 LIVE_PATH: str = "/streamlit/live/"
 _PARQUET = ExportOptions(format="parquet", provenance=False)
 _UNSET: Any = object()
-
-
-class Files(Protocol):
-    def folder(self) -> str: ...
-
-    def helper(self) -> str: ...  # the text of domain/html_cells.py: a page's sab_text.py
-
-    def write(self, folder: str, files: dict[str, str], keep: set[str]) -> None: ...
-
-    def touch(self, folder: str, name: str) -> None: ...
-
-    def write_table(self, folder: str, name: str, data: bytes) -> None: ...
-
-    def has_table(self, folder: str, name: str) -> bool: ...
-
-    def remove(self, folder: str) -> None: ...
-
-    def export_target(self, folder: str) -> str: ...
-
-    def export(
-        self, target: str, files: dict[str, str], tables: dict[str, bytes]
-    ) -> tuple[str, list[str]]: ...
-
-
-class ProjectFiles(Protocol):
-    """A project's folder (adapters/projects.py)."""
-
-    def folder_of(self, path: str) -> str: ...
-
-    def read(self, folder: str, name: str) -> str | None: ...
-
-    def path(self, folder: str, name: str) -> str: ...
-
-    def write(self, folder: str, name: str, text: str) -> str: ...
-
-    def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]: ...
-
-    def names(self, folder: str) -> list[str]: ...
-
-    def relative(self, folder: str, path: str) -> str | None: ...
-
-    def zip(self, path: str, files: dict[str, str]) -> tuple[str, list[str]]: ...
-
-
-class Process(Protocol):
-    port: int
-    python: str
-
-    def alive(self) -> bool: ...
-
-    async def stop(self) -> None: ...
-
-
-class Runner(Protocol):
-    def default_python(self) -> str: ...
-
-    async def check(self, python: str) -> dict[str, Any]: ...
-
-    async def start(self, python: str, folder: str, base: str) -> Process: ...
-
-    async def install(self, python: str, packages: list[str]) -> tuple[int | None, str]: ...
 
 
 @dataclass
@@ -712,6 +652,27 @@ class StreamlitApps:
             "pages": pages,
         }
 
+    # ===== what a lineage reads (services/lineage.py) =====
+
+    def held(self, path: str) -> App | None:
+        """The open notebook or script that holds a file: its cells as its window has them now."""
+        return self._open_document(path)
+
+    def canvas(self, app_id: str) -> App:
+        return self._app(app_id, canvas=True)
+
+    def page_trace(self, app: App, page_id: str) -> dict[str, Any] | None:
+        """What a playing page noted of each block at its last run: {"run", "blocks": {id: {"values",
+        "error"}}} (client/lineage_values.py). None: the page is not playing, or noted nothing yet."""
+        if app.folder is None or not app.running() or page_id not in app.laid:
+            return None
+        text = self._files.read_trace(app.folder, page_id)
+        try:
+            found = json.loads(text) if text else None
+        except ValueError:
+            return None
+        return found if isinstance(found, dict) and isinstance(found.get("blocks"), dict) else None
+
     async def _changed(self, app: App) -> None:
         await self.ws.live.broadcast({"type": "streamlit_changed", "app": app.id})
 
@@ -988,6 +949,7 @@ class StreamlitApps:
                     gone=gone,
                     imports=given,
                     fallbacks=self.fallbacks(page, linked),
+                    trace=page.id,
                 )
                 name = f"page_{page.id}_{stamp}.py"
                 files[name] = made.code
@@ -997,6 +959,7 @@ class StreamlitApps:
                 for block in page.blocks:
                     code = linked.code(block.key)
                     ran[block.key] = None if code is None else rules.body(code)
+            files[rules.TRACE_FILE] = self._files.lineage_helper()
             if any(rules.uses_text_module(piece.code) for piece in pieces.values()):
                 # A Markdown or HTML block names a value: the rules that fill it, beside the pages.
                 files[rules.TEXT_FILE] = rules.text_file(self._files.helper())
@@ -1292,8 +1255,8 @@ class StreamlitApps:
 
     @staticmethod
     def _for_zip(path: str, text: str) -> str:
-        """A notebook or script as it goes into a zip: a pasted table's rows taken out and a notebook's
-        outputs dropped (no rows leave)."""
+        """A notebook or script as it goes into a zip: a pasted table's rows taken out, a notebook's
+        outputs dropped and its approvals kept as their marks and shapes only (no rows leave)."""
         if notebooks.kind_of(path) != "notebook":
             return projects.script_without_rows(text)
         cells, following = notebooks.read_document(text)
@@ -1302,6 +1265,8 @@ class StreamlitApps:
             cell.source = data.source
             cell.outputs = []
             cell.execution_count = None
+            if cell.approved is not None:
+                cell.approved = approvals.without_rows(cell.approved)
         return notebooks.write_notebook(cells, next_number=following)
 
     # ===== save as: the project as one zip =====

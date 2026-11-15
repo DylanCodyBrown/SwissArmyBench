@@ -38,6 +38,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain.approvals import check_approval
 from swissarmybench.domain.html_cells import check_height
 
 APP_SUFFIX: str = ".stapp.json"  # a Streamlit app's file (domain/streamlit_cells.py)
@@ -81,6 +82,8 @@ class Cell:
     # An HTML cell's pane, or a Python cell's that is shown live, in pixels (None: the usual height).
     height: int | None = None
     name: str | None = None  # the cell's own label (None: it has none); the number stays its identity
+    # Its output as the user approved it (domain/approvals.py): a later run that differs says so.
+    approved: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -96,6 +99,7 @@ class Cell:
             "steps": self.steps,
             "height": self.height,
             "name": self.name,
+            "approved": self.approved,
         }
 
     def marks(self) -> dict[str, Any]:
@@ -119,6 +123,8 @@ class Cell:
             kept["steps"] = self.steps
         if self.name:
             kept["name"] = self.name
+        if self.approved is not None and self.kind != "markdown":
+            kept["approved"] = self.approved
         return kept
 
 
@@ -201,6 +207,10 @@ def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:
         cell.name = check_name(marks.get("name"))
     except NotebookError:  # a name another tool wrote too long: the cell opens without it
         cell.name = None
+    try:
+        cell.approved = check_approval(marks.get("approved")) if cell.kind != "markdown" else None
+    except ValueError:  # an approval another tool spoilt: the cell opens without it
+        cell.approved = None
     return cell
 
 
@@ -316,6 +326,10 @@ def read_cells(sent: Any) -> list[Cell]:
         steps = raw.get("steps")
         if steps is not None and (not isinstance(steps, list) or len(json.dumps(steps)) > MAX_STEPS_CHARS):
             raise NotebookError("A table cell's steps are a list of the grid's steps.")
+        try:
+            approved = check_approval(raw.get("approved")) if raw["kind"] != "markdown" else None
+        except ValueError as error:
+            raise NotebookError(str(error)) from None
         cells.append(
             Cell(
                 str(raw["kind"]),
@@ -330,6 +344,7 @@ def read_cells(sent: Any) -> list[Cell]:
                 steps,
                 check_height(raw.get("height")) if raw["kind"] in ("html", "code") else None,
                 check_name(raw.get("name")),
+                approved,
             )
         )
     return cells

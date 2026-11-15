@@ -553,9 +553,11 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The starter pack (2026-11-15) added four: list it, copy a starter as your own, a snippet's form
     # (or its filled text), and inserting one into a cell.
     # Beta mode (2026-11-15) added five: the switch, the log, the notes, clear and export the zip.
-    # Controllers (2026-11-15) added three: a canvas's contract check, Test this page, and moving a
-    # block's model work to data.ipynb; 57,000.
-    assert size < 57_000, f"the tool list is {size} characters"
+    # The beta's parallel branches, merged (2026-11-15): Controllers added three (a canvas's contract
+    # check, Test this page, moving a block's model work to data.ipynb); Lineage and approved outputs
+    # five (a lineage with its values, showing it, approving a cell's output, the approvals, comparing
+    # an output with its approval).
+    assert size < 58_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

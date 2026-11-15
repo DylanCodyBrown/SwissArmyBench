@@ -9,8 +9,8 @@ import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+from swissarmybench.domain import approvals, errors, html_cells, streamlit_cells
 from swissarmybench.domain import environments as envs
-from swissarmybench.domain import errors, html_cells, streamlit_cells
 from swissarmybench.domain import notebooks as rules
 from swissarmybench.domain.datasets import validate_name
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
@@ -65,6 +65,8 @@ class Kernel(Protocol):
     async def variables(self, env_names: list[str]) -> dict[str, Any] | None: ...
 
     async def html_marks(self, names: list[str]) -> dict[str, Any] | None: ...
+
+    async def lineage_values(self, names: list[str]) -> dict[str, Any] | None: ...
 
     async def grid(self, expression: str, name: str) -> str | None: ...
 
@@ -536,6 +538,36 @@ class Workbench:
         names = sorted(set(self._secret_names()) | self._vault_names)
         found = await self._kernel(kernel_id).variables(names)
         return {"busy": True} if found is None else found | {"busy": False}
+
+    async def lineage_values(self, kernel_id: str, names: list[str]) -> dict[str, Any] | None:
+        """Some names' values in a kernel, summarised (services/lineage.py). None: the kernel is busy,
+        has no package, or is gone."""
+        kernel = self._running.get(kernel_id)
+        if kernel is None:
+            return {}
+        return await kernel.lineage_values(names)
+
+    # ===== approved outputs (domain/approvals.py) =====
+
+    @staticmethod
+    def approval(body: Any) -> dict[str, Any]:
+        """A cell's outputs as an approval keeps them, and (with "approved") how they differ from it.
+
+        {"outputs": [...nbformat records], "approved"?: an approval, "at"?: when (for a new one)}
+        -> {"approval": the outputs approved now, "changed": false} or, with "approved",
+           {"changed": true, "difference": {...}, "summary": ["rows: 3 → 2", ...]}"""
+        if not isinstance(body, dict) or not isinstance(body.get("outputs"), list):
+            raise ValueError('Send {"outputs": [the output records of a cell], "approved"?: its approval}.')
+        outputs = [o for o in body["outputs"][: rules.MAX_OUTPUTS_PER_CELL] if isinstance(o, dict)]
+        found = approvals.snapshot(outputs)
+        held = approvals.check_approval(body.get("approved"))
+        if held is None:
+            at = body.get("at") if isinstance(body.get("at"), str) else None
+            return {"approval": approvals.approval(found, at[:40] if at else None), "changed": False}
+        diff = approvals.compare(held, found)
+        if diff is None:
+            return {"changed": False}
+        return {"changed": True, "difference": diff, "summary": approvals.summary(diff)}
 
     # ===== HTML cells =====
 

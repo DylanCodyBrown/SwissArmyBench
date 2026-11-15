@@ -27,7 +27,7 @@ canvas. A project: data.ipynb -> data.py, the canvas -> pages/*.py.
 | `connections_` | databases, files, Power BI, own Python, vaults | `connections_list`, `connections_open_table` |
 | `catalog_` | a source's tables and columns | `catalog_search`, `catalog_columns` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_starters` |
-| `workbench_` | notebooks, scripts, kernels, the window | `workbench_kernel_start`, `workbench_run`, `workbench_window` |
+| `workbench_` | notebooks, scripts, kernels, the window | `workbench_run`, `workbench_lineage`, `workbench_window` |
 | `streamlit_`, `project_` | the canvas, its tests, export; projects | `streamlit_block_place`, `streamlit_test`, `project_new` |
 | `files_`, `app_` | file chooser; the page; beta mode | `files_list`, `app_snapshot`, `app_beta_log` |
 | `agent_` | yours only | `agent_context`, `agent_events`, `agent_approvals` |

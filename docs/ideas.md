@@ -2315,3 +2315,67 @@ can be changed):
 - **Open:** a widget whose key is worked out as the page runs (an f-string) is not tried; AppTest has no
   browser, so a component's JavaScript is not exercised; Test this page runs one page at a time; the
   State panel and the Controller role's editing in Properties are the wb-modes branch's.
+## Lineage with values, and approved outputs (the owner, 2026-11-15: "Do it"; built)
+
+The owner: "the cell tracing you showed from app back through every cell to the data should be a flow
+chart mermaid that gets created in reality in an overlay. You can right click the streamlit cell on the
+app bench tab and select lineage and boom see the whole thing." And: "Maybe with an output cell per cell
+on the left so you can see outputs and variable values as they flow through the cells".
+
+- **The graph** (domain/lineage.py): from a canvas block or any cell, back to the data by what each cell
+  reads. A name comes from: on a canvas page, the first block placed that makes it (the page's own run
+  order); else the nearest cell above in the same document (else the first below); else the project's
+  data.ipynb (its last maker: data.py runs top to bottom; `from data import x` goes there too); else an
+  open table. `@cell7` in a comment is a dotted edge. A table's read-only cell goes back through each
+  enabled grid step (one node each; a header's sort is a way of looking, left out) to the user's cell
+  that made it, else to its origin (file, connection, paste). Connections and files named in code
+  (`sab.sql("Shop", ...)`, `pd.read_csv("x.csv")`) and a SQL or DAX cell's connection are sources. A
+  cell with a Streamlit widget (or a `# makes:` header, the controllers branch's contract) is a
+  controller (a hexagon). Names made only by an import are not edges. Nodes in flow order: makers
+  first, ties broken by data.ipynb first, then each document's own order. At most 120 nodes.
+- **The overlay** (web/src/workbenchLineage.ts): right-click a block (the canvas), a cell's head or
+  output, or a line in the editor (notebook or script), or More: Lineage, or the palette, or
+  `window.openLineage(target)` (for the wb-modes Data mode's Lineage view). The Mermaid flowchart top to
+  bottom on the right, drawn at its own size with the app's Mermaid and cleaned as every drawing is;
+  each node shows its name, `doc @cellN` and its value in a word ("1,204 rows", "West"). On the left one
+  card per node, placed at its node's height (pushed down when two would meet). Kind colours: a card's
+  left edge and a node's stroke in the notebook's blue or the script's green (the `--kind-*` tokens when
+  the theme has them, else `--cat-2`, `--cat-3`); a block on the page is marked "page" in violet.
+- **Values** (services/lineage.py, client/lineage_values.py): summarised, never whole. A table: rows,
+  columns, the first 5 rows of 12 columns, the row change from the table before it in the flow (a grid
+  step: from the step before). A value: itself, cut at 400 characters. A figure: a small PNG (40 dpi).
+  An error in red: the cell's last run in the window, or the block's on a playing page. Where from: a
+  block on a playing page from what the page noted as it ran (`sab_lineage.py`, a copy of
+  client/lineage_values.py beside the live page only, writing `lineage-<page>.json` in the app's
+  temporary folder); else the cell's document's kernel (a user expression, as the Variables pane);
+  tables and steps from the grid. **Decided:** a kernel holds one value per name, so two cells that make
+  the same name show its latest value. A cell that calls Streamlit does not run in the kernel: its values
+  come from a playing page only.
+- **Live:** asked again every 3 seconds while open and the window is visible, and at once when a run
+  ends, a grid changes or a Streamlit app changes; drawn again only when a value changed. A filter
+  changed on the page (or in State, which reruns the page) reaches the cards through the page's notes.
+- **Approved outputs** (domain/approvals.py, web/src/workbenchApprovals.ts): Approve the output (the
+  cell's More and right-click menus, the palette's Approve the cell's output, `workbench_cell_approve`)
+  keeps a snapshot in the cell's metadata (`swissarmybench.approved`, with when): the printed text
+  (stdout only: stderr holds warnings, which differ between computers), each table read from the HTML
+  pandas and Polars show (columns, first 50 rows, the whole shape), a mark of each picture or chart,
+  the error. Memory addresses and run counts make no difference. After each run the cell is compared;
+  a difference shows an amber "⚠ Changed since approved" note with the lines (a text diff; a table's
+  shape, columns added and removed, changed cells, 20 at most and the rest counted) and Approve this
+  output. The same output shows nothing (no confirmation labels). Markdown cells have no approval;
+  scripts have no metadata, so no approvals (a script's cells are traced, not approved).
+- **Headless:** `python -m swissarmybench.client.standalone data.ipynb --check-approved` runs the
+  notebook top to bottom in its own folder (IPython when the Python has it, plain Python otherwise),
+  stops at a failing cell, compares each approved output, prints a report and exits 1 when any cell
+  failed or changed. **For the one-script export:** domain/approvals.py imports nothing of the package
+  and only the standard library, so it can be inlined; `snapshot(outputs)`, `compare(approval, snapshot)`
+  and `summary(diff)` are its whole interface.
+- **No rows leave in a zip:** Save as keeps each approval's marks and shapes only (`without_rows`), so
+  `--check-approved` on the unzipped project still tells a change ("rows: 3 → 2", "the printed text
+  changed"), without the cells.
+- **Agent:** `workbench_lineage` (the graph, its Mermaid and each value; values marked as the user's
+  data), `workbench_lineage_show` (the overlay on screen), `workbench_cell_approve` (`remove`),
+  `workbench_approvals`, `workbench_approval_check` (outputs against an approval, no window).
+- **Open:** the cards line up with the nodes by height, but nodes on one rank stack their cards; a
+  wide flow scrolls with the cards. The kind colour tokens come from the wb-modes branch; this branch
+  falls back to the chart series colours until they merge.

@@ -24,6 +24,7 @@ Standard library only, like the rest of the client.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -185,3 +186,173 @@ def records() -> list[dict[str, Any]]:
         for b in sorted(found.values(), key=lambda b: b.name.casefold())
         if connection_kind(b.kind, b.template) not in (None, "vault")
     ]
+
+
+# ===== a notebook run headless, its approved outputs checked =====
+#
+#     python -m swissarmybench.client.standalone sales.ipynb --check-approved
+#
+# Each code cell runs top to bottom in one namespace, in the notebook's own folder (so `from data
+# import ...` finds the project's data.py), under IPython when this Python has it (SQL and DAX cells,
+# magics) and as plain Python otherwise. A cell that fails stops the run. With --check-approved, each
+# cell whose output was approved (domain/approvals.py) is compared with what it gives now. The exit
+# code is 0 when every cell ran and every approved output is the same, 1 otherwise; the report says
+# which cells and how they differ.
+
+_STEP = "    "
+
+
+def _shell() -> Any:
+    """A headless IPython shell with the SQL and DAX cells, or None when this Python has no IPython."""
+    try:
+        from IPython.core.interactiveshell import InteractiveShell
+    except ImportError:
+        return None
+    shell = InteractiveShell.instance()
+    shell.reset(new_session=False)  # type: ignore[no-untyped-call]
+    from swissarmybench.client import sql_cell
+
+    sql_cell.register(shell)
+    return shell
+
+
+def _shown(shell: Any, value: Any) -> dict[str, Any]:
+    """The value a cell ends with, as the kernel would send it (an execute_result's data)."""
+    if shell is not None:
+        data, _ = shell.display_formatter.format(value)
+        return dict(data)
+    data = {"text/plain": repr(value)}
+    html = getattr(value, "_repr_html_", None)
+    if callable(html):
+        try:
+            made = html()
+        except Exception:
+            made = None
+        if isinstance(made, str):
+            data["text/html"] = made
+    return data
+
+
+def run_cell(code: str, namespace: dict[str, Any], shell: Any, label: str) -> list[dict[str, Any]]:
+    """One cell's code, run as a kernel would: its outputs as nbformat's records (stdout, displays,
+    the value it ends with, an error)."""
+    import ast
+    import io
+    from contextlib import ExitStack, redirect_stderr, redirect_stdout
+
+    displays: list[dict[str, Any]] = []
+    out, err = io.StringIO(), io.StringIO()
+    shows: list[Any] = []
+    with ExitStack() as stack:
+        if shell is not None:
+            from IPython.utils.capture import capture_output
+
+            shows = stack.enter_context(capture_output(stdout=False, stderr=False, display=True)).outputs
+        stack.enter_context(redirect_stdout(out))
+        stack.enter_context(redirect_stderr(err))
+        try:
+            python = shell.transform_cell(code) if shell is not None else code
+            tree = ast.parse(python)
+            last = tree.body.pop() if tree.body and isinstance(tree.body[-1], ast.Expr) else None
+            assert last is None or isinstance(last, ast.Expr)  # noqa: S101 (for the type checker)
+            exec(compile(ast.Module(tree.body, []), label, "exec"), namespace)  # noqa: S102 (the user's own notebook)
+            value = (
+                eval(compile(ast.Expression(last.value), label, "eval"), namespace)  # noqa: S307
+                if last is not None
+                else None
+            )
+            if value is not None:
+                displays.append(
+                    {"output_type": "execute_result", "data": _shown(shell, value), "metadata": {}}
+                )
+        except Exception as error:
+            displays.append(
+                {"output_type": "error", "ename": type(error).__name__, "evalue": str(error), "traceback": []}
+            )
+    shown = [{"output_type": "display_data", "data": dict(s.data), "metadata": {}} for s in shows]
+    outputs: list[dict[str, Any]] = []
+    if out.getvalue():
+        outputs.append({"output_type": "stream", "name": "stdout", "text": out.getvalue()})
+    if err.getvalue():
+        outputs.append({"output_type": "stream", "name": "stderr", "text": err.getvalue()})
+    return outputs + shown + displays
+
+
+def _where(cell: Any) -> str:
+    return f"@cell{cell.number}" + (f" ({cell.name})" if cell.name else "")
+
+
+def run_notebook(path: str | Path, check_approved: bool = False, say: Callable[[str], Any] = print) -> int:
+    """Run a saved notebook top to bottom, headless; with `check_approved`, compare each approved
+    output with what the cell gives now. The exit code: 0 when all is well, 1 otherwise. `say` gets
+    the report's lines."""
+    import sys
+
+    from swissarmybench.domain import approvals, notebooks
+
+    notebook = Path(path).expanduser().resolve()
+    try:
+        cells = notebooks.read_notebook(notebook.read_text(encoding="utf-8"))
+    except (OSError, notebooks.NotebookError) as error:
+        say(f"{notebook.name}: {error}")
+        return 1
+    shell = _shell()
+    namespace: dict[str, Any] = shell.user_ns if shell is not None else {"__name__": "__main__"}
+    here, before_path = Path.cwd(), list(sys.path)
+    os.chdir(notebook.parent)
+    sys.path.insert(0, str(notebook.parent))
+    ran = checked = 0
+    changed: list[str] = []
+    failed: str | None = None
+    try:
+        for cell in cells:
+            code = notebooks.code_of(cell)
+            if cell.kind == "markdown" or not code.strip():
+                continue
+            outputs = run_cell(code, namespace, shell, f"<{notebook.name} {_where(cell)}>")
+            ran += 1
+            broke = next((o for o in outputs if o["output_type"] == "error"), None)
+            if check_approved and cell.approved is not None:
+                checked += 1
+                diff = approvals.compare(cell.approved, approvals.snapshot(outputs))
+                if diff is not None:
+                    changed.append(f"{_where(cell)}: Changed since approved")
+                    changed += [_STEP + line for line in approvals.summary(diff)]
+            if broke is not None:
+                failed = f"{_where(cell)} failed: {broke['ename']}: {broke['evalue']}"
+                break
+    finally:
+        os.chdir(here)
+        sys.path[:] = before_path
+        if shell is not None:
+            shell.clear_instance()
+    said = f"{notebook.name}: {ran} cell{'' if ran == 1 else 's'} run"
+    if check_approved:
+        said += f", {checked} approved output{'' if checked == 1 else 's'} checked"
+    say(said)
+    for line in changed:
+        say(line)
+    if failed:
+        say(failed)
+    return 1 if failed or changed else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m swissarmybench.client.standalone",
+        description="Run a notebook top to bottom without the app.",
+    )
+    parser.add_argument("notebook", help="the .ipynb file")
+    parser.add_argument(
+        "--check-approved",
+        action="store_true",
+        help="compare each approved output with what its cell gives now (exit code 1 when one changed)",
+    )
+    found = parser.parse_args(argv)
+    return run_notebook(found.notebook, check_approved=found.check_approved)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

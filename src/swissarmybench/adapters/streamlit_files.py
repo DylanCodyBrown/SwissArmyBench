@@ -28,6 +28,22 @@ class AppFiles:
         a Markdown or HTML block that names a value carries a copy of it as sab_text.py."""
         return Path(html_cells.__file__).read_text(encoding="utf-8")
 
+    @staticmethod
+    def lineage_helper() -> str:
+        """The text of client/lineage_values.py (standard library only): a live page carries a copy as
+        sab_lineage.py, which notes each block's values for the lineage overlay. Read as a file (the
+        adapters import nothing of the client)."""
+        own = Path(__file__).resolve().parents[1] / "client" / "lineage_values.py"
+        return own.read_text(encoding="utf-8")
+
+    @staticmethod
+    def read_trace(folder: str, page: str) -> str | None:
+        """What a live page noted of its blocks at its last run (None: nothing yet)."""
+        try:
+            return (Path(folder) / f"lineage-{page}.json").read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            return None
+
     def folder(self) -> str:
         """A new temporary folder for one app (only this user reads it)."""
         made = tempfile.mkdtemp(prefix=PREFIX)

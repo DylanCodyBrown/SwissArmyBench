@@ -266,7 +266,7 @@ async def test(python: str, folder: str, plan: str) -> str:
 
 
 class Runner:
-    """The service's port (services/streamlit.py, services/controllers.py): check a Python, start, stop,
+    """The service's port (services/streamlit_ports.py Runner): check a Python, start, stop,
     install, test a page. `report` hears each Streamlit process's start, crash and end (the beta log)."""
 
     def __init__(self, report: Report = _no_report) -> None:

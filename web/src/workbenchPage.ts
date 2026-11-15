@@ -74,6 +74,7 @@ import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { canvasView, type CanvasView } from "./workbenchCanvas";
+import { type LineageGraph, type LineageNode, type LineageTarget, lineageNoticed, openLineage } from "./workbenchLineage";
 import { CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
 watchTheme();
@@ -334,6 +335,7 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
       if (doc === markedCanvas()) drawPane(); // its page's blocks are the pane's marks
     },
     moveToData: (plan) => moveToData(plan, doc),
+    lineage: (page, block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page, block }),
   });
   doc.element.append(doc.canvas.element);
   show(doc);
@@ -605,6 +607,7 @@ function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified
     doc.kernel = kernel;
     kernel.onState(() => {
       if (doc === current) drawStatus();
+      if (kernel.state === "idle") lineageNoticed(); // a run ended: the lineage's values may have changed
       assignSoon(); // a started kernel has its id: the tables it sends belong to this document
     });
     doc.console = consoleView(kernel, () => effectiveTheme(), {
@@ -707,6 +710,7 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
     tablesChanged: () => doc === current && drawTablesTool(),
     streamlit: streamlitHost(doc),
     datasets: () => datasetNames,
+    lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
   });
   doc.element.append(doc.notebook.element);
   show(doc);
@@ -724,13 +728,78 @@ function openScript(path: string | null, text: string, modified: number | null):
     // from a private copy).
     saveFirst: async (): Promise<boolean> => (!doc.path || !doc.dirty ? true : save(doc)),
   };
-  doc.script = scriptView(text, doc.kernel!, doc.console!, () => effectiveTheme(), markChanged(doc), names, file, { ...hooks, fix: pageFix(doc), openFile: (path, line) => void openAt(path, line), openGrid: (name) => void openGrid(doc, name), openResult: (n, name) => void openResult(doc, n, name), tablesChanged: () => doc === current && drawTablesTool(), streamlit: streamlitHost(doc) });
+  doc.script = scriptView(text, doc.kernel!, doc.console!, () => effectiveTheme(), markChanged(doc), names, file, { ...hooks, fix: pageFix(doc), openFile: (path, line) => void openAt(path, line), openGrid: (name) => void openGrid(doc, name), openResult: (n, name) => void openResult(doc, n, name), tablesChanged: () => doc === current && drawTablesTool(), streamlit: streamlitHost(doc), lineage: (number) => void showLineage({ document: docName(doc), cell: number }) });
   attachStreamlit(doc);
   doc.element.append(doc.script.element);
   show(doc);
   doc.streamlit!.syncSoon();
   return doc;
 }
+
+// ===== lineage: a cell or a block back to the data, with its values (workbenchLineage.ts) =====
+
+/** A document as the lineage names it: its path, or its title while it has none. */
+const docName = (doc: Doc): string => doc.path ?? doc.title;
+
+/** The error each cell's last run ended with, by its number ("KeyError: 'amount'"). */
+function cellErrors(cells: CellData[]): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const c of cells) {
+    const error = c.outputs.find((o) => o.output_type === "error");
+    if (error && c.number) found[String(c.number)] = `${String(error.ename ?? "Error")}: ${String(error.evalue ?? "")}`.trim();
+  }
+  return found;
+}
+
+/** The request for a target: a cell of a document open here goes with the cells as the window holds them. */
+function lineageBody(target: LineageTarget): Record<string, unknown> {
+  if (target.app) return { app: target.app, page: target.page, block: target.block };
+  const doc = docs.find((d) => (d.notebook || d.script) && docName(d) === target.document);
+  if (!doc) return { document: target.document, cell: target.cell };
+  const base = { document: docName(doc), cell: target.cell, kernel: doc.kernel?.id ?? null };
+  if (doc.script) return { ...base, text: doc.script.text() };
+  const cells = doc.notebook!.cells();
+  const lean = cells.map(({ kind, source, connection, number, role, table, name }) => ({ kind, source, connection, number, role, table, name }));
+  return { ...base, cells: lean, errors: cellErrors(cells) };
+}
+
+/** Double-click on a node: its cell, in its document (opened when it is not open here). */
+async function goToNode(node: LineageNode): Promise<void> {
+  if (node.cell === null || !node.document) return;
+  let doc = docs.find((d) => (d.notebook || d.script) && (docName(d) === node.document || d.path === node.document));
+  if (!doc) {
+    await open(node.document);
+    doc = docs.find((d) => d.path === node.document);
+  }
+  if (!doc) return;
+  show(doc);
+  viewOf(doc)?.goTo(node.cell);
+}
+
+const lineageHost = { body: lineageBody, goTo: (node: LineageNode) => void goToNode(node) };
+
+/** The lineage overlay: a cell of a document, a block of a canvas; without a target, the front
+ *  document's selected cell (the cursor's in a script) or the front canvas's first block. */
+async function showLineage(target?: LineageTarget & { number?: number }): Promise<LineageGraph> {
+  let chosen: LineageTarget | null = null;
+  if (target?.app || target?.document) chosen = target;
+  else if (current?.canvas && (target?.block || !target?.number)) {
+    const report = current.canvas.report() as { page: string | null; pages: { id: string; blocks: { id: string }[] }[] };
+    const page = report.pages.find((p) => p.id === report.page);
+    const block = target?.block ?? page?.blocks[0]?.id;
+    if (!page || !block || !current.canvas.app()) throw new Error("The canvas in front has no block on its page.");
+    chosen = { app: current.canvas.app()!, page: page.id, block };
+  } else if (current?.notebook || current?.script) {
+    const number = target?.number ?? target?.cell ?? (current.notebook ? current.notebook.selectedNumber() : current.script!.cursorCell());
+    if (!number) throw new Error("Select a cell first.");
+    chosen = { document: docName(current), cell: number };
+  }
+  if (!chosen) throw new Error("No notebook, script or Streamlit app is in front.");
+  return openLineage(chosen, lineageHost);
+}
+
+// The Data mode's Lineage view (wb-modes) calls this when it is there.
+(window as unknown as { openLineage: (target?: LineageTarget & { number?: number }) => Promise<LineageGraph> }).openLineage = showLineage;
 
 /** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
@@ -1668,6 +1737,13 @@ const COMMANDS: Command[] = [
     const canvasDoc = markedCanvas();
     return { documents: paneDocuments, canvas: canvasDoc?.title ?? null, placed: [...document.querySelectorAll<HTMLElement>(".wb-st-cell.placed")].map((e) => ({ document: e.dataset.document, cell: Number(e.dataset.cell) })) };
   } },
+  { id: "lineage.open", group: "Cell", title: "Lineage: the cell back to the data, with its values", args: "number: a cell's own number (default: the selected cell, or the cursor's); block: a block of the canvas in front", when: () => isCode() || isCanvas(), whyNot: "no notebook, script or Streamlit app is in front", run: async (a) => {
+    const graph = await showLineage({ number: num(a, "number"), block: text(a, "block") });
+    return { target: graph.nodes.find((n) => n.target)?.label ?? null, nodes: graph.nodes.length, mermaid: graph.mermaid };
+  } },
+  { id: "cell.approve", group: "Cell", title: "Approve the cell's output", args: "number: the cell's own number (default: the selected cell); remove: true takes the approval away", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().approve(num(a, "number"), a.remove === true) },
+  { id: "cell.unapprove", group: "Cell", title: "Remove the cell's approval", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().approve(undefined, true) },
+  { id: "approvals.list", agentOnly: true, group: "Cell", title: "The approved cells and how each output differs now", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => ({ document: current!.title, approvals: notebook().approvals() }) },
   { id: "cell.goTo", group: "Cell", title: "Go to a cell by its number", args: "number: the cell's own number (as @cell7 links to it)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
     const number = num(a, "number");
     if (number === undefined) throw new Error("Send the cell's number.");
@@ -1955,6 +2031,7 @@ onNotice((notice) => {
   }
   // A cell that calls Streamlit was typed, named, opened or closed somewhere: the pane follows.
   if (notice.type === "streamlit_cells") refreshPane();
+  if (["grid_updated", "dataset_updated", "streamlit_changed"].includes(notice.type)) lineageNoticed();
   // An app's pages or run changed somewhere (a linked cell typed in another window, the agent).
   if (notice.type === "streamlit_changed") {
     for (const doc of docs) {

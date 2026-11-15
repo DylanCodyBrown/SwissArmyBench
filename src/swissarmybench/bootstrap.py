@@ -70,6 +70,7 @@ from swissarmybench.services.export import Exports
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
+from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
@@ -128,6 +129,7 @@ class Services:
     table_cells: TableCells
     streamlit: StreamlitApps
     controllers: Controllers
+    lineage: Lineage
     projects: Projects
     script_exports: ScriptExports
     panels: Panels
@@ -303,6 +305,17 @@ def bootstrap(
         arrange=table_cells.arrange,
         approvals=approvals,
     )
+    workbench = Workbench(
+        ws,
+        documents,
+        Launcher(report=lambda *e: process_event("kernel", *e)),
+        os.environ,
+        now=time.time,
+        folder_of=lambda path: str(Path(path).expanduser().parent),
+        secret_names=blades.environment_names,
+        vault_environment=vault_environment,
+        kernel_stopped=streamlit.kernel_stopped,
+    )
     return Services(
         settings=settings,
         ws=ws,
@@ -332,17 +345,7 @@ def bootstrap(
         ),
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
-        workbench=Workbench(
-            ws,
-            documents,
-            Launcher(report=lambda *e: process_event("kernel", *e)),
-            os.environ,
-            now=time.time,
-            folder_of=lambda path: str(Path(path).expanduser().parent),
-            secret_names=blades.environment_names,
-            vault_environment=vault_environment,
-            kernel_stopped=streamlit.kernel_stopped,
-        ),
+        workbench=workbench,
         models=models,
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),
@@ -357,6 +360,10 @@ def bootstrap(
         streamlit=streamlit,
         # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
         controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),
+        # A cell's lineage back to the data, each step's value from its kernel, a live page or the grid.
+        lineage=Lineage(
+            ws, streamlit, datasets.origins, documents.read, project_files, workbench.lineage_values
+        ),
         projects=Projects(
             ws,
             project_files,

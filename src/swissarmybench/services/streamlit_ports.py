@@ -1,0 +1,73 @@
+"""The ports a Streamlit app's use cases stand on (services/streamlit.py, services/controllers.py):
+its temporary folder and its export (adapters/streamlit_files.py), a project's folder
+(adapters/projects.py), and the Streamlit process (server/streamlit_apps.py)."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, Protocol
+
+
+class Files(Protocol):
+    def folder(self) -> str: ...
+
+    def helper(self) -> str: ...  # the text of domain/html_cells.py: a page's sab_text.py
+
+    def lineage_helper(self) -> str: ...  # client/lineage_values.py's text: a live page's sab_lineage.py
+
+    def read_trace(self, folder: str, page: str) -> str | None: ...  # what a live page noted of its blocks
+
+    def write(self, folder: str, files: dict[str, str], keep: set[str]) -> None: ...
+
+    def touch(self, folder: str, name: str) -> None: ...
+
+    def write_table(self, folder: str, name: str, data: bytes) -> None: ...
+
+    def has_table(self, folder: str, name: str) -> bool: ...
+
+    def remove(self, folder: str) -> None: ...
+
+    def export_target(self, folder: str) -> str: ...
+
+    def export(
+        self, target: str, files: dict[str, str], tables: dict[str, bytes]
+    ) -> tuple[str, list[str]]: ...
+
+
+class ProjectFiles(Protocol):
+    """A project's folder (adapters/projects.py)."""
+
+    def folder_of(self, path: str) -> str: ...
+
+    def read(self, folder: str, name: str) -> str | None: ...
+
+    def path(self, folder: str, name: str) -> str: ...
+
+    def write(self, folder: str, name: str, text: str) -> str: ...
+
+    def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]: ...
+
+    def names(self, folder: str) -> list[str]: ...
+
+    def relative(self, folder: str, path: str) -> str | None: ...
+
+    def zip(self, path: str, files: dict[str, str]) -> tuple[str, list[str]]: ...
+
+
+class Process(Protocol):
+    port: int
+    python: str
+
+    def alive(self) -> bool: ...
+
+    async def stop(self) -> None: ...
+
+
+class Runner(Protocol):
+    def default_python(self) -> str: ...
+
+    async def check(self, python: str) -> dict[str, Any]: ...
+
+    async def start(self, python: str, folder: str, base: str) -> Process: ...
+
+    async def install(self, python: str, packages: list[str]) -> tuple[int | None, str]: ...

@@ -124,6 +124,8 @@ const ICONS: Record<string, string> = {
   exclude: '<circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/>',
   keep: '<path d="M4 7h16M7 12h10M10 17h4"/>',
   rows: '<path d="M4 5h16M4 10h16M4 15h16M4 20h16"/>',
+  // A lineage: a source flowing down through two steps.
+  lineage: '<rect x="8" y="2.5" width="8" height="5" rx="1"/><rect x="3" y="16.5" width="8" height="5" rx="1"/><rect x="13" y="16.5" width="8" height="5" rx="1"/><path d="M12 7.5V12M7 16.5V12h10v4.5"/>',
   // The fit test: a bell curve on a baseline. Outliers: a cluster of points and one far away.
   fit: '<path d="M3 20h18M4 19c3 0 4.5-13 8-13s5 13 8 13"/>',
   outliers: '<circle cx="6" cy="16" r="1.4"/><circle cx="10" cy="13.5" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="13" cy="16.5" r="1.4"/><circle cx="19" cy="5" r="2"/><path d="M3 21h18"/>',

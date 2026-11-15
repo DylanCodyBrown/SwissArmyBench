@@ -23,7 +23,8 @@ from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.streamlit_cells import Page
-from swissarmybench.services.streamlit import App, ProjectFiles, StreamlitApps
+from swissarmybench.services.streamlit import App, StreamlitApps
+from swissarmybench.services.streamlit_ports import ProjectFiles
 from swissarmybench.services.workspace import Conflict, NotFound
 
 
