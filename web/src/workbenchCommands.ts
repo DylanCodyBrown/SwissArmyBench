@@ -29,7 +29,9 @@ export interface Command {
   whyNot?: string;
   /** For the agent only (a read the user sees on screen anyway): left out of the palette. */
   agentOnly?: boolean;
-  run: (args: Record<string, unknown>) => unknown;
+  /** `from.agent`: the agent asked (workbench_window), so what writes the user's rows to disk is sent
+   * as the agent's request, and the server asks the user first (an export). */
+  run: (args: Record<string, unknown>, from: { agent: boolean }) => unknown;
 }
 
 const registry = new Map<string, Command>();
@@ -50,11 +52,11 @@ export function allCommands(): Command[] {
 }
 
 /** Run a command by its id (the palette, a key, the agent). */
-export async function runCommand(id: string, args: Record<string, unknown> = {}): Promise<unknown> {
+export async function runCommand(id: string, args: Record<string, unknown> = {}, agent = false): Promise<unknown> {
   const command = registry.get(id) ?? source().find((c) => c.id === id);
   if (!command) throw new Error(`No command "${id}". The command "commands" lists them.`);
   if (command.when && !command.when()) throw new Error(`"${command.title}" cannot run now: ${command.whyNot ?? "it does not apply to what is open"}.`);
-  return command.run(args);
+  return command.run(args, { agent });
 }
 
 /** The agent's request (a `workbench_command` notice): run it here, answer the server. */
@@ -62,7 +64,7 @@ export async function answerAgent(notice: { id?: string; command?: string; args?
   if (!notice.id || !notice.command) return;
   let body: { result?: unknown; error?: string };
   try {
-    const result = await runCommand(notice.command, notice.args ?? {});
+    const result = await runCommand(notice.command, notice.args ?? {}, true);
     body = { result: result === undefined ? null : result };
   } catch (e) {
     body = { error: (e as Error).message };
@@ -96,7 +98,7 @@ export function openPalette(): void {
     if (!c || (c.when && !c.when())) return;
     close();
     void Promise.resolve()
-      .then(() => (c.when && !c.when() ? undefined : c.run({})))
+      .then(() => (c.when && !c.when() ? undefined : c.run({}, { agent: false })))
       .catch((e: Error) => import("./dom").then((m) => m.toast(e.message, "error")));
   };
   const draw = (): void => {

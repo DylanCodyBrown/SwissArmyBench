@@ -21,6 +21,12 @@ and the agent alike. There is no Streamlit kind of cell and no page designer win
             from data.py), requirements.txt, README.txt, the canvas's file and the linked files. No
             rows and no secrets
 
+The agent's export (and a Save as that would first write a data.ipynb holding a pasted table's rows)
+waits for the user's Allow, as the grid's export does (the owner, 2026-11-15): the same approval
+request and the same prompt in the page (services/agent.py Approvals), naming the app, the folder
+and the tables whose rows go. It asks and writes in one request, so what is written is what the
+user allowed: that folder, those tables. The user's own click asks nothing.
+
 Memory only, but for an app's temporary folder (removed when the app stops), an export, and Save as.
 The canvas's file is saved by the Workbench window (services/workbench.py), on the user's click.
 """
@@ -45,9 +51,10 @@ from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.projects import DataCell
 from swissarmybench.domain.streamlit_cells import Block, Facts, Key, Page, PieceCode, StreamlitError
+from swissarmybench.services.agent import Approvals
 from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
-from swissarmybench.services.workspace import Conflict, NotFound, Workspace
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 MAX_APPS: int = 80
 # How long an app outlives the Workbench window that opened it (a reload keeps it a minute).
@@ -70,8 +77,10 @@ class Files(Protocol):
 
     def remove(self, folder: str) -> None: ...
 
+    def export_target(self, folder: str) -> str: ...
+
     def export(
-        self, folder: str, files: dict[str, str], tables: dict[str, bytes]
+        self, target: str, files: dict[str, str], tables: dict[str, bytes]
     ) -> tuple[str, list[str]]: ...
 
 
@@ -207,6 +216,11 @@ def _name(path: str) -> str:
     return re.split(r"[\\/]", path)[-1]
 
 
+def _called(app: App) -> str:
+    """An app as the approval prompt names it: its file, or its title while it has none."""
+    return _name(app.document) if app.document else f'"{app.title}" (not saved yet)'
+
+
 def _where(document: str, cell: int) -> str:
     return f"{_name(document)} @cell{cell}"
 
@@ -224,9 +238,12 @@ class StreamlitApps:
         project_files: ProjectFiles,
         table_cells: Callable[[list[str] | None], Awaitable[tuple[list[notebooks.Cell], int]]],
         arrange: Callable[[Any], Awaitable[dict[str, Any]]],
+        approvals: Approvals,
     ) -> None:
         self.ws = ws
         self._files = files
+        # The user's Allow for what the agent writes to disk with table rows in it (the export).
+        self._approvals = approvals
         self._runner = runner
         self._writer = writer
         self._now = now
@@ -1034,6 +1051,14 @@ class StreamlitApps:
         for app_id in list(self._apps):
             await self.close(app_id)
 
+    # ===== the user's Allow, for what the agent writes with rows in it =====
+
+    async def _allowed(self, action: str, subject: str, detail: str) -> None:
+        """Wait for the user's answer to the agent's request (the page's approval prompt); refused
+        when they decline or do not answer, and then nothing is written."""
+        if not await self._approvals.ask(subject, action, detail):
+            raise Refused(f"The user declined (or did not answer): {action} {subject} was not done.")
+
     # ===== export: a folder that runs alone =====
 
     async def export(self, app_id: str, body: Any, who: str = "user") -> dict[str, Any]:
@@ -1049,12 +1074,23 @@ class StreamlitApps:
         pieces, found, where = self._canvas_pieces(app, linked)
         gone = {b.id: said for p in app.pages for b in p.blocks if (said := self._gone(b, linked))}
         made = rules.export(app.title, app.pages, pieces, tables, found, where, gone)
+        try:
+            target = self._files.export_target(folder)
+        except FileNotFoundError as error:
+            raise NotFound(str(error)) from None
+        if who == "agent":
+            # The rows leave the app: only on the user's Allow, for this folder and these tables.
+            await self._allowed(
+                "export the Streamlit app",
+                _called(app),
+                export_detail(target, [p.name for p in app.pages], [tables[t][0] for t in made.tables]),
+            )
         data: dict[str, bytes] = {}
         for table in made.tables:
             info, grid = tables[table]
             data[table] = await self.ws.workers.run(BACKGROUND, self._parquet, info, grid)
         try:
-            target, written = self._files.export(folder, made.files, data)
+            target, written = self._files.export(target, made.files, data)
         except FileNotFoundError as error:
             raise NotFound(str(error)) from None
         except PermissionError as error:
@@ -1162,6 +1198,20 @@ class StreamlitApps:
             if await self._data_cells(folder) is None:
                 names = [tables[t][0].name for t in named]
                 cells, following = await self._table_cells(names)
+                pasted = projects.tables_with_rows(
+                    [DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells]
+                )
+                if who == "agent" and pasted:
+                    # data.ipynb would hold a pasted table's rows: only on the user's Allow.
+                    await self._allowed(
+                        "zip the Streamlit app",
+                        _called(app),
+                        save_as_detail(
+                            target,
+                            self._project.path(folder, projects.DATA_NOTEBOOK),
+                            [i for i in (self.ws.store.get(n) for n in pasted) if i is not None],
+                        ),
+                    )
                 text = notebooks.write_notebook(cells, next_number=following)
                 self._project.write(folder, projects.DATA_NOTEBOOK, text)
             data = await self._data(folder, app.title)
@@ -1256,6 +1306,41 @@ class StreamlitApps:
             "fill_in": list(data.fill_in),
             "problems": problems,
         }
+
+
+def _rows_of(tables: list[DatasetInfo]) -> list[str]:
+    return [f"  {info.name} ({info.row_count:,} rows as loaded)" for info in tables]
+
+
+def export_detail(target: str, pages: list[str], tables: list[DatasetInfo]) -> str:
+    """The approval prompt's words for the agent's Streamlit export: which folder, which pages, and
+    which tables' rows are copied there."""
+    lines = [
+        "An app that runs alone (app.py, its pages, requirements.txt), written into the folder:",
+        f"  {target}",
+        f"Pages: {', '.join(pages) if pages else '(none)'}",
+    ]
+    if tables:
+        lines.append("With a copy of these tables' rows, after their grid's steps, as Parquet in data/:")
+        lines += _rows_of(tables)
+    else:
+        lines.append("No table rows: the pages read no open table.")
+    return "\n".join(lines)
+
+
+def save_as_detail(target: str, notebook: str, tables: list[DatasetInfo]) -> str:
+    """The approval prompt's words for a Save as that first writes the project's data.ipynb, which
+    holds the rows pasted into the grid (the zip itself holds no rows)."""
+    return "\n".join(
+        [
+            "The project as one zip (it holds no rows):",
+            f"  {target}",
+            "First, the project's data.ipynb, written into its folder:",
+            f"  {notebook}",
+            "It holds the rows pasted into the grid of:",
+            *_rows_of(tables),
+        ]
+    )
 
 
 KernelStopped = Callable[[str], Awaitable[None]]

@@ -1044,3 +1044,24 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 - **Not checked:** Windows and macOS (install.ps1, the mutex, a folder held open by an old server), a
   real keyring, a real Claude Code plugin install from the renamed marketplace, the VS Code extension in
   VS Code itself, and PyPI (the new project name needs its trusted publisher).
+
+## The agent's Streamlit Export waits for the user's Allow (2026-11-15)
+
+- **Checked:** `tests/test_agent_streamlit_export.py` (9 tests). The agent's export waits for the user's Allow,
+  and the prompt names the app, the resolved folder (a `..` worked out), the pages and only the tables the
+  pages read. Once allowed, it writes that folder, and the audit log shows the user's approval and then the
+  agent's export. A Deny writes nothing, and no answer (the timeout made short) is refused with nothing
+  written. The agent cannot answer its own request, and the user's own Export asks nothing. A folder that no
+  longer resolves to the path chosen (a link put in its place) is refused before anything is written. The
+  agent's New project with a pasted table asks; denied, no folder is made. A project of code only (a file's
+  load) asks nothing. The agent's Save as asks when it would first write a data.ipynb holding pasted rows:
+  denied, no data.ipynb and no zip; a second Save as asks nothing. `tests/test_streamlit_apps.py`'s two
+  agent tests now answer the prompts, and they check which actions asked.
+- **Browser (this machine's Chromium):** a new test in `tests/e2e/test_streamlit_page.py`. The agent's
+  `canvas.export` through `workbench_window` shows the prompt in the Workbench window with the folder and
+  `orders`. Deny writes nothing and Allow writes the folder. The user's own Export… click right after it
+  shows no prompt. `test_ui.py`'s two grid approval tests, the Streamlit page file and the Workbench page
+  file: 31 passed together (with `SWISSARMYBENCH_STREAMLIT_PYTHON` set, Streamlit 1.67).
+- **The suite without the browser tests:** 2,166 passed. `ruff check`, `ruff format --check`, `mypy`,
+  `npm run typecheck` and `npm run build` were clean.
+- **Not checked:** Windows paths in the prompt (resolve on Windows), and the prompt in VS Code's window.

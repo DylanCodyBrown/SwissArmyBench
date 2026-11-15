@@ -198,6 +198,9 @@ def bootstrap(
     # ===== the services =====
     processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
     tickets = ExportTickets()  # the agent exports the user approved, not yet written
+    # The questions for the user that the agent's requests wait on (the page's approval prompt): one
+    # for every use case that writes the user's rows to disk for the agent.
+    approvals = Approvals(live)
     datasets = DatasetService(
         ws,
         table_reader,
@@ -250,6 +253,7 @@ def bootstrap(
         project_files=project_files,
         table_cells=table_cells.group_cells,
         arrange=table_cells.arrange,
+        approvals=approvals,
     )
     return Services(
         settings=settings,
@@ -265,7 +269,7 @@ def bootstrap(
         codes=CodeService(ws, verifier),
         cards=Cards(ws, DashboardFiles(state_dir / "dashboards"), ThemeFiles(state_dir / "themes")),
         inbox=Inbox(ws),
-        agent=AgentService(ws, Approvals(live), tickets),
+        agent=AgentService(ws, approvals, tickets),
         sessions=Sessions(processes, store, live),
         catalogs=catalogs,
         blades=blades,
@@ -308,6 +312,7 @@ def bootstrap(
             table_cells.group_cells,
             export_data=streamlit.export_data,
             remember=lambda path: documents.remember(path, time.time()),
+            approvals=approvals,
         ),
         live=live,
         workers=workers,

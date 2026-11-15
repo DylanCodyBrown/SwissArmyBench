@@ -2714,7 +2714,8 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
 
 @command(
     "project_new",
-    "A new project folder: data.ipynb (a cell an open table), data.py, a canvas, notebooks",
+    "A new project folder: data.ipynb (a cell an open table), data.py, a canvas, notebooks. When data.ipynb "
+    "would hold a pasted table's rows, waits for the user's approval click",
     req("folder", "Where the project's folder goes."),
     req("name", "The project's (and its folder's) name."),
     opt("app", "false: no Streamlit app (data and notebooks only).", "bool"),
@@ -2832,7 +2833,8 @@ def streamlit_save(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_export",
-    "Export a canvas as an app that runs alone (app.py, pages, data as Parquet)",
+    "Export a canvas as an app that runs alone (app.py, pages, the tables' rows as Parquet). Waits for "
+    "the user's approval click (the folder and the tables it copies); declined, nothing is written.",
     req("app", "The app's id."),
     req("folder", "Where it goes (made when it is not there)."),
 )
@@ -2842,7 +2844,8 @@ def streamlit_export(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_save_as",
-    "Save as: the app's project as one zip (data.py, pages/*.py, sources); no rows, no secrets",
+    "Save as: the app's project as one zip (data.py, pages/*.py, sources); no rows, no secrets. A project "
+    "with no data.ipynb gets one first: when it would hold a pasted table's rows, waits for the user's approval click",
     req("app", "The app's id (saved: its folder is the project)."),
     req("path", "The zip's path."),
 )

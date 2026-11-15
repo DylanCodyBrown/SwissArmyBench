@@ -22,7 +22,7 @@
  *
  * ROUTING: /streamlit/apps/{app}... (routes_streamlit.py); the `streamlit_changed` notice
  */
-import { api, ApiError } from "./api";
+import { agentApi, api, ApiError } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages } from "./workbenchStreamlit";
@@ -70,8 +70,10 @@ export interface CanvasView {
   place: (link: CellLink, where?: { row: number; column: number; insert?: boolean }) => Promise<boolean>;
   /** Paste the copied cell's link (false: nothing was copied). */
   paste: () => Promise<boolean>;
-  exportApp: (folder?: string) => Promise<ExportResult | null>;
-  saveAs: (path?: string) => Promise<SaveAsResult | null>;
+  /** `agent`: the agent asked (workbench_window): the export is its request, which the server holds
+   * for the user's Allow (the rows leave the app). The user's own click asks nothing. */
+  exportApp: (folder?: string, agent?: boolean) => Promise<ExportResult | null>;
+  saveAs: (path?: string, agent?: boolean) => Promise<SaveAsResult | null>;
   /** The file was saved (at this path): the server knows, and these pages are the saved ones. */
   saved: (path: string) => void;
   noticed: (app: string) => void;
@@ -200,26 +202,26 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     await play();
   }
 
-  async function exportApp(folder?: string): Promise<ExportResult | null> {
+  async function exportApp(folder?: string, agent = false): Promise<ExportResult | null> {
     const chosen = folder ?? (await host.chooseFolder());
     if (!chosen) return null;
     await ensure();
     await host.settle();
-    const done = await api<ExportResult>(`${base()}/export`, "POST", { folder: chosen });
+    const done = await (agent ? agentApi : api)<ExportResult>(`${base()}/export`, "POST", { folder: chosen });
     // Where it went, and how to run it: what the user needs next.
     toast(`${done.folder}: ${done.run}`, done.problems.length ? "error" : "info");
     for (const problem of done.problems) toast(problem, "error");
     return done;
   }
 
-  async function saveAs(path?: string): Promise<SaveAsResult | null> {
+  async function saveAs(path?: string, agent = false): Promise<SaveAsResult | null> {
     // The project is the folder of the app's file: it is saved first.
     if ((!host.path() || signature(state?.pages ?? initial) !== kept) && !(await host.save())) return null;
     const chosen = path ?? (await host.chooseZip());
     if (!chosen) return null;
     await ensure();
     await host.settle();
-    const done = await api<SaveAsResult>(`${base()}/save-as`, "POST", { path: chosen });
+    const done = await (agent ? agentApi : api)<SaveAsResult>(`${base()}/save-as`, "POST", { path: chosen });
     toast(done.path, done.problems.length ? "error" : "info");
     for (const problem of done.problems) toast(problem, "error");
     return done;

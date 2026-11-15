@@ -10,6 +10,11 @@ window and the agent alike.
             documents; Play and Save as do it too)
 
 data.py is an export, never edited by hand: the user works in data.ipynb.
+
+The agent's New project waits for the user's Allow when its data.ipynb would hold a table's rows (a
+small paste is written out in its read-only cell), as the grid's export does (the owner, 2026-11-15:
+services/agent.py Approvals, the page's prompt). Code only (a file's, a connection's, a query's
+load) asks nothing. The user's own click asks nothing.
 """
 
 from __future__ import annotations
@@ -19,8 +24,9 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import notebooks, streamlit_cells
 from swissarmybench.domain import projects as rules
-from swissarmybench.domain.projects import ProjectError
-from swissarmybench.services.workspace import Conflict, NotFound, Workspace
+from swissarmybench.domain.projects import DataCell, ProjectError
+from swissarmybench.services.agent import Approvals
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 
 class Files(Protocol):
@@ -43,9 +49,11 @@ class Projects:
         table_cells: Callable[[list[str] | None], Awaitable[tuple[list[notebooks.Cell], int]]],
         export_data: Callable[[str, str], Awaitable[dict[str, Any]]],
         remember: Callable[[str], None],
+        approvals: Approvals,
     ) -> None:
         self.ws = ws
         self._files = files
+        self._approvals = approvals  # the user's Allow for the agent's data.ipynb with rows in it
         # The open tables (or the ones named) as a notebook's Tables group, and its next cell number.
         self._table_cells = table_cells
         self._export_data = export_data  # data.py from a folder's data.ipynb (services/streamlit.py)
@@ -87,13 +95,37 @@ class Projects:
             not isinstance(tables, list) or not all(isinstance(t, str) for t in tables)
         ):
             raise ProjectError("tables is a list of open tables' names.")
+        cells, following = await self._table_cells(tables)
+        approved: str | None = None
+        pasted = rules.tables_with_rows(
+            [DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells]
+        )
+        if who == "agent" and pasted:
+            # data.ipynb would hold a pasted table's rows: only on the user's Allow, for this folder.
+            try:
+                approved = self._files.path(body["folder"], name)
+            except FileNotFoundError as error:
+                raise NotFound(str(error)) from None
+            infos = [i for i in (self.ws.store.get(t) for t in pasted) if i is not None]
+            detail = "\n".join(
+                [
+                    "A new project folder:",
+                    f"  {approved}",
+                    "Its data.ipynb holds the rows pasted into the grid of:",
+                    *(f"  {i.name} ({i.row_count:,} rows)" for i in infos),
+                    "(and data.py, requirements.txt, the notebooks asked for: code only)",
+                ]
+            )
+            if not await self._approvals.ask(name, "make the project", detail):
+                raise Refused(f"The user declined (or did not answer): the project {name} was not made.")
         try:
             folder = self._files.make(body["folder"], name)
         except FileNotFoundError as error:
             raise NotFound(str(error)) from None
         except FileExistsError as error:
             raise Conflict(str(error)) from None
-        cells, following = await self._table_cells(tables)
+        if approved is not None and folder != approved:
+            raise Conflict(f"{approved} has changed since it was allowed: nothing was written in it.")
         try:
             self._files.write(
                 folder, rules.DATA_NOTEBOOK, notebooks.write_notebook(cells, next_number=following)

@@ -188,6 +188,19 @@ export async function api<T>(path: string, method = "GET", body?: unknown, signa
   return (await response.json()) as T;
 }
 
+/** api(), for a request the window makes on the agent's behalf (a workbench_window command): marked as
+ * the agent's (`X-Actor: agent`), as the MCP's own requests are, so the server asks the user first
+ * where it asks for the agent (an export with table rows) and the audit log names the agent. */
+export async function agentApi<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await send(path, {
+    method,
+    headers: { ...headers(body !== undefined), "X-Actor": "agent" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) throw new ApiError(response.status, (await response.text()) || response.statusText);
+  return (await response.json()) as T;
+}
+
 /** A download (export): returns the bytes, the file name and the server's summary message. */
 export async function download(path: string): Promise<{ blob: Blob; name: string; message: string }> {
   const response = await send(path, { headers: headers(false) });

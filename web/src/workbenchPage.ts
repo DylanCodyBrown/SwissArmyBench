@@ -46,7 +46,7 @@
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
-import { api, ApiError, connect, onNotice, openedWith, tellFocus, token } from "./api";
+import { agentApi, api, ApiError, connect, onNotice, openedWith, tellFocus, token } from "./api";
 import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections } from "./connectionsWindow";
@@ -383,7 +383,9 @@ async function openProject(folder?: string): Promise<ProjectFiles | null> {
   return showProject(await api<ProjectFiles>("/projects/open", "POST", { folder: chosen }));
 }
 
-async function newProject(folder?: string, name?: string, notebooks: string[] = [], app = true): Promise<ProjectFiles | null> {
+/** `agent`: the agent asked (workbench_window): its request, which the server holds for the user's Allow
+ * when data.ipynb would hold a pasted table's rows. */
+async function newProject(folder?: string, name?: string, notebooks: string[] = [], app = true, agent = false): Promise<ProjectFiles | null> {
   let where = folder;
   let called = name;
   if (!where || !called) {
@@ -394,7 +396,7 @@ async function newProject(folder?: string, name?: string, notebooks: string[] = 
     where = path.slice(0, at) || "/";
     called = path.slice(at + 1);
   }
-  return showProject(await api<ProjectFiles>("/projects", "POST", { folder: where, name: called, notebooks, app }));
+  return showProject(await (agent ? agentApi : api)<ProjectFiles>("/projects", "POST", { folder: where, name: called, notebooks, app }));
 }
 
 /** Export data.py: written again from the project's data.ipynb, as it stands here. */
@@ -1474,7 +1476,7 @@ const COMMANDS: Command[] = [
   { id: "file.open", group: "File", title: "Open a notebook, script or Streamlit app…", keys: "Ctrl+O", args: "path: the file (without it, the file chooser opens)", run: (a) => open(text(a, "path")) },
   { id: "file.save", group: "File", title: "Save", keys: "Ctrl+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current) },
   { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current, true) },
-  { id: "project.new", group: "Project", title: "New project…", args: "folder: where it goes; name: its name; notebooks: names of notebooks to make; app: false for no Streamlit app (without folder and name, the file chooser opens)", run: (a) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], a.app !== false) },
+  { id: "project.new", group: "Project", title: "New project…", args: "folder: where it goes; name: its name; notebooks: names of notebooks to make; app: false for no Streamlit app (without folder and name, the file chooser opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], a.app !== false, from.agent) },
   { id: "project.open", group: "Project", title: "Open project…", args: "folder: the project's folder (without it, the file chooser opens)", run: (a) => openProject(text(a, "folder")) },
   { id: "project.exportData", group: "Project", title: "Export data.py (from data.ipynb)", when: () => docs.some(isData) || !!project, whyNot: "no project is open", run: () => exportData() },
   { id: "file.close", group: "File", title: "Close the document", args: "index: a document (default: the one in front)", when: () => docs.length > 0, whyNot: "nothing is open", run: (a) => {
@@ -1628,8 +1630,8 @@ const COMMANDS: Command[] = [
     canvas().edit();
     return canvas().report();
   } },
-  { id: "canvas.export", group: "Streamlit app", title: "Export an app that runs alone…", args: "folder: where it goes (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => canvas().exportApp(text(a, "folder")) },
-  { id: "canvas.saveAs", group: "Streamlit app", title: "Save as… (the project as one zip)", args: "path: the zip (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => canvas().saveAs(text(a, "path")) },
+  { id: "canvas.export", group: "Streamlit app", title: "Export an app that runs alone…", args: "folder: where it goes (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a, from) => canvas().exportApp(text(a, "folder"), from.agent) },
+  { id: "canvas.saveAs", group: "Streamlit app", title: "Save as… (the project as one zip)", args: "path: the zip (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a, from) => canvas().saveAs(text(a, "path"), from.agent) },
   // Console
   { id: "console.focus", group: "Console", title: "Go to the console", keys: "Ctrl+2", when: isCode, whyNot: "no notebook or script is in front", run: () => layout.focus("console") },
   { id: "console.run", group: "Console", title: "Run code in the console", args: "code", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {

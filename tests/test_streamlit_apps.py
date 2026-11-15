@@ -18,11 +18,13 @@ import socket
 import sqlite3
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -158,6 +160,41 @@ def _canvas(client: TestClient, **more: Any) -> dict[str, Any]:
 
 def _files(runner: FakeRunner) -> Path:
     return Path(runner.started[-1][1])
+
+
+@contextmanager
+def answering(
+    pending: Callable[[], list[dict[str, Any]]], answer: Callable[[str, bool], Any], approve: bool = True
+) -> Iterator[list[dict[str, Any]]]:
+    """The user at the page while the block runs: each approval request the agent makes is answered
+    (Allow, or Deny), and kept, as the page's prompt showed it."""
+    asked: list[dict[str, Any]] = []
+    done = threading.Event()
+
+    def watch() -> None:
+        while not done.is_set():
+            # A request answered a moment ago can still be listed until its asker moves on.
+            for request in [r for r in pending() if r["id"] not in {a["id"] for a in asked}]:
+                asked.append(request)
+                answer(request["id"], approve)
+            time.sleep(0.02)
+
+    watcher = threading.Thread(target=watch, daemon=True)
+    watcher.start()
+    try:
+        yield asked
+    finally:
+        done.set()
+        watcher.join(5)
+
+
+def allowing(live: Live, approve: bool = True) -> Any:  # noqa: F811
+    """`answering` against the running server, as the user (no X-Actor)."""
+    return answering(
+        lambda: live.user("GET", "/agent/approvals")["pending"],
+        lambda request, yes: live.user("POST", f"/agent/approvals/{request}", {"approve": yes}),
+        approve,
+    )
 
 
 # ===== a document's live cells: any Python cell that calls Streamlit =====
@@ -941,13 +978,22 @@ def test_the_agent_builds_a_canvas_plays_it_and_saves_it(live: Live, tmp_path: P
         assert (
             ran["problem"]["kind"] == "missing" and command("streamlit_address", app=app)["running"] is False
         )
-    out = command("streamlit_export", app=app, folder=str(tmp_path / "out"))
+    # The export copies the rows: it waits for the user's Allow (the owner, 2026-11-15).
+    with allowing(live) as asked:
+        out = command("streamlit_export", app=app, folder=str(tmp_path / "out"))
     assert len(out["problems"]) == 1 and (tmp_path / "out" / "app.py").is_file()  # the filter was taken off
-    made = command("project_new", folder=str(tmp_path), name="proj", app=False, notebooks=["analysis"])
+    assert [(a["action"], a["dataset"]) for a in asked] == [("export the Streamlit app", "sales.stapp.json")]
+    # orders was pasted: its rows are written out in data.ipynb's cell, so New project asks too.
+    with allowing(live) as asked:
+        made = command("project_new", folder=str(tmp_path), name="proj", app=False, notebooks=["analysis"])
+    assert [a["action"] for a in asked] == ["make the project"] and "orders (2 rows)" in asked[0]["detail"]
     assert [Path(p).name for p in made["files"]] == ["data.ipynb", "analysis.ipynb"]
     assert command("project_files", folder=made["folder"])["files"] == made["files"]
     assert command("project_export_data", folder=made["folder"])["names"] == ["orders"]
-    zipped = command("streamlit_save_as", app=app, path=str(tmp_path / "done.zip"))
+    # Save as makes the app's folder a project first: its data.ipynb holds the pasted rows.
+    with allowing(live) as asked:
+        zipped = command("streamlit_save_as", app=app, path=str(tmp_path / "done.zip"))
+    assert [a["action"] for a in asked] == ["zip the Streamlit app"]
     assert (
         "data.py" in zipped["files"]
         and "pages/sales.py" in zipped["files"]
@@ -1152,8 +1198,10 @@ def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_sa
         # A second page; the export, run by Streamlit with nothing of this app beside it; Save as.
         command("streamlit_page_add", app=app, name="Filter only")
         command("streamlit_block_place", app=app, page="p2", document=str(notebook), cell=3)
-        out = command("streamlit_export", app=app, folder=str(tmp_path / "exported"))
-        assert out["problems"] == []
+        with allowing(live) as asked:
+            out = command("streamlit_export", app=app, folder=str(tmp_path / "exported"))
+        assert out["problems"] == [] and [a["action"] for a in asked] == ["export the Streamlit app"]
+        # The project has its data.ipynb, which reads a file: Save as writes no rows and asks nothing.
         zipped = command("streamlit_save_as", app=app, path=str(tmp_path / "sales.zip"))
         assert zipped["problems"] == [] and zipped["fill_in"] == []
     finally:

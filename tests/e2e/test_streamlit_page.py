@@ -17,6 +17,8 @@ import json
 import os
 import re
 import sys
+import threading
+import urllib.error
 import zipfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -620,4 +622,53 @@ def test_a_project_opens_with_its_data_first(
     data = (tmp_path / "sales" / "data.py").read_text()
     assert "big = 200" in data and "# ===== FILL IN: orders =====" in data
     compile(data, "data.py", "exec")
+    workbench.close()
+
+
+def test_the_agents_export_in_the_window_waits_for_the_users_allow(
+    browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
+) -> None:
+    """The agent's Export, sent to the window (workbench_window canvas.export), is the agent's request:
+    the page's approval prompt names the folder and the table, Deny writes nothing, Allow writes it.
+    The user's own Export click asks nothing (the owner, 2026-11-15)."""
+    book = tmp_path / "sales.ipynb"
+    saved_notebook(server, book, None, [FILTER, TOTAL])
+    workbench = open_window(browser, server, book)
+    assert window(server, "cell.copy", number=2) == {"cell": 2, "document": str(book)}
+    window(server, "file.newApp")
+    window(server, "cell.paste")
+    expect(workbench.locator(".cv-block")).to_have_count(1)
+    target = tmp_path / "exported"
+    prompt = workbench.locator(".approval")
+    answers: list[Any] = []
+    for allow in (False, True):
+        answers.clear()
+
+        def export() -> None:
+            try:
+                answers.append(window(server, "canvas.export", folder=str(target)))
+            except urllib.error.HTTPError as error:
+                answers.append(error.code)
+
+        worker = threading.Thread(target=export)
+        worker.start()
+        expect(prompt).to_be_visible(timeout=15000)
+        expect(prompt.locator("strong")).to_contain_text("The agent wants to export the Streamlit app")
+        expect(prompt.locator("pre")).to_contain_text(str(target))
+        expect(prompt.locator("pre")).to_contain_text("orders (6 rows as loaded)")
+        prompt.get_by_role("button", name="Allow" if allow else "Deny").click()
+        worker.join(timeout=60)
+        expect(prompt).to_have_count(0)
+        if not allow:
+            assert len(answers) == 1 and isinstance(answers[0], int)  # refused: the window says why
+            assert not target.exists()
+    assert answers[0]["folder"] == str(target) and (target / "data" / "orders.parquet").is_file()
+    # The user's own click: the folder chooser, then the export, with no prompt.
+    mine = tmp_path / "mine"
+    mine.mkdir()
+    workbench.get_by_role("button", name="Export…").click()
+    choose(workbench, mine, None, "Choose this folder")
+    expect(workbench.locator(".toast", has_text=f"{mine}: streamlit run app.py")).to_be_visible(timeout=LONG)
+    assert (mine / "data" / "orders.parquet").is_file() and prompt.count() == 0
+    assert call(server, "GET", "/agent/approvals")["pending"] == []
     workbench.close()

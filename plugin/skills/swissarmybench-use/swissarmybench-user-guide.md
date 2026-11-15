@@ -672,6 +672,11 @@ start with `from data import orders, ...`.
   `streamlit_run`, `streamlit_address`), saves (`streamlit_save`), exports (`streamlit_export`,
   `streamlit_save_as`), reads the live cells (`workbench_live_cells`, `workbench_live_run`), and
   works projects (`project_new`, `project_files`, `project_export_data`, `workbench_project_open`).
+- **The agent's export waits for your Allow**, as a grid's export does: `streamlit_export` (and the
+  window's Export when the agent sends it) shows the approval prompt with the app, the folder and the
+  tables whose rows it copies; Deny (or no answer in 3 minutes) writes nothing. `project_new` and
+  `streamlit_save_as` ask too, but only when the project's data.ipynb would hold a pasted table's
+  rows. Your own Export click asks nothing.
 
 ## Code to your Python
 

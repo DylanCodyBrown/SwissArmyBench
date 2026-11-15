@@ -23,6 +23,8 @@ table has one text. Pure rules, no I/O:
             Streamlit it runs once and is kept (st.cache_resource)
   names     what `from data import` can give: the names its cells make
   zip       a notebook for a zip: its outputs dropped and a pasted table's rows taken out
+  rows      which tables' rows a notebook's cells hold (a small paste written out): what the agent
+            may write to disk only on the user's Allow (docs/ideas.md, 2026-11-15)
   files     which of a folder's files the Workbench opens, data first; README, requirements
 """
 
@@ -226,12 +228,23 @@ def _names(code: str) -> list[str]:
     return [name for name in made if not name.startswith("_") and name not in modules]
 
 
+def _holds_rows(cell: DataCell) -> bool:
+    """A table's read-only cell with a small paste's rows written out in it."""
+    return cell.role == "transformations" and bool(cell.table) and _PASTED.search(cell.source) is not None
+
+
+def tables_with_rows(cells: Sequence[DataCell]) -> list[str]:
+    """The tables whose rows these cells hold, written out (a small paste's read-only cell), in order.
+    A notebook made of these cells writes those rows to disk."""
+    return list(dict.fromkeys(cell.table for cell in cells if cell.table and _holds_rows(cell)))
+
+
 def without_rows(cells: Sequence[DataCell]) -> list[DataCell]:
     """A notebook's cells for a zip: a pasted table's rows (written out in its read-only cell) taken
     out. (Outputs are dropped by the caller: they show rows too.)"""
     out: list[DataCell] = []
     for cell in cells:
-        if cell.role == "transformations" and cell.table and _PASTED.search(cell.source):
+        if cell.table and _holds_rows(cell):
             variable = variable_name(cell.table)
             stub = _stub(cell.table, variable, f"{cell.table} was pasted into the grid.")
             out.append(DataCell(cell.kind, stub, cell.role, cell.table, cell.number))

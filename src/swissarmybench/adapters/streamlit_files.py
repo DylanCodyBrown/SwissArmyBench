@@ -71,11 +71,10 @@ class AppFiles:
         for folder in list(self._made):
             self.remove(folder)
 
-    def export(
-        self, folder: str, files: Mapping[str, str], tables: Mapping[str, bytes]
-    ) -> tuple[str, list[str]]:
-        """Write an exported app into the folder the user picked (made when it is not there). Its own
-        files are replaced; nothing else in the folder is touched. The folder and what was written."""
+    @staticmethod
+    def export_target(folder: str) -> str:
+        """The full path an export into `folder` writes to (what the agent's approval names), checked:
+        a folder, or a new one in a folder that is there."""
         try:
             root = Path(folder).expanduser().resolve()
         except OSError as error:
@@ -86,6 +85,18 @@ class AppFiles:
             raise FileNotFoundError(f"{root} is a file: pick a folder.")
         if not root.parent.is_dir():
             raise FileNotFoundError(f"The folder {root.parent} is not there.")
+        return str(root)
+
+    def export(
+        self, chosen: str, files: Mapping[str, str], tables: Mapping[str, bytes]
+    ) -> tuple[str, list[str]]:
+        """Write an exported app into `chosen` (export_target's: the folder the user picked or
+        approved; made when it is not there). Its own files are replaced; nothing else in the folder
+        is touched. The folder and what was written. A target that no longer resolves to itself (a
+        link put in its place since) is refused before anything is written."""
+        root = Path(self.export_target(chosen))
+        if str(root) != chosen:
+            raise PermissionError(f"{chosen} has changed since it was chosen: nothing was written.")
         root.mkdir(exist_ok=True)
         written: list[str] = []
         for name, text in files.items():

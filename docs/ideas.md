@@ -1822,3 +1822,37 @@ Kept here in case it comes back:
 - **Windows touches:** a tray icon, file associations (.stapp.json, .blade.py), and `winget install`.
 - **Needs before starting:** the owner's approval of two new dependencies (pywebview, Velopack) and of signing
   under a verified identity. A real Windows machine is needed to test dragging between two native windows.
+
+## The agent's Streamlit Export waits for the user's Allow (the owner, 2026-11-15)
+
+The owner's decision: **the agent's Streamlit Export needs the user's approval, the same way the grid's
+export does.** Until now `streamlit_export` wrote a folder that runs alone, with Parquet copies of the
+tables' rows, to any path, with no click from the user.
+
+- **The same approval:** `Approvals` (services/agent.py), one for the whole server (bootstrap), and the
+  same prompt in the page and the Workbench window (agentAccess.ts): "The agent wants to export the
+  Streamlit app sales.stapp.json:", then the folder it writes (resolved: `..` and `~` worked out), the
+  pages, and each table whose rows are copied. Deny, closing the prompt, or no answer in 3 minutes:
+  refused (403), nothing written. No second mechanism and no new route.
+- **Ask and write in one request:** the grid's export needs a ticket because its download is a second
+  request (a GET); the Streamlit export asks inside its own request, so what is written is what the
+  user allowed: that folder (refused if it no longer resolves to itself, e.g. a link put in its place)
+  and those tables.
+- **The window too:** `workbench_window` `canvas.export`, `canvas.saveAs` and `project.new` run in the
+  page, which used to send them as the user's. A window command the agent sent now goes as the agent's
+  request (`X-Actor: agent`, workbenchCommands.ts `run(args, {agent})`, api.ts `agentApi`), so the same
+  rule holds there.
+- **The user's own click** asks nothing, as before.
+- **The other agent commands that write the user's data:** New project (`project_new`) and Save as
+  (`streamlit_save_as`) ask the same way **only when data.ipynb would hold a pasted table's rows** (a
+  small paste is written out in its read-only cell; Save as writes a data.ipynb into a folder that has
+  none). Otherwise they write code only and ask nothing.
+- **Left as they are (code only, or the owner's earlier call):** Export data.py (`project_export_data`:
+  a pasted table is a stub there, never its rows), the canvas's file (`streamlit_save`: links only),
+  the zip itself (outputs dropped, pasted rows taken out), Play (`streamlit_run`: the tables as Parquet
+  in a temporary folder of the app's own, removed when it stops), and the Workbench's documents
+  (`workbench_save`, `workbench_run`'s save): they hold what the agent wrote or ran in a kernel, and
+  kernel code can write what its Python can, which the owner accepted on 2026-11-14.
+- **Open:** a notebook the agent saves can hold outputs that show rows (`workbench_run` saves them).
+  Gating every save would stop the agent working in the Workbench, and the kernel can write files
+  anyway; say if the outputs should be dropped when the agent saves.
