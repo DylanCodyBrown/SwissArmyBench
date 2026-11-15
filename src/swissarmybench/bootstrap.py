@@ -63,6 +63,7 @@ from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connections import ConnectionService
+from swissarmybench.services.controllers import Controllers
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.export import Exports
 from swissarmybench.services.folders import Folders
@@ -124,6 +125,7 @@ class Services:
     workbench_window: WorkbenchWindow
     table_cells: TableCells
     streamlit: StreamlitApps
+    controllers: Controllers
     projects: Projects
     panels: Panels
     beta: BetaLog
@@ -283,10 +285,12 @@ def bootstrap(
     project_files = ProjectFiles()
     # Streamlit: a canvas's pages and a document's live cells, written to a temporary folder of the
     # app's own and run in the document's own Python (Streamlit is never this app's dependency).
+    app_files = AppFiles()
+    streamlit_runner = StreamlitRunner(report=lambda *e: process_event("streamlit", *e))
     streamlit = StreamlitApps(
         ws,
-        AppFiles(),
-        StreamlitRunner(report=lambda *e: process_event("streamlit", *e)),
+        app_files,
+        streamlit_runner,
         export_writer,
         now=time.time,
         read_document=documents.read,
@@ -348,6 +352,8 @@ def bootstrap(
         panels=Panels(ws),
         beta=beta,
         streamlit=streamlit,
+        # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
+        controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),
         projects=Projects(
             ws,
             project_files,

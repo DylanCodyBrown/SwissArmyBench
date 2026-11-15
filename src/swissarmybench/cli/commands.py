@@ -3063,6 +3063,39 @@ def streamlit_block_remove(a: dict[str, Any]) -> Any:
     return api.call("DELETE", path)
 
 
+# A canvas page's controllers (docs/ideas.md, controllers, 2026-11-15): a cell's header line
+# `# Makes: region: str = "All"; by_region: table = orders` is its contract.
+
+
+@command(
+    "streamlit_check",
+    "A canvas's contract check: defaults used, contract problems, names made twice, cycles; controllers",
+    req("app", "The app's id."),
+    opt("page", "One page's id (default: every page)."),
+)
+def streamlit_check(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/check", params={"page": a.get("page")})
+
+
+@command(
+    "streamlit_test",
+    "Test this page: AppTest tries each controller's values; each block's failures",
+    req("app", "The app's id."),
+    req("page", "The page's id."),
+)
+def streamlit_test(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/test")
+
+
+@command(
+    "workbench_canvas_move_to_data",
+    "Move a front-canvas block's model work (filter, group, join) into a named cell of data.ipynb",
+    req("block", "The block's id (its thin hint: streamlit_app)."),
+)
+def workbench_canvas_move_to_data(a: dict[str, Any]) -> Any:
+    return _window("canvas.moveToData", {"block": a["block"]})
+
+
 @command(
     "workbench_statement",
     "The whole statement at a script's line, as Ctrl+Enter runs it (first and last line, the next one)",
