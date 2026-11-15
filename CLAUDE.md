@@ -260,6 +260,9 @@ See [README.md](README.md). Before a commit: `pytest -q` (includes the browser t
 Python as `.venv\Scripts\python -m ...`: `uv run` re-syncs first and fails while a server
 started from `swissarmygrid.exe` is running.
 
+**Commits:** no `Co-Authored-By` line and no model names in commit messages; the credit to Claude is in
+the README (the owner, 2026-11-15).
+
 ## Gotchas
 
 - A step change that adds or removes columns must purge the grid's row cache (not just
