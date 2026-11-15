@@ -21,6 +21,7 @@ import type { BladeSummary } from "./bladeEditor";
 import { DROP_TYPE } from "./catalogRail";
 import { button, h, icon } from "./dom";
 import { CELL_DRAG, type PaneCell, type PaneDocument, partsOf } from "./workbenchStreamlit";
+import { plural } from "./workbenchTables";
 
 export interface DataTable {
   name: string;
@@ -102,8 +103,6 @@ function keep(key: string, on: boolean): void {
     /* storage blocked: it lasts until the window closes */
   }
 }
-
-const plural = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
 const SOURCE_ICONS: Record<string, string> = { file: "file", dropped: "file", connection: "sql", query: "sql", python: "code", paste: "copy" };
 

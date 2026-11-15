@@ -52,7 +52,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, TypeGuard
 
-from swissarmybench.domain.datasets import Column, reserved_column_name, same_name_ignoring_case
+from swissarmybench.domain.datasets import Column, quote, reserved_column_name, same_name_ignoring_case
 from swissarmybench.domain.sql_guard import SqlGrammar, SqlRefused, guard_step
 
 # Port: the (name, type) of each column a query returns, asked of the engine. It raises EngineError
@@ -223,10 +223,6 @@ class StepError(ValueError):
 
 
 # ===== SQL building blocks =====
-
-
-def quote(identifier: str) -> str:
-    return '"' + identifier.replace('"', '""') + '"'
 
 
 def literal(value: Any) -> str:

@@ -75,10 +75,6 @@ class AppFiles:
             self._made.discard(folder)
             shutil.rmtree(folder, ignore_errors=True)
 
-    def remove_all(self) -> None:
-        for folder in list(self._made):
-            self.remove(folder)
-
     @staticmethod
     def export_target(folder: str) -> str:
         """The full path an export into `folder` writes to (what the agent's approval names), checked:

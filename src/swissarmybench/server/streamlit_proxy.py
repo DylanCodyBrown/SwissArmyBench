@@ -59,13 +59,6 @@ _ANSWER_DROP: frozenset[str] = _HOP | {"access-control-allow-origin", "server", 
 Lookup = Callable[[str], int | None]
 
 
-def key_of(path: str) -> str:
-    """The `<app>-<secret>` part of a proxied path ("" when it has none)."""
-    if not path.startswith(PREFIX):
-        return ""
-    return path[len(PREFIX) :].split("/", 1)[0]
-
-
 def same(a: str, b: str) -> bool:
     return secrets.compare_digest(a.encode("utf-8", "replace"), b.encode("utf-8", "replace"))
 

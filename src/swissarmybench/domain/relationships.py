@@ -45,10 +45,10 @@ from decimal import Decimal
 from typing import Any
 
 from swissarmybench.domain.analysis import is_identifier
-from swissarmybench.domain.datasets import Column
+from swissarmybench.domain.datasets import Column, quote
 from swissarmybench.domain.diff import DiffOptions
 from swissarmybench.domain.grids import POS
-from swissarmybench.domain.steps import quote, type_family
+from swissarmybench.domain.steps import type_family
 
 KINDS: tuple[str, ...] = ("one-to-one", "one-to-many", "many-to-one", "many-to-many")
 _NAME = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")  # a table: its dataset name

@@ -25,6 +25,7 @@ import math
 import re
 from typing import Any
 
+from swissarmybench.domain.datasets import quote
 from swissarmybench.domain.stats import chi_square_p, effect_words
 from swissarmybench.domain.steps import type_family
 
@@ -308,10 +309,6 @@ def together(cells: list[tuple[str, str, int]]) -> dict[str, Any]:
 
 
 # ===== query text (DuckDB) =====
-
-
-def quote(identifier: str) -> str:
-    return '"' + identifier.replace('"', '""') + '"'
 
 
 def literal(value: str) -> str:
