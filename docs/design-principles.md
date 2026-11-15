@@ -514,6 +514,24 @@ the app can open and check, kept in folders or a Git repository the team already
 
 **Kits are built in parallel, so they must not tangle:** each kit's parts live in its own files; shared lists (cell kinds, dialects, connection types) change by adding an entry, never by reshaping. A registry where a kit declares its parts in one place is the planned next step (after the starter pack), and kits as packs (a team shares a whole kit, connection and cell type included) after that.
 
+## 13b. Feedback from real use, and a clean release (the owner, 2026-11-15)
+
+Real use finds what tests miss, so the app is built to be reported on, and every release goes out lean.
+
+- **A log that explains problems without holding data.** The server and the pages record what went wrong
+  and where: errors with their file and line, slow requests by route, process crashes and exit codes,
+  page errors, the version. Never cell values, SQL or code text, secrets, file contents or the user's
+  name in a path; table and column names become stand-ins (`table#1`). Error messages are redacted
+  before they are written. A test proves it with made-up secrets and values.
+- **Point at the problem.** During a beta, right-click anything and "Leave a note…": the note keeps a
+  stable description of what was clicked (its label and place, never its contents), the open panels
+  and the last actions by name. A picture of the window is attached only when the user ticks it, and
+  the box says it shows their data.
+- **One way back.** The log and the notes leave as one zip the user sends, and the agent can read the
+  same redacted log through its commands (section 10). A beta tool is temporary: a switch removes it.
+- **A sweep before every release.** Before a release goes out, look for dead code, leftover bloat and
+  anything made slower, and remove or fix it. Not new tests: a read of what the release actually ships.
+
 ## 14. Starting a new app
 
 Set things up in this order, so every later screen inherits the rules instead of fixing them.
@@ -560,3 +578,5 @@ Run this against every new screen or feature.
 16. Tests first, made-up data in every test and screenshot, and what was checked or decided written down?
 17. Is it a new capability? Then it is a kit (13a): connection, cell type, runtime if any, blades, agent
     commands, tests and docs, in one release.
+18. When it fails in real use, will the log say where without holding data? Can the user point at it with
+    a note? Before release: swept for dead code, bloat and slowness (13b)?
