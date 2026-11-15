@@ -774,16 +774,17 @@ def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp
             "mockups.ipynb",
         ]
         # The exported modules import cleanly where there is no Streamlit: data.py as it is.
-        sys.path.insert(0, str(unzipped))
-        try:
-            sys.modules.pop("data", None)
-            import data as exported_data  # type: ignore[import-not-found]
-
-            assert list(exported_data.orders["amount"]) == [100, 250, 75] and exported_data.customers is None
-            assert list(exported_data.big["region"]) == ["West"]
-        finally:
-            sys.path.remove(str(unzipped))
-            sys.modules.pop("data", None)
+        show = "[list(data.orders['amount']), data.customers, list(data.big['region'])]"
+        code = f"import json, sys\nsys.path.insert(0, sys.argv[1])\nimport data\nprint(json.dumps({show}))"
+        imported = subprocess.run(  # noqa: S603 (this Python, on the unzipped project)
+            [sys.executable, "-c", code, str(unzipped)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        assert imported.returncode == 0, imported.stderr[-2000:]
+        assert json.loads(imported.stdout.strip().splitlines()[-1]) == [[100, 250, 75], None, ["West"]]
         # An app that is not saved has no project to zip.
         loose = _canvas(client)["app"]
         assert (

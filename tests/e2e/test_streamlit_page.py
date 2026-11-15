@@ -396,7 +396,7 @@ def test_a_scripts_cells_that_call_streamlit_are_live_and_an_old_marker_is_a_pla
     # A script saved when there was a Streamlit kind of cell, with its pages block.
     script.write_text(
         f"# %% [1]\nx = 1\n# %% [2] [streamlit]\n{FILTER}\n# %% [3] [streamlit] height=300\n{TOTAL}\n"
-        '# %% [streamlit-pages]\n# {"id": "p1", "name": "Old", "pieces": [{"id": "s1", "cell": 3, "w": 12}]}\n',
+        '# %% [streamlit-pages]\n# {"id": "p1", "name": "Old", "pieces": [{"id": "s1", "cell": 3}]}\n',
         encoding="utf-8",
     )
     call(server, "POST", "/workbench/environment", {"path": str(script), "python": STREAMLIT_PYTHON})
@@ -438,7 +438,7 @@ def test_a_project_opens_with_its_data_first(
     made = window(server, "project.new", folder=str(tmp_path), name="sales", notebooks=["mockups"])
     assert [Path(p).name for p in made["files"]] == ["data.ipynb", "sales.stapp.json", "mockups.ipynb"]
     tabs = workbench.locator(".wb-tabs .tab-item")
-    expect(tabs).to_have_text([re.compile("data.ipynb"), re.compile("sales.stapp.json"), re.compile("mockups")])
+    expect(tabs).to_have_text([re.compile(n) for n in ("data.ipynb", "sales.stapp.json", "mockups")])
     expect(tabs.nth(0)).to_have_class(re.compile("active"))  # the data is in front
     expect(workbench.locator(".wb-project")).to_have_text("sales")
     # data.ipynb holds the table's read-only cell; the other notebook starts from data.py.

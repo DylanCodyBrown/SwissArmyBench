@@ -6,8 +6,11 @@ lines; which of a folder's files open. Made-up data only."""
 from __future__ import annotations
 
 import ast
-import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,12 +18,24 @@ from swissarmygrid.domain import projects as rules
 from swissarmygrid.domain.projects import DataCell
 
 
-def _import(path: Path) -> object:
-    spec = importlib.util.spec_from_file_location("data_under_test", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _import(path: Path, show: str) -> Any:
+    """Import a data.py in a Python of its own (as a kernel or a page would: this process's DuckDB
+    may be the app's locked one) and give back `show`, an expression over the module `data`."""
+    code = (
+        "import json, sys\nsys.path.insert(0, sys.argv[1])\nimport data\n"
+        f"print(json.dumps({show}))\nprint('streamlit' in sys.modules)"
+    )
+    done = subprocess.run(  # noqa: S603 (this Python, on a file the test wrote)
+        [sys.executable, "-c", code, str(path.parent)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    shown, streamlit = done.stdout.strip().splitlines()[-2:]
+    assert streamlit == "False"  # this Python has none: nothing of it is needed
+    return json.loads(shown)
 
 
 def _cells(csv: Path) -> list[DataCell]:
@@ -57,9 +72,10 @@ def test_data_py_is_data_ipynbs_code_cells_in_order_and_imports_in_a_plain_pytho
     assert "    # %matplotlib inline\n    rate = TAX * 2" in text and "# uses" not in text
     assert [s.split(":")[0] for s in made.skipped] == ["cell 4", "cell 5", "cell 6"]
     (tmp_path / "data.py").write_text(text)
-    module = _import(tmp_path / "data.py")
-    assert list(module.orders["amount"]) == [100, 250]  # type: ignore[attr-defined]
-    assert list(module.big["region"]) == ["West"] and module.rate == 0.4  # type: ignore[attr-defined]
+    shown = _import(
+        tmp_path / "data.py", "[list(data.orders['amount']), list(data.big['region']), data.rate, data.TAX]"
+    )
+    assert shown == [[100, 250], ["West"], 0.4, 0.2]
     # Nothing to export: a head that still imports.
     empty = rules.data_module("sales", [DataCell("markdown", "# hi")])
     ast.parse(empty.text)
@@ -70,7 +86,7 @@ def test_code_that_cannot_sit_in_a_function_runs_as_the_module(tmp_path: Path) -
     made = rules.data_module("x", [DataCell("code", "from math import *\nroot = sqrt(16)", number=1)])
     assert "def _load" not in made.text and made.names == ("root",)
     (tmp_path / "data.py").write_text(made.text)
-    assert _import(tmp_path / "data.py").root == 4  # type: ignore[attr-defined]
+    assert _import(tmp_path / "data.py", "data.root") == 4
 
 
 PASTED = (
@@ -97,8 +113,8 @@ def test_a_table_the_app_cannot_read_again_is_a_stub_and_no_rows_are_written(tmp
     assert "# ===== FILL IN: customers =====" in made.text and "customers = None" in made.text
     assert "LIMIT 5" not in made.text  # nothing to transform until it is read
     (tmp_path / "data.py").write_text(made.text)
-    module = _import(tmp_path / "data.py")  # it still imports: the other names are there
-    assert module.ready == 1 and module.customers is None  # type: ignore[attr-defined]
+    # It still imports: the other names are there.
+    assert _import(tmp_path / "data.py", "[data.ready, data.customers]") == [1, None]
     # With a cell of the user's that makes it, the table's cell is exported as it stands.
     filled = rules.data_module(
         "sales", [DataCell("code", "clients = load_clients()", "maker", "clients", 1), *cells[1:]]

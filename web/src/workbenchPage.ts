@@ -553,7 +553,9 @@ function show(doc: Doc): void {
   layout.compact((doc.kind === "notebook" && !doc.consoleUsed) || doc.kind === "app");
   variables.show(doc.kernel);
   docHost.replaceChildren(doc.element);
-  layout.console.replaceChildren(doc.console?.element ?? h("p", { class: "hint wb-pane-empty" }, "No console"));
+  // A Streamlit app runs no code of its own: its console's place says nothing.
+  if (doc.kind === "app") layout.console.replaceChildren();
+  else layout.console.replaceChildren(doc.console?.element ?? h("p", { class: "hint wb-pane-empty" }, "No console"));
   cursor = { line: 1, column: 1 };
   drawTabs();
   drawToolbar();

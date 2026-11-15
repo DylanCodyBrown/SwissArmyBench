@@ -206,7 +206,7 @@ export function designPane(options: {
   run: () => void;
   /** The height without a saved one, until the design says its own (a Streamlit piece never does). */
   fit?: number;
-  /** More for the bar's right end (a piece's Push to page); the bar then always shows. */
+  /** More for the bar's right end (a live cell's Install); the bar then always shows. */
   tools?: HTMLElement[];
 }): DesignPane {
   listen();
