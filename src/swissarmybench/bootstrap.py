@@ -37,7 +37,6 @@ from swissarmybench.adapters.folders import listing as folder_listing
 from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.projects import ProjectFiles
-from swissarmybench.adapters.script_check import lint as script_lint
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
@@ -54,6 +53,7 @@ from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.kernels import Launcher
+from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis

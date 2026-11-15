@@ -25,10 +25,10 @@ from urllib.parse import parse_qs
 import pytest
 from openpyxl import load_workbook
 
-from swissarmybench.adapters import script_check
 from swissarmybench.domain import script_export as se
 from swissarmybench.domain.packages import provided
 from swissarmybench.domain.script_export import ExportCell, Piece, Secret
+from swissarmybench.server import script_check
 from tests import powerbi_standin as made_up
 from tests.fake_keyring import memory_keyring
 from tests.test_cli import Live, live, run  # noqa: F401 (the running server, and the agent's commands)
