@@ -1083,7 +1083,12 @@ invoices and CSVs; models built here and taken into Power BI dashboards. Decided
 
 - **A "Power BI dataset" connection that reads** a dataset (semantic model) with DAX, through Power BI's
   Execute Queries web request, signed in with Microsoft's `azure-identity` (browser sign-in, or a service
-  principal for unattended runs). Its catalog lists tables, columns and measures; Open as grid runs
+  principal for unattended runs).
+  **Made from the owner's vault:** "My vault has a client secret and app registration for Power BI API
+  calls; this should be how that connection is created." The default sign-in is that app registration
+  (service principal): its tenant id, client id and client secret are picked as entries of the vault, so
+  the same notebook runs in an Azure Function with the vault's names in its environment. Browser sign-in
+  is the second choice, for trying a dataset by hand. Its catalog lists tables, columns and measures; Open as grid runs
   `EVALUATE TOPN(<rows to open>, 'Table')`; a notebook's SQL cell on it holds DAX.
 - **It also reads the dataset's relationships** into the app's relationship model (the Diagram, the Key
   Finder's known joins, tangs), so an existing Power BI model's joins arrive with its tables.
