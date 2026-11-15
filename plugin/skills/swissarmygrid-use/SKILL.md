@@ -24,6 +24,7 @@ which command to use when), and `agent_context` says which table they have in fr
 | Where are the header profiles / the zoom? | Profiles: the small button in the grid's top-left corner, above the row numbers. Zoom: the Application row (the whole page, the Sandbox too) |
 | How do I undo a step? / Is there a list of every command? | Ctrl+Z (Ctrl+Y redoes), or hover "N steps" under the title and remove any one. Ctrl+Shift+P lists every action of the page |
 | How are my tables related? / Draw an ERD | The Diagram tab, right after Sandbox: Import relationships (a .tang or a model as JSON), apply a shared model, or ask the agent to build one |
+| How do I read a Power BI dataset? / Bring its relationships in | Connections, Add connection, **Power BI dataset**: the workspace and dataset ids, and an app registration whose tenant id, client id and client secret are entries of their key vault. Its tables open as grids, a SQL cell on it holds DAX, and **Import its relationships** puts its joins in the Diagram (`connections_import_relationships`; run DAX with `workbench_run` and a `%%sql <connection>` cell) |
 | What can the agent see? | What the agent may do: everything they can (the golden rule), through the MCP: grids, connections, blades, the Workbench's notebooks, scripts and kernels, environments. Its exports still wait for their Allow; it never gets a password's value; Settings lists its activity |
 
 ## Do not

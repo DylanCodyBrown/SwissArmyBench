@@ -1076,7 +1076,7 @@ counts.
 - `table_profile` takes `grid` as a named argument now (`sag table_profile --grid <id>`), since it can
   take `dataset` instead.
 
-## Power BI datasets, and a real-world test bed (2026-11-15, the owner's calls)
+## Power BI datasets, and a real-world test bed (2026-11-15, the owner's calls; the connection built)
 
 The owner's work: notebooks scheduled and run in an Azure Function app; notebooks that make Excel
 invoices and CSVs; models built here and taken into Power BI dashboards. Decided:
@@ -1109,6 +1109,73 @@ invoices and CSVs; models built here and taken into Power BI dashboards. Decided
   8. a Power BI dataset tied out against its source database;
   9. a forecast as a Sandbox report, printed to PDF;
   10. a story notebook with HTML cells.
+
+**The Power BI dataset connection, built on 2026-11-15** (the test bed, scheduling and the ten use cases
+are still to do; docs/verified.md has what was checked). **Not run against a real tenant:** Power BI and
+Microsoft's sign-in are stood in for on this computer (tests/powerbi_standin.py). Decided while
+building; confirm or change:
+
+- **The app registration signs in with Python's standard library, not azure-identity.** Microsoft's
+  client credentials request is one web request, so the default sign-in needs no package at all: the
+  same code runs in an Azure Function as it is, and the tests prove the request end to end (the
+  stand-in receives the tenant, the client id and the secret). azure-identity will not sign in to
+  anything but an https address, so its service principal could not have been tested here.
+  **azure-identity is used for the browser sign-in only** (InteractiveBrowserCredential), installed
+  with the form's Install button. The queries use the standard library too, not `requests`: on a
+  company computer it trusts the certificates Windows trusts, which `requests` does not.
+- **Three ways to sign in** (the form's Sign in): *App registration, from a key vault* (the default:
+  tenant id, client id and client secret each start on "A key vault" with the entry picker); *App
+  registration, ids typed here* (the two ids as plain fields, the secret from a password source);
+  *Browser sign-in, as yourself*. The three values in the first way may also come from an environment
+  variable or this computer, as any password may.
+- **The code names what the vault names.** Picking `powerbi-client-secret` writes
+  `secret("powerbi_client_secret")`: the vault's own name as a variable (the existing rule). An Azure
+  Function's settings must use those names.
+- **Two environment variables move the connection:** `POWERBI_API_URL` and `POWERBI_LOGIN_URL`
+  (defaults: api.powerbi.com and login.microsoftonline.com). The tests point them at the stand-in; a
+  government or China cloud would set them too.
+- **Making the connection runs one small query** (`EVALUATE ROW("ok", 1)`), so Test connection means
+  the sign-in works and the dataset is reached, not only that the code ran.
+- **Measures are marked on their own table** (type "measure, Decimal"), not under a Measures node: a
+  measure belongs to a table in Power BI, search and completion find it there, and a Measures table
+  could not be opened as a grid. The dataset's one tree node is called **Model**.
+- **Open as grid opens the whole table** (`EVALUATE TOPN(n, 'Table')`; every row: `EVALUATE 'Table'`):
+  no columns are picked, since the catalog lists measures beside them.
+- **The catalog asks three ways:** `INFO.VIEW.COLUMNS()` and `INFO.VIEW.MEASURES()`; where those are not
+  known, `INFO.TABLES()`, `INFO.COLUMNS()` and `INFO.MEASURES()` (ids and numbered types resolved);
+  where the sign-in may not read the model's description at all, `COLUMNSTATISTICS()` (tables and
+  columns, no types, no measures). The date tables Power BI makes by itself (LocalDateTable_,
+  DateTableTemplate_) and the hidden RowNumber columns are left out.
+- **Power BI's limits** (100,000 rows or 1,000,000 values for one query, 15 MB, 120 queries a minute):
+  an answer that reaches the row or value limit is **refused with a message**, never handed over as if
+  whole. So a table of 100,000 rows or more cannot be loaded whole ("Load all rows" says why); Rows
+  to open below the limit works. An answer cut at 15 MB cannot be told by its size and is not caught
+  unless Power BI marks it.
+- **Column names** lose their table (`Sales[Amount]` is Amount, `[Total Sales]` is Total Sales); a
+  name two tables share in one answer keeps its table. Power BI's text dates become dates.
+- **Relationships:** `INFO.VIEW.RELATIONSHIPS()`, else `INFO.RELATIONSHIPS()` with the ids resolved.
+  Tables are named as they open as grids; Many to One is many-to-one and so on; "filters both ways" is
+  the join's note; an inactive one stays inactive and **the Diagram now draws an inactive join dashed,
+  labelled "inactive"** (for every model, not only Power BI's). The model is merged under the
+  connection's name with the existing rules (the dataset's wins a join both name; the answer and the
+  message say what changed). Each table's source reads "<connection> (Power BI)".
+- **Import its relationships is in three places:** the connection's row, the catalog's Model node (its
+  page and its right-click), and, as part of opening tables, a button on the "is open as a grid"
+  message, shown until the dataset's relationships are in the model.
+- **DAX cells:** the cell's kind stays SQL; the connection is listed as "Sales model (DAX)" and the
+  empty cell says DAX. Completion offers the dataset's tables (`'Sales'`), columns (`'Sales'[Amount]`),
+  measures (`[Total Sales]`) and DAX's words, never SQL's. **The uses line no longer reads a word inside
+  a bracketed or double-quoted name of several words** (`[Total Sales]`, `"Total Sales"`) as the table
+  Sales; this holds for SQL cells too.
+- **The agent:** `connections_import_relationships` is new (188 commands). Running DAX needed no new
+  command: `workbench_run` with a `%%sql <connection>` cell or `sag.sql()` already does it.
+- **Also changed:** a connection that fails now shows its message in the Connections window and the
+  catalog, not the JSON around it (`{"error": ...}` was shown as it came).
+- **Open:** a real tenant has not been tried. What it needs: the admin setting Dataset Execute Queries
+  REST API; "service principals can use Power BI APIs" for the app registration, which must be a
+  member of the workspace; Read and Build permission on the dataset. Whether the INFO functions answer
+  through Execute Queries for a sign-in with only Build permission is not known (hence the
+  COLUMNSTATISTICS fallback). Datasets with row-level security do not take a service principal.
 
 ## Streamlit cells (2026-11-15, the owner's calls)
 

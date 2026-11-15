@@ -107,8 +107,8 @@ What a grid page does:
 - **Agent door (MCP):** the agent sees what the page shows; its exports wait for the user's
   Allow. Settings lists its activity and has a copyable prompt that installs the MCP in any agent.
 - **Connections** (the Application row's **Connections**): your databases and files. Add one with a
-  form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a CSV, workbook, Parquet or JSON
-  file, or a folder of them), its password kept in the system keyring, **Test connection** before
+  form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a Power BI dataset, read with DAX;
+  a CSV, workbook, Parquet or JSON file, or a folder of them), its password kept in the system keyring, **Test connection** before
   saving. Then `conn = sag.connection("Warehouse")` in any Python, or a whole SQL cell on it:
   `%%sql Warehouse` in Jupyter or IPython.
 - **Blades and the catalog** (its own tab, from **Blades and catalog** in the Application row): a **blade** is any
@@ -279,6 +279,27 @@ waits, and the SQL cell's suggestions pick it up as it lands. One that signs in 
 (MFA) is not loaded at start-up, only on first use. **Refresh catalog** reads it again after the
 database changes. Catalogs stay in memory only. Connections are kept with the
 blades (so folders, packs, the catalog and Refresh work the same) but listed apart.
+
+A **Power BI dataset** (a semantic model) is a connection too, read with DAX through Power BI's Execute
+Queries request. Its form asks for the workspace id and the dataset id (both are in the dataset's
+address in Power BI) and how to sign in. The first way is an **app registration** (service principal):
+its tenant id, client id and client secret are each picked as an entry of your key vault, so the
+connection's code reads them by name (`secret("powerbi_client_secret")`) and the same notebook runs in
+an Azure Function, where the function app's Key Vault references put those names in the environment.
+The ids may also be typed, with only the secret from the vault; **Browser sign-in** is for trying a
+dataset by hand (it needs Microsoft's `azure-identity`, installed with the form's Install button; the
+app registration's way needs no package). The catalog shows the model's tables with their columns and,
+marked, their measures; **Open as grid** runs `EVALUATE TOPN(<rows to open>, 'Table')` and counts the
+table, so the grid says "first N of M rows"; a notebook's SQL cell on it holds DAX
+(`%%sql "Sales model"`, then `EVALUATE ...`) and gives a DataFrame. **Import its relationships** (on the
+connection's row, the catalog's Model node, and offered when a table opens) reads the dataset's own
+relationships into the current model, so the Diagram and the Key Finder's known joins show them: an
+inactive one stays inactive and is drawn dashed. Power BI gives at most 100,000 rows or 1,000,000
+values (rows times columns) for one query; an answer that reaches that is refused with a message, never
+passed off as whole. The tenant must allow the Execute Queries request (the admin setting **Dataset
+Execute Queries REST API**) and, for an app registration, service principals to use the Power BI APIs;
+the sign-in needs Read and Build permission on the dataset. Not yet run against a real tenant: it is
+tested against a stand-in on this computer.
 
 A **key vault** (Azure Key Vault, AWS Secrets Manager or Parameter Store, Google Secret Manager,
 HashiCorp, 1Password, a `.env` file, the operating system's vault) is a connection whose secrets become
@@ -472,7 +493,7 @@ It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turn
 
 ## The agent commands: `sag` and the MCP server
 
-**The golden rule: everything you can do, the agent can do too** (187 commands, each an MCP tool):
+**The golden rule: everything you can do, the agent can do too** (188 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
@@ -480,7 +501,7 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 187 of
+Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 188 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
@@ -492,7 +513,7 @@ run it:
 - `swissarmygrid-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
-  the whole tool list is about 11,000 tokens for 187 tools (a test holds it under a budget). `guide` and
+  the whole tool list is about 11,000 tokens for 188 tools (a test holds it under a budget). `guide` and
   `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
 - `sag` is the same commands in a terminal (standard library only, in the plain wheel):

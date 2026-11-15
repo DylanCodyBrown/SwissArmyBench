@@ -659,3 +659,58 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   key vault (a made-up one in plain Python stands in); the palette and the keys on macOS (Cmd is
   read as Ctrl in the code, not tried); Windows paths in a file connection's name (the rule is
   tested as text).
+- (2026-11-15) The Power BI dataset connection (docs/ideas.md has the decisions). **Not run against a
+  real Power BI tenant:** Power BI's Execute Queries request and Microsoft's sign-in are stood in for
+  on this computer (tests/powerbi_standin.py: a made-up model of Sales, Customer, Product and Date,
+  three measures, four relationships with one inactive, one of the date tables Power BI makes by
+  itself, and errors in the real service's shape).
+  **The connection, made from a vault:** a made-up vault in plain Python holds the tenant id, the
+  client id and the client secret; the form's picker lists them by name, picking each writes its name
+  into the code (`secret("powerbi_client_secret")`), Test connection signs in, and the stand-in
+  receives exactly those three values with the right scope and grant; the query carries the token and
+  `includeNulls`. None of the made-up values (nor the token) is in any answer to the page or the agent
+  (the form, the lists, Test, Refresh, open, preview, the relationships import, two refusals), in the
+  audit log or in the connection's saved file.
+  **Answers as tables:** `Sales[Amount]` reads as Amount and `[Total Sales]` as Total Sales; whole
+  numbers, decimals and Power BI's text dates arrive typed (BIGINT, DOUBLE, TIMESTAMP in the grid);
+  a missing value stays missing; a name two tables share keeps its table.
+  **DAX:** names quote as `'Order Lines'[Unit Price]`; Open as grid sends `EVALUATE TOPN(10, 'Sales')`
+  and `EVALUATE ROW("n", COUNTROWS('Sales'))` (10 of 40 rows shown, the grid told 40), every row sends
+  `EVALUATE 'Sales'`; the catalog page's first query is the EVALUATE.
+  **The catalog:** four tables, columns with Power BI's types, measures on their own table marked
+  "measure, Decimal"; the same from the numbered INFO functions when INFO.VIEW is refused, and tables
+  and columns alone from COLUMNSTATISTICS when both are.
+  **Messages:** a refused query says Power BI's own words ("Cannot find table 'Nope'"); a wrong secret
+  says Microsoft's first line and what to check, never the secret; a wrong dataset id says what to
+  check; no server says which one could not be reached; an answer at the row or value limit (tried
+  with the limits lowered to 40 rows and 70 values) is refused as not whole.
+  **A DAX cell:** `sag.sql` and the `%%sql` magic give a DataFrame, keep it under `-> name`, and say a
+  refusal in one line; the uses line does not take `[Total Sales]` or `"Total Sales"` for the table
+  Sales, in DAX or SQL.
+  **Relationships:** the named and the numbered forms give the same model (many-to-one, "filters both
+  ways", the inactive one inactive, the date table's left out); the import merges with the existing
+  rules (a one-to-one held before becomes many-to-one and is said; another table's join is kept; a
+  second import changes nothing); the Diagram draws an inactive join dashed and labelled; a connection
+  that is not a Power BI dataset is refused; the agent may do it (`connections_import_relationships`).
+  **In a browser** (one test, 5 runs): the form filled from the vault, tested and saved; the catalog
+  with the Model node, the tables and Sales's two measures; Copy the EVALUATE; Open as grid, whose
+  message offers Import its relationships; the grid's clean headers and a date; the Diagram with four
+  tables, "inactive" and "filters both ways". By hand in a browser: DAX completion offers EVALUATE,
+  `'Sales'`, `[Total Sales]` and SELECTCOLUMNS, and no SQL word. The browser sign-in's code was run
+  once with Microsoft's real azure-identity (1.27.0) in a scratch environment, the sign-in window
+  itself stood in for: it asks for Power BI's scope and reads the dataset.
+  **Found since:** `test_a_script_runs_in_its_console` failed once in the whole run (the "row 1" race
+  noted on 2026-11-14): the console asked the kernel whether a line was finished before adding the
+  new line, so keys typed meanwhile landed on the old line. A line that opens a block or sits inside
+  one now gets its new line at once, and an answer for text that has changed since is dropped. The
+  whole suite passed after.
+  Then: ruff, format, mypy (248 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,095 passed, none skipped (2,070 before; 25 new: 24 in tests/test_powerbi.py, 1 browser
+  test). 188 commands (187 before: connections_import_relationships).
+  Not checked: a real tenant (it needs the admin setting Dataset Execute Queries REST API, service
+  principals allowed to use the Power BI APIs with the app registration a member of the workspace, and
+  Read and Build permission on the dataset); whether the INFO functions answer through Execute
+  Queries for a sign-in with Build permission only; the real names of INFO.VIEW's columns beyond the
+  ones read (Table, Name, DataType; FromTable, FromColumn, ToTable, ToColumn, FromCardinality,
+  ToCardinality, CrossFilteringBehavior, IsActive), which are from memory of Microsoft's pages; how
+  the real service marks an answer cut at 15 MB; Microsoft's sign-in window itself; Edge.

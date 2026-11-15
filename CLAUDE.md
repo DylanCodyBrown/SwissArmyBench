@@ -31,7 +31,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   adding a dependency the plan doesn't list. Milestone 9 (the agent running code) was the owner's
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
-  added with a form), the SQL cell (`%%sql <connection>`), the Workbench (notebooks, scripts,
+  added with a form; a Power BI dataset read with DAX, its relationships imported), the SQL cell
+  (`%%sql <connection>`), the Workbench (notebooks, scripts,
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
@@ -68,7 +69,10 @@ src/swissarmygrid/
     relationships.py     keys, the Key Finder's scoring, compare, relationship models, the ERD; tangs
                          (the .tang file: a saved, shared set of relationships) and the relationship
                          finder's rules (judge, suggest, implied joins, paths between tables)
-    catalogs.py          catalog rules: dialects, names, which source column is read as what
+    catalogs.py          catalog rules: dialects (DAX among them: 'Table'[Column], EVALUATE TOPN, COUNTROWS),
+                         names, which source column is read as what
+    powerbi.py           a Power BI dataset's own relationships as the app's model (the INFO functions'
+                         rows, named or numbered; tables named as they open as grids)
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmygrid-blade` TOML header, zips), its settings (found with ast,
@@ -172,7 +176,8 @@ src/swissarmygrid/
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
-    blade_templates.py   the 38 starter blades (3 analyses)
+    blade_templates.py   the 39 starter blades (3 analyses; a Power BI dataset: code that signs in and
+                         sends DAX, shaped like a database connection)
 
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sag.load (a catalog), sag.blade (run a saved blade here), sag.blades
@@ -191,7 +196,7 @@ src/swissarmygrid/
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (187 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (188 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -238,7 +243,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
-                         test_architecture.py (the layers, the depth, the plain client)
+                         test_architecture.py (the layers, the depth, the plain client),
+                         powerbi_standin.py (Power BI and its sign-in stood in for on this computer)
 tools/                   screenshots.py, vscode_check.py
 plugin/                  the swissarmygrid plugin: skills/swissarmygrid-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
