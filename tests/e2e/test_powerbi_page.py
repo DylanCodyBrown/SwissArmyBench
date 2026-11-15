@@ -35,7 +35,8 @@ def get(name):
     return values[name]
 """
 
-DATASETS = ["Finance/Broken model", "Finance/Budget model", "Finance/Sales model"]
+# As the picker lists them: by name, the one that could not be read last.
+DATASETS = ["Finance/Budget model", "Finance/Sales model", "Finance/Broken model"]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -259,3 +260,24 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     workbench.keyboard.press("x")
     expect(third.get_by_label("Cell kind")).to_have_value("dax")
     expect(third.get_by_label("Dataset")).to_have_value(DATASETS[0])
+
+    # A script: its DAX cell is plain Python, one sag.dax() call under a `# %% [dax]` marker, on the
+    # first dataset; the agent adds one on a dataset it names. The file runs as it is.
+    workbench.get_by_role("button", name="New script").first.click()
+    expect(workbench.locator(".wb-script-editor .monaco-editor")).to_be_visible(timeout=20000)
+    workbench.get_by_role("button", name="DAX", exact=True).click()
+    wait_until(lambda: "[dax]" in window("doc.read")["text"])
+    window("cell.addDax", dataset="Finance/Sales model", source="EVALUATE TOPN(2, 'Customer')")
+    text = window("doc.read")["text"]
+    assert text.splitlines() == [
+        "# %% [1] [dax]",
+        "import swissarmygrid as sag",
+        'result = sag.dax("Finance/Budget model", """',
+        "EVALUATE ",
+        '""")',
+        "# %% [2] [dax]",
+        'result = sag.dax("Finance/Sales model", """',
+        "EVALUATE TOPN(2, 'Customer')",
+        '""")',
+    ]
+    compile(text, "script.py", "exec")

@@ -31,8 +31,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   adding a dependency the plan doesn't list. Milestone 9 (the agent running code) was the owner's
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
-  added with a form; a Power BI dataset read with DAX, its relationships imported), the SQL cell
-  (`%%sql <connection>`), the Workbench (notebooks, scripts,
+  added with a form; a Power BI workspace, its datasets read with DAX, a dataset's relationships
+  imported), the SQL cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`,
+  `sag.dax`), the Workbench (notebooks, scripts,
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
@@ -71,8 +72,9 @@ src/swissarmygrid/
                          finder's rules (judge, suggest, implied joins, paths between tables)
     catalogs.py          catalog rules: dialects (DAX among them: 'Table'[Column], EVALUATE TOPN, COUNTROWS),
                          names, which source column is read as what
-    powerbi.py           a Power BI dataset's own relationships as the app's model (the INFO functions'
-                         rows, named or numbered; tables named as they open as grids)
+    powerbi.py           a Power BI workspace: a dataset's name with its connection (Finance/Sales model),
+                         a table's name as a grid (the dataset's too when two share it), a dataset's own
+                         relationships as the app's model (the INFO functions' rows, named or numbered)
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmygrid-blade` TOML header, zips), its settings (found with ast,
@@ -93,8 +95,8 @@ src/swissarmygrid/
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
-    notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell, an HTML cell
-                         a %%html one with its pane's height in its metadata) and scripts;
+    notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell, a DAX cell a
+                         %%dax one, an HTML cell a %%html one with its pane's height in its metadata) and scripts;
                          each cell's number (never changes, never reused) and its part in the Tables group
     table_cells.py       every table's read-only cell: the names code makes, needs and uses; the uses
                          line (`# uses orders @cell3`); the Tables group's order and why a maker stays
@@ -176,15 +178,16 @@ src/swissarmygrid/
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
-    blade_templates.py   the 39 starter blades (3 analyses; a Power BI dataset: code that signs in and
-                         sends DAX, shaped like a database connection)
+    blade_templates.py   the 39 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
+                         its datasets and sends DAX to one, each dataset shaped like a database connection)
 
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sag.load (a catalog), sag.blade (run a saved blade here), sag.blades
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sag.complete)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sag.sql: a database in its own SQL,
-                         files (CSV, workbook sheets, folders) and DataFrames in DuckDB
+                         files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
+                         <connection>/<dataset> cells and sag.dax: DAX on one dataset of a Power BI workspace
   client/sandbox_client.py sag.sandbox: a figure, picture, table or text as a Sandbox card (duck-typed)
   client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
@@ -196,7 +199,7 @@ src/swissarmygrid/
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (188 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (190 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -236,7 +239,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          last ran, the folded lines' words, the uses line); the Tables group, cell
                          numbers and @cell links are drawn in workbenchNotebook.ts and workbenchScript.ts;
                          workbenchHtml.ts (HTML cells: the design's pane that resizes, its sandboxed
-                         frame, the names filled by the server's rules, the out-of-date state)
+                         frame, the names filled by the server's rules, the out-of-date state);
+                         a DAX cell (its dataset picker, Monaco's DAX grammar) is drawn in
+                         workbenchNotebook.ts, its completion in workbenchCompletion.ts
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/static/              index.html, grid.css (all theme tokens), build/ (gitignored); design.html is the
@@ -244,7 +249,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
                          test_architecture.py (the layers, the depth, the plain client),
-                         powerbi_standin.py (Power BI and its sign-in stood in for on this computer)
+                         powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
+                         workspace of three made-up datasets)
 tools/                   screenshots.py, vscode_check.py
 plugin/                  the swissarmygrid plugin: skills/swissarmygrid-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)

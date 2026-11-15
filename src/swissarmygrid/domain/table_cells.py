@@ -296,7 +296,7 @@ class PlanCell:
     """A cell as the arrangement sees it. `number` never changes once given."""
 
     number: int | None
-    kind: str  # code, sql, html or markdown
+    kind: str  # code, sql, dax, html or markdown
     source: str
     role: str = ""  # one of ROLES
     table: str | None = None

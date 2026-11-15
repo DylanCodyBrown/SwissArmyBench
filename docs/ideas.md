@@ -1076,14 +1076,15 @@ counts.
 - `table_profile` takes `grid` as a named argument now (`sag table_profile --grid <id>`), since it can
   take `dataset` instead.
 
-## Power BI datasets, and a real-world test bed (2026-11-15, the owner's calls; the connection built)
+## Power BI workspaces, DAX cells, and a real-world test bed (2026-11-15, the owner's calls; the connection and the DAX cell built)
 
 The owner's work: notebooks scheduled and run in an Azure Function app; notebooks that make Excel
 invoices and CSVs; models built here and taken into Power BI dashboards. Decided:
 
-- **A "Power BI dataset" connection that reads** a dataset (semantic model) with DAX, through Power BI's
+- **A Power BI connection that reads** datasets (semantic models) with DAX, through Power BI's
   Execute Queries web request, signed in with Microsoft's `azure-identity` (browser sign-in, or a service
-  principal for unattended runs).
+  principal for unattended runs). First built per dataset; **corrected to per workspace, with a DAX
+  cell** (below).
   **Made from the owner's vault:** "My vault has a client secret and app registration for Power BI API
   calls; this should be how that connection is created." The default sign-in is that app registration
   (service principal): its tenant id, client id and client secret are picked as entries of the vault, so
@@ -1110,10 +1111,84 @@ invoices and CSVs; models built here and taken into Power BI dashboards. Decided
   9. a forecast as a Sandbox report, printed to PDF;
   10. a story notebook with HTML cells.
 
-**The Power BI dataset connection, built on 2026-11-15** (the test bed, scheduling and the ten use cases
-are still to do; docs/verified.md has what was checked). **Not run against a real tenant:** Power BI and
+**Per workspace, and a DAX cell (the owner, 2026-11-15; built the same day).** The first build made
+the connection per dataset. The owner: "That's wrong: you designed the connection per dataset; it
+should be per workspace." And: "Which means we needed support for a new kind of cell, a DAX cell."
+What it is now (docs/verified.md has what was checked):
+
+- **The connection is a workspace.** The starter is "Power BI workspace" (still `powerbi`). Its form
+  asks for the workspace id and the sign-in, never a dataset. The three sign-ins are as they were.
+- **The object's shape,** as a database connection gives every schema:
+  `conn.datasets()` lists each dataset's name and id (`GET .../groups/{workspace}/datasets`);
+  `conn.dataset("Sales model")` is one of them, by its name or its id;
+  `conn.dataset("Sales model").cursor()` runs DAX on it (`conn.cursor(dataset="Sales model")` is the
+  same); `conn.cursor()` with no dataset is the workspace's one dataset, refused with their names when
+  it has several. Two datasets with one name are told apart by the start of their ids.
+- **A dataset is named after its connection: `Finance/Sales model`.** A DAX cell, `sag.dax()`, the
+  agent's commands and a table's source in the Diagram all say it that way. No connection's name has
+  a slash, so the first slash always splits the two.
+- **The catalog** is the workspace, then each dataset (the schema level), then its tables, then their
+  columns and measures (a measure still marked on its table). It loads itself as before; each dataset
+  is asked the three ways below. **Datasets are read one after another, at most 25 of them and for at
+  most 200 seconds** (each takes two queries or more; Power BI takes 120 a minute). One that cannot be
+  read, or was not reached, gets an error mark on itself only (a circled "!", its reason on hover and
+  on its page); the others load.
+- **Open as grid** sends `EVALUATE TOPN(...)` to the table's own dataset, with the row limit and the
+  "first N of M rows" note. **A grid is named after its table; when two of the workspace's datasets
+  hold a table of that name, after the dataset too:** both have Date, so they open as
+  `Sales_model_Date` and `Budget_model_Date` (the app's table names take no spaces or dots). The clash
+  is read from the loaded catalog: before it has loaded, a table opens under its own name.
+- **Import its relationships is per dataset, in one place and one offer:** on a dataset in the catalog
+  (its page and its right-click), and on the "is open as a grid" message for that table's dataset,
+  shown until that dataset's relationships are in the model. **It left the connection's row in the
+  Connections window:** a workspace has several datasets, and a row has no clean place to pick one.
+  The model's tables are named as they open as grids (the Date clash included); each table's source
+  reads "Finance/Sales model (Power BI)".
+- **A DAX cell is a cell kind of its own,** beside Python, SQL, Markdown and HTML: in the kind picker,
+  the toolbar's **DAX** button, the palette (Make it a DAX cell, Add a DAX cell) and command mode's
+  **X** (S was SQL's; X is free and is DAX's last letter).
+  - Its picker lists only Power BI workspaces' datasets (`Finance/Sales model`; one that could not be
+    read last). A SQL cell's picker no longer offers a Power BI connection. The list comes from each
+    workspace's loaded catalog, so listing never opens a sign-in window; a workspace whose catalog is
+    not loaded shows by its own name and loads when the picker is first opened.
+  - Colouring is Monaco's own DAX grammar (`msdax`: keywords, functions, `'Table'[Column]`,
+    `[Measure]`). No new dependency.
+  - Completion: DAX's keywords and functions, and that dataset's tables (`'Sales'`), columns
+    (`'Sales'[Amount]`; after `'Sales'[` that table's columns) and measures (`[Total Sales]`). Never
+    SQL's words, never another dataset's names, nothing from the kernel.
+  - In a `.ipynb` it is a code cell that starts `%%dax Finance/Sales model` (quoted when the name has
+    a space), so plain Jupyter with the client runs it. The kernel registers `%%dax` as it does
+    `%%sql`, with the same options (`-> name`, `--grid`). Its result is a DataFrame, handled exactly
+    as a SQL cell's.
+  - **In a script it is plain Python under a marker:** `# %% [dax]`, then
+    `result = sag.dax("Finance/Sales model", """EVALUATE ...""")`. SQL has no cell form in a script
+    either (it is `sag.sql(...)` in Python), so this mirrors it: the file runs as it is, anywhere.
+  - `sag.dax("Finance/Sales model", "EVALUATE ...")` in Python. `sag.sql` on a dataset still works
+    (the same call underneath); the docs teach `sag.dax`. A table opened from a dataset has
+    `sag.dax(...)` as its cell's load.
+  - **Old cells:** a `%%sql Finance/Sales model` cell opens as a DAX cell (the slash says so), and so
+    does a SQL cell whose connection is a Power BI one (a notebook saved when the connection was one
+    dataset).
+  - **Refused:** a DAX cell or `sag.dax` that names only the workspace (`Finance`) when it has several
+    datasets, with a short message naming them. A workspace of one dataset needs no dataset named.
+  - **No uses line on a DAX cell.** `Sales` in DAX is the dataset's table, never the open table Sales
+    in the kernel, so the app writes no `-- uses` line there.
+- **A connection saved per dataset still works.** Its code makes one dataset with no list of
+  datasets: it is treated as a workspace of one. Its tree has the one node (Model), no dataset is
+  named anywhere, and a DAX cell names the connection alone.
+- **Test connection** signs in and lists the workspace's datasets: "It works: signed in and found 3
+  datasets."
+- **The agent** (the golden rule): `connections_datasets` lists a workspace's datasets (asked of Power
+  BI, with ids), `connections_import_relationships` takes a `dataset`, `workbench_dax_add` adds a DAX
+  cell on a dataset, and `workbench_run` takes kind `dax` with the dataset as its connection. 190
+  commands (188 before).
+- **The stand-in** is a workspace of three made-up datasets: Sales model, Budget model (a Date table
+  of its own) and Broken model (answers every query with an error).
+
+**The first build, per dataset, on 2026-11-15** (the test bed, scheduling and the ten use cases
+are still to do). **Not run against a real tenant:** Power BI and
 Microsoft's sign-in are stood in for on this computer (tests/powerbi_standin.py). Decided while
-building; confirm or change:
+building, and still so except where the block above changed it (marked):
 
 - **The app registration signs in with Python's standard library, not azure-identity.** Microsoft's
   client credentials request is one web request, so the default sign-in needs no package at all: the
@@ -1134,11 +1209,13 @@ building; confirm or change:
 - **Two environment variables move the connection:** `POWERBI_API_URL` and `POWERBI_LOGIN_URL`
   (defaults: api.powerbi.com and login.microsoftonline.com). The tests point them at the stand-in; a
   government or China cloud would set them too.
-- **Making the connection runs one small query** (`EVALUATE ROW("ok", 1)`), so Test connection means
-  the sign-in works and the dataset is reached, not only that the code ran.
+- **Making the connection signs in and lists the workspace's datasets** (changed: it was one small
+  query on the one dataset), so Test connection means the sign-in works and the workspace is reached,
+  not only that the code ran.
 - **Measures are marked on their own table** (type "measure, Decimal"), not under a Measures node: a
   measure belongs to a table in Power BI, search and completion find it there, and a Measures table
-  could not be opened as a grid. The dataset's one tree node is called **Model**.
+  could not be opened as a grid. (Changed: each dataset is a node of its own, by its name; only a
+  connection saved per dataset has the one node called **Model**.)
 - **Open as grid opens the whole table** (`EVALUATE TOPN(n, 'Table')`; every row: `EVALUATE 'Table'`):
   no columns are picked, since the catalog lists measures beside them.
 - **The catalog asks three ways:** `INFO.VIEW.COLUMNS()` and `INFO.VIEW.MEASURES()`; where those are not
@@ -1158,24 +1235,23 @@ building; confirm or change:
   the join's note; an inactive one stays inactive and **the Diagram now draws an inactive join dashed,
   labelled "inactive"** (for every model, not only Power BI's). The model is merged under the
   connection's name with the existing rules (the dataset's wins a join both name; the answer and the
-  message say what changed). Each table's source reads "<connection> (Power BI)".
-- **Import its relationships is in three places:** the connection's row, the catalog's Model node (its
-  page and its right-click), and, as part of opening tables, a button on the "is open as a grid"
-  message, shown until the dataset's relationships are in the model.
-- **DAX cells:** the cell's kind stays SQL; the connection is listed as "Sales model (DAX)" and the
-  empty cell says DAX. Completion offers the dataset's tables (`'Sales'`), columns (`'Sales'[Amount]`),
-  measures (`[Total Sales]`) and DAX's words, never SQL's. **The uses line no longer reads a word inside
-  a bracketed or double-quoted name of several words** (`[Total Sales]`, `"Total Sales"`) as the table
-  Sales; this holds for SQL cells too.
-- **The agent:** `connections_import_relationships` is new (188 commands). Running DAX needed no new
-  command: `workbench_run` with a `%%sql <connection>` cell or `sag.sql()` already does it.
+  message say what changed). (Changed: per dataset; see above for the names and the source.)
+- **Import its relationships** was in three places, the connection's row among them. (Changed: see
+  above.)
+- **DAX cells** were SQL cells on the connection, listed as "Sales model (DAX)". (Changed: a kind of
+  their own; see above.) **The uses line no longer reads a word inside a bracketed or double-quoted
+  name of several words** (`[Total Sales]`, `"Total Sales"`) as the table Sales; this holds for SQL
+  cells.
+- **The agent:** `connections_import_relationships` was new (188 commands then).
 - **Also changed:** a connection that fails now shows its message in the Connections window and the
   catalog, not the JSON around it (`{"error": ...}` was shown as it came).
 - **Open:** a real tenant has not been tried. What it needs: the admin setting Dataset Execute Queries
   REST API; "service principals can use Power BI APIs" for the app registration, which must be a
-  member of the workspace; Read and Build permission on the dataset. Whether the INFO functions answer
+  member of the workspace; Read and Build permission on each dataset. Whether the INFO functions answer
   through Execute Queries for a sign-in with only Build permission is not known (hence the
-  COLUMNSTATISTICS fallback). Datasets with row-level security do not take a service principal.
+  COLUMNSTATISTICS fallback). Datasets with row-level security do not take a service principal. Whether
+  the datasets list names a dataset the sign-in may not query is not known either: such a one would
+  show with the error mark.
 
 ## Streamlit cells (2026-11-15, the owner's calls)
 

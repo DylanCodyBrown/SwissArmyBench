@@ -83,9 +83,11 @@ export async function listDatasets(workspaces: string[]): Promise<string[]> {
   unlisted.clear();
   for (const workspace of workspaces) {
     try {
-      const found = await api<{ from: string; datasets: { name: string; cell: string }[] }>(`/connections/${encodeURIComponent(workspace)}/datasets?live=0`);
+      const found = await api<{ from: string; datasets: { name: string; cell: string; note?: string }[] }>(`/connections/${encodeURIComponent(workspace)}/datasets?live=0`);
       if (found.from === "none") unlisted.add(workspace);
-      out.push(...(found.datasets.length ? found.datasets.map((d) => d.cell) : [workspace]));
+      // One that could not be read goes last: a new cell starts on a dataset that answers.
+      const read = [...found.datasets.filter((d) => !d.note), ...found.datasets.filter((d) => d.note)];
+      out.push(...(read.length ? read.map((d) => d.cell) : [workspace]));
     } catch {
       out.push(workspace);
     }

@@ -2202,7 +2202,7 @@ def workbench_open(a: dict[str, Any]) -> Any:
     req("path", "An .ipynb or .py file."),
     opt(
         "cells",
-        '[{"kind": "code" | "sql" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',
+        '[{"kind": "code" | "sql" | "dax" | "html" | "markdown", "source", "connection"?, "outputs"?, "height"?}]',
         "json",
     ),
     opt("text", "A script's text."),
