@@ -1115,13 +1115,23 @@ invoices and CSVs; models built here and taken into Power BI dashboards. Decided
 "I also use the app to develop streamlit applications. So it would be cool if we could create a
 streamlit cell in the notebook so I can build streamlit widgets/pages from the data." Decided:
 
-- **One app, a page per cell:** every Streamlit cell in a notebook is a page of one Streamlit app
-  (Streamlit's own multipage apps), named by the cell's first line.
+- **Pieces, assembled like Lego** (replaces "a page per cell"): "The idea is you can build small pieces
+  and widgets in workbench. Then you can push those to the page and assemble them like Legos." Each
+  Streamlit cell is a piece (a chart, a filter, a table, a number). **Push to page** sends it to a
+  **page designer**: a window of its own (not the Sandbox), a grid you drop pieces onto, resize and move,
+  with several pages. Pages are saved inside the notebook file with their pieces (Claude's call, to
+  confirm).
+- **Pieces talk by shared names:** a piece that makes a value (a selectbox making `region`) drives every
+  piece on the same page that reads `region`. Underneath, a page is one Streamlit page: its layout is
+  drawn first as empty slots (`st.columns`/`st.container`), then the pieces run in the order their names
+  need (ast: what each makes and reads), each filling its own slot, so a filter can sit anywhere.
 - **Tables by name:** in a Streamlit cell, `orders` (any table the notebook made or the grid shows) is
   there as a DataFrame of the table after its grid steps, handed over each time the page runs. Other
   Python variables are not shared.
-- **Live in the cell,** like an HTML cell: click in to see the code, click away to see the live page in a
-  resizable pane with its widgets working; a button opens the whole app in its own window.
-- **Export as Streamlit app:** a runnable folder (app.py, pages/, the data as Parquet, requirements.txt).
+- **Live in the cell,** like an HTML cell: click in to see the code, click away to see the piece live in
+  a resizable pane with its widgets working. The page designer shows whole pages live; a button opens the
+  app in its own window.
+- **Export as Streamlit app:** the designed pages as a runnable folder (app.py, one page each, the same
+  layout, the data as Parquet, requirements.txt).
 - Streamlit runs from the notebook's own Python (installed with Install, like a driver); it is not a
   dependency of the app. Built after the Power BI connection, before the real-world test bed.
