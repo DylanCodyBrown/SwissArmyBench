@@ -478,6 +478,42 @@ the app can open and check, kept in folders or a Git repository the team already
 - **The browser draws; the server works.** Heavy page libraries load the first time they are needed.
 - **One command installs everything;** an editor is optional.
 
+## 13a. Kits: how the app grows
+
+**A new capability arrives as a kit, in one release:** a connection, a cell type, and blades, together.
+- The owner (2026-11-15): "It seems bundling connections, blades and a new cell type is the model." And:
+  "Say you are working in C#: you would add a C# data table connection, a C# cell type, then blades, as
+  one release."
+
+| Kit | Connection | Cell type | Runtime | Blades |
+|---|---|---|---|---|
+| Databases | SQL Server, Postgres, ... | SQL | the database | connection starters |
+| Power BI | a workspace (vault sign-in) | DAX | Power BI's service | refresh, status, parameters; DAX snippets |
+| Web pages | none | HTML | the page (walled-off frame) | KPI tiles, tables, invoice layout |
+| Streamlit | none | Streamlit (+ page designer) | Streamlit, from the notebook's Python | filters, metrics, charts, layout |
+| Your own code | Python | Python | the notebook's kernel | Excel and file actions |
+| C# (an example) | your C# returns a DataTable | C# | .NET Interactive, installed like a driver | ClosedXML exports, LINQ over a table |
+
+**Every kit has the same parts, checked before it ships:**
+1. **Connection** (when the kit reaches something):
+   - a form in the Connections window;
+   - secrets from the usual sources, the vault first, so the same code runs in an Azure Function;
+   - Test, which shows rows;
+   - a catalog that loads itself and feeds the tree and completion;
+   - Open as grid, with the row limit and the "First N of M rows" note.
+2. **Cell type:** its own kind, never a borrowed one (DAX was first built as "a SQL cell holding DAX" and had to be redone):
+   - colouring and completion in its language;
+   - a connection picker that lists only what it can talk to;
+   - its form in a .ipynb (a magic plain Jupyter runs too) and in a script (a marked cell that keeps the file runnable);
+   - its result as a table the rest of the app takes (Open as grid, table cells, the uses line);
+   - the out-of-date state where it has one.
+3. **Runtime** (when the language is not Python): installed with the Install button like a driver, never a dependency of the app; bound to 127.0.0.1; tables crossing to the app as Arrow.
+4. **Blades:** a family in the starter pack, read-only with Copy as your own; snippets for text cells; every piece documented in its first lines (what it does, what it makes and reads); every one run in a test.
+5. **Agent commands** for every new action (the golden rule).
+6. **Tests and docs:** a stand-in for what cannot run here; a browser test that builds one thing end to end; a guide page; screenshots.
+
+**Kits are built in parallel, so they must not tangle:** each kit's parts live in its own files; shared lists (cell kinds, dialects, connection types) change by adding an entry, never by reshaping. A registry where a kit declares its parts in one place is the planned next step (after the starter pack), and kits as packs (a team shares a whole kit, connection and cell type included) after that.
+
 ## 14. Starting a new app
 
 Set things up in this order, so every later screen inherits the rules instead of fixing them.
@@ -522,3 +558,5 @@ Run this against every new screen or feature.
 14. Does an error say what happened, where, and offer the fix? Does a disabled button say why?
 15. Does it write to disk without a click, show a password, or send anything off the computer? It must not.
 16. Tests first, made-up data in every test and screenshot, and what was checked or decided written down?
+17. Is it a new capability? Then it is a kit (13a): connection, cell type, runtime if any, blades, agent
+    commands, tests and docs, in one release.
