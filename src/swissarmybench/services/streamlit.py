@@ -1420,6 +1420,3 @@ def save_as_detail(target: str, notebook: str, tables: list[DatasetInfo]) -> str
             *_rows_of(tables),
         ]
     )
-
-
-KernelStopped = Callable[[str], Awaitable[None]]

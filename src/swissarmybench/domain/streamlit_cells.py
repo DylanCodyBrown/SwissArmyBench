@@ -47,7 +47,6 @@ from typing import Any
 
 from swissarmybench.domain import html_cells, notebooks, table_cells
 from swissarmybench.domain.blades import pip_name, provided
-from swissarmybench.domain.html_cells import check_height
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 __all__ = ["uses_streamlit", "usual_name"]
@@ -1337,11 +1336,3 @@ def bundle_names(documents: Sequence[str], taken: Iterable[str] = ()) -> dict[st
         held.add(name.lower())
         names[document] = name
     return names
-
-
-# ===== heights =====
-
-
-def check_pane(height: Any) -> int | None:
-    """A live cell's pane, in pixels (None: the usual height)."""
-    return check_height(height)
