@@ -12,7 +12,13 @@ import pytest
 from starlette.testclient import TestClient
 
 from swissarmygrid.domain.blades import env_name_for_secret, every_secret
-from swissarmygrid.domain.connections import connection_kind, opens_in_code, picker
+from swissarmygrid.domain.connections import (
+    connection_kind,
+    form_order,
+    name_from_path,
+    opens_in_code,
+    picker,
+)
 from tests.conftest import AGENT, AUTH
 from tests.fake_keyring import memory_keyring
 
@@ -596,3 +602,91 @@ def test_a_file_connection_and_a_folders_file_open_as_grids(client: TestClient, 
     assert peek == {"columns": ["order_id", "amount"], "rows": [[1, 10.5], [2, 7.0]]}
     bad = client.post("/connections/Exports/open", json={"table": "../secrets.csv"}, headers=AUTH)
     assert bad.status_code == 400
+
+
+# ===== a file connection: named after its file, and Test shows what is in it =====
+
+
+def test_a_file_connection_takes_its_name_from_its_file() -> None:
+    assert name_from_path(r"C:\data\Orders 2026.csv") == "Orders 2026"
+    assert name_from_path("/home/me/sales.q1.parquet") == "sales.q1"
+    assert name_from_path("/home/me/exports/") == "exports"  # a folder: its own name
+    assert name_from_path("") == "" and name_from_path("   ") == ""
+    assert len(name_from_path("/x/" + "a" * 200 + ".csv")) == 64  # a connection's name is 64 at most
+
+
+def test_testing_a_file_connection_shows_its_columns_and_first_rows(
+    client: TestClient, tmp_path: Path
+) -> None:
+    lines = ["order_id,region,amount"] + [
+        f"{i},{'North' if i % 2 else 'South'},{i * 1.5}" for i in range(1, 41)
+    ]
+    (tmp_path / "orders.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    draft = csv_connection(tmp_path / "orders.csv") | {"name": ""}
+    tested = client.post("/connections/test", json=draft, headers=AGENT)
+    assert tested.status_code == 200, tested.text
+    answer = tested.json()
+    # No name typed: the file's own, given back so the form can show it.
+    assert answer["name"] == "orders"
+    assert answer["preview"]["columns"] == ["order_id", "region", "amount"]
+    assert answer["preview"]["rows"][0] == [1, "North", 1.5] and len(answer["preview"]["rows"]) == 20
+    # A typed name is kept; a folder has no one table to show.
+    named = client.post("/connections/test", json=draft | {"name": "Sales"}, headers=AUTH).json()
+    assert "name" not in named and named["preview"]["columns"][0] == "order_id"
+    folder = client.post("/connections/test", json=csv_connection(tmp_path) | {"name": ""}, headers=AUTH)
+    assert folder.status_code == 200 and "preview" not in folder.json()
+    assert client.get("/connections", headers=AUTH).json()["connections"] == []  # nothing was saved
+
+
+def test_a_file_that_cannot_be_read_still_passes_its_test_and_says_why_there_is_no_preview(
+    client: TestClient, tmp_path: Path
+) -> None:
+    (tmp_path / "broken.parquet").write_text("this is not parquet", encoding="utf-8")
+    draft = csv_connection(tmp_path / "broken.parquet") | {"template": "parquet", "name": ""}
+    tested = client.post("/connections/test", json=draft, headers=AUTH)
+    assert tested.status_code == 200, tested.text
+    assert tested.json()["found"].startswith("a file of") and tested.json()["preview_error"]
+
+
+# ===== a database form's order: where, who, then how it is secured =====
+
+
+def test_every_database_form_has_one_order() -> None:
+    # Trino's code names them user, certificate, trust, server, port, catalog, scheme.
+    trino = ["user", "certificate file", "trust server certificate", "server", "port", "catalog", "scheme"]
+    assert form_order(trino) == {
+        "where": ["server", "port", "catalog", "scheme"],
+        "who": ["user"],
+        "security": ["certificate file", "trust server certificate"],
+    }
+    # SQL Server: the driver is not what people look for first; encrypt sits with the certificate.
+    sqlserver = ["driver", "server", "database", "encrypt", "trust server certificate"]
+    assert form_order(sqlserver) == {
+        "where": ["server", "database", "driver"],
+        "who": [],
+        "security": ["encrypt", "trust server certificate"],
+    }
+    assert form_order(["database", "server", "port", "user"])["where"] == ["server", "port", "database"]
+    # An account, a project or a data source stands where the server does; unknown settings keep
+    # the order of the code, after the database.
+    assert form_order(["account", "user", "warehouse", "database"]) == {
+        "where": ["account", "database", "warehouse"],
+        "who": ["user"],
+        "security": [],
+    }
+    assert form_order(["User", "Data Source"])["where"] == ["Data Source"]  # whatever the letters' case
+
+
+def test_the_forms_carry_their_order(client: TestClient) -> None:
+    types = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
+    assert types["trino"]["field_order"] == {
+        "where": ["server", "port", "catalog", "scheme"],
+        "who": ["user"],
+        "security": ["certificate file", "trust server certificate"],
+    }
+    for kind in ("postgres", "mysql", "vertica"):
+        assert types[kind]["field_order"]["where"][:3] == ["server", "port", "database"], kind
+        assert types[kind]["field_order"]["who"] == ["user"], kind
+    # The rule itself goes with every form, for fields that come later (another way to sign in).
+    assert types["sqlserver"]["field_places"]["user"] == {"part": "who", "rank": 0}
+    assert types["sqlserver"]["field_places"]["certificate file"] == {"part": "security", "rank": 1}

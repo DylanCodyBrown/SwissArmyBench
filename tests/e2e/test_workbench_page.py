@@ -78,6 +78,12 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     expect(name).to_have_value("orders")  # named after the file
     page.get_by_role("button", name="Test connection").click()
     expect(page.locator(".connection-result")).to_contain_text("It works: a file of", timeout=30000)
+    # Test shows what is in the file: its columns and its first rows (decision 11).
+    preview = page.locator(".connection-result .connection-preview")
+    expect(preview.locator("th")).to_have_text(["order_id", "region", "amount"])
+    expect(preview.locator("tbody tr")).to_have_count(3)
+    expect(preview.locator("tbody tr").first.locator("td")).to_have_text(["1", "North", "10.5"])
+    expect(page.locator(".connection-result")).to_contain_text("3 columns, the first 3 rows")
     page.locator("dialog .dialog-foot").get_by_role("button", name="Save").click()
     expect(page.locator(".connection-list")).to_contain_text("orders")
     expect(page.locator(".connection-list")).to_contain_text('sag.connection("orders")')
@@ -90,6 +96,131 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     expect(page.locator(".connection-row")).to_have_count(1)
     listed = call(server, "GET", "/connections")["connections"]
     assert [(c["name"], c["connection"]) for c in listed] == [("orders", "file")]
+
+
+def test_a_file_connection_is_named_after_a_typed_path_and_tested_before_it_is_named(
+    browser: Browser, orders_url: str, server: dict[str, Any], orders_csv: Path
+) -> None:
+    page = open_grid(browser, orders_url)
+    dialog = page.locator("dialog")
+    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.get_by_role("button", name="Add connection").click()
+    page.locator(".connection-type", has_text="CSV file").click()
+    name = dialog.get_by_role("textbox", name="Name", exact=True)
+    expect(name).to_have_value("")
+    # The path typed (not picked): the name follows it, as it does a picked file.
+    path = dialog.get_by_role("textbox", name="Path")
+    path.fill(str(orders_csv))
+    path.press("Tab")
+    expect(name).to_have_value("orders")
+    # With the Name box emptied, Test still runs, under the file's name, and puts it back.
+    name.fill("")
+    page.get_by_role("button", name="Test connection").click()
+    expect(page.locator(".connection-result .connection-preview th")).to_have_text(
+        ["order_id", "region", "amount"], timeout=30000
+    )
+    expect(name).to_have_value("orders")
+    # A name the user typed is theirs: another path does not change it.
+    name.fill("Shop orders")
+    path.fill(str(orders_csv.parent / "other.csv"))
+    path.press("Tab")
+    expect(name).to_have_value("Shop orders")
+
+
+def test_a_missing_driver_is_installed_from_the_form_and_the_command_stays_in_view(
+    browser: Browser, orders_url: str
+) -> None:
+    """Decision 12. The install itself is answered by the test (nothing is downloaded here): the form
+    asks for it, says it is running, and reads the code's packages again when it is done."""
+    page = open_grid(browser, orders_url)
+    dialog = page.locator("dialog")
+    asked: list[Any] = []
+    installed = {"done": False}
+
+    def install(route: Any) -> None:
+        asked.append(json.loads(route.request.post_data or "{}"))
+        installed["done"] = True
+        route.fulfill(status=200, content_type="application/json", body='{"ok": true, "output": ""}')
+
+    def inspect(route: Any) -> None:
+        # The server's own answer, with the package as installed once the install has run.
+        answer = route.fetch()
+        found = answer.json()
+        if installed["done"]:
+            found["install_here"] = None
+            found["packages"] = [p | {"installed": True} for p in found["packages"]]
+        route.fulfill(response=answer, json=found)
+
+    page.route("**/blades/install", install)
+    page.route("**/blades/inspect", inspect)
+    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.get_by_role("button", name="Add connection").click()
+    page.locator(".connection-type", has_text="Trino").click()
+    note = dialog.locator(".install-note")
+    # The command stays in view, for the user's own Python; Install sits beside it.
+    expect(note).to_contain_text("Driver not installed:")
+    expect(note.locator("code")).to_contain_text("trino")
+    note.get_by_role("button", name="Install").click()  # one action
+    # Done: the form has read the code again and the note is gone, since there is nothing to do.
+    expect(note).to_have_count(0, timeout=15000)
+    assert asked and "trino" in asked[0]["packages"]
+
+
+def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
+    browser: Browser, orders_url: str
+) -> None:
+    """Decision 14: server, port, catalog or database; then the user and the password; then the
+    certificate file and Trust server certificate together."""
+    page = open_grid(browser, orders_url)
+    dialog = page.locator("dialog")
+    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.get_by_role("button", name="Add connection").click()
+
+    def labels() -> list[str]:
+        """The form's visible field labels, top to bottom then left to right."""
+        found = dialog.locator(".dialog-body .field > span:not(.field-row)").evaluate_all(
+            """spans => spans.filter(s => s.offsetParent).map(s => ({ text: s.firstChild.textContent.trim(),
+                 box: s.getBoundingClientRect() }))
+                 .sort((a, b) => Math.round(a.box.top) - Math.round(b.box.top) || a.box.left - b.box.left)
+                 .map(s => s.text)"""
+        )
+        return [str(text) for text in found]
+
+    page.locator(".connection-type", has_text="Trino").click()
+    expect(dialog.get_by_role("textbox", name="Server")).to_be_visible()
+    assert labels() == [
+        "Name",
+        "Description",
+        "Server",
+        "Port",
+        "Catalog",
+        "Scheme",
+        "User",
+        "Password comes from",
+        "Password",
+        "Certificate file",
+        "Trust server certificate",
+        "Rows to open",
+    ]
+    # The password box has its own label, and the box is the one it names.
+    box = dialog.locator(".password-box")
+    expect(box.locator("> span").first).to_have_text("Password")
+    expect(box.get_by_label("Password", exact=True)).to_have_attribute("type", "password")
+    dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
+
+    page.locator(".connection-type", has_text="PostgreSQL").click()
+    expect(dialog.get_by_role("textbox", name="Server")).to_be_visible()
+    assert labels()[2:7] == ["Server", "Port", "Database", "User", "Password comes from"]
+    dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
+
+    # SQL Server: the user arrives with another way to sign in, and lands in the same place.
+    page.locator(".connection-type", has_text="SQL Server").first.click()
+    dialog.get_by_role("combobox", name="Sign in").select_option(label="User name and password")
+    expect(dialog.get_by_role("textbox", name="User")).to_be_visible()
+    found = labels()
+    assert found[2:4] == ["Server", "Database"]
+    assert found.index("Sign in") < found.index("User") < found.index("Password comes from")
+    assert found.index("Password") < found.index("Encrypt") < found.index("Trust server certificate")
 
 
 MADE_UP_VAULT = """values = {"warehouse-password": "made-up-not-real", "api-key": "made-up", "3d-token": "x"}
@@ -138,14 +269,34 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         # Back on the PostgreSQL form: its password is a secret in the new vault, under its own name.
         expect(dialog.locator("h3")).to_have_text("New PostgreSQL connection")
         expect(dialog.get_by_role("combobox", name="Vault", exact=True)).to_have_value("Azure Key Vault")
-        dialog.get_by_role("textbox", name="The secret's name in the vault").fill("warehouse-password")
-        dialog.get_by_role("button", name="Use it").click()
-        expect(code_box(dialog)).to_have_value(re.compile(r'secret\("warehouse_password"\)'))
-        # Drawn again as chosen: the vault, and the secret's name there.
-        expect(dialog.get_by_role("combobox", name="Where Password comes from")).to_have_value("vault")
-        expect(dialog.get_by_role("textbox", name="The secret's name in the vault")).to_have_value(
-            "warehouse-password"
+        # Entry in the vault lists the vault's secrets by name, read in the background (decision 13):
+        # nothing to type, and never a value.
+        entry = dialog.get_by_role("combobox", name="Entry in the vault")
+        expect(entry.locator("option")).to_have_text(
+            [
+                "Choose a secret",
+                "api-key (as CRM_KEY)",
+                "3d-token",
+                "warehouse-password",
+                "A secret by name…",
+            ],
+            timeout=30000,
         )
+        expect(dialog).not_to_contain_text("made-up")
+        expect(dialog.get_by_role("button", name="Use it")).to_be_hidden()
+        # One action: picking the secret applies it. No box to fill, no Use it to press.
+        entry.select_option("warehouse-password")
+        expect(code_box(dialog)).to_have_value(re.compile(r'secret\("warehouse_password"\)'))
+        # Drawn again as chosen: the vault, and the secret picked there.
+        expect(dialog.get_by_role("combobox", name="Where Password comes from")).to_have_value("vault")
+        expect(dialog.get_by_role("combobox", name="Entry in the vault")).to_have_value("warehouse-password")
+        # A secret the vault does not list can still be named by hand.
+        dialog.get_by_role("combobox", name="Entry in the vault").select_option(label="A secret by name…")
+        typed = dialog.get_by_role("textbox", name="The secret's name in the vault")
+        expect(typed).to_be_focused()
+        typed.fill("reporting-password")
+        dialog.get_by_role("button", name="Use it").click()
+        expect(code_box(dialog)).to_have_value(re.compile(r'secret\("reporting_password"\)'))
         # The vault is a connection: in the list under Key vaults, with what it sets.
         dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
         dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()

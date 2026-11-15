@@ -1214,7 +1214,7 @@ def blades_refresh(a: dict[str, Any]) -> Any:
     req("packages", "pip names, such as pyodbc.", "list"),
 )
 def blades_install(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/blades/install", a["packages"], timeout=900.0)
+    return api.call("POST", "/blades/install", {"packages": a["packages"]}, timeout=900.0)
 
 
 @command(
@@ -2019,7 +2019,9 @@ def connections_update(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_test",
-    "Run a connection's code, saved or not, in a child process: does it connect? (a file: is it there?)",
+    "Run a connection's code, saved or not, in a child process: does it connect? (a file: is it there?) "
+    "With code for a file type, the answer also has the file's columns and first rows (preview), and the "
+    "name it would take from its file when none is given.",
     req("name", "Its name (a saved one is tested as saved unless code is given)."),
     opt("kind", "With code: sql or other."),
     opt("code", "Test this code instead of the saved."),

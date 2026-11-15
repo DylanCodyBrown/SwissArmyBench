@@ -315,6 +315,7 @@ pre,
 input[type="text"],
 input[type="number"],
 input[type="date"],
+input[type="password"],
 select,
 textarea {
   min-height: 28px;
@@ -4139,6 +4140,10 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   margin: 10px 0;
 }
 
+.connection-fields:empty {
+  display: none; /* a part of the form with no setting (a file has no "who") takes no room */
+}
+
 .connection-fields .field-flag {
   flex-direction: row;
   align-items: center;
@@ -4155,6 +4160,74 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
 .connection-fields .field-row input {
   flex: 1;
   min-width: 0;
+}
+
+/* Security: the certificate file sits beside Trust server certificate, in the order of the rule. */
+.connection-security .field.wide {
+  grid-column: span 2;
+  order: 0;
+}
+
+/* A password: where it comes from, then its own box, each under its label. */
+.connection-password {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 2fr;
+  gap: 8px 14px;
+}
+
+.connection-password .field-row {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.connection-password .field-row input,
+.connection-password .field-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A driver that is not installed: the command, Install beside it. */
+.install-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A file connection's Test: the file's columns and first rows. */
+.connection-preview {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.connection-preview table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.connection-preview th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  text-align: left;
+}
+
+.connection-preview th,
+.connection-preview td {
+  padding: 3px 10px;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-preview td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .connection-passwords {

@@ -322,6 +322,7 @@ def _tested(value: Any) -> dict[str, Any]:
     made = {"ok": True, "type": f"{type(value).__module__}.{type(value).__qualname__}"}
     if isinstance(value, os.PathLike):
         path = Path(value).expanduser()
+        made["path"] = str(path)  # where it is, for a file connection's preview (services/connections.py)
         if path.is_dir():
             files = [p for p in path.iterdir() if p.is_file()]
             return made | {"found": f"a folder of {len(files)} file{'' if len(files) == 1 else 's'}"}

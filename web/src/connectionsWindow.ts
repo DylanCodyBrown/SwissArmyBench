@@ -6,6 +6,13 @@
  *   [LIST]   each connection: its type, its catalog, Edit, Test, Refresh catalog, Copy for Python, Remove;
  *            a key vault shows its entries (variable <- secret in the vault) instead
  *   [ADD]    pick a type (Databases, Files, Vaults), then its form:
+ *   [ORDER]  every database form reads the same way (the owner's decision 14; the rule is
+ *            domain/connections.py form_order): where it is (server, port, catalog or database, then the
+ *            rest), who signs in (Sign in, the user, then each password under its own label), how it is
+ *            secured (encrypt, the certificate file and Trust server certificate together)
+ *   [FILE]   a file connection is named after the file picked or typed; Test shows the file's columns
+ *            and first rows
+ *   [DRIVER] a driver that is not installed: the command, and Install beside it (into the app's Python)
  *   [FORM]   a name; Sign in, where the type has several ways (SQL Server, Azure SQL: Windows, user name
  *            and password, MFA), each its own code, switched keeping what was typed; the starter's
  *            settings as fields (on/off ones as checkboxes; a file or folder field has Browse…); its
@@ -21,6 +28,7 @@
  *          [FIELD] POST /blades/fill (the value into the code)   [CODE] POST /blades/inspect (its fields again)
  *          [TEST]  POST /connections/test        [SAVE] POST /connections, PUT /connections/{name}
  *          [VAULT] POST /connections/vaults/secrets (the names in it); GET /connections/vaults (a password's)
+ *          [INSTALL] POST /blades/install {packages}, then POST /blades/inspect (is it installed now?)
  */
 import { api, onNotice } from "./api";
 import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
@@ -52,6 +60,10 @@ interface Form {
   fields: Field[];
   secrets: string[];
   install_here: string | null;
+  /** The packages the code needs, each installed in the app's Python or not. */
+  packages?: { pip: string; installed: boolean }[];
+  /** The rule's place for each setting it names: its part of the form and its rank there. */
+  field_places?: Record<string, { part: "where" | "who" | "security"; rank: number }>;
   name?: string;
   description?: string;
   summary?: { secrets: Record<string, boolean> };
@@ -136,6 +148,26 @@ function catalogWord(c: Connection): HTMLElement | null {
   if (state === "loading") return h("span", { class: "hint" }, "loading catalog…");
   if (state === "failed") return h("span", { class: "status-error", title: c.catalog_state?.error ?? "" }, "catalog not loaded");
   return null;
+}
+
+interface Preview {
+  columns: string[];
+  rows: unknown[][];
+  sheet?: string;
+}
+
+/** A file connection's Test: what is in the file, its columns and first rows. */
+function previewOf(preview: Preview): HTMLElement[] {
+  const n = preview.columns.length;
+  const shown = (value: unknown): string => (value === null || value === undefined ? "" : String(value));
+  return [
+    h("p", { class: "hint" }, `${preview.sheet ? `Sheet ${preview.sheet}: ` : ""}${n.toLocaleString()} column${n === 1 ? "" : "s"}, the first ${preview.rows.length.toLocaleString()} row${preview.rows.length === 1 ? "" : "s"}`),
+    h(
+      "div",
+      { class: "connection-preview", tabindex: 0, role: "region", "aria-label": "The file's first rows" },
+      h("table", { class: "small" }, h("thead", {}, h("tr", {}, ...preview.columns.map((c) => h("th", {}, c)))), h("tbody", {}, ...preview.rows.map((row) => h("tr", {}, ...row.map((v) => h("td", { class: typeof v === "number" ? "num" : "" }, shown(v))))))),
+    ),
+  ];
 }
 
 /** On the grid page the new table arrives as the tab in front, so this window closes to show it
@@ -308,9 +340,11 @@ export async function openConnections(): Promise<void> {
     // A database is named after its type until renamed; a file connection after the file chosen.
     const name = h("input", { type: "text", value: form.name ?? (form.connection === "file" ? "" : plain(form.label)), "aria-label": "Name", maxlength: 64 });
     let named = Boolean(form.name);
-    name.addEventListener("input", () => (named = true));
+    name.addEventListener("input", () => (named = name.value.trim() !== "")); // emptied: not named again
     const description = h("input", { type: "text", value: form.description ?? "", "aria-label": "Description", placeholder: "Optional" });
     const fieldsHost = h("div", { class: "connection-fields" });
+    const whoHost = h("div", { class: "connection-fields connection-who" });
+    const securityHost = h("div", { class: "connection-fields connection-security" });
     const passwords = new Map<string, HTMLInputElement>();
     const codeBox = h("textarea", { class: "mono connection-code", rows: 8, spellcheck: false, "aria-label": "The Python this connection runs" }, code) as HTMLTextAreaElement;
     const result = h("div", { class: "connection-result", role: "status" });
@@ -340,7 +374,11 @@ export async function openConnections(): Promise<void> {
           return h("label", { class: "field field-flag" }, tick, h("span", {}, words(field.name)));
         }
         const input = h("input", { type: field.type === "number" ? "number" : "text", value: field.placeholder ? "" : String(field.value), placeholder: String(field.value), "aria-label": words(field.name), spellcheck: false });
-        input.addEventListener("change", () => void fill(fields[i]!, input.value));
+        input.addEventListener("change", () => {
+          // A file connection is named after its file, picked or typed, until the user names it.
+          if (field.picker && !named && input.value.trim()) name.value = stem(input.value.trim());
+          void fill(fields[i]!, input.value);
+        });
         const browse = field.picker
           ? button("Browse…", () => {
               const suffixes = field.name === "certificate file" ? [".pem", ".crt", ".cer"] : FILE_KINDS[form.id];
@@ -356,7 +394,19 @@ export async function openConnections(): Promise<void> {
         if (list) input.setAttribute("list", `conn-suggest-${i}`);
         return h("label", { class: `field${field.picker ? " wide" : ""}` }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, input, browse), list);
       });
-      clear(fieldsHost, ...boxes);
+      // The same order on every form: where, who, security (a setting the rule does not name stays
+      // with "where", after the ones it does, in the code's order).
+      const part = (f: Field): string => form.field_places?.[f.name.toLowerCase()]?.part ?? "where";
+      const place = (f: Field): number => form.field_places?.[f.name.toLowerCase()]?.rank ?? 9;
+      const of = (wanted: string): HTMLElement[] =>
+        fields
+          .map((f, i) => ({ f, i }))
+          .filter(({ f }) => part(f) === wanted)
+          .sort((a, b) => place(a.f) - place(b.f) || a.i - b.i)
+          .map(({ i }) => boxes[i]!);
+      clear(fieldsHost, ...of("where"));
+      clear(whoHost, ...of("who"));
+      clear(securityHost, ...of("security"));
     };
     drawFields(fields);
 
@@ -364,6 +414,18 @@ export async function openConnections(): Promise<void> {
     // vault (a vault blade's entry, or a new one added to it). Variables and vault entries are named in
     // the code: secret("WAREHOUSE_PASSWORD"), read from the environment the vault sets.
     let vaults: Vault[] = [];
+    // Each vault's secret names, read once in the background (names only: the server never sends a
+    // value); null: a vault that does not list them.
+    const secretNames = new Map<string, Promise<string[] | null>>();
+    const vaultSecrets = (vault: string): Promise<string[] | null> => {
+      let reading = secretNames.get(vault);
+      if (!reading) {
+        reading = api<{ names: Mapping[] | null }>("/connections/vaults/secrets", "POST", { name: vault }).then((r) => (r.names ? r.names.map((n) => n.secret) : null));
+        reading.catch(() => secretNames.delete(vault)); // a failed read is tried again next time
+        secretNames.set(vault, reading);
+      }
+      return reading;
+    };
     const readVaults = (): Promise<unknown> => api<{ vaults: Vault[] }>("/connections/vaults").then((r) => (vaults = r.vaults), () => undefined);
     const vaultsRead = readVaults();
     // Each password's source as the user chose it (kept when the passwords are drawn again).
@@ -407,16 +469,21 @@ export async function openConnections(): Promise<void> {
           const origin = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : "keyring");
           const from = h("select", { "aria-label": `Where ${label(s)} comes from` }, h("option", { value: "keyring", selected: origin === "keyring" }, "Saved on this computer"), h("option", { value: "env", selected: origin === "env" }, "An environment variable"), h("option", { value: "vault", selected: origin === "vault" }, "A key vault"));
           const slot = h("span", { class: "field-row" });
+          // The box's own label, above it: what to type or pick there.
+          const boxLabel = h("span", {});
           const draw = (): void => {
             if (from.value === "keyring") {
+              boxLabel.textContent = label(s);
               const input = h("input", { type: "password", autocomplete: "new-password", "aria-label": label(s), placeholder: saved[s] ? "Saved" : "" });
               passwords.set(s, input);
               slot.replaceChildren(input);
             } else if (from.value === "env") {
+              boxLabel.textContent = "Variable's name";
               passwords.delete(s);
               const variable = h("input", { type: "text", class: "mono", "aria-label": `${label(s)}: the variable's name`, value: looksLikeVariable(s) ? s : "", placeholder: "WAREHOUSE_PASSWORD", spellcheck: false });
               slot.replaceChildren(variable, button("Use it", () => void pointAt(s, { from: "env", env: variable.value.trim() }), { icon: "check" }));
             } else {
+              boxLabel.textContent = "Vault and its entry";
               passwords.delete(s);
               if (!vaults.length) {
                 slot.replaceChildren(button("New vault", () => newVault(s), { icon: "plus" }));
@@ -425,15 +492,50 @@ export async function openConnections(): Promise<void> {
               const vault = h("select", { "aria-label": "Vault" }, ...vaults.map((v) => h("option", { value: v.name, selected: v === inVault }, v.name)));
               const entry = h("select", { "aria-label": "Entry in the vault" });
               const newName = h("input", { type: "text", "aria-label": "The secret's name in the vault", placeholder: "Secret name", spellcheck: false, value: pointedAt.get(s) ? (secretOf.get(s) ?? "") : "" });
+              const useTyped = button("Use it", () => void pointAt(s, { from: "vault", vault: vault.value, vault_secret: newName.value.trim() }), { icon: "check" });
+              const BY_NAME = "\u0000by-name";
+              // The vault's secrets by name (never a value), read in the background: its entries show
+              // at once, the rest as they arrive. Picking one applies it; there is nothing else to press.
+              let filling = 0;
               const fillEntries = (): void => {
+                const mine = ++filling;
                 const chosen = vaults.find((v) => v.name === vault.value);
-                clear(entry, ...(chosen?.entries ?? []).map((e) => h("option", { value: e.env, selected: e.env === s }, `${e.secret} (as ${e.env})`)), chosen?.read_only ? null : h("option", { value: "", selected: !chosen?.entries.some((e) => e.env === s) }, chosen?.every ? "A secret by name…" : "A new entry…"));
-                newName.hidden = entry.value !== "";
+                const mapped = chosen?.entries ?? [];
+                const current = mapped.find((e) => e.env === s)?.secret ?? (pointedAt.get(s) === vault.value ? secretOf.get(s) : undefined);
+                const paint = (names: string[] | null, state: "reading" | "read" | "unlisted" | "failed"): void => {
+                  if (mine !== filling) return;
+                  const all = [...new Set([...mapped.map((e) => e.secret), ...(names ?? []), ...(current ? [current] : [])])];
+                  const typing = entry.value === BY_NAME || (state !== "reading" && !all.length);
+                  clear(
+                    entry,
+                    h("option", { value: "", disabled: true, selected: !current && !typing }, state === "reading" ? "Reading the vault…" : all.length ? "Choose a secret" : "No secrets listed"),
+                    ...all.map((secret) => {
+                      const as = mapped.find((e) => e.secret === secret)?.env;
+                      return h("option", { value: secret, selected: secret === current && !typing }, as && as !== envFor(secret) ? `${secret} (as ${as})` : secret);
+                    }),
+                    chosen?.read_only && !chosen.every ? null : h("option", { value: BY_NAME, selected: typing }, "A secret by name…"),
+                  );
+                  entry.title = state === "unlisted" ? "This vault does not list its secrets" : state === "failed" ? "The vault could not be read" : "";
+                  newName.hidden = useTyped.hidden = entry.value !== BY_NAME;
+                };
+                paint(null, "reading");
+                void vaultSecrets(vault.value).then(
+                  (names) => paint(names, names === null ? "unlisted" : "read"),
+                  () => paint(null, "failed"),
+                );
               };
               vault.addEventListener("change", fillEntries);
-              entry.addEventListener("change", () => (newName.hidden = entry.value !== ""));
+              entry.addEventListener("change", () => {
+                newName.hidden = useTyped.hidden = entry.value !== BY_NAME;
+                if (entry.value === BY_NAME) {
+                  newName.focus();
+                  return;
+                }
+                const picked = vaults.find((v) => v.name === vault.value)?.entries.find((e) => e.secret === entry.value);
+                void pointAt(s, picked ? { from: "vault", vault: vault.value, env: picked.env } : { from: "vault", vault: vault.value, vault_secret: entry.value });
+              });
               fillEntries();
-              slot.replaceChildren(vault, entry, newName, button("Use it", () => void pointAt(s, entry.value ? { from: "vault", vault: vault.value, env: entry.value } : { from: "vault", vault: vault.value, vault_secret: newName.value.trim() }), { icon: "check" }));
+              slot.replaceChildren(vault, entry, newName, useTyped);
             }
           };
           from.addEventListener("change", () => {
@@ -441,7 +543,12 @@ export async function openConnections(): Promise<void> {
             draw();
           });
           draw();
-          return h("div", { class: "field connection-password" }, h("span", {}, label(s)), h("span", { class: "field-row" }, from, slot));
+          return h(
+            "div",
+            { class: "connection-password" },
+            h("label", { class: "field" }, h("span", {}, `${label(s)} comes from`), from),
+            h("div", { class: "field password-box" }, boxLabel, slot),
+          );
         }),
       );
     };
@@ -539,10 +646,11 @@ export async function openConnections(): Promise<void> {
     // The code edited by hand: read its fields and passwords again.
     codeBox.addEventListener("change", () => {
       code = codeBox.value;
-      void api<{ settings: Field[]; secrets: string[]; install_here: string | null }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing }).then(
+      void api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing }).then(
         (found) => {
           // The packages the code needs now (a stale "Not installed" once stayed after the code changed).
           form.install_here = found.install_here;
+          form.packages = found.packages;
           drawInstall();
           drawFields(found.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? null })));
           if (found.secrets.join() !== form.secrets.join()) {
@@ -585,8 +693,14 @@ export async function openConnections(): Promise<void> {
     const test = async (): Promise<void> => {
       result.replaceChildren(h("p", { class: "hint" }, isVault ? "Reading…" : "Connecting…"));
       try {
-        const r = await api<{ type?: string; found?: string; variables?: string[] }>("/connections/test", "POST", { ...sent(), secrets: typed() });
-        result.replaceChildren(h("p", { class: "status-ok" }, `It works: ${worked(r)}.`));
+        const r = await api<{ type?: string; found?: string; variables?: string[]; name?: string; preview?: Preview; preview_error?: string }>("/connections/test", "POST", { ...sent(), secrets: typed() });
+        // Tested before it was named: the file's own name, as the server used it.
+        if (r.name && !name.value.trim()) name.value = r.name;
+        result.replaceChildren(
+          h("p", { class: "status-ok" }, `It works: ${worked(r)}.`),
+          ...(r.preview ? previewOf(r.preview) : []),
+          r.preview_error ? h("p", { class: "status-error" }, `Its rows could not be read: ${r.preview_error}`) : "",
+        );
       } catch (e) {
         failed(e);
       }
@@ -634,8 +748,45 @@ export async function openConnections(): Promise<void> {
     const rowLimitField = form.connection === "database" ? h("label", { class: "field" }, h("span", {}, "Rows to open"), rowLimit) : null;
     const passwordsSlot = h("div", {}, drawPasswords() ?? "");
     const installSlot = h("div", {});
-    const drawInstall = (): void =>
-      void installSlot.replaceChildren(...(form.install_here ? [h("p", { class: "hint" }, isVault ? "Not installed: " : "Driver not installed: ", h("code", {}, form.install_here))] : []));
+    // A driver that is not installed: the command stays in view (for the user's own Python too) with
+    // Install beside it, which puts it into the app's Python; the note goes once it is there.
+    const drawInstall = (): void => {
+      if (!form.install_here) {
+        installSlot.replaceChildren();
+        return;
+      }
+      const missing = (form.packages ?? []).filter((p) => !p.installed).map((p) => p.pip);
+      const state = h("span", { class: "hint", role: "status" });
+      const failedBox = h("pre", { class: "code-box", hidden: true });
+      const go = button("Install", () => {
+        go.disabled = true;
+        state.textContent = "Installing…";
+        failedBox.hidden = true;
+        void api<{ ok: boolean }>("/blades/install", "POST", { packages: missing })
+          .then(() => api<{ install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing }))
+          .then(
+            (found) => {
+              form.install_here = found.install_here;
+              form.packages = found.packages;
+              drawInstall();
+            },
+            (e: Error) => {
+              go.disabled = false;
+              state.textContent = "";
+              let message = e.message;
+              try {
+                message = (JSON.parse(message) as { output?: string }).output || message;
+              } catch {
+                // plain words already
+              }
+              failedBox.textContent = message;
+              failedBox.hidden = false;
+            },
+          );
+      }, { icon: "export", title: "Into this app's own Python" });
+      go.disabled = !missing.length;
+      installSlot.replaceChildren(h("p", { class: "hint install-note" }, isVault ? "Not installed: " : "Driver not installed: ", h("code", {}, form.install_here), go, state), failedBox);
+    };
     drawInstall();
     clear(
       body,
@@ -643,10 +794,12 @@ export async function openConnections(): Promise<void> {
       form.note ? h("p", { class: "hint" }, form.note) : null,
       h("label", { class: "field" }, h("span", {}, "Name"), name),
       h("label", { class: "field" }, h("span", {}, "Description"), description),
-      signIn,
       fieldsHost,
-      rowLimitField,
+      signIn,
+      whoHost,
       passwordsSlot,
+      securityHost,
+      rowLimitField,
       secretsBox,
       installSlot,
       result,

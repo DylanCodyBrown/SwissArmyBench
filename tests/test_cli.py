@@ -862,3 +862,11 @@ def test_the_agent_works_the_workbench_as_the_user_does(live: Live, tmp_path: Pa
         assert saved["cells"][0]["outputs"][0]["text"] == "42\n"  # the outputs were saved into the file
     finally:
         run("workbench_kernel", kernel=kernel, action="stop")
+
+
+def test_blades_install_sends_its_packages_as_the_server_reads_them(live: Live) -> None:
+    """The command sent a bare list, which the route refused ("Send a JSON object") before it ever
+    looked at the names. A name pip would refuse reaches the service now, which says what to send;
+    nothing is installed here."""
+    with pytest.raises(CommandError, match="Name 1 to 20 packages"):
+        execute("blades_install", {"packages": ["not a package name!"]})

@@ -94,7 +94,12 @@ export function chooseFile(options: ChooseOptions): Promise<string | null> {
       const at = found;
       // A path typed while this folder was being read is kept: the answer once replaced it, so the
       // Enter that followed opened this folder instead of the one typed.
-      if (where.value === typed || document.activeElement !== where) where.value = at.path;
+      // And an empty box with the cursor in it is about to be typed in: the first folder's answer,
+      // written there in that moment, ended up in front of the typed path ("/home/me" + "/data/x"),
+      // which then could not be opened. The folder shown is the box's faint text meanwhile.
+      const typing = document.activeElement === where;
+      if (!typing || (where.value === typed && typed !== "")) where.value = at.path;
+      where.placeholder = at.path;
       clear(roots, ...at.roots.map((r) => h("option", { value: r, selected: r === at.path }, r === at.home ? `Home (${r})` : r)));
       const rows = [
         ...(at.parent ? [h("li", { class: "file-row folder", role: "option", tabindex: 0, onclick: () => void go(at.parent) }, h("span", { class: "file-name" }, ".."))] : []),

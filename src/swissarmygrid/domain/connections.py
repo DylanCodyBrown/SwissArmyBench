@@ -82,6 +82,46 @@ def picker(setting: dict[str, Any], template: str | None) -> str | None:
     return None
 
 
+# ===== a form's order (the owner's decision 14): the same on every database form =====
+#
+# Where it is (server, port, catalog or database, then anything else the code asks for), then who signs
+# in (the user; the form puts the password beside it), then how the connection is secured (encrypt, the
+# certificate file and Trust server certificate together). The code's own order differs from starter
+# to starter (Trino's begins with the user), so the form does not follow it.
+
+_PLACES: dict[str, tuple[str, int]] = {
+    "server": ("where", 0),
+    "host": ("where", 0),
+    "account": ("where", 0),
+    "project": ("where", 0),
+    "data source": ("where", 0),
+    "path": ("where", 0),
+    "port": ("where", 1),
+    "catalog": ("where", 2),
+    "database": ("where", 3),
+    "user": ("who", 0),
+    "encrypt": ("security", 0),
+    "certificate file": ("security", 1),
+    "trust server certificate": ("security", 2),
+}
+_OTHER = ("where", 9)  # a setting the rule does not name: after the database, in the code's order
+
+
+def field_places() -> dict[str, dict[str, Any]]:
+    """Each setting the rule names: its part of the form (where, who or security) and its rank there.
+    The form uses it for settings that arrive later (another way to sign in brings a user)."""
+    return {name: {"part": part, "rank": rank} for name, (part, rank) in _PLACES.items()}
+
+
+def form_order(names: list[str]) -> dict[str, list[str]]:
+    """A form's settings (in the code's order) as the form shows them: {"where", "who", "security"}."""
+    parts: dict[str, list[tuple[int, int, str]]] = {"where": [], "who": [], "security": []}
+    for at, name in enumerate(names):
+        part, rank = _PLACES.get(name.lower(), _OTHER)
+        parts[part].append((rank, at, name))
+    return {part: [name for _, _, name in sorted(found)] for part, found in parts.items()}
+
+
 def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
     """A starter as the Add connection form: its fields (the code's settings, a picker where one is a
     path), its passwords (the code's secret names), and the code they are written into."""
@@ -101,6 +141,8 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "note": template.get("note", ""),
         "code": template["code"],
         "fields": fields,
+        "field_order": form_order([str(f.get("name", "")) for f in fields]),
+        "field_places": field_places(),
         "secrets": list(inspected.get("secrets", [])),
         "packages": inspected.get("packages", []),
         "install_here": inspected.get("install_here"),
@@ -137,6 +179,22 @@ MAX_VAULT_NAMES: int = 5_000
 # the grid then says how many the source holds and offers the rest.
 DEFAULT_OPEN_ROWS: int = 10_000
 PREVIEW_ROWS: int = 50  # the catalog page's preview of a table, beside its columns
+TEST_ROWS: int = 20  # a file connection's Test: its columns and this many of its first rows
+
+
+def name_from_path(path: str) -> str:
+    """A file connection's name when none was typed: its file's name without the kind, or a folder's
+    own name (C:\\data\\Orders 2026.csv -> Orders 2026). Empty for no path."""
+    last = next((part for part in reversed(re.split(r"[\\/]", path.strip())) if part), "")
+    return re.sub(r"\.[A-Za-z0-9]{1,8}$", "", last)[:64].strip()
+
+
+def file_setting(settings: list[dict[str, Any]], template: str | None) -> str:
+    """The path a file connection's form holds (its file or folder setting), once one is filled in."""
+    for setting in settings:
+        if picker(setting, template) and not setting.get("placeholder"):
+            return str(setting.get("value") or "")
+    return ""
 
 
 def dataset_name(text: str) -> str:

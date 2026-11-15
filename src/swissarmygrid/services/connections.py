@@ -185,9 +185,36 @@ class ConnectionService:
         """Run the form's code (not saved) with the passwords typed into it. A form not named yet is
         tested all the same (the name is only needed to save)."""
         self._check(body)
+        kind = rules.connection_kind(str(body.get("kind", "")), body.get("template"))
+        given: str | None = None
         if not str(body.get("name") or "").strip():
-            body = {**body, "name": "Untitled"}
-        return await self._blades.test_draft(body)
+            # A file connection not named yet is called after its file, as the form's Browse… does.
+            if kind == "file" and isinstance(body.get("code"), str):
+                settings = self._blades.inspect(body["code"], body.get("template")).get("settings", [])
+                given = rules.name_from_path(rules.file_setting(settings, body.get("template"))) or None
+            body = {**body, "name": given or "Untitled"}
+        result = await self._blades.test_draft(body)
+        path = result.pop("path", None)
+        if given:
+            result["name"] = given
+        if kind == "file" and isinstance(path, str) and self._tables is not None:
+            result |= await self._file_preview(body.get("template"), path)
+        return result
+
+    async def _file_preview(self, template: Any, path: str) -> dict[str, Any]:
+        """A file connection's Test: the file's columns and first rows (a workbook's first sheet).
+        A folder has no one table. A file that cannot be read says why; the test itself has passed."""
+        if template == "folder" or self._tables is None:
+            return {}
+        try:
+            sheet: str | None = None
+            if template == "excel":
+                sheets = await self._tables.sheets(path)
+                sheet = sheets[0] if sheets else None
+            preview = await self._tables.peek(path, sheet, rules.TEST_ROWS)
+        except Exception as error:  # any reader's refusal: said beside the test's result
+            return {"preview_error": str(error)}
+        return {"preview": preview | ({"sheet": sheet} if sheet else {})}
 
     # ===== a connection's table as a grid (the catalog, the connection's row, the agent) =====
 
