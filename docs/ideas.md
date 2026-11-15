@@ -2126,3 +2126,13 @@ Planned:
   - **Basic and bearer,** as before.
   - Every secret comes from an environment variable mapped to the vault or keyring, never written in
     `API_<name>.py`. The spec's `securitySchemes` (or `securityDefinitions`) pick the type and fill the form.
+- **Presets for the three big function hosts (the owner: "lambda and function apps are the two big
+  supported apis as well as Google's ... fire[base]"):**
+  - **Azure Function App:** the function key (`x-functions-key`), or Entra ID through the vault's app registration.
+  - **AWS Lambda:** none, an API key (`x-api-key`), a Cognito JWT, or IAM with Signature Version 4 (function
+    URLs and API Gateway). SigV4 becomes its own auth type: signed requests from an access key in the vault,
+    with the standard library.
+  - **Google (Firebase, Cloud Functions, Cloud Run):** a Firebase ID token (JWT), or a Google identity token
+    minted from a service account key in the vault (RS256, through `cryptography` when present).
+  - A preset fills the form (the URL pattern, the auth type, the header names), then reads the OpenAPI
+    document if the host has one, or the endpoints are added by hand.
