@@ -82,6 +82,11 @@ def test_redaction_hides_secrets_values_sql_and_paths() -> None:
     assert '"col#1"' in shown and "table#1" in shown  # a quoted name that is an alias stays readable
     assert "~/" in shown and ".csv" in shown and ".xlsx" in shown  # the home folder is ~, the extension kept
     assert rules.redact("line 12 of 300 rows") == "line 12 of 300 rows"  # short numbers stay
+    # A file's name alone is the user's word too (a notebook's tab): its kind stays.
+    assert (
+        rules.redact("\u25cfacme_q3_forecast.ipynb and app.py")
+        == "\u25cf\u2039\u2026\u203a.ipynb and \u2039\u2026\u203a.py"
+    )
 
 
 def test_aliases_are_stable_and_whole_words() -> None:

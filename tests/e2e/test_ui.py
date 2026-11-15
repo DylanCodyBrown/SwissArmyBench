@@ -1257,6 +1257,7 @@ def test_the_cells_right_click_keeps_rows_with_the_selected_value(browser: Brows
             "Exclude these",
             "View value",
             "Copy",
+            "Leave a note…",  # beta mode's, last, while it is on (test_beta_notes_page.py)
         ]
     )
     menu.get_by_role("menuitem", name="Keep these").click()

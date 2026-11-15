@@ -150,6 +150,11 @@ function extras(): { icon: string; label: string; run: () => void }[] {
 
 const editable = (el: Element): boolean => el.closest("input, textarea, select, [contenteditable=''], [contenteditable=true], .monaco-editor") !== null;
 
+// A left click after a right-click: that right-click is over (a drop-down opened now is not its menu).
+const pressed = (event: MouseEvent): void => {
+  if (event.button === 0) lastContext = null;
+};
+
 const noticed = (event: MouseEvent): void => {
   if (event.target instanceof Element) lastContext = { target: event.target, x: event.clientX, y: event.clientY, at: performance.now() };
 };
@@ -166,7 +171,11 @@ const fallback = (event: MouseEvent): void => {
 
 // ===== page errors =====
 
+// The browser's own notice that a resize took two frames: not an error of the app's.
+const BENIGN = /^ResizeObserver loop/;
+
 function reportError(kind: "error" | "rejection", message: string, stack: string): void {
+  if (BENIGN.test(message)) return;
   const now = Date.now();
   errorTimes = errorTimes.filter((t) => now - t < 60_000);
   if (errorTimes.length >= 20) return;
@@ -204,6 +213,7 @@ function listen(on: boolean): void {
   window[way]("contextmenu", noticed as EventListener, true);
   window[way]("contextmenu", fallback as EventListener);
   window[way]("click", clicked as EventListener, true);
+  window[way]("mousedown", pressed as EventListener, true);
   window[way]("error", onError as EventListener);
   window[way]("unhandledrejection", onRejection as EventListener);
   setMenuExtras(on ? extras : null);

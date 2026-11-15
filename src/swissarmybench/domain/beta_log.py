@@ -109,6 +109,11 @@ _LONG_TOKEN = re.compile(
     r"(?<![\w#])(?=[A-Za-z0-9+/_\-]*\d)(?=[A-Za-z0-9+/_\-]*[A-Za-z])[A-Za-z0-9+/_\-]{24,}={0,2}"
 )
 _NUMBER = re.compile(r"(?<![\w#])[-+]?\d[\d,._]*\d(?![\w])")
+# A file's name on its own (a notebook's tab, "acme_q3.csv"): the user's word, its kind kept.
+_FILE_NAME = re.compile(
+    r"(?<![\w/\\.\-])[\w\-.]{0,80}?[\w\-]\.(ipynb|py|csv|tsv|xlsx|xlsm|xls|parquet|json|zip|sql|txt|dax|pbix)(?![\w])",
+    re.IGNORECASE,
+)
 _WINDOWS_PATH = re.compile(r"(?<![\w])[A-Za-z]:[\\/][^\s'\"<>|*?]*")
 _UNIX_PATH = re.compile(r"(?<![\w:/.~])(~/|/)(?:[^\s'\"<>/]+/)*[^\s'\"<>/]*")
 
@@ -163,6 +168,7 @@ def redact(text: str, aliases: Aliases | None = None, home: str = "", secrets: I
         ),
         text,
     )
+    text = _FILE_NAME.sub(lambda m: f"{HIDDEN}.{m.group(1)}", text)
     text = _EMAIL.sub(HIDDEN, text)
     text = _LONG_TOKEN.sub(HIDDEN, text)
     text = _NUMBER.sub(lambda m: HIDDEN if _digits(m.group(0)) >= 5 else m.group(0), text)
