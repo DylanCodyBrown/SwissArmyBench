@@ -714,3 +714,50 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   ones read (Table, Name, DataType; FromTable, FromColumn, ToTable, ToColumn, FromCardinality,
   ToCardinality, CrossFilteringBehavior, IsActive), which are from memory of Microsoft's pages; how
   the real service marks an answer cut at 15 MB; Microsoft's sign-in window itself; Edge.
+- (2026-11-15) Streamlit cells: pieces pushed to a page designer and linked by shared names
+  (docs/ideas.md has the owner's calls and what was decided while building). Streamlit is not a
+  dependency: the tests that need it use a Python named by SWISSARMYGRID_STREAMLIT_PYTHON (here a
+  throwaway environment with Streamlit 1.67.0, pandas 3.1.1 and pyarrow) and are skipped without it.
+  **Rules** (tests/test_streamlit_cells.py): the cell in a notebook and in a script, both ways, with
+  saved pages and layouts (the notebook's metadata, the script's `# %% [streamlit-pages]` block); the
+  names each piece makes and reads; the run order, and a cycle said; the page's code (slots first,
+  pieces in name order, widget keys of their own, text inside a multi-line string left alone); the
+  preamble reading only the tables named; the export's files and requirements.
+  **On the server** (tests/test_streamlit_apps.py): pieces and pages over HTTP and by the agent's
+  commands; Parquet written for the tables a page names and only when they changed; the out-of-date
+  rule (a grid step, the table pushed again, changed code; a header sort and the uses line never
+  count); the temporary folder removed on stop, the app stopped with its kernel, its window or the
+  server; a Python without Streamlit said, Install into that Python; the export folder; the live
+  pages refused without the app's own secret, from another site or host name; the Workbench's frame
+  policy unchanged. With the real Streamlit: the process answers through the proxy (pages, health,
+  its websocket), the pages run in Streamlit's own AppTest (the filter drives the total though it sits
+  below it), a grid step then a run gives the new data, the exported app is started on its own and
+  its pages fetched, and the process ends when the server that started it goes.
+  **In a browser** (tests/e2e/test_streamlit_page.py, with the real Streamlit): two pieces typed, each
+  live in its cell (a selectbox; a total of 145 that follows the selectbox to 260); both pushed to a
+  new page; in the page designer the total dragged before the filter and widened to 12 columns with
+  the keys, so the filter sits below it on the live page, where choosing West and North changes the
+  total; the page renamed; a second page with a piece added from the list; the pages saved in the
+  notebook's file; a grid step turns both pieces "Out of date · orders changed" and the designer's
+  button "Out of date · Run", nothing running by itself; Run gives the new data (the piece keeps its
+  widget's choice); Open app shows the app in its own window, its second page reached from the side;
+  Export through the file chooser writes app.py, two page modules, data/orders.parquet,
+  requirements.txt and README.txt, and that folder runs with Streamlit alone (its pages fetched, its
+  filter driving its total, laid out as designed); closing the notebook removes the temporary folder
+  and the app. A Python without Streamlit shows the note and Install (not clicked: it would install
+  into this project's environment). A script's Streamlit cells show live under their markers and its
+  pages land in its comment block. Screenshots looked at: the code, the piece live, Push to page,
+  the designer, the filter driving the total, two pages, out of date, the app's window, the export.
+  **Found by the whole suite, and fixed:** (1) a kernel's output was dropped when the server was slow
+  to read it (ZeroMQ's limit of 1,000 waiting messages): 6,000 quick prints arrived with lines
+  missing from the middle on a busy computer (3 of 6 runs with four busy loops beside the test; 0 of
+  8 after). (2) A restart that closed the channels a run was waiting on ended the run's stream with
+  no last word; it now says "restarted" (the test waited a second and usually won the race; it now
+  waits for the run's output, failed every time before the fix, and passes 6 of 6 under load).
+  Then: ruff, format, mypy (257 files), the TypeScript check, and the whole suite with the browser
+  tests: 2,181 passed, none skipped (38 new: 21 rules, 14 on the server, 3 in a browser). Without a
+  Streamlit Python 4 of them are skipped (2 on the server, 2 in a browser). 210 commands (188 before).
+  Not checked: Windows (the process's end-with-the-server watch has its own Windows branch, never
+  run); Edge (the browser here is Chromium); Install itself in a browser (it is tested against a
+  stand-in runner); uploads and downloads through the proxy; Streamlit older than 1.36 (st.navigation
+  is needed) or custom components; a dark theme's look; a notebook whose environment has no pandas.
