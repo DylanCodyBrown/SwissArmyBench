@@ -1136,3 +1136,44 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   said it could not); no command starts the server (`ensure_server` only connects); approvals are
   `table_export`, `streamlit_export`, and `project_new` / `streamlit_save_as` with pasted rows, each
   denied after 180 seconds without an answer.
+## The Components starters (2026-11-15)
+
+Nine Streamlit pieces of HTML, CSS and JavaScript (docs/ideas.md, "Components"), in a throwaway
+environment with Streamlit 1.67.0 and pandas (SWISSARMYBENCH_STREAMLIT_PYTHON).
+
+- **Streamlit 1.67, read and run:** `st.html(body, width=, unsafe_allow_javascript=)`;
+  `st.components.v1.html` warns "Please replace `st.components.v1.html` with `st.iframe`" and "will be
+  removed after 2026-06-01", so the frame pieces use `st.iframe(src, height=)` (an HTML string is its
+  srcdoc, with same-origin access to the app, its docstring says). `st.components.v2.component(name,
+  html=, css=, js=, isolate_styles=True)` gives a mount call `(key=, data=, default=, width=, height=,
+  on_<name>_change=)` that returns a ComponentResult (a dict read by attribute); `default=` keys must
+  each have their `on_<name>_change`. The JavaScript module's default export is called with `name`,
+  `data`, `key`, `parentElement` (a ShadowRoot when styles are isolated), `setStateValue` and
+  `setTriggerValue` (BidiComponent.js); it is called again when `data` changes, and the function it
+  returns runs only when the component leaves the page.
+- **`tests/test_starters_components.py`, 33 tests:** the family's nine pieces; the same "Three ways"
+  paragraph in each; each names its way, says why, and uses that call only; nothing from the internet;
+  no placeholder inside the HTML, CSS or JavaScript, and no innerHTML in it. Under AppTest with a
+  made-up table: all nine run without an error; the KPI counter's number, the frames' JSON (the
+  table's columns and dates, the gauge's words, the timeline newest first); the four two-way pieces
+  register, mount and give back their defaults (no card, "All", no key) and send data only. A state put
+  in `st.session_state[key]` (what setStateValue does in a browser) comes back from the mount call:
+  the card South makes `picked_region == "South"` and `by_region` its 10 rows, and goes back to the page
+  as `picked`. A trigger cannot be set from AppTest: a stand-in at the mount call gives `pressed = "n"`
+  (the caption says it) and `copied = 40` (the toast says it). With `</script><b>x` in the table and
+  every label: the st.html pieces show it escaped (no `<b>` tag, no script holding it), the frames hold
+  it only as `\u003c/script\u003e...` in their JSON, which reads back as the same text, and the
+  components hold it only in their data. `tests/test_starters.py` checks each piece's Makes and Reads
+  against the app's name finder and every `st.` call against its header (`st.components.v2.component`
+  by its whole name now). 186 passed in the five starter files; with test_cli.py and
+  test_architecture.py, 340. Without SWISSARMYBENCH_STREAMLIT_PYTHON the four runs skip, saying why.
+- **In Chrome (streamlit run, by hand with Playwright, not a test):** the slicer clicked on South lit
+  South and the KPI counter and gauge followed it (41,403, 17% of 250,000); the table sorted by amount;
+  the callout showed `</script><b>x` as text and closed on its x; a card clicked made
+  `picked_region = 'West'` and 10 rows; `n` pressed made `pressed_key = 'n'` and its caption, `x` (not
+  listened for) nothing; Copy table put five rows and a heading, tab-separated, on the clipboard and the
+  toast said so; the timeline drew newest first. No console error. The screenshot (2x) is the guide's
+  images/24-components-page.png. `tests/e2e/test_starters_page.py` (6) passed in this machine's
+  Chromium with the seventh family's line.
+- **Not checked:** Edge itself, a dark theme in the app (a frame follows the computer's setting), a
+  page with two keyboard pieces, Streamlit before 1.67.

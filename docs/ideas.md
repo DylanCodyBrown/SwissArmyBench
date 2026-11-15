@@ -1693,6 +1693,44 @@ building (each can be changed):
   against a model. The HTML snippets mix colours with `color-mix()` (Edge and Chrome 111 and later).
   The map piece's background comes from the internet in the browser; its dots draw without it.
 
+## Components: your own HTML and JavaScript in Streamlit (2026-11-15, the owner's call; built)
+
+"Is there something even more simple that allows us to bring Rich HTML JavaScript style components
+into" Streamlit, then: "Can we just build some more streamlined blades for these types of things".
+Decided: no new cell kind and no app change; a seventh starter family, **Components** (9 pieces, the
+pack now 87), Streamlit pieces for a Python cell (`language = "streamlit"`), documented for a learner as
+the Streamlit family is. Built on branch `starter-components`:
+
+- **The three ways, each piece names its own and why:** `st.html(..., unsafe_allow_javascript=True)`
+  (on the page, one way: callout banner, animated KPI counter), a frame (one way: sortable table,
+  gauge, timeline), and `st.components.v2.component(name, html=, css=, js=)` (on the page, two way:
+  clickable cards, segmented slicer, copy table button, keyboard shortcuts). Every piece carries the
+  same "Three ways" paragraph (a test keeps it the same).
+- **The frame is `st.iframe`**, not `st.components.v1.html`: in Streamlit 1.67 the latter prints "Please
+  replace `st.components.v1.html` with `st.iframe`. `st.components.v1.html` will be removed after
+  2026-06-01". Its docstring also says an HTML string is framed with same-origin access to the app, so
+  a frame is no security wall: the pieces escape data for a frame as for the page.
+- **The two-way value:** the JavaScript is `export default function (component)`, given `data`,
+  `setStateValue`, `setTriggerValue` and `parentElement`. `setStateValue("picked", v)` reruns the page
+  and the mount call gives it back (`_result.picked`), kept until the next click; `setTriggerValue`
+  holds for the one rerun it starts (the copy button, a key press). The mount names its values with
+  `on_<name>_change=lambda: None` (needed for `default=`) and a `key=`; the current pick is read from
+  `st.session_state[key]` and sent back in `data=` so the cards draw it picked.
+- **A two-way piece makes what it sends back** (`picked_region`) **and the rows it leaves**
+  (`by_region`), so it wires like a filter.
+- **Data as data, never as code:** every placeholder stands in Python (a name, a number, or a string);
+  the page's HTML gets `html.escape`d text through `string.Template` (CSS and JavaScript keep their
+  braces); a frame's data is JSON in a `<script type="application/json">` with `<`, `>`, `&` written
+  as `\u003c`, `\u003e`, `\u0026`; a component's goes in `data=`. The JavaScript writes values with
+  `textContent` only.
+- **Streamlit runs a component's function again on each new `data` and calls its cleanup only when it
+  leaves the page** (read in 1.67's BidiComponent.js): the pieces draw afresh each time, and the
+  keyboard piece takes its earlier listener off itself, or one press would be sent once per rerun.
+- **Nothing from the internet:** SVG and CSS inline, no CDN; a test refuses URLs, `src=`, `fetch(`.
+- **Open:** the app still asks for `streamlit>=1.36` for a project; these pieces need a recent
+  Streamlit (checked with 1.67; v2 components and `st.iframe` are newer than 1.36). A frame follows the
+  computer's light or dark setting, not the app's theme (the theme does not reach a frame).
+
 ## The Workbench redesign (2026-11-15, the owner's calls; built)
 
 "So visually try to redesign the workbench a bit to make notebook/script and app page optional and two

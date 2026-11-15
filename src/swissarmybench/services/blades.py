@@ -512,8 +512,8 @@ class BladeService:
     # ===== the starter pack, copies, and snippets =====
 
     def starters(self) -> dict[str, Any]:
-        """The built-in starter pack, by family (Power BI, Excel, Files, DAX, HTML, Streamlit): each
-        blade's summary, a snippet's language and placeholders, and the sab.blade line of the others."""
+        """The built-in starter pack, by family (Power BI, Excel, Files, DAX, HTML, Streamlit, Components):
+        each blade's summary, a snippet's language and placeholders, and the sab.blade line of the others."""
         families: dict[str, list[dict[str, Any]]] = {}
         everything = self._blades.all()
         pinned = self._blades.pinned()

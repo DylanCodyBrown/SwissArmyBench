@@ -490,6 +490,10 @@ version never touches your copy.
 - **Streamlit pieces** (below: Learning Streamlit with the starter pieces): dropped into a notebook,
   a piece fills an empty Python cell (or makes one) and names it, so it shows by name in the
   Streamlit cells pane, ready for a canvas.
+- **Components** (below: Your own HTML and JavaScript in Streamlit): Streamlit pieces too, for a Python
+  cell, each a piece of HTML, CSS and JavaScript of its own on the page: callout banner, animated KPI
+  counter, sortable table, gauge, timeline, and four that send a value back to Python (clickable cards,
+  segmented slicer, copy table button, keyboard shortcuts). Nothing is fetched from the internet.
 - For the agent: `blades_starters` lists the pack, `blades_copy` copies one as yours, `blades_snippet`
   gives a snippet's blanks (or its filled text), and `workbench_snippet_insert` puts one in a cell.
 
@@ -751,6 +755,57 @@ before it made. The order on the canvas is yours; the order they run in comes fr
   counter (a value kept between reruns), cached slow query (`st.cache_data`: worked out once, kept).
 - **Tell the reader:** check messages (an error, a warning or a success by what the rows hold), toast
   (a short message in the corner after a click).
+
+### Your own HTML and JavaScript in Streamlit (the Components starters)
+
+When Streamlit has no widget that looks or acts the way you want, you can put HTML, CSS and JavaScript
+of your own on the page. Streamlit offers three ways, and the **Components** starters use each:
+
+| The way | What it is | Talks back to Python? | Pick it for |
+|---|---|---|---|
+| `st.html(body, unsafe_allow_javascript=True)` | HTML on the page itself; the flag lets its `<script>` run | No: one way | Something that only shows and should match the page's own font and colours |
+| `st.iframe(html, height=...)` | A frame: a little page of its own | No: one way | A bigger piece with its own styles and scripts that must not clash with the page's |
+| `st.components.v2.component(name, html=, css=, js=)` | A component on the page, no build step | **Yes: two way** | Anything whose click, pick or key press Python must hear |
+
+(`st.iframe` is Streamlit 1.67's name for `st.components.v1.html`, which now warns that it is going.
+These pieces need a recent Streamlit; they were checked with 1.67.)
+
+**How a two-way component sends a value back.** Its JavaScript is a function Streamlit calls with what
+it needs: `export default function (component) { const { data, setStateValue, setTriggerValue,
+parentElement } = component; ... }`. `data` is what Python gave the mount call (`data={...}`).
+`setStateValue("picked", "South")` sends a value and reruns the page; the mount call then gives it
+back: `_result = cards(key=..., data=..., default={"picked": None}, on_picked_change=lambda: None)`,
+then `_result.picked`. A **state** stays until the next click (a pick); a **trigger**
+(`setTriggerValue`) is there for the one rerun it starts, then `None` again (a key press, a copy).
+A two-way piece **makes** the value it sends back (`picked_region`) and, like a filter, the rows it
+leaves (`by_region`), so any display that reads `by_region` follows it.
+
+**Data goes in as data, never as code.** The HTML, CSS and JavaScript you give Streamlit run as they
+are written, so a value from your data is never pasted into them: on the page it is escaped
+(`html.escape`: `<b>` shows as the text `<b>`), into a frame it goes as JSON in a
+`<script type="application/json">` (with `<`, `>` and `&` written so that no value can end the
+script), and a component gets it in `data=` and puts it on the page with `textContent`. A frame is
+not a wall between its page and yours (Streamlit's frames run on the same site), so the same care
+applies there too.
+
+**The pieces:**
+
+- **Callout banner** (`st.html`): a coloured box with a title, a message and an x that closes it.
+- **Animated KPI counter** (`st.html`): a column's total as one big number that counts up from zero
+  (it simply shows the total when the computer asks for less motion).
+- **Sortable table** (a frame): a table's first rows; click a heading to sort, type to filter.
+- **Gauge** (a frame): a total against a target as a half circle, drawn in SVG.
+- **Timeline** (a frame): a table's latest rows, newest first, with their dates.
+- **Clickable cards** (two way): a card for each value of a column with its total; a click picks it
+  and makes `picked_region` and `by_region`; a second click picks none.
+- **Segmented slicer** (two way): joined buttons, All and each value, like a Power BI slicer; makes
+  `picked_region` and `by_region`.
+- **Copy table button** (two way): copies a table's rows as tab-separated text, to paste into Excel;
+  a message says how many rows were copied.
+- **Keyboard shortcuts** (two way): listens for a few keys anywhere on the page (not while you type
+  in a box) and makes `pressed_key`, the key just pressed.
+
+![A Streamlit page made of four Components pieces: the segmented slicer on South, the animated KPI counter and the gauge reading its rows, and the sortable table sorted by amount.](images/24-components-page.png)
 
 ### Projects: start with the data
 

@@ -21,7 +21,7 @@ page is Blades and catalog in the Application row.
 
 ## Starters (read-only, shipped with the app)
 - `blades_starters`: the pack by family: Power BI (refresh a dataset, its status, parameters...), Excel
-  (sheets, formats, tables), Files (combine or split CSVs), DAX, HTML and Streamlit snippets.
+  (sheets, formats, tables), Files (combine or split CSVs), DAX, HTML and Streamlit snippets, and Components (your own HTML and JavaScript as Streamlit pieces, one way or two way).
 - A Python starter makes one function: run it in a kernel,
   `refresh = sab.blade("Power BI refresh dataset")`, then `refresh("Finance/Sales model")`.
 - `blades_copy` makes one the user's own to change.
