@@ -1,8 +1,8 @@
 """A connection from your own Python: three boxes (Connect, List the tables, Read a table) and the
 environment variables they read, each mapped to where its value comes from.
 
-Made-up data only: a tiny web service started here on 127.0.0.1, serving made-up tables as JSON,
-guarded by a made-up API key."""
+Made-up data only: a tiny web service started here on 127.0.0.1 (tests/orders_service.py), serving
+made-up tables as JSON, guarded by a made-up API key."""
 
 from __future__ import annotations
 
@@ -12,10 +12,8 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 import pyarrow as pa
@@ -34,8 +32,7 @@ from swissarmygrid.server.blade_templates import PYTHON_CONNECT, PYTHON_READ, PY
 from swissarmygrid.settings import Settings
 from tests.conftest import AGENT, AUTH
 from tests.fake_keyring import memory_keyring
-
-API_KEY = "made-up-key-7391"  # made up: the tiny service below answers only to it
+from tests.orders_service import API_KEY, VAULT_CODE, Service
 
 
 @pytest.fixture(autouse=True)
@@ -300,6 +297,8 @@ def test_it_is_a_connection_with_a_catalog_and_a_name_in_code() -> None:
         parse_blade(python_connection(read={"command": "def broken(:"}))
     with pytest.raises(BladeError, match="never reads NOT_READ"):
         parse_blade(python_connection(variables=[{"name": "NOT_READ", "from": "env"}]))
+    with pytest.raises(BladeError, match="List the tables is not valid Python on line 1"):
+        parse_blade(python_connection(catalog={"language": "python", "command": "def broken(:"}))
     with pytest.raises(BladeError, match="List the tables is Python"):
         parse_blade(python_connection(catalog={"language": "sql", "command": "SELECT 1"}))
     # Empty boxes: no catalog, no rows; still a connection that makes conn.
@@ -388,62 +387,19 @@ def test_a_secret_in_an_error_is_starred_out() -> None:
 
 # ===== the whole thing, over a tiny web service, through the real child process =====
 
-TABLES: dict[str, dict[str, list[dict[str, Any]]]] = {
-    "orders": {
-        "columns": [{"name": "order_id", "type": "integer"}, {"name": "amount", "type": "number"}],
-        "rows": [{"order_id": n, "amount": round(n * 2.5, 2)} for n in range(1, 31)],  # thirty, made up
-    },
-    "clients": {
-        "columns": [{"name": "client", "type": "text"}],
-        "rows": [{"client": "Ada"}, {"client": "Grace"}],
-    },
-}
-
-
-class _Service(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:
-        if self.headers.get("X-Api-Key") != API_KEY:
-            self.send_error(401, "Bad API key")
-            return
-        url = urlparse(self.path)
-        parts = [p for p in url.path.split("/") if p]
-        if parts == ["tables"]:
-            answer: Any = [{"name": name, "columns": t["columns"]} for name, t in TABLES.items()]
-        elif len(parts) == 3 and parts[0] == "tables" and parts[2] == "rows" and parts[1] in TABLES:
-            rows = TABLES[parts[1]]["rows"]
-            limit = parse_qs(url.query).get("limit")
-            answer = {"rows": rows[: int(limit[0])] if limit else rows, "total": len(rows)}
-        else:
-            self.send_error(404)
-            return
-        body = json.dumps(answer).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args: Any) -> None:  # quiet
-        pass
-
 
 @pytest.fixture
 def service() -> Iterator[str]:
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _Service)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_address[1]}"
-    server.shutdown()
-    server.server_close()
-    thread.join(5)
+    running = Service().start()
+    yield running.url
+    running.stop()
 
 
 TEAM_VAULT = {
     "name": "Team vault",
     "kind": "vault",
     "variable": "get",
-    "code": f'values = {{"orders-api-key": "{API_KEY}", "other": "made-up"}}\n\n\n'
-    "def names():\n    return list(values)\n\n\ndef get(name):\n    return values[name]\n",
+    "code": VAULT_CODE,
     "vault_mapping": [{"env": "OTHER", "secret": "other"}],
 }
 

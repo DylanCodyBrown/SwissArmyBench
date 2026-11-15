@@ -21,6 +21,9 @@
  *            settings as fields (on/off ones as checkboxes; a file or folder field has Browse…); its
  *            passwords (kept in the system keyring); Test connection (runs the form, nothing saved);
  *            Save. The Python it makes shows underneath, editable for the unusual case
+ *   [PYTHON] "Python (your own code)", under Your own code: its own form (pythonConnectionForm.ts:
+ *            three code boxes and the environment variables they read); its row's Test shows the first
+ *            table's first rows under it
  *   [VAULT]  a vault's form lists its secrets by name (never a value) as soon as it can be read (its
  *            address filled in, or opened to edit). Each becomes an environment variable: left empty,
  *            under the vault's own name (shown faintly); typed, under that name. Every secret (new ones
@@ -38,6 +41,7 @@ import { api, errorText, onNotice } from "./api";
 import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { pickSheets } from "./openFile";
+import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested } from "./pythonConnectionForm";
 
 interface Field {
   id: string;
@@ -54,7 +58,7 @@ interface Form {
   id: string;
   label: string;
   group: string;
-  connection: "database" | "file" | "vault";
+  connection: "database" | "file" | "vault" | "python";
   kind: string;
   dialect: string;
   variable: string;
@@ -100,7 +104,7 @@ type Then = (saved: string | null) => void;
 interface Connection {
   name: string;
   template?: string | null;
-  connection: "database" | "file" | "vault";
+  connection: "database" | "file" | "vault" | "python";
   /** A key vault's: each variable it sets, from which secret; `every`: every secret it holds. */
   entries?: Mapping[];
   every?: boolean;
@@ -141,8 +145,8 @@ const envFor = (secret: string): string => {
 };
 /** What a Test answers: a vault reads its variables; a connection makes something (a file: is there). */
 // A Power BI dataset's test signs in and asks the dataset one question: say that, not its class's name.
-const worked = (r: { type?: string; found?: string; variables?: string[] }): string =>
-  r.variables ? `read ${r.variables.join(", ")}` : (r.found ?? (r.type === "PowerBI" ? "signed in and reached the dataset" : `made a ${r.type}`));
+const worked = (r: { type?: string; found?: string; variables?: string[]; tables?: number; columns?: number }): string =>
+  pythonWorked(r) ?? (r.variables ? `read ${r.variables.join(", ")}` : (r.found ?? (r.type === "PowerBI" ? "signed in and reached the dataset" : `made a ${r.type}`)));
 
 // The list, while it shows: drawn again as catalogs load in the background (the notices below).
 let listShowing: (() => void) | null = null;
@@ -249,24 +253,26 @@ export async function openConnections(): Promise<void> {
     const row = (c: Connection): HTMLElement => {
       const path = encodeURIComponent(c.name);
       const readOnly = c.source === "pack";
+      // A Python connection's Test: the first table's first rows, under its row.
+      const tested = h("div", { class: "connection-result connection-tested", role: "status" });
       return h(
         "li",
         { class: "connection-row" },
         h(
           "div",
           { class: "connection-text" },
-          h("div", { class: "pack-title" }, h("strong", {}, c.name), h("span", { class: "badge" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault" }[c.connection]), catalogWord(c)),
+          h("div", { class: "pack-title" }, h("strong", {}, c.name), h("span", { class: "badge" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection]), catalogWord(c)),
           c.description ? h("div", { class: "hint" }, c.description) : null,
           c.entries
             ? h("div", { class: "vault-entries" }, c.every ? h("span", { class: "badge" }, "Every secret") : null, ...c.entries.map((e) => h("code", { class: "hint", title: `${e.secret} in the vault` }, `${e.env} ← ${e.secret}`)))
-            : h("code", { class: "hint" }, `sag.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
+            : h("code", { class: "hint" }, c.connection === "python" ? `sag.connection("${c.name}")  ·  sag.read("${c.name}", table)` : `sag.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
         ),
         h(
           "span",
           { class: "connection-actions" },
           c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(c.name), { icon: "rows", class: "primary" }) : null,
           readOnly ? null : button("Edit", () => void showForm({ edit: c.name }), { icon: "edit" }),
-          button("Test", () => void testSaved(c.name), { icon: "play" }),
+          button("Test", () => void testSaved(c.name, c.connection === "python" ? tested : undefined), { icon: "play" }),
           c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
           c.dialect === "dax" ? button("Import its relationships", () => void importRelationships(c.name), { icon: "link" }) : null,
           c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sag.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
@@ -277,10 +283,12 @@ export async function openConnections(): Promise<void> {
                 void api(`/blades/${path}`, "DELETE").then(() => showList(), (e: Error) => toast(e.message, "error"));
               }, { icon: "trash", iconOnly: true }),
         ),
+        c.connection === "python" ? tested : null,
       );
     };
     const databases = found.filter((c) => c.connection === "database");
     const files = found.filter((c) => c.connection === "file");
+    const own = found.filter((c) => c.connection === "python");
     const vaultList = found.filter((c) => c.connection === "vault");
     clear(
       body,
@@ -292,6 +300,8 @@ export async function openConnections(): Promise<void> {
             databases.length ? h("ul", { class: "connection-list" }, ...databases.map(row)) : null,
             files.length ? h("h3", {}, "Files") : null,
             files.length ? h("ul", { class: "connection-list" }, ...files.map(row)) : null,
+            own.length ? h("h3", {}, "Your own code") : null,
+            own.length ? h("ul", { class: "connection-list" }, ...own.map(row)) : null,
             vaultList.length ? h("h3", {}, "Key vaults") : null,
             vaultList.length ? h("ul", { class: "connection-list" }, ...vaultList.map(row)) : null,
           )
@@ -300,11 +310,12 @@ export async function openConnections(): Promise<void> {
     foot.append(button("Add connection", () => void showTypes(), { icon: "plus", class: "primary" }), button("Close", close));
   };
 
-  const testSaved = async (name: string): Promise<void> => {
+  const testSaved = async (name: string, under?: HTMLElement): Promise<void> => {
     toast(`Testing ${name}…`);
     try {
-      const r = await api<{ type?: string; found?: string; variables?: string[] }>(`/blades/${encodeURIComponent(name)}/test`, "POST");
+      const r = await api<{ type?: string; found?: string; variables?: string[] } & PythonTested>(`/blades/${encodeURIComponent(name)}/test`, "POST");
       toast(`${name} works: ${worked(r)}.`);
+      under?.replaceChildren(...(r.preview ? tablePreview(r.preview) : []));
     } catch (e) {
       toast(errorText(e), "error");
     }
@@ -334,11 +345,11 @@ export async function openConnections(): Promise<void> {
       clear(body, h("p", { class: "status-error" }, (e as Error).message));
       return;
     }
-    const icons = { database: "sql", file: "folder", vault: "key" } as const;
+    const icons = { database: "sql", file: "folder", vault: "key", python: "code" } as const;
     const tile = (t: Form): HTMLElement => button(plain(t.label), () => void showForm({ type: t, then }), { class: "connection-type", icon: icons[t.connection] });
     const group = (title: string, kind: Form["connection"]): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...types.filter((t) => t.connection === kind).map(tile))];
     // From a password's New vault: only vaults, and Back returns to that connection.
-    clear(body, ...(then ? [] : [...group("Databases", "database"), ...group("Files", "file")]), ...group("Key vaults", "vault"));
+    clear(body, ...(then ? [] : [...group("Databases", "database"), ...group("Files", "file"), ...group("Your own code", "python")]), ...group("Key vaults", "vault"));
     foot.append(button("Back", () => void (then ? then(null) : showList()), { icon: "back" }), button("Close", close));
   };
 
@@ -357,6 +368,28 @@ export async function openConnections(): Promise<void> {
       }
     } else form = structuredClone(what.type!);
     const editing = what.edit ?? null;
+    if (form.connection === "python") {
+      // Your own Python: three code boxes and the variables they read (pythonConnectionForm.ts).
+      showPythonForm({
+        body,
+        foot,
+        form: form as unknown as PythonForm,
+        editing,
+        back: () => void (editing ? showList() : showTypes(what.then)),
+        saved: () => void showList(),
+        newVault: (then) => {
+          // A vault made from here: this form waits (kept as it is) and comes back to it.
+          const kept = [...body.childNodes];
+          const keptFoot = [...foot.childNodes];
+          void showTypes(async () => {
+            body.replaceChildren(...kept);
+            foot.replaceChildren(...keptFoot);
+            await then();
+          });
+        },
+      });
+      return;
+    }
     const isVault = form.connection === "vault";
     let code = form.code;
     let fields = form.fields;

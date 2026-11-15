@@ -4424,6 +4424,59 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   white-space: pre;
 }
 
+/* A connection from your own Python: three code boxes, each under its name and one line. */
+.python-box {
+  margin: 12px 0;
+}
+
+.python-box h4 {
+  margin: 0;
+}
+
+.python-box .hint {
+  margin: 2px 0 4px;
+}
+
+.python-box-editor {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.python-box-editor textarea {
+  display: block;
+  border: 0;
+  resize: vertical;
+}
+
+.python-box-monaco {
+  min-height: 40px;
+  margin: 4px 0 8px; /* room under the last line (its underscores were cut) */
+}
+
+/* Each variable the boxes read: its name and where it comes from, then that source's own box. */
+.python-variable {
+  align-items: end;
+}
+
+.python-variable code {
+  overflow-wrap: anywhere;
+}
+
+/* A Python connection's Test, under its row in the list: the first table's first rows. */
+.connection-row:has(.connection-tested) {
+  flex-wrap: wrap;
+}
+
+.connection-tested {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.connection-tested:empty {
+  display: none;
+}
+
 .connection-result .status-ok {
   color: var(--ok);
 }

@@ -1402,7 +1402,8 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
         if command.strip():
             if language == "python":
                 try:
-                    parse_code(command, "The catalog command")
+                    own = blade.template == python_connections.TEMPLATE
+                    parse_code(command, "List the tables" if own else "The catalog command")
                 except BladeCodeError as error:
                     raise BladeError(str(error)) from None
             blade.catalog_language, blade.catalog_command = language, command
