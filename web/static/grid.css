@@ -1377,6 +1377,17 @@ table.small td.num {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* A button (it opens the Tables list) that reads as status-bar text. */
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.meter[hidden] {
+  display: none;
 }
 
 .meter-bar {

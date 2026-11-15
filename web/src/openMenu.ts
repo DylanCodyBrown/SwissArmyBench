@@ -1,20 +1,38 @@
 /**
- * openMenu.ts: the Open dialog: the tables in your running Python sessions. [WIRE + EXPORT]
+ * openMenu.ts: the Tables list, behind the ≡ button beside "+" in the tab strip. [WIRE + EXPORT]
  *
- * A Python session whose watcher is on (swissarmygrid imported in a notebook, or sag.watch() in a
- * script) tells the server which tables it holds: names and sizes, never rows. This dialog lists them,
- * session by session. Open asks that session to push the table, and from then on the table follows its
- * variable: run the cell again and the tab refreshes in place. Reload sends it again, for changes made
- * in place that the watcher cannot see.
+ * One list of every table the app can show (the owner's decision 9), in three sections:
  *
- * ROUTING: [OPEN BUTTON]   beside the "+" in the tab bar -> showOpenDialog()
+ *   Open tables      the tables that have a tab, with their size
+ *   Closed tables    tables still in memory whose tabs were closed: Open puts the original back as a
+ *                    tab (the same table, not a copy)
+ *   Python sessions  the tables in your running Python sessions. A session whose watcher is on
+ *                    (swissarmygrid imported in a notebook, or sag.watch() in a script) tells the
+ *                    server which tables it holds: names and sizes, never rows. Open asks that
+ *                    session to push the table, and from then on the table follows its variable.
+ *                    Reload sends it again, for changes made in place that the watcher cannot see.
+ *
+ * The line under the title is the data budget (the status bar's meter shows only near the limit,
+ * and opens this list).
+ *
+ * ROUTING: [≡ BUTTON]      beside the "+" in the tab bar -> showTables()
+ *          [TABLES]        -> read-only, derived from GET /datasets (redrawn when tabs or tables change)
+ *          [OPEN]          a closed table -> POST /grids {dataset}: a grid on the original table
+ *          [REMOVE]        -> DELETE /datasets/{name} (asks first: its tabs close, nothing is saved)
  *          [SESSION]       -> read-only, derived from GET /processes (redrawn on processes_changed)
  *          [OPEN / RELOAD] -> askToOpen(session, table)      POST /processes/{id}/open
  *          [OPEN ALL]      -> askToOpen() for each table not open yet
  *          [ERROR TOAST]   process_error notice -> the table that did not open, and why
  */
-import { api, onNotice, type Notice } from "./api";
-import { button, formatCount, h, openDialog, toast } from "./dom";
+import { api, onNotice, type Budget, type Notice } from "./api";
+import { button, closeDialogs, formatCount, h, openDialog, toast } from "./dom";
+
+interface Dataset {
+  name: string;
+  rows: number;
+  size: string;
+  grids: string[];
+}
 
 interface TableEntry {
   name: string;
@@ -45,7 +63,7 @@ let redraw: (() => void) | null = null;
 /** Listen for the server's notices about sessions. Called once, by the workspace page. */
 export function mountOpenMenu(): void {
   onNotice((notice: Notice) => {
-    if (notice.type === "processes_changed") redraw?.();
+    if (["processes_changed", "grid_shown", "grid_closed", "dataset_closed", "dataset_updated", "dataset_renamed"].includes(notice.type)) redraw?.();
     if (notice.type === "process_error") {
       toast(`${notice.name ?? "A table"} did not open from ${notice.label || "Python"}: ${notice.message ?? "no reason given"}`, "error");
     }
@@ -54,7 +72,7 @@ export function mountOpenMenu(): void {
 
 /** The button beside the "+": opens the list. */
 export function openMenuButton(): HTMLButtonElement {
-  return button("Open a table from Python", () => showOpenDialog(), {
+  return button("Tables", () => showTables(), {
     icon: "rows",
     iconOnly: true,
     class: "ghost tab-new",
@@ -119,23 +137,72 @@ function sessionBlock(session: Session): HTMLElement {
   );
 }
 
-function showOpenDialog(): void {
-  const { dialog, body } = openDialog("Open a table from Python", true);
-  body.classList.add("open-dialog");
-  const status = h("p", { class: "hint", role: "status" }, "Loading…");
-  const list = h("div", { class: "open-sessions" });
-  body.append(status, list);
+/** A table in memory: its name, rows and size, then its actions. */
+function datasetRow(d: Dataset): HTMLElement {
+  const closed = d.grids.length === 0;
+  const open = closed
+    ? button("Open", (event) => {
+        (event.currentTarget as HTMLButtonElement).disabled = true;
+        // A grid on the table itself: the original comes back as a tab, in front, and this list closes.
+        void api("/grids", "POST", { dataset: d.name }).then(closeDialogs, (e: Error) => toast(e.message, "error"));
+      }, { class: "primary" })
+    : null;
+  const remove = button(`Remove ${d.name}`, () => {
+    if (!confirm(`Remove ${d.name} from memory? ${closed ? "Nothing" : "Its tabs close too; nothing"} is saved.`)) return;
+    void api(`/datasets/${encodeURIComponent(d.name)}`, "DELETE").catch((e: Error) => toast(e.message, "error"));
+  }, { icon: "trash", iconOnly: true, class: "ghost" });
+  return h(
+    "tr",
+    {},
+    h("td", {}, h("strong", {}, d.name)),
+    h("td", { class: "num", title: "rows" }, `${formatCount(d.rows)} row${d.rows === 1 ? "" : "s"}`),
+    h("td", { class: "num" }, d.size),
+    h("td", {}, open),
+    h("td", {}, remove),
+  );
+}
 
-  const draw = (sessions: Session[]): void => {
-    status.textContent = sessions.length
-      ? ""
-      : "No Python sessions";
-    list.replaceChildren(...sessions.map(sessionBlock));
-  };
+function datasetBlock(title: string, id: string, datasets: Dataset[]): HTMLElement | null {
+  if (!datasets.length) return null;
+  return h(
+    "section",
+    { class: "open-session", id },
+    h("header", {}, h("strong", {}, title)),
+    h("table", { class: "kf-table small" }, h("tbody", {}, ...datasets.map(datasetRow))),
+  );
+}
+
+/** The Tables list. Also what the status bar's memory meter opens. */
+export function showTables(): void {
+  const { dialog, body } = openDialog("Tables", true);
+  body.classList.add("open-dialog");
+  const budget = h("p", { class: "hint", id: "tables-budget", role: "status" }, "Loading…");
+  const tables = h("div", { class: "open-tables" });
+  const status = h("p", { class: "hint", role: "status" });
+  const list = h("div", { class: "open-sessions" });
+  body.append(budget, tables, h("section", { class: "open-session", id: "python-sessions" }, h("header", {}, h("strong", {}, "Python sessions")), status, list));
+
   const load = async (): Promise<void> => {
     try {
-      draw((await api<{ processes: Session[] }>("/processes")).processes);
+      const listing = await api<{ datasets: Dataset[]; budget: Budget }>("/datasets");
+      const b = listing.budget;
+      budget.textContent = `${b.used} of ${b.total} in use · ${b.datasets} of ${b.max_datasets} tables · ${b.grids} of ${b.max_grids} tabs`;
+      tables.replaceChildren(
+        ...[
+          datasetBlock("Open tables", "open-tables", listing.datasets.filter((d) => d.grids.length)),
+          datasetBlock("Closed tables", "closed-tables", listing.datasets.filter((d) => !d.grids.length)),
+        ].filter((block): block is HTMLElement => block !== null),
+      );
     } catch (e) {
+      budget.textContent = `Could not read the tables: ${(e as Error).message}`;
+    }
+    try {
+      const sessions = (await api<{ processes: Session[] }>("/processes")).processes;
+      status.textContent = sessions.length ? "" : "No Python sessions";
+      status.hidden = sessions.length > 0;
+      list.replaceChildren(...sessions.map(sessionBlock));
+    } catch (e) {
+      status.hidden = false;
       status.textContent = `Could not read the Python sessions: ${(e as Error).message}`;
     }
   };

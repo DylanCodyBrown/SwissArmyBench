@@ -200,3 +200,16 @@ def test_compressed_file_that_expands_past_the_limit_is_refused(tmp_path: Path) 
 def test_paste_tab_separated_text(client: TestClient) -> None:
     pasted = client.post("/datasets/clip/paste", content=b"a\tb\n1\tx\n2\ty\n", headers=AUTH)
     assert rows(client, grid_id(pasted))["rows"] == [[1, "x"], [2, "y"]]
+
+
+def test_a_closed_table_reopens_as_the_original_not_a_copy(client: TestClient) -> None:
+    """Closing a table's tab leaves the table in memory; opening it again is a grid on that same
+    table (the Tables list's Open, the agent's tabs_create_grid)."""
+    first = grid_id(push(client, "orders", pa.table({"id": [1, 2, 3]})))
+    assert client.delete(f"/grids/{first}", headers=AUTH).status_code == 200
+    listed = client.get("/datasets", headers=AUTH).json()["datasets"]
+    assert [(d["name"], d["grids"], d["version"]) for d in listed] == [("orders", [], 1)]
+    again = client.post("/grids", json={"dataset": "orders"}, headers=AUTH).json()["grid"]
+    listed = client.get("/datasets", headers=AUTH).json()["datasets"]
+    assert [(d["name"], d["grids"], d["version"]) for d in listed] == [("orders", [again], 1)]
+    assert client.get(f"/grids/{again}/rows", headers=AUTH).json()["rows"] == [[1], [2], [3]]

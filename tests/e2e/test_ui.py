@@ -890,11 +890,41 @@ def test_repush_hot_reloads_and_keeps_sort(browser: Browser, server: dict[str, A
     wait_for_cell(page, 0, "order_id", "300")
 
 
-def test_datasets_popover_and_memory_meter(browser: Browser, orders_url: str) -> None:
-    page = open_grid(browser, orders_url)
+def test_the_tables_list_reopens_a_closed_table_and_holds_the_memory_numbers(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """Decision 9: one list behind the ≡ button beside "+": open tables, closed tables, Python
+    sessions. A closed table's Open brings the original back (2 actions), not a copy."""
+    url = push_client.push(demo_frame(120), name="reopen_me", new_grid=True)
+    page = open_grid(browser, url)
     expect(page.locator(".meter")).to_be_hidden()  # shown only past 80% of the budget
-    page.get_by_role("button", name="Datasets").click()
-    expect(page.locator(".popover table")).to_contain_text("orders")
+    expect(page.locator(".statusbar").get_by_role("button", name="Datasets")).to_have_count(0)
+    page.get_by_role("button", name="Tables").click()
+    dialog = page.locator("dialog:has(.open-dialog)")
+    expect(dialog.locator("#tables-budget")).to_contain_text(re.compile(r"in use · \d+ of \d+ tables"))
+    expect(dialog.locator("#open-tables")).to_contain_text("reopen_me")
+    expect(dialog.locator("#python-sessions")).to_contain_text("Python sessions")
+    page.keyboard.press("Escape")
+
+    # Close the tab: the table stays in memory, and the list has it under Closed tables.
+    tab = page.locator(f".tab-item[data-grid='{grid_of(url)}']")
+    tab.get_by_role("button", name="Close reopen_me").click()
+    expect(tab).to_have_count(0)
+    before = {d["name"]: d for d in call(server, "GET", "/datasets")["datasets"]}["reopen_me"]
+    assert before["grids"] == []
+    page.get_by_role("button", name="Tables").click()  # action 1
+    row = dialog.locator("#closed-tables").get_by_role("row", name=re.compile("reopen_me"))
+    expect(row).to_contain_text("120 rows")
+    row.get_by_role("button", name="Open", exact=True).click()  # action 2
+    # The list closes and the table is the tab in front, with its rows.
+    expect(page.locator("dialog[open]")).to_have_count(0, timeout=15000)
+    expect(page.locator(".tab-item.active .tab-label")).to_have_text("reopen_me", timeout=15000)
+    wait_for_cell(page, 0, "order_id", "1")
+    after = {d["name"]: d for d in call(server, "GET", "/datasets")["datasets"]}
+    # The original: the same table at the same version, one grid on it, and no copy beside it.
+    assert after["reopen_me"]["version"] == before["version"] and len(after["reopen_me"]["grids"]) == 1
+    assert [name for name in after if name.startswith("reopen_me")] == ["reopen_me"]
+    call(server, "DELETE", "/datasets/reopen_me")
 
 
 def test_paste_tab_separated_text_makes_a_dataset(
@@ -1709,7 +1739,7 @@ def test_the_open_dialog_lists_a_session_opens_its_table_and_keeps_it_current(
     watcher.start()
     try:
         page = open_grid(browser, orders_url)
-        page.get_by_role("button", name="Open a table from Python").click()
+        page.get_by_role("button", name="Tables").click()
         dialog = page.locator("dialog:has(.open-dialog)")
         expect(dialog.get_by_text("tie_out.ipynb")).to_be_visible(timeout=15000)
         row = dialog.get_by_role("row", name=re.compile("SOD"))

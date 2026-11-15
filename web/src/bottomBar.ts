@@ -3,12 +3,13 @@
  *
  * ROUTING: [ROWS SHOWN]     -> read-only, from the grid's displayed range and row count
  *          [SELECTION]      -> read-only, from state.selection (Excel's Count, Average, Sum)
- *          [MEMORY METER]   -> read-only, from the budget; shown only past 80% of it (the Datasets list has the numbers)
- *          [DATASETS]       -> openDatasets(): every dataset with its size and a Close button
+ *          [MEMORY METER]   -> shown only past 80% of the budget; a click opens the Tables list (the ≡ button
+ *                             beside "+": openMenu.ts), which has the numbers and where tables are removed
  *          [LIVE]           -> setLive(): words only while the page is not live
  */
 import { api, type Budget } from "./api";
-import { $, button, clear, formatCount, h, toast } from "./dom";
+import { clear, formatCount, h } from "./dom";
+import { showTables } from "./openMenu";
 import { displayedRange, shownTotal } from "./gridView";
 import { onAgentView } from "./panes";
 import { state } from "./state";
@@ -21,9 +22,9 @@ let live: HTMLElement;
 export function mountBottomBar(host: HTMLElement): void {
   rows = h("span", { id: "status", role: "status" });
   selection = h("span", { "aria-live": "polite" });
-  meter = h("span", { class: "meter" });
+  meter = h("button", { type: "button", class: "meter", onclick: () => showTables() });
   live = h("span", { id: "live" });
-  clear(host, rows, selection, h("span", { class: "grow" }), meter, button("Datasets", () => void openDatasets(), { class: "ghost" }), live, h("span", { class: "credit" }, "Created by Dylan Brown"));
+  clear(host, rows, selection, h("span", { class: "grow" }), meter, live, h("span", { class: "credit" }, "Created by Dylan Brown"));
   state.on("selection", render);
   state.on("info", render);
   onAgentView(render);
@@ -83,7 +84,7 @@ function render(): void {
 }
 
 export function renderMeter(budget: Budget): void {
-  // Shown only when there is something to do about it (principle 7.9): Datasets always has the numbers.
+  // Shown only when there is something to do about it (principle 7.9): the Tables list has the numbers.
   meter.hidden = !budget.warn;
   if (!budget.warn) {
     clear(meter);
@@ -91,7 +92,7 @@ export function renderMeter(budget: Budget): void {
   }
   const share = budget.total_bytes ? budget.used_bytes / budget.total_bytes : 0;
   meter.className = "meter warn";
-  meter.title = "Over 80% of the data budget is in use.";
+  meter.title = "Over 80% of the data budget is in use. Open the Tables list to remove some.";
   clear(
     meter,
     h("span", { class: "meter-bar", role: "meter", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(share * 100)), "aria-label": "Data budget used" }, h("span", { style: { width: `${Math.min(100, share * 100)}%` } })),
@@ -104,50 +105,4 @@ export function setLive(on: boolean): void {
   live.textContent = on ? "" : "○ not live: push again";
   live.className = on ? "" : "off";
   live.hidden = on;
-}
-
-async function openDatasets(): Promise<void> {
-  document.querySelector(".popover")?.remove();
-  const listing = await api<{ datasets: { name: string; rows: number; size: string; grids: string[]; version: number }[]; budget: Budget }>("/datasets");
-  const pop = h("div", { class: "popover", role: "dialog", "aria-label": "Datasets" });
-  const closePop = (): void => pop.remove();
-  pop.append(
-    h("div", { class: "code-toolbar", style: { justifyContent: "space-between" } }, h("strong", {}, "Datasets"), button("Close", closePop, { icon: "close", iconOnly: true, class: "ghost" })),
-    h("p", { class: "hint" }, `${listing.budget.used} of ${listing.budget.total} in use · ${listing.budget.datasets} of ${listing.budget.max_datasets} datasets · ${listing.budget.grids} of ${listing.budget.max_grids} grids`),
-    h(
-      "table",
-      { class: "small" },
-      h("thead", {}, h("tr", {}, h("th", {}, "Dataset"), h("th", {}, "Rows"), h("th", {}, "Size"), h("th", {}, ""))),
-      h(
-        "tbody",
-        {},
-        ...listing.datasets.map((d) =>
-          h(
-            "tr",
-            {},
-            h("td", {}, d.name, d.name === state.info?.dataset ? h("span", { class: "hint" }, " (this grid)") : null),
-            h("td", { class: "num" }, formatCount(d.rows)),
-            h("td", { class: "num" }, d.size),
-            h(
-              "td",
-              {},
-              button(`Close ${d.name}`, () => {
-                if (!confirm(`Close dataset ${d.name}? Its grids close too; nothing is saved.`)) return;
-                void api(`/datasets/${encodeURIComponent(d.name)}`, "DELETE")
-                  .then(closePop)
-                  .catch((e: Error) => toast(e.message, "error"));
-              }, { icon: "trash", iconOnly: true, class: "ghost" }),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-  document.body.append(pop);
-  const anchor = $(".statusbar").getBoundingClientRect();
-  pop.style.right = "12px";
-  pop.style.bottom = `${window.innerHeight - anchor.top + 6}px`;
-  setTimeout(() => document.addEventListener("click", function away(e) {
-    if (!pop.contains(e.target as Node)) { pop.remove(); document.removeEventListener("click", away); }
-  }), 0);
 }
