@@ -132,6 +132,8 @@ NOT_COMMANDS = {
     "/files/dropped-sheets": "a dropped workbook's sheets: the agent asks datasets_sheets by path",
     "/agent/export-approval/{}": "reached through table_export, which asks first",
     "/workbench/window/{}": "the Workbench window's own answer to workbench_window (not the agent's)",
+    "/workbench/notebook/flow": "the window's reading of an open notebook's run order: the agent reads "
+    "it with workbench_window notebook.runOrder",
     "/workspace/active": "the page reports which tab is in front (page plumbing)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",
@@ -556,8 +558,11 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The beta's parallel branches, merged (2026-11-15): Controllers added three (a canvas's contract
     # check, Test this page, moving a block's model work to data.ipynb); Lineage and approved outputs
     # five (a lineage with its values, showing it, approving a cell's output, the approvals, comparing
-    # an output with its approval); Add API two, and 1,000 characters (its choices, and add or preview).
-    assert size < 59_000, f"the tool list is {size} characters"
+    # an output with its approval); Add API two, and 1,000 characters (its choices, and add or preview);
+    # the Workbench's modes and kind colours eight (the kind colours, an app's page settings and its
+    # live state, a script's run settings, its scheduled run and its history, a notebook's run order,
+    # and data.ipynb's dictionary).
+    assert size < 61_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

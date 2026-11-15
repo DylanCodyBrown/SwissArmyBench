@@ -131,6 +131,26 @@ const ICONS: Record<string, string> = {
   outliers: '<circle cx="6" cy="16" r="1.4"/><circle cx="10" cy="13.5" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="13" cy="16.5" r="1.4"/><circle cx="19" cy="5" r="2"/><path d="M3 21h18"/>',
   // The tour: a question mark in a circle.
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2M12 17h.01"/>',
+  // The Workbench's modes (2026-11-15): history, schedule, outline, properties, state, devices, light
+  // and dark, undo and redo, align, duplicate, dictionary, run up to here (lineage's own is above).
+  history: '<path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  outline: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  properties: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 4v16"/>',
+  sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  desktop: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>',
+  tablet: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/>',
+  align: '<path d="M4 3v18M8 7h12v4H8zM8 14h7v4H8z"/>',
+  duplicate: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2h3"/>',
+  book: '<path d="M2 5h7a3 3 0 013 3v13a2 2 0 00-2-2H2zM22 5h-7a3 3 0 00-3 3v13a2 2 0 012-2h8z"/>',
+  runTo: '<path d="M5 4v16M9 5l10 7-10 7z"/>',
+  reset: '<path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.7L3 8"/><path d="M3 3v5h5"/>',
+  wiring: '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6c7 0 3 12 10 12"/><path d="M14 15l3 3-3 3"/>',
 };
 
 export function icon(name: string): SVGSVGElement {

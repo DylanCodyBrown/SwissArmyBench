@@ -47,7 +47,9 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, the setup prompt for connecting an agent and the agent activity list described below.
 
-**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts.
+**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history.
+
+**Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
 
 ![The Settings window: the theme, the setup prompt with its copy button and the agent activity list.](images/02-preferences.png)
 
@@ -337,7 +339,10 @@ their own, run in an IPython kernel on this computer.
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
   the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the
   bar between groups to size them; a group closes with its last tab. A tab's icon and coloured edge say
-  its kind: blue for `data.ipynb`, grey for notebooks and scripts.
+  its kind, in its kind colour: violet for an app's page, blue for a notebook (`data.ipynb` with the
+  data's own icon), green for a script. The group wears its front document's colour as a thin band, and
+  so do the Data panel's files, the Streamlit cells (by the document they come from), the canvas's
+  blocks and the Recent and Move menus.
 - **Each group's row:** its tabs, then, for the group you are in, the document's controls: a
   notebook's **+ Cell** (Python, SQL, DAX, HTML, Streamlit, Markdown), **Run all** and **…**; a script's
   **+ Cell**, **Run file** and **…** (Run statement, Open…, Recent, Save as…, Interrupt, Restart, the
@@ -929,6 +934,40 @@ applies there too.
   in a box) and makes `pressed_key`, the key just pressed.
 
 ![A Streamlit page made of four Components pieces: the segmented slicer on South, the animated KPI counter and the gauge reading its rows, and the sortable table sorted by amount.](images/24-components-page.png)
+
+### The Workbench's modes
+
+Each kind of document has its own panels, beside it in its group (two groups side by side keep their
+own). The status bar shows the document in front's panels as toggles.
+
+- **App** (a Streamlit app's canvas): click a block and **Properties** shows its name (the cell's own:
+  renaming it renames the cell), its width and height, its **Source cell** in its notebook's colour (a
+  click goes there), what it makes and reads, the blocks it **Feeds**, and its widget's value while the
+  page plays; as a **Controller**, its role (Filter, Action, View or Model work), what it makes with
+  its types and defaults, and what is wrong with its `# Makes:` line; and **Lineage…**, the flow back to
+  the data. Violet arrows over the board show its wiring. With no block selected, Properties holds the
+  **page settings**: title, icon, Wide or Centred, a logo and the theme's colours, written into the saved
+  pages and the zip as `st.set_page_config`, `st.logo` and `.streamlit/config.toml`. Edit's tools: undo,
+  redo, align, duplicate, zoom. Play shows **Desktop**, **Tablet** or **Phone**, and **Light** or **Dark**
+  for the app only. **State** (under the canvas) lists what the live page's session holds, each key with
+  its block; **Reset state** starts the page again fresh. The Data panel's **Data | Starters** switch
+  shows the Streamlit starters by family: drag one onto the page (or click it), fill its form, and it
+  becomes a named cell of the project's mockups notebook, placed where you dropped it.
+- **Notebook:** a cell you changed since it ran says **edited**; one that reads a name made again since
+  it ran says **out of date**. **Outline** lists the headings and named cells, the stale ones marked.
+  The selected cell offers **Run up to here**. A DataFrame's output has **Open as grid**. **Present**
+  shows the notebook as a document: its text and outputs, no code.
+- **Script:** **Run settings** holds the arguments and each environment variable the script needs (the
+  ones it reads, by line; each connection's password) with where it comes from: **This computer**, a
+  **Plain value**, or a **Key vault**'s secret. Values are never shown but a plain one's. **Run as
+  scheduled** runs the script the way a schedule would: a fresh process with no app. **Run history**
+  lists its runs (Run file too) with their exit code, time, sources and log (kept until Swiss Army Bench
+  stops).
+- **Data** (`data.ipynb`): **Cells | Lineage | Dictionary**. The **Dictionary** lists each table's
+  columns with their types in plain words and where each comes from (the file, or the grid's step that
+  made it). Type a description: it is kept in data.ipynb and written into data.py as comments.
+  **Lineage** draws the selected cell's lineage (else the last cell's) in place: the same flow and
+  values as the Lineage overlay; a double-click on a step goes back to Cells, at that cell.
 
 ### Projects: start with the data
 

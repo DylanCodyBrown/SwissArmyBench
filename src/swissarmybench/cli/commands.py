@@ -2526,6 +2526,48 @@ def workbench_run(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "workbench_script_settings",
+    "A script's run settings: arguments, the variables it needs and each one's source (never a value); "
+    "with set, change them",
+    req("path", "The script (.py)."),
+    opt(
+        "set",
+        '{"arguments": "--region all", "variables": [{"name": "REPORT_FOLDER", "from": "env"}, '
+        '{"name": "HOST", "from": "value", "value": "db1"}, {"name": "PASSWORD", "from": "vault", '
+        '"vault": "Team vault", "secret": "warehouse-password"}]}',
+        "json",
+    ),
+)
+def workbench_script_settings(a: dict[str, Any]) -> Any:
+    if a.get("set") is not None:
+        if not isinstance(a["set"], dict):
+            raise CommandError('set is {"arguments": "...", "variables": [...]}.')
+        return api.call("PUT", "/workbench/scripts/settings", {"path": a["path"], **a["set"]})
+    return api.call("GET", f"/workbench/scripts/settings?path={_q(a['path'])}")
+
+
+@command(
+    "workbench_script_run",
+    "Run as scheduled: the script as a fresh process with no app, its settings' arguments and variables; "
+    "its exit code, time, sources and log (the history keeps it)",
+    req("path", "The script (.py)."),
+    opt("python", "The Python (default: the script's own environment)."),
+)
+def workbench_script_run(a: dict[str, Any]) -> Any:
+    body = {"path": a["path"]} | ({"python": a["python"]} if a.get("python") else {})
+    return api.call("POST", "/workbench/scripts/run", body)
+
+
+@command(
+    "workbench_script_history",
+    "A script's run history (Run as scheduled and Run file), the newest first, with each run's log",
+    req("path", "The script (.py)."),
+)
+def workbench_script_history(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/workbench/scripts/history?path={_q(a['path'])}")
+
+
+@command(
     "workbench_input",
     "Answer a run the user started that waits at input(), getpass or pdb",
     req("kernel", "The kernel's id."),
@@ -2734,6 +2776,17 @@ def app_panels(a: dict[str, Any]) -> Any:
     if a.get("set") is not None:
         return api.call("PUT", "/panels", a["set"])
     return api.call("GET", "/panels")
+
+
+@command(
+    "app_kind_colours",
+    "Kind colours (app, notebook, script; kept across restarts); with set, choose (null: default)",
+    opt("set", '{"app": "#7b3fc4", "script": null}', "json"),
+)
+def app_kind_colours(a: dict[str, Any]) -> Any:
+    if a.get("set") is not None:
+        return api.call("PUT", "/kind-colours", a["set"])
+    return api.call("GET", "/kind-colours")
 
 
 # ===== beta mode: the beta log and the notes (redacted: no data, SQL, code, secrets or paths) =====
@@ -2977,6 +3030,16 @@ def project_export_data(a: dict[str, Any]) -> Any:
     return api.call("POST", "/projects/export-data", {"folder": a["folder"]})
 
 
+@command(
+    "project_dictionary",
+    "The data dictionary of a project's data.ipynb (as saved): each table's columns, plain types, "
+    "descriptions, where each comes from (the open window's: workbench_window dictionary.list)",
+    req("folder", "The project's folder."),
+)
+def project_dictionary(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/dictionary", {"folder": a["folder"]})
+
+
 @command("streamlit_apps", "The open Streamlit apps: canvases, and each open document's own")
 def streamlit_apps(a: dict[str, Any]) -> Any:
     return api.call("GET", "/streamlit/apps")
@@ -3008,6 +3071,25 @@ def streamlit_app(a: dict[str, Any]) -> Any:
 )
 def streamlit_run(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/run")
+
+
+@command(
+    "streamlit_page_settings",
+    "A canvas's page settings: title, icon, layout (wide, centered), logo, colours (theme)",
+    req("app", "The app's id."),
+    req("settings", '{"title": "Sales", "layout": "centered", "colours": {"primary": "#c8102e"}}', "json"),
+)
+def streamlit_page_settings(a: dict[str, Any]) -> Any:
+    return api.call("PUT", f"/streamlit/apps/{_q(a['app'])}/settings", a["settings"])
+
+
+@command(
+    "streamlit_state",
+    "The live page's session state (State panel): each key, its value, its block",
+    req("app", "The app's id."),
+)
+def streamlit_state(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/session")
 
 
 @command(
@@ -3049,7 +3131,7 @@ def streamlit_install(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_save",
-    "Save a canvas to its file (.stapp.json: pages, blocks, links; no code)",
+    "Save a canvas to its file (.stapp.json: pages, blocks, links, page settings; no code)",
     req("app", "The app's id."),
     opt("path", "Where (default: the file it was opened from)."),
 )
@@ -3060,7 +3142,11 @@ def streamlit_save(a: dict[str, Any]) -> Any:
         raise CommandError("Send path: this app has no file yet.")
     if not path.lower().endswith(".stapp.json"):
         path += ".stapp.json"
-    saved = api.call("POST", "/workbench/save", {"path": path, "pages": state["pages"], "force": True})
+    saved = api.call(
+        "POST",
+        "/workbench/save",
+        {"path": path, "pages": state["pages"], "settings": state.get("settings"), "force": True},
+    )
     api.call("PUT", f"/streamlit/apps/{_q(a['app'])}", {"document": saved["path"]})
     return saved
 

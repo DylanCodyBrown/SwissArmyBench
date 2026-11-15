@@ -83,6 +83,15 @@ class AppFiles:
         partial.write_bytes(data)
         os.replace(partial, target)
 
+    def read(self, folder: str, name: str) -> str | None:
+        """A small file the live app wrote in its folder (its session's state); None: not there yet."""
+        if folder not in self._made:
+            return None
+        try:
+            return (Path(folder) / name).read_text(encoding="utf-8")[:1_000_000]
+        except (OSError, UnicodeDecodeError):
+            return None
+
     def has_table(self, folder: str, name: str) -> bool:
         return (Path(folder) / "data" / f"{name}.parquet").is_file()
 

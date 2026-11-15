@@ -2461,7 +2461,8 @@ on the left so you can see outputs and variable values as they flow through the 
   first, ties broken by data.ipynb first, then each document's own order. At most 120 nodes.
 - **The overlay** (web/src/workbenchLineage.ts): right-click a block (the canvas), a cell's head or
   output, or a line in the editor (notebook or script), or More: Lineage, or the palette, or
-  `window.openLineage(target)` (for the wb-modes Data mode's Lineage view). The Mermaid flowchart top to
+  `window.openLineage(target, into?)` (the agent's and the tests' door; `into` draws it in place, as
+  the Data mode's Lineage view does). The Mermaid flowchart top to
   bottom on the right, drawn at its own size with the app's Mermaid and cleaned as every drawing is;
   each node shows its name, `doc @cellN` and its value in a word ("1,204 rows", "West"). On the left one
   card per node, placed at its node's height (pushed down when two would meet). Kind colours: a card's
@@ -2505,3 +2506,88 @@ on the left so you can see outputs and variable values as they flow through the 
 - **Open:** the cards line up with the nodes by height, but nodes on one rank stack their cards; a
   wide flow scrolls with the cards. The kind colour tokens come from the wb-modes branch; this branch
   falls back to the chart series colours until they merge.
+## Kind colours and the Workbench's four modes (2026-11-15, the owner's calls; built)
+
+The owner: "App violet, notebook blue, script green", and approved the modes' mockup (App, Notebook, Script,
+Data) with corrections: never "pieces" on screen (they are cells: "Data | Starters", "Source cell"); the
+source document's colour wherever a cell shows; violet only for the app. Built on branch `wb-modes`:
+
+- **Kind colours:** tokens per theme in grid.css (`--kind-app`, `--kind-notebook`, `--kind-script`;
+  domain/kind_colours.py holds the same, and a test keeps them equal and at 4.5 to 1 against the page and
+  the panels, 7 to 1 in the high contrast themes, since `@cell7` is written in them). Shown as a thin edge
+  or a mark beside the kind's icon on tabs, the group's band (its front document's), the Data panel's
+  files, the Streamlit cells pane and canvas blocks (by source document, with `doc @cellN` in that
+  colour), Properties' Source cell, and the Recent and Move menus. data.ipynb is a notebook (blue) with the
+  data's own icon; a blade or a catalog table wears none. Amber is refused as a kind's colour.
+- **Settings' Kind colours, shared by every window, kept across restarts** (Claude's call): a colour is a
+  choice made on purpose, unlike a panel switched off for a while, so it is kept in `kind_colours.json`
+  in the state folder (the panels deliberately are not). A chosen colour is made readable in each theme
+  (moved toward black or white, its hue kept). The agent: `app_kind_colours`.
+- **Each document's panels sit beside it in its group** (workbenchModes.ts), so two groups side by side
+  keep their own (mockup 10); the status bar's toggles are the focused document's. Each has a switch in
+  Settings' Panels (Properties, State, Starters, Outline, Run settings, Run history).
+- **App:** a click selects a block (violet outline); Properties shows its name (renaming it names the
+  cell in its document), width and height, Source cell, makes, reads, Feeds and its widget's value on the
+  live page; the wiring is violet arrows from it to each block that reads what it makes. With no block
+  selected, the **page settings** (title, icon, Wide or Centred, logo, theme colours) are kept in the
+  app's file (`"settings"`, one line; old files read as before) and written into the live page (the
+  entry's `st.set_page_config` and `st.logo`, `.streamlit/config.toml` in its folder), the export (app.py
+  and `.streamlit/config.toml`) and the saved pages (each pages/*.py starts with them; the project and the
+  zip get `.streamlit/config.toml`, never over one of the user's own, told by its first line). The logo is
+  a path relative to the app's file; it is not copied into an export. Edit's tools: undo and redo (the
+  layout, 50 steps, this window's), align (left edge, centre, right edge, full width), duplicate (another
+  block linked to the same cell), zoom (50 to 150%). Play's Desktop, Tablet (820 px) or Phone (390 px),
+  and Light or Dark through Streamlit's own `embed_options` for the app only.
+- **State:** the live page writes what its session holds (`st.session_state`: widget values by key, the
+  page's own values; a plain value as itself, else what it is, "DataFrame, 10 rows") to `_sab_state.json`
+  in the app's temporary folder after each run (a tail added to each live page only, never to an export
+  or a saved page); the panel reads it every 1.5 seconds while it is open and the page plays, each key with
+  the block whose widget it is. **Reset state** opens the page again with a fresh session.
+- **Starters:** the Data panel's Data | Starters shows the 29 Streamlit starters in their five families
+  (by their tags: Filters 7, Displays 10, Layout 4, Interaction 6, Feedback 2), each with a small sketch.
+  A drop (or a click: the end of the page) fills the starter's form, writes it as a real named cell of the
+  project's mockups notebook (one beside the app whose name says mock; else `app mockups.ipynb` beside it,
+  made and saved; an existing file of that name is opened, never replaced), saves that notebook and
+  places the cell's block where it was dropped. The agent: `canvas.addStarter` with `values` (no form).
+- **Notebook:** each cell remembers the code it last ran and when (this kernel's order of runs);
+  domain/notebook_flow.py says edited (its code changed) or out of date (a name it reads was made again
+  since it ran, or its maker is edited or out of date) with the names. Only these states are shown
+  (principle 7.9). The Outline: headings and named cells, the stale ones marked. Run up to here on the
+  selected cell. Open as grid on a DataFrame's output was already there. Present: the notebook as a
+  document (text and outputs; code cells that drew nothing are left out), the Data panel folded while it
+  shows.
+- **Script:** Run settings: arguments (Run file passes them too, as `sys.argv`) and each variable the
+  script needs: those it reads (by line; only `os.environ["X"]` counts as required) and each connection's
+  and blade's passwords (`sab.read("Warehouse")`: WAREHOUSE_PASSWORD, as a run without the app looks
+  for it). Sources: This computer, a Plain value (refused for a name that reads like a secret), a Key
+  vault's secret (read through the vault blade when the run starts). Kept by the script's path in
+  `run_settings.json` (a plain value only, never a secret's). The keyring is not offered as a source for
+  a script (no place to type a value safely here yet). **Run as scheduled** (server/script_runner.py):
+  `python <script> <arguments>` in the script's own Python and folder, a fresh process, with
+  `SWISSARMYBENCH_INFO` naming a file that is not there, so the client finds no app and reads connections
+  as an exported script does (client/standalone.py; branch one-script's exported script runs the same
+  way); output kept to its last 256 KB, stopped after 30 minutes. **Run history:** memory only (a run's
+  log may hold what the script printed), the last 50 runs of a script, Run file included (its log is not
+  kept: it is in the console).
+- **Data (data.ipynb):** Cells | Lineage | Dictionary. The Dictionary lists data.ipynb's tables, each
+  column with its type in plain words (Whole number, Decimal, Text, Date, Date and time, True or false,
+  List, Record...) and where it comes from (the table's source, or "Step 2" when that grid step made it,
+  from the compiled view's stages). Descriptions are typed in place, kept in data.ipynb's metadata
+  (`swissarmybench.dictionary`: they travel with the file and the zip), make the notebook unsaved, and
+  are written into data.py as a comment block under its first lines (from the open data.ipynb, saved or
+  not). **Lineage** (merged with the lineage branch, 2026-11-15): the overlay's own flow drawn in place
+  (`openLineage(target, host, into)`), for data.ipynb's selected cell, else its last; a double-click on
+  a node goes back to Cells at that cell; its place shows the word Lineage only while there is no
+  cell. Properties shows a block's controller (role, makes with types and defaults, its contract's
+  problems) and Lineage… opens the overlay.
+- **The agent** (the golden rule): `app_kind_colours`, `streamlit_page_settings`, `streamlit_state`,
+  `workbench_script_settings`, `workbench_script_run`, `workbench_script_history`, `project_dictionary`;
+  and in the window `mode.panel`, `canvas.select`, `canvas.properties`, `canvas.settings`,
+  `canvas.session`, `canvas.resetState`, `canvas.undo`, `canvas.redo`, `canvas.duplicate`, `canvas.align`,
+  `canvas.zoom`, `canvas.preview`, `canvas.addStarter`, `data.starters`, `data.starterList`,
+  `notebook.runOrder`, `notebook.outline`, `run.upToHere`, `notebook.present`, `script.runScheduled`,
+  `script.history`, `data.view`, `dictionary.list`, `dictionary.describe`. The tool list's budget is
+  59,000 characters.
+- **Not built here** (other branches' or later): text cells' "Text and layout" starters and the "Pin to
+  the bottom" footer option, live markdown on pages beyond what text cells already do, controllers and
+  the contract check, lineage's own view, approved outputs. A Run file's log in the history.

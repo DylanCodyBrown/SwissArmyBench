@@ -155,10 +155,17 @@ function itemView(item: ValueItem, many: boolean): HTMLElement {
 }
 
 let open: { refresh: () => void; close: () => void } | null = null;
+let placed: { refresh: () => void; close: () => void } | null = null; // the Data mode's, in place
 
 /** Something the lineage may show changed (a run ended, a page ran again, a grid step): ask again. */
 export function lineageNoticed(): void {
   open?.refresh();
+  placed?.refresh();
+}
+
+/** Stop the lineage drawn in place (the Data mode's view was left). */
+export function closePlacedLineage(): void {
+  placed?.close();
 }
 
 /** Close the lineage overlay, if one is open. */
@@ -166,10 +173,11 @@ export function closeLineage(): void {
   open?.close();
 }
 
-/** Open the lineage overlay for a cell or a block. What it shows, for the agent. */
-export async function openLineage(target: LineageTarget, host: LineageHost): Promise<LineageGraph> {
-  open?.close();
-  const back = document.activeElement as HTMLElement | null;
+/** Open the lineage overlay for a cell or a block, or (`into`: the Data mode's Lineage view) the same
+ *  flow drawn in place inside that element. What it shows, for the agent. */
+export async function openLineage(target: LineageTarget, host: LineageHost, into?: HTMLElement): Promise<LineageGraph> {
+  (into ? placed : open)?.close();
+  const back = into ? null : (document.activeElement as HTMLElement | null);
   const title = h("span", { class: "wb-lin-target" });
   const values = h("div", { class: "wb-lin-values", role: "list", "aria-label": "Values" });
   const chart = h("div", { class: "wb-lin-chart", "aria-label": "Flow" });
@@ -179,17 +187,19 @@ export async function openLineage(target: LineageTarget, host: LineageHost): Pro
     window.clearInterval(timer);
     resize.disconnect();
     shade.remove();
+    panel.remove();
     document.removeEventListener("keydown", keys, true);
     if (open === handle) open = null;
+    if (placed === handle) placed = null;
     back?.focus?.();
   };
   const panel = h(
     "div",
-    { class: "wb-lineage", role: "dialog", "aria-modal": "true", "aria-label": "Lineage" },
-    h("div", { class: "wb-lin-top" }, h("h2", {}, "Lineage"), title, h("span", { class: "spacer" }), button("Close", close, { icon: "close", iconOnly: true, class: "ghost", title: "Close (Escape)" })),
+    into ? { class: "wb-lineage in-place lineage", role: "region", "aria-label": "Lineage" } : { class: "wb-lineage", role: "dialog", "aria-modal": "true", "aria-label": "Lineage" },
+    h("div", { class: "wb-lin-top" }, h("h2", {}, "Lineage"), title, h("span", { class: "spacer" }), into ? null : button("Close", close, { icon: "close", iconOnly: true, class: "ghost", title: "Close (Escape)" })),
     h("div", { class: "wb-lin-body" }, flow, notes),
   );
-  const shade = h("div", { class: "wb-lineage-shade lineage" }, panel);
+  const shade = h("div", { class: "wb-lineage-shade lineage" }, ...(into ? [] : [panel]));
   shade.addEventListener("mousedown", (e) => {
     if (e.target === shade) close();
   });
@@ -200,8 +210,12 @@ export async function openLineage(target: LineageTarget, host: LineageHost): Pro
       close();
     }
   };
-  document.addEventListener("keydown", keys, true);
-  document.body.append(shade);
+  if (into) {
+    clear(into, panel);
+  } else {
+    document.addEventListener("keydown", keys, true);
+    document.body.append(shade);
+  }
 
   let graph: LineageGraph | null = null;
   let drawn = ""; // the Mermaid text last drawn
@@ -324,7 +338,7 @@ export async function openLineage(target: LineageTarget, host: LineageHost): Pro
   };
 
   const refresh = (): void => {
-    if (asking || !document.body.contains(shade)) return;
+    if (asking || !document.body.contains(panel)) return;
     asking = true;
     void ask()
       .then(async (next) => {
@@ -337,16 +351,18 @@ export async function openLineage(target: LineageTarget, host: LineageHost): Pro
     if (document.visibilityState === "visible") refresh();
   }, POLL_MS);
   const handle = { refresh, close };
-  open = handle;
+  if (into) placed = handle;
+  else open = handle;
 
   try {
     const first = await ask();
     await draw(first);
-    (values.querySelector(".wb-lin-card.target") as HTMLElement | null)?.focus();
+    if (!into) (values.querySelector(".wb-lin-card.target") as HTMLElement | null)?.focus();
     return first;
   } catch (e) {
     close();
-    toast((e as Error).message, "error");
+    if (into) clear(into, h("p", { class: "error wb-lin-failed" }, (e as Error).message));
+    else toast((e as Error).message, "error");
     throw e;
   }
 }

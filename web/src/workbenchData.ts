@@ -15,8 +15,11 @@
  *                a canvas (as dragging the cell itself does); a click goes to the cell. A cell already
  *                on the canvas page in front has a mark. It folds like the files
  *   [FILES]      at the bottom, folded: a project's files. Hidden until a project exists (setFiles)
+ *   [STARTERS]   App mode (2026-11-15): with a Streamlit app's canvas in front, the head's Data |
+ *                Starters switch shows the starter gallery instead (workbenchStarters.ts)
  *   [COLLAPSE]   the arrow (or Ctrl+B) folds the panel to a narrow bar; remembered in this browser
  */
+import { type Kind, kindIcon, kindOfPath } from "./kindColours";
 import type { BladeSummary } from "./bladeEditor";
 import { DROP_TYPE } from "./catalogRail";
 import { button, h, icon } from "./dom";
@@ -82,6 +85,10 @@ export interface DataPanel {
   /** Show the flyout with the catalog or the blades (null: close it). */
   flyout(which: "catalog" | "blades" | null): void;
   flyoutShown(): "catalog" | "blades" | null;
+  /** App mode: the starter gallery (null: no canvas in front, so no switch). */
+  setStarters(gallery: HTMLElement | null): void;
+  /** Show the gallery (true) or the data (false); without `on`, the other. True when it shows. */
+  showStarters(on?: boolean): boolean;
 }
 
 const COLLAPSED_KEY = "workbench-data-collapsed";
@@ -163,13 +170,34 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     catalogHost,
   );
   let shown: "catalog" | "blades" | null = null;
+  // App mode: Data | Starters, while a Streamlit app's canvas is in front.
+  let gallery: HTMLElement | null = null;
+  let starting = false;
+  const title = h("h2", {}, icon("sql"), h("span", { class: "wb-data-title" }, "Data"));
+  const dataTab = button("Data", () => showStarters(false), { class: "wb-data-tab" });
+  const startersTab = button("Starters", () => showStarters(true), { class: "wb-data-tab" });
+  const switcher = h("span", { class: "cv-mode wb-data-switch", role: "group", "aria-label": "Data or starters", hidden: true }, dataTab, startersTab);
+  const galleryHost = h("div", { class: "wb-data-body wb-starters-host", hidden: true });
   const element = h(
     "aside",
     { class: "wb-data", "aria-label": "Data" },
-    h("div", { class: "wb-data-head" }, h("h2", {}, icon("sql"), h("span", { class: "wb-data-title" }, "Data")), fold),
+    h("div", { class: "wb-data-head" }, title, switcher, fold),
     body,
+    galleryHost,
     flyoutEl,
   );
+
+  function showStarters(on?: boolean): boolean {
+    starting = !!gallery && (on ?? !starting);
+    switcher.hidden = !gallery;
+    title.hidden = !!gallery;
+    dataTab.setAttribute("aria-pressed", String(!starting));
+    startersTab.setAttribute("aria-pressed", String(starting));
+    body.hidden = starting;
+    galleryHost.hidden = !starting;
+    if (gallery && galleryHost.firstElementChild !== gallery) galleryHost.replaceChildren(gallery);
+    return starting;
+  }
 
   function flyout(which: "catalog" | "blades" | null): void {
     shown = which;
@@ -255,6 +283,9 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     if (!blades.length) bladeList.append(h("li", { class: "wb-data-empty" }, "No blades"));
   }
 
+  /** A pane document's kind (its file's, else a notebook: an unsaved script says so by its title). */
+  const sourceKind = (d: PaneDocument): Kind => kindOfPath(d.document ?? d.title) ?? "notebook";
+
   // ----- the Streamlit cells pane: the cells that call Streamlit, then (under Text) the Markdown and
   // HTML cells, which go on a page too (docs/ideas.md, text cells on the canvas, 2026-11-15)
   function drawStreamlit(): void {
@@ -294,7 +325,8 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
             h("span", { class: "wb-data-label" }, c.name),
             on ? h("span", { class: "wb-st-placed", title: "On the canvas page in front", "aria-label": "On the canvas page in front" }, icon("check")) : null,
           ),
-          h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
+          // Its source document's kind colour and icon beside the @cell (notebook blue, script green).
+          h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, icon(kindIcon(sourceKind(d), d.document)), `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
         ),
       );
     };
@@ -304,8 +336,8 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
         const texts = d.cells.filter((c) => c.kind === "markdown" || c.kind === "html");
         return h(
           "div",
-          { class: "wb-st-doc" },
-          h("div", { class: "wb-st-doc-name", title: d.document ?? d.title }, d.title),
+          { class: `wb-st-doc km-${sourceKind(d)}` },
+          h("div", { class: "wb-st-doc-name", title: d.document ?? d.title }, icon(kindIcon(sourceKind(d), d.document)), h("span", {}, d.title)),
           live.length ? h("ul", { class: "wb-data-list", "aria-label": d.title }, ...live.map((c) => item(d, c))) : null,
           texts.length ? h("div", { class: "wb-st-text-head" }, "Text") : null,
           texts.length ? h("ul", { class: "wb-data-list wb-st-texts", "aria-label": `${d.title}: text` }, ...texts.map((c) => item(d, c))) : null,
@@ -326,7 +358,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
       ...files.files.map((f) =>
         h(
           "li",
-          { class: `wb-file${f.derived ? " derived" : ""}` },
+          { class: `wb-file${f.derived ? " derived" : ""}${kindOfPath(f.path) ? ` km-${kindOfPath(f.path)}` : ""}` },
           f.open
             ? h("button", { type: "button", class: "link wb-file-open", onclick: () => f.open?.() }, f.icon ? icon(f.icon) : null, h("span", {}, f.path))
             : h("span", { class: "wb-file-name" }, f.icon ? icon(f.icon) : null, h("span", {}, f.path)),
@@ -371,6 +403,11 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
       blades = list;
       drawBlades();
     },
+    setStarters: (next) => {
+      gallery = next;
+      showStarters(starting);
+    },
+    showStarters,
     setFiles: (list) => {
       files = list;
       drawFiles();

@@ -154,7 +154,33 @@ export interface CanvasState extends AppCommon {
   kind: "canvas";
   unsaved: string[];
   pages: CanvasPage[];
+  settings: AppSettings;
 }
+
+/** A Streamlit app's page settings (domain/app_settings.py): kept in its file, written into its pages. */
+export interface AppSettings {
+  title: string;
+  icon: string;
+  layout: "wide" | "centered";
+  logo: string;
+  colours: Partial<Record<"primary" | "background" | "secondary_background" | "text", string>>;
+}
+
+/** A key the live page's session holds (the State panel): its value as written, its block's name. */
+export interface SessionRow {
+  key: string;
+  value: unknown;
+  block: string | null;
+}
+
+/** A state value as the State panel and Properties show it. */
+export const shownValue = (value: unknown): string => {
+  if (value && typeof value === "object" && !Array.isArray(value) && "kind" in value) {
+    const v = value as { kind: string; rows?: number };
+    return typeof v.rows === "number" ? `${v.kind}, ${v.rows.toLocaleString()} rows` : v.kind;
+  }
+  return JSON.stringify(value);
+};
 
 /** The pages as the app's file keeps them (and as the server takes them back). */
 export interface SavedPage {
@@ -195,7 +221,8 @@ export function problemText(problem: AppProblem): string {
 
 /** A frame's address for a page of the app: without Streamlit's own chrome, and without the app's
  *  list of pages (a canvas and a cell show one page). */
-export const frameAddress = (address: string): string => `${address}?embed=true&embed_options=${effectiveTheme().endsWith("dark") ? "dark_theme" : "light_theme"}&sab=frame`;
+export const frameAddress = (address: string, theme: "light" | "dark" | null = null): string =>
+  `${address}?embed=true&embed_options=${(theme ?? (effectiveTheme().endsWith("dark") ? "dark" : "light")) === "dark" ? "dark_theme" : "light_theme"}&sab=frame`;
 
 /** "makes region · reads orders" */
 export const partsOf = (what: { makes: string[]; reads: string[]; tables: string[] }): string =>
@@ -327,6 +354,8 @@ export interface AppDocument {
   unsaved: () => boolean;
   /** Every cell, for a project's data.ipynb (its export data.py is written from them); else null. */
   every: () => EveryCell[] | null;
+  /** A project's data.ipynb: its data dictionary's descriptions (written into data.py too). */
+  dictionary?: () => unknown;
 }
 
 /** One notebook's or script's app, as this window knows it. The server hears of a document once it
@@ -350,7 +379,8 @@ export class StreamlitDoc {
 
   private body(): Record<string, unknown> {
     const every = this.doc.every();
-    return { title: this.doc.title(), document: this.doc.path(), python: this.doc.python(), kernel: this.doc.kernel(), window: this.doc.window, cells: this.doc.cells(), unsaved: this.doc.unsaved(), ...(every ? { every } : {}) };
+    const dictionary = this.doc.dictionary?.();
+    return { title: this.doc.title(), document: this.doc.path(), python: this.doc.python(), kernel: this.doc.kernel(), window: this.doc.window, cells: this.doc.cells(), unsaved: this.doc.unsaved(), ...(every ? { every } : {}), ...(dictionary ? { dictionary } : {}) };
   }
 
   private take(state: AppState): AppState {

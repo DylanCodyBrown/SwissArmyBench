@@ -15,8 +15,6 @@ class Files(Protocol):
 
     def lineage_helper(self) -> str: ...  # client/lineage_values.py's text: a live page's sab_lineage.py
 
-    def read_trace(self, folder: str, page: str) -> str | None: ...  # what a live page noted of its blocks
-
     def write(self, folder: str, files: dict[str, str], keep: set[str]) -> None: ...
 
     def touch(self, folder: str, name: str) -> None: ...
@@ -26,6 +24,8 @@ class Files(Protocol):
     def has_table(self, folder: str, name: str) -> bool: ...
 
     def remove(self, folder: str) -> None: ...
+
+    def read(self, folder: str, name: str) -> str | None: ...  # a file the live app wrote (its state)
 
     def export_target(self, folder: str) -> str: ...
 

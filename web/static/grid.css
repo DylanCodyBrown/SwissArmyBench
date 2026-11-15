@@ -40,6 +40,9 @@ html[data-theme="light"] {
   --focus-width: 2px;
   --cat-1: #c8102e; --cat-2: #3b6e96; --cat-3: #17722f; --cat-4: #a3248f;
   --cat-5: #6a5c00; --cat-6: #0a7c86; --cat-7: #5b4bb7; --cat-8: #57606a;
+  /* Kind colours: app pages violet, notebooks blue, scripts green (domain/kind_colours.py holds the
+     same; Settings may choose others). A thin edge or a mark beside the icon, never a background. */
+  --kind-app: #7b3fc4; --kind-notebook: #1f63b0; --kind-script: #2b7238;
 }
 
 html[data-theme="dark"] {
@@ -73,6 +76,7 @@ html[data-theme="dark"] {
   --focus-width: 2px;
   --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
   --cat-5: #e3b341; --cat-6: #39c5cf; --cat-7: #a99cf0; --cat-8: #b1bac4;
+  --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
 }
 
 /* High contrast themes aim for 7:1 text, thick always-visible focus, strong borders. */
@@ -107,6 +111,7 @@ html[data-theme="hc-light"] {
   --focus-width: 3px;
   --cat-1: #0033a0; --cat-2: #8a3b00; --cat-3: #005c00; --cat-4: #7a0066;
   --cat-5: #4d4000; --cat-6: #004d57; --cat-7: #9e0000; --cat-8: #2b2b2b;
+  --kind-app: #5a1a9e; --kind-notebook: #0a4a94; --kind-script: #0d5a1d;
 }
 
 html[data-theme="hc-dark"] {
@@ -140,6 +145,7 @@ html[data-theme="hc-dark"] {
   --focus-width: 3px;
   --cat-1: #8cc8ff; --cat-2: #ffb870; --cat-3: #7dff7d; --cat-4: #ff9ae0;
   --cat-5: #ffd400; --cat-6: #6ff1ff; --cat-7: #ff9a9a; --cat-8: #e0e0e0;
+  --kind-app: #d4bfff; --kind-notebook: #a3cdff; --kind-script: #8ff09a;
 }
 
 /* Before theme.ts runs (or if it never does), follow the system. */
@@ -149,6 +155,7 @@ html[data-theme="hc-dark"] {
     --bg: #121518; --surface: #191d22; --surface-2: #21272d; --raised: #21272d;
     --fg: #e8ecef; --muted: #a2acb6; --border: #343c45; --border-strong: #707b86;
     --accent: #ff6b73; --accent-fg: #1c0a0c; --accent-soft: #3d1c21; --focus: #c4ccd4;
+    --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
   }
 }
 
@@ -5095,16 +5102,85 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   scrollbar-width: none;
 }
 
-.mark-notebook {
+/* Kind colours (kindColours.ts): app pages violet, notebooks blue, scripts green; a blade or a catalog
+   table plain. Always a thin edge or a mark beside the kind's icon, never a background. */
+.mark-app,
+.km-app {
+  --kc: var(--kind-app);
+}
+
+.mark-notebook,
+.km-notebook {
+  --kc: var(--kind-notebook);
+}
+
+.mark-script,
+.km-script {
+  --kc: var(--kind-script);
+}
+
+.mark-plain {
   --kc: var(--muted);
 }
 
-.mark-data {
-  --kc: var(--cat-2);
+/* The group wears its front document's colour: a band along its top. */
+.wb-group[data-mark="app"] {
+  --gk: var(--kind-app);
 }
 
-.mark-page {
-  --kc: var(--accent);
+.wb-group[data-mark="notebook"] {
+  --gk: var(--kind-notebook);
+}
+
+.wb-group[data-mark="script"] {
+  --gk: var(--kind-script);
+}
+
+.wb-group[data-mark] > .wb-gstrip {
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--gk, transparent) 70%, transparent);
+}
+
+.wb-menu .km-app svg,
+.wb-menu .km-notebook svg,
+.wb-menu .km-script svg {
+  color: var(--kc);
+}
+
+.wb-menu .km-app,
+.wb-menu .km-notebook,
+.wb-menu .km-script {
+  box-shadow: inset 2px 0 0 var(--kc);
+}
+
+.kind-colours {
+  display: grid;
+  gap: 6px;
+}
+
+.kind-colour {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 3px solid var(--kc);
+}
+
+.kind-colour-icon {
+  display: flex;
+  color: var(--kc);
+}
+
+.kind-colour-name {
+  min-width: 8em;
+}
+
+.kind-colour input[type="color"] {
+  width: 44px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
 }
 
 .wb-tab {
@@ -5851,6 +5927,7 @@ body.wb-dragging-tab * {
 
 .wb-cells {
   display: grid;
+  align-content: start; /* a list in a grid cell of its own (a mode's panel open) keeps its rows tight */
   gap: 10px;
   max-width: 1100px;
   margin: 0 auto;
@@ -6998,7 +7075,7 @@ body.dropping-file::after {
 }
 
 .cv-board.dropping {
-  outline: 2px dashed var(--accent);
+  outline: 2px dashed var(--kind-app);
   outline-offset: -4px;
 }
 
@@ -7018,9 +7095,9 @@ body.dropping-file::after {
   z-index: 1;
   align-self: stretch;
   min-height: 40px;
-  border: 2px dashed var(--accent);
+  border: 2px dashed var(--kind-app);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
   pointer-events: none;
 }
 
@@ -7038,7 +7115,7 @@ body.dropping-file::after {
   min-width: 0;
   padding: 6px 8px 14px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--kc, var(--border-strong));
   border-radius: 8px;
   background: var(--raised);
   cursor: grab;
@@ -7507,6 +7584,16 @@ body.panel-off-grid-status .statusbar {
   overflow: hidden;
 }
 
+/* The Data mode's Lineage view: the same flow, in place in data.ipynb's group. */
+.wb-lineage.in-place {
+  position: static;
+  grid-column: 1 / -1;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .wb-lin-top {
   display: flex;
   align-items: center;
@@ -7765,4 +7852,833 @@ body.panel-off-grid-status .statusbar {
 
 .wb-approval-diff .del {
   color: var(--error);
+}
+
+/* ===== Kind colours in the Data panel (kindColours.ts): a project's files by kind, the Streamlit cells
+   pane by each cell's source document (a left edge, the heading and the @cell mark) ===== */
+.wb-file.km-app svg,
+.wb-file.km-notebook svg,
+.wb-file.km-script svg {
+  color: var(--kc);
+}
+
+.wb-st-doc .wb-st-doc-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kc, var(--muted));
+}
+
+.wb-st-doc .wb-st-cell {
+  box-shadow: inset 3px 0 0 var(--kc, var(--border));
+}
+
+.wb-st-where {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--kc, var(--muted));
+}
+
+.wb-st-where svg,
+.wb-st-doc-name svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* A canvas block: a left edge in its source document's kind colour (.cv-block's border), its
+   `doc @cellN` in that colour. */
+.cv-block-where {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--kc);
+}
+
+.cv-block-where svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.menu .km-app::before {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  margin-right: 6px;
+  background: var(--kind-app);
+  content: "";
+  vertical-align: -2px;
+}
+
+/* ===== THE WORKBENCH'S MODES (workbenchModes.ts, workbenchApp.ts, workbenchDocModes.ts; 2026-11-15) =====
+   Each document's own panels sit beside it in its group: Properties, Outline and Run settings on the
+   right; State and Run history under it. Violet is the app's alone: its tab, the selected block's
+   outline and the wiring. */
+.wb-doc-body.mode-open {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.wb-doc-body.mode-open.mode-side {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+}
+
+.wb-doc-body.mode-open.mode-bottom {
+  grid-template-rows: minmax(0, 1fr) minmax(140px, 38%);
+}
+
+.wb-doc-body.mode-open > :first-child,
+.wb-doc-body.mode-open > .wb-data-view:not([hidden]) {
+  grid-area: 1 / 1 / 2 / 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.wb-doc-body.mode-open > [hidden] {
+  display: none;
+}
+
+.wb-mode-side {
+  grid-area: 1 / 2 / 2 / 3;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wb-mode-bottom {
+  grid-area: 2 / 1 / 3 / -1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wb-mode-side[hidden],
+.wb-mode-bottom[hidden] {
+  display: none;
+}
+
+.wb-mode-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wb-mode-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.wb-mode-title svg {
+  color: var(--muted);
+}
+
+.wb-mode-properties .wb-mode-title svg,
+.wb-mode-state .wb-mode-title svg {
+  color: var(--kind-app);
+}
+
+.wb-mode-body {
+  padding: 8px 12px 12px;
+}
+
+.wb-mode-toggles {
+  display: contents;
+}
+
+.app-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.app-heading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-input {
+  width: 100%;
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.pp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-label {
+  min-width: 4.5em;
+  color: var(--muted);
+}
+
+.app-stepper {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.app-step-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.app-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9em;
+}
+
+.wb-mode-body .app-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kc);
+}
+
+.app-feeds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-feeds .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-feeds svg {
+  color: var(--kind-app);
+}
+
+.app-value {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.pp-row.app-colour input[type="color"] {
+  width: 44px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.app-colour.unset input[type="color"] {
+  opacity: 0.55;
+}
+
+.app-empty {
+  margin: 8px 0;
+}
+
+.app-state {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app-state th,
+.app-state td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.app-state th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* The selected block: a violet outline (the app's colour), and its wiring over the board. */
+.cv-board {
+  position: relative;
+}
+
+.cv-block.selected {
+  outline: 2px solid var(--kind-app);
+  outline-offset: 1px;
+}
+
+.cv-wires {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cv-wires path {
+  fill: none;
+  stroke: var(--kind-app);
+  stroke-width: 2;
+}
+
+.cv-wires marker path,
+.cv-wires circle {
+  fill: var(--kind-app);
+  stroke: none;
+}
+
+.cv-wire-label {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.cv-wire-size {
+  color: var(--kind-app);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.cv-wire-name {
+  padding: 0 8px;
+  border: 1px solid var(--kind-app);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--kind-app);
+}
+
+.cv-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+}
+
+.cv-zoom-level {
+  min-width: 52px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Play's preview: the page at a device's width, centred. */
+.cv-device {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-height: 0;
+}
+
+.cv-device.cv-tablet .cv-frame,
+.cv-device.cv-phone .cv-frame {
+  flex: none;
+  margin: 16px 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+}
+
+.cv-device.cv-tablet .cv-frame {
+  width: 820px;
+  max-width: 100%;
+}
+
+.cv-device.cv-phone .cv-frame {
+  width: 390px;
+  max-width: 100%;
+  border-radius: 28px;
+}
+
+/* Notebook mode: a cell's run order state, Run up to here on the selected cell, Present. */
+.wb-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--warn);
+  font-size: 0.92em;
+}
+
+.wb-flow::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  content: "";
+}
+
+.wb-flow[hidden] {
+  display: none;
+}
+
+.wb-cell.flow-stale {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.wb-run-to {
+  display: none;
+}
+
+.wb-cell.selected .wb-run-to {
+  display: inline-flex;
+}
+
+.wb-outline {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-outline-item.heading {
+  font-weight: 600;
+}
+
+.wb-outline-item:hover {
+  background: var(--surface);
+}
+
+.wb-outline-item.active {
+  background: var(--selected);
+  box-shadow: inset 3px 0 0 var(--kind-notebook);
+}
+
+.wb-outline-item svg {
+  flex: none;
+  color: var(--kind-notebook);
+}
+
+.wb-outline-stale {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.wb-view-switch {
+  flex: none;
+}
+
+.wb-cells.presenting {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+.wb-cells.presenting .wb-cell-head,
+.wb-cells.presenting .wb-editor,
+.wb-cells.presenting .wb-output-hidden,
+.wb-cells.presenting .wb-tcell,
+.wb-cells.presenting .wb-to-grid,
+.wb-cells.presenting .wb-to-sandbox {
+  display: none;
+}
+
+.wb-cells.presenting .wb-cell.present-empty {
+  display: none;
+}
+
+.wb-cells.presenting .wb-cell,
+.wb-cells.presenting .wb-outputs {
+  min-height: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.wb-cells.presenting .wb-cell {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Script mode: Run settings, Run history. */
+.wb-run-var {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.wb-run-var-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wb-run-var-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-run-var-source select {
+  flex: 1;
+  min-height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.wb-history {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) 1.1fr;
+  min-height: 100%;
+}
+
+.wb-runs {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.wb-runs th,
+.wb-runs td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.wb-runs th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.wb-runs tbody tr {
+  cursor: pointer;
+}
+
+.wb-runs tbody tr.active {
+  background: var(--selected);
+}
+
+.wb-exit-bad,
+.wb-log-bad {
+  color: var(--error);
+  font-weight: 650;
+}
+
+.wb-run-detail {
+  border-left: 1px solid var(--border);
+}
+
+.wb-run-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-run-detail-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-run-detail-body {
+  display: flex;
+  gap: 18px;
+  padding: 10px 12px;
+}
+
+.wb-run-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.wb-run-source-row {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.wb-run-log {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-run-log pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Data mode: the dictionary (a table list, a page per table) and lineage's place. */
+.wb-data-view {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.wb-data-view[hidden] {
+  display: none;
+}
+
+.dict-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border);
+}
+
+.dict-table {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dict-table.active {
+  background: var(--selected);
+  box-shadow: inset 3px 0 0 var(--kind-notebook);
+  font-weight: 600;
+}
+
+.dict-page {
+  padding: 14px 24px;
+}
+
+.dict-page h2 {
+  margin: 0 0 2px;
+}
+
+.dict-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.dict-columns {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+}
+
+.dict-columns th,
+.dict-columns td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.dict-columns th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+
+.dict-input {
+  width: 100%;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.dict-input:hover,
+.dict-input:focus {
+  border-color: var(--border-strong);
+  background: var(--bg);
+}
+
+.dict-lineage-empty {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+/* App mode in the Data panel: Data | Starters, and the starter gallery. */
+.wb-data-switch {
+  margin-right: auto;
+}
+
+.wb-data-switch[hidden] {
+  display: none;
+}
+
+.wb-data-head h2[hidden] {
+  display: none;
+}
+
+.wb-starters-host[hidden] {
+  display: none;
+}
+
+.wb-starters-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wb-starters-searchbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.wb-starters-searchbox .app-input {
+  border: 0;
+  background: transparent;
+}
+
+.wb-starter-family h3 {
+  margin: 4px 0;
+}
+
+.wb-starter-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wb-starter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--fg);
+  text-align: left;
+  cursor: grab;
+}
+
+.wb-starter-card:hover {
+  border-color: var(--kind-app);
+}
+
+.wb-starter-sketch-box {
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.wb-starter-sketch {
+  width: 100%;
+  height: 40px;
+  fill: var(--muted);
+  stroke: none;
+}
+
+.wb-starter-sketch .line,
+.wb-starter-sketch .frame {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.wb-starter-sketch .knob {
+  fill: var(--bg);
+}
+
+.wb-starter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The selected block's row leaves room under it for its wiring's label (its width, the names it makes). */
+.cv-row:has(.cv-block.selected) {
+  margin-bottom: 30px;
+}
+
+.cv-wire-label {
+  margin-top: 2px;
+}
+
+.app-feeds .link {
+  color: var(--fg);
+}
+
+.dict-from > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+/* A narrow group keeps more of its document: its side panel is narrower. */
+@container (max-width: 900px) {
+  .wb-doc-body.mode-open.mode-side {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
 }

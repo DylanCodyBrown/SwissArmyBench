@@ -32,10 +32,11 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
-from swissarmybench.domain import streamlit_cells, table_cells
+from swissarmybench.domain import dictionary, streamlit_cells, table_cells
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
@@ -140,8 +141,11 @@ def _stub(table: str, variable: str, why: str) -> str:
     )
 
 
-def data_module(title: str, cells: Sequence[DataCell]) -> DataModule:
-    """data.py: data.ipynb's code cells in order, as one module."""
+def data_module(
+    title: str, cells: Sequence[DataCell], descriptions: Mapping[str, Any] | None = None
+) -> DataModule:
+    """data.py: data.ipynb's code cells in order, as one module. `descriptions`: its data dictionary,
+    written as comments under the module's first lines."""
     parts: list[str] = []
     skipped: list[str] = []
     fill_in: list[str] = []
@@ -196,6 +200,9 @@ def data_module(title: str, cells: Sequence[DataCell]) -> DataModule:
     names = _names(body)
     example = ", ".join(names[:2]) or "orders"
     head = HEAD.format(title=title.replace('"""', "'''"), example=example)
+    described = dictionary.comments(descriptions or {}, [c.table for c in cells if c.table])
+    if described:
+        head += "\n" + "\n".join(described) + "\n"
     if not parts:
         return DataModule(head, (), tuple(fill_in), tuple(skipped))
     if _wraps(body):

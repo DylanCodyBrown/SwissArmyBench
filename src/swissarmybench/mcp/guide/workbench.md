@@ -71,3 +71,13 @@ their own (the grid page's Workbench tab opens it; code never opens in the grid 
 ## From the user
 - `agent_inbox`: what they sent with Send to the agent (an error with its place, values and traceback,
   or code, and their question).
+
+## The modes (each document's own panels, beside it in its group)
+- Kind colours: app pages violet, notebooks blue, scripts green; `app_kind_colours` reads or sets them.
+- Notebook: `workbench_window` "notebook.runOrder" (each cell notRun, edited, outOfDate with the names
+  made again), "notebook.outline", "run.upToHere", "notebook.present"; "mode.panel" opens a panel.
+- Script: `workbench_script_settings` (arguments; each variable's source: env, value or vault, never a
+  secret's value), `workbench_script_run` (Run as scheduled: a fresh process with no app; exit code,
+  time, sources, log), `workbench_script_history` (memory only).
+- Data (data.ipynb): "data.view" (cells, lineage, dictionary), "dictionary.list", "dictionary.describe"
+  (kept in data.ipynb, written into data.py); `project_dictionary` reads a saved project's.

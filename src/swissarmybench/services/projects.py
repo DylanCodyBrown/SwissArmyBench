@@ -8,6 +8,8 @@ window and the agent alike.
             canvas, the other notebooks, the scripts
   export    data.py written again from data.ipynb (services/streamlit.py does it: it knows the open
             documents; Play and Save as do it too)
+  dictionary data.ipynb's tables, each column with its type in plain words, its description and where
+            it comes from (domain/dictionary.py); the descriptions live in data.ipynb
 
 data.py is an export, never edited by hand: the user works in data.ipynb.
 
@@ -22,10 +24,11 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from swissarmybench.domain import notebooks, streamlit_cells
+from swissarmybench.domain import dictionary, notebooks, streamlit_cells
 from swissarmybench.domain import projects as rules
 from swissarmybench.domain.projects import DataCell, ProjectError
 from swissarmybench.services.agent import Approvals
+from swissarmybench.services.ports import INTERACTIVE
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 
@@ -39,6 +42,8 @@ class Files(Protocol):
     def write(self, folder: str, name: str, text: str) -> str: ...
 
     def folder_of(self, path: str) -> str: ...
+
+    def read(self, folder: str, name: str) -> str | None: ...
 
 
 class Projects:
@@ -178,3 +183,55 @@ class Projects:
             raise NotFound(f"{listed['folder']} is not a project: it has no data.ipynb.")
         self.ws.audit.write(who, "export_data", done["path"])
         return done
+
+    async def dictionary(self, body: Any) -> dict[str, Any]:
+        """The data dictionary: {"tables": [{"name", "source"}], "descriptions": {...}} -> each open
+        table's rows, steps and columns (name, plain type, description, where it comes from)."""
+        if not isinstance(body, dict):
+            raise ProjectError(
+                'Send {"tables": [{"name": "orders", "source": "orders.csv"}], "descriptions": {}}.'
+            )
+        if not isinstance(body.get("tables"), list):
+            # A project's folder: its data.ipynb's tables and descriptions, as saved.
+            try:
+                text = self._files.read(self._folder(body), rules.DATA_NOTEBOOK)
+            except (OSError, ValueError) as error:
+                raise NotFound(str(error)[:300]) from None
+            if text is None:
+                raise NotFound("This folder has no data.ipynb.")
+            cells = notebooks.read_document(text)[0]
+            tables = [c.table for c in cells if c.role == "transformations" and c.table]
+            body = {
+                "tables": [{"name": t} for t in dict.fromkeys(tables)],
+                "descriptions": dictionary.of_notebook(text),
+            }
+        said = dictionary.check(body.get("descriptions"))
+        wanted = [
+            t
+            for t in body["tables"][: dictionary.MAX_TABLES]
+            if isinstance(t, dict) and isinstance(t.get("name"), str)
+        ]
+        ws = self.ws
+
+        def job(cursor: Any) -> list[dict[str, Any]]:
+            out: list[dict[str, Any]] = []
+            for table in wanted:
+                info = ws.store.get(table["name"])
+                if info is None:
+                    continue
+                grid = ws.grids.first_for(info.name)
+                steps = [s for s in (grid.steps if grid else []) if s.enabled and not s.params.get("header")]
+                columns = [(c.name, c.type) for c in info.columns]
+                stages: list[list[str]] = [[c.name for c in info.columns]]
+                if grid is not None and steps:
+                    compiled = ws.views.compile(cursor, info, grid.steps, grid.settings)
+                    if compiled.error is None:
+                        columns = [(c.name, c.type) for c in compiled.columns]
+                        stages = [[c.name for c in stage.columns] for stage in compiled.stages]
+                source = str(table.get("source") or info.source_kind)
+                out.append(
+                    dictionary.entry(info.name, columns, stages, source, info.row_count, len(steps), said)
+                )
+            return out
+
+        return {"tables": await ws.workers.run(INTERACTIVE, job, ws.store.cursor())}

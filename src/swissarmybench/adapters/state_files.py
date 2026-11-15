@@ -6,6 +6,9 @@ written: the audit log, saved dashboards, the connection file and the model libr
   themes               Sandbox themes the user imported (colours only), one small file each
   the connection file  where the running server is, and its token (owner-only)
   the model library    relationship models: the shipped ones, the user's, and SWISSARMYBENCH_MODELS
+  preferences          small JSON files the user's own choices are kept in: the kind colours
+                       (kind_colours.json), a script's run settings (run_settings.json: arguments and
+                       where each variable comes from; a plain value only, never a secret's)
 
 (Blades and their folders are adapters/blades.py; exports are adapters/export.py.)
 """
@@ -182,6 +185,31 @@ class ThemeFiles:
             path.unlink()
             return True
         return False
+
+
+# ===== a preference: one small JSON file =====
+
+
+class JsonFile:
+    """One small JSON file of the user's choices (None: no file, so nothing is ever written: a test's
+    server without a state folder)."""
+
+    def __init__(self, path: Path | None) -> None:
+        self.path = path
+
+    def read(self) -> Any:
+        if self.path is None or not self.path.is_file():
+            return None
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def write(self, data: Any) -> None:
+        if self.path is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
 
 
 # ===== the connection file =====

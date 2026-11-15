@@ -39,7 +39,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         menu(workbench, "Workbench menu", "Settings…")
         dialog = workbench.locator("dialog[open]")
         panels = dialog.locator("fieldset", has_text="Panels")
-        expect(panels.locator("input[type=checkbox]")).to_have_count(10)
+        expect(panels.locator("input[type=checkbox]")).to_have_count(16)  # the modes (2026-11-15) added six
         panels.get_by_label("Streamlit cells").uncheck()
         panels.get_by_label("Console").uncheck()
         panels.locator(".panel-page", has_text="Grid page").get_by_label("Ribbon").uncheck()

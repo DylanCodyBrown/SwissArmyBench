@@ -9,7 +9,15 @@ import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
-from swissarmybench.domain import approvals, errors, html_cells, streamlit_cells
+from swissarmybench.domain import (
+    app_settings,
+    approvals,
+    dictionary,
+    errors,
+    html_cells,
+    notebook_flow,
+    streamlit_cells,
+)
 from swissarmybench.domain import environments as envs
 from swissarmybench.domain import notebooks as rules
 from swissarmybench.domain.datasets import validate_name
@@ -127,6 +135,15 @@ class Workbench:
         # Documents moving between Workbench windows, by their one-time id (memory only).
         self._handoffs: dict[str, dict[str, Any]] = {}
 
+    # ===== a notebook's run order: its stale cells and its outline (domain/notebook_flow.py) =====
+
+    def flow(self, body: Any) -> dict[str, Any]:
+        """{"cells": [{"number", "kind", "source", "ran", "order", "name"?}]}: each Python cell's makes,
+        reads and state (notRun, edited, outOfDate with `because`, current), and the Outline."""
+        sent = body.get("cells") if isinstance(body, dict) else None
+        cells = notebook_flow.flow(notebook_flow.read_cells(sent))
+        return {"cells": [c.to_json() for c in cells], "outline": notebook_flow.outline(sent or [])}
+
     # ===== files =====
 
     def home(self) -> dict[str, Any]:
@@ -159,6 +176,8 @@ class Workbench:
                 "kind": kind,
                 "modified": modified,
                 "cells": cells,
+                # A project's data.ipynb: its data dictionary's descriptions (domain/dictionary.py).
+                "dictionary": dictionary.of_notebook(text),
                 "python": python,
                 "next_cell": next_cell,  # the number the next new cell gets (never one used before)
             }
@@ -173,6 +192,7 @@ class Workbench:
                 "kind": kind,
                 "modified": modified,
                 "pages": streamlit_cells.pages_json(pages),
+                "settings": app_settings.read_app_settings(text).to_json(),
             }
         return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python}
 
@@ -188,6 +208,7 @@ class Workbench:
             text = rules.write_notebook(
                 rules.read_cells(body.get("cells")),
                 next_number=following if isinstance(following, int) and following > 0 else None,
+                dictionary=dictionary.check(body.get("dictionary")),
             )
         elif kind == "app":
             # Links are kept relative to the app's own file, so the two can move together.
@@ -195,7 +216,10 @@ class Workbench:
                 pages = streamlit_cells.read_pages(body.get("pages"))
             except streamlit_cells.StreamlitError as error:
                 raise ValueError(str(error)) from None
-            text = streamlit_cells.write_app(pages, lambda d: streamlit_cells.relative_link(path, d))
+            settings = app_settings.file_line(app_settings.read_settings(body.get("settings")))
+            text = streamlit_cells.write_app(
+                pages, lambda d: streamlit_cells.relative_link(path, d), settings
+            )
         else:
             script = body.get("text")
             if not isinstance(script, str) or len(script) > rules.MAX_CELL_CHARS * 5:

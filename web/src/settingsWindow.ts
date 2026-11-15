@@ -11,6 +11,8 @@
  *           what they change: gridView.ts CornerHeader. The zoom is the Application row's.)
  *          [PANELS]               a switch for each panel of the Workbench and the grid page -> panels.ts
  *                                 (the server's, for every window; all on again at each start)
+ *          [KIND COLOURS]         app pages, notebooks, scripts: a colour each -> kindColours.ts (the
+ *                                 server's, for every window; kept across restarts)
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
@@ -19,7 +21,8 @@
  */
 import { agentAccessSection } from "./agentAccess";
 import { betaSection } from "./betaNotes";
-import { button, h, openDialog, toast } from "./dom";
+import { button, h, icon, openDialog, toast } from "./dom";
+import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
 import { loadPanels, panelList, setPanel } from "./panels";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 
@@ -55,6 +58,36 @@ function panelsSection(): HTMLElement {
   };
   void loadPanels().then(draw);
   return h("fieldset", { class: "fieldset panels-fieldset" }, h("legend", {}, "Panels"), grid);
+}
+
+/** The colour of each kind of Workbench document: app pages, notebooks, scripts. The server's (every
+ *  window follows, kept across restarts); Default puts the theme's own back. */
+function kindColoursSection(): HTMLElement {
+  const grid = h("div", { class: "kind-colours" });
+  const draw = (): void => {
+    grid.replaceChildren(
+      ...kindColours().map((k) => {
+        const shown = k.chosen ?? getComputedStyle(document.documentElement).getPropertyValue(`--kind-${k.kind}`).trim();
+        const picker = h("input", {
+          type: "color",
+          value: /^#[0-9a-f]{6}$/i.test(shown) ? shown : "#000000",
+          "aria-label": `${k.name} colour`,
+          dataset: { kind: k.kind },
+          onchange: (e: Event) => void setKindColour(k.kind, (e.target as HTMLInputElement).value).then(draw, (error: Error) => toast(error.message, "error")),
+        });
+        return h(
+          "div",
+          { class: `kind-colour km-${k.kind}`, role: "group", "aria-label": k.name },
+          h("span", { class: "kind-colour-icon" }, icon(kindIcon(k.kind as Kind))),
+          h("span", { class: "kind-colour-name" }, k.name),
+          picker,
+          k.chosen ? button("Default", () => void setKindColour(k.kind, null).then(draw, (error: Error) => toast(error.message, "error")), { class: "ghost", title: `${k.name}: the theme's own colour` }) : null,
+        );
+      }),
+    );
+  };
+  void loadKindColours().then(draw);
+  return h("fieldset", { class: "fieldset kind-colours-fieldset" }, h("legend", {}, "Kind colours"), grid);
 }
 
 export function settingsButton(): HTMLButtonElement {
@@ -101,6 +134,7 @@ export function openSettings(): void {
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     panelsSection(),
+    kindColoursSection(),
     betaSection(),
     h(
       "fieldset",

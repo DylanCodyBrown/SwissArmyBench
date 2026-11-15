@@ -65,6 +65,7 @@ import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, 
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
+import { kindIcon, kindOfPath, loadKindColours } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { setDocumentName } from "./workbenchAgent";
@@ -73,9 +74,14 @@ import { variablesPanel } from "./workbenchVariables";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
-import { canvasView, type CanvasView } from "./workbenchCanvas";
-import { type LineageGraph, type LineageNode, type LineageTarget, lineageNoticed, openLineage } from "./workbenchLineage";
-import { CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
+import { type Align, canvasView, type CanvasView, type Device } from "./workbenchCanvas";
+import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLineage, lineageNoticed, openLineage } from "./workbenchLineage";
+import { type AppHost, appPanels } from "./workbenchApp";
+import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
+import { fillSnippet } from "./starters";
+import { starterGallery } from "./workbenchStarters";
+import { modeFrame, type ModeFrame } from "./workbenchModes";
+import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
 watchTheme();
 
@@ -97,6 +103,10 @@ interface Doc {
   streamlit?: StreamlitDoc;
   /** A Streamlit app's canvas. */
   canvas?: CanvasView;
+  /** Its mode's own panels (workbenchModes.ts): beside it in its group. */
+  modes?: ModeFrame;
+  /** App mode: Properties and State share the live page's state. */
+  app?: ReturnType<typeof appPanels>;
 }
 
 interface PythonChoice {
@@ -147,6 +157,7 @@ async function loadConnections(): Promise<void> {
     bladeNames = every.filter((b) => !b.connection).map((b) => b.name);
     codeNames = every.filter((b) => b.code_name).map((b) => ({ name: b.code_name!, connection: b.name, kind: b.connection ?? "" }));
     bladeVariables = (every as BladeSummary[]).filter((b) => !b.connection);
+    vaultNames = every.filter((b) => b.connection === "vault").map((b) => b.name);
   } catch {
     connectionNames = [];
     workspaceNames = [];
@@ -276,6 +287,7 @@ function attachStreamlit(doc: Doc): void {
       unsaved: () => doc.dirty,
       // A project's data.ipynb is exported as data.py: the server needs every cell of it.
       every: () => (isData(doc) ? doc.notebook!.everyCells() : null),
+      dictionary: () => (isData(doc) ? (dataViews.get(doc)?.dictionary ?? null) : null),
     },
     () => viewOf(doc)?.drawPieces(),
   );
@@ -314,7 +326,7 @@ const streamlitHost = (doc: Doc): StreamlitHost => ({
 });
 
 /** A Streamlit app: its canvas as a document of its own. */
-function openApp(path: string | null, pages: SavedPage[], modified: number | null): Doc {
+function openApp(path: string | null, pages: SavedPage[], modified: number | null, settings?: AppSettings): Doc {
   const doc = makeDoc("app", path ? baseName(path) : `Untitled app ${counter + 1}`, path, modified);
   doc.canvas = canvasView(pages, {
     title: () => (doc.path ? baseName(doc.path).slice(0, -APP_ENDING.length) : doc.title),
@@ -333,11 +345,16 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
     drew: () => {
       if (doc === current) drawStatus();
       if (doc === markedCanvas()) drawPane(); // its page's blocks are the pane's marks
+      doc.app?.refresh(); // Properties and State follow the canvas
     },
     moveToData: (plan) => moveToData(plan, doc),
     lineage: (page, block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page, block }),
-  });
+    selected: () => doc.modes?.redraw("properties"),
+    starter: (name, where) => void addStarter(doc, name, where).catch((e: Error) => toast(e.message, "error")),
+  }, settings);
   doc.element.append(doc.canvas.element);
+  doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
+  doc.app = appPanels(doc.modes, () => doc.canvas!, appHost(doc));
   show(doc);
   return doc;
 }
@@ -390,7 +407,7 @@ function listProject(): void {
   if (!project) return void data.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
-    const file = { path: name, icon: name.toLowerCase().endsWith(APP_ENDING) ? "page" : name.toLowerCase().endsWith(".py") ? "code" : "notebook", open: () => void open(path) };
+    const file = { path: name, icon: kindIcon(kindOfPath(name), name), open: () => void open(path) };
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
@@ -506,6 +523,313 @@ function projectEntries(): MenuEntry[] {
   ];
 }
 
+// ===== the Workbench's modes (2026-11-15): App, Notebook, Script and Data =====
+// Each document's own panels sit beside it in its group (workbenchModes.ts), so they follow the group;
+// the status bar's toggles are the focused document's.
+
+/** App mode's reach into the rest of the window: a block's cell, renamed or gone to; the logo's file. */
+function appHost(doc: Doc): AppHost {
+  return {
+    lineage: (block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page: (doc.canvas?.report() as { page?: string } | undefined)?.page ?? undefined, block }).catch((e: Error) => toast(e.message, "error")),
+    goToCell: (document, cell) => void goToCell(document, baseName(document), cell).catch((e: Error) => toast(e.message, "error")),
+    renameCell: async (document, cell, name) => {
+      let held = docs.find((d) => d.path === document);
+      if (!held) {
+        await open(document);
+        held = docs.find((d) => d.path === document);
+        if (doc.canvas) show(doc); // the canvas stays in front
+      }
+      const view = held ? viewOf(held) : undefined;
+      if (!held || !view) throw new Error(`${baseName(document)} is not open.`);
+      view.nameCell(cell, name);
+      held.streamlit?.syncSoon();
+    },
+    chooseLogo: async () => {
+      const path = await chooseFile({ title: "Logo", mode: "file", suffixes: [".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"], start: folderOf(doc.path) });
+      if (!path || !doc.path) return path;
+      const folder = folderOf(doc.path);
+      return path.startsWith(folder) ? path.slice(folder.length + 1).replace(/\\/g, "/") : path;
+    },
+  };
+}
+
+/** The project's mockups notebook (where a starter dropped on a canvas is written as a cell): an open
+ *  notebook beside the app whose name says mockups, else that file, else a new one, saved. */
+async function mockupsDoc(app: Doc): Promise<Doc> {
+  if (!app.path) throw new Error("Save the app first: a starter becomes a cell of a notebook beside it.");
+  const folder = folderOf(app.path);
+  const near = (d: Doc): boolean => !!d.notebook && !!d.path && folderOf(d.path) === folder;
+  const found = docs.find((d) => near(d) && /mock/i.test(d.title)) ?? null;
+  if (found) return found;
+  const sep = app.path.includes("\\") ? "\\" : "/";
+  const files = project?.files ?? [];
+  const named = `${folder}${sep}app mockups.ipynb`;
+  const onDisk = files.find((f) => /mock/i.test(baseName(f)) && f.toLowerCase().endsWith(".ipynb")) ?? named;
+  // A mockups notebook already there (in the project, or by its usual name) is opened, never replaced.
+  const there = await api("/workbench/open", "POST", { path: onDisk }).then(() => true, () => false);
+  if (there) {
+    await open(onDisk);
+    const opened = docs.find((d) => d.path === onDisk || baseName(d.path ?? "") === baseName(onDisk));
+    if (opened) return opened;
+  }
+  const made = openNotebook(named, [], null);
+  made.title = "app mockups.ipynb";
+  made.notebook!.add("code", "from data import *", true);
+  if (!(await save(made))) throw new Error("The mockups notebook could not be saved.");
+  return made;
+}
+
+/** A starter dropped on a canvas: filled (its form, or the agent's values), written as a real named
+ *  cell of the mockups notebook, saved, and placed where it was dropped. */
+async function addStarter(app: Doc, name: string, where?: { row: number; column: number; insert?: boolean }, values?: Record<string, unknown>): Promise<unknown> {
+  const notebookDoc = await mockupsDoc(app);
+  const view = notebookDoc.notebook!;
+  if (values === undefined) {
+    const filled = await fillSnippet(name);
+    if (!filled) return null;
+    view.select(view.cells().length - 1);
+    view.add("code", filled.text);
+    const at = view.selected();
+    const number = view.cells()[at]?.number;
+    if (typeof number !== "number") throw new Error("The cell was not made.");
+    if (filled.cell_name) view.nameCell(number, filled.cell_name);
+    return placeStarter(app, notebookDoc, number, where);
+  }
+  view.select(view.cells().length - 1);
+  const made = await view.insertSnippet(name, values);
+  return placeStarter(app, notebookDoc, made.cell, where);
+}
+
+async function placeStarter(app: Doc, notebookDoc: Doc, cell: number, where?: { row: number; column: number; insert?: boolean }): Promise<unknown> {
+  if (!(await save(notebookDoc))) throw new Error(`${notebookDoc.title} could not be saved.`);
+  await notebookDoc.streamlit?.sync().catch(() => null);
+  show(app);
+  await app.canvas!.place({ document: notebookDoc.path, cell, title: notebookDoc.title }, where);
+  return { document: notebookDoc.path, cell };
+}
+
+// ----- Notebook mode: the run order (edited, out of date), the Outline, Run up to here, Present
+
+interface Flow {
+  cells: FlowState[];
+  outline: OutlineItem[];
+}
+const flows = new Map<Doc, Flow>();
+const flowTimers = new Map<Doc, number>();
+
+function flowSoon(doc: Doc): void {
+  if (!doc.notebook) return;
+  const was = flowTimers.get(doc);
+  if (was !== undefined) window.clearTimeout(was);
+  flowTimers.set(doc, window.setTimeout(() => {
+    flowTimers.delete(doc);
+    void refreshFlow(doc);
+  }, 300));
+}
+
+async function refreshFlow(doc: Doc): Promise<Flow | null> {
+  if (!doc.notebook || !docs.includes(doc)) return null;
+  try {
+    const read = await readFlow(doc.notebook.flowCells());
+    flows.set(doc, read);
+    doc.notebook.markFlow(read.cells);
+    doc.modes?.redraw("outline");
+    return read;
+  } catch {
+    return null;
+  }
+}
+
+function notebookModes(doc: Doc): void {
+  doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
+  doc.modes.add({
+    id: "outline",
+    title: "Outline",
+    icon: "outline",
+    where: "side",
+    panel: "workbench.outline",
+    draw: (body) => {
+      const flow = flows.get(doc);
+      const view = doc.notebook!;
+      const at = view.selected();
+      const selectedNumber = at >= 0 ? (view.cells()[at]?.number ?? null) : null;
+      drawOutline(body, flow?.outline ?? [], flow?.cells ?? [], selectedNumber, view.tables().length > 0, (n) => void view.goTo(n), () => {
+        view.foldTables(false);
+        const first = view.cells().find((c) => c.role === "tables");
+        if (first?.number) view.goTo(first.number);
+      });
+    },
+  });
+  void refreshFlow(doc);
+}
+
+/** Present: the notebook as a document, the Data panel folded while it shows. */
+let foldedBeforePresent: boolean | null = null;
+function present(doc: Doc, on?: boolean): boolean {
+  const now = doc.notebook!.present(on);
+  doc.element.classList.toggle("presenting", now);
+  if (now && foldedBeforePresent === null) {
+    foldedBeforePresent = data.collapsed();
+    if (!foldedBeforePresent) data.toggle(true);
+  } else if (!now && foldedBeforePresent !== null) {
+    if (!foldedBeforePresent) data.toggle(false);
+    foldedBeforePresent = null;
+  }
+  drawControls();
+  return now;
+}
+
+// ----- Script mode: run settings, Run as scheduled, run history
+
+const historyAt = new Map<Doc, { at: number }>();
+let vaultNames: string[] = [];
+
+function scriptModes(doc: Doc): void {
+  doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
+  const chosen = { at: 0 };
+  historyAt.set(doc, chosen);
+  doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", panel: "workbench.runSettings", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
+  doc.modes.add({ id: "runHistory", title: "Run history", icon: "history", where: "bottom", panel: "workbench.runHistory", draw: (body) => drawRunHistory(body, doc.path, () => void runScheduled(doc), chosen) });
+}
+
+/** Run as scheduled: saved first, then the script as a fresh process with no app; the history shows it. */
+async function runScheduled(doc: Doc): Promise<RunRecord | null> {
+  if (!doc.script) return null;
+  if ((doc.dirty || !doc.path) && !(await save(doc))) return null;
+  scheduling.add(doc);
+  drawControls();
+  try {
+    const run = await runAsScheduled(doc.path!, doc.python);
+    historyAt.get(doc)!.at = 0;
+    if (!doc.modes?.isOpen("runHistory")) doc.modes?.toggle("runHistory", true);
+    else doc.modes.redraw("runHistory");
+    if (run.exit_code !== 0) toast(`Exit code ${run.exit_code ?? "stopped"}`, "error");
+    return run;
+  } catch (e) {
+    toast((e as Error).message, "error");
+    return null;
+  } finally {
+    scheduling.delete(doc);
+    drawControls();
+  }
+}
+const scheduling = new Set<Doc>();
+const scriptArguments = new Map<Doc, string>();
+
+/** The run settings' arguments, for Run file (read when the script opens and when its settings change). */
+async function readArguments(doc: Doc): Promise<void> {
+  if (!doc.path) return;
+  try {
+    scriptArguments.set(doc, (await runSettings(doc.path)).arguments);
+  } catch {
+    /* a script that cannot be read: no arguments */
+  }
+}
+
+// ----- Data mode (data.ipynb): Cells | Lineage | Dictionary
+
+type DataView = "cells" | "lineage" | "dictionary";
+const dataViews = new Map<Doc, { view: DataView; host: HTMLElement; chosen: { table: string | null }; dictionary: Descriptions }>();
+
+/** What data.ipynb saves beside its cells: its data dictionary's descriptions. */
+function dataBody(doc: Doc): { dictionary?: Descriptions } {
+  const held = dataViews.get(doc);
+  return held && isData(doc) ? { dictionary: held.dictionary } : {};
+}
+
+function dataMode(doc: Doc, dictionary: Descriptions): void {
+  const host = h("div", { class: "wb-data-view", hidden: true });
+  doc.element.append(host);
+  dataViews.set(doc, { view: "cells", host, chosen: { table: null }, dictionary });
+}
+
+function setDataView(doc: Doc, view: DataView): DataView {
+  const held = dataViews.get(doc);
+  if (!held || !doc.notebook) throw new Error("The document in front is not a project's data.ipynb.");
+  held.view = view;
+  doc.notebook.element.hidden = view !== "cells";
+  held.host.hidden = view === "cells";
+  doc.element.classList.toggle("data-view", view !== "cells");
+  if (view !== "lineage") closePlacedLineage();
+  if (view === "dictionary") void drawDictionaryView(doc);
+  else if (view === "lineage") void dataLineage(doc, held.host).catch(() => undefined);
+  drawControls();
+  return view;
+}
+
+async function dictionaryTables(doc: Doc): Promise<DictionaryTable[]> {
+  const held = dataViews.get(doc)!;
+  const named = doc.notebook!.tables().map((t) => ({ name: t.name, source: tables.find((i) => i.name === t.name)?.source ?? "" }));
+  return readDictionary(named, held.dictionary);
+}
+
+async function drawDictionaryView(doc: Doc): Promise<void> {
+  const held = dataViews.get(doc);
+  if (!held || held.view !== "dictionary") return;
+  try {
+    const found = await dictionaryTables(doc);
+    drawDictionary(held.host, found, held.chosen, (table, column, text) => describe(doc, table, column, text));
+  } catch (e) {
+    clear(held.host, h("p", { class: "error" }, (e as Error).message));
+  }
+}
+
+/** A description typed in the Dictionary (or sent by the agent): kept in data.ipynb (unsaved until
+ *  Save), and data.py's next export carries it. */
+function describe(doc: Doc, table: string, column: string | null, text: string): Descriptions {
+  const held = dataViews.get(doc);
+  if (!held) throw new Error("The document in front is not a project's data.ipynb.");
+  held.dictionary = described(held.dictionary, table, column, text);
+  markChanged(doc)();
+  doc.streamlit?.syncSoon();
+  return held.dictionary;
+}
+
+// ----- the status bar's mode toggles, and a group's mode switches
+
+const modeToggles = h("span", { class: "wb-mode-toggles" });
+
+function drawModeToggles(doc: Doc | null): void {
+  const panels = doc?.modes?.panels() ?? [];
+  clear(
+    modeToggles,
+    ...panels.map((p) =>
+      button(p.label ?? p.title, () => {
+        doc!.modes!.toggle(p.id);
+        drawStatus();
+      }, { class: `ghost wb-toggle wb-mode-toggle-${p.id}`, pressed: doc!.modes!.isOpen(p.id) }),
+    ),
+  );
+}
+
+/** A notebook's Cells | Present switch; data.ipynb's Cells | Lineage | Dictionary. */
+function modeSwitch(doc: Doc): HTMLElement | null {
+  if (!doc.notebook) return null;
+  const pick = (label: string, ic: string, on: boolean, run: () => void): HTMLButtonElement => button(label, run, { icon: ic, pressed: on, class: `wb-view-${label.toLowerCase()}` });
+  const held = dataViews.get(doc);
+  if (held && isData(doc)) {
+    return h(
+      "span",
+      { class: "cv-mode wb-view-switch", role: "group", "aria-label": "View" },
+      pick("Cells", "notebook", held.view === "cells", () => void setDataView(doc, "cells")),
+      pick("Lineage", "lineage", held.view === "lineage", () => void setDataView(doc, "lineage")),
+      pick("Dictionary", "book", held.view === "dictionary", () => void setDataView(doc, "dictionary")),
+    );
+  }
+  const presenting = doc.element.classList.contains("presenting");
+  return h(
+    "span",
+    { class: "cv-mode wb-view-switch", role: "group", "aria-label": "View" },
+    pick("Cells", "notebook", !presenting, () => void present(doc, false)),
+    pick("Present", "eye", presenting, () => void present(doc, true)),
+  );
+}
+
+onPanels(() => {
+  for (const d of docs) d.modes?.follow();
+  drawStatus();
+});
+
 // ----- a document MOVES to another Workbench window (the owner, 2026-11-15) -----
 // Popped out into a window of its own, or moved back to the main window: its unsaved text, its cell
 // numbers, its outputs and its running kernel go with it, and this window's tab closes once the other
@@ -535,7 +859,7 @@ function movingState(doc: Doc): Remembered & { title: string } {
     modified: doc.modified,
     dirty: doc.dirty,
     python: doc.python,
-    ...(doc.notebook ? { cells: doc.notebook.cells(), next_cell: doc.notebook.nextCell() } : doc.canvas ? { pages: doc.canvas.pages() } : { text: doc.script!.text() }),
+    ...(doc.notebook ? { cells: doc.notebook.cells(), next_cell: doc.notebook.nextCell(), ...dataBody(doc) } : doc.canvas ? { pages: doc.canvas.pages(), settings: doc.canvas.settings() } : { text: doc.script!.text() }),
   };
 }
 
@@ -586,7 +910,7 @@ function moveToMain(doc: Doc): Promise<{ title: string; window: "new" | "main" }
 async function takeDocument(id: string): Promise<void> {
   const taken = await api<{ document: Remembered & { title: string }; kernel: string | null }>(`/workbench/handoffs/${id}/take`, "POST", { window: WINDOW_ID });
   const r = taken.document;
-  const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified) : openScript(r.path, r.text ?? "", r.modified);
+  const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified, r.settings) : openScript(r.path, r.text ?? "", r.modified);
   if (!r.path && r.title) doc.title = r.title;
   doc.python = r.python;
   if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
@@ -694,9 +1018,10 @@ const markChanged = (doc: Doc) => (): void => {
     drawTabs();
   }
   remember();
+  flowSoon(doc); // Notebook mode: an edited cell says so
 };
 
-function openNotebook(path: string | null, cells: CellData[], modified: number | null, nextCell?: number): Doc {
+function openNotebook(path: string | null, cells: CellData[], modified: number | null, nextCell?: number, dictionary?: Descriptions): Doc {
   const doc = makeDoc("notebook", path ? baseName(path) : `Untitled notebook ${counter + 1}`, path, modified);
   attachStreamlit(doc);
   doc.notebook = notebookView(cells, doc.kernel!, () => connectionNames, () => effectiveTheme(), markChanged(doc), () => bladeNames, () => codeNames, {
@@ -711,8 +1036,11 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
     streamlit: streamlitHost(doc),
     datasets: () => datasetNames,
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
+    ran: () => flowSoon(doc),
   });
   doc.element.append(doc.notebook.element);
+  notebookModes(doc);
+  if (isData(doc)) dataMode(doc, dictionary ?? {});
   show(doc);
   doc.streamlit!.syncSoon(); // the server knows its cells: the live ones say their state
   // A new notebook is for typing: the cursor waits in its first cell.
@@ -728,9 +1056,26 @@ function openScript(path: string | null, text: string, modified: number | null):
     // from a private copy).
     saveFirst: async (): Promise<boolean> => (!doc.path || !doc.dirty ? true : save(doc)),
   };
-  doc.script = scriptView(text, doc.kernel!, doc.console!, () => effectiveTheme(), markChanged(doc), names, file, { ...hooks, fix: pageFix(doc), openFile: (path, line) => void openAt(path, line), openGrid: (name) => void openGrid(doc, name), openResult: (n, name) => void openResult(doc, n, name), tablesChanged: () => doc === current && drawTablesTool(), streamlit: streamlitHost(doc), lineage: (number) => void showLineage({ document: docName(doc), cell: number }) });
+  doc.script = scriptView(text, doc.kernel!, doc.console!, () => effectiveTheme(), markChanged(doc), names, file, {
+    ...hooks,
+    fix: pageFix(doc),
+    openFile: (path, line) => void openAt(path, line),
+    openGrid: (name) => void openGrid(doc, name),
+    openResult: (n, name) => void openResult(doc, n, name),
+    tablesChanged: () => doc === current && drawTablesTool(),
+    streamlit: streamlitHost(doc),
+    lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
+    // Script mode: Run file takes the run settings' arguments, and is kept in the run history.
+    arguments: () => scriptArguments.get(doc) ?? "",
+    ranFile: (ok, seconds) => {
+      if (!doc.path) return;
+      void recordRunFile(doc.path, ok, seconds).then(() => doc.modes?.redraw("runHistory"), () => undefined);
+    },
+  });
   attachStreamlit(doc);
   doc.element.append(doc.script.element);
+  scriptModes(doc);
+  if (path) void readArguments(doc);
   show(doc);
   doc.streamlit!.syncSoon();
   return doc;
@@ -778,9 +1123,29 @@ async function goToNode(node: LineageNode): Promise<void> {
 
 const lineageHost = { body: lineageBody, goTo: (node: LineageNode) => void goToNode(node) };
 
+/** The Data mode's Lineage view: data.ipynb's selected cell (else its last numbered one) back to the
+ *  data, drawn in place by the lineage overlay's own code; a double-click on a node goes back to the
+ *  cells, at that cell. */
+async function dataLineage(doc: Doc, into: HTMLElement, cell?: number): Promise<LineageGraph | null> {
+  const numbered = doc.notebook!.cells().filter((c) => c.number && c.kind !== "markdown" && c.source.trim());
+  const number = cell ?? doc.notebook!.selectedNumber() ?? numbered[numbered.length - 1]?.number ?? null;
+  if (!number) {
+    drawLineageEmpty(into);
+    return null;
+  }
+  const host = {
+    body: lineageBody,
+    goTo: (node: LineageNode) => {
+      if (dataViews.get(doc)?.view === "lineage") setDataView(doc, "cells");
+      void goToNode(node);
+    },
+  };
+  return openLineage({ document: docName(doc), cell: number }, host, into);
+}
+
 /** The lineage overlay: a cell of a document, a block of a canvas; without a target, the front
  *  document's selected cell (the cursor's in a script) or the front canvas's first block. */
-async function showLineage(target?: LineageTarget & { number?: number }): Promise<LineageGraph> {
+async function showLineage(target?: LineageTarget & { number?: number }, into?: HTMLElement): Promise<LineageGraph> {
   let chosen: LineageTarget | null = null;
   if (target?.app || target?.document) chosen = target;
   else if (current?.canvas && (target?.block || !target?.number)) {
@@ -795,11 +1160,11 @@ async function showLineage(target?: LineageTarget & { number?: number }): Promis
     chosen = { document: docName(current), cell: number };
   }
   if (!chosen) throw new Error("No notebook, script or Streamlit app is in front.");
-  return openLineage(chosen, lineageHost);
+  return openLineage(chosen, lineageHost, into);
 }
 
-// The Data mode's Lineage view (wb-modes) calls this when it is there.
-(window as unknown as { openLineage: (target?: LineageTarget & { number?: number }) => Promise<LineageGraph> }).openLineage = showLineage;
+// For the agent's palette and the tests: the overlay, or (`into`) the same flow drawn in that element.
+(window as unknown as { openLineage: (target?: LineageTarget & { number?: number }, into?: HTMLElement) => Promise<LineageGraph> }).openLineage = showLineage;
 
 /** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
@@ -813,9 +1178,15 @@ function show(doc: Doc): void {
   groups.show(doc);
 }
 
+/** App mode's starter gallery (the Data panel's Starters): a click adds one to the canvas in front. */
+const gallery = starterGallery((name) => {
+  if (current?.canvas) void addStarter(current, name).catch((e: Error) => toast(e.message, "error"));
+});
+
 /** The focused group's document changed: everything that follows the focused document follows. */
 function focused(doc: Doc | null): void {
   current = doc;
+  if (paneReady) data.setStarters(doc?.canvas && panelOn("workbench.starters") ? gallery.element : null);
   variables.show(doc?.kernel ?? null);
   // A Streamlit app runs no code of its own: its console's place says nothing.
   if (doc?.kind === "app") layout.console.replaceChildren();
@@ -843,6 +1214,9 @@ function close(doc: Doc, moved = false): void {
   doc.console?.dispose();
   docs.splice(docs.indexOf(doc), 1);
   tablesSent.delete(doc);
+  flows.delete(doc);
+  dataViews.delete(doc);
+  scriptArguments.delete(doc);
   if (doc.kind === "blade") editingBlade = false;
   groups.remove(doc); // the group's next document comes to the front (and the group goes with its last)
   drawEmpty();
@@ -855,6 +1229,11 @@ function drawTabs(): void {
   drawTop();
 }
 
+/** A document's kind colour (kindColours.ts): app pages violet, notebooks blue, scripts green. */
+function docMark(doc: Doc): "app" | "notebook" | "script" | undefined {
+  return doc.kind === "app" ? "app" : doc.kind === "notebook" ? "notebook" : doc.kind === "script" ? "script" : undefined;
+}
+
 /** A document's kind of tab: Data (a notebook named data.ipynb), Notebook, Script, App page (a
  *  Streamlit app's canvas), Blade, Table. */
 function kindOf(doc: Doc): string {
@@ -863,12 +1242,14 @@ function kindOf(doc: Doc): string {
   return doc.kind === "table" ? "explorer" : doc.kind;
 }
 
-registerTabKind({ id: "data", label: "Data", icon: "sql", mark: "data" });
+// Kind colours (kindColours.ts): app pages violet, notebooks blue (data.ipynb too, with the data's own
+// icon), scripts green; a blade or a catalog table wears none.
+registerTabKind({ id: "data", label: "Data", icon: "sql", mark: "notebook" });
 registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
-registerTabKind({ id: "script", label: "Script", icon: "code", mark: "notebook", start: { label: "New script", run: () => void openScript(null, "", null) } });
-registerTabKind({ id: "page", label: "App page", icon: "page", mark: "page", start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } });
-registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "notebook" });
-registerTabKind({ id: "explorer", label: "Table", icon: "rows", mark: "notebook" });
+registerTabKind({ id: "script", label: "Script", icon: "code", mark: "script", start: { label: "New script", run: () => void openScript(null, "", null) } });
+registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } });
+registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "plain" });
+registerTabKind({ id: "explorer", label: "Table", icon: "rows", mark: "plain" });
 
 const groups = mountGroups<Doc>({
   kindOf,
@@ -932,9 +1313,9 @@ async function open(path?: string): Promise<void> {
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
   try {
-    const found = await api<{ path: string; kind: "notebook" | "script" | "app"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; pages?: SavedPage[] }>("/workbench/open", "POST", { path: chosen });
-    if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell);
-    else if (found.kind === "app") openApp(found.path, found.pages ?? [], found.modified);
+    const found = await api<{ path: string; kind: "notebook" | "script" | "app"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; pages?: SavedPage[]; settings?: AppSettings; dictionary?: Descriptions }>("/workbench/open", "POST", { path: chosen });
+    if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell, found.dictionary);
+    else if (found.kind === "app") openApp(found.path, found.pages ?? [], found.modified, found.settings);
     else openScript(found.path, found.text ?? "", found.modified);
     // Its own environment, as remembered (or the .venv beside it): the picker shows it, Run uses it.
     if (found.python && current) {
@@ -961,7 +1342,7 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
   }
   // A notebook keeps the next cell number with it, so a deleted cell's number is never given again.
   // A Streamlit app's file holds its pages: blocks, links and places, no code.
-  const body = doc.kind === "notebook" ? { cells: doc.notebook!.cells(), next_cell: doc.notebook!.nextCell() } : doc.kind === "app" ? { pages: doc.canvas!.pages() } : { text: doc.script!.text() };
+  const body = doc.kind === "notebook" ? { cells: doc.notebook!.cells(), next_cell: doc.notebook!.nextCell(), ...dataBody(doc) } : doc.kind === "app" ? { pages: doc.canvas!.pages(), settings: doc.canvas!.settings() } : { text: doc.script!.text() };
   const send = async (force: boolean): Promise<void> => {
     const saved = await api<{ path: string; modified: number }>("/workbench/save", "POST", { path, ...body, modified: as ? null : doc.modified, force });
     const first = doc.path === null;
@@ -1007,7 +1388,7 @@ function recentMenu(anchor: HTMLElement): void {
     anchor,
     "Recent files",
     recent.length
-      ? recent.map((r) => ({ label: baseName(r.path), title: r.exists ? r.path : `${r.path} (missing)`, disabled: !r.exists, run: () => void open(r.path) }))
+      ? recent.map((r) => ({ label: baseName(r.path), icon: kindIcon(kindOfPath(r.path), r.path), mark: kindOfPath(r.path) ?? undefined, title: r.exists ? r.path : `${r.path} (missing)`, disabled: !r.exists, run: () => void open(r.path) }))
       : [{ label: "No recent files", heading: true }],
     { align: anchor.closest(".wb-top") ? "right" : "left" },
   );
@@ -1172,9 +1553,10 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
 function moveEntries(doc: Doc): MenuEntry[] {
   if (!moves(doc)) return [];
   const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+  const mark = docMark(doc);
   return [
-    { label: "Open in its own window", icon: "popout", run: guarded(() => popOut(doc)) },
-    ...(isMainWindow() ? [] : [{ label: "Move to the main window", icon: "back", run: guarded(() => moveToMain(doc)) }]),
+    { label: "Open in its own window", icon: "popout", mark, run: guarded(() => popOut(doc)) },
+    ...(isMainWindow() ? [] : [{ label: "Move to the main window", icon: "back", mark, run: guarded(() => moveToMain(doc)) }]),
   ];
 }
 
@@ -1194,7 +1576,11 @@ function drawControls(): void {
   const run = doc.notebook
     ? button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" })
     : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
-  host.replaceChildren(tablesHost, addCell, run, more);
+  // Script mode: Run as scheduled (a fresh process with no app); Notebook and Data mode: the view's switch.
+  const scheduled = doc.script ? button(scheduling.has(doc) ? "Running…" : "Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
+  if (scheduled) scheduled.disabled = scheduling.has(doc);
+  const view = dataViews.get(doc)?.view ?? "cells";
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -1217,7 +1603,7 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), betaMark(), consoleToggle, variablesToggle);
+layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), betaMark(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -1271,6 +1657,10 @@ function drawStatus(): void {
   variablesToggle.setAttribute("aria-pressed", String(state.right));
   consoleToggle.disabled = !doc?.console;
   consoleToggle.title = doc?.console ? "Console (Ctrl+2)" : "No console for what is in front";
+  // App mode: State and Properties take the place of the console and Variables.
+  consoleToggle.hidden = doc?.kind === "app";
+  variablesToggle.hidden = doc?.kind === "app" || doc?.kind === "script";
+  drawModeToggles(doc);
 }
 
 // ===== the Data panel: the tables, the blades' variables; the catalog and the blades beside it =====
@@ -1416,6 +1806,8 @@ interface Remembered {
   cells?: CellData[];
   next_cell?: number;
   pages?: SavedPage[];
+  settings?: AppSettings;
+  dictionary?: Descriptions;
 }
 const SESSION_KEY = "workbench-documents";
 let rememberTimer: number | null = null;
@@ -1435,7 +1827,7 @@ function rememberNow(): void {
         dirty: d.dirty,
         python: d.python,
         // A saved document comes back from its file; only changed ones keep their text here.
-        ...(d.dirty || !d.path ? (d.notebook ? { cells: d.notebook.cells().map((c) => (withOutputs ? c : { ...c, outputs: [] })), next_cell: d.notebook.nextCell() } : d.canvas ? { pages: d.canvas.pages() } : { text: d.script!.text() }) : {}),
+        ...(d.dirty || !d.path ? (d.notebook ? { cells: d.notebook.cells().map((c) => (withOutputs ? c : { ...c, outputs: [] })), next_cell: d.notebook.nextCell(), ...dataBody(d) } : d.canvas ? { pages: d.canvas.pages(), settings: d.canvas.settings() } : { text: d.script!.text() }) : {}),
       }));
   const code = docs.filter((d) => d.notebook || d.script || d.canvas);
   const at = current ? code.indexOf(current) : -1;
@@ -1482,7 +1874,7 @@ async function restore(): Promise<boolean> {
       }
       continue;
     }
-    const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified) : openScript(r.path, r.text ?? "", r.modified);
+    const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified, r.settings) : openScript(r.path, r.text ?? "", r.modified);
     doc.python = r.python;
     if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
     doc.dirty = r.dirty;
@@ -1509,7 +1901,7 @@ function drawEmpty(): void {
   layout.empty(none);
   layout.status.hidden = none;
   if (!none || empty.childElementCount) return;
-  const app = tabKinds().find((k) => k.mark === "page" && k.start);
+  const app = tabKinds().find((k) => k.mark === "app" && k.start);
   clear(
     empty,
     h("div", { class: "wb-empty-choice" }, h("span", { class: "wb-empty-icon" }, icon("notebook")), button("Start a notebook", () => void openNotebook(null, [], null), { icon: "plus", class: "primary" })),
@@ -1839,6 +2231,86 @@ const COMMANDS: Command[] = [
   } },
   { id: "canvas.export", group: "Streamlit app", title: "Export an app that runs alone…", args: "folder: where it goes (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a, from) => canvas().exportApp(text(a, "folder"), from.agent) },
   { id: "canvas.saveAs", group: "Streamlit app", title: "Save as… (the project as one zip)", args: "path: the zip (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a, from) => canvas().saveAs(text(a, "path"), from.agent) },
+  // The Workbench's modes (2026-11-15): App, Notebook, Script and Data
+  { id: "mode.panel", group: "View", title: "Show or hide a panel of the document in front (Properties, State, Outline, Run settings, Run history)", args: 'panel: "properties", "state", "outline", "runSettings" or "runHistory"; show: true or false (default: the other way)', when: () => !!current?.modes, whyNot: "the document in front has no panels", run: (a) => {
+    const panel = text(a, "panel");
+    const doc = current!;
+    const names: Record<string, string> = { properties: "Properties", state: "State", outline: "Outline", runSettings: "Run settings", runHistory: "Run history" };
+    if (panel && names[panel] && !panelOn(`workbench.${panel}`)) throw new Error(turnedOff(names[panel]));
+    if (!panel || !doc.modes!.panels().some((p) => p.id === panel)) throw new Error(`The document in front has these panels: ${doc.modes!.panels().map((p) => p.id).join(", ") || "none (turned off in Settings)"}.`);
+    const show = a.show === undefined ? undefined : a.show === true;
+    const open = doc.modes!.toggle(panel, show);
+    drawStatus();
+    return { panel, open };
+  } },
+  { id: "canvas.select", group: "Streamlit app", title: "Select a block (Properties shows it; none: the page settings)", args: "block: its id (canvas.state lists them; none: no block)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => {
+    canvas().select(text(a, "block") ?? null);
+    return { selected: canvas().selected()?.id ?? null };
+  } },
+  { id: "canvas.properties", agentOnly: true, group: "Streamlit app", title: "Properties: the selected block (name, size, source cell, makes, reads, feeds, widget values) or the page settings", when: isCanvas, whyNot: NO_CANVAS, run: () => {
+    const block = canvas().selected();
+    if (!block) return { settings: canvas().settings() };
+    const rows = current!.app?.rows() ?? [];
+    return { block: { id: block.id, name: block.name, w: block.w, h: block.h, source: block.where, document: block.document, cell: block.cell, makes: block.makes, reads: [...block.tables, ...block.reads] }, feeds: canvas().feeds(block.id).map((b) => b.name ?? b.where), widget_values: rows.filter((r) => r.block === block.name) };
+  } },
+  { id: "canvas.settings", group: "Streamlit app", title: "The page settings: title, icon, layout, logo, theme colours", args: 'title, icon, layout ("wide" or "centered"), logo (a path), colours ({"primary": "#c8102e"}); a part is enough', when: isCanvas, whyNot: NO_CANVAS, run: async (a) => {
+    const sent = Object.fromEntries(Object.entries(a).filter(([k]) => ["title", "icon", "layout", "logo", "colours"].includes(k)));
+    if (Object.keys(sent).length && !(await canvas().setSettings(sent))) throw new Error("The page settings were not changed.");
+    return canvas().settings();
+  } },
+  { id: "canvas.session", agentOnly: true, group: "Streamlit app", title: "State: what the live page's session holds (each key, its value, its block)", when: isCanvas, whyNot: NO_CANVAS, run: () => canvas().session() },
+  { id: "canvas.resetState", group: "Streamlit app", title: "Reset state: the live page again with a fresh session", when: isCanvas, whyNot: NO_CANVAS, run: () => current!.app?.resetState() },
+  { id: "canvas.undo", group: "Streamlit app", title: "Undo the last layout change", when: isCanvas, whyNot: NO_CANVAS, run: () => canvas().undo() },
+  { id: "canvas.redo", group: "Streamlit app", title: "Redo the layout change undone", when: isCanvas, whyNot: NO_CANVAS, run: () => canvas().redo() },
+  { id: "canvas.duplicate", group: "Streamlit app", title: "Duplicate a block (another block linked to the same cell)", args: "block: its id (default: the selected one)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => canvas().duplicate(text(a, "block")) },
+  { id: "canvas.align", group: "Streamlit app", title: "Align a block: left edge, centre, right edge or full width", args: 'how: "left", "centre", "right" or "full"; block: its id (default: the selected one)', when: isCanvas, whyNot: NO_CANVAS, run: (a) => {
+    const how = text(a, "how") ?? "left";
+    if (!["left", "centre", "right", "full"].includes(how)) throw new Error('how is "left", "centre", "right" or "full".');
+    return canvas().align(how as Align, text(a, "block"));
+  } },
+  { id: "canvas.zoom", group: "Streamlit app", title: "Zoom the board", args: "percent: 50 to 150 (default: 100)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => ({ percent: canvas().zoom(num(a, "percent") ?? 100) }) },
+  { id: "canvas.preview", group: "Streamlit app", title: "Play's preview: Desktop, Tablet or Phone; Light or Dark (the app only)", args: 'device: "desktop", "tablet" or "phone"; theme: "light", "dark" or null (as the Workbench)', when: isCanvas, whyNot: NO_CANVAS, run: (a) => {
+    const device = text(a, "device");
+    if (device !== undefined && !["desktop", "tablet", "phone"].includes(device)) throw new Error('device is "desktop", "tablet" or "phone".');
+    const theme = a.theme === null ? null : text(a, "theme");
+    if (theme !== undefined && theme !== null && theme !== "light" && theme !== "dark") throw new Error('theme is "light", "dark" or null.');
+    return canvas().preview(device as Device | undefined, theme as "light" | "dark" | null | undefined);
+  } },
+  { id: "canvas.addStarter", group: "Streamlit app", title: "Add a starter: a named cell of the mockups notebook, placed on the page", args: "name: a Streamlit starter (data.starterList); values: its blanks, as blades_snippet names them (without them, its form opens); row, column: where", when: isCanvas, whyNot: NO_CANVAS, run: async (a) => {
+    const name = text(a, "name");
+    if (!name) throw new Error("Send name: a starter (data.starterList lists them).");
+    const row = num(a, "row");
+    const column = num(a, "column");
+    const values = a.values && typeof a.values === "object" ? (a.values as Record<string, unknown>) : undefined;
+    return addStarter(current!, name, row !== undefined ? { row, column: column ?? 1 } : undefined, values);
+  } },
+  { id: "data.starters", group: "Data", title: "Data | Starters: the starter gallery in the Data panel", args: "show: true or false (default: the other way)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => {
+    if (!panelOn("workbench.starters")) throw new Error(turnedOff("Starters"));
+    return { starters: data.showStarters(a.show === undefined ? undefined : a.show === true) };
+  } },
+  { id: "data.starterList", agentOnly: true, group: "Data", title: "The starter gallery: the Streamlit starters by family", run: () => gallery.list() },
+  { id: "notebook.runOrder", agentOnly: true, group: "Notebook", title: "The run order: each cell's makes, reads and state (notRun, edited, outOfDate with the names, current)", when: isNotebook, whyNot: "the document in front is not a notebook", run: async () => (await refreshFlow(current!))?.cells ?? [] },
+  { id: "notebook.outline", agentOnly: true, group: "Notebook", title: "The Outline: the Markdown headings and the named cells", when: isNotebook, whyNot: "the document in front is not a notebook", run: async () => (await refreshFlow(current!))?.outline ?? [] },
+  { id: "run.upToHere", group: "Run", title: "Run up to here: every cell from the top to the selected one", args: "number: a cell's own number (default: the selected cell)", when: isNotebook, whyNot: "the document in front is not a notebook", run: async (a) => {
+    await notebook().runUpTo(num(a, "number"));
+    return (await refreshFlow(current!))?.cells ?? [];
+  } },
+  { id: "notebook.present", group: "Notebook", title: "Present: the notebook as a document (no code)", args: "on: true or false (default: the other way)", when: () => isNotebook() && !dataViews.has(current!), whyNot: "the document in front is not a notebook (data.ipynb has its own views)", run: (a) => ({ presenting: present(current!, a.on === undefined ? undefined : a.on === true) }) },
+  { id: "script.runScheduled", group: "Run", title: "Run as scheduled: the script as a fresh process with no app", when: isScript, whyNot: "the document in front is not a script", run: () => runScheduled(current!) },
+  { id: "script.history", agentOnly: true, group: "Run", title: "The script's run history", when: isScript, whyNot: "the document in front is not a script", run: async () => (current!.path ? runHistory(current!.path) : []) },
+  { id: "data.view", group: "Data", title: "data.ipynb's view: Cells, Lineage or Dictionary", args: 'view: "cells", "lineage" or "dictionary"', when: () => !!current && dataViews.has(current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
+    const view = text(a, "view") ?? "cells";
+    if (view !== "cells" && view !== "lineage" && view !== "dictionary") throw new Error('view is "cells", "lineage" or "dictionary".');
+    return { view: setDataView(current!, view) };
+  } },
+  { id: "dictionary.list", agentOnly: true, group: "Data", title: "The data dictionary: each table's columns, plain types, descriptions, where each comes from", when: () => !!current && dataViews.has(current), whyNot: "the document in front is not a project's data.ipynb", run: () => dictionaryTables(current!) },
+  { id: "dictionary.describe", group: "Data", title: "Describe a table or a column in the data dictionary (kept in data.ipynb, written into data.py)", args: "table; column (none: the table itself); text (empty: no description)", when: () => !!current && dataViews.has(current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
+    const table = text(a, "table");
+    if (!table) throw new Error("Send table.");
+    const said = describe(current!, table, text(a, "column") ?? null, text(a, "text") ?? "");
+    void drawDictionaryView(current!);
+    return said;
+  } },
   // Console
   { id: "console.focus", group: "Console", title: "Go to the console", keys: "Ctrl+2", when: isCode, whyNot: "no notebook or script is in front", run: () => layout.focus("console") },
   { id: "console.run", group: "Console", title: "Run code in the console", args: "code", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
@@ -2060,6 +2532,7 @@ onPanels(() => {
 
 void Promise.all([
   loadPanels(),
+  loadKindColours(),
   refreshHome(),
   loadConnections(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),

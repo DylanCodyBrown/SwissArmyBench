@@ -1493,6 +1493,22 @@ drags; code of more than one line is pasted, one typed value):
   class on the page; it passed alone and in the full runs after. The stub now keeps the page's
   class changes, to say what happened if it comes back.
 
+## Kind colours and the Workbench's modes (2026-11-15, branch wb-modes)
+
+- **Checked:** every kind colour token per theme against the page, panels and captions (WCAG, a test);
+  a chosen colour made readable in all four themes and never amber (a test). Streamlit 1.67: a page with
+  the State tail runs under AppTest and writes its session (a selectbox's key, a list, a DataFrame as
+  "DataFrame, 2 rows"); `embed_options=dark_theme` / `light_theme` on a frame's address switch the live
+  page's theme (the browser test sees the dark page in the phone frame); `.streamlit/config.toml` in the
+  folder Streamlit runs in carries the theme colours (Streamlit's documented place); `st.logo` and
+  `st.set_page_config(page_icon=...)` as written in the entry. Run as scheduled: a script run with
+  `SWISSARMYBENCH_INFO` naming a missing file finds no app (`push_client._read_info()` is None), its
+  arguments, plain values and exit codes come back, a failing run keeps its traceback.
+- **Not checked:** a key vault as a scheduled run's source against a real vault (the code path is the
+  Python connections' vault jobs, tested there); a logo file on a real page (only the generated calls);
+  the theme colours rendered by a real Streamlit page; the wiring drawn at zoom levels other than 80 and
+  100%; Edge (the browser tests ran in Chromium).
+
 ## The integration branch: lineage, Add API, test-bed-2 and wb-modes merged (2026-11-15)
 
 - **Add API inline in the one-script export:** `test_an_add_api_client_the_notebook_imports_is_inline_and_the_export_runs_in_a_fresh_python`
@@ -1501,3 +1517,13 @@ drags; code of more than one line is pasted, one typed value):
   a notebook; both copied to another folder (no `API_Orders.py` there) and run in a fresh venv with only
   their requirements: 17 open orders and 7 regions written; without the key, exit 1; the key never in
   the files or the output.
+- **wb-modes with lineage and controllers** (tests/e2e/test_workbench_modes.py, Chromium): the Data
+  mode's Lineage view draws the lineage in place (no dialog), its target the orders table's cell, its
+  Mermaid chart drawn, `--lineage-notebook` resolving to the theme's `--kind-notebook`; Properties
+  shows a selected block's controller (Filter, makes region) and Lineage… opens the overlay (Escape
+  closes it). `.cv-block.failed` (red) and the kind-colour left edge are both in grid.css; a failed
+  block's red wins.
+- **Script mode and the exporter read connections alike:** domain/script_runs.py `named_connections`
+  is now the exporter's `references` (tests/test_script_runs.py unchanged and passing); both use
+  `env_name_for` and `python_connections.env_reads`.
+- **Approved outputs in the export:** not wired (docs/ideas.md, One script: why).

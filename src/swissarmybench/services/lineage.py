@@ -128,6 +128,7 @@ class Lineage:
         read_document: Callable[[str], tuple[str, str, float]],
         project_files: ProjectFiles,
         kernel_values: KernelValues,
+        read_trace: Callable[[str, str], str | None],
     ) -> None:
         self.ws = ws
         self._streamlit = streamlit
@@ -135,6 +136,7 @@ class Lineage:
         self._read = read_document  # a file's text and full path (the Workbench's documents)
         self._project = project_files
         self._kernel_values = kernel_values
+        self._read_trace = read_trace  # what a live page noted of its blocks (adapters/streamlit_files.py)
 
     # ===== the documents, as they are now =====
 
@@ -285,7 +287,7 @@ class Lineage:
         if isinstance(body.get("kernel"), str) and body["kernel"]:
             kernels[target[0]] = body["kernel"]
         errors = self._errors(body.get("errors"), target[0])
-        trace = self._streamlit.page_trace(app, page_id) if app is not None else None
+        trace = self._page_trace(app, page_id) if app is not None else None
         blocks = (
             {b.key: b.id for p in app.pages if p.id == page_id for b in p.blocks} if app is not None else {}
         )
@@ -294,6 +296,18 @@ class Lineage:
         said = graph.to_json(short)
         mark = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()[:16]
         return said | {"values": values, "busy": busy, "mark": mark, "playing": trace is not None}
+
+    def _page_trace(self, app: App, page_id: str) -> dict[str, Any] | None:
+        """What a playing page noted of each block at its last run: {"run", "blocks": {id: {"values",
+        "error"}}} (client/lineage_values.py). None: the page is not playing, or noted nothing yet."""
+        if app.folder is None or not app.running() or page_id not in app.laid:
+            return None
+        text = self._read_trace(app.folder, page_id)
+        try:
+            found = json.loads(text) if text else None
+        except ValueError:
+            return None
+        return found if isinstance(found, dict) and isinstance(found.get("blocks"), dict) else None
 
     @staticmethod
     def _errors(sent: Any, path: str) -> dict[Key, str]:

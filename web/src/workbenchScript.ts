@@ -204,7 +204,7 @@ export function scriptView(
   changed: () => void,
   names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[]; datasets?: string[] },
   file: ScriptFile,
-  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void } = {},
+  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void; arguments?: () => string; ranFile?: (ok: boolean, seconds: number) => void } = {},
 ): ScriptView {
   const editorHost = h("div", { class: "wb-script-editor" });
   let editor: CodeEditor | null = null;
@@ -685,7 +685,11 @@ export function scriptView(
     const name = path ? (path.split(/[\\/]/).pop() ?? path) : null;
     const lines = code.split("\n").length;
     const ran = tableLines.map((l) => ({ name: l.name, code: l.code }));
-    const ok = await console.run({ code, kind: "file", path }, name ? `%run ${name}` : `# the script (${lines} line${lines === 1 ? "" : "s"}, not saved)`, { kind: "file", path });
+    // Script mode: the run settings' arguments (sys.argv), and the run kept in the run history.
+    const args = hooks.arguments?.() ?? "";
+    const started = performance.now();
+    const ok = await console.run({ code, kind: "file", path, ...(args ? { args } : {}) }, name ? `%run ${name}${args ? ` ${args}` : ""}` : `# the script (${lines} line${lines === 1 ? "" : "s"}, not saved)`, { kind: "file", path });
+    hooks.ranFile?.(ok, (performance.now() - started) / 1000);
     // The file ran to its end: so did its tables' cells (each the safe way, in the kernel).
     if (ok) for (const table of ran) records.set(table.name, { code: table.code, at: new Date(), opened: false });
     // And its HTML cells' names are read from what the run left.

@@ -41,6 +41,7 @@ from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
+    JsonFile,
     ModelFiles,
     ThemeFiles,
     is_own_file,
@@ -48,6 +49,7 @@ from swissarmybench.adapters.state_files import (
 from swissarmybench.adapters.streamlit_files import AppFiles
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
+from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.renamed import env
@@ -55,6 +57,7 @@ from swissarmybench.server import blade_runner
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
+from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
@@ -72,6 +75,7 @@ from swissarmybench.services.export import Exports
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
+from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
@@ -81,6 +85,7 @@ from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.script_export import ScriptExports
+from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.streamlit import StreamlitApps
@@ -136,6 +141,8 @@ class Services:
     projects: Projects
     script_exports: ScriptExports
     panels: Panels
+    kind_colours: KindColours
+    script_runs: ScriptRuns
     beta: BetaLog
     live: LiveUpdates
     workers: PriorityWorkers
@@ -189,6 +196,31 @@ def bootstrap(
         return await blade_runner.run(
             job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
         )
+
+    async def vault_values(wanted: dict[str, dict[str, str]]) -> tuple[dict[str, str], list[str]]:
+        """A scheduled script's variables from key vaults (vault -> variable -> secret), and what failed."""
+        sources = {
+            variable: {"from": "vault", "vault": vault, "secret": secret}
+            for vault, mapping in wanted.items()
+            for variable, secret in mapping.items()
+        }
+        try:
+            jobs = python_connections.vault_jobs(sources, blade_store.get, blade_store.saved_secrets)
+            answer = await blade_runner.run(
+                {"mode": "load", "label": "the vaults", "kind": "load", "vaults": jobs},
+                settings.vault_timeout_seconds,
+            )
+        except (python_connections.PythonConnectionError, blade_runner.RefreshError) as error:
+            return {}, [str(error)]
+        values = {str(k): str(v) for k, v in dict(answer.get("values") or {}).items()}
+        return values, [str(p) for p in answer.get("problems") or []]
+
+    def secrets_of(name: str) -> list[str] | None:
+        """A connection's or blade's passwords by the names its code asks secret() for (None: none here)."""
+        try:
+            return blade_store.get(name).secrets
+        except KeyError:
+            return None
 
     async def vault_environment() -> tuple[dict[str, str], list[str]]:
         """Every vault's entries for a Workbench kernel about to start, and the vaults that failed."""
@@ -289,6 +321,17 @@ def bootstrap(
     )
     datasets.renamed.append(models.rename_table)
     documents = Documents(state_dir / "recent.json", settings.workbench_dir)
+    script_runs = ScriptRuns(
+        ws,
+        JsonFile(state_dir / "run_settings.json" if audit_log else None),
+        documents,
+        ScriptRunner(),
+        os.environ,
+        default_python=lambda: sys.executable,
+        secrets_of=secrets_of,
+        vault_values=vault_values,
+        now=time.time,
+    )
     table_cells = TableCells(ws, datasets.origins)
     project_files = ProjectFiles()
     # Streamlit: a canvas's pages and a document's live cells, written to a temporary folder of the
@@ -363,13 +406,21 @@ def bootstrap(
         workbench_window=WorkbenchWindow(ws),
         table_cells=table_cells,
         panels=Panels(ws),
+        script_runs=script_runs,
+        kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
         beta=beta,
         streamlit=streamlit,
         # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
         controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),
         # A cell's lineage back to the data, each step's value from its kernel, a live page or the grid.
         lineage=Lineage(
-            ws, streamlit, datasets.origins, documents.read, project_files, workbench.lineage_values
+            ws,
+            streamlit,
+            datasets.origins,
+            documents.read,
+            project_files,
+            workbench.lineage_values,
+            app_files.read_trace,
         ),
         projects=Projects(
             ws,

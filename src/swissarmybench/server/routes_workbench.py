@@ -194,8 +194,12 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
     async def cancel_handoff(request: Request) -> Response:
         return json_response(workbench.cancel_handoff(request.path_params["handoff"]))
 
+    async def notebook_flow(request: Request) -> Response:
+        return json_response(workbench.flow(await read_json(request)))
+
     return [
         Route("/workbench/home", safely(home)),
+        Route("/workbench/notebook/flow", safely(notebook_flow), methods=["POST"]),
         Route("/workbench/open", safely(open_document), methods=["POST"]),
         Route("/workbench/save", safely(save), methods=["POST"]),
         Route("/workbench/pythons", safely(pythons)),

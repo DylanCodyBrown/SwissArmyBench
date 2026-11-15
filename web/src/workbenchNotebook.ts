@@ -43,6 +43,10 @@
  *              kernel; it turns yellow when its code or a table it names changes
  *   [LINK]     any Python cell of the user's goes on a Streamlit app's canvas as a link: drag it by
  *              its number or its head, or copy it (C, or More: Copy) and paste it there
+ *   [MODE]     Notebook mode (2026-11-15): each cell remembers what it last ran and when, so the page
+ *              marks it "edited" or "out of date" (a name it reads was made again: domain/notebook_
+ *              flow.py); the selected cell offers Run up to here; Present shows the notebook as a
+ *              document (its text and outputs, no code)
  *
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
@@ -161,6 +165,21 @@ interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | 
   htmlNotes: string[];
   /** Counts the design's drawings: an older one that answers late is dropped. */
   drawn: number;
+  /** Notebook mode: "edited" or "out of date" in its head (empty when current). */
+  flow: HTMLElement;
+  /** Its code when it last ran in this kernel, and when (the order of runs). */
+  ranSource: string | null;
+  runOrder: number | null;
+}
+
+/** A cell as Notebook mode's run order reads it. */
+export interface FlowCell {
+  number: number;
+  kind: CellKind;
+  source: string;
+  ran: string | null;
+  order: number | null;
+  name: string | null;
 }
 
 /** What Undo puts back. */
@@ -279,6 +298,15 @@ export interface NotebookView {
   selectedNumber: () => number | null;
   /** The document closed: free its editors, its designs' frames and its window listener. */
   dispose: () => void;
+  // ----- Notebook mode
+  /** The user's cells as the run order reads them: what each last ran, and when. */
+  flowCells: () => FlowCell[];
+  /** Each cell's state from the run order: "edited", "outOfDate" (with the names), else nothing shown. */
+  markFlow: (states: { number: number; state: string; because: string[] }[]) => void;
+  /** Run every cell of the user's from the top to this one (default: the selected one). */
+  runUpTo: (number?: number) => Promise<void>;
+  /** Present: the notebook as a document (its text and outputs, no code). */
+  present: (on?: boolean) => boolean;
 }
 
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
@@ -319,6 +347,8 @@ export function notebookView(
     datasets?: () => string[];
     /** Lineage: the overlay for the cell with this number. */
     lineage?: (number: number) => void;
+    /** A cell ran (Notebook mode's run order follows). */
+    ran?: () => void;
   } = {},
 ): NotebookView {
   const datasets = (): string[] => hooks.datasets?.() ?? [];
@@ -330,6 +360,8 @@ export function notebookView(
   let selected: Cell | null = null;
   const undos: Undo[] = [];
   let pendingD = 0; // the first D of D D, and when
+  let runs = 0; // the kernel's runs from this notebook, in order (Notebook mode's run order)
+  let presenting = false;
   const dark = (): boolean => theme().endsWith("dark");
   const indexOf = (cell: Cell): number => cells.indexOf(cell);
   // ----- numbers, tables
@@ -629,7 +661,11 @@ export function notebookView(
     cell.count.textContent = "[*]";
     cell.element.classList.add("running");
     try {
+      const ranCode = cell.source;
       const done = await runInto(kernel, { code: cell.source, kind: hasSource(cell.kind) ? cell.kind : "code", connection: cell.connection }, cell.area);
+      cell.ranSource = ranCode;
+      cell.runOrder = ++runs;
+      hooks.ran?.();
       cell.execution_count = done.execution_count;
       cell.count.textContent = done.error ? "[!]" : done.execution_count ? `[${done.execution_count}]` : "[ ]";
       cell.element.classList.toggle("failed", !done.ok);
@@ -693,6 +729,12 @@ export function notebookView(
   };
 
   /** Run cells in order, stopping at the first that fails (or a stopped kernel), as Jupyter does. */
+  /** Run up to here: the user's cells from the top to this one, in order (a table's cell too). */
+  const runUpTo = async (cell: Cell): Promise<void> => {
+    select(cell);
+    await runEach(cells.slice(0, indexOf(cell) + 1).filter((c) => !isHeading(c.role)));
+  };
+
   const runEach = async (some: Cell[]): Promise<void> => {
     let pieces = false;
     for (const cell of some) {
@@ -936,6 +978,8 @@ export function notebookView(
     const draggable = (data.kind === "code" || isText(data.kind)) && !isApp(role);
     if (draggable) numberLabel.draggable = true;
     const part = h("span", { class: "wb-part hint" });
+    const flowMark = h("span", { class: "wb-flow", role: "status" });
+    const runTo = button("Run up to here", () => void runUpTo(cell), { icon: "runTo", class: "ghost wb-run-to", title: "Run every cell from the top to this one" });
     const status = role === "transformations" ? h("span", { class: "wb-table-state", role: "status" }) : null;
     const bar = isHeading(role) ? h("div", { class: "wb-group-bar" }) : null;
     const runButton = button("Run cell", () => void run(cell), { icon: "play", iconOnly: true, class: "ghost", title: "Run cell (Ctrl+Enter)" });
@@ -957,7 +1001,9 @@ export function notebookView(
             kindPicker,
             connectionPicker,
             part,
+            flowMark,
             h("span", { class: "spacer" }),
+            runTo,
             editButton,
             runButton,
             button("Move up", () => moveCell(cell, -1), { icon: "up", iconOnly: true, class: "ghost" }),
@@ -1003,6 +1049,9 @@ export function notebookView(
       drawn: 0,
       approved: data.kind === "markdown" ? null : (data.approved ?? null),
       approval,
+      flow: flowMark,
+      ranSource: null,
+      runOrder: null,
     };
     self = cell;
     drawName(cell);
@@ -1723,6 +1772,38 @@ export function notebookView(
 
   const at = (index?: number): Cell | null => (index === undefined ? selected ?? cells[0] ?? null : cells[index] ?? null);
   return {
+    flowCells: () =>
+      cells
+        .filter((c) => !isApp(c.role) && !isHeading(c.role))
+        .map((c) => ({ number: c.number, kind: c.kind, source: sourceOf(c), ran: c.ranSource, order: c.runOrder, name: c.name })),
+    markFlow: (states) => {
+      const by = new Map(states.map((s) => [s.number, s]));
+      for (const c of cells) {
+        const said = by.get(c.number);
+        const state = said?.state ?? "current";
+        const words = state === "edited" ? "edited" : state === "outOfDate" ? "out of date" : "";
+        c.flow.textContent = words;
+        c.flow.title = state === "outOfDate" && said?.because.length ? `Made again since it ran: ${said.because.join(", ")}` : "";
+        c.flow.hidden = !words;
+        c.element.classList.toggle("flow-stale", !!words);
+      }
+    },
+    runUpTo: async (number) => {
+      const cell = number === undefined ? selected : byNumber(number);
+      if (!cell) throw new Error(number === undefined ? "Select a cell first." : `This notebook has no cell ${number}.`);
+      await runUpTo(cell);
+    },
+    present: (on) => {
+      presenting = on ?? !presenting;
+      list.classList.toggle("presenting", presenting);
+      if (presenting) for (const c of cells) if (c.kind === "markdown" && !c.element.classList.contains("rendered")) showMarkdown(c);
+      // A code cell shows only what it drew: one that drew nothing is left out of the document.
+      for (const c of cells) {
+        const drew = !!c.area.element.textContent?.trim() || !!c.area.element.querySelector("img, svg, iframe, canvas, table");
+        c.element.classList.toggle("present-empty", presenting && c.kind !== "markdown" && c.kind !== "html" && !c.live && !drew);
+      }
+      return presenting;
+    },
     element: list,
     cells: () => cells.map(dataOf),
     add: (kind, source = "", first = false) => void insertAt(first ? 0 : selected ? indexOf(selected) + 1 : cells.length, kind, source),
