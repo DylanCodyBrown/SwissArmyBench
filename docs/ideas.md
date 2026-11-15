@@ -2081,7 +2081,7 @@ Kept in case they come back on their own:
 - **Dataverse:** reads through its read-only TDS endpoint (SQL Server style) and writes through the
   Web API, signed in with the vault's app registration as Power BI is.
 
-## Add API: an OpenAPI file or a short form, made into a ready-to-call connection (the owner, 2026-11-15; first after the beta)
+## Add API: an OpenAPI file or a short form, made into a ready-to-call connection (the owner, 2026-11-15; first after the beta) — built 2026-11-15
 
 The owner: "if we could create a connection type that literally turns an openapi json into a ready to call
 connection type it would be a power feature. You could take a function app or lambda create an openapi.json
@@ -2136,6 +2136,60 @@ Planned:
     minted from a service account key in the vault (RS256, through `cryptography` when present).
   - A preset fills the form (the URL pattern, the auth type, the header names), then reads the OpenAPI
     document if the host has one, or the endpoints are added by hand.
+
+Built (2026-11-15, branch add-api). Decisions made in building it:
+- **Where it is:** the Connections window's footer (**Add API**, beside Add connection), the Workbench's
+  **+ Table** menu and its palette (`data.addApi`), and the agent's `connections_api_choices` and
+  `connections_api_add` (`preview=true` writes nothing). It is drawn inside the Connections window; after
+  Add, the new connection's own form opens (the Python connection form), so where each variable comes
+  from is chosen there with the controls that already exist, then Test and Save.
+- **One file per feature, two in the domain:** `domain/apis.py` (the spec, the form, the auth types, the
+  presets, the connection's boxes, the changes) and `domain/api_clients.py` (the made file's text). The made
+  file's fixed parts are text templates in the domain (it may not import urllib); every value from the spec
+  goes in as a literal (JSON-quoted) or a checked name, and docstrings are escaped, so a spec cannot write
+  code (a test tries).
+- **The made file is one class** (`OrdersApi` in `API_Orders.py`): the auth's code is the class's own private
+  methods, only the chosen type's, with only its imports. No `from __future__`, `Optional[...]` types, so it
+  runs on Python 3.9+ and can be pasted inline. The constructor takes `base_url` (else `<PREFIX>_URL`, else
+  the spec's) and each secret as an argument, else from its environment variable; a needed one missing fails
+  at once, by name. Retries: 429 always, 5xx and unreachable only for idempotent methods, `Retry-After`
+  honoured, backoff doubling. Paging: a `Link: rel="next"`, a next link in the answer (`@odata.nextLink`,
+  `nextLink`, `next`, `links.next`), else the operation's own page-token, page-number or offset parameter;
+  a page that repeats ends it; `max_rows` stops early. Rows are found at the schema's wrapper key
+  (`items`, `value`, `data`...). `tables()` and `read()` are the connection's List the tables and Read a
+  table; a table whose columns no schema names is asked for one row.
+- **Tables are the GET operations that answer rows and need no argument,** named after their path's words
+  (`/v1/orders` -> `orders`), in their first tag's schema (else `api`).
+- **Variables:** `<PREFIX>_API_KEY`, `_TOKEN`, `_USERNAME`/`_PASSWORD`, `_CLIENT_ID`/`_CLIENT_SECRET` (and a
+  `{tenant}` in an OAuth URL becomes `<PREFIX>_TENANT`), `_JWT_SECRET`/`_PRIVATE_KEY`,
+  `_SERVICE_ACCOUNT_KEY` (the key's JSON), `_FIREBASE_API_KEY`/`_EMAIL`/`_PASSWORD` or `_ID_TOKEN`; SigV4 reads
+  AWS's own names (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`), which a Lambda sets.
+  Connect passes each one (`os.environ["..."]`), so the Python connection's form finds and maps them.
+- **Connect loads the file by its path** (`importlib`, registered as `API_<name>` in `sys.modules`), so the
+  connection works from any notebook and the blade runner, and a notebook beside it imports the same module.
+- **Entra ID** is OAuth 2.0 client credentials against `login.microsoftonline.com/{tenant}` with the
+  app's `api://<application id>/.default` scope (the vault's app registration is three variables mapped to
+  the vault). **Cognito** is a ready JWT. **AWS SigV4's service** is read from the address (`lambda-url` ->
+  lambda, else execute-api) unless set. **Google's audience** is the address's root unless set. Firebase's
+  sign-in and refresh addresses are settings (Google's by default) so a stand-in can take them.
+- **OAuth's browser sign-in** listens on 127.0.0.1 (a free port unless set: RFC 8252's loopback redirect).
+  Device code prints its message on stderr. A refresh token goes to the keyring when `keyring` is there,
+  else lasts as long as that Python.
+- **YAML:** read only when the app's Python has PyYAML (it is not a dependency); otherwise the message asks
+  for JSON. Fetching a document's address is Add API's one outbound request, at the user's (or agent's) word.
+- **Re-import:** the file's first lines mark it (`# swissarmybench-api: {...}`: what it was made from, the
+  base URL and auth settings, no secret). The changes compare each method's signature and its
+  `METHOD /path` (read with ast), plus the auth and the address. A file without the mark, or a connection
+  of that name that does not load this file, is never replaced (409). Re-adding keeps the connection's
+  variable sources.
+- **Not opened as a tab:** `API_<name>.py` is a `.py` in the project, so Open project lists it with the
+  scripts (left as it is).
+- **A SQL cell on any Python connection** (not only Add API's): DuckDB in the kernel over its tables, each
+  read whole by Read a table the first time a cell names it (`client/sql_cell.py`).
+- **For the exporter (branch one-script):** `Apis.inline(folder, codes)` (services/apis.py) gives, for each
+  `API_` module the code imports that Add API made and that is beside the notebook, `{"module", "code"}`:
+  the file without its docstring plus three lines that make `import API_Orders` find it. The wiring is the
+  merge's.
 ## Beta mode: the beta log and notes (the owner, 2026-11-15)
 
 "After the beta release I will probably have a whole host of things to fix or I don't like. So let's build

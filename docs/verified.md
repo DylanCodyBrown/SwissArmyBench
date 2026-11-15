@@ -34,6 +34,36 @@ this machine:
 
 A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 
+## Add API (2026-11-15, branch add-api)
+
+- **Checked against made-up services on 127.0.0.1** (`tests/api_standins.py`): an OpenAPI 3.0 document with a
+  relative server and a Swagger 2.0 one; the made file run by a plain Python (`-I -S`: no site-packages, so no
+  pandas and no keyring; lists of dicts come back) and by the app's Python (DataFrames), with every auth type:
+  none; API key in a header, a query parameter and a cookie; bearer; basic; OAuth 2.0 client credentials (a
+  `{tenant}` in its URL), authorization code with PKCE (the browser stood in for by a request that follows the
+  redirect to the client's own 127.0.0.1 listener; the stand-in checks the S256 challenge), device code (one
+  `authorization_pending`, then the token); JWT ready, login (its token runs out after two requests: a 401,
+  then a second login), HS256, RS256 and ES256 (the stand-in verifies with the public key); SigV4 (the
+  stand-in works the signature out again from the request it received); a Google identity token (the
+  stand-in verifies the RS256 assertion, its `aud` and `target_audience`); Firebase email and password (its
+  ID token runs out: refreshed with the refresh token) and a ready ID token. Paging by token, by a Link
+  header and by page number; a 503 with `Retry-After: 0` retried; a 404's error says the method, address
+  (without its query) and the answer.
+- **SigV4 matches AWS's own test suite's `get-vanilla`** (signature `5fa00fa3…3fbf31`), standard library only.
+- **RS256 and ES256** sign with `cryptography` (50.0 here); ES256's DER signature is turned into JWS's 64-byte
+  r||s. Not checked against Google's or Firebase's real services, Entra ID, Cognito or a real Lambda or
+  API Gateway: their shapes are from their documentation (Firebase `accounts:signInWithPassword` and
+  `securetoken` refresh; Google's `jwt-bearer` grant with `target_audience` answering `id_token`).
+- **YAML** read with PyYAML 6.0 where it is installed (here it is; it is not in uv.lock).
+- **The app:** preview writes nothing; Add writes the file and saves the connection; Test, List the tables,
+  the loaded catalog's columns, Open as grid (Rows to open) and a SQL cell in this Python (`sql_cell.sql`)
+  work on it; re-import shows the removed operation, writes, and keeps the variables' sources; a file not
+  made by Add API and a connection of that name not its own are refused (409). No answer, file or the state
+  folder holds the key. The browser test adds one from a file and one from the form (the AWS preset).
+- **Not checked:** Windows paths in Connect (the path goes in as a JSON-quoted literal, which Python reads
+  the same); a real browser window for OAuth's authorization code; the keyring holding a refresh token on a
+  real desktop.
+
 ## Other checks
 
 - uvicorn 0.54 on Windows serves from a socket bound and listening beforehand

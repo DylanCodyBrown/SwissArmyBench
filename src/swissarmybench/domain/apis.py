@@ -345,7 +345,7 @@ AUTH_TYPES: dict[str, AuthType] = {
                 Setting(
                     "in", "In", "header", (("header", "Header"), ("query", "Query"), ("cookie", "Cookie"))
                 ),
-                Setting("name", "Name", "X-Api-Key"),
+                Setting("name", "Key name", "X-Api-Key"),
             ),
         ),
         AuthType("bearer", "Bearer token"),
