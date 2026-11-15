@@ -319,6 +319,21 @@ class _Walk:
 
     # --- nodes
 
+    def ranks(self) -> dict[str, tuple[int, ...]]:
+        """Each cell node's place for the flow's ties: data.ipynb first, then the documents as met, each
+        in its own order. The rest (sources, the grid's tables) before every cell."""
+        documents = list(dict.fromkeys(n.document for n in self.nodes.values() if n.document))
+        documents.sort(key=lambda d: d != self.data)
+        out: dict[str, tuple[int, ...]] = {}
+        for key, node in self.nodes.items():
+            if node.document is None or node.cell is None:
+                out[key] = (0, 0, 0)
+                continue
+            numbers = [c.number for c in self.docs[node.document].cells]
+            place = numbers.index(node.cell) if node.cell in numbers else 0
+            out[key] = (1, documents.index(node.document), place)
+        return out
+
     def add(self, key: str, node: Node) -> str:
         if key not in self.nodes:
             self.nodes[key] = node
@@ -439,11 +454,14 @@ class _Walk:
         return ident
 
 
-def _flow_order(keys: Sequence[str], edges: Iterable[tuple[str, str]]) -> list[str]:
-    """The nodes with every node after the ones it comes from; otherwise as they were found, latest
-    first (the data before the cells that read it)."""
+def _flow_order(
+    keys: Sequence[str], edges: Iterable[tuple[str, str]], rank: Mapping[str, tuple[int, ...]]
+) -> list[str]:
+    """The nodes with every node after the ones it comes from; otherwise by `rank` (data.ipynb's cells
+    first, then each document's cells in its own order), then as they were found, latest first (the
+    data before the cells that read it)."""
     found = list(reversed(keys))
-    place = {key: i for i, key in enumerate(found)}
+    place = {key: (*rank.get(key, ()), i) for i, key in enumerate(found)}
     before: dict[str, set[str]] = {key: set() for key in found}
     for source, target in edges:
         if source in before and target in before:
@@ -477,7 +495,7 @@ def trace(
         raise LineageError(f"{file_name(target[0])} has no cell {target[1]} to trace.")
     start = walk.cell_node(target)
     walk.nodes[start] = _replace(walk.nodes[start], target=True)
-    keys = _flow_order(walk.order, walk.edges)
+    keys = _flow_order(walk.order, walk.edges, walk.ranks())
     if keys and keys[-1] != start:  # the target last, always
         keys.remove(start)
         keys.append(start)

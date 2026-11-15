@@ -438,6 +438,8 @@ export interface CodeEditorOptions {
   readOnly?: boolean;
   /** The right-click menu's Send to the agent: the selected code, or the error under the cursor. */
   sendToAgent?: (what: { text: string; startLine: number; endLine: number; problem: Problem | null }, withQuestion: boolean) => void;
+  /** More of the right-click menu's own entries (Lineage): each run with the line it was opened on. */
+  actions?: { id: string; label: string; run: (line: number) => void }[];
 }
 
 /** Beta mode's "Leave a note…" in the editor's own right-click menu. The page (betaNotes.ts, another
@@ -576,6 +578,10 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     };
     editor.addAction({ id: "sab.sendToAgent", label: "Send to the agent", contextMenuGroupId: "0_agent", contextMenuOrder: 1, run: () => send(false) });
     editor.addAction({ id: "sab.sendToAgentAsk", label: "Send to the agent with a question…", contextMenuGroupId: "0_agent", contextMenuOrder: 2, run: () => send(true) });
+  }
+
+  for (const action of options.actions ?? []) {
+    editor.addAction({ id: action.id, label: action.label, contextMenuGroupId: "1_cell", contextMenuOrder: 1, run: () => action.run(editor.getPosition()?.lineNumber ?? 1) });
   }
 
   addNoteAction(editor, host);

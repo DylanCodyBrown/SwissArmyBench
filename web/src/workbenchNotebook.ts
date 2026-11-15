@@ -47,7 +47,7 @@
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
 import { api } from "./api";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h, type MenuItem, showMenu, toast } from "./dom";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
 import { draggedSnippet, type FilledSnippet, fillSnippet, pickSnippet, refusal, SNIPPET_CELL, SNIPPET_DRAG, type SnippetLanguage } from "./starters";
@@ -57,6 +57,7 @@ import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlComplete
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, fillMarkdown, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
+import { type Approval, type ApprovalNote, approvalNote, approve as approveOutputs, compare as compareOutputs } from "./workbenchApprovals";
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
 import { CELL_DRAG, cleanName, copiedCell, copyCell, type EveryCell, MAX_CELL_NAME, mayUseStreamlit, PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
@@ -89,6 +90,8 @@ export interface CellData {
   live?: boolean;
   /** The cell's own name (docs/ideas.md, named cells): a label; its number stays its identity. */
   name?: string | null;
+  /** Its output as the user approved it (domain/approvals.py): a later run that differs says so. */
+  approved?: Approval | null;
 }
 
 /** An HTML cell, with its state: for the agent. */
@@ -114,9 +117,12 @@ export interface TableReport extends TableLine {
   label: string;
 }
 
-interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | "grouped" | "steps" | "height" | "name"> {
+interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | "grouped" | "steps" | "height" | "name" | "approved"> {
   /** Its own name (null: none). */
   name: string | null;
+  /** Its approved output (null: none), and the amber note when a run differs from it. */
+  approved: Approval | null;
+  approval: ApprovalNote;
   /** The head's name, typed in place (a heading and a table's cell have none). */
   nameButton: HTMLInputElement | null;
   number: number;
@@ -260,6 +266,13 @@ export interface NotebookView {
   insertSnippet: (name: string, values: Record<string, unknown>, number?: number) => Promise<{ cell: number; kind: CellKind; name: string | null }>;
   /** The palette's Insert a snippet…: pick one for the selected cell's language, fill its form. */
   insertSnippetHere: () => void;
+  /** Approve a cell's output as it is now (`remove`: take the approval away); without a number, the
+   *  selected cell's. */
+  approve: (number?: number, remove?: boolean) => Promise<{ cell: number; approved: boolean }>;
+  /** Its approved cells, each with how its output differs now (null: the same, or not run). */
+  approvals: () => { cell: number; name: string | null; at: string | null; changed: string[] | null }[];
+  /** The selected cell's own number (null: none). */
+  selectedNumber: () => number | null;
   /** The document closed: free its editors, its designs' frames and its window listener. */
   dispose: () => void;
 }
@@ -300,6 +313,8 @@ export function notebookView(
     streamlit?: StreamlitHost;
     /** What a DAX cell runs on: each Power BI workspace's datasets, as `Finance/Sales model`. */
     datasets?: () => string[];
+    /** Lineage: the overlay for the cell with this number. */
+    lineage?: (number: number) => void;
   } = {},
 ): NotebookView {
   const datasets = (): string[] => hooks.datasets?.() ?? [];
@@ -617,10 +632,36 @@ export function notebookView(
       edited();
       // A calm moment: a cell that now makes a table joins the Tables group.
       if (done.ok && cell.kind === "code" && (tableInfos.length || cells.some((c) => c.role))) void arrange(true);
+      void checkApproval(cell);
       return done.ok;
     } finally {
       cell.element.classList.remove("running");
     }
+  };
+
+  // ===== approved outputs: the notebook as the test surface =====
+
+  /** After a run: the output against its approval; the amber note says how it differs (nothing when the same). */
+  const checkApproval = async (cell: Cell): Promise<void> => {
+    if (!cell.approved || cell.kind === "markdown") return cell.approval.show(null);
+    const outputs = cell.area.outputs();
+    if (!outputs.length && cell.execution_count === null) return cell.approval.show(null); // not run yet
+    try {
+      cell.approval.show(await compareOutputs(outputs, cell.approved));
+    } catch {
+      // The server is away: the note stays as it was.
+    }
+  };
+
+  const approveCell = async (cell: Cell, remove = false): Promise<void> => {
+    if (remove) cell.approved = null;
+    else {
+      const outputs = cell.area.outputs();
+      if (!outputs.length) throw new Error("This cell has no output to approve: run it first.");
+      cell.approved = await approveOutputs(outputs);
+    }
+    cell.approval.show(null);
+    changed();
   };
 
   /** A table's read-only cell: run so that running it again changes nothing (it starts from the table
@@ -640,6 +681,7 @@ export function notebookView(
       if (done.ok) records.set(table, { code, at: new Date(), opened: false });
       edited();
       redraw();
+      void checkApproval(cell);
       return done.ok;
     } finally {
       cell.element.classList.remove("running");
@@ -717,6 +759,8 @@ export function notebookView(
       item("Insert a cell above", () => insertAt(at(), cell.kind === "markdown" ? "code" : cell.kind)),
       item("Insert a cell below", () => insertAt(at() + 1, cell.kind === "markdown" ? "code" : cell.kind)),
       item("Name…", () => editName(cell)),
+      ...(hooks.lineage && !isHeading(cell.role) ? [item("Lineage", () => hooks.lineage!(cell.number))] : []),
+      ...(cell.kind !== "markdown" ? [item(cell.approved ? "Remove the approval" : "Approve the output", () => void approveCell(cell, !!cell.approved).catch((e: Error) => toast(e.message, "error")))] : []),
       ...(snippetLanguage(cell) ? [item("Insert a snippet…", () => void insertSnippetInto(cell))] : []),
       item("Copy", () => void copy(cell)),
       item("Paste below", () => void paste(cell)),
@@ -894,6 +938,9 @@ export function notebookView(
     // An HTML cell that shows its design: back to its HTML.
     const editButton = button("Edit HTML", () => edit(cell), { icon: "edit", iconOnly: true, class: "ghost wb-edit-html", title: "Edit the HTML (Enter)" });
     const { design, tools } = isHeading(role) ? { design: null, tools: null } : pane(data.kind, data.height ?? null, () => cell);
+    const approval = approvalNote(() => {
+      if (self) void approveCell(self).catch((e: Error) => toast(e.message, "error"));
+    });
     const head =
       role === "transformations"
         ? h("div", { class: "wb-cell-head" }, numberLabel, count, part, h("span", { class: "spacer" }), status, runButton, button("Delete cell", () => removeCell(cell), { icon: "trash", iconOnly: true, class: "ghost wb-delete-table" }))
@@ -918,7 +965,7 @@ export function notebookView(
     // cell of the user's.
     const element = bar
       ? h("section", { class: `wb-tcell wb-heading role-${role}`, tabindex: -1, role: "listitem" }, bar)
-      : h("section", { class: `${role === "transformations" ? "wb-tcell role-transformations" : "wb-cell"} kind-${data.kind}`, tabindex: -1, role: "listitem" }, head, editorHost, view, design?.element ?? null, area.element, hiddenNote);
+      : h("section", { class: `${role === "transformations" ? "wb-tcell role-transformations" : "wb-cell"} kind-${data.kind}`, tabindex: -1, role: "listitem" }, head, editorHost, view, design?.element ?? null, approval.element, area.element, hiddenNote);
     const cell: Cell = {
       kind: data.kind,
       source: data.source,
@@ -950,9 +997,13 @@ export function notebookView(
       htmlRun: data.kind === "html" ? runFromOutputs(data.outputs) : undefined,
       htmlNotes: [],
       drawn: 0,
+      approved: data.kind === "markdown" ? null : (data.approved ?? null),
+      approval,
     };
     self = cell;
     drawName(cell);
+    // Opened with an output and its approval: are they still the same?
+    if (cell.approved && data.outputs.length) void checkApproval(cell);
     // A table's cell that came with the file (or a reload) has not run since.
     if (role === "transformations" && cell.table && building && hooks.opened && !records.has(cell.table)) {
       records.set(cell.table, { code: null, at: null, opened: true });
@@ -994,6 +1045,17 @@ export function notebookView(
       head.addEventListener("dragend", () => element.classList.remove("dragging"));
     }
     element.addEventListener("focusin", () => select(cell));
+    // Right-click the cell (its head, its output; the editor has its own menu): Lineage, approvals.
+    element.addEventListener("contextmenu", (e) => {
+      const at = e.target as HTMLElement;
+      if (at.closest(".monaco-editor, input, textarea, select, iframe") || window.getSelection()?.toString()) return;
+      e.preventDefault();
+      select(cell);
+      const items: MenuItem[] = [];
+      if (hooks.lineage) items.push(["lineage", "Lineage", () => hooks.lineage!(cell.number)]);
+      if (cell.kind !== "markdown") items.push(cell.approved ? ["close", "Remove the approval", () => void approveCell(cell, true)] : ["check", "Approve the output", () => void approveCell(cell).catch((err: Error) => toast(err.message, "error")), cell.area.outputs().length ? undefined : "Run the cell first"]);
+      showMenu(e.clientX, e.clientY, cell.name ?? `Cell ${cell.number}`, items);
+    });
     // A snippet dragged from the blade list: taken before the editor's own drop (which would paste
     // its name), filled by its form, then put where it was dropped.
     element.addEventListener("dragover", (e) => {
@@ -1048,6 +1110,7 @@ export function notebookView(
         complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "dax" ? dax(text, offset) : cell.kind === "code" ? python(text, offset) : Promise.resolve([])),
         help: (text, offset) => (cell.kind === "code" ? kernel.help(text, offset) : Promise.resolve("")),
         sendToAgent: (what, ask) => sendToAgent(codeItem(`cell ${indexOf(cell) + 1} of ${currentDocument()}${what.startLine === what.endLine ? `, line ${what.startLine}` : `, lines ${what.startLine} to ${what.endLine}`}`, what, LANGUAGE[cell.kind]), ask),
+        actions: hooks.lineage ? [{ id: "sab.lineage", label: "Lineage", run: () => hooks.lineage!(cell.number) }] : [],
         keys: {
           shiftEnter: () => void run(cell).then(() => next(cell)),
           ctrlEnter: () => void run(cell),
@@ -1162,6 +1225,7 @@ export function notebookView(
     height: twoFaced(c) ? (c.design?.height() ?? null) : null,
     ...(isLive(c) ? { live: true } : {}),
     ...(c.name ? { name: c.name } : {}),
+    ...(c.approved ? { approved: c.approved } : {}),
   });
 
   // ===== a cell's name (docs/ideas.md, named cells): shown in its head, kept in its metadata =====
@@ -1671,6 +1735,15 @@ export function notebookView(
     runAbove: () => runEach(selected ? cells.slice(0, indexOf(selected)) : []),
     runBelow: () => runEach(selected ? cells.slice(indexOf(selected)) : [...cells]),
     selected: () => (selected ? indexOf(selected) : -1),
+    selectedNumber: () => selected?.number ?? null,
+    approve: async (number, remove = false) => {
+      const cell = number === undefined ? selected : byNumber(number);
+      if (!cell || isHeading(cell.role)) throw new Error(number === undefined ? "No cell is selected." : `There is no cell ${number} here.`);
+      if (cell.kind === "markdown") throw new Error("A Markdown cell has no output to approve.");
+      await approveCell(cell, remove);
+      return { cell: cell.number, approved: !!cell.approved };
+    },
+    approvals: () => cells.filter((c) => c.approved).map((c) => ({ cell: c.number, name: c.name, at: c.approved!.at, changed: c.approval.shown() })),
     select: (index, editIt = false) => {
       const cell = cells[index];
       if (!cell) throw new Error(`There is no cell ${index + 1}: the notebook has ${cells.length}.`);

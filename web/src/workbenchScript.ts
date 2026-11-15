@@ -105,6 +105,8 @@ export interface ScriptView {
   nameCell: (number: number | undefined, name: string) => { cell: number; name: string | null };
   /** The cursor to the end of the cursor's cell's marker line, where its name is typed. */
   editName: () => void;
+  /** The own number of the cell the cursor is in (null: not in a numbered cell). */
+  cursorCell: () => number | null;
   /** The document closed: free its editor and its panes. */
   dispose: () => void;
 }
@@ -200,7 +202,7 @@ export function scriptView(
   changed: () => void,
   names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[]; datasets?: string[] },
   file: ScriptFile,
-  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost } = {},
+  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void } = {},
 ): ScriptView {
   const editorHost = h("div", { class: "wb-script-editor" });
   let editor: CodeEditor | null = null;
@@ -752,6 +754,20 @@ export function scriptView(
       sendToAgent: (what, ask) =>
         sendToAgent(codeItem(`${currentDocument()}, ${what.startLine === what.endLine ? `line ${what.startLine}` : `lines ${what.startLine} to ${what.endLine}`}`, what, "python"), ask),
       cellLinks: { first: (n) => outline.cells.find((c) => c.number === n)?.first ?? null, go: (n) => void goTo(n) },
+      // Right-click: the lineage of the cell the line is in.
+      actions: hooks.lineage
+        ? [
+            {
+              id: "sab.lineage",
+              label: "Lineage",
+              run: (line) => {
+                const found = outline.cells.find((c) => line >= c.line && line <= c.end && c.number !== null);
+                if (found?.number) hooks.lineage!(found.number);
+                else toast("Lineage starts from a numbered cell (a `# %%` cell).", "error");
+              },
+            },
+          ]
+        : [],
     });
     editor.onChange((change) => {
       text = editor!.value();
@@ -956,6 +972,10 @@ export function scriptView(
       const size = height === null ? null : Math.max(60, Math.min(2000, Math.round(height)));
       held.pane.setHeight(size);
       writeHeight(held, size);
+    },
+    cursorCell: () => {
+      const line = editor?.cursorLine() ?? 0;
+      return outline.cells.find((c) => line >= c.line && line <= c.end && c.number !== null)?.number ?? null;
     },
     copy: (number) => {
       const line = editor?.cursorLine() ?? 0;

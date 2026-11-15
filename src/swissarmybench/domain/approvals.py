@@ -233,7 +233,7 @@ def _text_diff(was: str, now: str) -> list[str]:
     lines = [
         line
         for line in difflib.unified_diff(was.split("\n"), now.split("\n"), lineterm="", n=1)
-        if not line.startswith(("---", "+++"))
+        if not line.startswith(("---", "+++", "@@"))
     ]
     return lines[:MAX_DIFF_LINES] + (
         [f"… and {len(lines) - MAX_DIFF_LINES} more lines"] if len(lines) > MAX_DIFF_LINES else []

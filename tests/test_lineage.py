@@ -65,6 +65,7 @@ def test_a_cell_is_traced_back_through_the_cells_that_make_what_it_reads() -> No
     graph = rules.trace((BOOK, 5), {BOOK: doc}, {})
     assert labels(graph)[-1] == "Total"
     assert set(labels(graph)) == {"Region", "rate = 0.2", "Total"}  # no import, nothing it does not read
+    assert labels(graph) == ["Region", "rate = 0.2", "Total"]  # cells that wait on nothing: in file order
     assert ("Region", "Total", "region") in edge_names(graph)
     assert graph.nodes[-1].target and graph.nodes[-1].where == "analysis.ipynb @cell5"
 

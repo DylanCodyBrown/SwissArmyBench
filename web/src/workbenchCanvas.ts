@@ -23,7 +23,7 @@
  * ROUTING: /streamlit/apps/{app}... (routes_streamlit.py); the `streamlit_changed` notice
  */
 import { agentApi, api, ApiError } from "./api";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h, showMenu, toast } from "./dom";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages } from "./workbenchStreamlit";
 
@@ -50,6 +50,8 @@ export interface CanvasHost {
   save: () => Promise<boolean>;
   /** The canvas was drawn again (its state, or Play starting): the status bar follows. */
   drew: () => void;
+  /** Lineage: the overlay for a block of a page (its cell back to the data, with the values). */
+  lineage?: (page: string, block: string) => void;
 }
 
 export interface CanvasView {
@@ -470,6 +472,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       size,
       grip,
     );
+    // Right-click: the block's lineage, back through every cell to the data.
+    element.addEventListener("contextmenu", (e) => {
+      if (!host.lineage || !id) return;
+      e.preventDefault();
+      const gone = block.missing ? "Its cell is gone" : undefined;
+      showMenu(e.clientX, e.clientY, name, [["lineage", "Lineage", () => host.lineage!(page.id, block.id), gone]]);
+    });
     // Move: drag the block, or the arrow keys on it.
     element.addEventListener("dragstart", (e) => {
       if ((e.target as HTMLElement).closest(".cv-grip")) return e.preventDefault();
