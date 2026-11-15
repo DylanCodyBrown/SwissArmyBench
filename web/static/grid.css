@@ -1542,6 +1542,12 @@ dialog::backdrop {
   gap: 8px;
 }
 
+/* The card a toast's Show went to: outlined for a moment. */
+.card.arrived {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .toast {
   max-width: 420px;
   padding: 8px 12px;

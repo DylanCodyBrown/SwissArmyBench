@@ -33,6 +33,7 @@ import { renderMarkdown } from "./markdown";
 import { saveBlob } from "./profileView";
 import { state } from "./state";
 import { sandboxMarkdown, svgToPng } from "./sandboxExport";
+import { onShowCard } from "./sandboxShow";
 import { dashboardsDialog } from "./sandboxDashboards";
 import { applySandboxTheme, loadThemes, sandboxDark, sandboxTheme, themeControls } from "./sandboxThemes";
 import { PAPERS, fitPages, makeMovable, moveCard, paginate, printPages, type Paper } from "./sandboxPages";
@@ -433,12 +434,33 @@ async function renderCards(body: HTMLElement): Promise<void> {
   if (pageView()) {
     const pages = paginate(cards.map((card, i) => ({ element: elements[i]!, size: sizeOf(card), newPage: Boolean(card.new_page) })), paper(), body);
     body.append(pages);
-    requestAnimationFrame(() => fitPages(pages, body.clientWidth));
+    requestAnimationFrame(() => {
+      fitPages(pages, body.clientWidth);
+      arrive();
+    });
     return;
   }
   const list = h("div", { class: "cards" });
   body.append(list);
   list.append(...elements);
+  arrive();
+}
+
+// A toast's Show (sandboxShow.ts): the card to bring into view once the Sandbox has drawn it.
+let arriving: string | null = null;
+onShowCard((card) => {
+  arriving = card;
+  arrive();
+});
+
+function arrive(): void {
+  const card = arriving ? panel?.querySelector<HTMLElement>(`.card[data-card="${CSS.escape(arriving)}"]`) : null;
+  if (!card || !card.getClientRects().length) return;
+  arriving = null;
+  card.scrollIntoView({ block: "center" });
+  // A short outline says which card it is; it needs no action, so it goes by itself.
+  card.classList.add("arrived");
+  window.setTimeout(() => card.classList.remove("arrived"), 2500);
 }
 
 // ===== pages and printing =====
@@ -533,7 +555,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
   const header = h("div", { class: "card-header" }, h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "the Sandbox"}` }, card.dataset ?? card.origin ?? "Sandbox"), actions);
   const element = h(
     "article",
-    { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "aria-label": card.title || KIND_NAMES[card.kind] },
+    { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "data-card": card.id, "aria-label": card.title || KIND_NAMES[card.kind] },
     header,
     content,
     foot,

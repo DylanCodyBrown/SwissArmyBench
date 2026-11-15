@@ -5,6 +5,7 @@
  */
 import { ApiError, api, grid, token } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
+import { sentToast } from "./sandboxShow";
 import { selection } from "./gridView";
 import { renderMarkdown } from "./markdown";
 import { effectiveTheme } from "./theme";
@@ -81,8 +82,10 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
         actions,
         button("Send to Sandbox", () => {
           void (async () => {
-            for (const [i, card] of answer.cards.entries()) await api(`${grid}/cards`, "POST", { ...card, title: card.title ?? (i === 0 ? answer.title : "") });
-          })().then(() => toast(`In the Sandbox: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`), (e: Error) => toast(e.message, "error"));
+            let first: unknown;
+            for (const [i, card] of answer.cards.entries()) first ??= await api(`${grid}/cards`, "POST", { ...card, title: card.title ?? (i === 0 ? answer.title : "") });
+            return first;
+          })().then((first) => sentToast(`In the Sandbox: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`, first), (e: Error) => toast(e.message, "error"));
         }, { icon: "image" }),
         button("Run again", () => void run(), { icon: "play" }),
         button("Edit on the blades page", openBladesPage, { icon: "edit", class: "ghost" }),

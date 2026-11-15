@@ -23,7 +23,7 @@
  *          [VAULT] POST /connections/vaults/secrets (the names in it); GET /connections/vaults (a password's)
  */
 import { api, onNotice } from "./api";
-import { button, clear, h, openDialog, toast } from "./dom";
+import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { pickSheets } from "./openFile";
 
@@ -138,6 +138,12 @@ function catalogWord(c: Connection): HTMLElement | null {
   return null;
 }
 
+/** On the grid page the new table arrives as the tab in front, so this window closes to show it
+ * (decision 8). In the Workbench's window the grid is in another window, and this one stays. */
+function shownAsTab(): void {
+  if (document.querySelector(".tabs-row")) closeDialogs();
+}
+
 /** A file connection's file as a grid: a workbook asks which sheets (the first ticked), a folder's
  * files open from the catalog (each its own table). */
 async function openConnection(name: string): Promise<void> {
@@ -145,9 +151,12 @@ async function openConnection(name: string): Promise<void> {
   try {
     const answer = await api<{ dataset?: string; sheets?: string[] }>(path, "POST", {});
     if (answer.sheets) {
-      for (const sheet of await pickSheets(name, answer.sheets)) await api(path, "POST", { table: sheet });
+      const sheets = await pickSheets(name, answer.sheets);
+      for (const sheet of sheets) await api(path, "POST", { table: sheet });
+      if (sheets.length) shownAsTab();
       return;
     }
+    shownAsTab();
     toast(`${answer.dataset} is open as a grid.`);
   } catch (e) {
     toast((e as Error).message, "error");

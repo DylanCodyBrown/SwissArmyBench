@@ -5,15 +5,19 @@
  *   [ANALYZE ▾]        Odds, Fit test, Find predictors, Outliers: each opens its form, filled from the
  *                      selected columns (analysisDialog.ts), else from formDefaults(): never an
  *                      identifier column
- *   [SEND TO SANDBOX]  a report-style note and its chart, side by side (analysisCards.ts; POST cards)
- *   [OPEN AS GRID]     a tabular result as a new grid (PUT /datasets/{name}?new_grid=1, JSON rows)
+ *   [SEND TO SANDBOX]  a report-style note and its chart, side by side (analysisCards.ts; POST cards).
+ *                      The window stays open; the toast's Show closes it and goes to the card
+ *                      (sandboxShow.ts)
+ *   [OPEN AS GRID]     a tabular result as a new grid (PUT /datasets/{name}?new_grid=1, JSON rows);
+ *                      the window closes and the new tab is in front
  *   [COPY CODE]        the analysis as Python for a notebook: POST /grids/{id}/analysis-code, then
  *                      copied to the clipboard, imports first
  */
 import { api, grid } from "./api";
 import { analysisBlades, openBladesPage, runBladeAnalysis } from "./bladeAnalysis";
 import type { SandboxCard } from "./analysisCards";
-import { button, h, icon, toast } from "./dom";
+import { button, closeDialogs, h, icon, toast } from "./dom";
+import { sentToast } from "./sandboxShow";
 import { state } from "./state";
 
 export interface ResultActions {
@@ -111,18 +115,20 @@ export function resultButtons(actions: ResultActions): HTMLButtonElement[] {
 export async function showTheMath(analysis: string, result: unknown): Promise<void> {
   try {
     const proof = await api<{ title: string; markdown: string }>("/analysis-proof", "POST", { analysis, result, dataset: datasetName() });
-    await api(`${grid}/cards`, "POST", { kind: "note", title: proof.title, body: proof.markdown, size: { w: 8, h: 14 } });
-    toast("In the Sandbox: the math, step by step.");
+    const made = await api(`${grid}/cards`, "POST", { kind: "note", title: proof.title, body: proof.markdown, size: { w: 8, h: 14 } });
+    sentToast("In the Sandbox: the math, step by step.", made);
   } catch (e) {
     toast((e as Error).message, "error");
   }
 }
 
-/** Add cards to the Sandbox, filed with the grid in front; says what arrived. */
+/** Add cards to the Sandbox, filed with the grid in front; says what arrived, with Show (the
+ * window it was sent from stays open). */
 export async function sendCards(cards: SandboxCard[]): Promise<void> {
   try {
-    for (const card of cards) await api(`${grid}/cards`, "POST", card);
-    toast(`In the Sandbox: ${cards.length === 1 ? "a note" : "a note and its chart"}.`);
+    let first: unknown;
+    for (const card of cards) first ??= await api(`${grid}/cards`, "POST", card);
+    sentToast(`In the Sandbox: ${cards.length === 1 ? "a note" : "a note and its chart"}.`, first);
   } catch (e) {
     toast((e as Error).message, "error");
   }
@@ -148,6 +154,9 @@ async function toGrid(actions: ResultActions): Promise<void> {
     const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
     const data = rows.map((row) => columns.map((c) => row[c] ?? null));
     await api(`/datasets/${encodeURIComponent(name)}?new_grid=1`, "PUT", { columns, data });
+    // The new table arrives as a tab in front (the server's grid_shown notice): the window it came
+    // from closes, so the tab is what the user sees.
+    closeDialogs();
     toast(`Opened as ${name}.`);
   } catch (e) {
     toast((e as Error).message, "error");

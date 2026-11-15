@@ -158,14 +158,25 @@ export function button(
 
 export function toast(message: string, kind: "info" | "error" = "info", action?: { label: string; run: () => void }): void {
   let host = document.querySelector<HTMLElement>(".toasts");
-  if (!host) {
-    host = h("div", { class: "toasts", role: "status", "aria-live": "polite" });
-    document.body.append(host);
+  if (!host) host = h("div", { class: "toasts", role: "status", "aria-live": "polite" });
+  // A modal dialog makes the rest of the page inert and draws over it: while one is open the
+  // toasts live inside the newest, so they are seen and their button (Undo, Show) can be pressed.
+  const home = [...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body;
+  if (host.parentElement !== home) {
+    home.append(host);
+    // When that dialog closes its toasts go back to the page (or the dialog under it), still showing.
+    const back = host;
+    if (home instanceof HTMLDialogElement) {
+      home.addEventListener("close", () => {
+        if (!home.contains(back)) return;
+        ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].filter((d) => d !== home).pop() ?? document.body).append(back);
+      }, { once: true });
+    }
   }
   // The same message already showing (a stopped server fails every action alike): keep that
   // one up for longer rather than stack copies up the screen.
-  const shown = [...host.children].find((t) => t.textContent === message && t.classList.contains("error") === (kind === "error"));
-  const item = (shown as HTMLElement | undefined) ?? h("div", { class: `toast ${kind === "error" ? "error" : ""}` }, message);
+  const shown = [...host.children].find((t) => (t as HTMLElement).dataset.message === message && t.classList.contains("error") === (kind === "error"));
+  const item = (shown as HTMLElement | undefined) ?? h("div", { class: `toast ${kind === "error" ? "error" : ""}`, "data-message": message }, message);
   if (!shown) host.append(item);
   if (action && !shown) {
     // One button (Undo): it acts and the message goes.
@@ -202,6 +213,11 @@ export function openDialog(title: string, wide = false): DialogParts {
   document.body.append(dialog);
   dialog.showModal();
   return { dialog, body, foot, close };
+}
+
+/** Close every open dialog (the newest first), as their own Close buttons do. */
+export function closeDialogs(): void {
+  for (const dialog of [...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].reverse()) dialog.close();
 }
 
 // ===== analysis forms: results that no longer match the choices =====

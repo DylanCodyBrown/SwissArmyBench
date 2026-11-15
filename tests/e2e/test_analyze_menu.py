@@ -4,6 +4,7 @@ to the fit test, find predictors opened as a grid, a result sent to the Sandbox,
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from playwright.sync_api import Browser, expect
@@ -64,10 +65,10 @@ def test_the_analyze_menu_chains_odds_fit_predictors_and_outliers(
         )
         expect(page.locator(".toast").last).to_have_text("Copied.")
         dialog.get_by_role("button", name="Open as grid").click()
-        expect(page.locator(".tabs-row .tab-item", has_text="orders_predictors_amount")).to_be_visible(
-            timeout=20000
-        )
-        dialog.get_by_role("button", name="Close").last.click()
+        # Open as grid closes its window and the new tab is in front: one action, nothing to close.
+        opened = page.locator(".tabs-row .tab-item", has_text="orders_predictors_amount")
+        expect(opened).to_have_class(re.compile("active"), timeout=20000)
+        expect(page.locator("dialog[open]")).to_have_count(0)
 
         page.locator(".tabs-row .tab-item", has_text="orders").first.click()
         menu("Outliers…")
