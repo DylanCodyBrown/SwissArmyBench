@@ -1228,4 +1228,17 @@ data and tables." Decided:
   top N by a measure, percent of total, a measure by month, date-table checks, the INFO functions for
   documenting a model. HTML: a styled table from a DataFrame, a KPI tile, a row of KPI cards, a progress
   bar, a badge, a bar chart in CSS, a list, a header block, a card grid, an invoice layout.
+- **A Streamlit family, robust and clearly documented** (the owner: "Adding a robust amount of streamlit
+  blades will be helpful with clear documentation on what they do. I'm learning streamlit and it seems
+  like the modularity of it makes it perfect for this"). Streamlit pieces as snippets for Streamlit cells:
+  filters that make shared names (selectbox, multiselect, date range, number range, text search, toggle, a
+  sidebar filter panel); displays that read them (a metric with its change, a row of metrics, a table with
+  formatted columns, an editable table, bar, line and area charts, a map from latitude and longitude, a
+  progress bar, a status message); layout (tabs, an expander, columns, a bordered container); interaction
+  (a CSV or Excel download, a form with Submit, an uploaded file as a table, session state shown with a
+  counter, a cached slow query); feedback (success, warning, error, a toast). Each piece opens with what
+  it does, the names it makes and reads, and every Streamlit function it uses in one plain line; the lines
+  a learner would trip on are commented (why a widget needs a key, why the script reruns top to bottom).
+  The user guide gets "Learning Streamlit with the starter pieces": one page built from five pieces, then
+  every piece by what it is for.
 - Built after the Power BI per-workspace work is merged (the Power BI actions use that connection).
