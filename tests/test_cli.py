@@ -707,17 +707,17 @@ def test_the_row_and_cell_row_buttons(live: Live, clients: str) -> None:
 
 
 def test_the_agent_guide_only_names_commands_that_exist() -> None:
-    """The guide is what an agent learns the names from; a renamed command must not linger in it."""
+    """The guide is what an agent learns the names from; a renamed command must not linger in it.
+    The index and every topic are checked one by one in test_agent_index.py; this reads them all
+    through the command, as the agent does."""
     import re
 
-    from swissarmybench.cli.commands import AREAS
+    from swissarmybench.cli.commands import AREAS, GUIDE_TOPICS
 
-    guide = json.loads(execute("guide"))["markdown"]
+    guide = "\n".join([execute("guide"), *(execute("guide", {"topic": topic}) for topic in GUIDE_TOPICS)])
     prefixes = "|".join(area for area, _ in AREAS if area != "help")
-    named = set(re.findall(rf"`((?:{prefixes})_[a-z_]+)(?:\(|`)", guide))
-    named |= set(re.findall(rf"\b((?:{prefixes})_[a-z_]+)\b", guide))
-    not_commands = {"row_cap"}  # a field in every read result
-    unknown = sorted(n for n in named if n not in REGISTRY and n not in not_commands and not n.endswith("_"))
+    named = set(re.findall(rf"\b((?:{prefixes})_[a-z_]+)\b", guide))
+    unknown = sorted(n for n in named if n not in REGISTRY and not n.endswith("_"))
     assert unknown == [], f"the guide names commands that do not exist: {unknown}"
     assert {"tabs_new_query", "column_keep", "cell_exclude", "steps_add", "agent_events"} <= named
 

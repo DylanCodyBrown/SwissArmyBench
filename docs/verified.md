@@ -1118,3 +1118,21 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 - **Not checked:** a real Power BI tenant (Microsoft's documented shapes only), the DAX snippets run
   against a real model, the map piece's background (it is fetched from the internet), Edge itself,
   Windows paths in the Excel and file functions.
+
+## The agent's index, read first (2026-11-15)
+
+- **mcp 2.3.0 resources:** `MCPServer.add_resource(TextResource(uri, name, title, mime_type,
+  annotations, text))` lists and reads over the protocol; the in-process `mcp.Client(server)` sees the
+  title, `text/markdown` and the annotations (`audience`, `priority`), and `client.instructions` is the
+  server's. `tests/test_agent_index.py` lists and reads all nine resources that way.
+- **The index** (`src/swissarmybench/mcp/index.md`, 3,451 characters against a 4,000 limit) names every
+  tool prefix the registry has (derived with `area_of`, so a new prefix fails the test with what to add)
+  and only commands that exist; so does each topic (`mcp/guide/<topic>.md`). `guide` with no arguments
+  returns it as plain text (no JSON escaping), `guide(topic=...)` a topic, an unknown topic the list.
+- **The tool list** grew 10 characters (54,731 against the 55,000 budget): the one `topic` argument.
+- **The wheel** (`uv build --wheel`) holds `swissarmybench/mcp/index.md` and the eight `guide/*.md`.
+- **Facts checked against the code** while the long guide was rewritten: the agent can read the audit
+  log, stop the server, save and open dashboards and ask a Python session for a table (the old guide
+  said it could not); no command starts the server (`ensure_server` only connects); approvals are
+  `table_export`, `streamlit_export`, and `project_new` / `streamlit_save_as` with pasted rows, each
+  denied after 180 seconds without an answer.

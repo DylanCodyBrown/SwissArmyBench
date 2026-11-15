@@ -9,9 +9,11 @@ The person's guide, with a screenshot of each feature, is
 [swissarmybench-user-guide.md](swissarmybench-user-guide.md). Answer from it, and point them at the
 section that covers their question.
 
-When you are the agent working on their grids (through the swissarmybench MCP server), call
-the `guide` tool first: it is the agent's side of the same story (the commands, what it sees,
-which command to use when), and `agent_context` says which table they have in front of them.
+When you are the agent working on their grids (through the swissarmybench MCP server), read its
+`swissarmybench://index` resource first (or call the `guide` tool with no arguments): a short index of
+the app, its tools by area and the rules. `guide(topic=...)` gives one topic in full (grids, analyze,
+relationships, connections, blades, workbench, streamlit, privacy), and `agent_context` says which
+table they have in front of them.
 
 ## Things people ask that the guide answers
 
