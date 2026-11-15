@@ -186,8 +186,22 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
         )
         return [str(text) for text in found]
 
+    def drawn() -> None:
+        """The form settles in a moment: the password group and the certificate fields are drawn again
+        once the connection's code has been checked in the background. Wait until it reads the same
+        twice in a row."""
+        expect(dialog.get_by_role("textbox", name="Server")).to_be_visible()
+        expect(dialog.get_by_role("combobox", name="Password comes from")).to_be_visible()
+        last: list[str] = []
+        for _ in range(50):
+            now = labels()
+            if now == last and "Password comes from" in now:
+                return
+            last = now
+            page.wait_for_timeout(100)
+
     page.locator(".connection-type", has_text="Trino").click()
-    expect(dialog.get_by_role("textbox", name="Server")).to_be_visible()
+    drawn()
     assert labels() == [
         "Name",
         "Description",
@@ -209,8 +223,9 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
 
     page.locator(".connection-type", has_text="PostgreSQL").click()
-    expect(dialog.get_by_role("textbox", name="Server")).to_be_visible()
-    assert labels()[2:7] == ["Server", "Port", "Database", "User", "Password comes from"]
+    drawn()
+    found = labels()
+    assert found[2:7] == ["Server", "Port", "Database", "User", "Password comes from"], found
     dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
 
     # SQL Server: the user arrives with another way to sign in, and lands in the same place.

@@ -1109,3 +1109,19 @@ invoices and CSVs; models built here and taken into Power BI dashboards. Decided
   8. a Power BI dataset tied out against its source database;
   9. a forecast as a Sandbox report, printed to PDF;
   10. a story notebook with HTML cells.
+
+## Streamlit cells (2026-11-15, the owner's calls)
+
+"I also use the app to develop streamlit applications. So it would be cool if we could create a
+streamlit cell in the notebook so I can build streamlit widgets/pages from the data." Decided:
+
+- **One app, a page per cell:** every Streamlit cell in a notebook is a page of one Streamlit app
+  (Streamlit's own multipage apps), named by the cell's first line.
+- **Tables by name:** in a Streamlit cell, `orders` (any table the notebook made or the grid shows) is
+  there as a DataFrame of the table after its grid steps, handed over each time the page runs. Other
+  Python variables are not shared.
+- **Live in the cell,** like an HTML cell: click in to see the code, click away to see the live page in a
+  resizable pane with its widgets working; a button opens the whole app in its own window.
+- **Export as Streamlit app:** a runnable folder (app.py, pages/, the data as Parquet, requirements.txt).
+- Streamlit runs from the notebook's own Python (installed with Install, like a driver); it is not a
+  dependency of the app. Built after the Power BI connection, before the real-world test bed.
