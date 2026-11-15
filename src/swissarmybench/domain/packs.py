@@ -34,6 +34,8 @@ FAMILIES: tuple[str, ...] = (
     "HTML",
     "Markdown",
     "Streamlit",
+    "Controllers",
+    "Text and layout",
     "Components",
 )
 TANGS_FOLDER = "tangs"

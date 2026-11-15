@@ -7027,6 +7027,34 @@ body.dropping-file::after {
   overflow-wrap: anywhere;
 }
 
+/* Controllers (domain/controllers.py): a block the page's test failed on is red; a default read for
+   a maker that is not on the page is said quietly; a thin-cell hint offers its move. */
+.cv-block.failed {
+  border-color: var(--error);
+  border-left-color: var(--error);
+}
+
+.cv-block-default {
+  overflow: hidden;
+  font-size: 0.9em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-block-thin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  font-size: 0.9em;
+}
+
+.cv-block-thin .btn {
+  min-height: 22px;
+  padding: 0 6px;
+  font-size: 1em;
+}
+
 .cv-size {
   font-size: 0.8em;
 }

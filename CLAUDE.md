@@ -43,14 +43,17 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
   `{{ name }}` filled from the kernel), the Streamlit canvas (a Streamlit app is a Workbench document of
   its own, `.stapp.json`: pages of blocks, each a link to a Python cell, on a 12-column grid; Play shows
-  the page live in place; a Python cell that calls Streamlit is live in its cell; Export; Save as),
+  the page live in place; a Python cell that calls Streamlit is live in its cell; Export; Save as;
+  controllers: a cell's `# Makes:` contract with types and defaults, Test this page with AppTest, thin
+  cells moved to data.ipynb),
   projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), named
   cells, the Data panel's Streamlit cells pane, tabs that pop out into windows of their own (and move
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start), the
   Analyze menu, the Sandbox, compare's diff and tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
-  your own HTML and JavaScript as Streamlit pieces, four of them two-way). Not built: M9 (sandbox)
+  your own HTML and JavaScript as Streamlit pieces, four of them two-way; Controllers; Text and layout,
+  its footer pinned to the window's bottom). Not built: M9 (sandbox)
   and the Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
   notes go in [docs/ideas.md](docs/ideas.md).
@@ -140,6 +143,12 @@ src/swissarmybench/
                          the tables' preamble, the export, the saved pages (pages/*.py)
     streamlit_use.py     which Python cells call Streamlit (ast): they are shown live. Standard library
                          only (a kernel's Run file reads a script by the same rule)
+    controllers.py       a cell as a controller: its contract (the header's `# Makes: region: str = "All";
+                         by_region: table = orders`, read with ast), role, widgets, query parameters; a
+                         page's defaults for a maker not on it, its check (cycles, names made twice);
+                         Test this page's plan, its AppTest runner (text) and its answer on the blocks
+    thin_cells.py        a view cell's model work (a table filtered, grouped or joined) and its move to a
+                         named cell of data.ipynb, one `from data import ...` line left
     projects.py          a project: data.py as the export of data.ipynb's code cells (imports in a plain
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
@@ -189,6 +198,8 @@ src/swissarmybench/
                          from the open documents, saved or not, else from the files), a document's live
                          cells; run (the tables as Parquet in a temporary folder), state (missing, out
                          of date), install, export, data.ipynb -> data.py, Save as (the project's zip)
+    controllers.py       a canvas page's controllers: the check, Test this page (the page written so each
+                         block records its error, AppTest in the app's Python), a thin cell's move plan
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
@@ -225,7 +236,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, folders, workbench, table_cells, streamlit, projects,
-                         panels). Every route serves
+                         panels, controllers). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -234,7 +245,8 @@ src/swissarmybench/
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
     streamlit_apps.py    a notebook's Streamlit process: `streamlit run` in the notebook's own Python,
-                         127.0.0.1 only, ended with the server (Streamlit is never the app's dependency)
+                         127.0.0.1 only, ended with the server (Streamlit is never the app's dependency);
+                         Test this page's runner, in that Python (`python -I`), in a temporary folder
     streamlit_proxy.py   the live Streamlit pages passed through this server under the app's own secret
                          (its websocket too), so a page's frame policy stays `frame-src 'self'`
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
@@ -263,7 +275,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (232 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (240 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -321,7 +333,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchStreamlit.ts (a document's live cells: the Python cells that call
                          Streamlit, their state; a cell's link, dragged or copied); workbenchCanvas.ts
                          is a Streamlit app's canvas, a document tab (pages as tabs, blocks on a
-                         12-column grid, Play showing the page live in place, Edit, Export, Save as);
+                         12-column grid, Play showing the page live in place, Edit, Export, Save as;
+                         Test this page, a default said quietly, a thin-cell hint and Move to data.ipynb);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)

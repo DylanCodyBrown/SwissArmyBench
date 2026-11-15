@@ -84,6 +84,42 @@ export interface BlockState {
   missing: string | null;
   state: "notRun" | "outOfDate" | "current" | "missing";
   changed: string[];
+  /** The cell as a controller (domain/controllers.py): null for a text block or a gone cell. */
+  controller: Controller | null;
+  /** Names it reads whose maker is not on the page: the maker's default, said quietly. */
+  defaults: { name: string; value: string; maker: string }[];
+  /** Its contract (the header's Makes line) against its code: what to fix. */
+  contract: string[];
+  /** Model work (a table filtered, grouped or joined) that belongs in data.ipynb. */
+  thin: { words: string; names: string[] } | null;
+  /** What the page's last test found on this block: the value tried, the error. */
+  failures: { case: string; error: string }[];
+}
+
+/** A cell as a controller, for the canvas and the Properties panel: its role (filter, action, view;
+ *  "" for model work), what it makes with types and defaults, its widgets, the query parameters it
+ *  reads, and what is wrong with its contract (`# Makes: region: str = "All"; by_region: table = orders`). */
+export interface Controller {
+  role: "filter" | "action" | "view" | "";
+  makes: { name: string; type: string; default: string | null; declared: boolean }[];
+  widgets: { kind: string; key: string | null; label: string | null; form: boolean; callback: boolean }[];
+  params: string[];
+  problems: string[];
+  declared: boolean;
+}
+
+/** The controller of a canvas block (null: a text block, or a cell that is gone). */
+export const controllerOf = (block: BlockState): Controller | null => block.controller ?? null;
+
+/** A page's last test (Test this page): its counts, an error outside every block, what was not tried. */
+export interface PageTest {
+  runs: number;
+  tries: number;
+  failed: number;
+  outside: { case: string; error: string }[];
+  untried: string[];
+  stopped: boolean;
+  problem: string | null;
 }
 
 export interface CanvasPage {
@@ -96,6 +132,22 @@ export interface CanvasPage {
   rows: string[][];
   out_of_date: boolean;
   address: string | null;
+  /** Its contracts checked: cycles, a name two blocks make. */
+  check: { cycles: { blocks: string[]; names: string[] }[]; twice: { name: string; blocks: string[] }[] };
+  /** Its last test, while the page is still the one tested (null: none). */
+  tested: PageTest | null;
+}
+
+/** A thin cell's move to data.ipynb (services/controllers.py move_plan). */
+export interface MovePlan {
+  document: string;
+  cell: number;
+  notebook: string;
+  names: string[];
+  words: string;
+  title: string;
+  data_code: string;
+  cell_code: string;
 }
 
 export interface CanvasState extends AppCommon {

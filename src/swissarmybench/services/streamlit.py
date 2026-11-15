@@ -42,7 +42,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmybench.domain import html_cells, notebooks, projects
+from swissarmybench.domain import controllers, html_cells, notebooks, projects
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
@@ -50,7 +50,7 @@ from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.projects import DataCell
-from swissarmybench.domain.streamlit_cells import Block, Facts, Key, Page, PieceCode, StreamlitError
+from swissarmybench.domain.streamlit_cells import Block, Facts, Fallback, Key, Page, PieceCode, StreamlitError
 from swissarmybench.services.agent import Approvals
 from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
@@ -159,6 +159,8 @@ class App:
     generation: int = 0
     problem: dict[str, Any] | None = None
     notes: list[str] = field(default_factory=list)  # what the last run could not do
+    # Each page's last test (services/controllers.py): the page's code then, and what it found.
+    tested: dict[str, dict[str, Any]] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
@@ -541,6 +543,14 @@ class StreamlitApps:
         return pieces, found, {key: _where(*key) for key in found}
 
     @staticmethod
+    def fallbacks(page: Page, linked: Linked) -> dict[str, Fallback]:
+        """The defaults a page can use: the contracts of the linked cells that are not on it."""
+        codes = {(d, c): code for d, held in linked.cells.items() for c, code in held.items()}
+        titles = {key: rules.cell_title(code, key[1], linked.name(key)) for key, code in codes.items()}
+        where = {key: _where(*key) for key in codes}
+        return controllers.fallbacks([b.key for b in page.blocks], codes, titles, where)
+
+    @staticmethod
     def _layout(page: Page) -> str:
         return json.dumps([[b.id, b.document, b.cell, b.row, b.column, b.w, b.h] for b in page.blocks])
 
@@ -624,6 +634,7 @@ class StreamlitApps:
         pages: list[dict[str, Any]] = []
         for page in app.pages:
             gone = {b.id: said for b in page.blocks if (said := self._gone(b, linked))}
+            fallen = self.fallbacks(page, linked)
             made = rules.page_code(
                 page.name,
                 page.blocks,
@@ -631,6 +642,24 @@ class StreamlitApps:
                 tables,
                 elsewhere=rules.elsewhere(page, found, where),
                 gone=gone,
+                fallbacks=fallen,
+            )
+            placed = [
+                controllers.Placed(
+                    b.id,
+                    linked.code(b.key),
+                    linked.kind(b.key),
+                    f"{pieces[b.key].name}, {_name(b.document)} cell {b.cell}" if b.key in pieces else "",
+                    _name(b.document).lower() == projects.DATA_NOTEBOOK,
+                )
+                for b in page.blocks
+            ]
+            tested = app.tested.get(page.id)
+            fresh = (
+                tested["result"] if tested and tested["mark"] == controllers.test_mark(placed, made) else None
+            )
+            notes, noted = controllers.page_notes(
+                placed, made, fallen, [*tables, *self.data_names(app)], fresh
             )
             blocks: list[dict[str, Any]] = []
             stale = running and app.laid.get(page.id) != self._layout(page)
@@ -661,6 +690,7 @@ class StreamlitApps:
                         "state": state,
                         "changed": changed if state == "outOfDate" else [],
                     }
+                    | notes[block.id]
                 )
             pages.append(
                 {
@@ -674,6 +704,7 @@ class StreamlitApps:
                     "out_of_date": stale,
                     "address": f"{app.base}/page-{page.id}" if running and page.id in app.laid else None,
                 }
+                | noted
             )
         return self._common(app, running) | {
             "python": linked.python or self._runner.default_python(),
@@ -956,6 +987,7 @@ class StreamlitApps:
                     elsewhere=rules.elsewhere(page, found, where),
                     gone=gone,
                     imports=given,
+                    fallbacks=self.fallbacks(page, linked),
                 )
                 name = f"page_{page.id}_{stamp}.py"
                 files[name] = made.code
@@ -1061,6 +1093,40 @@ class StreamlitApps:
         said = output if code is not None else "The install took too long and was stopped."
         return {"ok": code == 0, "output": said, "python": python, "packages": missing}
 
+    # ===== for a page's controllers (services/controllers.py) =====
+
+    def data_names(self, app: App) -> list[str]:
+        """The names the canvas's project's data.ipynb makes (its open document's, else its file's)."""
+        folder = self._project.folder_of(app.document) if app.document else None
+        held = self._open_document(self._project.path(folder, projects.DATA_NOTEBOOK)) if folder else None
+        every: list[Any] | None = held.every if held is not None else None
+        try:
+            if every is None and folder:
+                every = notebooks.read_document(self._project.read(folder, projects.DATA_NOTEBOOK) or "{}")[0]
+        except (notebooks.NotebookError, ValueError, OSError):
+            return []
+        return [n for c in every or [] if c.kind == "code" for n in rules.facts(c.source).makes]
+
+    def canvas_parts(
+        self, app_id: str
+    ) -> tuple[App, Linked, dict[Key, PieceCode], dict[Key, Facts], dict[Key, str]]:
+        """A canvas, its linked cells as they are now, its blocks' code, the cells' facts, their words."""
+        app = self._app(app_id, canvas=True)
+        linked = self._linked(app)
+        return (app, linked, *self._canvas_pieces(app, linked))
+
+    def python_of(self, app: App) -> str:
+        return self._python(app)
+
+    async def data_module(self, app: App) -> projects.DataModule | None:
+        """data.py written again from the project's data.ipynb, as Play writes it (None: none)."""
+        return await self._data(self._project.folder_of(app.document), app.title) if app.document else None
+
+    async def table_data(self, table: str) -> bytes:
+        """An open table (by its name as a Python variable) after its grid's steps, as Parquet."""
+        info, grid = self._tables()[table]
+        return await self.ws.workers.run(BACKGROUND, self._parquet, info, grid)
+
     # ===== stop =====
 
     async def _stop(self, app: App) -> None:
@@ -1140,7 +1206,10 @@ class StreamlitApps:
         linked = self._linked(app)
         pieces, found, where = self._canvas_pieces(app, linked)
         gone = {b.id: said for p in app.pages for b in p.blocks if (said := self._gone(b, linked))}
-        made = rules.export(app.title, app.pages, pieces, tables, found, where, gone, self._files.helper())
+        fallen = {page.id: self.fallbacks(page, linked) for page in app.pages}
+        made = rules.export(
+            app.title, app.pages, pieces, tables, found, where, gone, self._files.helper(), fallen
+        )
         try:
             target = self._files.export_target(folder)
         except FileNotFoundError as error:
@@ -1285,7 +1354,8 @@ class StreamlitApps:
             if data is None:
                 raise Conflict(f"{folder}'s data.ipynb cannot be read: data.py was not written.")
             app_name = _name(app.document)
-            made = rules.saved_pages(app.pages, pieces, data.names, found, where, gone, app_name)
+            fallen = {page.id: self.fallbacks(page, linked) for page in app.pages}
+            made = rules.saved_pages(app.pages, pieces, data.names, found, where, gone, app_name, fallen)
             problems = list(made.problems)
             lacking = [t for t in named if t not in data.names]
             if lacking:

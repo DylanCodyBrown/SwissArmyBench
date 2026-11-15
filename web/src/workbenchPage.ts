@@ -74,7 +74,7 @@ import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { canvasView, type CanvasView } from "./workbenchCanvas";
-import { CELL_DRAG, draggedLink, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
+import { CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
 watchTheme();
 
@@ -333,10 +333,37 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
       if (doc === current) drawStatus();
       if (doc === markedCanvas()) drawPane(); // its page's blocks are the pane's marks
     },
+    moveToData: (plan) => moveToData(plan, doc),
   });
   doc.element.append(doc.canvas.element);
   show(doc);
   return doc;
+}
+
+/** A thin cell's move (domain/thin_cells.py): the model work goes into a named cell at the end of the
+ *  project's data.ipynb, and the block's cell keeps one line that reads it back. Both documents are
+ *  opened when they are not, and left with the change unsaved, as typing leaves them; then the canvas
+ *  comes back to the front. */
+async function moveToData(plan: MovePlan, from: Doc): Promise<void> {
+  const same = (a: string | null, b: string): boolean => !!a && a.replace(/\\/g, "/") === b.replace(/\\/g, "/");
+  const held = async (path: string): Promise<Doc> => {
+    let doc = docs.find((d) => same(d.path, path));
+    if (!doc) {
+      await open(path);
+      doc = docs.find((d) => same(d.path, path));
+    }
+    if (!doc) throw new Error(`${baseName(path)} could not be opened: Move to data.ipynb needs the project's data.ipynb (New project… makes one).`);
+    return doc;
+  };
+  const data = await held(plan.notebook);
+  if (!data.notebook) throw new Error(`${baseName(plan.notebook)} is not a notebook.`);
+  const source = await held(plan.document);
+  data.notebook.appendNamed(plan.data_code.replace(/\n+$/, ""), plan.title);
+  if (source.notebook) source.notebook.setSource(plan.cell, plan.cell_code.replace(/\n+$/, ""));
+  else if (source.script) source.script.setSource(plan.cell, plan.cell_code);
+  else throw new Error(`${baseName(plan.document)} is not a notebook or a script.`);
+  show(from);
+  toast(`Moved to data.ipynb: ${plan.names.join(", ")}`);
 }
 
 const canvas = (): CanvasView => {
@@ -1715,6 +1742,16 @@ const COMMANDS: Command[] = [
   { id: "canvas.edit", group: "Streamlit app", title: "Edit: back to the blocks", when: isCanvas, whyNot: NO_CANVAS, run: () => {
     canvas().edit();
     return canvas().report();
+  } },
+  { id: "canvas.test", group: "Streamlit app", title: "Test this page (each filter's values)", args: "page: the page (its id; default: the one in front)", when: isCanvas, whyNot: NO_CANVAS, run: async (a) => {
+    const done = await canvas().test(text(a, "page"));
+    return done ?? canvas().report();
+  } },
+  { id: "canvas.moveToData", group: "Streamlit app", title: "Move a block's model work to data.ipynb", args: "block: the block's id (one with a thin hint)", when: isCanvas, whyNot: NO_CANVAS, run: async (a) => {
+    const block = text(a, "block");
+    if (!block) throw new Error("Send the block's id (workbench_canvas lists the blocks and their thin hints).");
+    const plan = await canvas().moveToData(block);
+    return plan ? { moved: plan.names, notebook: plan.notebook, document: plan.document, cell: plan.cell } : null;
   } },
   { id: "canvas.export", group: "Streamlit app", title: "Export an app that runs alone…", args: "folder: where it goes (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a, from) => canvas().exportApp(text(a, "folder"), from.agent) },
   { id: "canvas.saveAs", group: "Streamlit app", title: "Save as… (the project as one zip)", args: "path: the zip (without it, the file chooser opens)", when: isCanvas, whyNot: NO_CANVAS, run: (a, from) => canvas().saveAs(text(a, "path"), from.agent) },

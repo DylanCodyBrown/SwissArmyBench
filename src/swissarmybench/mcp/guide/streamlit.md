@@ -18,6 +18,14 @@ drives the cells on the same page that read it.
   resize, another page), `streamlit_block_remove`, `streamlit_save`, `streamlit_close`.
 - Play: `streamlit_run`, then `streamlit_address`; `streamlit_stop`. Missing Streamlit:
   `streamlit_install` (into the notebook's Python; it is never the app's own dependency).
+- Controllers: a cell's header line `# Makes: region: str = "All"; by_region: table = orders` is its
+  contract (types: str int float bool date list table any; a table's default is a table's name;
+  `# Role: filter|action|view` optional). A block whose maker is not on the page reads the default.
+  `streamlit_app` gives each block's `controller` (role, makes with types and defaults, widgets),
+  `defaults`, `contract`, `thin` and `failures`; `streamlit_check` the check alone (cycles, names made
+  twice). `streamlit_test(app, page)`: Test this page (Streamlit's AppTest in the app's Python tries
+  each controller's values; each block's failures). `workbench_canvas_move_to_data(block)`: a thin
+  hint's model work into a named cell of data.ipynb, one `from data import ...` line left.
 - `streamlit_export`: a folder that runs alone (app.py, pages, the tables as Parquet). It copies rows,
   so it waits for the user's Allow.
 - `streamlit_save_as`: the project as one zip (data.py, pages/*.py, sources; no rows, no secrets).

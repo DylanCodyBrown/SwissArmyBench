@@ -2239,3 +2239,79 @@ Decided:
 - **Open:** an exported script cannot follow a closed table's grid steps (a table not open is exported as
   its cell last held it); a user's function that writes another cell's variable with `global` now writes
   the module's (the cells run inside `run()`).
+## Controllers, Test this page, thin cells, and two starter families (the owner, 2026-11-15: "Do it"; built)
+
+From the plan after the beta (controllers, thin cells) and "Non-data cells on the canvas" (the Text and
+layout family, the pinned footer). Built on its own branch (`controllers`). Decided while building (each
+can be changed):
+
+- **The contract is the header's Makes line, and it is Python:** `# Makes: region: str = "All";
+  by_region: table = orders`, read with Python's own parser (annotated names, `;` between). Types: str,
+  int, float, bool, date, list, table, any; a default is a plain value (a date as "2026-01-31", written
+  on the page as a date), and a table's default is another table's name. The starter pieces' existing
+  "Makes: by_region" and "Makes: nothing (it only shows)" lines are contracts of names only, so every
+  piece already has one, and the starters' header test now reads Makes through the same parser. The
+  line is case-insensitive and only read in the cell's leading comments. `# Role: filter|action|view`
+  is optional; otherwise a button with a callback is an action, a cell that makes names with a widget
+  is a filter, any other cell that calls Streamlit is a view, and the rest is model work ("").
+- **What a contract checks:** a name it declares that the code never makes, a type that is not one of
+  the list, a default that is not its type, a default that is a name for anything but a table. Red on
+  the block. A name the code makes but the line leaves out is not a problem (helpers).
+- **A missing maker gives its default:** when a block reads a name whose maker is linked (in any file
+  the canvas links to) but not on the page, and that maker's contract has a default, the page writes
+  `region = 'All'  # Region filter, sales.ipynb @cell3` once above the blocks (a table default puts the
+  table in the page's preamble), and the block says quietly `region = 'All' · Region filter is not on
+  this page`. The live page, the export and the saved pages all do it. Without a default the old red
+  "place that cell here too" stays.
+- **The check** is in every canvas state (it is cheap: Python's parser), so there is no Check button:
+  the defaults used, contract problems, a name two blocks make (the first placed wins, as before), and
+  a cycle named with its blocks and names. `streamlit_check` gives the same to the agent, with each
+  controller.
+- **The Properties panel's API (for the wb-modes branch):** every canvas block in `GET
+  /streamlit/apps/{app}` carries `controller`: `{"role", "makes": [{"name", "type", "default",
+  "declared"}], "widgets": [{"kind", "key", "label", "form", "callback"}], "params", "problems",
+  "declared"}` (null for a text block or a gone cell), plus `defaults`, `contract`, `thin` and
+  `failures`; in TypeScript, `Controller`, `controllerOf(block)` and `BlockState` in
+  workbenchStreamlit.ts; in Python, `domain/controllers.describe(code).to_json()`.
+- **Test this page** (beside Play; `streamlit_test`; the window's `canvas.test`): the page written as
+  the live page is, but each block also records its error in `st.session_state`, into a temporary
+  folder of its own with the tables it reads as Parquet (and data.py, written as Play writes it); then
+  a runner under Streamlit's AppTest, in the app's own Python (`python -I`), opens the page and tries
+  each widget with a plain-text key: a selectbox, radio, pills or segmented control's first six
+  options; a multiselect none, all and the first; a slider's ends (a range: whole, lowest, highest); a
+  toggle both ways; a number box's ends (else 0 and -1); a text box empty and a text nothing matches; a
+  date range of one day; a button clicked twice (a widget in a form presses its Submit). One at a time,
+  each put back after; then each query parameter the page reads (`st.query_params`, also through a
+  name the cell gives a text) set to nothing and to a value no option has, on a fresh page. 150 seconds
+  in all; what was not tried is said. Failures land on their blocks in red (the value tried, the
+  error, at most three a block, each error once); passing blocks show nothing; a toast says the count.
+  A result holds while the blocks' code, tables and defaults are what was tested (moving a block keeps
+  it; adding one, or changing a cell, drops it). A Python without Streamlit says so, as Play does.
+- **Thin cells:** a hint on a code block (not a text block, not a cell of data.ipynb) whose cell calls
+  Streamlit and has a top-level assignment that filters, groups or joins an open table or a data.py
+  name and reads nothing else (a widget's pick makes it a controller's work: it stays; a name starting
+  with `_` stays; a line sharing its line stays; a name given again by a line that stays stops the
+  move). Lines that only read moved names move too. **Move to data.ipynb** (the hint's button,
+  `workbench_canvas_move_to_data`) appends a cell named after the first name at the end of the
+  project's data.ipynb (the canvas's folder), headed `# From Big orders, views.ipynb cell 3` (never an
+  `@cell` link: in data.ipynb it would name one of its own cells), with the imports those lines use, and
+  leaves `from data import big` where the lines were. The window makes both changes in its open
+  documents (opening them when they are not) and leaves them unsaved, as typing does; a project without
+  data.ipynb is refused in plain words.
+- **The Controllers family (5):** a filter with defaults (its contract explained for a learner), a form
+  with validation (a range refused with what to fix, the last good range kept in session state), an
+  action button whose callback puts the page's filters back by forgetting their widgets' keys
+  (idempotent: twice is once), a cross-page filter (the pick copied by on_change into a session-state
+  name of its own, because Streamlit forgets a widget's value on a page without it), and a query
+  parameter filter (opens from `?region=South`, writes the pick back, an unknown value opens on All).
+- **The Text and layout family (9):** title with subtitle, section heading, divider, caption, callout,
+  logo, image (both read from beside the app, a missing picture said), spacer (`st.html` with a box of
+  a height, so it runs on Streamlit before `st.space`), and a footer with its source, row count and read
+  time, pinned to the bottom of the window by default ("Pin to the bottom: yes"): a keyed container and
+  a `<style>` through st.html, on Streamlit's own light or dark background (`st.context.theme.type`; a
+  theme with colours of its own is not matched). 111 starters; the two families come after Streamlit.
+- **Agent commands:** `streamlit_check`, `streamlit_test`, `workbench_canvas_move_to_data` (240
+  commands; the tool list's budget is 57,000 characters).
+- **Open:** a widget whose key is worked out as the page runs (an f-string) is not tried; AppTest has no
+  browser, so a component's JavaScript is not exercised; Test this page runs one page at a time; the
+  State panel and the Controller role's editing in Properties are the wb-modes branch's.

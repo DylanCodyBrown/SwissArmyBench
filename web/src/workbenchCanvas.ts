@@ -13,6 +13,11 @@
  *             page live, in place (a frame of this server's, sandboxed without the app's origin).
  *             Edit goes back to the blocks. When a linked cell's code, a table it reads or the layout
  *             changes, the page says "Out of date · Play". Nothing runs by itself
+ *   [CONTROL] a block whose maker is not on the page reads that maker's contract default (`# Makes:
+ *             region: str = "All"`), said quietly on the block; a contract its code breaks is red.
+ *             Test this page runs Streamlit's AppTest with each controller's values; a block that
+ *             failed turns red with the value that broke it. A view that filters, groups or joins a
+ *             table shows its thin-cell hint: Move to data.ipynb (the window changes its documents)
  *   [SAVE]    the canvas's file holds pages, blocks, links and places: no code. Export… writes an app
  *             that runs alone (the data as Parquet); Save as… zips the project (data.py, pages/*.py,
  *             the sources): no rows
@@ -25,7 +30,10 @@
 import { agentApi, api, ApiError } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { FRAME_SANDBOX } from "./workbenchHtml";
-import { type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages } from "./workbenchStreamlit";
+import { type AppProblem, type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, type MovePlan, type PageTest, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages } from "./workbenchStreamlit";
+
+/** What Test this page answers: its counts and each block's failures, or the Python's problem. */
+export type TestResult = (PageTest & { page: string; name: string; failures: Record<string, { case: string; error: string }[]> }) | { page: string; problem: AppProblem };
 
 const COLUMNS = 12;
 const GAP = 8;
@@ -50,6 +58,9 @@ export interface CanvasHost {
   save: () => Promise<boolean>;
   /** The canvas was drawn again (its state, or Play starting): the status bar follows. */
   drew: () => void;
+  /** A thin cell's move: its model work into a named cell of data.ipynb, its cell left with one read
+   *  (the window changes its open documents, opening them when they are not). */
+  moveToData: (plan: MovePlan) => Promise<void>;
 }
 
 export interface CanvasView {
@@ -74,6 +85,10 @@ export interface CanvasView {
    * for the user's Allow (the rows leave the app). The user's own click asks nothing. */
   exportApp: (folder?: string, agent?: boolean) => Promise<ExportResult | null>;
   saveAs: (path?: string, agent?: boolean) => Promise<SaveAsResult | null>;
+  /** Test this page (the one in front, or `page`): each controller's values tried; failures on the blocks. */
+  test: (page?: string) => Promise<TestResult | null>;
+  /** A block's thin-cell move to data.ipynb (its hint's button). */
+  moveToData: (block: string) => Promise<MovePlan | null>;
   /** The file was saved (at this path): the server knows, and these pages are the saved ones. */
   saved: (path: string) => void;
   noticed: (app: string) => void;
@@ -91,6 +106,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
   let pageId: string | null = null;
   let mode: "edit" | "live" = "edit";
   let busy = false;
+  let testing: string | null = null; // the page Test this page is running on
   let gone = false;
   let kept = JSON.stringify(savedPages(initial).map(({ name, blocks }) => ({ name, blocks: blocks.map(({ id: _, ...rest }) => rest) })));
   let frame: HTMLIFrameElement | null = null;
@@ -227,6 +243,47 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     return done;
   }
 
+  // ===== Test this page, and a thin cell's move (domain/controllers.py, domain/thin_cells.py) =====
+
+  async function test(page?: string): Promise<TestResult | null> {
+    const target = page ?? pageId;
+    if (testing || !target) return null;
+    testing = target;
+    draw();
+    try {
+      await host.settle(); // the linked cells as they are typed, saved or not
+      await ensure();
+      const done = await api<TestResult>(`${base()}/pages/${encodeURIComponent(target)}/test`, "POST");
+      if ("problem" in done && done.problem && typeof done.problem === "object") toast(problemText(done.problem), "error");
+      else if ("tries" in done) {
+        const blocks = Object.keys(done.failures).length + (done.outside.length ? 1 : 0);
+        const said = done.problem ?? (blocks ? `${blocks} ${blocks === 1 ? "block" : "blocks"} failed` : "Every block ran");
+        const untried = done.untried.length ? ` · ${done.untried.length} not tried` : "";
+        toast(`Tested ${done.tries} ${done.tries === 1 ? "value" : "values"}: ${said}${untried}`, blocks || done.problem ? "error" : "info");
+      }
+      await call("", "GET").catch(() => undefined);
+      return done;
+    } catch (e) {
+      toast((e as Error).message, "error");
+      return null;
+    } finally {
+      testing = null;
+      draw();
+    }
+  }
+
+  async function moveToData(blockId: string): Promise<MovePlan | null> {
+    const page = current();
+    if (!page) return null;
+    await host.settle();
+    await ensure();
+    const plan = await api<MovePlan>(`${base()}/pages/${encodeURIComponent(page.id)}/blocks/${encodeURIComponent(blockId)}/move-to-data`);
+    await host.moveToData(plan);
+    await host.settle();
+    await call("", "GET").catch(() => undefined);
+    return plan;
+  }
+
   // ===== placing a cell's link =====
 
   async function place(link: CellLink, where?: { row: number; column: number; insert?: boolean }): Promise<boolean> {
@@ -342,6 +399,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     const exportButton = button("Export…", () => void exportApp().catch((e: Error) => toast(e.message, "error")), { icon: "export", class: "cv-export", title: "Export an app that runs alone: app.py, its pages, the data as Parquet" });
     const saveAsButton = button("Save as zip…", () => void saveAs().catch((e: Error) => toast(e.message, "error")), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
     exportButton.disabled = saveAsButton.disabled = !pages.length;
+    const testButton = button(testing ? "Testing…" : "Test this page", () => void test(), { icon: "check", class: "cv-test", title: "Run the page with each filter's values (Streamlit's own test runner)" });
+    testButton.disabled = !!testing || busy || !page?.blocks.length;
     clear(
       top,
       h(
@@ -356,7 +415,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
         }), { icon: "plus", class: "ghost cv-new-page" }),
       ),
     );
-    clear(tools, modes, exportButton, saveAsButton);
+    clear(tools, modes, testButton, exportButton, saveAsButton);
   }
 
   // ===== what needs the user: the app's problem, the page's problems =====
@@ -369,6 +428,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       notes,
       problem ? h("p", { class: "cv-problem", role: "alert" }, problemText(problem), problem.kind === "missing" ? button(busy ? "Installing…" : "Install", () => void install(), { class: "primary cv-install", title: problem.command }) : null) : null,
       ...said.map((p) => h("p", { class: "cv-problem", role: "alert" }, p)),
+      // The page's last test: an error outside every block, or the test itself not finishing.
+      ...(mode === "edit" ? [...(page?.tested?.outside ?? []).map((f) => `${f.case}: ${f.error}`), ...(page?.tested?.problem ? [page.tested.problem] : [])] : []).map((p) => h("p", { class: "cv-problem cv-test-problem", role: "alert" }, p)),
       ...(mode === "live" ? (state?.notes ?? []) : []).map((n) => h("p", { class: "cv-problem", role: "alert" }, n)),
     );
     notes.hidden = !notes.childElementCount;
@@ -444,7 +505,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     const element = h(
       "article",
       {
-        class: `cv-block ${block.missing ? "gone" : ""} ${stale ? "stale" : ""}`,
+        class: `cv-block ${block.missing ? "gone" : ""} ${stale ? "stale" : ""} ${block.failures?.length ? "failed" : ""}`,
         role: "listitem",
         tabindex: 0,
         draggable: "true",
@@ -467,6 +528,12 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       partsOf(block) ? h("div", { class: "cv-block-parts" }, partsOf(block)) : null,
       block.missing ? h("div", { class: "cv-block-missing", role: "alert" }, block.missing) : null,
       block.problem ? h("div", { class: "cv-block-missing", role: "alert" }, `Not whole Python yet: ${block.problem}`) : null,
+      // Its controllers' contract (domain/controllers.py): a default read for a maker that is not on
+      // the page (quiet), a contract its code breaks, and what the last test found (red).
+      ...(block.defaults ?? []).map((d) => h("div", { class: "hint cv-block-default", title: d.maker }, `${d.name} = ${d.value}`, h("span", { class: "cv-block-default-from" }, ` · ${d.maker.split(", ")[0]} is not on this page`))),
+      ...(block.contract ?? []).map((p) => h("div", { class: "cv-block-missing", role: "alert" }, p)),
+      ...(block.failures ?? []).map((f) => h("div", { class: "cv-block-missing cv-block-failed", role: "alert" }, `${f.case}: ${f.error}`)),
+      block.thin ? h("div", { class: "cv-block-thin" }, h("span", { class: "hint" }, block.thin.words), button("Move to data.ipynb", () => void moveToData(block.id).catch((e: Error) => toast(e.message, "error")), { icon: "notebook", class: "ghost cv-move-data", title: "Move these lines into a named cell of data.ipynb; one line here reads them back" })) : null,
       size,
       grip,
     );
@@ -661,6 +728,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     paste,
     exportApp,
     saveAs,
+    test,
+    moveToData,
     saved: (path) => {
       kept = signature(state?.pages ?? initial);
       host.changed(false);
@@ -681,7 +750,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       page: pageId,
       running: state?.running ?? false,
       problem: state?.problem ?? null,
-      pages: (state?.pages ?? []).map((p) => ({ id: p.id, name: p.name, out_of_date: p.out_of_date, problems: p.problems, rows: p.rows, blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, name: b.name, makes: b.makes, reads: [...b.tables, ...b.reads], state: b.state, missing: b.missing })) })),
+      testing,
+      pages: (state?.pages ?? []).map((p) => ({ id: p.id, name: p.name, out_of_date: p.out_of_date, problems: p.problems, rows: p.rows, check: p.check, tested: p.tested, blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, name: b.name, makes: b.makes, reads: [...b.tables, ...b.reads], state: b.state, missing: b.missing, role: b.controller?.role ?? null, defaults: b.defaults, contract: b.contract, thin: b.thin, failures: b.failures })) })),
     }),
     close: () => {
       gone = true;

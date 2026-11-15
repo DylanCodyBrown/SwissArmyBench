@@ -101,6 +101,8 @@ WIDGETS: frozenset[str] = frozenset(
 # What every page has before its blocks run: Streamlit and pandas, under their usual names.
 PROVIDED: frozenset[str] = frozenset({"st", "pd"})
 REQUIREMENTS: tuple[str, ...] = ("streamlit>=1.36", "pandas", "pyarrow")
+# Where a page written for a test (`record`) puts each block's error: st.session_state[RECORD].
+RECORD: str = "_sab_failures"
 # A Markdown or HTML cell on a page: the kinds, and the module beside the page that fills its names (a
 # copy of domain/html_cells.py, standard library only: nothing new to install).
 TEXT_KINDS: tuple[str, ...] = ("markdown", "html")
@@ -848,6 +850,19 @@ class PageCode:
     tables: tuple[str, ...]  # the tables it reads, as Python variables
     order: tuple[str, ...]  # the blocks' ids in the order they run
     problems: tuple[str, ...]  # what the page says instead of running a block
+    # (block, name): a name a block reads whose maker is not on the page, given its default instead
+    defaulted: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class Fallback:
+    """A name's default, from the contract of the cell that makes it (domain/controllers.py), for a
+    page that does not hold that cell: the default as Python, the words for that cell, and the table
+    it names when the default is a table (`by_region: table = orders`)."""
+
+    code: str
+    maker: str
+    table: str | None = None
 
 
 def _listed(names: Sequence[str]) -> str:
@@ -920,6 +935,8 @@ def page_code(
     gone: Mapping[str, str] | None = None,
     loader: str | None = None,
     imports: Iterable[str] = (),
+    fallbacks: Mapping[str, Fallback] | None = None,
+    record: bool = False,
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -937,6 +954,9 @@ def page_code(
     cell is. `gone`: what to say for a block whose cell is not there, by the block's id. `loader`:
     the tables come from that module (a saved project's pages). `imports`: the other names the
     project's data.py gives; the ones the page reads are imported from it (`from data import TAX`).
+    `fallbacks`: the defaults of names whose maker is not on the page (a controller's contract): a
+    block that reads one gets its default, written once above the blocks. `record`: each block also
+    writes its error into st.session_state (a test of the page reads them: domain/controllers.py).
     """
     known = [b for b in placed if b.key in pieces]
     found = {b.id: facts(pieces[b.key].code) for b in known}
@@ -953,11 +973,41 @@ def page_code(
             also += [n for n in tables_named(pieces[b.key].code, given) if n not in also]
         # A name made on the page itself is the page's own.
         also = [n for n in also if not any(n in found[b.id].makes for b in known)]
+    # The names each block reads whose maker is elsewhere: a default when the maker's contract gives
+    # one, else the block says where its maker is.
+    far: dict[str, list[str]] = {}
+    for block_id in ordered.order:
+        mine = found[block_id]
+        far[block_id] = [
+            name
+            for name in mine.reads
+            if elsewhere
+            and name in elsewhere
+            and name not in used
+            and name not in also
+            and not any(k == block_id and n == name for k, n, _ in ordered.links)
+        ]
+    fell = fallbacks or {}
+    defaulted = [(b, n) for b in ordered.order if not found[b].problem for n in far[b] if n in fell]
+    for _, name in defaulted:
+        table = fell[name].table
+        if table in named and table not in used:
+            used.append(table)
     problems: list[str] = []
-    out: list[str] = [f"# {title}", *preamble(used, data, loader)]
+    out: list[str] = [f"# {title}"]
+    if record:
+        out += ["import streamlit as st", "", f"st.session_state[{RECORD!r}] = {{}}", ""]
+    out += preamble(used, data, loader)
     if also:
         out += ["", f"from data import {', '.join(also)}"]
     out.append("")
+    defaults = list(dict.fromkeys(name for _, name in defaulted))
+    if defaults:
+        out.append("# Defaults: their makers are not on this page.")
+        if any(fell[n].code.startswith("_sab_date(") for n in defaults):
+            out.append("from datetime import date as _sab_date")
+        out += [f"{name} = {fell[name].code}  # {fell[name].maker}" for name in defaults]
+        out.append("")
 
     out.append("# The layout: empty slots, drawn before any block runs.")
     out += _layout(placed)
@@ -966,6 +1016,8 @@ def page_code(
     def say(block_id: str, words: str) -> None:
         problems.append(words)
         out.extend([f"with _slot_{block_id}:", f"    st.error({words!r})", ""])
+        if record:
+            out.extend([f"st.session_state[{RECORD!r}][{block_id!r}] = {words!r}", ""])
 
     for b in placed:
         if b.key not in pieces:
@@ -991,17 +1043,9 @@ def page_code(
         if mine.problem:
             say(block_id, f"{piece.name} ({piece.place}) is not whole Python yet: {mine.problem}.")
             continue
-        far = [
-            name
-            for name in mine.reads
-            if elsewhere
-            and name in elsewhere
-            and name not in used
-            and name not in also
-            and not any(k == block_id and n == name for k, n, _ in ordered.links)
-        ]
-        if far and elsewhere:
-            cells = _listed([f"{name} ({elsewhere[name]})" for name in far])
+        missing = [name for name in far[block_id] if name not in fell]
+        if missing and elsewhere:
+            cells = _listed([f"{name} ({elsewhere[name]})" for name in missing])
             say(block_id, f"{piece.name} reads {cells}, which is not on this page: place that cell here too.")
             continue
         text = keyed(body(piece.code).rstrip("\n"), b.id)
@@ -1015,10 +1059,15 @@ def page_code(
             out.append(indented(text, "        "))
             out.append("    except Exception as _error:")
             out.append("        st.exception(_error)")
+            if record:
+                said = 'f"{type(_error).__name__}: {_error}"'
+                out.append(f"        st.session_state[{RECORD!r}][{b.id!r}] = {said}")
         else:
             out.append(indented(text))
         out.append("")
-    return PageCode("\n".join(out).rstrip("\n") + "\n", tuple(used), ordered.order, tuple(problems))
+    return PageCode(
+        "\n".join(out).rstrip("\n") + "\n", tuple(used), ordered.order, tuple(problems), tuple(defaulted)
+    )
 
 
 def makers(codes: Mapping[int, str], order: Sequence[int]) -> dict[int, Facts]:
@@ -1189,11 +1238,13 @@ def export(
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
     helper: str = "",
+    fallbacks: Mapping[str, Mapping[str, Fallback]] | None = None,
 ) -> Export:
     """The pages as a runnable folder: app.py (st.navigation over the pages), one module a page,
     requirements.txt and README.txt. The tables it names go into data/ (the caller writes them). A
     page with a Markdown or HTML block that names a value gets `sab_text.py` beside app.py: `helper`,
-    the text of domain/html_cells.py (the pages import it; Streamlit puts app.py's folder on the path)."""
+    the text of domain/html_cells.py (the pages import it; Streamlit puts app.py's folder on the path).
+    `fallbacks`: each page's defaults (by its id), as `page_code` takes them."""
     if not pages:
         raise StreamlitError("There is no page to export yet.")
     named = list(tables)
@@ -1214,6 +1265,7 @@ def export(
             guard=False,
             elsewhere=elsewhere(page, every, where or {}),
             gone=gone,
+            fallbacks=(fallbacks or {}).get(page.id),
         )
         files[f"app_pages/{module}.py"] = made.code
         modules.append((module, page.name))
@@ -1281,6 +1333,7 @@ def saved_pages(
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
     app: str = "app.stapp.json",
+    fallbacks: Mapping[str, Mapping[str, Fallback]] | None = None,
 ) -> SavedPages:
     """The pages as a project's pages/*.py: each a page to drop into a Streamlit app, starting with
     `from data import ...` for the tables (and blade variables) it names. `tables`: the names data.py
@@ -1307,6 +1360,7 @@ def saved_pages(
             elsewhere=elsewhere(page, every, where or {}),
             gone=gone,
             loader="data",
+            fallbacks=(fallbacks or {}).get(page.id),
         )
         title, _, rest = made.code.partition("\n")
         files[f"pages/{name}.py"] = f"{title}\n{page_mark(app)}\n{rest}"

@@ -18,6 +18,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
+  routes_controllers.py    a canvas page's controllers: the check, Test this page, a thin cell's move
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
@@ -54,6 +55,7 @@ from swissarmybench.server import (
     routes_cards,
     routes_catalog,
     routes_connections,
+    routes_controllers,
     routes_datasets,
     routes_folders,
     routes_grids,
@@ -174,6 +176,7 @@ def create_app(
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),
             *routes_streamlit.routes(ctx.streamlit),
+            *routes_controllers.routes(ctx.controllers),
             *routes_projects.routes(ctx.projects),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),

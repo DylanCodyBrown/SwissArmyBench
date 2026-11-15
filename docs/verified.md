@@ -1317,3 +1317,43 @@ and `role-${role}` counted as used); identical function bodies in two modules.
 - DuckDB's replacement scan finds a DataFrame that is a local variable of `run()` (the cells run inside
   it): `duckdb.sql("... FROM orders")` reads run()'s `orders`.
 - Not checked: a real Azure Function App, a real Key Vault and a real tenant; IMDS on a real Azure VM.
+## Controllers, Test this page, thin cells, two starter families (2026-11-15)
+
+Checked against Streamlit 1.67.0 (the throwaway environment, plus openpyxl for the starter runs), with
+made-up tables only.
+
+- **AppTest, as the runner uses it** (read and run, not from memory): `AppTest.from_file(path,
+  default_timeout=)`; widgets by key (`at.selectbox(key=)`, `at.slider(key=)`...; a form's submit button
+  is in `at.button`, with `form_id`); a Selectbox's `options` are the formatted options and
+  `select_index(i)` picks one; a Slider has `min` and `max` (an int slider's are floats; `set_value`
+  takes them) and a tuple value for a range; pills and a segmented control are a ButtonGroup with no
+  `options`, read from `proto.options[*].content`; a NumberInput's ends are `proto.has_min/min` and
+  `has_max/max`; `at.query_params[name] = value` before the run opens the page with it, and
+  `dict(at.query_params)` gives `{"region": "North"}` after the page sets one; `at.exception` holds both
+  an uncaught error and each `st.exception` the guard draws; `at.session_state` reads a key with `in`
+  and `[...]`. `st.stop`'s StopException is a BaseException, so the page's `except Exception` guard
+  does not swallow it. A run of the runner on a filter, a view that fails on one region and an action
+  button: 6 tries, the failure on the view's block only (`tests/test_controllers.py`).
+- **The contract** is read by `ast.parse` of the Makes line: `region: str = "All"; by_region: table =
+  orders` parses as two annotated assignments; "Makes: a, b (the pick, the rows)" parses once its
+  bracket is taken off. Every starter's Makes line now goes through this parser in the header test.
+- **The pieces in AppTest** (`tests/test_starters_controllers.py`, 9 tests): all 14 run; a view on a
+  page without its filter reads the defaults ("Total (All)"); the form refuses From 80 To 20 with
+  "swap them" and keeps its rows, then takes 20 to 50; the action button puts a picked South back to
+  All, and twice is once; the cross-page pick (East) survives a run in which its widget is not drawn;
+  `?region=West` opens on West, an unknown value on All with the parameter taken away, and a pick
+  writes `region=North`; the footer's caption and its `<style>` only when pinned; Test this page on a
+  page of four controllers, a total and the footer: no failure, nothing untried.
+- **In Chromium:** `tests/e2e/test_controllers_page.py` (the default said on the block, Test this page
+  red on North only with the toast, the thin hint and its move into data.ipynb's named cell, `from data
+  import big` left in the view). The pinned footer, by hand under `streamlit run` with Playwright: its
+  box is `position: fixed` at the window's bottom edge (y 769 of 800, the full width), on the light
+  theme's white; a picture in the screenshots folder. `st.container(key=)` marks its box with the class
+  `st-key-<key>`, and `st.context.theme.type` is "light" there.
+- **Tests:** test_controllers.py 13, test_controllers_canvas.py 5, test_thin_cells.py 3,
+  test_starters_controllers.py 9, the browser test 1; test_starters.py with the new counts (111).
+- **Not checked:** Edge itself; the dark theme of a real Streamlit page (the footer's dark colour is
+  Streamlit's documented #0e1117, not looked at); a theme with colours of its own; a widget whose key is
+  an f-string (said untried); Streamlit before 1.67 (which version brought the footer's `st.container(key=)` and
+  `st.context.theme` was not checked); a component's JavaScript under Test this page (AppTest
+  has no browser).
