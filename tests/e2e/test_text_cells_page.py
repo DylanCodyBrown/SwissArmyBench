@@ -150,3 +150,40 @@ def test_a_markdown_starter_goes_into_a_markdown_cell_from_its_menu(
     else:
         raise AssertionError("a Markdown snippet went into a Python cell")
     workbench.close()
+
+
+FLOW = "## Flow\n```mermaid\nflowchart LR\n  A[Orders] --> B[Totals]\n```"
+BROKEN = "```mermaid\nflowchart LR\n  A[ --> \n```"
+NAMED = "```mermaid\nflowchart LR\n  A[{{ region }}] --> B[Done]\n```"
+
+
+def test_a_markdown_cells_mermaid_block_is_drawn_and_a_broken_one_says_why(
+    browser: Browser, server: dict[str, Any], tmp_path: Path
+) -> None:
+    close_tables(server)
+    book = tmp_path / "flow.ipynb"
+    cells = [
+        {"kind": "markdown", "source": FLOW},
+        {"kind": "markdown", "source": BROKEN},
+        {"kind": "code", "source": 'region = "East --> West"'},
+        {"kind": "markdown", "source": NAMED},
+    ]
+    call(server, "POST", "/workbench/save", {"path": str(book), "cells": cells})
+    workbench = open_window(browser, server, book)
+    shown = workbench.locator(".wb-cell")
+    # Drawn by the app's own Mermaid (nothing from the internet), as SVG, when not being edited.
+    drawing = shown.nth(0).locator(".md-mermaid svg")
+    expect(drawing).to_be_visible(timeout=20000)
+    expect(drawing).to_contain_text("Orders")
+    expect(drawing.locator("g.node")).to_have_count(2)
+    expect(shown.nth(0).locator("h2")).to_have_text("Flow")
+    # A broken diagram says why, in its place.
+    broken = shown.nth(1).locator(".md-mermaid.error-text")
+    expect(broken).to_contain_text("This diagram could not be drawn")
+    # A name in a diagram is filled as text: the value's own arrow draws no edge (its marks full-width).
+    window(server, "run.primary")
+    named = shown.nth(3).locator(".md-mermaid svg")
+    expect(named).to_contain_text("East －－＞ West", timeout=20000)
+    expect(named.locator("g.node")).to_have_count(2)
+    shot(workbench, "text-4-a-mermaid-diagram-in-a-markdown-cell")
+    workbench.close()

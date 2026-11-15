@@ -7247,6 +7247,17 @@ body.dropping-file::after {
   display: none;
 }
 
+/* A Markdown cell's ```mermaid block, drawn (or its error, in place). */
+.wb-markdown-view .md-mermaid {
+  margin: 6px 0;
+  overflow-x: auto;
+}
+
+.wb-markdown-view .md-mermaid.error-text {
+  color: var(--error);
+  font-size: 0.92em;
+}
+
 .wb-cell.kind-markdown.stale .wb-text-bar {
   background: var(--warn-soft);
 }

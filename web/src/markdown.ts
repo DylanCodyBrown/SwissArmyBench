@@ -81,8 +81,10 @@ export function renderMarkdown(source: string): HTMLElement {
       flush();
       list = null;
       const code: string[] = [];
+      // Its language (```mermaid) is kept on the block: a Markdown cell draws a Mermaid block as a diagram.
+      const language = /^\s*```\s*([\w-]+)/.exec(line)?.[1]?.toLowerCase();
       for (at++; at < lines.length && !/^\s*```/.test(lines[at]!); at++) code.push(lines[at]!);
-      root.append(h("pre", { class: "md-code" }, h("code", {}, code.join("\n"))));
+      root.append(h("pre", { class: "md-code", ...(language ? { dataset: { lang: language } } : {}) }, h("code", {}, code.join("\n"))));
     } else if (line.includes("|") && at + 1 < lines.length && RULE_ROW.test(lines[at + 1]!)) {
       flush();
       list = null;

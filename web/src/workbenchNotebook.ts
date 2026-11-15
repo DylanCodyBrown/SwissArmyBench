@@ -263,6 +263,13 @@ export interface NotebookView {
 }
 
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
+
+// Mermaid (lazy/diagram.ts), loaded the first time a Markdown cell holds a ```mermaid block.
+let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
+const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
+  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
+  return diagramModule;
+};
 const isHeading = (role: string): boolean => role === "tables" || role === "table";
 
 export function notebookView(
@@ -351,9 +358,27 @@ export function notebookView(
     if (!htmlNames(text).length) {
       cell.htmlNotes = [];
       cell.view.replaceChildren(renderMarkdown(text));
+      drawDiagrams(cell);
       return;
     }
     void drawMarkdown(cell, text);
+  };
+
+  /** A Markdown cell's ```mermaid blocks drawn as diagrams (the owner, 2026-11-15), by the app's own
+   *  Mermaid (loaded when first needed, strict, its drawing cleaned: nothing from the internet). A
+   *  broken diagram says why in its place. */
+  const drawDiagrams = (cell: Cell): void => {
+    for (const block of cell.view.querySelectorAll<HTMLElement>("pre.md-code[data-lang='mermaid']")) {
+      const text = block.textContent ?? "";
+      const host = h("div", { class: "md-mermaid", role: "img", "aria-label": "Diagram" });
+      block.replaceWith(host);
+      void diagrams()
+        .then((m) => m.drawDiagram(host, text, dark()))
+        .catch(() => {
+          host.textContent = "This diagram could not be drawn: the diagram drawer did not load.";
+          host.classList.add("error-text");
+        });
+    }
   };
 
   const drawMarkdown = async (cell: Cell, text: string): Promise<void> => {
@@ -368,6 +393,7 @@ export function notebookView(
     cell.htmlNotes = [...filled.missing.map((n) => `{{ ${n} }} was not found in the kernel.`), ...filled.notes];
     const notes = cell.htmlNotes.length ? h("div", { class: "wb-design-notes hint" }, ...cell.htmlNotes.map((n) => h("div", {}, n))) : null;
     cell.view.replaceChildren(cell.textBar.element, renderMarkdown(filled.markdown), ...(notes ? [notes] : []));
+    drawDiagrams(cell);
     drawMarkdownState(cell);
   };
 

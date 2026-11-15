@@ -423,22 +423,46 @@ def markdown_text(text: str) -> str:
     return "".join(_REFERENCES.get(c) or (f"\\{c}" if c in _MARKDOWN_MARKS else c) for c in flat)
 
 
+def _fences(text: str) -> list[tuple[int, int, str]]:
+    """Markdown's fenced blocks, as (start, end, the first word after the fence: `mermaid`, `python`)."""
+    found: list[tuple[int, int, str]] = []
+    at, fence, opened, info = 0, "", 0, ""
+    for line in text.split("\n"):
+        mark = _FENCE.match(line)
+        if fence:
+            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence):
+                found.append((opened, at + len(line), info))
+                fence = ""
+        elif mark:
+            fence, opened = mark.group(1), at
+            info = (line[mark.end() :].split() or [""])[0].lower()
+        at += len(line) + 1
+    if fence:
+        found.append((opened, len(text), info))
+    return found
+
+
+def mermaid_blocks(text: str) -> list[tuple[int, int]]:
+    """Where a Markdown cell holds a ```mermaid block (the Workbench draws it as a diagram)."""
+    return [(a, b) for a, b, info in _fences(text) if info == "mermaid"]
+
+
+def mermaid_text(text: str) -> str:
+    """Text as a Mermaid diagram shows it, whatever it holds: on one line; letters, digits, spaces, `.`
+    and `,` as they are; every other ASCII mark as its full-width form (U+FF0D for -, U+FF02 for "),
+    which reads as the same mark and means nothing to Mermaid, so a value can close no label, draw no
+    link and start no comment, directive or statement. (Mermaid's own `#45;` codes would show as
+    `&#45;`: the app draws a diagram's labels as plain SVG text.)"""
+    flat = re.sub(r"\s+", " ", text)
+    return "".join(
+        chr(ord(c) + 0xFEE0) if "!" <= c <= "~" and not c.isalnum() and c not in ".," else c for c in flat
+    )
+
+
 def markdown_code(text: str) -> list[tuple[int, int]]:
     """Where Markdown holds code, as (start, end): fenced blocks, then the code spans outside them
     (a run of backticks up to the next run of the same length)."""
-    spans: list[tuple[int, int]] = []
-    at, fence, opened = 0, "", 0
-    for line in text.split("\n"):
-        found = _FENCE.match(line)
-        if fence:
-            if found and found.group(1)[0] == fence[0] and len(found.group(1)) >= len(fence):
-                spans.append((opened, at + len(line)))
-                fence = ""
-        elif found:
-            fence, opened = found.group(1), at
-        at += len(line) + 1
-    if fence:
-        spans.append((opened, len(text)))
+    spans: list[tuple[int, int]] = [(a, b) for a, b, _ in _fences(text)]
     blocks = list(spans)
     index = 0
     while True:
@@ -468,8 +492,10 @@ def fill_markdown(text: str, values: Mapping[str, Mapping[str, Any]]) -> Filled:
     """A Markdown cell's text with each `{{ name }}` filled from `values` (the records an HTML cell's
     run gives), as `Filled` (its `html` holds the Markdown). Among the words a value is escaped text; a
     table alone on its line is a pipe table, elsewhere its size; a name with no value yet shows as
-    written; one the kernel does not hold says "not found". In code only plain words and numbers go."""
+    written; one the kernel does not hold says "not found". In code only plain words and numbers go;
+    in a ```mermaid block a value is Mermaid text (`mermaid_text`), so it cannot change the diagram."""
     code = markdown_code(text)
+    mermaid = mermaid_blocks(text)
     out: list[str] = []
     notes: list[str] = []
     missing: list[str] = []
@@ -485,7 +511,17 @@ def fill_markdown(text: str, values: Mapping[str, Mapping[str, Any]]) -> Filled:
             waiting.append(name)
         out.append(text[at : found.start()])
         at = found.end()
-        if any(a <= found.start() < b for a, b in code):
+        if any(a <= found.start() < b for a, b in mermaid):
+            if value is None:
+                said = found.group(0)  # as written, as text (bare, {{ }} is Mermaid's hexagon)
+            elif kind == "missing":
+                said = f"{{{{ {name} }}}} not found"
+            elif kind == "text":
+                said = str(value.get("text", ""))
+            else:
+                said = f"({name}: {value.get('size') or 'a ' + kind})"
+            out.append(mermaid_text(said))
+        elif any(a <= found.start() < b for a, b in code):
             words = str(value.get("text", "")) if value is not None else ""
             if value is None:
                 out.append(found.group(0))

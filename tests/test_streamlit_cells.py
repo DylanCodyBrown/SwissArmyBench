@@ -971,3 +971,13 @@ def test_a_scripts_html_cell_goes_on_a_page_by_its_string() -> None:
     cells = rules.linkable("/work/sales.py", script)
     assert [(c.number, c.kind, c.name) for c in cells] == [(4, "code", "Region filter"), (6, "html", "Card")]
     assert cells[1].code == rules.text_code("html", "<p>{{ region }}</p>", 6)
+
+
+def test_a_mermaid_block_stays_a_code_block_on_the_page_and_names_no_block() -> None:
+    diagram = "```mermaid\nflowchart LR\n  A[{{ region }}] --> B[Done]\n```"
+    # Streamlit's Markdown draws no Mermaid: on the page the block is the Markdown's own code block.
+    code = rules.text_code("markdown", diagram, 2)
+    assert code.startswith("# Mermaid diagram\n") and "st.markdown(_sab_text.page_markdown(" in code
+    assert rules.facts(code).reads == ("st", "region")
+    assert rules.text_title("markdown", "## Flow\n" + diagram, 1) == "Flow"
+    assert rules.text_title("markdown", "```python\nx = 1\n```\nAfter the code", 3) == "After the code"

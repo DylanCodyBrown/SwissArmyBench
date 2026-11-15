@@ -218,13 +218,19 @@ _BLOCK_TAGS = re.compile(
 
 def text_title(kind: str, text: str, number: int) -> str:
     """What a Markdown or HTML cell is called on a canvas without a name of its own: its first line of
-    words (an HTML cell's without its tags; a Markdown cell's without its marks), else "Markdown cell
-    N" or "HTML cell N" (N: the cell's own number)."""
+    words (an HTML cell's without its tags; a Markdown cell's without its marks, outside its fenced
+    blocks: one that is only a ```mermaid block is "Mermaid diagram"), else "Markdown cell N" or "HTML
+    cell N" (N: the cell's own number)."""
     plain = text
     if kind == "html":
         plain = re.sub(r"<!--.*?(?:-->|$)", " ", plain, flags=re.DOTALL)
         plain = re.sub(r"<(script|style)\b.*?(?:</\1\s*>|$)", " ", plain, flags=re.DOTALL | re.IGNORECASE)
         plain = html.unescape(re.sub(r"<[^>]*>", "", _BLOCK_TAGS.sub("\n", plain)))
+    else:
+        fenced = sorted(html_cells.markdown_code(text), reverse=True)
+        for start, end in fenced:
+            if text.startswith(("```", "~~~"), start) or text[start:].lstrip(" ").startswith(("```", "~~~")):
+                plain = plain[:start] + "\n" + plain[end:]
     for line in plain.split("\n"):
         words = line.strip()
         if kind == "markdown":
@@ -235,6 +241,8 @@ def text_title(kind: str, text: str, number: int) -> str:
         words = " ".join(words.split()).lstrip("%!")
         if words:
             return words[:MAX_NAME]
+    if kind == "markdown" and html_cells.mermaid_blocks(text):
+        return "Mermaid diagram"
     return f"{'Markdown' if kind == 'markdown' else 'HTML'} cell {number}"
 
 

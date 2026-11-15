@@ -694,3 +694,26 @@ def test_a_script_is_found_by_the_browsers_own_reading() -> None:
     assert not rules.has_script("<p>hi</p><!-- <script>not run</script> -->")
     assert not rules.has_script("<p>a script tag: &lt;script&gt;</p>")
     assert not rules.has_script("<textarea><script>shown as text</script></textarea>")
+
+
+def test_in_a_mermaid_block_a_value_is_mermaid_text_and_cannot_change_the_diagram() -> None:
+    text = (
+        "Sales:\n```mermaid\nflowchart LR\n  A[{{ region }}] --> B[{{ total }}]\n"
+        "  C[{{ later }}]\n```\n{{ region }}"
+    )
+    hostile = 'East"] --> X[%%{init: {"theme": "dark"}}%%'
+    filled = rules.fill_markdown(
+        text, {"region": rules.text_value(hostile), "total": rules.text_value(1234.5)}
+    )
+    block = filled.html.split("```")[1]
+    # Letters, digits, spaces, `.` and `,` as they are; every other mark in its full-width form, which
+    # reads as the same mark and means nothing to Mermaid.
+    assert "A[East＂］ －－＞ X［％％｛init： ｛＂theme＂： ＂dark＂｝｝％％]" in block
+    assert "B[1234.5]" in block
+    # A name not run yet stays as written, as text (bare, {{ }} would be Mermaid's hexagon).
+    assert "C[｛｛ later ｝｝]" in block
+    assert not any(mark in block.split("flowchart LR")[1].replace("-->", "") for mark in '"%{}#;')
+    # Outside the block the same value is Markdown text, as anywhere.
+    assert filled.html.endswith(rules.markdown_text(hostile))
+    assert rules.mermaid_text("a\nb c-d;") == "a b c－d；"
+    assert rules.mermaid_blocks("```Mermaid x\n1\n```\n```python\n2\n```") == [(0, 18)]

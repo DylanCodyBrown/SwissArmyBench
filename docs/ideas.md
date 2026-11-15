@@ -2009,3 +2009,22 @@ cells are available for streamlit." Built, for the first beta (0.0.1):
   `workbench_html_fill` fills a Markdown cell's text with `markdown: true`.
 - **Not built:** Markdown cells in scripts (a script has none); pictures in a Markdown cell's names;
   dragging a script's cell (it is copied, as before).
+- **Mermaid in a Markdown cell** (the owner, the same day: "Make sure our markdown cell supports
+  mermaid rendering."). A ```mermaid block in a Markdown cell is drawn as a diagram when the cell is
+  not being edited, by the app's own Mermaid (lazy/diagram.ts, loaded the first time one is needed:
+  strict, labels as SVG text, its drawing cleaned by lazy/svgSafe.ts; nothing comes from the
+  internet). A broken diagram says why in its place ("This diagram could not be drawn: Parse error on
+  line 3 ..."). A script has no Markdown cells, so this is notebooks only. **`{{ name }}` in a
+  Mermaid block is Mermaid text** (`mermaid_text`): letters, digits, spaces, `.` and `,` as they are,
+  every other ASCII mark in its full-width form (U+FF01 to U+FF5E: a value's `-->` draws as
+  `－－＞`, its `"`, `[`, `%%` and `;` mean nothing to Mermaid), so a value can close no label, draw
+  no link and start no comment, directive or statement. Mermaid's own entity codes (`#45;`) were tried
+  first and show as `&#45;` in this app's drawings (labels are plain SVG text, `htmlLabels: false`, a
+  safety setting kept), hence the full-width forms. A name not run yet shows as written, in the same
+  form (bare `{{ }}` would be Mermaid's hexagon). A cell that is only a diagram is called "Mermaid
+  diagram" on a canvas.
+- **On a Streamlit page a Mermaid block stays a code block.** Streamlit's Markdown draws no Mermaid,
+  and there is no simple offline way: drawing it needs Mermaid's JavaScript in the browser (about 3 MB,
+  inlined into every page through `st.html` with scripts allowed) or a headless browser to draw it to
+  SVG when the page is written (Node and Chromium, not this app's to install). The page shows the
+  diagram's text; nothing is loaded from a CDN. To be decided by the owner if wanted.

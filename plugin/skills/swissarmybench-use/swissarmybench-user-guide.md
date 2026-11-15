@@ -649,6 +649,11 @@ H in a notebook's command mode.
   in. Out of date and Not run yet work as for an HTML cell. A Markdown cell without names is plain
   Markdown, as before. (Saved notebooks keep no values for a Markdown cell: it shows its names as
   written until it runs again.)
+- **Diagrams in Markdown.** A ```mermaid block in a Markdown cell is drawn as a diagram (a flowchart,
+  a sequence, an entity diagram...) when you are not editing the cell, by the app's own Mermaid:
+  nothing comes from the internet. A diagram that cannot be drawn says why in its place. A `{{ name }}`
+  inside it is filled as text: its marks show in their full-width form (`－－＞`), so a value never
+  changes the diagram. On a Streamlit page the block shows as its text (Streamlit draws no Mermaid).
 - **The agent** adds an HTML cell (`workbench_html_add`), reads them and their state
   (`workbench_html_cells`), runs one (`workbench_html_run`), sizes its pane (`workbench_html_resize`),
   and can fill a design without the window (`workbench_run` with kind html, `workbench_html_fill`,
