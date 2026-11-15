@@ -914,3 +914,41 @@ def test_an_error_is_explained_marked_in_the_code_and_fixed(
     expect(cell.locator(".view-lines")).to_contain_text("import numpy as np")
     workbench.keyboard.press("Control+Enter")
     expect(cell.locator(".wb-text")).to_contain_text("3", timeout=30000)  # np.int64(3) in numpy 2
+
+
+def test_the_document_menu_exports_one_python_script_and_one_notebook_through_the_file_chooser(
+    browser: Browser, orders_url: str, tmp_path: Path
+) -> None:
+    """Export as one Python script… and Export as one notebook…: the document as it stands (not saved),
+    named after it, written where the file chooser says. Made-up code only."""
+    workbench = open_workbench(open_grid(browser, orders_url))
+    new_script(
+        workbench, "import pandas as pd\n\nframe = pd.DataFrame({'region': ['North'], 'amount': [3]})\nframe"
+    )
+    folder = tmp_path / "jobs"
+    folder.mkdir()
+    for item, name in (
+        ("Export as one Python script…", "untitled_automation.py"),
+        ("Export as one notebook…", "untitled_automation.ipynb"),
+    ):
+        menu(workbench, "Document menu", item)
+        chooser = workbench.locator(".file-chooser")
+        where = chooser.locator("input[aria-label=Folder]")
+        where.fill(str(folder))
+        where.press("Enter")
+        expect(chooser.locator("[role=status]")).to_contain_text("folder")
+        assert (
+            chooser.get_by_label("File name")
+            .input_value()
+            .endswith("_automation" + name.rsplit("_automation", 1)[1])
+        )
+        chooser.get_by_label("File name").fill(name)
+        chooser.get_by_role("button", name="Save here").click()
+        expect(workbench.locator(".toast").last).to_contain_text(f"Exported {name}", timeout=20000)
+    script = (folder / "untitled_automation.py").read_text(encoding="utf-8")
+    compile(script, "script", "exec")
+    assert "frame = pd.DataFrame({'region': ['North'], 'amount': [3]})" in script
+    assert "REQUIREMENTS: dict[str, str] = {\n    'pandas': 'pandas>=2.0',\n}" in script
+    assert "# frame: shown in the notebook only" in script
+    notebook = json.loads((folder / "untitled_automation.ipynb").read_text(encoding="utf-8"))
+    assert notebook["nbformat"] == 4 and all(c.get("outputs", []) == [] for c in notebook["cells"])

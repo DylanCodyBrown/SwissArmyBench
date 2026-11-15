@@ -1097,8 +1097,9 @@ invoices and CSVs; models built here and taken into Power BI dashboards. Decided
 - **The test bed stages what runs here:** real SQLite, DuckDB, PostgreSQL and MariaDB in the container,
   and realistic made-up CSVs, workbooks, Parquet and JSON; cloud services (SQL Server, Azure Key Vault,
   Power BI) are checked against local stand-ins. Made-up data only.
-- **Scheduling:** no export feature. The test bed proves a saved notebook runs top to bottom without
-  the app, with its passwords from environment variables, as an Azure Function would run it.
+- **Scheduling:** at first no export feature (a saved notebook runs top to bottom without the app,
+  with its passwords from environment variables). Changed the same day: **Export as one Python script**
+  and **Export as one notebook** (below, "One script, one notebook").
 - **Ten real-world use cases** to run end to end in a real browser, counting actions:
   1. orders from a database, cleaned in the grid, the notebook saved;
   2. that notebook run headless;
@@ -2171,3 +2172,70 @@ Decided:
   snapshot, a window's answer, a kernel's start, a new environment, an export's Allow) are not slow.
 - **Open:** a value the user's own code puts unquoted into an exception message ("cannot parse Globex")
   is not recognised as data; DuckDB and Python quote values, which the redaction hides.
+
+## One script, one notebook: Export as one Python script… / as one notebook… (the owner, 2026-11-15; built)
+
+The owner: "I need to be able to export any data analysis notebook as an inline python automation where
+all connections, vault logic, and data transformations are bundled into one python script that is just
+downloadable." And: "It's not runnable with UV, it's runnable as standalone from any Python terminal."
+And: "Notebooks can also be exported as inline self contained automations. For context my current
+notebook scheduler supports running jupyter notebooks and python scripts but they have to be linear and
+self contained with any connections or data imports inline." On the vault: "The app reg secret is a
+vault secret." and "No need to enter from the machine."
+
+Decided:
+- **Two renderings of one plan** (domain/script_export.py `plan`; the helpers' text in
+  domain/script_runtime.py): the script (`render_script`) and the notebook (`render_notebook`). The order:
+  the package check, the settings, the helpers, the vaults and connections, each table's load and grid
+  steps as one DuckDB query, then the cells. Markdown is comments in the script, Markdown cells in the
+  notebook.
+- **Plain `python <file>`:** REQUIREMENTS (module -> pip requirement, lower versions where they matter:
+  duckdb>=1.1, pandas>=2.0, openpyxl>=3.1...) checked with importlib before anything third-party is
+  imported (every such import sits inside a function or `run()`). Missing: one message with the exact
+  `"<sys.executable>" -m pip install ...` and exit 3. `--install` runs that pip, only when asked. The
+  PEP 723 header stays, as comments, for uv users; nothing relies on it. Exit codes: 0, 1 failed, 2 a
+  setting missing, 3 a package missing.
+- **`main()`** raises on failure (an Azure Function's run then shows as failed); `cli()` logs to stdout and
+  turns that into the exit code. The top comment gives the Function's timer trigger and its
+  requirements.txt (the same list).
+- **SETTINGS:** every environment variable the script reads, one per line, where it came from (the
+  keyring, a key vault's entry, a secret blade, a plain value, the notebook's own code); a plain value is
+  its default, a secret is never written. Checked together before anything runs; a vault's are read from
+  the vault then too (a missing role fails first). The notebook's settings cell is tagged `parameters`
+  (papermill); passwords are best given as environment variables (papermill writes its parameters into
+  the notebook it runs).
+- **The pieces are the blades' own code**, each a small cached function: a database's Connect (its
+  `secret("x")` reads the variable SETTINGS names), a file's path (DuckDB views, as the SQL cell makes
+  them), a Power BI workspace (its sign-in and DAX, already standard library), your own Python's Connect
+  and Read a table, a blade (the Excel starters' functions). `%%sql`, `%%dax`, `sab.sql`, `sab.dax`,
+  `sab.read`, `sab.blade`, `sab.connection` and a connection named by its Workbench variable (`shop`) call
+  them; the package's import goes.
+- **An Azure Key Vault is read by the standard library** (no azure-identity, no azure-keyvault-secrets
+  in REQUIREMENTS): the variable when set, else the managed identity (IDENTITY_ENDPOINT and
+  IDENTITY_HEADER in a Function App or App Service, `AZURE_CLIENT_ID` for a user-assigned one; a VM's
+  IMDS with a 2-second wait), then, for a vault that signs in as you and only when azure-identity is
+  installed, DefaultAzureCredential; then Key Vault's REST GET (`/secrets/<entry>?api-version=7.4`),
+  which needs only "get secret". Tokens and values are kept in memory for the run. A 403 says the Key
+  Vault Secrets User role. A vault that loads every secret finds an Azure entry by its name (no list
+  permission needed). Any other vault is its own code.
+- **The Azure Key Vault connection's Sign in:** As you (DefaultAzureCredential) or Managed identity (an
+  optional client id). An app registration lives IN the vault as entries (Power BI's), never typed on
+  this computer to open the vault: an app-registration sign-in for the vault was built, then dropped on
+  the owner's call the same day. A saved vault without the choice reads as As you.
+- **Left out, with a line that says so:** HTML cells, Streamlit's cells, `display()`, a cell's last bare
+  expression, `sab.push`/`sandbox`/`watch`/`load`. IPython's lines translated where Python has the same
+  (`%pip install` into REQUIREMENTS, `%env` (a secret's name becomes a setting, its value dropped),
+  `%cd`, `%time`, `%matplotlib` and `%load_ext` dropped); others (`!cmd`, `%run`, `%%bash`), `import *`,
+  a top-level `await`, `sab.stats` are refused by cell. With `stub`, each such cell is a stub that raises
+  FILL IN and the rest is exported; the page asks first.
+- **A table no load can read again** (pasted, dropped, pushed) is a stub that raises FILL IN; its grid
+  steps stay after it. No rows are ever written.
+- **Checked before writing:** it compiles; ruff (`--isolated`, E9, F63, F7, F82: an undefined name) when
+  the app's Python has it, each finding named by its cell; no saved password's value (every inlined
+  piece's keyring values are checked); no pasted rows. A value or a row: refused (403), nothing written.
+- **The agent** (the golden rule): `workbench_export_script(path, format, to, stub, check)`, one command
+  with a format argument rather than two; the window's palette `file.exportScript` and
+  `file.exportNotebook`. Code only, so it asks no Allow.
+- **Open:** an exported script cannot follow a closed table's grid steps (a table not open is exported as
+  its cell last held it); a user's function that writes another cell's variable with `global` now writes
+  the module's (the cells run inside `run()`).

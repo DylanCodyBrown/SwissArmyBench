@@ -42,6 +42,21 @@ their own (the grid page's Workbench tab opens it; code never opens in the grid 
   `workbench_tables_arrange`.
 - A user's cell that names a table starts with `# uses orders @cell3`; the app keeps that line.
 
+## Export as one Python script (or one notebook)
+- `workbench_export_script(path, format?, to?, stub?, check?)`: the notebook or script as ONE file that
+  runs with no Swiss Army Bench: `format` script (default: one .py, `python <file>`, `--install` pips its
+  REQUIREMENTS; `main()` for an Azure Function's timer trigger) or notebook (one linear .ipynb for
+  nbconvert or papermill; its settings cell is tagged `parameters`). Default `to`: beside it, as
+  `<name>_automation.py` (or .ipynb). The window's palette: `file.exportScript`, `file.exportNotebook`
+  (the front document as it stands, saved or not).
+- Written out: each connection's own code, the key vaults a password comes from (an Azure Key Vault by
+  its managed identity, standard library), each table's load and grid steps as DuckDB SQL, the cells.
+  SETTINGS names every variable it reads and where it came from; no password value, no row.
+- What cannot be exported (`!ls`, `%run`, `import *`, sab.stats) comes back in `problems` with `ask`:
+  nothing is written. `stub: true` writes the rest, each such cell a stub that raises FILL IN. A pasted
+  or pushed table is always such a stub. `check: true` writes nothing and gives the text.
+- Refused (403) when it would hold a saved password's value or a row. Code only: it asks no Allow.
+
 ## From the user
 - `agent_inbox`: what they sent with Send to the agent (an error with its place, values and traceback,
   or code, and their question).

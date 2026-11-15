@@ -378,6 +378,61 @@ def test_ruff_finds_a_name_nothing_makes(tmp_path: Path) -> None:
     assert [f["code"] for f in findings] == ["F821"] and findings[0]["line"] == 2
 
 
+def test_the_azure_key_vault_signs_in_as_you_or_as_a_managed_identity_and_the_export_follows(
+    tmp_path: Path,
+) -> None:
+    from swissarmybench.domain.script_runtime import azure_sign_in, azure_vault_url
+    from swissarmybench.server.blade_templates import AZURE_VAULT_MANAGED, AZURE_VAULT_YOU, TEMPLATES
+    from tests.conftest import AUTH, make_client
+
+    starter = next(t for t in TEMPLATES if t.id == "azure_key_vault")
+    assert [label.split(" (")[0] for label, _, _ in starter.sign_ins] == ["As you", "Managed identity"]
+    assert starter.code == AZURE_VAULT_YOU and "ClientSecretCredential" not in str(starter.sign_ins)
+    for _, mark, code in starter.sign_ins:
+        assert sum(mark in other for _, _, other in starter.sign_ins) == 1  # the form tells them apart
+        assert (
+            azure_vault_url(code) == "https://my-vault.vault.azure.net" and " secret(" not in code
+        )  # nothing typed here to open it
+    assert azure_sign_in(AZURE_VAULT_YOU) == ("you", {})
+    assert azure_sign_in(AZURE_VAULT_MANAGED.replace('client_id = ""', 'client_id = "made-up-id-7"')) == (
+        "managed",
+        {"client": "'made-up-id-7' or None"},
+    )
+    # A vault saved before the choice (its credential written inline) reads as As you.
+    old = 'from azure.identity import DefaultAzureCredential\nclient = SecretClient(vault_url="https://v.vault.azure.net", credential=DefaultAzureCredential())'
+    assert azure_sign_in(old) == ("you", {}) and azure_vault_url(old) == "https://v.vault.azure.net"
+    # The form round trip: offered, saved with Managed identity, offered again with that one chosen.
+    with memory_keyring(), make_client(tmp_path) as client:
+        types = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
+        ways = types["azure_key_vault"]["sign_ins"]
+        managed = next(w for w in ways if w["label"].startswith("Managed identity"))
+        body = {"name": "Team vault", "kind": "vault", "template": "azure_key_vault", "variable": "get"}
+        saved = client.post(
+            "/connections", json=body | {"code": managed["code"], "vault_all": True}, headers=AUTH
+        )
+        assert saved.status_code == 200, saved.text
+        again = client.get("/connections/Team vault", headers=AUTH).json()
+        assert len(again["sign_ins"]) == 2 and managed["mark"] in again["code"]
+    # The export signs in the same way: the managed identity, with the client id it was given.
+    vault = Piece(
+        "Team vault",
+        "vault",
+        "vault",
+        AZURE_VAULT_MANAGED.replace('client_id = ""', 'client_id = "made-up-id-7"'),
+        "get",
+    )
+    shop = shop_piece(where="vault")
+    text = exported(
+        [ExportCell("sql", "SELECT 1", "Shop -> one", number=1)], {"Shop": shop, "Team vault": vault}
+    ).text
+    assert (
+        "an Azure Key Vault (https://my-vault.vault.azure.net), signed in to as its managed identity" in text
+    )
+    assert "sign_in = {\"how\": 'managed', \"client\": lambda: 'made-up-id-7' or None}" in text
+    assert "azure.identity" not in run_body(text) and "def vault_team_vault():" in text
+    compile(text, "script", "exec")
+
+
 # ===== end to end: exported through the app, run in a fresh Python =====
 
 

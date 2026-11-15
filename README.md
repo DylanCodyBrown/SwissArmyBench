@@ -58,6 +58,13 @@ What a grid page does:
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
   variables; `data.py` is its export, and what your notebooks and pages import (`from data import
   orders`). The app's canvas exports `pages/*.py` the same way.
+- **Export as one Python script… / as one notebook…** (a document's **…** menu): any notebook or
+  script as ONE self-contained file for a scheduler or an Azure Function: its connections, key vault
+  lookups and grid steps (as DuckDB SQL) written out, no Swiss Army Bench, no passwords, no rows.
+  `python orders_report_automation.py` checks its packages first (`--install` pips them), names every
+  setting it reads and where it came from, and has a `main()` for a timer trigger; an Azure Key Vault
+  is read by the function app's managed identity with the standard library. The notebook runs top to
+  bottom with nbconvert or papermill.
 - **New table from a query:** the **+** after the last tab opens a SQL tray over a blank grid.
   A table name reads that table as its tab shows it (after its steps); Run turns the result into a
   table of its own, with every tool a pushed table has. The tray stays on the tab, so Run again

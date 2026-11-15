@@ -1242,3 +1242,28 @@ environment with Streamlit 1.67.0 and pandas (SWISSARMYBENCH_STREAMLIT_PYTHON).
   right button is in time for the menu that follows. The menu ignores a click right as it opens (the
   browser test waits 400 ms, as the Send to the agent test does).
 - html-to-image's `toPng(document.body, {filter})` leaves the note's own dialog out of the picture by node.
+
+## One script, one notebook (2026-11-15)
+
+- The exported script, run with plain `python` from a fresh venv (no Swiss Army Bench): without its
+  packages it says the exact `pip install` and exits 3; with `--install` (`SWISSARMYBENCH_TEST_PIP=1`,
+  pip from PyPI through this machine's proxy, 16 s) and with this machine's installed packages linked in
+  (the default test), it reads the SQLite connection (password from an environment variable), the CSV
+  with the grid's filter as DuckDB SQL, the SQL cell, the pandas cell, writes the workbook with the Excel
+  starter's `write_table` and the CSV, and exits 0. A missing variable: named, exit 2, nothing written.
+- The exported notebook, from a fresh venv with only its requirements and ipykernel, runs top to bottom
+  in a plain kernel (jupyter_client, as nbconvert does), and by hand with `jupyter nbconvert --to notebook
+  --execute` (nbconvert 7) and with `papermill ... -p SHOP_PASSWORD ...` (papermill 2): the same workbook
+  and CSV. Without the password: MissingSetting in the settings' cell.
+- The owner's chain, with stand-ins on 127.0.0.1: a Function App's managed identity endpoint
+  (IDENTITY_ENDPOINT, X-IDENTITY-HEADER, `resource=https://vault.azure.net`, api-version 2019-08-01), a
+  Key Vault (GET `/secrets/<entry>?api-version=7.4`, Bearer) holding made-up `pbi-tenant-id`,
+  `pbi-client-id`, `pbi-client-secret`, and tests/powerbi_standin.py: the script, with no azure-identity
+  installed and no secret in its file or environment, gets the entries, signs in to Power BI with them
+  and writes the DAX rows. A 403 from the vault names the vault, the secret and the Key Vault Secrets
+  User role; with no identity endpoint, what was tried (here the sandbox's IMDS address answered 403).
+- `ruff check --isolated --select E9,F63,F7,F82` reads a script on stdin (`--stdin-filename`); its JSON
+  gives `location.row`: it found the missing `urllib` import in an early export.
+- DuckDB's replacement scan finds a DataFrame that is a local variable of `run()` (the cells run inside
+  it): `duckdb.sql("... FROM orders")` reads run()'s `orders`.
+- Not checked: a real Azure Function App, a real Key Vault and a real tenant; IMDS on a real Azure VM.
