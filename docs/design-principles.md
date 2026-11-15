@@ -490,7 +490,7 @@ the app can open and check, kept in folders or a Git repository the team already
 | Databases | SQL Server, Postgres, ... | SQL | the database | connection starters |
 | Power BI | a workspace (vault sign-in) | DAX | Power BI's service | refresh, status, parameters; DAX snippets |
 | Web pages | none | HTML | the page (walled-off frame) | KPI tiles, tables, invoice layout |
-| Streamlit | none | Streamlit (+ page designer) | Streamlit, from the notebook's Python | filters, metrics, charts, layout |
+| Streamlit | none | Python that calls Streamlit (+ the app's canvas) | Streamlit, from the notebook's Python | filters, metrics, charts, layout |
 | Your own code | Python | Python | the notebook's kernel | Excel and file actions |
 | C# (an example) | your C# returns a DataTable | C# | .NET Interactive, installed like a driver | ClosedXML exports, LINQ over a table |
 

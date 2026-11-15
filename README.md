@@ -43,13 +43,17 @@ What a grid page does:
   the app and nothing loads from the internet. `{{ total }}` is filled with a Python variable when
   the cell runs (a value as text, a table as its first 50 rows); such a cell turns yellow (Out of
   date · Run) when its HTML or a variable it names changes. In a notebook file it is a `%%html` cell.
-- **Streamlit cells:** build a Streamlit app from small pieces. A Streamlit cell is a piece (a filter,
-  a number, a chart, a table) and shows live in its cell; any open table is there by name as a
-  DataFrame. **Push to page** sends it to the **page designer**, a window where pieces are dropped,
-  moved and resized on a 12-column board, on as many pages as you like, each shown live. A piece that
-  makes a name (`region = st.selectbox(...)`) drives every piece on the page that reads it. **Export
-  as Streamlit app** writes a folder that runs on its own (`streamlit run app.py`). Streamlit runs in
+- **Streamlit apps:** a data-first way to build one. A Python cell that calls Streamlit shows live in
+  its cell; any open table is there by name as a DataFrame. **New app** opens a canvas as a Workbench
+  tab (its own file, `sales.stapp.json`): drag any Python cell onto it, or copy and paste it, and it
+  becomes a block that links to the cell, on a 12-column grid, on as many pages as you like. **Play**
+  shows the page live in place; **Edit** goes back to the blocks. A cell that makes a name
+  (`region = st.selectbox(...)`) drives every block on the page that reads it. **Export** writes a
+  folder that runs on its own; **Save as** zips the project to add to your own app. Streamlit runs in
   the notebook's own Python and is not installed with the app.
+- **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
+  variables; `data.py` is its export, and what your notebooks and pages import (`from data import
+  orders`). The app's canvas exports `pages/*.py` the same way.
 - **New table from a query:** the **+** after the last tab opens a SQL tray over a blank grid.
   A table name reads that table as its tab shows it (after its steps); Run turns the result into a
   table of its own, with every tool a pushed table has. The tray stays on the tab, so Run again

@@ -41,8 +41,8 @@ class ProjectFiles:
         made = root / name
         if made.exists() and not made.is_dir():
             raise FileExistsError(f"{made} is a file: pick another name.")
-        if (made / "data.py").exists():
-            raise FileExistsError(f"{made} is a project already (it has a data.py): open it.")
+        if (made / "data.py").exists() or (made / "data.ipynb").exists():
+            raise FileExistsError(f"{made} is a project already (it has its data): open it.")
         made.mkdir(exist_ok=True)
         return str(made)
 

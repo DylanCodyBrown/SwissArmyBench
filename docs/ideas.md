@@ -1317,6 +1317,12 @@ supply the python table from the connection to feed the catalog." Built as a con
 
 ## Streamlit cells (2026-11-15, the owner's calls; built)
 
+**Replaced the same day, in part** (see "The Streamlit canvas" and "Projects" below): **Push to page,
+the page designer window, the Streamlit kind of cell, the pages kept inside the notebook's file, and
+the T key are gone.** What stays from this section: blocks talk by shared names, tables by name, a
+live cell in its cell, one Streamlit process an app behind the proxy, the out-of-date rule, Install,
+Export.
+
 "I also use the app to develop streamlit applications. So it would be cool if we could create a
 streamlit cell in the notebook so I can build streamlit widgets/pages from the data." Decided:
 
@@ -1408,6 +1414,165 @@ streamlit cell in the notebook so I can build streamlit widgets/pages from the d
   say); it starts at 220 pixels and resizes. The designer has no drag to reorder pages (the agent's
   `streamlit_page_change` moves one). A script's uses line and a notebook's apply to a piece as to
   any cell (only for a table whose cell the document holds).
+
+## The Streamlit canvas (2026-11-15, the owner's calls)
+
+**Replaces Push to page and the page designer window of "Streamlit cells" above.** The owner:
+"The streamlit app itself should just be a canvas in its own workbench window. And you can drag cells
+or copy and then hit play to render it into a page. That push to page button is bad design." And, of
+the whole: "Essential we have built a data first style ide for streamlit". The four answers:
+
+1. **Where the canvas lives:** "A Workbench document tab". New app opens a canvas tab beside notebooks
+   and scripts, saved as its own file; it pops out into a window of its own like any document.
+2. **What a dropped cell is:** "A link to the cell". The canvas points at the notebook's (or script's)
+   cell; editing the cell changes the app on the next Play. The app depends on that notebook.
+3. **Play:** "Blocks, then the live page". Before Play, blocks on the 12-column grid; Play turns the
+   canvas into the running page in place; Edit goes back to the blocks.
+4. **Which cells:** "Any Python cell". The Streamlit kind of cell is gone.
+
+**Built (2026-11-15). Decided while building** (each can be changed):
+
+- **The app's file is `<name>.stapp.json`:** JSON written by hand so each block is one line (a change
+  to a block is a one-line diff). It holds `"swissarmygrid": "streamlit-app"`, a version, and the
+  pages; a page is a name and its blocks; a block is `{"document", "cell", "row", "column", "width",
+  "height"}`. No ids, no code. `document` is relative to the app's own file, with forward slashes, so
+  the two move together (another drive keeps the whole path). **`row` is one more field than the owner
+  listed** (column, width, height): without it a block could not sit under an empty stretch of the row
+  above, so the grid would not be a grid.
+- **The grid:** 12 columns; a block is 2 to 12 wide (6 when placed), as tall as what it draws or 1 to
+  30 rows of 40 pixels. No two blocks share a column of a row: the block just moved or placed keeps its
+  place and the neighbour it would lie on starts a row below. Rows are counted from 1 with none empty.
+  A new block with no place goes beside the last one when the row has room, else below. On the page a
+  row is `st.columns` with the gaps as empty columns, so a block sits where it was put.
+- **A link names a saved file.** A cell of a notebook that has no file yet cannot be linked; the canvas
+  says "Save X first". The cell's own number (never changed, never reused) is the link, so moving cells
+  in the notebook never breaks one.
+- **Getting a cell onto the canvas:** drag a Python cell by its number or its head (HTML drag and drop,
+  the type `application/x-swissarmygrid-cell`, a small JSON of the path, the number and the document's
+  name; it works between two Workbench windows); onto the board at the place dropped, onto the app's
+  tab or a page's tab at the end. **Copy** (C in command mode, More: Copy, the palette's Copy the cell)
+  keeps the link and the cell on the Workbench's own clipboard, shared by every Workbench window
+  through a BroadcastChannel (memory only: not the system clipboard, which a page cannot read without
+  a permission prompt); Ctrl+V on a canvas places the link, V in a notebook pastes the cell (new: a
+  notebook had no copy and paste before). **A script's cell is copied, not dragged** (Copy the cell
+  with the cursor in it): its marker is a line of text in the editor, with no handle to drag. Open.
+- **Play reads the cells as they are now:** from the open document that holds the file, saved or not
+  (each Workbench window tells the server its documents' Python cells as they are typed, after a
+  0.4-second pause), else from the file. The run order still comes from the names the cells make and
+  read, never from the layout.
+- **Out of date** ("Out of date · Play", on the Play button while the page shows): a linked cell's code
+  differs from what last ran, a table it names changed in the grid, or the layout changed. Nothing runs
+  by itself, a layout change included (before, the designer's live page followed every change).
+- **A block whose cell or file is gone** says so in red with the path and the number, and the page
+  shows the same words in that block's slot. It can be placed again or taken off.
+- **Any Python cell; which are shown live.** The clear rule (domain/streamlit_use.py, by ast): a
+  Python cell is live when it CALLS Streamlit: `st.something(...)`, a call through the name the cell
+  imports streamlit under, a call of a name imported from streamlit, or `with st.sidebar:`. **An import
+  alone does not count** (the owner's words were "imports streamlit, or calls `st.`"): `import streamlit
+  as st` beside `import pandas as pd` draws nothing, and taking it out of the kernel would take `pd`
+  from every other cell. **`st` means Streamlit unless the document gives it another value**
+  (`from scipy import stats as st`). Half-typed code is not live yet.
+- **A live cell does not run in the kernel** (the default the owner named): Streamlit code in a
+  kernel only warns. Run on it runs the document's Streamlit app; Run all, Run file and the agent's
+  `workbench_run_notebook` leave it out. A live cell alone is drawn with the LIVE cells that make the
+  names it reads, as before; a plain cell's variables are the kernel's and are not shared.
+- **Old files.** A notebook saved with the Streamlit kind opens with that cell as a Python cell: the
+  marker line goes, the code, the number and the pane's height stay (a Python cell keeps a `height`
+  now). A script's `# %% [streamlit]` marker reads as a plain `# %%` cell (`# %% [7] height=300`).
+  **Old pages are dropped, not read:** a notebook's `swissarmygrid.streamlit.pages` is not written
+  back; a script's `# %% [streamlit-pages]` block stays in the file as the comments it always was.
+  Reading them would have needed a place to put them (a new app's file) and the owner said offer nothing.
+- **The app's Python** is its first linked file's own (the open document's choice, else the one
+  remembered for the file), else this app's. One Streamlit process an app, behind the proxy, as before.
+- **Open app in its own window is gone with the designer's page:** pop the canvas out (the tab's
+  button, the palette) and Play. `streamlit_address` still gives the app's own address.
+- **Export stays** (the Export… button, `streamlit_export`): the folder that runs alone, with the
+  data as Parquet. It is cheap (it was built) and different from Save as: a copy of the rows that runs
+  anywhere, against pages for your own app that read the data again.
+- **The agent** (the golden rule): in the window `workbench_new_app`, `workbench_canvas`,
+  `workbench_canvas_play`, `workbench_canvas_edit`, `workbench_cell_copy`, `workbench_cell_paste`,
+  `workbench_live_cells`, `workbench_live_run`, `workbench_live_resize`, `workbench_pop_out`,
+  `workbench_project_open`; by the app's id `streamlit_apps`, `_open`, `_app`, `_run`, `_address`,
+  `_stop`, `_close`, `_install`, `_save`, `_export`, `_save_as`, `_page_add`, `_page_change`,
+  `_page_remove`, `_block_place`, `_block_change`, `_block_remove`; `project_new`, `project_files`,
+  `project_export_data`. Gone: `workbench_streamlit_*` (add, cells, run, push, resize, designer),
+  `streamlit_sync`, `streamlit_piece_*`. 224 commands (215 before); the tool list stays under 53,500
+  characters (the descriptions are shorter).
+- **Left open:** dragging a script's cell; pages cannot be reordered by dragging their tabs
+  (`streamlit_page_change` moves one); a block's height on the canvas is a hint of the page's (14
+  pixels a row), not its real height; the Workbench's layout was left alone (a redesign is drawn).
+
+## Projects: a data-first IDE for Streamlit (2026-11-15, the owner's calls)
+
+The owner: "Essential we have built a data first style ide for streamlit". And: "I want the standard
+export format to be data.py then page.py where you work on the data. So maybe notebook.ipynb is the
+3rd component here that is optional. You can use a notebook to mock up and do data analysis but then
+you can copy that into the streamlit page. Or the notebook is the product when your not building an
+app. But regardless you always start with data or blades of some kind to manipulate variables for the
+app or notebook". Then: "you can have two notebooks here one for data analysis and one for streamlit
+mocks. And multiple pages." And last, settling how data.py is made: **"Data.ipynb is the canvas for
+data.py export"**.
+
+- **The symmetry: data.ipynb -> data.py, and the app's canvas -> pages/*.py.** A project is a folder:
+
+  ```
+  sales/
+  ├─ data.ipynb         the data's canvas: the tables' read-only cells, blade cells, the user's own
+  │                     code cells that shape variables. The user works here
+  ├─ data.py            its EXPORT. Never edited by hand
+  ├─ sales.stapp.json   the app's canvas (pages, blocks, links)
+  ├─ pages/*.py         its EXPORT: one module a page, each starting with `from data import ...`
+  ├─ *.ipynb, *.py      any number of notebooks and scripts (analysis, mock-ups): optional
+  └─ requirements.txt
+  ```
+
+- **One source for a table (the rule):** a table's read-only cell lives in **data.ipynb**. In a
+  Workbench window that has a project's data.ipynb open, a table no document made goes there, not to
+  the document in front. Every other notebook and every page starts with `from data import ...`.
+  data.py is written from data.ipynb and by nothing else, so nothing a user typed is ever written over.
+- **data.py is data.ipynb's code cells in order** (domain/projects.py): a table's cell as it stands
+  (its load, then the grid's steps as one DuckDB query: the same text as the read-only cell); Markdown,
+  outputs, SQL, DAX and HTML cells, cells that call Streamlit, the uses lines and IPython's own lines
+  (`%magic`, `!command`) left out, and what was left out said. It is written again on **Play**, on
+  **Save as**, and on **Export data.py** (the Project menu, the palette, `project_export_data`), from
+  the open data.ipynb (saved or not; from the file otherwise, with each open table's cell as the grid
+  has it now).
+- **It imports in a plain kernel and is kept under Streamlit:** its code sits in one `_load()` whose
+  names become the module's; `_load` is wrapped by `st.cache_resource` when Streamlit is running
+  (`st.runtime.exists()`), by `functools.cache` otherwise, and with no Streamlit installed nothing of
+  it is needed. Code that cannot sit in a function (`from x import *`, `global`) runs as the module
+  itself: Python keeps an imported module, under Streamlit too.
+- **No rows, no secrets.** A table the app cannot read again (pasted, dropped, sent from Python with
+  no cell that makes it) is a clearly marked stub in data.py (`# ===== FILL IN: customers =====`,
+  `customers = None`), so the module still imports and only the page that reads it fails; Save as and
+  the README name it. A connection is named, never its password.
+- **Play reads the grid; the saved pages read data.py** (Claude's call, to confirm). While playing, a
+  table comes from the grid as Parquet, as before: fast, and exactly what the grid shows. Any other
+  name data.py gives (a variable a code cell of data.ipynb shapes) is imported from a copy of data.py
+  in the app's temporary folder. The saved pages import everything from data.py.
+- **Notebooks sit beside data.py, not in notebooks/** (the coordinator suggested a folder): `from data
+  import ...` then works with no path line in every notebook. Any number of them, any names.
+- **New project** (the Project menu, the welcome page, the palette, `project_new`): a folder with
+  data.ipynb (a read-only cell for each open table), data.py, the app's canvas (unless asked not to),
+  the notebooks asked for (each starting with `from data import ...`) and requirements.txt. A folder
+  that already has a data.py is refused. **Open project** opens its files as tabs: data.ipynb first
+  and in front, the canvas, the notebooks, the scripts (data.py is an export: not opened); the folder's
+  name shows beside the tabs. A folder with no data.ipynb is not a project. Loose notebooks, scripts
+  and apps outside a project work as before.
+- **Save as** (the canvas's Save as…, the palette, `streamlit_save_as`) zips the project, which is
+  the folder of the app's file: both exports are written again (a folder with no data.ipynb gets one
+  first, with a cell for each table the pages name), requirements.txt gets the lines it lacks (the
+  user's lines stay), and the zip holds README.txt, data.ipynb, data.py, pages/*.py,
+  requirements.txt, the app's file and the notebooks and scripts it links to. A linked file outside the
+  folder comes along at the zip's top and the zip's copy of the app's file links to it there. Every
+  notebook in the zip has its outputs dropped and a pasted table's rows taken out. The zip opens again
+  as a project. This replaced an earlier layout of the same day (a `sag_tables.py` module and a
+  `workbench/` folder), and an earlier data.py rule ("generated, then yours", entries marked
+  `# %% [data] name` and refreshed one at a time): both were built and taken out the same day.
+- **Left open:** blade cells in data.ipynb are the user's own code (`fx = sag.blade("FX rates")`);
+  there is no "add a blade" button. An unsaved data.ipynb or linked notebook is exported as it stands
+  but zipped as its file (Save as says so). A project does not remember which Python it runs in beyond
+  each notebook's own.
 
 ## A starter pack of blades (2026-11-15, the owner's calls)
 
