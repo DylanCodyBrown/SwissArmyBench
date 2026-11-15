@@ -407,9 +407,9 @@ Settings lists the agent's activity: what it asked for, newest first. It never i
 - **Packs:** a team can keep blades and tangs in a GitHub repository that is a Claude Code plugin marketplace. Install a pack once in Claude Code (`/plugin marketplace add <owner>/<repository>`, then `/plugin install <pack>@<marketplace>`) and its blades show here marked **pack**. They are read-only, since Claude Code replaces them on every update (`/plugin marketplace update`): **Save a copy** to change one; **Test** and **Refresh** work as they are. **Packs** above the blades lists what is installed, makes a **New marketplace** (also `sag pack new <folder>` in a terminal) and, for a clone of the repository in your blade folders, **Add to pack** copies your blades and tangs in, ready to commit.
 - Your agent can read the catalog to write SQL against the source, and **make a blade for you**, saved as you would save it. It never gets a password's value; you type passwords on the blade's save screen.
 
-![The blades page: three blades (a vault, a SQL connection and a secret blade) above the catalog tree, opened at sales.orders.customer_id, with the table's columns and a first SELECT on the right.](images/20-catalog.png)
+![The blades page: a database connection and a secret blade above the catalog tree, opened at main.orders.customer_id, with the table's columns, a first SELECT, Open as grid and the table's first rows on the right.](images/20-catalog.png)
 
-![The save screen for a new PostgreSQL blade: its code, the variable it makes, its password field (kept in the computer's vault) and the missing psycopg package with an Install button.](images/21-blade-save.png)
+![The save screen for a new PostgreSQL blade: its name, kind and settings, each value it still needs marked.](images/21-blade-save.png)
 
 ### Every table has its own cell
 
