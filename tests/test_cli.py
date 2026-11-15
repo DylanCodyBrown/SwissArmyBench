@@ -547,7 +547,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # A connection from your own Python (2026-11-15) added three: save (or test), its variables, its tables.
     # The canvas's review (2026-11-15) added five: naming a cell, the Streamlit cells pane, moving a
     # document back to the main window, and the panels' switches (read and set).
-    assert size < 54_500, f"the tool list is {size} characters"
+    # The starter pack (2026-11-15) added four: list it, copy a starter as your own, a snippet's form
+    # (or its filled text), and inserting one into a cell.
+    assert size < 55_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

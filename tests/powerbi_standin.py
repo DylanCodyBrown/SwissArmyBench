@@ -1,6 +1,8 @@
 """A stand-in for Power BI on this computer, for tests and screenshots: no real tenant is ever reached.
 
-It answers the three requests the Power BI workspace connection makes, the way Microsoft documents them:
+It answers the three requests the Power BI workspace connection makes, the way Microsoft documents them
+(and, below, the REST requests of the starter pack's Power BI blades: refreshes, dataflows, reports,
+parameters, take over and the refresh schedule):
 
   POST /{tenant}/oauth2/v2.0/token                                    the client credentials sign-in
   GET  /v1.0/myorg/groups/{workspace}/datasets                        the workspace's datasets
@@ -29,7 +31,7 @@ import re
 import sys
 import threading
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs
@@ -360,6 +362,35 @@ def evaluate(
     raise DaxError("Query (1, 1) The syntax is incorrect, or this stand-in does not know the query.")
 
 
+# What an action answers: the status, its JSON (None: an empty answer), and headers.
+Acted = tuple[int, dict[str, Any] | None, dict[str, str]]
+DATAFLOWS: list[dict[str, Any]] = [
+    {"objectId": "99999999-aaaa-4bbb-8ccc-000000000001", "name": "Orders dataflow",
+     "description": "Made-up orders, cleaned", "configuredBy": "made.up@example.com"},
+]  # fmt: skip
+REPORTS: list[dict[str, Any]] = [
+    {"id": "aaaaaaaa-1111-4222-8333-000000000001", "name": "Sales overview", "datasetId": DATASET,
+     "webUrl": "https://app.powerbi.example/reports/sales-overview"},
+    {"id": "aaaaaaaa-1111-4222-8333-000000000002", "name": "Budget review", "datasetId": BUDGET_DATASET,
+     "webUrl": "https://app.powerbi.example/reports/budget-review"},
+]  # fmt: skip
+PARAMETERS: list[dict[str, Any]] = [
+    {"name": "Region", "type": "Text", "isRequired": True, "currentValue": "North"},
+    {"name": "Rows", "type": "Number", "isRequired": False, "currentValue": "1000"},
+]
+SCHEDULE: dict[str, Any] = {
+    "days": ["Monday", "Wednesday", "Friday"],
+    "times": ["07:00", "13:30"],
+    "enabled": True,
+    "localTimeZoneId": "UTC",
+    "notifyOption": "MailOnFailure",
+}
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
 def _refusal(code: str, message: str | None = None) -> dict[str, Any]:
     """An error as the real service writes it."""
     details = [] if message is None else [
@@ -379,27 +410,50 @@ class StandIn:
         self.view_forms = True
         self.info_forms = True
         self.models: list[MadeUpModel] = list(MODELS)  # a test may leave one dataset, or add many
+        # The actions' state: each dataset's refreshes (newest first), a dataflow's, each dataset's
+        # parameters and whether the app registration owns it; a refresh runs for this many looks.
+        self.refreshes: dict[str, list[dict[str, Any]]] = {}
+        self.transactions: dict[str, list[dict[str, Any]]] = {}
+        self.parameters: dict[str, list[dict[str, Any]]] = {DATASET: [dict(p) for p in PARAMETERS]}
+        self.owners: dict[str, str] = {}
+        self.refresh_polls = 2
+        self._serial = 0
         standin = self
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, format: str, *args: Any) -> None:
                 pass
 
-            def _send(self, status: int, body: dict[str, Any]) -> None:
-                data = json.dumps(body).encode()
+            def _send(
+                self, status: int, body: dict[str, Any] | None, headers: dict[str, str] | None = None
+            ) -> None:
+                data = b"" if body is None else json.dumps(body).encode()
                 self.send_response(status)
-                self.send_header("Content-Type", "application/json")
+                if body is not None:
+                    self.send_header("Content-Type", "application/json")
+                for key, value in (headers or {}).items():
+                    self.send_header(key, value)
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
 
             def do_GET(self) -> None:
-                status, answer = standin.listing(self.path, self.headers.get("Authorization") or "")
+                authorization = self.headers.get("Authorization") or ""
+                acted = standin.act("GET", self.path, b"", authorization)
+                if acted is not None:
+                    self._send(*acted)
+                    return
+                status, answer = standin.listing(self.path, authorization)
                 self._send(status, answer)
 
             def do_POST(self) -> None:
                 body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                status, answer = standin.answer(self.path, body, self.headers.get("Authorization") or "")
+                authorization = self.headers.get("Authorization") or ""
+                acted = standin.act("POST", self.path, body, authorization)
+                if acted is not None:
+                    self._send(*acted)
+                    return
+                status, answer = standin.answer(self.path, body, authorization)
                 self._send(status, answer)
 
         self._server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
@@ -461,6 +515,104 @@ class StandIn:
         if not sent.get("serializerSettings", {}).get("includeNulls"):
             rows = [{k: v for k, v in row.items() if v is not None} for row in rows]  # as the real one does
         return 200, {"results": [{"tables": [{"rows": rows}]}]}
+
+    # ===== the actions: refreshes, dataflows, reports, parameters, take over, the schedule =====
+
+    def act(self, method: str, path: str, body: bytes, authorization: str) -> Acted | None:
+        """The REST requests the starter pack's Power BI blades make (None: not one of them), answered
+        as Power BI documents them: a refresh is 202 with a RequestId header, then shows in the history
+        as Unknown (Power BI's word for running) until it has been asked about `refresh_polls` times."""
+        place = r"/v1\.0/myorg/groups/([^/]+)/(datasets|dataflows|reports)(/[^?]*)?(\?.*)?"
+        found = re.fullmatch(place, path)
+        if found is None or (found.group(2) == "datasets" and not found.group(3)):
+            return None  # the datasets list and executeQueries are the connection's own (above)
+        what, rest, query = found.group(2), (found.group(3) or ""), (found.group(4) or "")
+        if rest.endswith("/executeQueries"):
+            return None
+        sent: Any = json.loads(body) if body.strip() else None
+        self.requests.append({"what": "action", "method": method, "path": path.split("?")[0], "body": sent})
+        if authorization != f"Bearer {TOKEN}":
+            return 401, _refusal("TokenExpired"), {}
+        if found.group(1) != WORKSPACE:
+            return 404, _refusal("PowerBIEntityNotFound"), {}
+        if what == "reports" and not rest and method == "GET":
+            return 200, {"value": [dict(r) for r in REPORTS]}, {}
+        if what == "dataflows":
+            return self._dataflow(method, rest, sent)
+        part = re.fullmatch(r"/([^/]+)(/.*)?", rest)
+        model = next((m for m in self.models if part and m.id == part.group(1)), None)
+        if part is None or model is None:
+            return 404, _refusal("PowerBIEntityNotFound"), {}
+        action = part.group(2) or ""
+        if action == "/refreshes" and method == "POST":
+            notify = (sent or {}).get("notifyOption")
+            if notify not in ("NoNotification", "MailOnFailure", "MailOnCompletion"):
+                return 400, {"error": {"code": "InvalidRequest", "message": "notifyOption is required."}}, {}
+            if notify != "NoNotification":  # a service principal cannot be emailed
+                message = "Invalid NotifyOption value 'MailOnFailure' for app only owner requests"
+                return 400, {"error": {"code": "InvalidRequest", "message": message}}, {}
+            self._serial += 1
+            request_id = f"made-up-request-{self._serial:04d}"
+            refreshes = self.refreshes.setdefault(model.id, [])
+            refreshes.insert(0, {"requestId": request_id, "id": self._serial, "refreshType": "ViaApi",
+                                 "startTime": _now(), "status": "Unknown", "polls": 0})  # fmt: skip
+            return 202, None, {"RequestId": request_id}
+        if action == "/refreshes" and method == "GET":
+            top = int((parse_qs(query.lstrip("?")).get("$top") or ["100"])[0])
+            listed = []
+            for refresh in self.refreshes.get(model.id, [])[:top]:
+                refresh["polls"] += 1
+                if refresh["status"] == "Unknown" and refresh["polls"] > self.refresh_polls:
+                    refresh["endTime"] = _now()
+                    refresh["status"] = "Failed" if model.broken else "Completed"
+                    if model.broken:
+                        error = {"errorCode": "ModelRefreshFailed", "errorDescription": BROKEN_MESSAGE}
+                        refresh["serviceExceptionJson"] = json.dumps(error)
+                listed.append({k: v for k, v in refresh.items() if k != "polls"})
+            return 200, {"value": listed}, {}
+        if action == "/parameters" and method == "GET":
+            return 200, {"value": [dict(p) for p in self.parameters.get(model.id, [])]}, {}
+        if action == "/Default.UpdateParameters" and method == "POST":
+            if self.owners.get(model.id) != "app":
+                message = "The user is not the owner of the dataset: take it over first."
+                return 403, {"error": {"code": "InvalidRequest", "message": message}}, {}
+            known = {p["name"]: p for p in self.parameters.get(model.id, [])}
+            for detail in (sent or {}).get("updateDetails", []):
+                if detail.get("name") not in known:
+                    message = f"Parameter {detail.get('name')!r} does not exist in the dataset."
+                    return 400, {"error": {"code": "InvalidRequest", "message": message}}, {}
+                known[detail["name"]]["currentValue"] = str(detail.get("newValue"))
+            return 200, None, {}
+        if action == "/Default.TakeOver" and method == "POST":
+            self.owners[model.id] = "app"
+            return 200, None, {}
+        if action == "/refreshSchedule" and method == "GET":
+            return 200, dict(SCHEDULE), {}
+        return 404, _refusal("PowerBIEntityNotFound"), {}
+
+    def _dataflow(self, method: str, rest: str, sent: Any) -> Acted:
+        if not rest and method == "GET":
+            return 200, {"value": [dict(d) for d in DATAFLOWS]}, {}
+        part = re.fullmatch(r"/([^/]+)/(refreshes|transactions)", rest)
+        flow = next((d for d in DATAFLOWS if part and d["objectId"] == part.group(1)), None)
+        if part is None or flow is None:
+            return 404, _refusal("PowerBIEntityNotFound"), {}
+        if part.group(2) == "refreshes" and method == "POST":
+            if (sent or {}).get("notifyOption") not in ("NoNotification", "MailOnFailure"):
+                return 400, {"error": {"code": "InvalidRequest", "message": "notifyOption is required."}}, {}
+            self._serial += 1
+            self.transactions.setdefault(flow["objectId"], []).insert(
+                0, {"id": f"made-up-transaction-{self._serial:04d}", "refreshType": "ViaApi",
+                    "startTime": _now(), "endTime": None, "status": "InProgress"}
+            )  # fmt: skip
+            return 200, None, {}
+        if part.group(2) == "transactions" and method == "GET":
+            return 200, {"value": [dict(t) for t in self.transactions.get(flow["objectId"], [])]}, {}
+        return 404, _refusal("PowerBIEntityNotFound"), {}
+
+    def actions(self) -> list[dict[str, Any]]:
+        """Every action request received, in order: {"method", "path", "body"}."""
+        return [r for r in self.requests if r["what"] == "action"]
 
     def queries(self, dataset: str | None = None) -> list[str]:
         """Every DAX query received, in order (one dataset's, when named)."""

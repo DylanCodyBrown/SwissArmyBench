@@ -71,11 +71,15 @@ class BladeStore:
         folders_file: Path | None = None,
         pins_file: Path | None = None,
         packs: Callable[[], list[tuple[Path, str]]] | None = None,
+        starters: Path | None = None,
     ) -> None:
         self.folder = folder
         self.folders_file = folders_file
         # Installed packs' blades folders, with each pack's label: read-only blades from a marketplace.
         self._packs = packs or (lambda: [])
+        # The built-in starter pack (src/swissarmybench/starters/): read-only, shipped with the app, so a
+        # new version brings new starters; listed apart (starters()), found by name after the rest.
+        self.starters_folder = starters
         # Favourites: this person's own, so kept on this computer, never in a blade's file.
         self.pins_file = pins_file
         self._lock = threading.Lock()
@@ -120,6 +124,9 @@ class BladeStore:
             template=data.get("template"),
             description=str(data.get("description") or ""),
             tags=[str(t) for t in data.get("tags", []) if isinstance(t, str)],
+            language=str(data.get("language") or ""),
+            cell_name=str(data.get("cell_name") or ""),
+            family=str(data.get("family") or ""),
             created_at=float(data.get("created_at", 0)),
             updated_at=float(data.get("updated_at", 0)),
         )
@@ -252,24 +259,39 @@ class BladeStore:
                     if blade is not None:
                         found.append(blade)
         for root, label in self._packs():
-            for path in sorted(root.rglob("*.py")) if root.is_dir() else []:
-                try:
-                    stat = path.stat()
-                except OSError:
-                    continue
-                stamp = (stat.st_mtime_ns, stat.st_size)
-                cached = self._seen.get(str(path))
-                if cached is None or cached[0] != stamp:
-                    cached = (stamp, *self._load_file(path, stat.st_size, is_blade, read_blade))
-                    self._seen[str(path)] = cached
-                blade, problem = cached[1], cached[2]
-                if problem:
-                    problems.append({"path": str(path), "error": problem})
-                if blade is not None:
-                    blade.pack = label
-                    found.append(blade)
+            found += self._pack_files(root, label, problems)
         self.problems = problems
         return found
+
+    def _pack_files(self, root: Path, label: str, problems: list[dict[str, str]]) -> list[Blade]:
+        """Every blade file of a pack's folder (read again only when it changed), marked with the pack."""
+        found: list[Blade] = []
+        for path in sorted(root.rglob("*.py")) if root.is_dir() else []:
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            stamp = (stat.st_mtime_ns, stat.st_size)
+            cached = self._seen.get(str(path))
+            if cached is None or cached[0] != stamp:
+                cached = (stamp, *self._load_file(path, stat.st_size, is_blade, read_blade))
+                self._seen[str(path)] = cached
+            blade, problem = cached[1], cached[2]
+            if problem:
+                problems.append({"path": str(path), "error": problem})
+            if blade is not None:
+                blade.pack = label
+                found.append(blade)
+        return found
+
+    def starters(self) -> list[Blade]:
+        """The built-in starter pack's blades, by family then name (the families' order: FAMILIES)."""
+        if self.starters_folder is None:
+            return []
+        problems: list[dict[str, str]] = []
+        found = self._pack_files(self.starters_folder, rules.STARTERS, problems)
+        order = {family: i for i, family in enumerate(rules.FAMILIES)}
+        return sorted(found, key=lambda b: (order.get(b.family, len(order)), b.name.casefold()))
 
     @staticmethod
     def _load_file(path: Path, size: int, is_blade: Any, read_blade: Any) -> tuple[Blade | None, str | None]:
@@ -310,7 +332,7 @@ class BladeStore:
         blade = self._read(self._path(name))
         if blade is not None and blade.name.casefold() == name.casefold():
             return blade
-        for found in self._scan():
+        for found in [*self._scan(), *self.starters()]:
             if found.name.casefold() == name.casefold():
                 return found
         raise KeyError(name)
@@ -325,6 +347,8 @@ class BladeStore:
                     previous = self.get(previous_name)
                 except KeyError:
                     raise BladeError(f"No blade named {previous_name!r} to change.") from None
+            if previous is not None and previous.pack == rules.STARTERS:
+                raise BladeError(f"{previous.name} is a starter (read-only): copy it as your own to change.")
             if previous is not None and previous.pack:
                 raise BladeError(
                     f"{previous.name} comes from the pack {previous.pack}: change it in that pack's "
@@ -364,6 +388,8 @@ class BladeStore:
     def remove(self, name: str) -> None:
         with self._lock:
             blade = self.get(name)
+            if blade.pack == rules.STARTERS:
+                raise BladeError(f"{blade.name} is a starter: it comes with the app and stays.")
             if blade.pack:
                 raise BladeError(
                     f"{blade.name} comes from the pack {blade.pack}. Uninstall or disable the pack in Claude "

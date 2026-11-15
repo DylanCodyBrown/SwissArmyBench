@@ -154,6 +154,8 @@ def bootstrap(
         folders_file=state_dir / "blade_folders.json",
         pins_file=state_dir / "blade_pins.json",
         packs=pack_files.blade_dirs,
+        # The built-in starter pack ships inside the package, so each version brings its own.
+        starters=Path(__file__).resolve().parent / "starters",
     )
     verifier = Verifier(settings.duckdb_memory_limit)
 

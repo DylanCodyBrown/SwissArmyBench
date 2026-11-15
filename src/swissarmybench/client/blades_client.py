@@ -126,10 +126,13 @@ def blade(name: str) -> Any:
     """Run a saved blade in this Python and return what it makes (its variable).
 
     A vault blade sets its environment variables and returns their names; a secret blade asks for any
-    of its values this Python does not have yet (none on a second use) and returns their names. Other
-    blades first run the vault blades and ask for the secret-blade values their code needs.
+    of its values this Python does not have yet (none on a second use) and returns their names; a
+    snippet gives its text. Other blades first run the vault blades and ask for the secret-blade values
+    their code needs.
     """
     spec = _call("GET", f"/blades/{_quote(name)}/python")
+    if spec["kind"] == "snippet":
+        return str(spec["code"])  # text for a cell, with its <<name>> placeholders: nothing to run
     if spec["kind"] == "secret":
         _ask(list(spec["env_names"]), str(spec["name"]))
         return list(spec["env_names"])
