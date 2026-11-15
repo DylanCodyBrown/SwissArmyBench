@@ -528,7 +528,10 @@ Real use finds what tests miss, so the app is built to be reported on, and every
   and the last actions by name. A picture of the window is attached only when the user ticks it, and
   the box says it shows their data.
 - **One way back.** The log and the notes leave as one zip the user sends, and the agent can read the
-  same redacted log through its commands (section 10). A beta tool is temporary: a switch removes it.
+  same redacted log through its commands (section 10).
+- **One switch: Beta mode.** The log and the notes turn on and off together, from Settings, a menu, the
+  palette or the agent, and the choice lasts across restarts. Off costs nothing: no log, no menu item, no
+  listener. It can be turned back on whenever a new round of testing needs it.
 - **A sweep before every release.** Before a release goes out, look for dead code, leftover bloat and
   anything made slower, and remove or fix it. Not new tests: a read of what the release actually ships.
 
