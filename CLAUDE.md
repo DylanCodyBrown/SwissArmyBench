@@ -36,7 +36,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
-  `{{ name }}` filled from the kernel), the Analyze menu, the Sandbox, compare's diff and tie-out,
+  `{{ name }}` filled from the kernel), Streamlit cells (each a piece, live in its cell; pushed to the
+  page designer's pages and linked by shared names; Export as Streamlit app), the Analyze menu, the Sandbox, compare's diff and tie-out,
   and Copy code on analysis results (the analysis as Python, on the clipboard). Not built: M9 (sandbox)
   and the Jupyter display hook (the plan's "parallel extras").
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
@@ -105,6 +106,10 @@ src/swissarmygrid/
                          (among the words, in a <script>, in a tag), so data never becomes markup or
                          script; a script's `# %% [7] [html] height=320` cell (the HTML as one string
                          that does nothing); the design frame's Content-Security-Policy
+    streamlit_cells.py   Streamlit cells: a piece (what it makes and reads, by ast), pages and the pieces
+                         placed on them (12 columns), the run order (a cycle said), a page as ONE
+                         Streamlit page (slots first, pieces in name order, widget keys of their own),
+                         the tables' preamble, a script's `# %% [streamlit-pages]` block, the export
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name); where a SQL error points
@@ -138,6 +143,8 @@ src/swissarmygrid/
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
+    streamlit.py         a document's Streamlit app: its pieces and pages, run (the tables it names as
+                         Parquet in a temporary folder), each piece's state, install, export
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
@@ -158,6 +165,7 @@ src/swissarmygrid/
     codegen.py           runs copied code and compares it with the grid
     export.py            CSV, Excel and Parquet writers; the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
+    streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
@@ -169,13 +177,17 @@ src/swissarmygrid/
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, folders, workbench, table_cells). Every route serves
+                         processes, snapshots, packs, connections, folders, workbench, table_cells, streamlit). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmygrid`
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
+    streamlit_apps.py    a notebook's Streamlit process: `streamlit run` in the notebook's own Python,
+                         127.0.0.1 only, ended with the server (Streamlit is never the app's dependency)
+    streamlit_proxy.py   the live Streamlit pages passed through this server under the app's own secret
+                         (its websocket too), so a page's frame policy stays `frame-src 'self'`
     blade_templates.py   the 39 starter blades (3 analyses; a Power BI dataset: code that signs in and
                          sends DAX, shaped like a database connection)
 
@@ -196,7 +208,7 @@ src/swissarmygrid/
   cli/                   the agent command layer: commands.py (the one registry of every page action,
                          named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
                          agent), main.py (the `sag` terminal command; `sag pack new` runs here, no server)
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (188 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (210 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -237,6 +249,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          numbers and @cell links are drawn in workbenchNotebook.ts and workbenchScript.ts;
                          workbenchHtml.ts (HTML cells: the design's pane that resizes, its sandboxed
                          frame, the names filled by the server's rules, the out-of-date state)
+                         workbenchStreamlit.ts (Streamlit cells: a document's app, a piece's state and
+                         tools, Push to page); designerPage.ts is the page designer (static/designer.html,
+                         its own window: pages as tabs, a 12-column board, the page live under it; with
+                         view=app the whole app alone)
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/static/              index.html, grid.css (all theme tokens), build/ (gitignored); design.html is the

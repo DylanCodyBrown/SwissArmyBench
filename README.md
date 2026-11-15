@@ -43,6 +43,13 @@ What a grid page does:
   the app and nothing loads from the internet. `{{ total }}` is filled with a Python variable when
   the cell runs (a value as text, a table as its first 50 rows); such a cell turns yellow (Out of
   date · Run) when its HTML or a variable it names changes. In a notebook file it is a `%%html` cell.
+- **Streamlit cells:** build a Streamlit app from small pieces. A Streamlit cell is a piece (a filter,
+  a number, a chart, a table) and shows live in its cell; any open table is there by name as a
+  DataFrame. **Push to page** sends it to the **page designer**, a window where pieces are dropped,
+  moved and resized on a 12-column board, on as many pages as you like, each shown live. A piece that
+  makes a name (`region = st.selectbox(...)`) drives every piece on the page that reads it. **Export
+  as Streamlit app** writes a folder that runs on its own (`streamlit run app.py`). Streamlit runs in
+  the notebook's own Python and is not installed with the app.
 - **New table from a query:** the **+** after the last tab opens a SQL tray over a blank grid.
   A table name reads that table as its tab shows it (after its steps); Run turns the result into a
   table of its own, with every tool a pushed table has. The tray stays on the tab, so Run again
@@ -493,7 +500,7 @@ It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turn
 
 ## The agent commands: `sag` and the MCP server
 
-**The golden rule: everything you can do, the agent can do too** (188 commands, each an MCP tool):
+**The golden rule: everything you can do, the agent can do too** (210 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
@@ -501,7 +508,7 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 188 of
+Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 210 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),

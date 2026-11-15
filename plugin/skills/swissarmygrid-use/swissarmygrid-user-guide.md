@@ -525,6 +525,73 @@ H in a notebook's command mode.
   and can fill a design without the window (`workbench_run` with kind html, `workbench_html_fill`,
   `workbench_html_marks`).
 
+### Streamlit cells: pieces, assembled on pages
+
+Build a Streamlit app from small pieces. A **Streamlit cell** is a piece: a filter, a number, a
+chart, a table. You build each one in its own cell, see it live there, then push it to a page and
+arrange the page like Lego.
+
+- **Add one:** the toolbar's **Streamlit** button, the kind picker, the palette, or **T** in command
+  mode. Write Python that draws with `st.*`; `st` and `pd` are already there. The first comment line
+  is the piece's name:
+
+  ```python
+  # Region filter
+  region = st.selectbox("Region", sorted(orders["region"].unique()))
+  ```
+
+- **Your tables are there by name.** Any table open in the grid (`orders`) is a DataFrame in the
+  piece: the table after its grid steps. Other Python variables are not shared: a piece runs in the
+  notebook's Streamlit app, not in its kernel.
+- **Run it** (Ctrl+Enter in the cell, its Run button, or Run all). The first run starts Streamlit,
+  which takes a few seconds. Then the cell shows the piece live, with working widgets, in a pane you
+  can resize; click the cell's head (or press Enter) to see the code again.
+- **Pieces talk by shared names.** A piece that makes a name (`region` above) drives every piece
+  that reads it:
+
+  ```python
+  # Total
+  st.metric("Total", int(orders[orders["region"] == region]["amount"].sum()))
+  ```
+
+  The cell's head says what each piece makes and reads. Alone in its cell, a piece is shown with the
+  piece that makes its inputs above it, so it still works.
+- **Push to page** (on the cell, or the palette) sends the piece to a page: pick one, or New page.
+  The cell then names the pages it is on; click a name to open the page designer there.
+- **The page designer** is a window of its own (also in the toolbar's **Streamlit app** menu). Pages
+  are tabs: New page, double-click a tab to rename it, × to remove it. The pieces are listed at the
+  left: drag one onto the board, or use its Add. On the board, drag a piece to move it and drag its
+  corner to resize it (12 columns across; a double-click on the corner fits its height). With the
+  keyboard: the arrow keys move the piece that has the focus, Delete takes it off the page, and the
+  arrow keys on its corner resize it. Pieces flow left to right, a row holding as many as fit, so a
+  filter can sit anywhere: under the numbers it drives, say. The page itself shows live under the
+  board and follows every change.
+- **Out of date.** When a piece's code changes, or a table it names changes in the grid (a new step,
+  its cell run again), the piece turns yellow: "Out of date · orders changed", with Run. The
+  designer's Run button says the same. Nothing runs by itself; Run reads the tables again and
+  refreshes every page. Widgets keep what they hold.
+- **Streamlit is not installed with SwissArmyGrid.** It runs in the notebook's own Python (its
+  environment). If that Python lacks it, the cell says so and offers **Install** (streamlit, pandas
+  and pyarrow, into that environment).
+- **Open app** (the designer, or the Streamlit app menu) shows the whole app in its own window, its
+  pages listed at the side.
+- **Export as Streamlit app** (the Streamlit app menu, the designer's Export, the palette) writes the
+  designed pages into a folder you pick: `app.py`, a module for each page in `app_pages/`, the
+  tables they use in `data/` (as Parquet, after their steps), `requirements.txt` and `README.txt`.
+  It runs anywhere with `pip install -r requirements.txt` and `streamlit run app.py`.
+- **Where things are kept.** The pages are saved inside the notebook's file. In a `.ipynb` a
+  Streamlit cell is a code cell whose first line is `# %% [streamlit]`. In a script it is a
+  `# %% [streamlit]` cell of plain Python, and the pages are a `# %% [streamlit-pages]` block of
+  comments; with the cursor elsewhere the piece shows live under its marker.
+- **Private.** The Streamlit process listens on this computer only, and stops when the notebook
+  closes. Its pages reach the window through SwissArmyGrid's own server, in a walled-off frame.
+- **The agent** adds a piece (`workbench_streamlit_add`), reads them (`workbench_streamlit_cells`),
+  runs the app (`workbench_streamlit_run`), pushes a piece (`workbench_streamlit_push`), and works
+  the pages by the app's id: `streamlit_app` (pieces, pages, layouts), `streamlit_page_add`,
+  `streamlit_page_change`, `streamlit_page_remove`, `streamlit_piece_push`, `streamlit_piece_place`
+  (move, resize), `streamlit_piece_remove`, `streamlit_run`, `streamlit_address`,
+  `streamlit_export`. `streamlit_open` opens a saved notebook's app without the window.
+
 ## Code to your Python
 
 **Copy code** (on any analysis result) copies the analysis as Python to the clipboard, its imports first. Paste it into Jupyter or any Python; nothing runs until you run it.

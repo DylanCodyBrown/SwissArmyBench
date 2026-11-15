@@ -1177,7 +1177,7 @@ building; confirm or change:
   through Execute Queries for a sign-in with only Build permission is not known (hence the
   COLUMNSTATISTICS fallback). Datasets with row-level security do not take a service principal.
 
-## Streamlit cells (2026-11-15, the owner's calls)
+## Streamlit cells (2026-11-15, the owner's calls; built)
 
 "I also use the app to develop streamlit applications. So it would be cool if we could create a
 streamlit cell in the notebook so I can build streamlit widgets/pages from the data." Decided:
@@ -1202,6 +1202,74 @@ streamlit cell in the notebook so I can build streamlit widgets/pages from the d
   layout, the data as Parquet, requirements.txt).
 - Streamlit runs from the notebook's own Python (installed with Install, like a driver); it is not a
   dependency of the app. Built after the Power BI connection, before the real-world test bed.
+
+**Built (2026-11-15). Decided while building** (each can be changed):
+
+- **The cell in a file.** In a notebook a Streamlit cell is a code cell whose first line is the comment
+  `# %% [streamlit]`; the rest is plain Python. A comment was chosen over a magic so plain Jupyter runs
+  the cell as it is (with `import streamlit as st` it draws nothing and fails nothing). In a script it
+  is `# %% [7] [streamlit] height=320`, then plain Python. Its first comment line is the piece's name
+  (`# Region filter`); without one it is "Piece N" (N: the cell's own number). A page is named by the
+  user ("Page N" until then): the cell names the piece, not the page, now that a page holds many.
+- **A piece runs in the notebook's Streamlit app, never in the kernel.** Run all, Run file and the
+  agent's `workbench_run_notebook` leave its lines out and run the app once instead. So a piece sees
+  the open tables and the names other pieces make, and nothing else of the kernel (the owner's rule).
+- **Pages are saved inside the notebook file** (to confirm): in its metadata
+  (`swissarmygrid.streamlit.pages`: each page's id, name and pieces, a piece by its cell's number
+  with its width and height). A script keeps them in a `# %% [streamlit-pages]` block: comments
+  only, one page a line as JSON, so the file is still Python.
+- **The board:** 12 columns; a piece is 2 to 12 wide (6 when pushed) and as tall as what it draws,
+  or 1 to 30 rows of 40 pixels. Pieces flow left to right in their order, a row holding as many as
+  fit, so "move" is a place in that order and the filter goes below the total by coming after it.
+  The page designer draws the board as cards (name, cell, what it makes and reads, its size) and the
+  page itself live under it, as ONE Streamlit page: pieces in separate frames could not share a name.
+- **Shared names:** by Python's own parser, as table cells read code. The first placed piece that
+  makes a name is its maker. A cycle is written on the page, in each piece's slot ("Total and Filter
+  need each other's names (region, total): no order runs them"), and listed in the page's problems.
+  A piece that reads a name made only by a piece that is not on the page says "push that piece here
+  too". A piece that fails shows its error in its own slot; the others still run.
+- **A piece alone, in its cell,** is shown with the pieces that make the names it reads above it
+  (each under a line "region comes from the piece in cell 2"), so its widgets and links work there.
+- **Widget keys:** each widget call without a key gets `key="<placed id>_<n>"`, written into the code
+  by position (the text is otherwise as typed); two copies of one piece on a page do not clash.
+- **Tables:** every table open in the grid, under its name as a Python variable, after its grid's
+  steps (a sort made by clicking a header is a way of looking, not a step). Each run writes the
+  tables the pages name as Parquet into the app's temporary folder, a table again only when it
+  changed; the page's first lines read them (`st.cache_data`, keyed by the file's time).
+- **Out of date** is the server's word: a piece's code against the code that last ran (the uses line
+  never counts), and a mark of each table it names (name, version, steps) against the mark when it
+  last ran. Nothing runs by itself; Run refreshes the data and every page. A piece keeps what its
+  widgets hold through a run.
+- **One process a document,** in the document's own Python (its environment; else this app's):
+  `streamlit run` on a temporary folder (`swissarmygrid-streamlit-*`), `--server.address=127.0.0.1`,
+  a free port, headless, usage statistics off. It is started through a few lines that watch this
+  server and end with it. It stops when the document closes, its kernel stops, its Workbench window
+  has been gone a minute, or the server stops; the folder goes with it.
+- **The live pages come through the app's own server** (the proxy, not a wider frame policy):
+  `/streamlit/live/<app>-<secret>/...`, Streamlit's files and its websocket, with Streamlit given
+  that path as its base. Chosen because the Workbench's policy stays `frame-src 'self'`, the port
+  never reaches a page, and the Host check still applies. The secret is random, made when the app
+  opens, and is not the server's token (an address cannot carry a header, and the token never goes
+  into an address). The frames are sandboxed without the app's origin (as an HTML cell's design), so
+  a page cannot read the app's token or storage; the app in its own window is such a frame too.
+- **Streamlit missing:** the cell says which packages the document's Python lacks, with Install
+  (streamlit, pandas, pyarrow into that Python: uv when it is there, else pip). Not installed for
+  the user unasked, and never added to the app's dependencies.
+- **Export** (the Streamlit app menu, the designer's Export, the palette, `streamlit_export`):
+  `app.py` (`st.navigation` over the pages), `app_pages/<page>.py` for each page as designed,
+  `data/<table>.parquet`, `requirements.txt` (streamlit, pandas, pyarrow and what the pieces import,
+  the standard library left out) and `README.txt`. Its own files are replaced; nothing else in the
+  folder is touched. It runs without SwissArmyGrid.
+- **The agent:** 22 commands (210 in all). In the window: `workbench_streamlit_add`, `_cells`, `_run`,
+  `_push`, `_resize`, `_designer`. By the app's id: `streamlit_apps`, `_open` (a saved file's app,
+  without the window), `_app` (pieces, pages and layouts), `_sync`, `_run`, `_address`, `_stop`,
+  `_close`, `_install`, `_export`, `_page_add`, `_page_change`, `_page_remove`, `_piece_push`,
+  `_piece_place`, `_piece_remove`.
+- **Keys:** T in command mode makes the cell a Streamlit cell (S and H were taken).
+- **Left open:** a piece's pane does not fit its own height (the page is another origin: it cannot
+  say); it starts at 220 pixels and resizes. The designer has no drag to reorder pages (the agent's
+  `streamlit_page_change` moves one). A script's uses line and a notebook's apply to a piece as to
+  any cell (only for a table whose cell the document holds).
 
 ## A starter pack of blades (2026-11-15, the owner's calls)
 
