@@ -13,6 +13,11 @@
  *             page live, in place (a frame of this server's, sandboxed without the app's origin).
  *             Edit goes back to the blocks. When a linked cell's code, a table it reads or the layout
  *             changes, the page says "Out of date · Play". Nothing runs by itself
+ *   [APP]     App mode (2026-11-15): a click selects a block (its outline violet) and Properties shows it;
+ *             its wiring is drawn over the board (violet arrows from it to each block that reads what
+ *             it makes). Edit's tools: undo, redo, align, duplicate, zoom. Play's: Desktop, Tablet or
+ *             Phone, and Light or Dark for the app only. The page settings (title, icon, layout, logo,
+ *             theme colours) are the app's and saved in its file
  *   [SAVE]    the canvas's file holds pages, blocks, links and places: no code. Export… writes an app
  *             that runs alone (the data as Parquet); Save as… zips the project (data.py, pages/*.py,
  *             the sources): no rows
@@ -25,8 +30,10 @@
 import { agentApi, api, ApiError } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
+import { effectiveTheme } from "./theme";
 import { FRAME_SANDBOX } from "./workbenchHtml";
-import { type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages } from "./workbenchStreamlit";
+import { menuButton } from "./workbenchMenu";
+import { type AppSettings, type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages, type SessionRow } from "./workbenchStreamlit";
 
 const COLUMNS = 12;
 const GAP = 8;
@@ -51,7 +58,16 @@ export interface CanvasHost {
   save: () => Promise<boolean>;
   /** The canvas was drawn again (its state, or Play starting): the status bar follows. */
   drew: () => void;
+  /** A block was selected (null: none): Properties follows. */
+  selected?: (block: string | null) => void;
+  /** A starter dropped on the board (from the Data panel's Starters): written into a cell, then placed. */
+  starter?: (name: string, where: { row: number; column: number; insert?: boolean } | undefined) => void;
 }
+
+export type Device = "desktop" | "tablet" | "phone";
+export type Align = "left" | "centre" | "right" | "full";
+/** A starter's drag (the Data panel's Starters gallery): its name. */
+export const STARTER_DRAG = "application/x-swissarmybench-starter";
 
 export interface CanvasView {
   element: HTMLElement;
@@ -83,17 +99,55 @@ export interface CanvasView {
   /** What it shows, for the agent. */
   report: () => unknown;
   close: () => void;
+  // ----- App mode
+  /** The selected block (null: none, so Properties shows the page settings). */
+  selected: () => BlockState | null;
+  select: (block: string | null) => void;
+  /** The page in front. */
+  page: () => CanvasPage | null;
+  /** The blocks on the page that read what this block makes. */
+  feeds: (block: string) => BlockState[];
+  /** Move or size a block of the page in front. */
+  changeBlock: (block: string, body: Record<string, unknown>) => Promise<boolean>;
+  settings: () => AppSettings;
+  setSettings: (changed: Record<string, unknown>) => Promise<boolean>;
+  /** What the live page's session holds (the State panel). */
+  session: () => Promise<SessionRow[]>;
+  /** Start the live page again with a fresh session. */
+  resetState: () => void;
+  undo: () => Promise<boolean>;
+  redo: () => Promise<boolean>;
+  duplicate: (block?: string) => Promise<boolean>;
+  align: (how: Align, block?: string) => Promise<boolean>;
+  /** The board's zoom, in per cent (50 to 150). */
+  zoom: (percent?: number) => number;
+  /** Play's preview: the device's width, and Light or Dark for the app only (null: as the Workbench). */
+  preview: (device?: Device, theme?: "light" | "dark" | null) => { device: Device; theme: "light" | "dark" | null };
 }
 
-export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
+export const DEFAULT_SETTINGS: AppSettings = { title: "", icon: "", layout: "wide", logo: "", colours: {} };
+
+/** The pages and the page settings as the file keeps them: a change to either is unsaved. */
+function signatureOf(pages: (CanvasPage | SavedPage)[], settings: AppSettings): string {
+  return JSON.stringify({ pages: savedPages(pages).map(({ name, blocks }) => ({ name, blocks: blocks.map(({ id: _, ...rest }) => rest) })), settings });
+}
+
+export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettings: AppSettings = DEFAULT_SETTINGS): CanvasView {
   let state: CanvasState | null = null;
+  let selectedId: string | null = null;
+  let zoomed = 100;
+  let device: Device = "desktop";
+  let previewTheme: "light" | "dark" | null = null;
+  let freshSession = 0; // Reset state: the live page is opened again with a new session
+  const undos: SavedPage[][] = [];
+  const redos: SavedPage[][] = [];
   let id: string | null = null;
   let opening: Promise<string> | null = null;
   let pageId: string | null = null;
   let mode: "edit" | "live" = "edit";
   let busy = false;
   let gone = false;
-  let kept = JSON.stringify(savedPages(initial).map(({ name, blocks }) => ({ name, blocks: blocks.map(({ id: _, ...rest }) => rest) })));
+  let kept = signatureOf(initial, initialSettings);
   let frame: HTMLIFrameElement | null = null;
   let shown: string | null = null;
   let refocus: string | null = null; // the block (or its grip) the keyboard was on before a change
@@ -105,7 +159,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
   const live = h("div", { class: "cv-live" });
   const element = h("div", { class: "cv", tabindex: -1 }, top, notes, board, live);
 
-  const signature = (pages: (CanvasPage | SavedPage)[]): string => JSON.stringify(savedPages(pages).map(({ name, blocks }) => ({ name, blocks: blocks.map(({ id: _, ...rest }) => rest) })));
+  const signature = (pages: (CanvasPage | SavedPage)[]): string => signatureOf(pages, state?.settings ?? initialSettings);
   const current = (): CanvasPage | null => state?.pages.find((p) => p.id === pageId) ?? null;
   const base = (): string => `/streamlit/apps/${encodeURIComponent(id ?? "")}`;
 
@@ -124,7 +178,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     if (!opening) {
       const pages = state ? savedPages(state.pages) : initial;
       const was = kept;
-      opening = api<CanvasState>("/streamlit/apps", "POST", { canvas: true, title: host.title(), document: host.path(), window: host.window, pages })
+      opening = api<CanvasState>("/streamlit/apps", "POST", { canvas: true, title: host.title(), document: host.path(), window: host.window, pages, settings: state?.settings ?? initialSettings })
         .then((made) => {
           id = made.app;
           if (gone) void api(`/streamlit/apps/${made.app}`, "DELETE").catch(() => undefined);
@@ -151,10 +205,17 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     }
   }
 
-  /** A change of the layout: sent, and the state that comes back drawn. */
+  /** A change of the layout: sent, and the state that comes back drawn. Undo can take it back. */
   async function change(path: string, method: string, body?: unknown): Promise<(CanvasState & { page?: string; block?: string }) | null> {
+    const before = state ? savedPages(state.pages) : null;
     try {
-      return await call(path, method, body);
+      const done = await call(path, method, body);
+      if (before) {
+        undos.push(before);
+        if (undos.length > 50) undos.shift();
+        redos.length = 0;
+      }
+      return done;
     } catch (e) {
       toast((e as Error).message, "error");
       return null;
@@ -357,7 +418,215 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
         }), { icon: "plus", class: "ghost cv-new-page" }),
       ),
     );
-    clear(tools, modes, exportButton, saveAsButton);
+    clear(tools, modes, ...(mode === "live" ? previewTools() : editTools()), exportButton, saveAsButton);
+  }
+
+  // ===== App mode: Edit's tools, Play's preview =====
+
+  function editTools(): HTMLElement[] {
+    const page = current();
+    const undoButton = button("Undo", () => void undo(), { icon: "undo", iconOnly: true, class: "ghost cv-undo", title: "Undo (Ctrl+Z)" });
+    const redoButton = button("Redo", () => void redo(), { icon: "redo", iconOnly: true, class: "ghost cv-redo", title: "Redo (Ctrl+Shift+Z)" });
+    undoButton.disabled = !undos.length;
+    redoButton.disabled = !redos.length;
+    const alignButton = h("button", { type: "button", class: "btn ghost cv-align", "aria-label": "Align", title: selectedId ? "Align the selected block" : "Select a block to align it" }, icon("align"), icon("down")) as HTMLButtonElement;
+    alignButton.disabled = !selectedId;
+    menuButton(alignButton, "Align", () => [
+      { label: "Left edge", run: () => void align("left") },
+      { label: "Centre", run: () => void align("centre") },
+      { label: "Right edge", run: () => void align("right") },
+      { label: "Full width", run: () => void align("full") },
+    ]);
+    const duplicateButton = button("Duplicate", () => void duplicate(), { icon: "duplicate", iconOnly: true, class: "ghost cv-duplicate", title: selectedId ? "Duplicate the selected block" : "Select a block to duplicate it" });
+    duplicateButton.disabled = !selectedId || !page;
+    const zoomOut = button("Zoom out", () => zoom(zoomed - 10), { icon: "minus", iconOnly: true, class: "ghost" });
+    const zoomIn = button("Zoom in", () => zoom(zoomed + 10), { icon: "plus", iconOnly: true, class: "ghost" });
+    const percent = h("button", { type: "button", class: "btn ghost cv-zoom-level", title: "Zoom: back to 100%", onclick: () => zoom(100) }, `${zoomed}%`);
+    return [
+      h("span", { class: "cv-group", role: "group", "aria-label": "Undo and redo" }, undoButton, redoButton),
+      h("span", { class: "cv-group", role: "group", "aria-label": "Arrange" }, alignButton, duplicateButton),
+      h("span", { class: "cv-group cv-zoom", role: "group", "aria-label": "Zoom" }, zoomOut, percent, zoomIn),
+    ];
+  }
+
+  function previewTools(): HTMLElement[] {
+    const pick = (label: string, ic: string, on: boolean, run: () => void): HTMLButtonElement => button(label, run, { icon: ic, pressed: on, class: `cv-preview-${label.toLowerCase()}` });
+    const devices = h(
+      "span",
+      { class: "cv-mode cv-devices", role: "group", "aria-label": "Preview size" },
+      pick("Desktop", "desktop", device === "desktop", () => preview("desktop")),
+      pick("Tablet", "tablet", device === "tablet", () => preview("tablet")),
+      pick("Phone", "phone", device === "phone", () => preview("phone")),
+    );
+    const shown = previewTheme ?? (effectiveTheme().endsWith("dark") ? "dark" : "light");
+    const themes = h(
+      "span",
+      { class: "cv-mode cv-themes", role: "group", "aria-label": "The app's theme" },
+      pick("Light", "sun", shown === "light", () => preview(undefined, "light")),
+      pick("Dark", "moon", shown === "dark", () => preview(undefined, "dark")),
+    );
+    return [devices, themes];
+  }
+
+  // ===== App mode: selection, wiring, undo, align, duplicate, zoom, settings, state =====
+
+  function select(block: string | null, redraw = true): void {
+    if (selectedId === block) return;
+    selectedId = block;
+    if (redraw) {
+      refocus = block;
+      drawTop();
+      drawBoard();
+    } else {
+      for (const el of board.querySelectorAll(".cv-block")) {
+        const on = (el as HTMLElement).dataset.block === block;
+        el.classList.toggle("selected", on);
+        el.setAttribute("aria-selected", String(on));
+      }
+      drawTop();
+      drawWires();
+    }
+    host.selected?.(block);
+  }
+
+  function feeds(block: string): BlockState[] {
+    const page = current();
+    const from = page?.blocks.find((b) => b.id === block);
+    if (!page || !from || !from.makes.length) return [];
+    return page.blocks.filter((b) => b.id !== block && [...b.reads, ...b.tables].some((name) => from.makes.includes(name)));
+  }
+
+  /** The selected block's wiring: a violet arrow to each block that reads what it makes, the names it
+   *  makes in a chip under it, and its width. */
+  function drawWires(): void {
+    board.querySelector(".cv-wires")?.remove();
+    for (const old of board.querySelectorAll(".cv-wire-label")) old.remove();
+    const page = current();
+    const from = page?.blocks.find((b) => b.id === selectedId);
+    if (!from || mode !== "edit") return;
+    const source = board.querySelector<HTMLElement>(`.cv-block[data-block="${from.id}"]`);
+    if (!source) return;
+    const base = board.getBoundingClientRect();
+    const scale = zoomed / 100;
+    const at = (el: HTMLElement): DOMRect => el.getBoundingClientRect();
+    const x = (v: number): number => (v - base.left) / scale + board.scrollLeft;
+    const y = (v: number): number => (v - base.top) / scale + board.scrollTop;
+    const s = at(source);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "cv-wires");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("width", String(board.scrollWidth));
+    svg.setAttribute("height", String(board.scrollHeight));
+    svg.innerHTML = '<defs><marker id="cv-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>';
+    const sx = x(s.left + s.width / 2);
+    const sy = y(s.bottom);
+    for (const target of feeds(from.id)) {
+      const el = board.querySelector<HTMLElement>(`.cv-block[data-block="${target.id}"]`);
+      if (!el) continue;
+      const t = at(el);
+      const tx = x(t.left + t.width / 2);
+      const above = t.bottom <= s.top + 2;
+      const ty = above ? y(t.bottom) : y(t.top);
+      const bend = Math.max(30, Math.abs(ty - sy) / 2);
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M${sx},${sy} C${sx},${sy + bend} ${tx},${above ? ty + bend : ty - bend} ${tx},${ty}`);
+      path.setAttribute("marker-end", "url(#cv-arrow)");
+      path.dataset.to = target.id;
+      svg.append(path);
+    }
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", String(sx));
+    dot.setAttribute("cy", String(sy));
+    dot.setAttribute("r", "4");
+    svg.append(dot);
+    board.append(svg);
+    const label = h(
+      "div",
+      { class: "cv-wire-label", style: { left: `${x(s.left)}px`, top: `${y(s.bottom) + 6}px` } },
+      h("span", { class: "cv-wire-size" }, `${from.w} of ${COLUMNS}`),
+      ...from.makes.map((name) => h("span", { class: "cv-wire-name mono" }, name)),
+    );
+    board.append(label);
+  }
+
+  async function replacePages(pages: SavedPage[]): Promise<boolean> {
+    if (!id) return false;
+    try {
+      await call("", "PUT", { pages });
+      return true;
+    } catch (e) {
+      toast((e as Error).message, "error");
+      return false;
+    }
+  }
+
+  async function undo(): Promise<boolean> {
+    const back = undos.pop();
+    if (!back || !state) return false;
+    redos.push(savedPages(state.pages));
+    return replacePages(back);
+  }
+
+  async function redo(): Promise<boolean> {
+    const again = redos.pop();
+    if (!again || !state) return false;
+    undos.push(savedPages(state.pages));
+    return replacePages(again);
+  }
+
+  const blockOf = (block?: string): { page: CanvasPage; block: BlockState } => {
+    const page = current();
+    const found = page?.blocks.find((b) => b.id === (block ?? selectedId));
+    if (!page || !found) throw new Error("Select a block first.");
+    return { page, block: found };
+  };
+
+  async function duplicate(block?: string): Promise<boolean> {
+    const { page, block: from } = blockOf(block);
+    const done = await change(`/pages/${page.id}/blocks`, "POST", { document: from.document, cell: from.cell, w: from.w });
+    if (!done) return false;
+    if (from.h !== null && done.block) await call(`/pages/${page.id}/blocks/${done.block}`, "PATCH", { h: from.h });
+    if (done.block) select(done.block);
+    return true;
+  }
+
+  async function align(how: Align, block?: string): Promise<boolean> {
+    const { page, block: b } = blockOf(block);
+    const place = how === "full" ? { column: 1, w: COLUMNS } : { column: how === "left" ? 1 : how === "right" ? COLUMNS - b.w + 1 : Math.floor((COLUMNS - b.w) / 2) + 1 };
+    if (place.column === b.column && (how !== "full" || b.w === COLUMNS)) return true;
+    refocus = b.id;
+    if (how === "full") return !!(await change(`/pages/${page.id}/blocks/${b.id}`, "PATCH", { row: b.row, column: 1 })) && !!(await change(`/pages/${page.id}/blocks/${b.id}`, "PATCH", { w: COLUMNS }));
+    return !!(await change(`/pages/${page.id}/blocks/${b.id}`, "PATCH", { row: b.row, column: place.column }));
+  }
+
+  function zoom(percent?: number): number {
+    if (percent !== undefined) {
+      zoomed = Math.max(50, Math.min(150, Math.round(percent / 10) * 10));
+      drawTop();
+      drawBoard();
+    }
+    return zoomed;
+  }
+
+  function preview(next?: Device, theme?: "light" | "dark" | null): { device: Device; theme: "light" | "dark" | null } {
+    if (next) device = next;
+    if (theme !== undefined) previewTheme = theme;
+    if (next || theme !== undefined) {
+      shown = null; // the frame is opened again in its new size or theme
+      drawTop();
+      drawLive();
+    }
+    return { device, theme: previewTheme };
+  }
+
+  async function setSettings(changed: Record<string, unknown>): Promise<boolean> {
+    try {
+      await call("/settings", "PUT", changed);
+      return true;
+    } catch (e) {
+      toast((e as Error).message, "error");
+      return false;
+    }
   }
 
   // ===== what needs the user: the app's problem, the page's problems =====
@@ -446,7 +715,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       "article",
       {
         // A left edge in its source document's kind colour (notebook blue, script green).
-        class: `cv-block km-${kindOfPath(block.document) ?? "notebook"} ${block.missing ? "gone" : ""} ${stale ? "stale" : ""}`,
+        class: `cv-block km-${kindOfPath(block.document) ?? "notebook"} ${block.missing ? "gone" : ""} ${stale ? "stale" : ""} ${block.id === selectedId ? "selected" : ""}`,
+        "aria-selected": String(block.id === selectedId),
         role: "listitem",
         tabindex: 0,
         draggable: "true",
@@ -472,6 +742,17 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       size,
       grip,
     );
+    // A click selects it: Properties shows it, its wiring is drawn.
+    element.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest("button")) return;
+      select(block.id);
+    });
+    element.addEventListener("keydown", (e) => {
+      if (e.target === element && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        select(block.id);
+      }
+    });
     // Move: drag the block, or the arrow keys on it.
     element.addEventListener("dragstart", (e) => {
       if ((e.target as HTMLElement).closest(".cv-grip")) return e.preventDefault();
@@ -565,6 +846,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       const byId = new Map(page.blocks.map((b) => [b.id, b]));
       clear(board, ...page.rows.map((row) => h("div", { class: "cv-row" }, ...row.map((blockId) => card(page, byId.get(blockId)!)))));
     }
+    board.style.setProperty("zoom", String(zoomed / 100));
+    drawWires();
     if (refocus) {
       const [blockId, part] = refocus.split(":");
       const found = board.querySelector<HTMLElement>(`.cv-block[data-block="${blockId}"]`);
@@ -575,7 +858,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
 
   board.addEventListener("dragover", (e) => {
     const types = e.dataTransfer?.types ?? [];
-    if (!types.includes(BLOCK_DRAG) && !types.includes(CELL_DRAG)) return;
+    if (!types.includes(BLOCK_DRAG) && !types.includes(CELL_DRAG) && !types.includes(STARTER_DRAG)) return;
     e.preventDefault();
     const w = types.includes(BLOCK_DRAG) ? (dragged?.w ?? DEFAULT_WIDTH) : DEFAULT_WIDTH;
     markDrop(dropAt(e.clientX, e.clientY, w), w);
@@ -586,7 +869,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
   board.addEventListener("drop", (e) => {
     const link = draggedLink(e.dataTransfer);
     const raw = e.dataTransfer?.getData(BLOCK_DRAG);
+    const starter = e.dataTransfer?.getData(STARTER_DRAG);
     markDrop(null);
+    if (starter && host.starter) {
+      e.preventDefault();
+      host.starter(starter, current()?.blocks.length ? dropAt(e.clientX, e.clientY, DEFAULT_WIDTH) : undefined);
+      return;
+    }
     if (link) {
       e.preventDefault();
       void place(link, current()?.blocks.length ? dropAt(e.clientX, e.clientY, DEFAULT_WIDTH) : undefined);
@@ -603,6 +892,18 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     refocus = from.id;
     void change(`/pages/${page.id}/blocks/${from.id}`, "PATCH", drop);
   });
+  // A click on the board itself (not a block) puts the selection away: Properties shows the page settings.
+  board.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest(".cv-block") && selectedId) select(null);
+  });
+  element.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && selectedId && !(e.target as HTMLElement).closest("input, textarea, select")) select(null);
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "z" && !(e.target as HTMLElement).closest("input, textarea")) {
+      e.preventDefault();
+      void (e.shiftKey ? redo() : undo());
+    }
+  });
+
   // Paste: the copied cell's link, wherever the keyboard is on the canvas.
   element.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "v" && !(e.target as HTMLElement).closest("input")) {
@@ -616,12 +917,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
   function drawLive(): void {
     const page = current();
     live.hidden = mode !== "live";
-    const address = mode === "live" && state?.running && page?.address ? frameAddress(page.address) : null;
+    const address = mode === "live" && state?.running && page?.address ? `${frameAddress(page.address, previewTheme)}${freshSession ? `&session=${freshSession}` : ""}` : null;
+    live.dataset.device = device;
     if (address !== null) {
       if (shown === address && frame) return; // the same page: Streamlit itself follows a run
       shown = address;
       frame = h("iframe", { class: "cv-frame", sandbox: FRAME_SANDBOX, title: page!.name, src: address, referrerpolicy: "no-referrer" }) as HTMLIFrameElement;
-      clear(live, frame);
+      clear(live, h("div", { class: `cv-device cv-${device}` }, frame));
       return;
     }
     shown = null;
@@ -689,5 +991,32 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       gone = true;
       if (id) void api(`/streamlit/apps/${id}`, "DELETE").catch(() => undefined);
     },
+    selected: () => current()?.blocks.find((b) => b.id === selectedId) ?? null,
+    select: (block) => select(block),
+    page: current,
+    feeds,
+    changeBlock: async (block, body) => {
+      const page = current();
+      if (!page) return false;
+      refocus = block;
+      return !!(await change(`/pages/${page.id}/blocks/${block}`, "PATCH", body));
+    },
+    settings: () => state?.settings ?? initialSettings,
+    setSettings,
+    session: async () => {
+      if (!id) return [];
+      return (await api<{ state: SessionRow[] }>(`${base()}/session`)).state;
+    },
+    resetState: () => {
+      freshSession += 1;
+      shown = null;
+      drawLive();
+    },
+    undo,
+    redo,
+    duplicate,
+    align,
+    zoom,
+    preview,
   };
 }

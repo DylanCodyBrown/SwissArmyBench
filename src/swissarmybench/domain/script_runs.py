@@ -150,7 +150,7 @@ class Needed:
     required: bool = False
 
     def to_json(self) -> dict[str, Any]:
-        return {"name": self.name, "why": self.why, "secret": self.secret, "required": self.required}
+        return {"name": self.name, "why": self.why, "looks_secret": self.secret, "required": self.required}
 
 
 def named_connections(code: str) -> list[str]:
@@ -225,7 +225,7 @@ def rows(settings: RunSettings, found: Iterable[Needed]) -> list[dict[str, Any]]
     for name, source in settings.variables.items():
         if name not in names:
             listed.append(
-                {"name": name, "why": "added", "secret": python_connections.looks_secret(name)}
+                {"name": name, "why": "added", "looks_secret": python_connections.looks_secret(name)}
                 | dict(source)
                 | {"words": source_words(source)}
             )

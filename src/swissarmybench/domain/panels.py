@@ -19,6 +19,13 @@ PANELS: tuple[tuple[str, str, str], ...] = (
     ("workbench.console", "Workbench", "Console"),
     ("workbench.variables", "Workbench", "Variables"),
     ("workbench.status", "Workbench", "Status bar"),
+    # The Workbench's modes (2026-11-15): each document's own panels.
+    ("workbench.properties", "Workbench", "Properties"),
+    ("workbench.state", "Workbench", "State"),
+    ("workbench.starters", "Workbench", "Starters"),
+    ("workbench.outline", "Workbench", "Outline"),
+    ("workbench.runSettings", "Workbench", "Run settings"),
+    ("workbench.runHistory", "Workbench", "Run history"),
     ("grid.ribbon", "Grid page", "Ribbon"),
     ("grid.steps", "Grid page", "Steps strip"),
     ("grid.status", "Grid page", "Status bar"),

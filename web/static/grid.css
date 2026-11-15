@@ -7003,7 +7003,7 @@ body.dropping-file::after {
 }
 
 .cv-board.dropping {
-  outline: 2px dashed var(--accent);
+  outline: 2px dashed var(--kind-app);
   outline-offset: -4px;
 }
 
@@ -7023,9 +7023,9 @@ body.dropping-file::after {
   z-index: 1;
   align-self: stretch;
   min-height: 40px;
-  border: 2px dashed var(--accent);
+  border: 2px dashed var(--kind-app);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
   pointer-events: none;
 }
 
@@ -7043,7 +7043,7 @@ body.dropping-file::after {
   min-width: 0;
   padding: 6px 8px 14px;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--kc, var(--border-strong));
   border-radius: 8px;
   background: var(--raised);
   cursor: grab;
@@ -7488,13 +7488,8 @@ body.panel-off-grid-status .statusbar {
   height: 13px;
 }
 
-/* A canvas block: a left edge in its source document's kind colour, its `doc @cellN` in that colour. */
-.cv-block.km-notebook,
-.cv-block.km-script,
-.cv-block.km-app {
-  box-shadow: inset 3px 0 0 var(--kc);
-}
-
+/* A canvas block: a left edge in its source document's kind colour (.cv-block's border), its
+   `doc @cellN` in that colour. */
 .cv-block-where {
   display: flex;
   align-items: center;
@@ -7516,4 +7511,747 @@ body.panel-off-grid-status .statusbar {
   background: var(--kind-app);
   content: "";
   vertical-align: -2px;
+}
+
+/* ===== THE WORKBENCH'S MODES (workbenchModes.ts, workbenchApp.ts, workbenchDocModes.ts; 2026-11-15) =====
+   Each document's own panels sit beside it in its group: Properties, Outline and Run settings on the
+   right; State and Run history under it. Violet is the app's alone: its tab, the selected block's
+   outline and the wiring. */
+.wb-doc-body.mode-open {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.wb-doc-body.mode-open.mode-side {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+}
+
+.wb-doc-body.mode-open.mode-bottom {
+  grid-template-rows: minmax(0, 1fr) minmax(140px, 38%);
+}
+
+.wb-doc-body.mode-open > :first-child,
+.wb-doc-body.mode-open > .wb-data-view:not([hidden]) {
+  grid-area: 1 / 1 / 2 / 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.wb-doc-body.mode-open > [hidden] {
+  display: none;
+}
+
+.wb-mode-side {
+  grid-area: 1 / 2 / 2 / 3;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wb-mode-bottom {
+  grid-area: 2 / 1 / 3 / -1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wb-mode-side[hidden],
+.wb-mode-bottom[hidden] {
+  display: none;
+}
+
+.wb-mode-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.wb-mode-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.wb-mode-title svg {
+  color: var(--muted);
+}
+
+.wb-mode-properties .wb-mode-title svg,
+.wb-mode-state .wb-mode-title svg {
+  color: var(--kind-app);
+}
+
+.wb-mode-body {
+  padding: 8px 12px 12px;
+}
+
+.wb-mode-toggles {
+  display: contents;
+}
+
+.app-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.app-heading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-input {
+  width: 100%;
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.app-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-label {
+  min-width: 4.5em;
+  color: var(--muted);
+}
+
+.app-stepper {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.app-step-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.app-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9em;
+}
+
+.wb-mode-body .app-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kc);
+}
+
+.app-feeds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-feeds .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-feeds svg {
+  color: var(--kind-app);
+}
+
+.app-value {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.app-colour input[type="color"] {
+  width: 44px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.app-colour.unset input[type="color"] {
+  opacity: 0.55;
+}
+
+.app-empty {
+  margin: 8px 0;
+}
+
+.app-state {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app-state th,
+.app-state td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.app-state th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* The selected block: a violet outline (the app's colour), and its wiring over the board. */
+.cv-board {
+  position: relative;
+}
+
+.cv-block.selected {
+  outline: 2px solid var(--kind-app);
+  outline-offset: 1px;
+}
+
+.cv-wires {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cv-wires path {
+  fill: none;
+  stroke: var(--kind-app);
+  stroke-width: 2;
+}
+
+.cv-wires marker path,
+.cv-wires circle {
+  fill: var(--kind-app);
+  stroke: none;
+}
+
+.cv-wire-label {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.cv-wire-size {
+  color: var(--kind-app);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.cv-wire-name {
+  padding: 0 8px;
+  border: 1px solid var(--kind-app);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--kind-app);
+}
+
+.cv-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+}
+
+.cv-zoom-level {
+  min-width: 52px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Play's preview: the page at a device's width, centred. */
+.cv-device {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-height: 0;
+}
+
+.cv-device.cv-tablet .cv-frame,
+.cv-device.cv-phone .cv-frame {
+  flex: none;
+  margin: 16px 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+}
+
+.cv-device.cv-tablet .cv-frame {
+  width: 820px;
+  max-width: 100%;
+}
+
+.cv-device.cv-phone .cv-frame {
+  width: 390px;
+  max-width: 100%;
+  border-radius: 28px;
+}
+
+/* Notebook mode: a cell's run order state, Run up to here on the selected cell, Present. */
+.wb-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--warn);
+  font-size: 0.92em;
+}
+
+.wb-flow::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  content: "";
+}
+
+.wb-flow[hidden] {
+  display: none;
+}
+
+.wb-cell.flow-stale {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.wb-run-to {
+  display: none;
+}
+
+.wb-cell.selected .wb-run-to {
+  display: inline-flex;
+}
+
+.wb-outline {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-outline-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-outline-item.heading {
+  font-weight: 600;
+}
+
+.wb-outline-item:hover {
+  background: var(--surface);
+}
+
+.wb-outline-item.active {
+  background: var(--selected);
+  box-shadow: inset 3px 0 0 var(--kind-notebook);
+}
+
+.wb-outline-item svg {
+  flex: none;
+  color: var(--kind-notebook);
+}
+
+.wb-outline-stale {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.wb-view-switch {
+  flex: none;
+}
+
+.wb-cells.presenting {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+.wb-cells.presenting .wb-cell-head,
+.wb-cells.presenting .wb-editor,
+.wb-cells.presenting .wb-output-hidden,
+.wb-cells.presenting .wb-tcell,
+.wb-cells.presenting .wb-to-grid,
+.wb-cells.presenting .wb-to-sandbox {
+  display: none;
+}
+
+.wb-cells.presenting .wb-cell.kind-code:not(:has(.wb-outputs > *)) {
+  display: none;
+}
+
+.wb-cells.presenting .wb-cell {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Script mode: Run settings, Run history. */
+.wb-run-var {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.wb-run-var-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wb-run-var-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-run-var-source select {
+  flex: 1;
+  min-height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.wb-history {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) 1.1fr;
+  min-height: 100%;
+}
+
+.wb-runs {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.wb-runs th,
+.wb-runs td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.wb-runs th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.wb-runs tbody tr {
+  cursor: pointer;
+}
+
+.wb-runs tbody tr.active {
+  background: var(--selected);
+}
+
+.wb-exit-bad,
+.wb-log-bad {
+  color: var(--error);
+  font-weight: 650;
+}
+
+.wb-run-detail {
+  border-left: 1px solid var(--border);
+}
+
+.wb-run-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-run-detail-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-run-detail-body {
+  display: flex;
+  gap: 18px;
+  padding: 10px 12px;
+}
+
+.wb-run-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.wb-run-source-row {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.wb-run-log {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-run-log pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Data mode: the dictionary (a table list, a page per table) and lineage's place. */
+.wb-data-view {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.wb-data-view[hidden] {
+  display: none;
+}
+
+.dict-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border);
+}
+
+.dict-table {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dict-table.active {
+  background: var(--selected);
+  box-shadow: inset 3px 0 0 var(--kind-notebook);
+  font-weight: 600;
+}
+
+.dict-page {
+  padding: 14px 24px;
+}
+
+.dict-page h2 {
+  margin: 0 0 2px;
+}
+
+.dict-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.dict-columns {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+}
+
+.dict-columns th,
+.dict-columns td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.dict-columns th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.dict-columns td:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.dict-input {
+  width: 100%;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.dict-input:hover,
+.dict-input:focus {
+  border-color: var(--border-strong);
+  background: var(--bg);
+}
+
+.dict-lineage-empty {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+/* App mode in the Data panel: Data | Starters, and the starter gallery. */
+.wb-data-switch {
+  margin-right: auto;
+}
+
+.wb-data-switch[hidden] {
+  display: none;
+}
+
+.wb-data-head h2[hidden] {
+  display: none;
+}
+
+.wb-starters-host[hidden] {
+  display: none;
+}
+
+.wb-starters-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wb-starters-searchbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.wb-starters-searchbox .app-input {
+  border: 0;
+  background: transparent;
+}
+
+.wb-starter-family h3 {
+  margin: 4px 0;
+}
+
+.wb-starter-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wb-starter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--fg);
+  text-align: left;
+  cursor: grab;
+}
+
+.wb-starter-card:hover {
+  border-color: var(--kind-app);
+}
+
+.wb-starter-sketch-box {
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.wb-starter-sketch {
+  width: 100%;
+  height: 40px;
+  fill: var(--muted);
+  stroke: none;
+}
+
+.wb-starter-sketch .line,
+.wb-starter-sketch .frame {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.wb-starter-sketch .knob {
+  fill: var(--bg);
+}
+
+.wb-starter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
