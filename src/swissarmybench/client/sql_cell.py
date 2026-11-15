@@ -54,7 +54,8 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.client import blades_client
+from swissarmybench.client import blades_client, standalone
+from swissarmybench.client.push_client import ServerNotRunningError
 from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
@@ -137,8 +138,16 @@ def parse_line(line: str) -> CellLine:
 
 def _record(name: str) -> dict[str, Any]:
     """The connection as the connections list describes it (kind, template, variable, dialect): no code
-    and no secrets. A blade that is not a connection may still make a table (it is tried when used)."""
-    for b in blades_client._call("GET", "/connections")["connections"]:
+    and no secrets. A blade that is not a connection may still make a table (it is tried when used).
+    Without the app running, as this computer and the blade folders describe it (client/standalone.py)."""
+    try:
+        listed = blades_client._call("GET", "/connections")["connections"]
+    except ServerNotRunningError:
+        try:
+            return standalone.record(name)
+        except standalone.NotFoundHereError as error:
+            raise SqlCellError(str(error)) from None
+    for b in listed:
         if str(b["name"]).casefold() == name.casefold():
             return dict(b)
     for b in blades_client._call("GET", "/blades")["blades"]:
@@ -539,7 +548,11 @@ def _connect(line: str) -> None:
 def listing() -> list[tuple[str, str]]:
     """The connections a cell can use and what each is: databases, then files."""
     out = []
-    for c in blades_client._call("GET", "/connections")["connections"]:
+    try:
+        listed = blades_client._call("GET", "/connections")["connections"]
+    except ServerNotRunningError:
+        listed = standalone.records()
+    for c in listed:
         if c.get("connection") == "database" and c.get("dialect") == "dax":
             what = f"a Power BI workspace: a DAX cell names a dataset, %%dax {c['name']}/<dataset>"
         elif c.get("connection") == "database":

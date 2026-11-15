@@ -42,6 +42,7 @@ CLIENT_MODULES = (
     "swissarmybench.client",
     "swissarmybench.client.push_client",
     "swissarmybench.client.blades_client",
+    "swissarmybench.client.standalone",
     "swissarmybench.client.sandbox_client",
     "swissarmybench.client.completion",
     "swissarmybench.client.sql_cell",
@@ -61,6 +62,8 @@ CLIENT_MODULES = (
     "swissarmybench.domain.html_cells",
     "swissarmybench.domain.streamlit_use",
     "swissarmybench.adapters.blade_run",
+    "swissarmybench.adapters.blades",
+    "swissarmybench.domain.connections",
 )
 # Standard library modules that do I/O, start something or read the clock: not for the domain.
 DOMAIN_FORBIDDEN = {
@@ -188,6 +191,7 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         "server/__main__.py",
         "server/blade_runner.py",
         "client/blades_client.py",
+        "client/standalone.py",
     }
     named: set[str] = set()
     for path in PACKAGE.rglob("*.py"):

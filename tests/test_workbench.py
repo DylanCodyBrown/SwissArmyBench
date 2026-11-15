@@ -176,6 +176,22 @@ def run(client: TestClient, kernel: str, code: str, **extra: Any) -> list[dict[s
     return [json.loads(line) for line in answer.text.splitlines() if line]
 
 
+def test_a_document_not_saved_yet_runs_in_the_folder_save_as_puts_it(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """The real-world test bed: a new notebook wrote `orders.to_parquet("clean_orders.parquet")` into the
+    home folder, and the same notebook, saved in the app's own folder and run on a schedule, wrote it
+    beside itself. Now both write it in the app's folder (made the first time it is needed)."""
+    own = Path(client.get("/workbench/home", headers=AUTH).json()["folder"])
+    assert not own.exists()
+    kernel = client.post("/workbench/kernels", json={}, headers=AUTH).json()["kernel"]
+    try:
+        outputs = run(client, kernel, "import os\nprint(os.getcwd())")
+        assert outputs[0]["text"] == f"{own}\n" and own.is_dir()
+    finally:
+        client.delete(f"/workbench/kernels/{kernel}", headers=AUTH)
+
+
 def test_a_kernel_runs_code_and_streams_its_outputs(client: TestClient, tmp_path: Path) -> None:
     pythons = client.get("/workbench/pythons", headers=AUTH).json()["pythons"]
     assert pythons[0]["python"] == sys.executable and pythons[0]["ipykernel"] is True

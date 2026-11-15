@@ -671,9 +671,17 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     newColumns.clear();
     placeholders.clear();
     diffs.clear();
-    // The rows under a selection move when the view changes, so the selection goes.
-    selection.clear();
     const next = state.previewColumns();
+    // The rows under a selection move when the view changes, so the selection goes. A whole
+    // column has no rows to move: it stays selected while it is there, so a second step on it
+    // (trim, then lower case) needs no second click on its header.
+    const columnsStay = selection.kind === "columns" && selection.columns.every((c) => next.some((n) => n.name === c));
+    if (!columnsStay) selection.clear();
+    else {
+      // Its count and sums are the new view's: asked again.
+      window.clearTimeout(statsTimer);
+      statsTimer = window.setTimeout(() => void loadSelectionStats(), 120);
+    }
     const reshaped = JSON.stringify(next) !== JSON.stringify(columns);
     if (reshaped) {
       const added = next.filter((c) => !columns.some((old) => old.name === c.name));

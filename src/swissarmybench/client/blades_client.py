@@ -23,7 +23,9 @@ import urllib.request
 from typing import Any
 
 from swissarmybench.adapters.blade_run import BladeRunError, read_table, run_code, run_vault, set_variables
+from swissarmybench.client import standalone
 from swissarmybench.client.push_client import (
+    ServerNotRunningError,
     _arrow_bytes,
     _prepared_frame,
     _records_json,
@@ -111,6 +113,16 @@ def blades(tag: str | None = None, search: str | None = None) -> list[str]:
     return [str(b["name"]) for b in found]
 
 
+def _spec(name: str) -> dict[str, Any]:
+    """Everything needed to run a blade here: from the app, or, when it is not running, from this
+    computer's saved connections, the blade folders and the starter pack (client/standalone.py)."""
+    try:
+        spec: dict[str, Any] = _call("GET", f"/blades/{_quote(name)}/python")
+    except ServerNotRunningError:
+        return standalone.spec(name)
+    return spec
+
+
 def _ask(names: list[str], source: str) -> None:
     """Ask for each value this Python does not have yet, hidden as it is typed; set it here only."""
     for env in names:
@@ -130,7 +142,7 @@ def blade(name: str) -> Any:
     snippet gives its text. Other blades first run the vault blades and ask for the secret-blade values
     their code needs.
     """
-    spec = _call("GET", f"/blades/{_quote(name)}/python")
+    spec = _spec(name)
     if spec["kind"] == "snippet":
         return str(spec["code"])  # text for a cell, with its <<name>> placeholders: nothing to run
     if spec["kind"] == "secret":
@@ -177,7 +189,7 @@ def read(connection: str, table: str, schema: str = "", limit: int | None = None
     """A table's rows from a connection made of your own Python, by its Read a table box, run in this
     Python: `sab.read("Orders API", "orders")`. What that box returns (a DataFrame, a list of dicts...);
     `limit` rows, or every row."""
-    spec = _call("GET", f"/blades/{_quote(connection)}/python")
+    spec = _spec(connection)
     command = (spec.get("python") or {}).get("read")
     if not command:
         raise ValueError(
