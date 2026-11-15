@@ -539,6 +539,9 @@ import re
 import shlex
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any"""
@@ -616,7 +619,11 @@ def azure_sign_in(code: str) -> tuple[str, dict[str, str]]:
         return "you", {}
     assigned: dict[str, ast.expr] = {}
     for statement in tree.body:
-        if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
+        if (
+            isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+        ):
             assigned[statement.targets[0].id] = statement.value
 
     class _Values(ast.NodeTransformer):

@@ -401,7 +401,7 @@ def _rewrite(cell: _Cell, source: str) -> str:
                 )
                 continue
             kept = [a for a in names if a.name.split(".")[0] not in _PACKAGE_NAMES]
-            said = "Swiss Army Bench: written out in this script"
+            said = "Swiss Army Bench: what it gave is written out here"
             edits.append(
                 (
                     *span(node),

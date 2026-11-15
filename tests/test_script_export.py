@@ -11,12 +11,16 @@ import importlib.metadata
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
+import threading
 from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 import pytest
 from openpyxl import load_workbook
@@ -486,9 +490,9 @@ def notebook_cells(live: Live, table: str) -> list[dict[str, Any]]:
     ]
 
 
-def test_a_notebook_exports_and_runs_in_a_fresh_python_with_only_its_requirements(
-    live: Live, keyring: None, made_up_shop: Path, tmp_path: Path
-) -> None:
+def orders_report(live: Live, made_up_shop: Path, tmp_path: Path) -> Path:
+    """The made-up notebook, saved: a SQLite connection (its password in the keyring), a CSV file with
+    a filter step in the grid, a SQL cell, a pandas cell, and a cell that writes a workbook and a CSV."""
     connection = {
         "name": "Shop",
         "kind": "sql",
@@ -511,9 +515,15 @@ def test_a_notebook_exports_and_runs_in_a_fresh_python_with_only_its_requirement
     notebook = tmp_path / "work" / "Orders report.ipynb"
     notebook.parent.mkdir()
     live.user("POST", "/workbench/save", {"path": str(notebook), "cells": notebook_cells(live, "orders")})
+    return notebook
+
+
+def test_a_notebook_exports_and_runs_in_a_fresh_python_with_only_its_requirements(
+    live: Live, keyring: None, made_up_shop: Path, tmp_path: Path
+) -> None:
+    notebook = orders_report(live, made_up_shop, tmp_path)
     # The agent's command (the golden rule): beside the notebook, named after it.
     done = run("workbench_export_script", path=str(notebook))
-    print("DONE", json.dumps({k: done[k] for k in ("problems", "lint", "stubs", "skipped")}))
     script = notebook.parent / "orders_report_automation.py"
     assert done["path"] == str(script) and done["run"] == "python orders_report_automation.py", done
     assert not done["problems"] and not done["stubs"] and done["linted"] in (True, False) and not done["lint"]
@@ -613,31 +623,90 @@ def test_the_page_sends_the_open_document_and_what_cannot_be_exported_is_asked_f
     assert not (tmp_path / "leak.py").exists()
 
 
-def test_the_power_bi_workspace_signs_in_from_a_vault_and_runs_dax_with_no_app(
-    live: Live, keyring: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from swissarmybench.server.blade_templates import BY_ID, POWERBI_VAULT
+class AzureStandIn:
+    """Azure, stood in for on 127.0.0.1: a Function App's managed identity endpoint (IDENTITY_ENDPOINT)
+    and one Key Vault, holding made-up entries. `forbidden`: the identity has no role on the vault."""
 
-    standin = made_up.StandIn().start()
+    HEADER = "made-up-identity-header-0005"
+    TOKEN = "made-up-vault-token-0006"
+
+    def __init__(self, entries: dict[str, str]) -> None:
+        self.entries, self.forbidden = entries, False
+        self.asked: list[str] = []
+        standin = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args: Any) -> None:
+                pass
+
+            def answer(self, status: int, body: Any) -> None:
+                data = json.dumps(body).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def do_GET(self) -> None:
+                path, _, query = self.path.partition("?")
+                standin.asked.append(path)
+                if path == "/msi/token":
+                    asked = parse_qs(query)
+                    if self.headers.get("X-IDENTITY-HEADER") != standin.HEADER:
+                        return self.answer(401, {"error": {"message": "No identity header."}})
+                    assert asked["resource"] == ["https://vault.azure.net"], asked
+                    return self.answer(200, {"access_token": standin.TOKEN, "expires_on": "4102444800"})
+                if path.startswith("/secrets/"):
+                    if self.headers.get("Authorization") != f"Bearer {standin.TOKEN}":
+                        return self.answer(401, {"error": {"code": "Unauthorized", "message": "No token."}})
+                    if standin.forbidden:
+                        message = "Caller is not authorized to perform action on resource (secrets/get)."
+                        return self.answer(403, {"error": {"code": "Forbidden", "message": message}})
+                    entry = path.removeprefix("/secrets/").lower()
+                    if entry not in standin.entries:
+                        return self.answer(404, {"error": {"code": "SecretNotFound", "message": entry}})
+                    return self.answer(200, {"value": standin.entries[entry], "id": entry})
+                return self.answer(404, {"error": {"message": "unknown"}})
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def environment(self) -> dict[str, str]:
+        """What an Azure Function App sets for its managed identity (no secret: a header for this host)."""
+        return {"IDENTITY_ENDPOINT": f"{self.url}/msi/token", "IDENTITY_HEADER": self.HEADER}
+
+    def stop(self) -> None:
+        self.server.shutdown()
+
+
+def test_the_vault_gives_power_bi_its_app_registration_and_the_script_runs_dax_by_managed_identity(
+    live: Live, keyring: None, tmp_path: Path
+) -> None:
+    """The owner's chain: the vault is opened by an identity (managed identity in the Function App);
+    it holds the app registration's tenant id, client id and client secret as ordinary entries; those
+    sign in to Power BI, and its DAX runs. No azure-identity installed, no secret in the script or its
+    environment."""
+    from swissarmybench.server.blade_templates import AZURE_VAULT_MANAGED, BY_ID, POWERBI_VAULT
+
+    entries = {
+        "pbi-tenant-id": made_up.TENANT,
+        "pbi-client-id": made_up.CLIENT,
+        "pbi-client-secret": made_up.SECRET,
+    }
+    azure = AzureStandIn(entries)
+    powerbi = made_up.StandIn().start()
     try:
-        vault_file = tmp_path / "vault.json"
-        values = {
-            "powerbi-tenant-id": made_up.TENANT,
-            "powerbi-client-id": made_up.CLIENT,
-            "powerbi-client-secret": made_up.SECRET,
-        }
-        vault_file.write_text(json.dumps(values), encoding="utf-8")
+        vault_code = AZURE_VAULT_MANAGED.replace("https://my-vault.vault.azure.net", azure.url)
         vault = {"name": "Team vault", "kind": "vault", "template": "azure_key_vault", "variable": "get"}
         live.user(
-            "POST",
-            "/connections",
-            vault | {"code": VAULT.format(path=vault_file), "vault_all": True, "vault_mapping": []},
+            "POST", "/connections", vault | {"code": vault_code, "vault_all": True, "vault_mapping": []}
         )
         code = POWERBI_VAULT.replace("my-workspace-id", made_up.WORKSPACE)
         for secret, entry in (
-            ("tenant id", "powerbi-tenant-id"),
-            ("client id", "powerbi-client-id"),
-            ("client secret", "powerbi-client-secret"),
+            ("tenant id", "pbi-tenant-id"),
+            ("client id", "pbi-client-id"),
+            ("client secret", "pbi-client-secret"),
         ):
             source = {
                 "code": code,
@@ -667,27 +736,159 @@ def test_the_power_bi_workspace_signs_in_from_a_vault_and_runs_dax_with_no_app(
         done = live.user(
             "POST", "/workbench/export-script", {"kind": "notebook", "cells": cells, "to": str(script)}
         )
-        assert done["path"] == str(script) and not done["problems"], done
+        assert done["path"] == str(script) and not done["problems"] and not done["lint"], done
         text = script.read_text(encoding="utf-8")
+        for value in entries.values():
+            assert value not in text and value not in json.dumps(done)  # the values stay in the vault
+        assert f"azure_secret('Team vault', {azure.url!r}, entry, sign_in)" in text
+        assert "def connect_finance():" in text and "sales = run_dax('Finance/Sales model', " in text
+        assert not any("azure" in r for r in done["requirements"])  # the managed identity is standard library
+        python = fresh_python(tmp_path / "venv")
+        install_from_this_machine(python, done["requirements"])
+        no_azure = subprocess.run(  # noqa: S603 (the fresh Python, asked one import)
+            [str(python), "-c", "import azure.identity"], capture_output=True, check=False
+        )
+        assert no_azure.returncode != 0
+        env = azure.environment() | powerbi.environment() | {"REPORT_FOLDER": str(tmp_path)}
+        assert not any(value in env.values() for value in entries.values())
+        ran = run_script(python, script, env=env)
+        assert ran.returncode == 0, ran.stdout + ran.stderr
         assert (
-            made_up.SECRET not in text and made_up.TENANT not in text
-        )  # the vault's values stay in the vault
-        assert "def vault_team_vault():" in text and "def connect_finance():" in text
-        assert "sales = run_dax('Finance/Sales model', " in text
-        env = standin.environment() | {"REPORT_FOLDER": str(tmp_path)}
-        clean = {k: v for k, v in os.environ.items() if not k.startswith("SWISSARMY")}
-        ran = subprocess.run(  # noqa: S603 (the exported, made-up script, in a Python of its own)
-            [sys.executable, "-I", str(script)],
+            "Reading POWERBI_CLIENT_SECRET from the key vault Team vault" in ran.stdout
+            or "from the key vault Team vault" in ran.stdout
+        )
+        assert (
+            len((tmp_path / "sales.csv").read_text(encoding="utf-8").splitlines()) == 6
+        )  # its header, 5 rows
+        token = next(r for r in powerbi.requests if r["what"] == "token")
+        assert made_up.CLIENT in json.dumps(token)  # the vault's app registration signed in to Power BI
+        assert "/msi/token" in azure.asked and "/secrets/pbi-client-secret" in azure.asked
+        assert not any(value in ran.stdout + ran.stderr for value in entries.values())
+        # The identity has no role on the vault: said plainly, which secret and vault, and exit 2.
+        azure.forbidden = True
+        refused = run_script(python, script, env=env)
+        said = refused.stdout + refused.stderr
+        assert refused.returncode == 2, said
+        assert (
+            "The key vault Team vault refused its secret 'pbi-" in said
+            and "(403: Caller is not authorized" in said
+        )
+        assert "Key Vault Secrets User role" in said
+        # Outside Azure (no managed identity there): what was tried, plainly.
+        azure.forbidden = False
+        local = run_script(python, script, env=powerbi.environment() | {"REPORT_FOLDER": str(tmp_path)})
+        said = local.stdout + local.stderr
+        assert local.returncode == 2 and "No sign-in to the key vault Team vault worked" in said, said
+        assert (
+            "Tried: the managed identity" in said
+        )  # a managed-identity vault: azure-identity is not its sign-in
+    finally:
+        azure.stop()
+        powerbi.stop()
+
+
+def run_notebook(python: Path, notebook: Path, env: dict[str, str]) -> tuple[bool, str]:
+    """Run a notebook top to bottom in a plain Jupyter kernel of `python`, as nbconvert does (jupyter
+    nbconvert --execute, when it is installed here; else jupyter_client, cell by cell). (Whether every
+    cell ran, the outputs' text.)"""
+    clean = {k: v for k, v in os.environ.items() if not k.startswith(("SWISSARMY", "PYTHON", "VIRTUAL_ENV"))}
+    nbconvert = shutil.which("jupyter-nbconvert")
+    if nbconvert:
+        done = subprocess.run(  # noqa: S603 (nbconvert, on the exported made-up notebook)
+            [nbconvert, "--to", "notebook", "--execute", "--stdout", str(notebook)],
             capture_output=True,
             text=True,
             env=clean | env,
-            timeout=300,
+            cwd=notebook.parent,
+            timeout=600,
             check=False,
         )
-        assert ran.returncode == 0, ran.stdout + ran.stderr
-        assert "Reading" in ran.stdout and "from the key vault Team vault" in ran.stdout
-        assert (
-            len((tmp_path / "sales.csv").read_text(encoding="utf-8").splitlines()) == 6
-        )  # its header and 5 rows
+        return done.returncode == 0, done.stdout + done.stderr
+    from jupyter_client.kernelspec import KernelSpec
+    from jupyter_client.manager import KernelManager
+
+    manager = KernelManager()
+    manager._kernel_spec = KernelSpec(  # a kernel in that Python: no kernelspec file needed
+        argv=[str(python), "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+        display_name="fresh",
+        language="python",
+    )
+    manager.start_kernel(env=clean | env, cwd=str(notebook.parent))
+    client = manager.client()
+    client.start_channels()
+    said: list[str] = []
+    try:
+        client.wait_for_ready(timeout=120)
+        for cell in json.loads(notebook.read_text(encoding="utf-8"))["cells"]:
+            if cell["cell_type"] != "code":
+                continue
+            reply = client.execute_interactive(
+                "".join(cell["source"]),
+                timeout=300,
+                output_hook=lambda m: said.append(json.dumps(m["content"])),
+            )
+            if reply["content"]["status"] != "ok":
+                said.append(f"{reply['content'].get('ename')}: {reply['content'].get('evalue')}")
+                return False, "\n".join(said)
+        return True, "\n".join(said)
     finally:
-        standin.stop()
+        client.stop_channels()
+        manager.shutdown_kernel(now=True)
+
+
+def test_a_notebook_exports_as_one_linear_notebook_that_runs_in_a_plain_kernel(
+    live: Live, keyring: None, made_up_shop: Path, tmp_path: Path
+) -> None:
+    notebook = orders_report(live, made_up_shop, tmp_path)
+    done = run("workbench_export_script", path=str(notebook), format="notebook")
+    exported = notebook.parent / "orders_report_automation.ipynb"
+    assert done["path"] == str(exported) and done["format"] == "notebook" and not done["problems"], done
+    assert done["run"] == "jupyter nbconvert --to notebook --execute orders_report_automation.ipynb"
+    text = exported.read_text(encoding="utf-8")
+    held = json.loads(text)
+    assert held["nbformat"] == 4 and "swissarmybench" not in json.dumps(held["metadata"])
+    code = [c for c in held["cells"] if c["cell_type"] == "code"]
+    assert all(
+        c["outputs"] == []
+        and c["execution_count"] is None
+        and c["metadata"] in ({}, {"tags": ["parameters"]})
+        for c in code
+    )
+    sources = ["".join(c["source"]) for c in code]
+    assert "check_requirements(INSTALL)" in sources[0] and "INSTALL = False" in sources[0]
+    assert code[1]["metadata"] == {"tags": ["parameters"]} and "SHOP_PASSWORD = None  # Shop's" in sources[1]
+    assert not any(line.lstrip().startswith(("%", "!")) for s in sources for line in s.split("\n"))
+    assert not any("import swissarmybench" in s for s in sources)
+    assert any(s.startswith("# ----- cell 11 -----\ncustomers = run_sql('Shop', ") for s in sources)
+    assert [c["source"] for c in held["cells"] if c["cell_type"] == "markdown"][1] == [
+        "# Orders by region\n",
+        "Made-up data.",
+    ]
+    assert PASSWORD not in text and "Made-up Ann" not in text and "10.5" not in text
+    out = tmp_path / "out"
+    out.mkdir()
+    python = fresh_python(tmp_path / "venv")
+    install_from_this_machine(python, [*done["requirements"], "ipykernel"])
+    ran, said = run_notebook(python, exported, {"SHOP_PASSWORD": PASSWORD, "REPORT_FOLDER": str(out)})
+    assert ran, said
+    sheet = load_workbook(out / "report.xlsx")["By region"]
+    assert [list(r) for r in sheet.iter_rows(values_only=True)] == [
+        ["region", "amount"],
+        ["North", 50.5],
+        ["South", 38.0],
+    ]
+    assert (out / "by_region.csv").read_text(encoding="utf-8").splitlines() == [
+        "region,amount",
+        "North,50.5",
+        "South,38.0",
+    ]
+    assert PASSWORD not in said
+    # A setting missing: the settings' cell stops it, naming it.
+    (out / "report.xlsx").unlink()
+    ran, said = run_notebook(python, exported, {"REPORT_FOLDER": str(out)})
+    assert (
+        not ran
+        and "MissingSetting" in said
+        and "SHOP_PASSWORD" in said
+        and not (out / "report.xlsx").exists()
+    )

@@ -167,15 +167,20 @@ class ScriptExports:
     # ===== the export =====
 
     async def export(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """Export as one Python script.
+        """Export as one Python script, or (format "notebook") as one self-contained notebook.
 
         {"path": the notebook or script, "cells"? | "text"?: as it stands in the window,
-         "kind"?: notebook or script, "to"?: the script's path (default: beside it, as
-         <name>_automation.py), "stub"?: true to export the rest with a stub for what cannot be,
-         "check"?: true to write nothing (what would be written, and what stops it)}
+         "kind"?: notebook or script, "format"?: script (default) or notebook, "to"?: where it
+         goes (default: beside it, as <name>_automation.py or .ipynb), "stub"?: true to export the
+         rest with a stub for what cannot be, "check"?: true to write nothing (what would be
+         written, and what stops it)}
         """
         if not isinstance(body, dict):
             raise ValueError('Send {"path": the notebook or script, "to": the script to write}.')
+        notebook = body.get("format", "script") == "notebook"
+        if body.get("format", "script") not in ("script", "notebook"):
+            raise ValueError('format is "script" (one .py) or "notebook" (one .ipynb).')
+        suffix = ".ipynb" if notebook else ".py"
         cells, path = await self._cells(body)
         stub = body.get("stub") is True
         names = self._code_names()
@@ -183,19 +188,24 @@ class ScriptExports:
         title = (path or body.get("name") or "notebook").replace("\\", "/").rsplit("/", 1)[-1]
         title = title.rsplit(".", 1)[0] if "." in title else title
         to = body.get("to") if isinstance(body.get("to"), str) and body["to"].strip() else None
-        if to is not None and not to.lower().endswith(".py"):
-            to += ".py"
+        if to is not None and not to.lower().endswith(suffix):
+            to += suffix
         if to is None:
             if path is None:
-                raise ValueError('Name where the script goes: {"to": ".../orders_automation.py"}.')
-            to = self._join(self._folder_of(path), rules.file_name(path))
+                raise ValueError(f'Name where it goes: {{"to": ".../orders_automation{suffix}"}}.')
+            named = rules.file_name(path, rules.NOTEBOOK_SUFFIX if notebook else rules.SUFFIX)
+            to = self._join(self._folder_of(path), named)
         file = to.replace("\\", "/").rsplit("/", 1)[-1]
-        made = rules.export(title, path or f"{title}.ipynb", cells, pieces, names, stub=stub, file=file)
-        stopped = rules.check(made.text, values)
+        render = rules.export_notebook if notebook else rules.export
+        made = render(title, path or f"{title}.ipynb", cells, pieces, names, stub=stub, file=file)
+        stopped = rules.check(made.python, values)
+        if notebook:  # its file as a whole too (its Markdown): a value or a row anywhere in it
+            stopped += [s for s in rules.check(made.text, values) if not s.startswith("line ")]
         if stopped:
             # Never written: a password's value or a row would leave, or it does not compile.
-            raise Refused("The script was not written: " + "; ".join(stopped) + ".")
-        linted = self._lint(made.text)
+            what = "notebook" if notebook else "script"
+            raise Refused(f"The {what} was not written: " + "; ".join(dict.fromkeys(stopped)) + ".")
+        linted = self._lint(made.python)
         findings = linted or []
         lint = [f"{rules.place_of(made.places, f['line'])}: {f['message']} ({f['code']})" for f in findings]
         answer: dict[str, Any] = {
@@ -219,5 +229,8 @@ class ScriptExports:
             raise NotFound(str(error)) from None
         except PermissionError as error:
             raise Conflict(str(error)) from None
-        self.ws.audit.write(who, "export_script", written, stubs=len(made.stubs))
-        return answer | {"path": written, "run": f"python {file}"}
+        self.ws.audit.write(
+            who, "export_notebook" if notebook else "export_script", written, stubs=len(made.stubs)
+        )
+        run = f"jupyter nbconvert --to notebook --execute {file}" if notebook else f"python {file}"
+        return answer | {"path": written, "format": "notebook" if notebook else "script", "run": run}
