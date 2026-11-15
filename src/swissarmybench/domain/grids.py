@@ -22,8 +22,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from swissarmybench.domain.datasets import Column, DatasetInfo
-from swissarmybench.domain.steps import Step, ViewSettings, quote, type_family
+from swissarmybench.domain.datasets import Column, DatasetInfo, quote
+from swissarmybench.domain.steps import Step, ViewSettings, type_family
 
 # The view's position column: 0-based, in view order.
 POS: str = "__sab_pos"

@@ -19,7 +19,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from swissarmybench.domain.analysis import AnalysisError, literal, number_literal, quote, short_number
+from swissarmybench.domain.analysis import AnalysisError, literal, number_literal, short_number
+from swissarmybench.domain.datasets import quote
 from swissarmybench.domain.stats import f_p, normal_quantile, t_p
 
 MAX_LEVELS = 30  # a category's most common values get their own indicator; the rest share "(other)"

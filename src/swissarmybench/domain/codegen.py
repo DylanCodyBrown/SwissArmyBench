@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 import sqlglot
 from sqlglot import exp
 
-from swissarmybench.domain.datasets import DatasetInfo
+from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.sql_guard import keeps_order, step_tables
 from swissarmybench.domain.steps import (
     CompiledView,
@@ -38,7 +38,6 @@ from swissarmybench.domain.steps import (
     group_order,
     group_parts,
     limit_count,
-    quote,
     rename_list,
     sort_keys,
     transform_list,

@@ -13,7 +13,7 @@ from typing import Any
 
 from swissarmybench.domain import analysis as A
 from swissarmybench.domain import regression as R
-from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.steps import type_family
 from swissarmybench.services.ports import AGENT, BACKGROUND, SqlSession
@@ -81,7 +81,7 @@ def run_regression(cur: SqlSession, relation: str, view: Columns, body: dict[str
     terms = R.build_terms(number_means, categories, [p.name for p in predictors])
     xs = ["1.0", *(R.term_sql(t) for t in terms)]
     if kind == "linear":
-        y = f"CAST({A.quote(target.name)} AS DOUBLE)"
+        y = f"CAST({quote(target.name)} AS DOUBLE)"
         row = cur.execute(R.sums_query(relation, xs, y, where)).fetchone() or ()
         result = R.linear(tuple(row), terms, target.name)
         outcome_words = None

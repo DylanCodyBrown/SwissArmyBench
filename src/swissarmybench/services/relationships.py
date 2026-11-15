@@ -32,7 +32,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from swissarmybench.domain import diff
-from swissarmybench.domain.datasets import Column, DatasetInfo
+from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.relationships import (
     MAX_ALTERNATIVES,
@@ -66,7 +66,6 @@ from swissarmybench.domain.relationships import (
     tang_file_name,
     write_tang,
 )
-from swissarmybench.domain.steps import quote
 from swissarmybench.services.grids import truncate
 from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.workspace import NotFound, TimedOut, Workspace

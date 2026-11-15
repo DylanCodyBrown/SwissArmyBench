@@ -24,7 +24,8 @@ import math
 from datetime import date, timedelta
 from typing import Any
 
-from swissarmybench.domain.analysis import MAD_TO_SD, AnalysisError, literal, quote, short_number
+from swissarmybench.domain.analysis import MAD_TO_SD, AnalysisError, literal, short_number
+from swissarmybench.domain.datasets import quote
 from swissarmybench.domain.regression import cholesky, inverse, solve, t_quantile
 
 PERIODS: tuple[str, ...] = ("day", "week", "month", "quarter", "year")
