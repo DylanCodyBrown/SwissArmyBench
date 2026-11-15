@@ -43,6 +43,9 @@ export interface Suggestion {
   /** Where the insert goes, as offsets into the text (default: the word at the cursor). */
   start?: number;
   end?: number;
+  /** What the typed text is matched against, when it is not the label: a DAX name's insert begins
+   *  with the quote or bracket already typed ('Customer', [Total Sales]). */
+  filter?: string;
 }
 export type Completer = (text: string, offset: number) => Promise<Suggestion[]>;
 
@@ -237,6 +240,7 @@ function register(language: string): void {
           return {
             label: s.label,
             insertText: s.insert ?? s.label,
+            filterText: s.filter,
             kind: KINDS[s.kind ?? ""] ?? monaco.languages.CompletionItemKind.Text,
             detail: s.detail ?? s.kind,
             range,

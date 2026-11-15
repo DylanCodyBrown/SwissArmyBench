@@ -2429,6 +2429,18 @@ def workbench_html_add(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "workbench_dax_add",
+    "Add a DAX cell to the front Workbench document, on one dataset of a Power BI workspace connection "
+    "(a notebook: a cell of kind dax; a script: `# %% [dax]` over one sag.dax() call). Run it with "
+    "workbench_window run.cell; connections_datasets lists a workspace's datasets",
+    opt("dataset", "The dataset, as `Finance/Sales model` (default: the first one listed)."),
+    opt("source", "The cell's DAX: EVALUATE ..."),
+)
+def workbench_dax_add(a: dict[str, Any]) -> Any:
+    return _window("cell.addDax", {k: a[k] for k in ("dataset", "source") if a.get(k) is not None})
+
+
+@command(
     "workbench_html_cells",
     "The front Workbench document's HTML cells: number, HTML, names, height, and whether it needs a run",
 )

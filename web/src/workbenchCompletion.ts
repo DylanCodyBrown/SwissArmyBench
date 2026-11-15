@@ -259,14 +259,14 @@ export function daxCompleter(named: () => string | null) {
         const found = (await search(catalog, table)).tables.filter((t) => mine(t.schema) && t.table.toLowerCase() === table.toLowerCase());
         for (const t of found) {
           for (const c of await columnsOf(catalog, t.schema, t.table)) {
-            if (c.column.toLowerCase().startsWith(lower) && !c.type.startsWith("measure")) out.push({ label: c.column, insert: daxColumn(c.column), kind: "column", detail: `${t.table} · ${c.type}`, start: from - 1, end: closes });
+            if (c.column.toLowerCase().startsWith(lower) && !c.type.startsWith("measure")) out.push({ label: c.column, insert: daxColumn(c.column), filter: daxColumn(c.column), kind: "column", detail: `${t.table} · ${c.type}`, start: from - 1, end: closes });
           }
         }
         return out;
       }
       if (!word) return [];
       for (const c of (await search(catalog, word)).columns) {
-        if (mine(c.schema) && c.type.startsWith("measure") && c.column.toLowerCase().startsWith(lower)) out.push({ label: c.column, insert: daxColumn(c.column), kind: "function", detail: `${c.table} · ${c.type}`, start: from - 1, end: closes });
+        if (mine(c.schema) && c.type.startsWith("measure") && c.column.toLowerCase().startsWith(lower)) out.push({ label: c.column, insert: daxColumn(c.column), filter: daxColumn(c.column), kind: "function", detail: `${c.table} · ${c.type}`, start: from - 1, end: closes });
       }
       return out;
     }
@@ -289,7 +289,8 @@ export function daxCompleter(named: () => string | null) {
     }
     const seen = new Set<string>();
     const names = out.filter((s) => (seen.has(`${s.kind}:${s.insert}`) ? false : (seen.add(`${s.kind}:${s.insert}`), true)));
-    if (quoted) return names;
+    // Inside a quote the typed text starts with it: matched against 'Customer', not Customer.
+    if (quoted) return names.map((s) => ({ ...s, filter: s.insert }));
     const words = [...DAX_KEYWORDS.map((w) => ({ label: w, kind: "keyword" })), ...DAX_FUNCTIONS.map((w) => ({ label: w, kind: "function", detail: "DAX" }))];
     return [...names, ...words.filter((w) => w.label.toLowerCase().startsWith(lower)).map((w) => ({ ...w, start, end }))];
   };

@@ -1136,3 +1136,31 @@ def test_merging_keeps_the_existing_rules() -> None:
     theirs, _ = powerbi.relationships_model("Finance", 0, [as_table(VIEW_ROWS)], SALES)
     assert conflicts(mine, theirs) == ["Sales -> Date: many-to-one becomes many-to-one (inactive)"]
     assert len(merge(mine, theirs).relationships) == 4  # the same join is replaced, not doubled
+
+
+def test_the_agents_commands_list_datasets_import_one_and_add_a_dax_cell(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The golden rule: what the page does with a workspace, the agent does by a command."""
+    from swissarmygrid.cli import api, commands
+
+    sent: list[tuple[str, str, Any]] = []
+
+    def call(method: str, path: str, body: Any = None) -> Any:
+        sent.append((method, path, body))
+        return {"result": {}}
+
+    monkeypatch.setattr(api, "call", call)
+    commands.REGISTRY["connections_datasets"].run({"name": "Finance"})
+    commands.REGISTRY["connections_import_relationships"].run({"name": "Finance", "dataset": SALES})
+    commands.REGISTRY["connections_import_relationships"].run({"name": "Old model"})
+    added = {"dataset": "Finance/Sales model", "source": "EVALUATE 'Sales'"}
+    commands.REGISTRY["workbench_dax_add"].run(added)
+    assert sent == [
+        ("GET", "/connections/Finance/datasets?live=1", None),
+        ("POST", "/connections/Finance/relationships", {"dataset": SALES}),
+        ("POST", "/connections/Old%20model/relationships", {}),
+        ("POST", "/workbench/window", {"command": "cell.addDax", "args": added}),
+    ]
+    run = {a.name: a.help for a in commands.REGISTRY["workbench_run"].args}
+    assert "dax" in run["kind"] and "Finance/Sales model" in run["connection"]
