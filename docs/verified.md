@@ -1065,3 +1065,56 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
 - **The suite without the browser tests:** 2,166 passed. `ruff check`, `ruff format --check`, `mypy`,
   `npm run typecheck` and `npm run build` were clean.
 - **Not checked:** Windows paths in the prompt (resolve on Windows), and the prompt in VS Code's window.
+
+## The starter pack (2026-11-15)
+
+- **Every starter, read and filled:** `tests/test_starters.py`. The 78 files read as blades, pass the
+  save check, and write back to the same bytes; each family has the count the guide says. A Python
+  starter makes one public function, its variable; a Power BI one's only setting is `WORKSPACE`.
+  Placeholders, their kinds and what they follow; a value written for its place in DAX (`'`, `]`, `"`
+  doubled), Python (escaped in a string, braces doubled in an f-string, a name or a number bare) and
+  HTML (escaped; a name only inside `{{ }}`). Every DAX snippet fills with its brackets and quotes
+  paired; every HTML snippet fills with no address, `url(`, `@import`, `<link>` or `src=` in it.
+- **Streamlit pieces, documented as they say:** each one filled is Python; what it makes and reads
+  (the page designer's own `facts`, imports and `_` names left out) is what its `# Makes:` and
+  `# Reads:` lines say; every `st.` function it uses is listed in its header; a piece with a `key=`
+  says why, the cached one says when it forgets, the session state one why it is needed.
+- **Streamlit pieces, run:** `tests/test_starters_streamlit.py` runs all 29 under Streamlit's own
+  `streamlit.testing.v1.AppTest`, filled, each with a made-up `orders` table (40 rows), in a throwaway
+  environment under the scratchpad (Streamlit 1.67.0, pandas 3.1.1, pyarrow 26.0.1, openpyxl, Python
+  3.12.3): no exception and no error box in any. The guide's five pieces run together as one page, and
+  in any placing their run order follows their names. Without a Streamlit Python the run tests skip.
+- **Power BI actions:** `tests/test_starters_powerbi.py` runs all 13 against the stand-in, which now
+  answers refreshes (202 with a RequestId; Unknown in the history until asked about twice, then
+  Completed, or Failed with `serviceExceptionJson` on the broken dataset), dataflows and their
+  transactions, reports, parameters, Default.UpdateParameters (only after Default.TakeOver),
+  Default.TakeOver and the refresh schedule, in the shapes the Power BI REST reference gives. One
+  sign-in carries the app registration from the vault; no action request holds the secret; a refusal
+  arrives in Power BI's words; refresh and wait follows its own request id, and stops at its timeout.
+- **Excel and files:** `tests/test_starters_excel.py` runs the 12 Excel functions on a made-up
+  workbook in a temporary folder and checks it with openpyxl 3.1.5 (sheets, values and formulas,
+  borders per side, fonts and fills, number formats, column widths, freeze panes, merged cells,
+  conditional formats, a table, a copied template), and the three file functions on made-up CSVs
+  (a folder combined, a split by a column with `;`, a cp1252 file rewritten as UTF-8). Each refuses to
+  write over without `overwrite=True`. Every signature is the one its first lines document.
+- **The app:** the pack listed by family and apart from `/blades`; a starter refused for change and
+  removal; Copy as your own (named, numbered, kept editable); a snippet's form with the open tables as
+  choices and its filled text; a snippet cannot be run.
+- **Browser (this machine's Chromium):** `tests/e2e/test_starters_page.py`, 6 tests: the pack in the
+  blade list by family, a search, a starter opened read-only and copied as your own; a DAX snippet
+  dragged onto a DAX cell, its form filled from the stand-in workspace's loaded catalog (a measure
+  moves its table), the text inserted, an HTML snippet on the DAX cell refused with its message; an
+  HTML KPI row from the cell's Insert a snippet… drawn in the walled-off frame; a Streamlit piece
+  filling an empty cell and naming it, in the Streamlit cells pane by name, the agent's insert making
+  a named cell, and the piece dragged onto a canvas; the guide's five pieces dragged from the pane
+  onto a canvas and played live (with Streamlit); and in a script, a piece as a named cell and an HTML snippet as an HTML cell. Monaco 0.57's `getTargetAtClientPoint` places a
+  drop where it lands.
+- **The whole suite** with the browser tests in this machine's Chromium and SWISSARMYBENCH_STREAMLIT_PYTHON
+  set (the throwaway environment, with duckdb added for the saved pages' data.py): 2,507 passed, none
+  skipped. The first run found two things: the catalog page's tests now meet two search boxes (the
+  blades' shows whenever there are starters) and name theirs; and its new SQLite blade's tree was drawn
+  again closed when the list waited on the starters after a save (they are asked for once now; five runs
+  of that file passed after). `ruff check`, `ruff format --check`, `mypy` and `npm run typecheck` clean.
+- **Not checked:** a real Power BI tenant (Microsoft's documented shapes only), the DAX snippets run
+  against a real model, the map piece's background (it is fetched from the internet), Edge itself,
+  Windows paths in the Excel and file functions.
