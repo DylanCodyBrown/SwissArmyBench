@@ -1527,3 +1527,7 @@ drags; code of more than one line is pasted, one typed value):
   is now the exporter's `references` (tests/test_script_runs.py unchanged and passing); both use
   `env_name_for` and `python_connections.env_reads`.
 - **Approved outputs in the export:** not wired (docs/ideas.md, One script: why).
+- **The whole suite on `integration`** (lineage, Add API, test-bed-2 and wb-modes merged, Chromium,
+  Streamlit 1.67 in its own Python, the test bed down): 2,888 passed, 29 skipped (the test bed's use
+  cases among them), 15 minutes. No test failed, so none needed a rerun alone.
+- **Not checked:** Edge and Windows; the test bed's use cases with the bed up after the merge.
