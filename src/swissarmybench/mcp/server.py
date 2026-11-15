@@ -7,12 +7,14 @@ a generic call. Nothing is written by hand here: add a command to the registry a
 
 Descriptions are kept lean on purpose, since every tool's description and schema sits in the
 agent's context: the first sentence of the command's summary, and a short note only on arguments
-whose shape cannot be guessed (the JSON ones). The `guide` tool carries the detail.
+whose shape cannot be guessed (the JSON ones). The guide carries the detail: a short index the agent
+reads first (`swissarmybench://index`, or the `guide` tool with no arguments) and a page per topic
+(`swissarmybench://guide/<topic>`, or `guide(topic=...)`), served as resources too.
 
 Like every front end it calls the grid server over HTTP as the agent (`X-Actor: agent`); all the
-rules (export approvals, the SQL guard, the audit log) live in that server. It never
-starts a server or opens a browser: Swiss Army Bench lives in VS Code, whose extension runs the one
-server and shows the grids.
+rules (export approvals, the SQL guard, the audit log) live in that server. It never starts a server
+or opens a browser: the user starts the server (the `swissarmybench` command, or VS Code's Open Swiss
+Army Bench button).
 
 Cell values are untrusted: they come back only inside an `<untrusted-data>` block.
 """
@@ -25,19 +27,53 @@ from typing import Annotated, Any
 
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.resources import TextResource
+from mcp.types import Annotations
 from pydantic import Field
 
 from swissarmybench.cli.api import CommandError
-from swissarmybench.cli.commands import DATA_NOTE, REGISTRY, Command, ImageResult, execute_result
+from swissarmybench.cli.commands import (
+    DATA_NOTE,
+    GUIDE_TOPICS,
+    REGISTRY,
+    Command,
+    ImageResult,
+    execute_result,
+    guide_text,
+)
+
+INDEX_URI = "swissarmybench://index"
+TOPIC_URI = "swissarmybench://guide/{topic}"
 
 server = MCPServer(
     name="swissarmybench",
     title="Swiss Army Bench",
-    instructions=(
-        "The user's tables in live local grids, with every action their grid page has. Call guide "
-        "first. Exports wait for the user's click. " + DATA_NOTE
-    ),
+    instructions=f"Read {INDEX_URI} (or call guide) before any other tool. " + DATA_NOTE,
 )
+
+# The index first, for the assistant and marked most important; then each topic of the guide.
+server.add_resource(
+    TextResource(
+        uri=INDEX_URI,
+        name="index",
+        title="Read first: Swiss Army Bench index",
+        description="What the app is, how to start, the tools by prefix, the rules, where the detail lives.",
+        mime_type="text/markdown",
+        annotations=Annotations(audience=["assistant"], priority=1.0),
+        text=guide_text(),
+    )
+)
+for _topic, _title in GUIDE_TOPICS.items():
+    server.add_resource(
+        TextResource(
+            uri=TOPIC_URI.format(topic=_topic),
+            name=f"guide/{_topic}",
+            title=_title,
+            mime_type="text/markdown",
+            annotations=Annotations(audience=["assistant"], priority=0.5),
+            text=guide_text(_topic),
+        )
+    )
 
 
 class GridServerError(ToolError):

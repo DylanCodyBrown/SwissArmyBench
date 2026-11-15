@@ -97,8 +97,8 @@ def test_the_policy_routes_are_gone(client: TestClient) -> None:
 
 
 def test_the_guide_command_onboards_an_agent() -> None:
-    text = json.loads(execute("guide"))["markdown"]
-    assert text.startswith("# Swiss Army Bench") and "row_read" in text
+    text = execute("guide")
+    assert text.startswith("# Swiss Army Bench") and "row_read" in text and "agent_context" in text
     assert "privacy level" not in text.lower()
 
 

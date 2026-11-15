@@ -129,14 +129,41 @@ def _row_count(grid: str) -> int | None:
 # ===== meta: the guide, the catalog, the step vocabulary =====
 
 
-@command(
-    "guide",
-    "Start here: how Swiss Army Bench works for an agent, what it can see, which command to use when.",
-)
-def guide(a: dict[str, Any]) -> Any:
+# The agent's guide: a short index (mcp/index.md, read first) and one page per topic (mcp/guide/<topic>.md).
+# The MCP server also serves each as a resource: swissarmybench://index, swissarmybench://guide/<topic>.
+GUIDE_TOPICS: dict[str, str] = {
+    "grids": "Grids and steps: data in, reading, the ribbon, steps, SQL, the page",
+    "analyze": "Analyze and the Sandbox: the analyses, cards, dashboards, themes",
+    "relationships": "Keys and relationships: the finder, tangs, the Diagram, compare and tie-out",
+    "connections": "Connections and catalogs: databases, files, Power BI, your own Python, key vaults",
+    "blades": "Blades and starters: saved code, the starter pack, packs",
+    "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
+    "streamlit": "Streamlit: live cells, the canvas, export, Save as, projects",
+    "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data",
+}
+
+
+def guide_text(topic: str | None = None) -> str:
+    """The index with no topic; a topic's page; for a topic that is not one, the list of topics."""
     from importlib.resources import files  # only the guide needs it
 
-    return {"markdown": files("swissarmybench.mcp").joinpath("agent-guide.md").read_text(encoding="utf-8")}
+    folder = files("swissarmybench.mcp")
+    if not topic:
+        return folder.joinpath("index.md").read_text(encoding="utf-8")
+    name = topic.strip().lower()
+    if name not in GUIDE_TOPICS:
+        listed = "\n".join(f"- {key}: {title}" for key, title in GUIDE_TOPICS.items())
+        return f"No guide topic {topic!r}. The topics:\n{listed}\n"
+    return folder.joinpath("guide", f"{name}.md").read_text(encoding="utf-8")
+
+
+@command(
+    "guide",
+    "Read first: the index of the app and its tools; topic gives one topic's detail.",
+    opt("topic", "One of: " + ", ".join(GUIDE_TOPICS) + "."),
+)
+def guide(a: dict[str, Any]) -> Any:
+    return guide_text(a.get("topic"))
 
 
 @command(

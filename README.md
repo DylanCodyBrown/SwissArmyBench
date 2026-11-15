@@ -637,8 +637,10 @@ run it:
 - `swissarmybench-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
-  the whole tool list is about 11,000 tokens for 215 tools (a test holds it under a budget). `guide` and
-  `commands` (the catalog) carry the detail. A command added
+  the whole tool list is about 11,000 tokens for 215 tools (a test holds it under a budget). The agent reads a
+  short index first (the resource `swissarmybench://index`, or `guide` with no arguments; under 4,000
+  characters, checked against the registry's prefixes); `guide(topic=...)` (also
+  `swissarmybench://guide/<topic>`) and `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
 - `sab` is the same commands in a terminal (standard library only, in the plain wheel):
   `sab tabs_new_query top "SELECT ..."`, `sab steps_add g1 filter @step.json`,
