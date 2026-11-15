@@ -916,6 +916,37 @@ def columns_of(file):
 )
 
 
+# An Azure Key Vault signs in as you or as the managed identity of the Azure app it runs in (the form's
+# Sign in; docs/ideas.md, 2026-11-15). Nothing is entered on this computer to open it: an app
+# registration lives IN the vault, as entries other connections use (Power BI's). The exported script
+# reads the same vault with the same sign-in, by Azure's own REST calls (no azure-identity needed
+# there): domain/script_export.py.
+_AZURE_VAULT_READ = """
+client = SecretClient(vault_url="https://my-vault.vault.azure.net", credential=credential)
+
+
+def names():
+    return [p.name for p in client.list_properties_of_secrets() if p.enabled]
+
+
+def get(name):
+    return client.get_secret(name).value"""
+
+AZURE_VAULT_YOU = (
+    "from azure.identity import DefaultAzureCredential\n"
+    "from azure.keyvault.secrets import SecretClient\n\n"
+    "credential = DefaultAzureCredential()\n" + _AZURE_VAULT_READ
+)
+AZURE_VAULT_MANAGED = (
+    "from azure.identity import ManagedIdentityCredential\n"
+    "from azure.keyvault.secrets import SecretClient\n\n"
+    "# The managed identity of the Azure app this runs in (a Function App, App Service or VM). A\n"
+    "# user-assigned identity: its client id here.\n"
+    'client_id = ""\n'
+    "credential = ManagedIdentityCredential(client_id=client_id or None)\n" + _AZURE_VAULT_READ
+)
+
+
 def _vault(id: str, label: str, code: str, note: str = "") -> Template:
     return Template(
         id,
@@ -930,22 +961,23 @@ def _vault(id: str, label: str, code: str, note: str = "") -> Template:
 
 
 VAULTS: tuple[Template, ...] = (
-    _vault(
+    Template(
         "azure_key_vault",
         "Azure Key Vault",
-        """from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
-
-client = SecretClient(vault_url="https://my-vault.vault.azure.net", credential=DefaultAzureCredential())
-
-
-def names():
-    return [p.name for p in client.list_properties_of_secrets() if p.enabled]
-
-
-def get(name):
-    return client.get_secret(name).value""",
-        "Signs in as you (Azure CLI, VS Code or Windows sign-in).",
+        "Vaults",
+        "vault",
+        AZURE_VAULT_YOU,
+        "get",
+        vault_mapping=(("WAREHOUSE_PASSWORD", "warehouse-password"),),
+        note="Signs in as you here, or as the managed identity of the Azure app it runs in.",
+        sign_ins=(
+            ("As you (Azure CLI, VS Code or Windows sign-in)", "DefaultAzureCredential", AZURE_VAULT_YOU),
+            (
+                "Managed identity (in Azure: a Function App, App Service or VM)",
+                "ManagedIdentityCredential",
+                AZURE_VAULT_MANAGED,
+            ),
+        ),
     ),
     _vault(
         "aws_secrets_manager",

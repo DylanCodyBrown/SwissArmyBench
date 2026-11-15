@@ -121,6 +121,10 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/domain/proofs.py" = ["RUF001", "RUF003"]  # the proofs print real math signs (−, ×, ≤) for people to read
 "src/swissarmybench/services/charts.py" = ["S608"]
 "src/swissarmybench/domain/codegen.py" = ["S608", "E501"]
+# The one-script export holds the exported script's own text (its lines are the lines the user reads).
+"src/swissarmybench/domain/script_export.py" = ["E501"]
+"src/swissarmybench/domain/script_runtime.py" = ["E501"]
+"tests/test_script_export.py" = ["E501"]  # the made-up cells and the lines a script holds, as written
 "src/swissarmybench/services/grids.py" = ["S608"]
 "src/swissarmybench/services/agent.py" = ["S608"]
 "src/swissarmybench/services/export.py" = ["S608"]
