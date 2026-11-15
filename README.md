@@ -49,7 +49,7 @@ What a grid page does:
   becomes a block that links to the cell, on a 12-column grid, on as many pages as you like. **Play**
   shows the page live in place; **Edit** goes back to the blocks. A cell that makes a name
   (`region = st.selectbox(...)`) drives every block on the page that reads it. **Export** writes a
-  folder that runs on its own; **Save as** zips the project to add to your own app. Streamlit runs in
+  folder that runs on its own; **Save as zip** zips the project to add to your own app. Streamlit runs in
   the notebook's own Python and is not installed with the app.
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
   variables; `data.py` is its export, and what your notebooks and pages import (`from data import

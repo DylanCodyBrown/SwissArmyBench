@@ -23,6 +23,9 @@ export interface TableInfo {
   source_kind: string;
   /** python, file, dropped, paste, connection, query or unknown. */
   origin: string;
+  /** Where it came from, in a word or two: orders.csv, Warehouse, Python (the Data panel's). */
+  source?: string;
+  rows?: number;
   /** The Workbench kernel that sent it to the grid (null: no kernel did). */
   kernel: string | null;
   steps: number;

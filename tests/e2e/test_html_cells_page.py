@@ -25,6 +25,7 @@ from tests.e2e.test_table_cells_page import (
     window,
 )
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_workbench_page import add_cell, start
 
 CARD = (
     "<style>.card{padding:16px;border-radius:12px;background:#0b6e4f;color:#fff}</style>\n"
@@ -77,7 +78,7 @@ def html_cells_of(server: dict[str, Any]) -> list[dict[str, Any]]:
 def new_notebook(browser: Browser, server: dict[str, Any]) -> Page:
     close_tables(server)
     workbench = open_workbench(browser, server)
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     expect(workbench.locator(".wb-cell .monaco-editor").first).to_be_visible(timeout=20000)
     return workbench
 
@@ -111,8 +112,8 @@ def test_an_html_cell_shows_its_html_when_edited_and_its_design_when_left(
     browser: Browser, server: dict[str, Any]
 ) -> None:
     workbench = new_notebook(browser, server)
-    # The toolbar adds one, with the cursor in it.
-    workbench.get_by_role("button", name="HTML", exact=True).click()
+    # "+ Cell" adds one, with the cursor in it.
+    add_cell(workbench, "HTML")
     cell = workbench.locator(".wb-cell.kind-html")
     expect(cell).to_have_count(1)
     expect(cell.locator("select[aria-label='Cell kind']")).to_have_value("html")
@@ -511,5 +512,5 @@ def test_a_scripts_html_cell_shows_its_design_under_its_marker(
     namespace: dict[str, Any] = {}
     exec(text, namespace)  # noqa: S102 (the file still runs as plain Python)
     assert namespace["total"] == 42
-    workbench.get_by_role("button", name="HTML", exact=True).click()
+    add_cell(workbench, "HTML")
     expect(lines).to_contain_text("# %% [4] [html]", timeout=20000)

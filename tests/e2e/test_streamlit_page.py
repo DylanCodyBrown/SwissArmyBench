@@ -30,6 +30,7 @@ from playwright.sync_api import Browser, FrameLocator, Locator, Page, expect
 from swissarmygrid.client import push_client
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_workbench_page import menu
 from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
@@ -54,7 +55,7 @@ def open_window(browser: Browser, server: dict[str, Any], path: Path | None = No
     page = context.new_page()
     opened = f"&open={quote(str(path))}" if path else ""
     page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}{opened}")
-    expect(page.locator(".wb-tabs .tab-item" if path else ".wb-welcome").first).to_be_visible(timeout=20000)
+    expect(page.locator(".wb-tab" if path else ".wb-welcome").first).to_be_visible(timeout=20000)
     return page
 
 
@@ -128,7 +129,7 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     saved_notebook(server, book, STREAMLIT_PYTHON, [FILTER, TOTAL, NOTE])
     workbench = open_window(browser, server, book)
     cells = workbench.locator(".wb-cell")
-    tabs = workbench.locator(".wb-tabs .tab-item")
+    tabs = workbench.locator(".wb-tab")
 
     # ----- any Python cell: the ones that call Streamlit are live in their cells; there is no kind
     expect(cells.nth(1)).to_have_class(re.compile("kind-code"))
@@ -149,7 +150,7 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     ]
 
     # ----- a new app: a canvas, as a tab beside the notebook
-    workbench.get_by_role("button", name="New app").click()
+    menu(workbench, "Workbench menu", "New Streamlit app")
     expect(tabs).to_have_count(2)
     expect(workbench.locator(".cv-empty")).to_have_text("Drag a Python cell here")
     expect(workbench.get_by_role("button", name="Push to page")).to_have_count(0)
@@ -271,7 +272,7 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
         {"document": "sales.ipynb", "cell": 3, "row": 2, "column": 5, "width": 6, "height": None},
     ]
     assert "st.metric" not in (tmp_path / "sales.stapp.json").read_text()  # links: no code
-    tabs.nth(1).get_by_role("button", name="Close sales.stapp.json").click()
+    tabs.nth(1).get_by_role("button", name="Close").click()
     expect(tabs).to_have_count(1)
     window(server, "file.open", path=str(tmp_path / "sales.stapp.json"))
     expect(tabs).to_have_count(2)
@@ -295,7 +296,7 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     assert '"Sum of amount"' in (target / "app_pages" / "page_1.py").read_text()  # the cell as it is now
 
     # ----- Save as: the project as one zip (data.py, pages/*.py, the canvas, the notebook); no rows
-    workbench.get_by_role("button", name="Save as…").click()
+    workbench.get_by_role("button", name="Save as zip…").click()
     choose(workbench, tmp_path, "sales-app.zip", "Save here")
     expect(workbench.locator(".toast", has_text="sales-app.zip")).to_be_visible(timeout=LONG)
     with zipfile.ZipFile(tmp_path / "sales-app.zip") as zipped:
@@ -375,10 +376,10 @@ def test_a_python_without_streamlit_says_so_with_install(
     expect(workbench.locator(".wb-palette-item", has_text="Make it a Streamlit cell")).to_have_count(0)
     workbench.keyboard.press("Escape")
     # On a canvas, Play says what is missing, with Install.
-    workbench.get_by_role("button", name="New app").click()
-    workbench.locator(".wb-tabs .tab-item").nth(0).click()
-    cells.nth(0).locator(".wb-number").drag_to(workbench.locator(".wb-tabs .tab-item").nth(1))
-    workbench.locator(".wb-tabs .tab-item").nth(1).click()
+    menu(workbench, "Workbench menu", "New Streamlit app")
+    workbench.locator(".wb-tab").nth(0).click()
+    cells.nth(0).locator(".wb-number").drag_to(workbench.locator(".wb-tab").nth(1))
+    workbench.locator(".wb-tab").nth(1).click()
     expect(workbench.locator(".cv-block")).to_have_count(1)
     workbench.get_by_role("button", name="Play", exact=True).click()
     expect(workbench.locator(".cv-problem")).to_contain_text("not installed", timeout=LONG)
@@ -437,10 +438,20 @@ def test_a_project_opens_with_its_data_first(
     workbench = open_window(browser, server)
     made = window(server, "project.new", folder=str(tmp_path), name="sales", notebooks=["mockups"])
     assert [Path(p).name for p in made["files"]] == ["data.ipynb", "sales.stapp.json", "mockups.ipynb"]
-    tabs = workbench.locator(".wb-tabs .tab-item")
+    tabs = workbench.locator(".wb-tab")
     expect(tabs).to_have_text([re.compile(n) for n in ("data.ipynb", "sales.stapp.json", "mockups")])
     expect(tabs.nth(0)).to_have_class(re.compile("active"))  # the data is in front
-    expect(workbench.locator(".wb-project")).to_have_text("sales")
+    # The Data panel lists the project's files: data.py set in under data.ipynb, as its output.
+    files = workbench.locator(".wb-files")
+    expect(files).to_contain_text("sales/")
+    expect(files.locator(".wb-files-list li")).to_have_text(
+        [
+            re.compile("data.ipynb"),
+            re.compile("data.py"),
+            re.compile("sales.stapp.json"),
+            re.compile("mockups"),
+        ]
+    )
     # data.ipynb holds the table's read-only cell; the other notebook starts from data.py.
     assert [t["name"] for t in window(server, "tables.list")["tables"]] == ["orders"]
     window(server, "doc.show", index=2)

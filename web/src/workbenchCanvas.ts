@@ -52,6 +52,8 @@ export interface CanvasHost {
 
 export interface CanvasView {
   element: HTMLElement;
+  /** Play, Edit, Export, Save as: the page puts them in the document's row of controls. */
+  tools: HTMLElement;
   app: () => string | null;
   state: () => CanvasState | null;
   /** The pages, as the app's file keeps them. */
@@ -90,6 +92,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
   let refocus: string | null = null; // the block (or its grip) the keyboard was on before a change
 
   const top = h("div", { class: "cv-top" });
+  const tools = h("span", { class: "cv-tools" });
   const notes = h("div", { class: "cv-notes" });
   const board = h("div", { class: "cv-board", role: "list", "aria-label": "Blocks" });
   const live = h("div", { class: "cv-live" });
@@ -327,7 +330,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     playButton.disabled = busy || !page;
     const editButton = mode === "live" ? button("Edit", () => edit(), { icon: "edit", class: "cv-edit", title: "Back to the blocks" }) : null;
     const exportButton = button("Export…", () => void exportApp().catch((e: Error) => toast(e.message, "error")), { icon: "export", class: "cv-export", title: "Export an app that runs alone: app.py, its pages, the data as Parquet" });
-    const saveAsButton = button("Save as…", () => void saveAs().catch((e: Error) => toast(e.message, "error")), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
+    const saveAsButton = button("Save as zip…", () => void saveAs().catch((e: Error) => toast(e.message, "error")), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
     exportButton.disabled = saveAsButton.disabled = !pages.length;
     clear(
       top,
@@ -342,8 +345,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
           }
         }), { icon: "plus", class: "ghost cv-new-page" }),
       ),
-      h("div", { class: "ribbon-tools cv-tools" }, playButton, editButton, exportButton, saveAsButton),
     );
+    clear(tools, playButton, editButton, exportButton, saveAsButton);
   }
 
   // ===== what needs the user: the app's problem, the page's problems =====
@@ -632,6 +635,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
 
   return {
     element,
+    tools,
     app: () => id,
     state: () => state,
     pages: () => savedPages(state ? state.pages : initial),

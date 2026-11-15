@@ -929,6 +929,16 @@ class Origin:
     def to_json(self) -> dict[str, Any]:
         return {"kind": self.kind, "kernel": self.kernel}
 
+    def label(self) -> str:
+        """Where it came from in a word or two, for the Workbench's Data panel: the file's name
+        (orders.csv), the connection's (Warehouse), Python, Pasted or Query ("" when not known)."""
+        if self.kind in ("file", "dropped"):
+            name = re.split(r"[\\/]", self.path or self.filename or "")[-1]
+            return f"{name} · {self.sheet}" if name and self.sheet else name
+        if self.kind == "connection":
+            return self.connection or ""
+        return {"python": "Python", "paste": "Pasted", "query": "Query"}.get(self.kind, "")
+
 
 def _comment(text: str) -> str:
     return "\n".join(f"# {line}".rstrip() for line in text.split("\n"))

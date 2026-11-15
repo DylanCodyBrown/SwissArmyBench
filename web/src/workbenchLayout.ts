@@ -1,21 +1,24 @@
 /**
  * workbenchLayout.ts: the Workbench's panes, after RStudio (the review of 2026-11-14 chose its
- * skeleton): always the same places, so the eye learns them. [WIRE]
+ * skeleton), around the tab groups (the redesign of 2026-11-15). [WIRE]
  *
- *   ┌ side bar ┬──────────── source ────────────┬──── Variables ────┐
- *   │ (Ctrl+B) │ the notebook or script         │ what the kernel   │
- *   │          ├──────────── console ───────────┤ holds now         │
- *   │          │ the document's own console     │                   │
- *   └──────────┴────────────────────────────────┴───────────────────┘
- *                         status bar: kernel, environment, cursor
+ *   ┌──────────────────────────── top bar ─────────────────────────────┐
+ *   ├ Data ────┬──────────── tab groups ────────────┬──── Variables ───┤
+ *   │ (Ctrl+B) │ notebooks and scripts, in groups   │ what the focused │
+ *   │          ├───────────── console ──────────────┤ kernel holds now │
+ *   │          │ the focused document's console     │                  │
+ *   │          ├────────────────────────────────────┴──────────────────┤
+ *   │          │ status bar: kernel, environment, cursor, Console, Variables
+ *   └──────────┴────────────────────────────────────────────────────────┘
+ *
+ *   [CLOSED]     the console and Variables start closed (the status bar opens them); a run in the
+ *                console opens it
  *
  *   [SPLITTERS]  drag them, or focus one and use the arrow keys (Home and End for the ends); sizes are
  *                remembered in this browser (localStorage: a convenience, nothing on disk)
  *   [LAYOUTS]    Standard; Focus (the source alone, Ctrl+Shift+1); Wide data (the right column wider).
  *                Under 1100 pixels the right column opens over the source as a drawer
  *   [HELP]       F1 on a name: a card over the source (Escape or its close button puts it away)
- *   [COMPACT]    a notebook whose console is not in use shows it as its title bar only, so the cells
- *                have the column; a click on it, F6 to it, or a run in it opens it at its size
  *
  * Pictures and charts stay in the run's output, each with Send to Sandbox (the owner, 2026-11-14: the
  * Sandbox is where they gather, so the Workbench has no Plots pane of its own).
@@ -26,12 +29,11 @@ interface Sizes {
   left: number; // the source and console column's width, in % of the window's body
   leftTop: number; // the source's height, in % of its column
   layout: "standard" | "focus" | "wide";
-  rail: boolean; // the side bar shown
   right: boolean; // the right column shown
   console: boolean; // the console shown
 }
-const DEFAULTS: Sizes = { left: 70, leftTop: 62, layout: "standard", rail: true, right: true, console: true };
-const KEY = "workbench-layout";
+const DEFAULTS: Sizes = { left: 72, leftTop: 66, layout: "standard", right: false, console: false };
+const KEY = "workbench-panes";
 
 function load(): Sizes {
   try {
@@ -44,7 +46,7 @@ function load(): Sizes {
 export type PaneName = "source" | "console" | "variables";
 
 export interface Layout {
-  /** The source pane's host (the document goes in it). */
+  /** The source pane's host (the tab groups go in it). */
   source: HTMLElement;
   /** The console pane's host (the document's console goes in it). */
   console: HTMLElement;
@@ -56,13 +58,13 @@ export interface Layout {
   /** F6: the next pane. */
   cycle: (by: 1 | -1) => void;
   setLayout: (layout: Sizes["layout"]) => void;
-  toggle: (part: "rail" | "right" | "console", show?: boolean) => boolean;
-  /** The console as its title bar only (a notebook whose console is not in use), or at its size. */
-  compact: (on: boolean) => void;
-  state: () => { layout: string; rail: boolean; right: boolean; console: boolean; narrow: boolean };
+  toggle: (part: "right" | "console", show?: boolean) => boolean;
+  /** Nothing is open: the empty state has the whole area (the console and Variables wait). */
+  empty: (on: boolean) => void;
+  state: () => { layout: string; right: boolean; console: boolean; narrow: boolean };
 }
 
-export function mountLayout(body: HTMLElement, rail: HTMLElement, main: HTMLElement, focusSource: () => void, focusConsole: () => void): Layout {
+export function mountLayout(body: HTMLElement, main: HTMLElement, focusSource: () => void, focusConsole: () => void, changed: () => void = () => undefined): Layout {
   const sizes = load();
   const save = (): void => {
     try {
@@ -72,7 +74,7 @@ export function mountLayout(body: HTMLElement, rail: HTMLElement, main: HTMLElem
     }
   };
 
-  const source = h("div", { class: "wb-pane wb-source", id: "wb-doc", role: "region", "aria-label": "Source" });
+  const source = h("div", { class: "wb-pane wb-source", id: "wb-doc", role: "region", "aria-label": "Documents" });
   const consoleHost = h("div", { class: "wb-pane wb-console-pane" }); // the console inside names it
   const variables = h("div", { class: "wb-pane wb-env" }); // the Variables section inside names it
 
@@ -138,7 +140,8 @@ export function mountLayout(body: HTMLElement, rail: HTMLElement, main: HTMLElem
   const right = h("div", { class: "wb-col wb-col-right" });
   const panes = h("div", { class: "wb-panes" });
   left.append(source, splitter("horizontal", "Resize source and console", () => sizes.leftTop, (v) => (sizes.leftTop = v), () => left), consoleHost);
-  right.append(variables);
+  // A band level with the groups' rows, so the tabs' line runs across the window.
+  right.append(h("div", { class: "wb-right-band", "aria-hidden": "true" }), variables);
   panes.append(left, splitter("vertical", "Resize source and Variables", () => sizes.left, (v) => (sizes.left = v), () => panes), right);
   body.replaceChildren(panes, helpCard);
 
@@ -154,7 +157,7 @@ export function mountLayout(body: HTMLElement, rail: HTMLElement, main: HTMLElem
     panes.classList.toggle("no-right", focus || !sizes.right);
     panes.classList.toggle("no-console", focus || !sizes.console);
     panes.classList.toggle("drawer", narrow.matches);
-    rail.hidden = !sizes.rail;
+    changed();
   };
   narrow.addEventListener("change", () => {
     // A narrow window starts with the drawer closed (it would cover the source).
@@ -171,7 +174,6 @@ export function mountLayout(body: HTMLElement, rail: HTMLElement, main: HTMLElem
       if (sizes.layout === "focus") sizes.layout = "standard";
       draw();
     }
-    if (pane === "console") panes.classList.remove("console-compact");
     if (pane === "console" && panes.classList.contains("no-console")) {
       sizes.console = true;
       if (sizes.layout === "focus") sizes.layout = "standard";
@@ -214,14 +216,14 @@ export function mountLayout(body: HTMLElement, rail: HTMLElement, main: HTMLElem
       draw();
       save();
     },
-    compact: (on) => panes.classList.toggle("console-compact", on),
+    empty: (on) => panes.classList.toggle("nothing-open", on),
     toggle: (part, show) => {
       sizes[part] = show ?? !sizes[part];
-      if (sizes[part] && sizes.layout === "focus" && part !== "rail") sizes.layout = "standard";
+      if (sizes[part] && sizes.layout === "focus") sizes.layout = "standard";
       draw();
       save();
       return sizes[part];
     },
-    state: () => ({ layout: sizes.layout, rail: sizes.rail, right: !panes.classList.contains("no-right"), console: !panes.classList.contains("no-console"), narrow: narrow.matches }),
+    state: () => ({ layout: sizes.layout, right: !panes.classList.contains("no-right"), console: !panes.classList.contains("no-console"), narrow: narrow.matches }),
   };
 }

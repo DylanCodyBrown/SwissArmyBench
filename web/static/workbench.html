@@ -12,17 +12,14 @@
     <!-- The editor's own styles (Monaco), built with the editor module it is loaded with. -->
     <link rel="stylesheet" href="/static/build/lazy/codeEditor.css" />
   </head>
-  <body class="catalog-page workbench-page">
-    <!-- The Workbench (Plans/workbench-and-connections.plan.md): notebooks and scripts, always in a window
-         of their own, opened from the grid page's Workbench tab. The rail is the blades page's. -->
+  <body class="workbench-page">
+    <!-- The Workbench (Plans/workbench-and-connections.plan.md; redesigned 2026-11-15): notebooks and
+         scripts, always in a window of their own, opened from the grid page's Workbench tab. One row on
+         top; the Data panel on the left (workbenchData.ts puts it in .wb-layout); tab groups, the console,
+         Variables and the status bar in the main area. -->
+    <header class="wb-top" id="wb-top"></header>
     <div class="wb-layout">
-      <aside class="cat-rail" aria-label="Connections, blades and the data explorer">
-        <section class="rail-section" id="blades" aria-labelledby="blades-title"></section>
-        <section class="rail-section grow" id="catalog" aria-labelledby="catalog-title"></section>
-      </aside>
       <main class="wb-main">
-        <div class="wb-toolbar" id="wb-toolbar" role="toolbar" aria-label="Workbench"></div>
-        <div class="wb-tabs" id="wb-tabs" role="tablist" aria-label="Open documents"></div>
         <div class="wb-body" id="wb-body"></div>
       </main>
     </div>

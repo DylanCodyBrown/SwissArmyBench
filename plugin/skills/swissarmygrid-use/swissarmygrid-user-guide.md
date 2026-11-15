@@ -323,10 +323,28 @@ The diagram is fitted to the window as it is drawn, and follows the window's siz
 The grid page's **Workbench** tab opens notebooks (`.ipynb`) and Python scripts (`.py`) in a window of
 their own, run in an IPython kernel on this computer.
 
-- **Panes always in the same places:** the source (the notebook or script), its console under it, and
-  Variables on the right. Drag a splitter (or focus it and use the arrow keys); the sizes are
-  remembered. A picture or chart a run draws has **Send to Sandbox**: the Sandbox is where they gather. The side bar on the left (Ctrl+B) holds the connections, blades and
-  the data explorer: drag one into a cell or the script.
+- **One row on top:** the document in front (a dot while it has unsaved changes), **Save**, **Save
+  as…**, and **…** (New notebook, New script, Open…, Recent, Split right, Split down, Commands).
+- **The Data panel, on the left:** **Tables** lists the tables open in the grid, each with its rows,
+  its file or connection and its steps; a click goes to its read-only cell in the notebook in front,
+  and a drag puts its name in your code. **+ Table** opens a file as a table, browses a connection's
+  tables, searches the catalog, or adds a connection. **Variables** lists your blades (a click opens
+  one, a drag gives its `sag.blade` line); **+ Blade** shows your saved blades and connections. The
+  arrow (or Ctrl+B) folds the panel away.
+- **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
+  group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
+  the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the
+  bar between groups to size them; a group closes with its last tab. A tab's icon and coloured edge say
+  its kind: blue for `data.ipynb`, grey for notebooks and scripts.
+- **Each group's row:** its tabs, then, for the group you are in, the document's controls: a
+  notebook's **+ Cell** (Python, SQL, DAX, HTML, Streamlit, Markdown), **Run all** and **…**; a script's
+  **+ Cell**, **Run file** and **…** (Run statement, Open…, Recent, Save as…, Interrupt, Restart, the
+  Streamlit app, split, Close). **Run tables** appears there while a table's cell waits.
+- **The status bar** is for the document in front: its kernel (click for Interrupt and Restart; it
+  says its state only while it is not ready), its environment, the cursor, and **Console** and
+  **Variables**, which open the console under the groups and Variables on the right. Both start
+  closed; running a script opens the console. A picture or chart a run draws has **Send to Sandbox**:
+  the Sandbox is where they gather. Splitters can be dragged, or focused and moved with the arrow keys.
 - **Running a script:** F5 runs the file as Python would (`__name__ == "__main__"`, `sys.argv`,
   multiprocessing), saving it first. Ctrl+Enter (or Shift+Enter, F9) runs the whole statement at the
   cursor, a `for` block or a function, then moves to the next one. Run to here and Run from here are in
@@ -334,8 +352,7 @@ their own, run in an IPython kernel on this computer.
 - **The console:** every notebook and script has one, on its own kernel. Enter runs a whole statement
   and adds a line to an unfinished one; Shift+Enter adds a line; Up goes back through what ran.
   `input()` asks in place. Colours, progress bars and long output show as they would in a terminal.
-- **Notebooks:** a new notebook has the cursor in its first cell: type at once. Its console shows as a
-  title bar until you use it (click it, or F6 to it), so the cells have the column. A result that is a
+- **Notebooks:** a new notebook has the cursor in its first cell: type at once. A result that is a
   table (a DataFrame as a cell's last line) has **Open as grid** under it: a cell ending in a variable
   (`orders`) opens as that name, anything else (`orders.head()`) as `out_` and its number, so the
   table itself is never replaced. Shift+Enter runs a cell and moves on. Escape leaves the editor for Jupyter's command
@@ -355,15 +372,16 @@ their own, run in an IPython kernel on this computer.
   any time with its `agent_inbox` tool. Nothing is written to disk.
 - **Every command by name:** Ctrl+Shift+P opens the palette. F1 on a name shows its help in a card over
   the source (Escape puts it away). Ctrl+1 to Ctrl+3 (and F6) move between the panes.
-- **After a reload** the open documents and their unsaved text come back (kept in the window, not on
-  disk).
+- **After a reload** the open documents, their unsaved text and the groups come back (kept in the
+  window, not on disk).
 - **Every cell has a number that never changes:** `#7` in a notebook cell's head (beside the run count
   `[3]`), `# %% [7]` on a script's cell marker. It is given when the cell is made and never given
   again, wherever the cell moves. Write `@cell7` in a comment and it is a link: a click goes to cell 7,
   a hover shows its first line. Outside the Workbench it is a plain comment.
 - **The agent** works the Workbench as you do: it opens, runs and saves files and kernels, and its
   `workbench_window` tool runs any palette command in the window you were last in (`documents` says
-  what is open, `commands` lists them all).
+  what is open and how the groups are arranged, `commands` lists them all: splitting, moving a tab,
+  the Data panel's too).
 
 ## Connections and key vaults
 
@@ -402,7 +420,7 @@ their own, run in an IPython kernel on this computer.
 
 ### Catalogs load themselves
 
-A connection's catalog (its tables and columns, for the side bar's tree and the SQL cell's suggestions) loads in the background: when you save the connection, when SwissArmyGrid starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
+A connection's catalog (its tables and columns, for the Workbench's catalog tree and the SQL cell's suggestions) loads in the background: when you save the connection, when SwissArmyGrid starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
 
 ## What the agent may see
 
@@ -449,7 +467,7 @@ here: its code lives there.
   **Run**. Run it and the variable holds the table as the grid shows it. Undo the change in the grid
   and the yellow clears by itself. Before its first run it says **Not run yet**; after a reload,
   **Not run since opening**. A cell that is current says nothing: only a state that needs you to act
-  is shown. The toolbar's **Run tables** appears when a cell needs a run, and runs each one.
+  is shown. The group row's **Run tables** appears when a cell needs a run, and runs each one.
 - **Running it twice is safe.** The cell always starts from the table as your own cell made it, so a
   second run never transforms a table that is already transformed. Both are in memory while you work.
   Run all and Run file run it the same way. The saved file still runs from top to bottom as plain
@@ -478,7 +496,7 @@ here: its code lives there.
 ### DAX cells: a query on a Power BI dataset
 
 A DAX cell holds one DAX query and runs it on one dataset of a Power BI workspace connection. Add one
-with the toolbar's **DAX**, the kind picker in a cell's head, the palette (**Add a DAX cell**), or
+with **+ Cell** › **DAX**, the kind picker in a cell's head, the palette (**Add a DAX cell**), or
 **X** in command mode.
 
 - **The dataset** is picked in the cell's head, beside its kind. The list holds only Power BI
@@ -518,7 +536,7 @@ with the toolbar's **DAX**, the kind picker in a cell's head, the palette (**Add
 ### HTML cells: a design drawn from its HTML
 
 An HTML cell holds HTML and shows it as a design: a card, a screen mock-up, a page of a story told
-with your data. Add one with the toolbar's **HTML**, the kind picker in a cell's head, the palette, or
+with your data. Add one with **+ Cell** › **HTML**, the kind picker in a cell's head, the palette, or
 H in a notebook's command mode.
 
 - **Two faces.** While you edit it, the cell shows its HTML, coloured as HTML. When you leave it
@@ -589,7 +607,8 @@ of cell: write Python.
   kernel, so Run all leaves it out of the kernel. A cell that only imports streamlit is a plain cell.
 - **Names link cells:** a cell that makes a name (`region = st.selectbox("Region", ...)`) drives every
   cell on the same page that reads `region`, wherever each sits.
-- **New app** (the toolbar, the welcome page, the palette) opens a **canvas** as a tab: the app's
+- **New Streamlit app** (a group's **+**, the top bar's **…**, Start an app on the empty page, the
+  palette) opens a **canvas** as a tab: the app's
   pages, each a 12-column grid. It is saved as its own file, `<name>.stapp.json` (Ctrl+S): pages,
   blocks and their places, and links to cells. No code is copied into it.
 - **Put a cell on the canvas:** drag any Python cell by its number (`#3`) or its head onto the canvas
@@ -601,19 +620,19 @@ of cell: write Python.
   and what it makes and reads. Drag it to move it (or the arrow keys), drag its corner to resize it
   (arrow keys on the corner; a double-click fits its height), Delete takes it off. The X of a page's
   tab removes the page; double-click a tab (or F2) renames it; **New page** adds one.
-- **Play** runs the page from the linked cells as they are now (saved or not) and shows it live in
+- **Play** (in the tab's row of controls) runs the page from the linked cells as they are now (saved or not) and shows it live in
   place. **Edit** goes back to the blocks. When a linked cell, a table it reads or the layout changes
   while the page shows, the button says **Out of date · Play**. Nothing runs by itself.
 - **A block whose cell was deleted, or whose file is gone,** says so in red with the path and the
   number.
-- **Its own window:** the tab's pop-out button moves a saved document (a canvas, a notebook) into a
+- **Its own window:** the document's **…** menu (Open in its own window) moves a saved document (a canvas, a notebook) into a
   Workbench window of its own, for another screen.
 - **Streamlit is not installed with SwissArmyGrid.** It runs in the notebook's own Python (its
   environment). If that Python lacks it, the cell or the canvas says so and offers **Install**
   (streamlit, pandas and pyarrow, into that Python).
 - **Export…** writes a folder that runs alone: `app.py`, `app_pages/`, the data as Parquet in
   `data/`, `requirements.txt`. Run it with `streamlit run app.py`.
-- **Save as…** zips the app's **project** to add to your own Streamlit app: `pages/*.py` (each starts
+- **Save as zip…** zips the app's **project** to add to your own Streamlit app: `pages/*.py` (each starts
   with `from data import ...`), `data.py`, `requirements.txt`, `README.txt`, and the sources
   (data.ipynb, the canvas, the notebooks it links to). No rows and no passwords go into the zip.
 - **Private.** The Streamlit process listens on this computer only, and stops when its window or the
@@ -626,10 +645,10 @@ read-only cell (its load and its grid steps as DuckDB SQL), and your own code ce
 variables. **data.py** is its export, never edited by hand. Your other notebooks, and the app's pages,
 start with `from data import orders, ...`.
 
-- **Project > New project…** makes the folder: data.ipynb (a cell for each open table), data.py, an
-  app's canvas, requirements.txt. **Open project…** opens its files as tabs, data.ipynb first; the
-  folder's name shows beside the tabs.
-- **Export data.py** (the Project menu) writes data.py again from data.ipynb as it stands. Play and
+- **New project…** (a group's **+**, the top bar's **…**) makes the folder: data.ipynb (a cell for each open table), data.py, an
+  app's canvas, requirements.txt. **Open project…** opens its files as tabs, data.ipynb first, and the
+  Data panel lists them (data.py set in under data.ipynb, as its output).
+- **Export data.py** (the same menus) writes data.py again from data.ipynb as it stands. Play and
   Save as do it too.
 - A table that was pasted, dropped or sent from Python cannot be read again by data.py: it is a
   marked stub (`FILL IN`) until data.ipynb has a cell that reads it.

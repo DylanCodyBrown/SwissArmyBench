@@ -18,7 +18,7 @@ from playwright.sync_api import Browser, expect
 
 from tests import powerbi_standin as made_up
 from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
-from tests.e2e.test_workbench_page import open_workbench, wait_until
+from tests.e2e.test_workbench_page import add_cell, open_workbench, start, wait_until
 
 VAULT_CODE = f"""values = {{
     "powerbi-tenant-id": "{made_up.TENANT}",
@@ -188,7 +188,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
 
     # The Workbench: a DAX cell. Its picker lists only the workspace's datasets; a SQL cell's, none.
     workbench = open_workbench(page)
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     cell = workbench.locator(".wb-cell").first
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
     cell.get_by_label("Cell kind").select_option("sql")
@@ -253,7 +253,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
         ("dax", "Finance/Budget model"),
     ]
     # Jupyter's key: X makes the selected cell a DAX cell (S: SQL).
-    workbench.get_by_role("button", name="Python", exact=True).click()
+    add_cell(workbench, "Python")
     third = workbench.locator(".wb-cell").nth(2)
     expect(third.locator(".monaco-editor")).to_be_visible(timeout=20000)
     workbench.keyboard.press("Escape")
@@ -263,9 +263,9 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
 
     # A script: its DAX cell is plain Python, one sag.dax() call under a `# %% [dax]` marker, on the
     # first dataset; the agent adds one on a dataset it names. The file runs as it is.
-    workbench.get_by_role("button", name="New script").first.click()
+    start(workbench, "New script")
     expect(workbench.locator(".wb-script-editor .monaco-editor")).to_be_visible(timeout=20000)
-    workbench.get_by_role("button", name="DAX", exact=True).click()
+    add_cell(workbench, "DAX")
     wait_until(lambda: "[dax]" in window("doc.read")["text"])
     window("cell.addDax", dataset="Finance/Sales model", source="EVALUATE TOPN(2, 'Customer')")
     text = window("doc.read")["text"]

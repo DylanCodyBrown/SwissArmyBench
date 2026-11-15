@@ -255,9 +255,16 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;
                          fileChooser.ts picks real paths. The Workbench (static/workbench.html, its own
-                         window): workbenchPage.ts (composition), workbenchLayout.ts (RStudio's panes: source,
-                         console, Variables; splitters; the status bar; F1 help as a card; pictures go
-                         to the Sandbox), workbenchAgent.ts (right-click, Send to the agent),
+                         window): workbenchPage.ts (composition: the top row, each group's controls, the
+                         status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
+                         Variables, both closed until the status bar opens them; splitters; F1 help as a
+                         card; pictures go to the Sandbox), workbenchGroups.ts (tab groups as VS Code's
+                         editor groups: drag to reorder or split with the five-way guide, splitters, the
+                         layout as data for the session restore; the tab kind registry, registerTabKind,
+                         where app pages are added), workbenchData.ts (the Data panel: the open tables,
+                         the blades' variables, a project's files once one exists (setFiles); "+ Table"
+                         and "+ Blade" open catalogRail.ts beside it; folds), workbenchMenu.ts (its drop-
+                         down menus), workbenchAgent.ts (right-click, Send to the agent),
                          workbenchCommands.ts (every window action by one name: the palette, the keys, and
                          the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command
                          mode), workbenchScript.ts, workbenchConsole.ts (each document's console),

@@ -374,6 +374,28 @@ def code_box(dialog: Any) -> Any:
     return dialog.locator(".connection-code")  # in the folded Python code box
 
 
+def menu(workbench: Page, button: str, item: str) -> None:
+    """Open a menu by its button's name and choose an entry (the redesign of 2026-11-15 put the old
+    toolbar's actions in menus: the top bar's "Workbench menu", a group's "Document menu" and "Add cell")."""
+    workbench.get_by_role("button", name=button, exact=True).first.click()
+    workbench.get_by_role("menuitem", name=item, exact=True).click()
+
+
+def start(workbench: Page, what: str = "New notebook") -> None:
+    """New notebook or New script, from the top bar's menu."""
+    menu(workbench, "Workbench menu", what)
+
+
+def add_cell(workbench: Page, kind: str) -> None:
+    """A cell of a kind, from the focused group's "+ Cell"."""
+    menu(workbench, "Add cell", kind)
+
+
+def status(workbench: Page, toggle: str) -> None:
+    """The status bar's Console or Variables."""
+    workbench.locator(".wb-status").get_by_role("button", name=toggle, exact=True).click()
+
+
 def open_workbench(page: Page) -> Page:
     with page.context.expect_page() as opened:
         page.locator(".tab-workbench").click()
@@ -393,7 +415,7 @@ def test_the_first_save_on_a_fresh_home_folder_has_somewhere_to_go(
     assert "pytest" in str(own)  # the tests' own folder, never this machine's home
     shutil.rmtree(own, ignore_errors=True)
     workbench = open_workbench(open_grid(browser, orders_url))
-    workbench.get_by_role("button", name="New script").first.click()
+    start(workbench, "New script")
     workbench.locator(".monaco-editor").first.click()
     workbench.keyboard.type("print('made-up')")
     # Three actions: Save, the name, Save here. The chooser opens in the app's folder, now there.
@@ -425,7 +447,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     workbench = open_workbench(open_grid(browser, orders_url))
     # The left panel lists the connection apart from the blades.
     expect(workbench.locator(".blade-item", has_text="Orders").locator(".blade-kind")).to_have_text("File")
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     editor = workbench.locator(".wb-cell .monaco-editor").first
     expect(editor).to_be_visible(timeout=20000)
     editor.click()
@@ -436,7 +458,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     expect(first.locator("iframe.wb-html")).to_be_visible()
     expect(first.locator(".wb-count")).to_have_text("[1]")
     # Every connection is there by its name: no sag.connection(...) line (opened when first used).
-    workbench.get_by_role("button", name="Python", exact=True).click()
+    add_cell(workbench, "Python")
     named = workbench.locator(".wb-cell").nth(1)
     expect(named.locator(".monaco-editor")).to_be_visible(timeout=20000)
     named.locator(".monaco-editor").click()
@@ -467,7 +489,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     assert saved["nbformat"] == 4 and saved["cells"][1]["source"][0] == "%%sql Orders\n"
     # Closed and opened again from Recent: the cells and their outputs come back.
     workbench.locator(".wb-tabs").get_by_role("button", name="Close orders.ipynb").click()
-    workbench.get_by_role("button", name="Recent").click()
+    menu(workbench, "Workbench menu", "Recent…")
     workbench.get_by_role("menuitem", name="orders.ipynb").click()
     expect(workbench.locator(".wb-cell")).to_have_count(2)
     expect(workbench.locator(".wb-cell").nth(1).get_by_label("Connection")).to_have_value("Orders")
@@ -476,7 +498,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
 
 def new_script(workbench: Page, code: str) -> None:
     """A new script with `code` in its editor (typed as one insert, so the editor adds no indent)."""
-    workbench.get_by_role("button", name="New script").first.click()
+    start(workbench, "New script")
     editor = workbench.locator(".wb-script-editor .monaco-editor")
     expect(editor).to_be_visible(timeout=20000)
     editor.click()
@@ -585,12 +607,12 @@ def test_a_deleted_cell_comes_back_and_open_documents_survive_a_reload(
 ) -> None:
     workbench = open_workbench(open_grid(browser, orders_url))
     workbench.on("dialog", lambda dialog: dialog.accept())  # the unsaved-changes warning on reload
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     first = workbench.locator(".wb-cell .monaco-editor").first
     expect(first).to_be_visible(timeout=20000)
     first.click()
     workbench.keyboard.insert_text("kept = 'first cell'")
-    workbench.get_by_role("button", name="Python", exact=True).click()
+    add_cell(workbench, "Python")
     expect(workbench.locator(".wb-cell")).to_have_count(2)
     workbench.locator(".wb-cell").first.get_by_role("button", name="Delete cell").click()
     expect(workbench.locator(".wb-cell")).to_have_count(1)
@@ -632,7 +654,7 @@ def test_completion_comes_from_the_catalog_and_the_kernel(
     assert request_catalog["catalog"]["columns"] == 3
     try:
         workbench = open_workbench(open_grid(browser, orders_url))
-        workbench.get_by_role("button", name="New notebook").first.click()
+        start(workbench)
         cell = workbench.locator(".wb-cell").first
         expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
         # A SQL cell before any kernel runs: the connection's catalog answers.
@@ -649,7 +671,7 @@ def test_completion_comes_from_the_catalog_and_the_kernel(
         expect(suggest.filter(has_text="region").first).to_be_visible(timeout=10000)
         workbench.keyboard.press("Escape")
         # A Python cell once the kernel runs: the kernel's own names, a DataFrame's columns.
-        workbench.get_by_role("button", name="Python", exact=True).click()
+        add_cell(workbench, "Python")
         python = workbench.locator(".wb-cell").nth(1)
         expect(python.locator(".monaco-editor")).to_be_visible(timeout=20000)
         python.locator(".monaco-editor").click()
@@ -684,7 +706,7 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
         },
     )
     workbench = open_workbench(open_grid(browser, orders_url))
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     cell = workbench.locator(".wb-cell").first
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
     cell.locator(".monaco-editor").click()
@@ -692,7 +714,8 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
     workbench.keyboard.type(f"import pandas as pd\nrainfall = pd.DataFrame({frame})")
     workbench.keyboard.press("Control+Enter")
     expect(cell.locator(".wb-count")).to_have_text("[1]", timeout=60000)
-    overlay = workbench.get_by_role("region", name="Variables")  # docked top right, open from the start
+    status(workbench, "Variables")  # closed until the status bar opens it (the redesign of 2026-11-15)
+    overlay = workbench.get_by_role("region", name="Variables")
     row = overlay.locator("tr", has_text="rainfall")
     expect(row).to_contain_text("2 × 2", timeout=15000)  # rows by columns (the whole words on hover)
     expect(row).to_contain_text("columns: city, rain_mm")
@@ -715,14 +738,21 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
 
 def test_four_panes_a_palette_and_jupyters_keys(browser: Browser, orders_url: str) -> None:
     workbench = open_workbench(open_grid(browser, orders_url))
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     cell = workbench.locator(".wb-cell").first
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
-    # RStudio's places: source, its console, Variables (pictures go to the Sandbox, not a pane here).
+    # RStudio's places: source, its console, Variables (pictures go to the Sandbox, not a pane here);
+    # the console and Variables closed until the status bar opens them.
+    expect(workbench.locator(".wb-console-pane .wb-console")).to_be_hidden()
+    expect(workbench.locator(".wb-env .wb-vars")).to_be_hidden()
+    status(workbench, "Console")
+    status(workbench, "Variables")
+    expect(workbench.locator(".wb-status").get_by_role("button", name="Console")).to_have_attribute(
+        "aria-pressed", "true"
+    )
     for pane in (".wb-source .wb-cells", ".wb-console-pane .wb-console", ".wb-env .wb-vars"):
         expect(workbench.locator(pane)).to_be_visible()
-    # The notebook's own console, on its kernel: a title bar until it is used, a click opens it.
-    workbench.locator(".wb-console-head").click()
+    # The notebook's own console, on its kernel.
     workbench.locator(".wb-console-editor .monaco-editor").click()
     workbench.keyboard.insert_text("21 * 2")
     workbench.keyboard.press("Enter")
@@ -868,7 +898,7 @@ def test_an_error_is_explained_marked_in_the_code_and_fixed(
         "KeyError", timeout=30000
     )
     # In a notebook: a missing import, added with one click.
-    workbench.get_by_role("button", name="New notebook").first.click()
+    start(workbench)
     cell = workbench.locator(".wb-cell").first
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
     cell.locator(".monaco-editor").click()

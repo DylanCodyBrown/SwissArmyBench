@@ -88,6 +88,8 @@ class TableCells:
             "grid": grid.id if grid is not None else None,
             "source_kind": info.source_kind,
             "origin": origin.kind,
+            "source": origin.label(),  # the file's or connection's name, for the Data panel
+            "rows": info.row_count,
             "kernel": origin.kernel,  # the Workbench kernel that sent it (None: no kernel did)
             "steps": len(on),
             "step_list": [s.to_json() for s in steps],

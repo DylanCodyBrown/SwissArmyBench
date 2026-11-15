@@ -714,6 +714,71 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   ones read (Table, Name, DataType; FromTable, FromColumn, ToTable, ToColumn, FromCardinality,
   ToCardinality, CrossFilteringBehavior, IsActive), which are from memory of Microsoft's pages; how
   the real service marks an answer cut at 15 MB; Microsoft's sign-in window itself; Edge.
+- (2026-11-15) The Streamlit canvas and projects (docs/ideas.md has the owner's words and every
+  decision). This replaces Push to page, the page designer window and the Streamlit kind of cell;
+  the earlier entry below describes what was there before. Streamlit is still not a dependency: the
+  tests that need it use the Python named by SWISSARMYGRID_STREAMLIT_PYTHON (here Streamlit 1.67.0,
+  pandas 3.1.1, pyarrow) and are skipped without it.
+  **Rules** (tests/test_streamlit_cells.py, 27 tests): which Python cells call Streamlit (a call
+  through `st` or the cell's own name for it, a name imported from it, `with st.sidebar:`; not an
+  import alone, not another `st`, not half-typed code); a notebook saved with the Streamlit kind
+  opening as Python cells with the code, number and height kept and the pages dropped; a script's old
+  `[streamlit]` marker read as a plain cell and written as one; such a cell never the maker of a
+  table; Run file leaving the cells that call Streamlit out on the same lines; the app's file both
+  ways (the same text back, one block a line, links relative to the file, Windows paths, another
+  drive); a linked file's Python cells; pages checked; the grid (rows, a block that would lie on
+  another going below, the moved one keeping its place, where a new block goes); titles, makes and
+  reads; the run order and a cycle; widget keys; a page as slots first with the gaps as empty
+  columns; a missing cell's and a missing file's words; the export; the saved pages importing from
+  data.py. **Projects' rules** (tests/test_projects.py, 5 tests): data.py as data.ipynb's code cells
+  in order, imported for real in a Python with no Streamlit (a table read from a made-up CSV, its
+  step applied); what is left out; code that cannot sit in a function; a pasted or pushed table as a
+  stub with no rows written; requirements keeping the user's lines; which files open.
+  **On the server** (tests/test_streamlit_apps.py, 16 tests): a document's live cells and their
+  state; a canvas over HTTP (place, move, insert a row, resize, pages, another page, remove); Play
+  from the file and then from the open, unsaved document; out of date after a cell is typed on, a
+  table's step, a layout change; a deleted cell and a deleted file said with the path and number;
+  the first linked file's Python, Install, the window and the kernel going; the app's file saved
+  with relative links and opened again by the window's route and by the agent; the export folder; a
+  new project (data.ipynb, data.py, the canvas, two notebooks, requirements), refused twice; Export
+  data.py from an open unsaved data.ipynb; Play writing data.py and importing a variable from it;
+  Save as (the zip's listing, no rows anywhere, the project's own pages/ written, a linked file from
+  outside the folder, the zip opened again as a canvas and as a project, data.py imported from the
+  unzipped folder); every action by the agent's commands; the live pages' door. With the real
+  Streamlit: the canvas's page and a live cell run in Streamlit's AppTest (the filter drives the
+  total though it sits below it; a grid step, Play, the new total), the process answers through the
+  proxy with its websocket, the exported app is started and its pages fetched, and **a saved page is
+  run by AppTest from the unzipped project** (it imports its table from data.py, which reads the CSV
+  again and applies the grid's step).
+  **In a browser** (tests/e2e/test_streamlit_page.py, 4 tests, 3 with the real Streamlit): two
+  notebook cells live in their cells with no kind picked; New app; both cells dragged by their
+  numbers onto the app's tab; the blocks' words; a block dragged to a row below and both resized with
+  the keyboard (the focus staying on the grip); Play showing the page in place, West chosen, the
+  total 260 above the filter; Edit; the cell edited in the notebook (not saved), "Out of date · Play",
+  Play, the new label; a third cell copied with C and pasted with Ctrl+V on the canvas, and with V in
+  the notebook; a second page renamed; Ctrl+S into the file chooser, the file's JSON, close, open
+  again; Export into a chosen folder; Save as into a zip (its listing); a linked cell deleted, the
+  block red with the path and number. A Python without Streamlit: the cell's note and Install, a
+  plain cell running in the kernel, typing `st.write` making a cell live and taking it out making it
+  plain, the palette, and the canvas's note and Install after Play. A script saved with the old
+  markers and pages block: the markers rewritten plain, the cells live under their markers, Copy the
+  cell and paste on a new canvas, Play. A project made from the window: its tabs, data in front,
+  the folder's name, a cell typed into data.ipynb in the export.
+  Screenshots looked at (2x, made-up data): a notebook window beside a canvas window with a cell
+  dragged across and the drop's place shown; the blocks on the grid; the live page; out of date; a
+  missing cell; two pages. Seen there and fixed: an app's tab showed "No console" and "No kernel"; after the merge, two
+  buttons were named "Save as…" (the canvas's is "Save as zip…" now).
+  Then: ruff, format, mypy (267 files), the TypeScript check, the build, and the whole suite with
+  the browser tests: 2,282 passed before the Workbench redesign was merged in, and 2,288 passed, none
+  failed and none skipped, after it (the canvas as the tab kind "page", its controls in the group's
+  row, the project's files in the Data panel). No test failed under load in either run. 224 commands (215 before); the tool list is under its 53,500 budget.
+  **Not checked:** a real drag between two browser windows (Playwright cannot drag across windows:
+  the canvas was sent the dragover and drop events the other window's drag produces, with the same
+  data); Windows (paths are tested as text only); Edge (the browser here is Chromium); the pop-out
+  window (its command exists; no browser test opens it); Install itself in a browser; Save as's
+  pages inside a user's real multi-page app (one page was run alone by AppTest); a project whose
+  data comes from a connection (the entry is the read-only cell's own text, tested for a file, a
+  paste and a push); dragging a script's cell (not built: copy and paste); a dark theme's look.
 - (2026-11-15) Streamlit cells: pieces pushed to a page designer and linked by shared names
   (docs/ideas.md has the owner's calls and what was decided while building). Streamlit is not a
   dependency: the tests that need it use a Python named by SWISSARMYGRID_STREAMLIT_PYTHON (here a
@@ -864,3 +929,38 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   plain Python stands in); a real vendor library or web service; code pasted from the clipboard into
   the editor (the test types unindented lines); a connection whose `conn` is a DB-API connection in a
   SQL cell (the SQL cell's own tests cover any `.cursor()`; none was written for this type).
+- (2026-11-15) The Workbench redesign (docs/ideas.md has the owner's words and each decision; branch
+  `workbench-redesign`). Made-up data only.
+  **In a browser** (tests/e2e/test_workbench_groups.py, 5 new tests): Split right by the agent's
+  command, Split down from the palette after focusing the first group, the refusal when a group has
+  one tab ("only this tab"), only the focused group's row has controls, a splitter moved by keyboard,
+  and after a reload the three groups, their tabs, the focused group and the splitter's place; a
+  group goes with its last tab. By drag: a tab dragged before the first one reorders the row; dragged
+  to a group's right edge the five-way guide shows "Split right" with the ghost tab, and the drop
+  splits right; dragged to the lower part of another group it splits down; dropped in the middle of a
+  group a group's only tab moves there and its group goes; Escape mid-drag puts it back; a splitter
+  dragged by its grip; `tab.moveLeft` and `group.moveTab`. The Data panel: folded by its arrow, still
+  folded after a reload, opened by Ctrl+B and `view.toggleSidebar`; "+ Table" → Open file… opens the
+  file chooser and the table arrives with "3 rows" and "orders.csv", a step in the grid shows as
+  "orders.csv · 1 step", a click on it selects the table's read-only cell; "+ Table" → a connection
+  opens its catalog beside the panel with that connection picked, a table there opens its page with
+  Open as grid; Escape puts the catalog away; "+ Blade" shows the blades and connections, a click
+  elsewhere puts them away. The status bar: hidden while nothing is open, "not started" before a run
+  and nothing once ready, the Environment picker, the Kernel menu (Interrupt, Restart; Restart says
+  "Restarted"), Console and Variables pressed while open, `view.toggleConsole`; the top bar's name and
+  unsaved dot. Every old toolbar action found in the top bar's "…", "+ Cell" (six kinds for a
+  notebook, three for a script), Run all or Run file, the Document menu, and "+".
+  The existing browser tests that clicked the old toolbar now use the new places (test_workbench_page,
+  test_workbench_outputs, test_html_cells_page, test_streamlit_page, test_table_cells_page,
+  test_powerbi_page); none was removed. The tables listing's new `source` has a unit test.
+  Then: ruff, format, mypy (262 files), the TypeScript check, the build, and the whole suite with the
+  browser tests in this machine's Chromium: 2,251 passed, none failed, none skipped.
+  Screenshots at twice the size, looked at against the mockup: nothing open, a notebook, its Variables,
+  the menus (Workbench, Document, + Cell, + Table, Kernel), two groups, a drag with the guide, three
+  groups, the blades beside the panel, the panel folded, the console, the dark theme. Two things found
+  and fixed that way: a cell's editor kept the width it was made at when its notebook moved to a
+  narrower group (a grid track sized to its content), and the group row's controls lost their words
+  in a group of normal width (the narrow rule now starts at 480 pixels).
+  Not checked: Edge (Chromium here); the high contrast themes and forced colours; touch (the drag uses
+  pointer events, untried with a finger); a window under 1,100 pixels with several groups; how it
+  merges with the app pages' branch.
