@@ -70,7 +70,7 @@ import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { canvasView, type CanvasView } from "./workbenchCanvas";
-import { CELL_DRAG, draggedLink, problemText, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
+import { CELL_DRAG, draggedLink, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
 watchTheme();
 
@@ -250,6 +250,11 @@ function drawTablesTool(): void {
 
 const DATA_NOTEBOOK = "data.ipynb";
 const APP_ENDING = ".stapp.json";
+// The Streamlit cells pane (the Data panel): what the server last listed, the canvas its marks are for.
+let paneDocuments: PaneDocument[] = [];
+let lastCanvas: Doc | null = null;
+let paneTimer: number | null = null;
+let paneReady = false;
 const isData = (doc: Doc): boolean => !!doc.notebook && !!doc.path && baseName(doc.path).toLowerCase() === DATA_NOTEBOOK;
 
 /** A notebook's or script's own app: the server hears its Python cells as they are typed, says which
@@ -322,6 +327,7 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
     save: () => save(doc),
     drew: () => {
       if (doc === current) drawStatus();
+      if (doc === markedCanvas()) drawPane(); // its page's blocks are the pane's marks
     },
   });
   doc.element.append(doc.canvas.element);
@@ -347,6 +353,7 @@ let project: ProjectFiles | null = null;
 /** The project's files in the Data panel: data.ipynb, data.py set in as its output, the app's canvas,
  *  the notebooks and scripts. */
 function listProject(): void {
+  refreshPane(); // the project's files are the pane's too
   if (!project) return void data.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
@@ -586,6 +593,8 @@ function focused(doc: Doc | null): void {
   document.title = doc ? `${doc.title} · Workbench` : "Workbench";
   remember();
   assignSoon(); // a table with no document yet goes to the one in front
+  if (doc?.canvas) lastCanvas = doc;
+  drawPane(); // the marks are the canvas page's in front
 }
 
 function close(doc: Doc): void {
@@ -1016,11 +1025,13 @@ function bladeDoc(name: string | null): void {
 
 const data = mountDataPanel({
   goToTable: (name) => goToTable(name),
+  goToCell: (document, title, cell) => void goToCell(document, title, cell).catch((e: Error) => toast(e.message, "error")),
   addTable: (anchor) => void openMenu(anchor, "Add a table", tableEntries()),
   openBlade: (name) => bladeDoc(name),
   toggled: () => remember(),
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);
+paneReady = true;
 
 /** "+ Table": a file, a connection's tables, the catalog's search, a new connection. */
 function tableEntries(): MenuEntry[] {
@@ -1042,6 +1053,51 @@ function browse(connection?: string): void {
 }
 
 /** A table's click in the Data panel: its read-only cell in the focused document. */
+/** A Streamlit cells pane entry's click: its document in front (opened when it is not), the cell shown. */
+async function goToCell(document: string | null, title: string, cell: number): Promise<void> {
+  let doc = docs.find((d) => (document ? d.path === document : !d.path && d.title === title));
+  if (!doc && document) {
+    await open(document);
+    doc = docs.find((d) => d.path === document);
+  }
+  if (!doc) throw new Error(`${title} is not open here.`);
+  show(doc);
+  if (!viewOf(doc)?.goTo(cell)) throw new Error(`${title} has no cell ${cell} now.`);
+}
+
+// ----- the Streamlit cells pane (the Data panel): every cell that calls Streamlit, by document
+
+/** The canvas the pane's marks are for: the one in front, else the last one that was. */
+function markedCanvas(): Doc | null {
+  return current?.canvas ? current : lastCanvas && docs.includes(lastCanvas) ? lastCanvas : (docs.find((d) => d.canvas) ?? null);
+}
+
+/** The pane drawn from what the server last said, each cell on the marked canvas's page marked. */
+function drawPane(): void {
+  if (!paneReady) return; // the Data panel is not made yet
+  const canvasDoc = markedCanvas();
+  const state = canvasDoc?.canvas?.state();
+  const front = canvasDoc?.canvas?.report() as { page?: string | null } | undefined;
+  const page = state?.pages.find((p) => p.id === front?.page) ?? state?.pages[0];
+  data.setStreamlitCells(paneDocuments, new Set((page?.blocks ?? []).map((b) => `${b.document}#${b.cell}`)));
+}
+
+/** The pane's entries from the server, soon (the open documents', and the project's files). */
+function refreshPane(): void {
+  if (paneTimer !== null) window.clearTimeout(paneTimer);
+  paneTimer = window.setTimeout(() => {
+    paneTimer = null;
+    const folder = project ? `?folder=${encodeURIComponent(project.folder)}` : "";
+    void api<{ documents: PaneDocument[] }>(`/streamlit/cells${folder}`).then(
+      (listed) => {
+        paneDocuments = listed.documents;
+        drawPane();
+      },
+      () => undefined,
+    );
+  }, 150);
+}
+
 function goToTable(name: string): void {
   const view = current ? viewOf(current) : undefined;
   const line = view?.tables().find((t) => t.name === name);
@@ -1386,6 +1442,17 @@ const COMMANDS: Command[] = [
   { id: "cell.clearOutput", group: "Cell", title: "Clear the cell's output", args: "index (default: the selected one)", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().clearOutput(num(a, "index")) },
   { id: "cell.clearAll", group: "Cell", title: "Clear every output", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().clearAll() },
   { id: "cell.toggleOutput", group: "Cell", title: "Hide or show the cell's output", keys: "O", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().toggleOutput() },
+  { id: "cell.name", group: "Cell", title: "Name the cell…", args: "number: the cell's own number (default: the selected cell, or the cursor's); name: one line (\"\" takes the name away; without it, the name is typed in place)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    const name = text(a, "name");
+    const view = current?.notebook ?? script();
+    if (name === undefined) return void view.editName();
+    return view.nameCell(num(a, "number"), name);
+  } },
+  { id: "data.streamlitCells", agentOnly: true, group: "Data", title: "The Streamlit cells pane: its documents and cells, and the ones on the canvas page in front", run: () => {
+    drawPane();
+    const canvasDoc = markedCanvas();
+    return { documents: paneDocuments, canvas: canvasDoc?.title ?? null, placed: [...document.querySelectorAll<HTMLElement>(".wb-st-cell.placed")].map((e) => ({ document: e.dataset.document, cell: Number(e.dataset.cell) })) };
+  } },
   { id: "cell.goTo", group: "Cell", title: "Go to a cell by its number", args: "number: the cell's own number (as @cell7 links to it)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
     const number = num(a, "number");
     if (number === undefined) throw new Error("Send the cell's number.");
@@ -1653,6 +1720,8 @@ onNotice((notice) => {
       doc.canvas?.tablesChanged();
     }
   }
+  // A cell that calls Streamlit was typed, named, opened or closed somewhere: the pane follows.
+  if (notice.type === "streamlit_cells") refreshPane();
   // An app's pages or run changed somewhere (a linked cell typed in another window, the agent).
   if (notice.type === "streamlit_changed") {
     for (const doc of docs) {
@@ -1668,6 +1737,7 @@ void Promise.all([
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),
 ]).then(() => {
   drawEmpty();
+  refreshPane();
   // A document popped out into this window starts it fresh (a new window copies its opener's session).
   const fresh = openedWith.get("fresh") === "1";
   if (fresh) sessionStorage.removeItem(SESSION_KEY);

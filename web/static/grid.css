@@ -7085,3 +7085,107 @@ body.dropping-file::after {
   white-space: nowrap;
 }
 
+
+/* ===== named cells and the Streamlit cells pane (2026-11-15) ===== */
+
+/* A cell's name in its head, after its number. Without one the area shows only while the head is
+   hovered or the cell is selected. */
+.wb-cell-name {
+  field-sizing: content;
+  width: 14ch;
+  min-width: 6ch;
+  max-width: 24ch;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.88em;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.wb-cell-name::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.wb-cell-name:hover,
+.wb-cell-name:focus {
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.wb-cell-name.unnamed:not(:focus) {
+  opacity: 0;
+}
+
+.wb-cell-head:hover .wb-cell-name.unnamed,
+.wb-cell.selected .wb-cell-name.unnamed {
+  opacity: 1;
+}
+
+/* The pane: a folding head like the files', the cells grouped under their document's name. */
+.wb-data-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.wb-data-fold-head .wb-data-count {
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+.wb-st-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wb-st-doc-name {
+  margin-bottom: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.82em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-st-cell {
+  border-left: 3px solid var(--accent);
+}
+
+.wb-st-cell.placed {
+  background: var(--accent-soft);
+}
+
+.wb-st-placed {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.wb-st-placed .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wb-st-where {
+  flex: none;
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+
+/* A long "makes … · reads …" is cut short, never wider than the panel. */
+.wb-st .wb-data-list {
+  grid-template-columns: minmax(0, 1fr);
+}

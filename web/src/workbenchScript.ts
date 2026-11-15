@@ -51,7 +51,7 @@ import type { Kernel } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runHtml, scriptBody } from "./workbenchHtml";
 import type { HtmlReport, TableReport } from "./workbenchNotebook";
 import type { ErrorHooks } from "./workbenchOutputs";
-import { copyCell, PIECE_HEIGHT, type PieceSource, type PieceTools, pieceTools, pieceView, type StreamlitHost } from "./workbenchStreamlit";
+import { cleanName, copyCell, markerName, markerWordsOf, PIECE_HEIGHT, type PieceSource, type PieceTools, pieceTools, pieceView, type StreamlitHost, withMarkerName } from "./workbenchStreamlit";
 import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, tableLineRest, tableState } from "./workbenchTables";
 
 export interface ScriptView {
@@ -99,6 +99,10 @@ export interface ScriptView {
   resizePiece: (number: number, height: number | null) => void;
   /** Copy the cell the cursor is in (or the numbered one): its link, for a canvas. */
   copy: (number?: number) => { cell: number; document: string | null } | null;
+  /** Name a cell: its marker's own words ("" takes the name away); without a number, the cursor's cell. */
+  nameCell: (number: number | undefined, name: string) => { cell: number; name: string | null };
+  /** The cursor to the end of the cursor's cell's marker line, where its name is typed. */
+  editName: () => void;
 }
 
 /** A script's live cell (it calls Streamlit) as the page holds it: its place in the outline, its page. */
@@ -118,10 +122,10 @@ const PIECE_MARKER = /^# ?%% \[(\d+)\](?! \[(?:html|table|transformations)\])(?:
  *  own cells and HTML cells left out). */
 export function scriptPieces(text: string): PieceSource[] {
   const found: PieceSource[] = [];
-  let current: { cell: number; lines: string[] } | null = null;
+  let current: { cell: number; name: string; lines: string[] } | null = null;
   let grouped = false;
   const close = (): void => {
-    if (current && current.lines.some((l) => l.trim())) found.push({ cell: current.cell, code: current.lines.join("\n").replace(/\s+$/, "") });
+    if (current && current.lines.some((l) => l.trim())) found.push({ cell: current.cell, code: current.lines.join("\n").replace(/\s+$/, ""), ...(current.name ? { name: current.name } : {}) });
     current = null;
   };
   for (const line of text.split("\n")) {
@@ -130,7 +134,8 @@ export function scriptPieces(text: string): PieceSource[] {
     if (/^# ?(%%|region Tables\s*$|endregion\b)/.test(line)) {
       close();
       const marker = grouped ? null : PIECE_MARKER.exec(line);
-      if (marker) current = { cell: Number(marker[1]), lines: [] };
+      // The cell's name: its marker's own words (`# %% [7] Region filter`).
+      if (marker) current = { cell: Number(marker[1]), name: markerName(markerWordsOf(line) ?? ""), lines: [] };
     } else if (current) current.lines.push(line);
   }
   close();
@@ -933,6 +938,25 @@ export function scriptView(
       const where = hooks.streamlit?.link() ?? { document: null, title: "this script" };
       copyCell({ document: where.document, cell: cell.number, title: where.title, kind: "code", source, connection: null, height: cell.height ?? null });
       return { cell: cell.number, document: where.document };
+    },
+    nameCell: (number, name) => {
+      const line = editor?.cursorLine() ?? 0;
+      const cell = outline.cells.find((c) => (number === undefined ? line >= c.line && line <= c.end : c.number === number) && !c.grouped && !c.role);
+      if (!cell || cell.number === null || !editor) throw new Error(number === undefined ? "The cursor is not in a numbered cell (a `# %%` cell)." : `This script has no cell ${number} of yours.`);
+      const lines = editor.value().split("\n");
+      const numbered = new RegExp(`^# ?%% \\[${cell.number}\\](?:\\s|$)`);
+      const at = lines.findIndex((l) => numbered.test(l));
+      if (at < 0) throw new Error(`This script has no cell ${number}.`);
+      const said = cleanName(name);
+      lines[at] = withMarkerName(lines[at]!, said);
+      editor.replaceText(lines.join("\n"));
+      return { cell: cell.number, name: said || null };
+    },
+    editName: () => {
+      const line = editor?.cursorLine() ?? 0;
+      const cell = outline.cells.find((c) => line >= c.line && line <= c.end && !c.grouped && !c.role);
+      if (!cell || !editor) throw new Error("The cursor is not in a cell of yours (a `# %%` cell).");
+      editor.reveal(cell.line, (editor.value().split("\n")[cell.line - 1] ?? "").length + 1);
     },
     renameTable: (from, to) => {
       const record = records.get(from);

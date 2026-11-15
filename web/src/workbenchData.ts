@@ -9,12 +9,18 @@
  *                a drag gives its sag.blade line. "+ Blade": the saved blades and connections, New blade
  *   [FLYOUT]     what "+ Table" and "+ Blade" open beside the panel: the catalog (a connection's tables,
  *                search) or the saved blades, the side bar the Workbench had before (catalogRail.ts)
+ *   [STREAMLIT]  every Python cell that calls Streamlit (the owner, 2026-11-15), from the open notebooks
+ *                and scripts and the project's files, grouped by document, each by its name (else its
+ *                first comment line), its @cell and what it makes and reads. A drag places its link on
+ *                a canvas (as dragging the cell itself does); a click goes to the cell. A cell already
+ *                on the canvas page in front has a mark. It folds like the files
  *   [FILES]      at the bottom, folded: a project's files. Hidden until a project exists (setFiles)
  *   [COLLAPSE]   the arrow (or Ctrl+B) folds the panel to a narrow bar; remembered in this browser
  */
 import type { BladeSummary } from "./bladeEditor";
 import { DROP_TYPE } from "./catalogRail";
 import { button, h, icon } from "./dom";
+import { CELL_DRAG, type PaneDocument, partsOf } from "./workbenchStreamlit";
 
 export interface DataTable {
   name: string;
@@ -53,6 +59,8 @@ export interface DataPanelHost {
   openBlade(name: string): void;
   /** Folded or opened (the page redraws what depends on it). */
   toggled(collapsed: boolean): void;
+  /** A Streamlit cells pane entry's click: the cell, its document opened when it is not. */
+  goToCell(document: string | null, title: string, cell: number): void;
 }
 
 export interface DataPanel {
@@ -61,6 +69,9 @@ export interface DataPanel {
   setBlades(blades: BladeSummary[]): void;
   /** A project's files (null: no project, and the section is hidden). */
   setFiles(files: ProjectFiles | null): void;
+  /** The Streamlit cells pane: its documents and cells, and the links on the canvas page in front
+   *  ("path#cell"), which get a mark. */
+  setStreamlitCells(documents: PaneDocument[], placed: Set<string>): void;
   /** Fold or open the panel (no argument: the other way); true when folded. */
   toggle(collapsed?: boolean): boolean;
   collapsed(): boolean;
@@ -74,6 +85,7 @@ export interface DataPanel {
 
 const COLLAPSED_KEY = "workbench-data-collapsed";
 const FILES_KEY = "workbench-files-folded";
+const STREAMLIT_KEY = "workbench-streamlit-folded";
 
 function recall(key: string): boolean {
   try {
@@ -101,6 +113,9 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
   let tables: DataTable[] = [];
   let blades: BladeSummary[] = [];
   let files: ProjectFiles | null = null;
+  let streamlitFolded = recall(STREAMLIT_KEY);
+  let paneDocs: PaneDocument[] = [];
+  let placed = new Set<string>();
 
   const tableList = h("ul", { class: "wb-data-list", "aria-label": "Tables" });
   const bladeList = h("ul", { class: "wb-data-list", "aria-label": "Blade variables" });
@@ -117,6 +132,14 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     keep(FILES_KEY, filesFolded);
     drawFiles();
   });
+  const streamlitHead = h("button", { type: "button", class: "wb-data-fold-head", id: "wb-data-streamlit", "aria-expanded": String(!streamlitFolded) });
+  const streamlitList = h("div", { class: "wb-st-list", "aria-labelledby": "wb-data-streamlit" });
+  const streamlitSection = h("section", { class: "wb-data-section wb-st", "aria-label": "Streamlit cells" }, h("h3", {}, streamlitHead), streamlitList);
+  streamlitHead.addEventListener("click", () => {
+    streamlitFolded = !streamlitFolded;
+    keep(STREAMLIT_KEY, streamlitFolded);
+    drawStreamlit();
+  });
 
   const fold = button("Collapse the Data panel", () => toggle(), { icon: "collapse", iconOnly: true, class: "ghost wb-data-fold", title: "Collapse the Data panel (Ctrl+B)" });
   const body = h(
@@ -125,6 +148,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     h("section", { class: "wb-data-section", "aria-labelledby": "wb-data-tables" }, h("h3", {}, h("span", { id: "wb-data-tables" }, "Tables"), addTable), tableList),
     // Named apart from the Variables pane (what the kernel holds): these are the blades' values.
     h("section", { class: "wb-data-section", "aria-label": "Blade variables" }, h("h3", {}, h("span", {}, "Variables"), addBlade), bladeList),
+    streamlitSection,
     filesSection,
   );
 
@@ -232,6 +256,56 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     if (!blades.length) bladeList.append(h("li", { class: "wb-data-empty" }, "No blades"));
   }
 
+  // ----- the Streamlit cells pane
+  function drawStreamlit(): void {
+    const count = paneDocs.reduce((n, d) => n + d.cells.length, 0);
+    streamlitHead.setAttribute("aria-expanded", String(!streamlitFolded));
+    streamlitHead.replaceChildren(icon(streamlitFolded ? "expand" : "down"), h("span", {}, "Streamlit cells"), ...(count ? [h("span", { class: "wb-data-count" }, String(count))] : []));
+    streamlitList.hidden = streamlitFolded;
+    if (streamlitFolded) return;
+    streamlitList.replaceChildren(
+      ...paneDocs.map((d) =>
+        h(
+          "div",
+          { class: "wb-st-doc" },
+          h("div", { class: "wb-st-doc-name", title: d.document ?? d.title }, d.title),
+          h(
+            "ul",
+            { class: "wb-data-list", "aria-label": d.title },
+            ...d.cells.map((c) => {
+              const on = d.document !== null && placed.has(`${d.document}#${c.cell}`);
+              const parts = partsOf(c);
+              return h(
+                "li",
+                { class: "wb-data-item" },
+                h(
+                  "button",
+                  {
+                    type: "button",
+                    class: `wb-data-card wb-st-cell${on ? " placed" : ""}${c.named ? " named" : ""}`,
+                    title: `Go to ${c.where}`,
+                    draggable: "true",
+                    dataset: { document: d.document ?? "", cell: String(c.cell) },
+                    onclick: () => host.goToCell(d.document, d.title, c.cell),
+                    ondragstart: (event: DragEvent) => {
+                      // The same link a cell's own drag carries: a canvas places it.
+                      event.dataTransfer?.setData(CELL_DRAG, JSON.stringify({ document: d.document, cell: c.cell, title: d.title }));
+                      event.dataTransfer?.setData("text/plain", `@cell${c.cell}`);
+                      if (event.dataTransfer) event.dataTransfer.effectAllowed = "copyLink";
+                    },
+                  },
+                  h("span", { class: "wb-data-name" }, h("span", { class: "wb-data-label" }, c.name), on ? h("span", { class: "wb-st-placed", title: "On the canvas page in front", "aria-label": "On the canvas page in front" }, icon("check")) : null),
+                  h("span", { class: "wb-data-meta" }, h("span", { class: "wb-st-where" }, `@cell${c.cell}`), parts ? h("span", {}, parts) : null),
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+    if (!paneDocs.length) streamlitList.append(h("p", { class: "wb-data-empty" }, "No cells call Streamlit"));
+  }
+
   // ----- a project's files
   function drawFiles(): void {
     filesSection.hidden = !files;
@@ -274,6 +348,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
   draw();
   drawTables();
   drawBlades();
+  drawStreamlit();
   drawFiles();
   flyout(null);
 
@@ -290,6 +365,11 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     setFiles: (list) => {
       files = list;
       drawFiles();
+    },
+    setStreamlitCells: (documents, onPage) => {
+      paneDocs = documents;
+      placed = onPage;
+      drawStreamlit();
     },
     toggle,
     collapsed: () => folded,

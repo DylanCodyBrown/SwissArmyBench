@@ -57,7 +57,7 @@ import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourF
 import { type Kernel, runInto } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
-import { CELL_DRAG, copiedCell, copyCell, type EveryCell, mayUseStreamlit, PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
+import { CELL_DRAG, cleanName, copiedCell, copyCell, type EveryCell, MAX_CELL_NAME, mayUseStreamlit, PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
 
 /** A SQL cell's first line as the kernel runs it (domain/notebooks.py sql_line). */
@@ -86,6 +86,8 @@ export interface CellData {
   height?: number | null;
   /** A Python cell that calls Streamlit, by the server's word when the file was opened: shown live. */
   live?: boolean;
+  /** The cell's own name (docs/ideas.md, named cells): a label; its number stays its identity. */
+  name?: string | null;
 }
 
 /** An HTML cell, with its state: for the agent. */
@@ -111,7 +113,11 @@ export interface TableReport extends TableLine {
   label: string;
 }
 
-interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | "grouped" | "steps" | "height"> {
+interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | "grouped" | "steps" | "height" | "name"> {
+  /** Its own name (null: none). */
+  name: string | null;
+  /** The head's name, typed in place (a heading and a table's cell have none). */
+  nameButton: HTMLInputElement | null;
   number: number;
   role: string;
   table: string | null;
@@ -235,6 +241,10 @@ export interface NotebookView {
   copy: (number?: number) => { cell: number; document: string | null } | null;
   /** Paste the copied cell below the selected one (V). False: nothing was copied. */
   paste: () => boolean;
+  /** Name a cell ("" takes its name away); without a number, the selected cell. */
+  nameCell: (number: number | undefined, name: string) => { cell: number; name: string | null };
+  /** Type a name for the selected cell in its head (Enter keeps it, Escape leaves it). */
+  editName: () => void;
   /** The place (from 0) of the cell with this number, or -1. */
   indexOfNumber: (number: number) => number;
 }
@@ -625,6 +635,7 @@ export function notebookView(
       item("Run this cell and the ones below", () => void runEach(cells.slice(at()))),
       item("Insert a cell above", () => insertAt(at(), cell.kind === "markdown" ? "code" : cell.kind)),
       item("Insert a cell below", () => insertAt(at() + 1, cell.kind === "markdown" ? "code" : cell.kind)),
+      item("Name…", () => editName(cell)),
       item("Copy", () => void copy(cell)),
       item("Paste below", () => void paste(cell)),
       item("Duplicate", () => duplicate(cell)),
@@ -774,6 +785,19 @@ export function notebookView(
     const more = button("More actions", () => cellMenu(cell, more), { icon: "more", iconOnly: true, class: "ghost" });
     const hiddenNote = h("button", { type: "button", class: "link wb-output-hidden", onclick: () => toggleOutput(cell) }, "Show output");
     const numberLabel = h("span", { class: "wb-number", title: `Cell ${number}: this number never changes. @cell${number} in a comment links here.` }, `#${number}`);
+    // The cell's name, typed in place (or More: Name…). Without one, the area shows only on hover.
+    const nameButton = h("input", { type: "text", class: "wb-cell-name", maxlength: MAX_CELL_NAME, placeholder: "Name", "aria-label": "Cell name", spellcheck: "false" }) as HTMLInputElement;
+    nameButton.addEventListener("keydown", (e) => {
+      e.stopPropagation(); // Jupyter's keys stay out of the name
+      if (e.key === "Enter" || e.key === "Escape") {
+        e.preventDefault();
+        if (e.key === "Escape") nameButton.value = cell.name ?? "";
+        nameButton.blur();
+      }
+    });
+    nameButton.addEventListener("change", () => setName(cell, nameButton.value));
+    nameButton.addEventListener("blur", () => setName(cell, nameButton.value));
+    nameButton.addEventListener("click", (e) => e.stopPropagation());
     // A Python cell of the user's is dragged by its number (or its head) onto a Streamlit app's canvas.
     const draggable = data.kind === "code" && !isApp(role);
     if (draggable) numberLabel.draggable = true;
@@ -791,6 +815,7 @@ export function notebookView(
             "div",
             { class: "wb-cell-head" },
             numberLabel,
+            nameButton,
             count,
             kindPicker,
             connectionPicker,
@@ -833,11 +858,14 @@ export function notebookView(
       tools,
       editorHost,
       live: data.kind === "code" && data.live === true && !isApp(role),
+      name: data.name ? cleanName(data.name) || null : null,
+      nameButton: role === "transformations" || bar ? null : nameButton,
       htmlRun: data.kind === "html" ? runFromOutputs(data.outputs) : undefined,
       htmlNotes: [],
       drawn: 0,
     };
     self = cell;
+    drawName(cell);
     // A table's cell that came with the file (or a reload) has not run since.
     if (role === "transformations" && cell.table && building && hooks.opened && !records.has(cell.table)) {
       records.set(cell.table, { code: null, at: null, opened: true });
@@ -1029,7 +1057,35 @@ export function notebookView(
     steps: c.role === "transformations" ? c.steps : null,
     height: twoFaced(c) ? (c.design?.height() ?? null) : null,
     ...(isLive(c) ? { live: true } : {}),
+    ...(c.name ? { name: c.name } : {}),
   });
+
+  // ===== a cell's name (docs/ideas.md, named cells): shown in its head, kept in its metadata =====
+
+  const drawName = (cell: Cell): void => {
+    const input = cell.nameButton;
+    if (!input) return;
+    if (document.activeElement !== input) input.value = cell.name ?? "";
+    input.classList.toggle("unnamed", !cell.name);
+    input.title = cell.name ?? "Name the cell";
+  };
+
+  const setName = (cell: Cell, typed: string): void => {
+    const name = cleanName(typed) || null;
+    if (cell.nameButton && document.activeElement !== cell.nameButton) cell.nameButton.value = name ?? "";
+    if (name === cell.name) return drawName(cell);
+    cell.name = name;
+    drawName(cell);
+    edited(); // saved with the cell; the server and the Streamlit cells pane hear of it
+  };
+
+  const editName = (cell: Cell): void => {
+    const input = cell.nameButton;
+    if (!input || !input.isConnected) return;
+    select(cell);
+    input.focus();
+    input.select();
+  };
 
   // ===== a cell's link: dragged onto a canvas, or copied (docs/ideas.md, the Streamlit canvas) =====
 
@@ -1556,7 +1612,7 @@ export function notebookView(
     editSelected: () => {
       if (selected) edit(selected);
     },
-    pieces: () => cells.filter((c) => c.kind === "code" && (c.role === "" || c.role === "maker") && sourceOf(c).trim()).map((c) => ({ cell: c.number, code: sourceOf(c) })),
+    pieces: () => cells.filter((c) => c.kind === "code" && (c.role === "" || c.role === "maker") && sourceOf(c).trim()).map((c) => ({ cell: c.number, code: sourceOf(c), ...(c.name ? { name: c.name } : {}) })),
     everyCells: () => cells.map((c) => ({ kind: c.kind, source: sourceOf(c), role: c.role, table: c.table, number: c.number })),
     copy: (number) => {
       const cell = number === undefined ? selected : byNumber(number);
@@ -1564,6 +1620,15 @@ export function notebookView(
       return copy(cell);
     },
     paste: () => paste(selected),
+    nameCell: (number, name) => {
+      const cell = number === undefined ? selected : byNumber(number);
+      if (!cell || !cell.nameButton) throw new Error(number === undefined ? "No cell is selected." : `This notebook has no cell ${number} of yours.`);
+      setName(cell, name);
+      return { cell: cell.number, name: cell.name };
+    },
+    editName: () => {
+      if (selected) editName(selected);
+    },
     drawPieces: () => {
       for (const c of cells) drawPiece(c);
     },

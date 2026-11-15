@@ -455,6 +455,65 @@ def test_a_scripts_cells_that_call_streamlit_are_live_and_an_old_marker_is_a_pla
     workbench.close()
 
 
+def test_named_cells_show_in_the_streamlit_cells_pane_and_drag_onto_a_canvas(
+    browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
+) -> None:
+    book = tmp_path / "sales.ipynb"
+    saved_notebook(server, book, None, [FILTER, TOTAL, NOTE, "threshold = 50"])
+    workbench = open_window(browser, server, book)
+    cells = workbench.locator(".wb-cell")
+    # The pane lists the cells that call Streamlit (not the plain one), by their first comment line.
+    pane = workbench.locator(".wb-st")
+    entries = pane.locator(".wb-st-cell .wb-data-label")
+    expect(entries).to_have_text(["Region filter", "Total", "Note"], timeout=20000)
+    expect(pane.locator(".wb-st-doc-name")).to_have_text(["sales.ipynb"])
+    # Name a cell in its head: a click on the name area, typed, Enter.
+    cells.nth(0).locator(".wb-cell-head").hover()
+    cells.nth(0).locator(".wb-cell-name").click()
+    workbench.keyboard.type("Pick a region")
+    workbench.keyboard.press("Enter")
+    expect(cells.nth(0).locator(".wb-cell-name")).to_have_value("Pick a region")
+    expect(cells.nth(0).locator(".wb-cell-name")).not_to_be_focused()
+    # And by the palette's command, as the agent does: brackets and a hash are a name's own words.
+    assert window(server, "cell.name", number=2, name="Sum [East] #1") == {"cell": 2, "name": "Sum [East] #1"}
+    expect(cells.nth(1).locator(".wb-cell-name")).to_have_value("Sum [East] #1")
+    expect(entries).to_have_text(["Pick a region", "Sum [East] #1", "Note"], timeout=20000)
+    expect(pane.locator(".wb-st-cell .wb-data-meta").nth(0)).to_have_text("@cell1makes region · reads orders")
+    # Drag an entry from the pane onto a new app's canvas: its block, called by the cell's name.
+    window(server, "file.newApp")
+    pane.locator(".wb-st-cell").nth(1).drag_to(workbench.locator(".cv-board"))
+    blocks = workbench.locator(".cv-block")
+    expect(blocks).to_have_count(1)
+    expect(blocks.nth(0).locator(".cv-block-name")).to_have_text("Sum [East] #1")
+    expect(blocks.nth(0).locator(".cv-block-where")).to_have_text("sales.ipynb @cell2")  # the number links
+    # The entry on the canvas page in front has its mark; the agent sees the pane as it is.
+    expect(pane.locator(".wb-st-cell.placed")).to_have_count(1)
+    expect(pane.locator(".wb-st-cell").nth(1)).to_have_class(re.compile("placed"))
+    shot(workbench, "9-named-cells-in-the-streamlit-cells-pane")
+    listed = window(server, "data.streamlitCells")
+    assert [c["name"] for d in listed["documents"] for c in d["cells"]] == [
+        "Pick a region",
+        "Sum [East] #1",
+        "Note",
+    ]
+    assert listed["placed"] == [{"document": str(book), "cell": 2}]
+    # A click on an entry goes to its cell.
+    pane.locator(".wb-st-cell").nth(0).click()
+    expect(workbench.locator(".wb-tab.active")).to_contain_text("sales.ipynb")
+    expect(cells.nth(0)).to_have_class(re.compile("selected"))
+    # Saved, the names are in the cells' metadata; renaming changed no link.
+    workbench.keyboard.press("Control+s")
+    expect(workbench.locator(".wb-tab.active")).not_to_contain_text("●")
+    held = json.loads(book.read_text())["cells"]
+    assert [c["metadata"]["swissarmygrid"].get("name") for c in held] == [
+        "Pick a region",
+        "Sum [East] #1",
+        None,
+        None,
+    ]
+    workbench.close()
+
+
 def test_a_project_opens_with_its_data_first(
     browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
 ) -> None:
