@@ -53,6 +53,13 @@ def _state_dir() -> Path:
     return Path(override) if override else Path.home() / ".swissarmygrid"
 
 
+def _workbench_dir() -> Path:
+    """The user's own folder for notebooks and scripts: SwissArmyGrid in the home folder (made the first
+    time it is needed); SWISSARMYGRID_WORKBENCH_DIR overrides it (tests, so none lands in a real home)."""
+    override = os.environ.get("SWISSARMYGRID_WORKBENCH_DIR")
+    return Path(override) if override else Path.home() / "SwissArmyGrid"
+
+
 def _claude_dir() -> Path:
     """Claude Code's folder, where installed plugins (packs) live: SWISSARMYGRID_CLAUDE_DIR (tests),
     else Claude Code's own CLAUDE_CONFIG_DIR, else ~/.claude."""
@@ -136,8 +143,9 @@ class Settings:
     state_dir: Path = field(default_factory=_state_dir)
     # Exports requested by an agent (MCP) land only here, never as a browser download.
     export_dir: Path = field(default_factory=lambda: _state_dir() / "exports")
-    # Where the Workbench's Save as starts (made on the first save there): the user's own folder.
-    workbench_dir: Path = field(default_factory=lambda: Path.home() / "SwissArmyGrid")
+    # Where the Workbench's Save as starts: the user's own folder, made the first time it is needed
+    # (the file chooser's first look at it, or a save into it).
+    workbench_dir: Path = field(default_factory=_workbench_dir)
     # Claude Code's folder: installed plugins that carry blades and tangs (packs) are read from here.
     claude_dir: Path = field(default_factory=_claude_dir)
 

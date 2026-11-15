@@ -68,6 +68,51 @@ def test_a_notebook_keeps_its_sql_cells_as_sql_cells_jupyter_can_run() -> None:
         notebooks.kind_of("report.docx")
 
 
+def test_the_apps_own_folder_is_made_the_first_time_it_is_needed(client: TestClient, tmp_path: Path) -> None:
+    """A fresh home folder has no SwissArmyGrid folder. The Workbench's first Save (and Open) starts
+    there, so the file chooser's first look makes it; no other missing folder is ever made."""
+    own = tmp_path / "home" / "SwissArmyGrid"
+    assert not own.exists() and not own.parent.exists()
+    # Somewhere else that is not there: said, and left alone.
+    other = client.get("/folders", params={"path": str(tmp_path / "home" / "Elsewhere")}, headers=AUTH)
+    assert other.status_code == 404 and "is not a folder this computer can open" in other.text
+    assert not own.parent.exists()
+    # The app's own folder: made, and listed (empty), so Save here has somewhere to save.
+    first = client.get("/folders", params={"path": str(own)}, headers=AUTH)
+    assert first.status_code == 200, first.text
+    assert first.json()["path"] == str(own.resolve()) and first.json()["files"] == []
+    assert own.is_dir()
+    saved = client.post(
+        "/workbench/save", json={"path": str(own / "first.py"), "text": "print(1)\n"}, headers=AUTH
+    )
+    assert saved.status_code == 200, saved.text
+    again = client.get("/folders", params={"path": str(own)}, headers=AGENT).json()
+    assert [f["name"] for f in again["files"]] == ["first.py"]
+    # A folder inside it that is not there is not the app's own: not made.
+    inner = client.get("/folders", params={"path": str(own / "reports")}, headers=AUTH)
+    assert inner.status_code == 404 and not (own / "reports").exists()
+
+
+def test_a_file_in_the_way_of_the_apps_folder_is_said_not_replaced(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "SwissArmyGrid").write_text("a file with the folder's name", encoding="utf-8")
+    with make_client(tmp_path, workbench_dir=home / "SwissArmyGrid") as client:
+        # A path to a file lists the file's folder (the chooser's rule): nothing is made or replaced.
+        answer = client.get("/folders", params={"path": str(home / "SwissArmyGrid")}, headers=AUTH)
+        assert answer.status_code == 200 and answer.json()["path"] == str(home.resolve())
+        assert (home / "SwissArmyGrid").read_text(encoding="utf-8") == "a file with the folder's name"
+
+
+def test_the_workbench_folder_can_be_set_for_tests(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from swissarmygrid.settings import Settings
+
+    monkeypatch.setenv("SWISSARMYGRID_WORKBENCH_DIR", str(tmp_path / "elsewhere"))
+    assert Settings().workbench_dir == tmp_path / "elsewhere"
+    monkeypatch.delenv("SWISSARMYGRID_WORKBENCH_DIR")
+    assert Settings().workbench_dir == Path.home() / "SwissArmyGrid"
+
+
 def test_open_save_and_recent(client: TestClient, tmp_path: Path) -> None:
     home = client.get("/workbench/home", headers=AUTH).json()
     assert home["folder"] == str(tmp_path / "home" / "SwissArmyGrid") and home["recent"] == []

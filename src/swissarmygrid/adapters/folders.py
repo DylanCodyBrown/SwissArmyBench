@@ -1,5 +1,6 @@
 """A folder's contents on this computer, for the page's file chooser (the Connections form's file and
-folder fields, the Workbench's Open and Save). Names, sizes and dates only: nothing is read or written."""
+folder fields, the Workbench's Open and Save). Names, sizes and dates only: nothing is read, and the
+one thing ever made is the app's own folder, the first time it is looked at (ensure_own)."""
 
 from __future__ import annotations
 
@@ -19,6 +20,17 @@ def roots() -> list[str]:
     else:
         drives = ["/"]
     return [str(Path.home()), *drives]
+
+
+def ensure_own(where: str, own: Path) -> None:
+    """Make the app's own folder when `where` is that folder and nothing is there yet (decision 15:
+    made the first time it is needed). Any other path is left alone, and so is a file of that name."""
+    try:
+        asked, mine = Path(where).expanduser().resolve(), own.expanduser().resolve()
+        if asked == mine and not mine.exists():
+            mine.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return  # it cannot be made here: the listing says what is wrong
 
 
 def listing(where: str | None, suffixes: set[str]) -> dict[str, Any]:

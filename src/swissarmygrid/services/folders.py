@@ -10,12 +10,21 @@ _MAX_SUFFIXES: int = 20
 
 
 class Folders:
-    def __init__(self, listing: Callable[[str | None, set[str]], dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        listing: Callable[[str | None, set[str]], dict[str, Any]],
+        ensure_own: Callable[[str], None] = lambda where: None,
+    ) -> None:
         self._listing = listing
+        # Makes the app's own folder (SwissArmyGrid in the home folder) when `where` is that folder and
+        # it is not there yet: the first Save or Open of the Workbench starts in it. No other folder.
+        self._ensure_own = ensure_own
 
     def browse(self, where: str | None, suffixes: str | None) -> dict[str, Any]:
         """`suffixes` as the page sends them: ".csv,.xlsx" (empty: every file)."""
         wanted = {s.strip().lower() for s in (suffixes or "").split(",") if s.strip()}
         if len(wanted) > _MAX_SUFFIXES or any(not s.startswith(".") or len(s) > 12 for s in wanted):
             raise ValueError("Name the file kinds as .csv,.xlsx (at most 20).")
+        if where:
+            self._ensure_own(where)
         return self._listing(where or None, wanted)

@@ -367,6 +367,32 @@ def open_workbench(page: Page) -> Page:
     return workbench
 
 
+def test_the_first_save_on_a_fresh_home_folder_has_somewhere_to_go(
+    browser: Browser, orders_url: str, server: dict[str, Any]
+) -> None:
+    """Decision 15: the app's own folder is made the first time it is needed. On a fresh home folder
+    the first Save said "…/SwissArmyGrid is not a folder this computer can open" and could not save."""
+    import shutil
+
+    own = Path(call(server, "GET", "/workbench/home")["folder"])
+    assert "pytest" in str(own)  # the tests' own folder, never this machine's home
+    shutil.rmtree(own, ignore_errors=True)
+    workbench = open_workbench(open_grid(browser, orders_url))
+    workbench.get_by_role("button", name="New script").first.click()
+    workbench.locator(".monaco-editor").first.click()
+    workbench.keyboard.type("print('made-up')")
+    # Three actions: Save, the name, Save here. The chooser opens in the app's folder, now there.
+    workbench.get_by_role("button", name="Save", exact=True).click()
+    chooser = workbench.locator(".file-chooser")
+    expect(chooser.locator("input[aria-label=Folder]")).to_have_value(str(own.resolve()), timeout=15000)
+    expect(chooser.locator("p[role=status]")).to_have_text("0 folders, 0 files")
+    chooser.get_by_label("File name").fill("first.py")
+    chooser.get_by_role("button", name="Save here").click()
+    expect(workbench.locator(".wb-tabs .tab-label")).to_have_text(["first.py"])
+    assert (own / "first.py").read_text(encoding="utf-8").startswith("print('made-up')")
+    (own / "first.py").unlink()
+
+
 def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     browser: Browser, orders_url: str, server: dict[str, Any], orders_csv: Path, tmp_path: Path
 ) -> None:

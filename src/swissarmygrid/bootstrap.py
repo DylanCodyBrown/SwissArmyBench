@@ -28,6 +28,7 @@ from swissarmygrid.adapters.catalogs import CatalogStore
 from swissarmygrid.adapters.codegen import Verifier
 from swissarmygrid.adapters.database import PriorityWorkers, duckdb_grammar, open_database
 from swissarmygrid.adapters.datasets import DatasetStore
+from swissarmygrid.adapters.folders import ensure_own as ensure_own_folder
 from swissarmygrid.adapters.folders import listing as folder_listing
 from swissarmygrid.adapters.live_updates import LiveUpdates
 from swissarmygrid.adapters.packs import PackFolders
@@ -250,7 +251,7 @@ def bootstrap(
             tables=ConnectionTables(datasets),
         ),
         catalog_loading=catalog_loading,
-        folders=Folders(folder_listing),
+        folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=Workbench(
             ws,
             Documents(state_dir / "recent.json", settings.workbench_dir),
