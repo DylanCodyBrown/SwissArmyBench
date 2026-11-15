@@ -1856,3 +1856,19 @@ tables' rows, to any path, with no click from the user.
 - **Open:** a notebook the agent saves can hold outputs that show rows (`workbench_run` saves them).
   Gating every save would stop the agent working in the Workbench, and the kernel can write files
   anyway; say if the outputs should be dropped when the agent saves.
+
+## Autonomy, and the agent's reach (the owner, 2026-11-15)
+
+"I'm giving you autonomy to just go with your best judgment on everything although always lean towards
+giving the agent when it needs to do the work."
+
+Decided on that basis:
+- **A notebook the agent saves keeps its outputs,** even outputs that show rows. Gating every save, or dropping
+  outputs, would stop the agent working in the Workbench, and its kernel can write files anyway (accepted
+  2026-11-14). The approval stays only where the owner asked for it: exports that copy rows to a folder.
+- **The version is 1.7.0b2.** 1.7.0b1 was never tagged, but a wheel of it was given to the owner. The rename
+  changed the wheel's name and commands, so the next build gets a new number.
+- **Still as built, and not asked again:**
+  - the Power BI sign-in uses Python's own web library for the app registration (no new dependency);
+  - the canvas has no separate Cells list (the Data panel's Streamlit cells pane does that job);
+  - the uv installer stays (the desktop app above is parked).
