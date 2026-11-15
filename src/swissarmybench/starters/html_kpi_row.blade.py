@@ -8,8 +8,8 @@
 # language = "html"
 # ///
 snippet = r"""
-<!-- A row of KPI cards: three numbers side by side (a value may be a name, {{ total }}, filled from
-     the kernel when the cell runs). Copy a card for a fourth. -->
+<!-- A row of KPI cards: three numbers side by side (a value may be a variable of the kernel in double
+     braces, filled when the cell runs). Copy a card for a fourth. -->
 <div style="display:flex;flex-wrap:wrap;gap:12px">
   <div style="display:inline-block;min-width:170px;padding:14px 16px;border-radius:10px;border:1px solid color-mix(in srgb, currentColor 18%, transparent);background:color-mix(in srgb, currentColor 5%, transparent);vertical-align:top;font-family:'Segoe UI',system-ui,-apple-system,sans-serif">
     <div style="font-size:12px;letter-spacing:.04em;text-transform:uppercase;opacity:.75"><<first label: Revenue>></div>

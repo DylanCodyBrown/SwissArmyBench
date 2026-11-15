@@ -9,7 +9,7 @@
 # ///
 snippet = r"""
 <!-- An invoice: {{ <<lines table>> }} is filled with the invoice's lines when the cell runs; the total
-     may be a name too ({{ total }}). Made-up names only in examples. -->
+     may be a name in double braces too. Made-up names only in examples. -->
 <style>
   .invoice { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; font-size: 13px; max-width: 720px; }
   .invoice table { border-collapse: collapse; width: 100%; margin-top: 12px; }

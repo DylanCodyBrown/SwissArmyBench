@@ -596,3 +596,46 @@ dialog .dialog-body > h2:first-child {
   font-size: 0.85em;
 }
 
+
+/* the built-in starter pack: a family folds to one line; a snippet says its language */
+.starter-family-row {
+  list-style: none;
+}
+
+.starter-family {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.starter-family:hover {
+  background: var(--row-hover);
+}
+
+.starter-family svg {
+  width: 13px;
+  height: 13px;
+}
+
+.starter-family .hint {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.starter-item {
+  padding-left: 18px;
+}
+
+.blade-kind.snippet {
+  background: var(--surface-2);
+}

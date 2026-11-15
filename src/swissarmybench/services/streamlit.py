@@ -559,7 +559,7 @@ class StreamlitApps:
                 {
                     "cell": cell,
                     "name": rules.cell_title(code, cell, app.names.get(cell)),
-                    "makes": list(mine.makes),
+                    "makes": rules.shown_makes(mine),
                     "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in named],
                     "tables": named,
                     "inputs": [c for c, _ in rules.inputs_of(cell, found, app.live)],
@@ -611,7 +611,7 @@ class StreamlitApps:
                     | {
                         "name": pieces[block.key].name if code is not None else None,
                         "where": _where(block.document, block.cell),
-                        "makes": list(mine.makes),
+                        "makes": rules.shown_makes(mine),
                         "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in named],
                         "tables": named,
                         "problem": mine.problem,
@@ -663,7 +663,7 @@ class StreamlitApps:
             "name": rules.cell_title(code, cell, name),
             "named": bool(name),
             "where": f"{_name(document)} @cell{cell}" if document else f"@cell{cell}",
-            "makes": list(mine.makes),
+            "makes": rules.shown_makes(mine),
             "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in tables],
             "tables": tables,
         }

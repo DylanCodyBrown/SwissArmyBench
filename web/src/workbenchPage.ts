@@ -47,6 +47,7 @@
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, tellFocus, token } from "./api";
+import type { FilledSnippet } from "./starters";
 import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections } from "./connectionsWindow";
@@ -1531,6 +1532,22 @@ const COMMANDS: Command[] = [
     }
     await script().addDax(dataset, source);
     return { document: current!.title, dataset: dataset || null };
+  } },
+  { id: "snippet.insert", group: "Cell", title: "Insert a snippet…", args: "name: a snippet (blades_starters); values: {placeholder: value} (with them, no form: the agent's); number: the cell's own number (default: the selected cell, else a new one)", when: isCode, whyNot: "no notebook or script is in front", run: async (a, from) => {
+    const name = text(a, "name");
+    const values = (a.values && typeof a.values === "object" ? a.values : {}) as Record<string, unknown>;
+    const number = num(a, "number");
+    if (current?.notebook) {
+      if (!name && !from.agent) return void current.notebook.insertSnippetHere();
+      if (!name) throw new Error("Send the snippet's name (blades_starters lists them).");
+      return { document: current.title, ...(await current.notebook.insertSnippet(name, values, number)) };
+    }
+    if (!name) throw new Error("Send the snippet's name (blades_starters lists them).");
+    const filled = await api<FilledSnippet>(`/blades/${encodeURIComponent(name)}/snippet`, "POST", { values });
+    if (filled.language === "dax") await script().addDax(datasetNames[0] ?? "", filled.text);
+    else if (filled.language === "html") await script().addHtml(filled.text);
+    else await script().addCode(filled.text, filled.cell_name ?? "");
+    return { document: current!.title, language: filled.language, name: filled.cell_name };
   } },
   { id: "cell.toHtml", group: "Cell", title: "Make it an HTML cell", keys: "H", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().setKind("html") },
   { id: "cell.copy", group: "Cell", title: "Copy the cell (its link, for a Streamlit app's canvas)", keys: "C", args: "number: the cell's own number (default: the selected cell, or the cursor's)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => (current?.notebook ? notebook().copy(num(a, "number")) : script().copy(num(a, "number"))) },

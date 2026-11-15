@@ -161,6 +161,13 @@ def facts(code: str) -> Facts:
     return Facts(read.made, read.needs, tuple(_modules(tree)))
 
 
+def shown_makes(found: Facts) -> list[str]:
+    """The names a cell makes as the pane and the canvas say them: not what the page gives every cell
+    (st, pd), nor a name that starts with _ (the cell's own, by Python's habit; the starter pieces keep
+    their helpers so). The run order still counts them all."""
+    return [name for name in found.makes if name not in PROVIDED and not name.startswith("_")]
+
+
 def tables_named(code: str, tables: Iterable[str]) -> list[str]:
     """The tables a cell names (real names only: Python's tokenizer, as the uses line reads them),
     in the order it first names them. `tables` are the tables' names as Python variables."""

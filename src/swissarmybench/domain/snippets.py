@@ -331,7 +331,7 @@ def cell_name(template: str, given: Mapping[str, str], fallback: str) -> str:
         return given.get(" ".join(_words(match.group(1)))) or (match.group(2) or "").strip()
 
     named = " ".join(PLACEHOLDER.sub(word, template).split())
-    return named[:80] or fallback
+    return (named[:1].upper() + named[1:80]) or fallback  # a cell's name starts with a capital
 
 
 # ===== a snippet in its .blade.py file =====
