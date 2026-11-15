@@ -155,7 +155,7 @@ def test_a_thin_cells_move_is_its_lines_for_data_ipynb_and_one_read_left(
     assert plan["document"] == path and plan["cell"] == 3 and plan["title"] == "top"
     assert plan["notebook"] == str(tmp_path / "data.ipynb") and plan["words"] == "Filters a table: top"
     assert plan["data_code"] == (
-        '# From Top orders, sales.ipynb @cell3\ntop = orders[orders["amount"] > 50]\n'
+        '# From Top orders, sales.ipynb cell 3\ntop = orders[orders["amount"] > 50]\n'
     )
     assert (
         plan["cell_code"]
@@ -221,4 +221,4 @@ def test_the_real_apptest_finds_the_value_that_breaks_a_block(
     assert done["failures"] == {
         "b2": [{"case": "Region filter: Region = 'North'", "error": "KeyError: 'North'"}]
     }
-    assert done["page"] == [] and done["tries"] == 4  # All, East, North, West
+    assert done["outside"] == [] and done["tries"] == 4  # All, East, North, West

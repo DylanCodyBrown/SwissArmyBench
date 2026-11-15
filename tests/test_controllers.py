@@ -258,7 +258,7 @@ def test_the_answer_lands_on_the_blocks_that_failed_once_each() -> None:
         "tries": 4,
         "failed": 2,
         "failures": {"b2": [{"case": "Region filter: Region = 'South'", "error": "KeyError: 'South'"}]},
-        "page": [{"case": "As the page opens", "error": "FileNotFoundError: data"}],
+        "outside": [{"case": "As the page opens", "error": "FileNotFoundError: data"}],
         "untried": ["u", "x"],
         "stopped": False,
         "problem": None,
@@ -308,7 +308,7 @@ st.button("Refresh", on_click=_go, key="refresh")
     found = ctl.read_results(done.stdout, plan, [b.id for b in placed])
     assert found.problem is None, done.stderr[-2000:]
     assert found.failures == {"b2": [{"case": "Region filter: Region = 'East'", "error": "KeyError: 'East'"}]}
-    assert found.page == [] and found.tries == 6  # All, North, South, East; Refresh twice
+    assert found.outside == [] and found.tries == 6  # All, North, South, East; Refresh twice
     assert PYTHON is not None
 
 

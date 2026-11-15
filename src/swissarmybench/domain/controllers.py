@@ -513,7 +513,7 @@ def page_notes(
         }
     summary = None
     if tested is not None:
-        keep = ("runs", "tries", "failed", "page", "untried", "stopped", "problem")
+        keep = ("runs", "tries", "failed", "outside", "untried", "stopped", "problem")
         summary = {k: tested.get(k) for k in keep}
     return notes, {"check": check.to_json(), "tested": summary}
 
@@ -570,14 +570,14 @@ class TestResult:
     runs: int = 0
     tries: int = 0
     failures: dict[str, list[dict[str, str]]] = field(default_factory=dict)
-    page: list[dict[str, str]] = field(default_factory=list)
+    outside: list[dict[str, str]] = field(default_factory=list)
     untried: list[str] = field(default_factory=list)
     stopped: bool = False  # the budget ran out before every value was tried
     problem: str | None = None  # the runner itself could not run
 
     @property
     def failed(self) -> int:
-        return sum(len(v) for v in self.failures.values()) + len(self.page)
+        return sum(len(v) for v in self.failures.values()) + len(self.outside)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -585,7 +585,7 @@ class TestResult:
             "tries": self.tries,
             "failed": self.failed,
             "failures": {b: list(f) for b, f in self.failures.items()},
-            "page": list(self.page),
+            "outside": list(self.outside),
             "untried": list(self.untried),
             "stopped": self.stopped,
             "problem": self.problem,
@@ -624,8 +624,8 @@ def read_results(output: str, plan: Mapping[str, Any], blocks: Iterable[str]) ->
             if all(f["error"] != _short(error) for f in held) and len(held) < MAX_SHOWN:
                 held.append({"case": words, "error": _short(error)})
         for error in case.get("page") or []:
-            if len(result.page) < MAX_SHOWN and all(f["error"] != _short(error) for f in result.page):
-                result.page.append({"case": words, "error": _short(error)})
+            if len(result.outside) < MAX_SHOWN and all(f["error"] != _short(error) for f in result.outside):
+                result.outside.append({"case": words, "error": _short(error)})
     return result
 
 

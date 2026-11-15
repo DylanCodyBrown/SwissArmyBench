@@ -105,7 +105,8 @@ def _comments_above(lines: list[str], start: int, floor: int) -> int:
 def model_work(code: str, inputs: Iterable[str], where: str = "") -> Move | None:
     """The model work of a view cell (None: there is none). `inputs`: what a moved line may read: the
     open tables and data.py's names (as Python variables). `where`: the cell's words for the moved
-    cell's first line ("Sales by product, sales.ipynb @cell4")."""
+    cell's first line ("Sales by product, sales.ipynb cell 4": never an @cell link, which in
+    data.ipynb would name one of its own cells)."""
     uses, text = table_cells.split_uses(code)
     try:
         tree = ast.parse(text)

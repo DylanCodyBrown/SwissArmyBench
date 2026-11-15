@@ -261,5 +261,5 @@ def test_test_this_page_finds_nothing_wrong_on_a_page_of_controllers(tmp_path: P
     )
     found = ctl.read_results(done.stdout, plan, [b.id for b in placed])
     assert found.problem is None, done.stderr[-2000:]
-    assert found.failures == {} and found.page == [] and found.tries > 10
+    assert found.failures == {} and found.outside == [] and found.tries > 10
     assert found.untried == []

@@ -204,7 +204,7 @@ class Controllers:
             raise Conflict("Only a Python cell's model work moves to data.ipynb.")
         inputs = [*self._tables(), *self._apps.data_names(app)]
         file = block.document.replace("\\", "/").rsplit("/", 1)[-1]
-        words = f"{pieces[block.key].name}, {file} @cell{block.cell}"
+        words = f"{pieces[block.key].name}, {file} cell {block.cell}"
         move = thin_cells.model_work(code, inputs, words)
         if move is None:
             raise Conflict(f"{pieces[block.key].name} does no model work to move.")

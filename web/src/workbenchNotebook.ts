@@ -255,6 +255,10 @@ export interface NotebookView {
   editName: () => void;
   /** The place (from 0) of the cell with this number, or -1. */
   indexOfNumber: (number: number) => number;
+  /** Put this text in the user's cell numbered `number` (a thin cell's move to data.ipynb). */
+  setSource: (number: number, source: string) => void;
+  /** A new named Python cell at the end (data.ipynb's cell for a moved model); its number. */
+  appendNamed: (source: string, name: string) => number;
   /** Insert a snippet, filled with `values` (the agent's): into the cell numbered `number`, else the
    *  selected one of its kind, else a new one. Which cell took it. */
   insertSnippet: (name: string, values: Record<string, unknown>, number?: number) => Promise<{ cell: number; kind: CellKind; name: string | null }>;
@@ -1825,6 +1829,20 @@ export function notebookView(
       edited();
     },
     indexOfNumber: (number) => cells.findIndex((c) => c.number === number),
+    setSource: (number, source) => {
+      const cell = byNumber(number);
+      if (!cell || isApp(cell.role)) throw new Error(`This notebook has no cell ${number} of yours.`);
+      if (cell.editor) cell.editor.setValue(source);
+      else cell.source = source;
+      drawPiece(cell);
+      edited();
+      typedSoon();
+    },
+    appendNamed: (source, name) => {
+      const cell = insertAt(cells.length, "code", source);
+      setName(cell, name);
+      return cell.number;
+    },
     insertSnippet,
     insertSnippetHere: () => {
       if (!selected || !snippetLanguage(selected)) return toast("Select a Python, DAX or HTML cell of yours first.", "error");

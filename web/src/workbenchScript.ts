@@ -105,6 +105,8 @@ export interface ScriptView {
   nameCell: (number: number | undefined, name: string) => { cell: number; name: string | null };
   /** The cursor to the end of the cursor's cell's marker line, where its name is typed. */
   editName: () => void;
+  /** Put this text as the lines of the cell numbered `number`, under its marker (a thin cell's move). */
+  setSource: (number: number, source: string) => void;
   /** The document closed: free its editor and its panes. */
   dispose: () => void;
 }
@@ -981,6 +983,17 @@ export function scriptView(
       lines[at] = withMarkerName(lines[at]!, said);
       editor.replaceText(lines.join("\n"));
       return { cell: cell.number, name: said || null };
+    },
+    setSource: (number, source) => {
+      if (!editor) throw new Error("The script's editor is not ready yet.");
+      const lines = editor.value().split("\n");
+      const at = lines.findIndex((l) => new RegExp(`^# ?%% \\[${number}\\](?:\\s|$)`).test(l));
+      if (at < 0) throw new Error(`This script has no cell ${number}.`);
+      let end = lines.findIndex((l, i) => i > at && /^# ?%%/.test(l));
+      if (end < 0) end = lines.length;
+      // A blank line before the next marker stays, as typed.
+      const gap = end < lines.length && !lines[end - 1]?.trim() ? [""] : [];
+      editor.replaceText([...lines.slice(0, at + 1), ...source.replace(/\n+$/, "").split("\n"), ...gap, ...lines.slice(end)].join("\n"));
     },
     editName: () => {
       const line = editor?.cursorLine() ?? 0;

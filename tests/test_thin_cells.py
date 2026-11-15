@@ -23,13 +23,13 @@ st.write(logged)
 
 
 def test_a_view_that_groups_a_table_moves_those_lines_to_data_ipynb() -> None:
-    move = model_work(VIEW, ["orders"], "Sales by product, sales.ipynb @cell4")
+    move = model_work(VIEW, ["orders"], "Sales by product, sales.ipynb cell 4")
     assert move is not None
     assert move.names == ("sales_by_product", "top", "logged") and move.work == ("filter", "group")
     assert move.words == "Filters and groups a table: sales_by_product, top, logged"
     assert move.title == "sales_by_product"
     assert move.data == (
-        "# From Sales by product, sales.ipynb @cell4\n"
+        "# From Sales by product, sales.ipynb cell 4\n"
         "import numpy as np\n"
         "# the totals, biggest first\n"
         'sales_by_product = orders.groupby("product", as_index=False)["amount"].sum()\n'

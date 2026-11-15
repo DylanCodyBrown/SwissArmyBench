@@ -649,7 +649,7 @@ class StreamlitApps:
                     b.id,
                     linked.code(b.key),
                     linked.kind(b.key),
-                    f"{pieces[b.key].name}, {_where(*b.key)}" if b.key in pieces else "",
+                    f"{pieces[b.key].name}, {_name(b.document)} cell {b.cell}" if b.key in pieces else "",
                     _name(b.document).lower() == projects.DATA_NOTEBOOK,
                 )
                 for b in page.blocks
