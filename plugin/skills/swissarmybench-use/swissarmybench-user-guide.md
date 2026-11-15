@@ -417,6 +417,11 @@ their own, run in an IPython kernel on this computer.
   - **Test connection** runs Connect, then List the tables, then reads the first table's first 20 rows and shows them. A saved connection's **Test** shows them under its row.
   - Its catalog, **Open as grid**, the first-rows preview and **Rows to open** work as for a database. In a notebook, `conn = sab.connection("Orders API")` gives what Connect made, and `sab.read("Orders API", "orders")` reads a table with your Read a table box.
 - **A key vault** (Azure Key Vault, AWS, Google, HashiCorp, 1Password, a `.env` file, Windows Credential Manager or the macOS Keychain): fill in its address and save. **Every secret in the vault** is on by default: each secret becomes an environment variable under its own name (`SqlPassword` stays `SqlPassword`; `Sql--Password` becomes `Sql__Password`, Azure's convention; `warehouse-password` becomes `warehouse_password`), and a secret added to the vault later is there at the next kernel. Once its address is filled in, the form lists the vault's secrets by name: leave a box empty and the secret keeps its own name (shown faintly), or type a name to map it to that variable. Untick Every secret to choose them instead.
+- **An Azure Key Vault signs in** **As you** (Azure CLI, VS Code or Windows sign-in) or as a
+  **Managed identity**, for runs in Azure (a Function App, App Service or VM; fill in a client id for a
+  user-assigned identity). Nothing is entered on this computer to open a vault: an app registration
+  (Power BI's, say) lives in the vault, as entries other connections use. An exported script reads the
+  vault the same way, with no package installed (Export as one Python script, below).
 - **Every Workbench kernel starts with those variables set.** `os.environ["WAREHOUSE_PASSWORD"]` works in any notebook or script, and so does a connection whose password is `secret("WAREHOUSE_PASSWORD")`. The Variables pane's Environment section shows each one as set or not set, never its value. A vault that cannot be read (signed out of Azure, say) says so when the kernel starts, and the kernel starts without its variables.
 - No vault yet? Choose **A key vault** for a password and press **New vault**: the connection's form waits and comes back with the new vault in its list.
 
@@ -881,6 +886,67 @@ start with `from data import orders, ...`.
   tables whose rows it copies; Deny (or no answer in 3 minutes) writes nothing. `project_new` and
   `streamlit_save_as` ask too, but only when the project's data.ipynb would hold a pasted table's
   rows. Your own Export click asks nothing.
+
+### Export as one Python script (or one notebook)
+
+**Export as one Python script…** (a notebook's or script's **…** Document menu, and the palette)
+turns the document into ONE `.py` that runs on its own, unattended, on any machine with Python 3.10 or
+later: a scheduler, a CI job, an Azure Function. **Export as one notebook…** gives the same as one
+linear `.ipynb`, for a scheduler that runs notebooks. The name starts as the document's:
+`orders_report_automation.py`. The file chooser says where it goes.
+
+- **Everything is written out in it:** each connection the document uses (its own Connect code, a
+  file's path, a Power BI workspace's sign-in and DAX, your own Python's Connect and Read a table, a
+  blade such as the Excel starters' `write_table`), each key vault a password comes from, each table's
+  load and its grid steps as one DuckDB query, then your cells in order. `%%sql` and `%%dax` cells,
+  and `sab.sql`, `sab.dax`, `sab.read`, `sab.blade` and `sab.connection`, call those. It needs no
+  Swiss Army Bench.
+- **No password and no row is ever in it.** SETTINGS at the top names every environment variable it
+  reads, one per line, with where it came from in the app (the keyring, a key vault's entry, a plain
+  value). Set the passwords where it runs. A pasted, dropped or pushed table has no load: it is a stub
+  that raises `FILL IN: ...` until you write the code that reads it.
+- **Left out, with a line that says so:** what only shows something: HTML cells, Streamlit's cells,
+  `display(...)`, a cell's last bare expression, `sab.push`. IPython's own lines become Python where
+  Python has the same (`%pip install` goes into REQUIREMENTS, `%env`, `%cd`, `%time`); any other
+  (`!ls`, `%run`) is named by its cell, and you are asked whether to export the rest with a stub for
+  each.
+- **Checked before it is written:** it compiles, Python's own checks (ruff, when the app's Python has
+  it) find no name that nothing makes, and it holds no saved password's value and no row.
+- **Run it:** `python orders_report_automation.py`. It first checks its packages (REQUIREMENTS, before
+  anything else is imported) and, when one is missing, says the exact `pip install` for that Python and
+  stops; `--install` installs them first. It logs to the terminal and exits 0 when it worked, 1 when it
+  failed, 2 when a setting is missing, 3 when a package is. (`uv run` reads the header too.)
+- **The notebook** runs top to bottom in any plain Jupyter kernel: `jupyter nbconvert --to notebook
+  --execute orders_report_automation.ipynb`, or papermill. Its first cell checks the packages (set
+  `INSTALL = True` there to install them); its settings cell is tagged `parameters`, so `papermill
+  ... -p REPORT_FOLDER out` passes one (give passwords as environment variables: papermill writes its
+  parameters into the notebook it runs). No magics, no outputs, plain nbformat 4.
+- **In an Azure Function** (Python, the v2 model): put the script beside `function_app.py`, put its
+  REQUIREMENTS in the function app's requirements.txt (the script's top comment lists them), and call
+  `main()` from a timer trigger:
+
+  ```python
+  import azure.functions as func
+
+  import orders_report_automation as job
+
+  app = func.FunctionApp()
+
+
+  @app.timer_trigger(schedule="0 0 6 * * *", arg_name="timer")  # every day at 06:00 UTC
+  def orders_report(timer: func.TimerRequest) -> None:
+      job.main()
+  ```
+
+  `main()` raises when the job fails, so the run shows as failed. Put the settings in the function
+  app's **Application settings**, or let the key vault give them: an Azure Key Vault is read by the
+  function app's **managed identity** (give it the **Key Vault Secrets User** role on the vault), with
+  no secret in the function's settings. The script asks the vault itself, with the standard library:
+  the variable when it is set already, then the managed identity, then (for a vault that signs in as
+  you, and only when `azure-identity` is installed) `az login`. It needs only "get secret", never list.
+  A Power BI workspace's app registration can live in the same vault, as entries.
+- **The agent** exports too: `workbench_export_script` (`format` notebook for the notebook), and the
+  window's palette commands `file.exportScript` and `file.exportNotebook`.
 
 ## Code to your Python
 

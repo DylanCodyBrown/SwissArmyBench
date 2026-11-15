@@ -413,6 +413,59 @@ async function exportData(): Promise<unknown> {
   return done;
 }
 
+interface ExportAnswer {
+  path: string | null;
+  file: string;
+  problems: string[];
+  lint: string[];
+  stubs: string[];
+  skipped: string[];
+  settings: { variable: string; secret: boolean }[];
+  ask?: string;
+  run?: string;
+}
+
+/** Export as one Python script… (or as one notebook…): the document as it stands here (saved or
+ * not) as one self-contained file that runs with plain `python` (or top to bottom in any Jupyter),
+ * written where the file chooser says (docs/ideas.md, 2026-11-15). What cannot be exported is named
+ * by its cell first, and the rest goes out with a FILL IN stub for each only when the user says so.
+ * `to`: where it goes (the agent's palette call); without it, the file chooser opens. */
+async function exportDocument(doc: Doc | null, format: "script" | "notebook", to?: string, agent = false): Promise<ExportAnswer | null> {
+  if (!doc || (!doc.notebook && !doc.script)) throw new Error("Open a notebook or a script to export.");
+  const ending = format === "notebook" ? ".ipynb" : ".py";
+  const stem = (doc.path ? baseName(doc.path) : doc.title).replace(/\.(ipynb|py)$/i, "");
+  const suggested = `${stem.trim().replace(/\W+/g, "_").replace(/^_+|_+$/g, "").toLowerCase() || "job"}_automation${ending}`;
+  let path = to;
+  if (!path) {
+    const title = format === "notebook" ? "Export as one notebook" : "Export as one Python script";
+    path = (await chooseFile({ title, mode: "save", start: doc.path ?? project?.folder ?? homeFolder, name: suggested })) ?? undefined;
+    if (!path) return null;
+  }
+  if (!path.toLowerCase().endsWith(ending)) path += ending;
+  const body: Record<string, unknown> = {
+    format,
+    to: path,
+    path: doc.path,
+    name: doc.title,
+    ...(doc.notebook ? { kind: "notebook", cells: doc.notebook.cells() } : { kind: "script", text: doc.script!.text() }),
+  };
+  const call = agent ? agentApi : api;
+  let done = await call<ExportAnswer>("/workbench/export-script", "POST", body);
+  if (done.ask) {
+    const said = [...done.problems, ...done.lint].map((p) => `• ${p}`).join("\n");
+    if (agent || !confirm(`These cannot be exported:\n${said}\n\nExport the rest, with a stub that raises FILL IN for each?`)) {
+      if (!agent) toast("Nothing was exported.");
+      return done;
+    }
+    done = await call<ExportAnswer>("/workbench/export-script", "POST", { ...body, stub: true });
+  }
+  for (const said of done.skipped) toast(said);
+  const secrets = done.settings.filter((s) => s.secret).map((s) => s.variable);
+  const note = secrets.length ? ` Set ${secrets.join(", ")} where it runs.` : "";
+  toast(`Exported ${done.file}${done.stubs.length ? ` (FILL IN: ${done.stubs.join(", ")})` : ""}.${note}`);
+  return done;
+}
+
 /** The project's entries (in a group's "+" and the top bar's "…"). */
 function projectEntries(): MenuEntry[] {
   const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
@@ -998,6 +1051,12 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
     { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
     { label: "Recent…", icon: "more", run: () => recentMenu(anchor) },
     ...(doc.notebook || doc.script ? [{ label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) }] : []),
+    ...(doc.notebook || doc.script
+      ? [
+          { label: "Export as one Python script…", icon: "export", title: "One .py that runs with plain python: its connections, vault lookups and grid steps written out", run: () => void exportDocument(doc, "script").catch((e: Error) => toast(e.message, "error")) },
+          { label: "Export as one notebook…", icon: "export", title: "One linear .ipynb that runs top to bottom in any Jupyter (nbconvert, papermill)", run: () => void exportDocument(doc, "notebook").catch((e: Error) => toast(e.message, "error")) },
+        ]
+      : []),
     null,
     ...(kernel
       ? [
@@ -1485,6 +1544,8 @@ const COMMANDS: Command[] = [
   { id: "file.open", group: "File", title: "Open a notebook, script or Streamlit app…", keys: "Ctrl+O", args: "path: the file (without it, the file chooser opens)", run: (a) => open(text(a, "path")) },
   { id: "file.save", group: "File", title: "Save", keys: "Ctrl+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current) },
   { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current, true) },
+  { id: "file.exportScript", group: "File", title: "Export as one Python script…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "script", text(a, "path"), from.agent) },
+  { id: "file.exportNotebook", group: "File", title: "Export as one notebook…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "notebook", text(a, "path"), from.agent) },
   { id: "project.new", group: "Project", title: "New project…", args: "folder: where it goes; name: its name; notebooks: names of notebooks to make; app: false for no Streamlit app (without folder and name, the file chooser opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], a.app !== false, from.agent) },
   { id: "project.open", group: "Project", title: "Open project…", args: "folder: the project's folder (without it, the file chooser opens)", run: (a) => openProject(text(a, "folder")) },
   { id: "project.exportData", group: "Project", title: "Export data.py (from data.ipynb)", when: () => docs.some(isData) || !!project, whyNot: "no project is open", run: () => exportData() },

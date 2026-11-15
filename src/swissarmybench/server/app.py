@@ -19,6 +19,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_projects.py       projects: a new one, its files, Export data.py
+  routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
@@ -62,6 +63,7 @@ from swissarmybench.server import (
     routes_projects,
     routes_regression,
     routes_relationships,
+    routes_script_export,
     routes_snapshots,
     routes_streamlit,
     routes_table_cells,
@@ -173,6 +175,7 @@ def create_app(
             *routes_table_cells.routes(ctx.table_cells),
             *routes_streamlit.routes(ctx.streamlit),
             *routes_projects.routes(ctx.projects),
+            *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
             *routes_beta_log.routes(ctx.beta),
             *streamlit_proxy.routes(ctx.streamlit.port_of),

@@ -149,6 +149,9 @@ src/swissarmybench/
     packs.py             a pack (a Claude Code plugin with blades/ and tangs/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
+    script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
+                         as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
+                         (the package check, settings, the vault by managed identity, connections)
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
 

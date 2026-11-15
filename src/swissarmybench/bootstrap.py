@@ -53,6 +53,7 @@ from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.kernels import Launcher
+from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
@@ -75,6 +76,7 @@ from swissarmybench.services.profile import Profiles
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
+from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.streamlit import StreamlitApps
@@ -125,6 +127,7 @@ class Services:
     table_cells: TableCells
     streamlit: StreamlitApps
     projects: Projects
+    script_exports: ScriptExports
     panels: Panels
     beta: BetaLog
     live: LiveUpdates
@@ -355,6 +358,17 @@ def bootstrap(
             export_data=streamlit.export_data,
             remember=lambda path: documents.remember(path, time.time()),
             approvals=approvals,
+        ),
+        # Export as one Python script: the document's cells, its connections' own code, ruff's check.
+        script_exports=ScriptExports(
+            ws,
+            blade_store,
+            read_document=documents.read,
+            write_document=documents.write,
+            arrange=table_cells.arrange,
+            lint=script_lint,
+            folder_of=lambda path: str(Path(path).expanduser().parent),
+            join=lambda folder, name: str(Path(folder) / name),
         ),
         live=live,
         workers=workers,

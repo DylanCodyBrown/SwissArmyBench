@@ -44,6 +44,8 @@ No prefix: `guide`, `commands`, `health`.
   with uv) or VS Code's Open Swiss Army Bench; `health` checks.
 - A bug report: `app_beta_notes` (what the user said, where), then `app_beta_log(kind="error")`.
 - Prefer steps on the user's grid to copies. Give the table, filter and row count behind a number.
+- `workbench_export_script` (format script or notebook): a document as one self-contained file that
+  runs anywhere; code only (no rows, no passwords), so it asks nothing.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, blades, workbench, streamlit,

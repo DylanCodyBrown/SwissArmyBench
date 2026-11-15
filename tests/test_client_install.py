@@ -37,10 +37,14 @@ def test_only_the_server_command_can_start_a_process_or_open_a_browser() -> None
     Code show the grids. So nothing outside server/ (the push client, the MCP, the prompt hook)
     may start a process or open a browser, or the server could run from another install again."""
     package = ROOT / "src" / "swissarmybench"
+    # The text of an exported script (Export as one Python script): its `--install` runs pip in the
+    # script's own Python, where it runs. It is a string here, never run by Swiss Army Bench.
+    text_only = {"domain/script_runtime.py"}
     offenders = [
         str(path.relative_to(package))
         for path in package.rglob("*.py")
         if "server" not in path.relative_to(package).parts
+        and path.relative_to(package).as_posix() not in text_only
         and any(word in path.read_text(encoding="utf-8") for word in ("subprocess", "webbrowser"))
     ]
     assert offenders == []

@@ -2364,6 +2364,21 @@ def workbench_save(a: dict[str, Any]) -> Any:
     return api.call("POST", "/workbench/save", body)
 
 
+@command(
+    "workbench_export_script",
+    "Export a notebook or script as ONE .py that runs with plain python anywhere (an Azure Function too), "
+    "or as one linear .ipynb: its connections, vault lookups and grid steps written out, no passwords, no rows",
+    req("path", "The notebook (.ipynb) or script (.py)."),
+    opt("format", "script (one .py, the default) or notebook (one self-contained .ipynb)."),
+    opt("to", "Where it goes (default: beside it, <name>_automation.py or .ipynb)."),
+    opt("stub", "Export the rest when a cell cannot be: each such cell a stub that raises FILL IN.", "bool"),
+    opt("check", "Write nothing: the text, and what would stop it.", "bool"),
+)
+def workbench_export_script(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("path", "format", "to", "stub", "check") if a.get(k) is not None}
+    return api.call("POST", "/workbench/export-script", body)
+
+
 @command("workbench_pythons", "The Pythons a kernel can run in: version, ipykernel, the package")
 def workbench_pythons(a: dict[str, Any]) -> Any:
     return api.call("GET", "/workbench/pythons")
