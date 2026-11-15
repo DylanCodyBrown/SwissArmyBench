@@ -10,6 +10,7 @@ The doors (server/app.py and its route modules) are given the services and nothi
 from __future__ import annotations
 
 import os
+import platform
 import sys
 import time
 from collections.abc import Callable
@@ -20,9 +21,12 @@ from typing import Any
 
 import duckdb
 
+from swissarmybench import __version__
 from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
+from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
+from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
 from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.codegen import Verifier
@@ -45,12 +49,14 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.grids import GridRegistry
+from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
@@ -120,6 +126,7 @@ class Services:
     streamlit: StreamlitApps
     projects: Projects
     panels: Panels
+    beta: BetaLog
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -159,11 +166,19 @@ def bootstrap(
     )
     verifier = Verifier(settings.duckdb_memory_limit)
 
+    def process_event(
+        kind: str, event: str, code: int | None, seconds: float | None, reason: str = ""
+    ) -> None:
+        beta.process(kind, event, code, seconds, reason)
+
     async def run_blade(
         blade: Blade, mode: str, typed: dict[str, str], extra: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         job = blade_runner.payload(blade_store, blade, mode, typed, extra)
-        return await blade_runner.run(job, settings.blade_timeout_seconds)
+        kind = "catalog" if mode == "catalog" else "blade"
+        return await blade_runner.run(
+            job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
+        )
 
     async def vault_environment() -> tuple[dict[str, str], list[str]]:
         """Every vault's entries for a Workbench kernel about to start, and the vaults that failed."""
@@ -195,6 +210,30 @@ def bootstrap(
         grammar=duckdb_grammar(),
         interrupted=duckdb.InterruptException,
         engine_error=duckdb.Error,
+    )
+
+    # ===== the beta log: errors, slow requests, processes, page errors and notes, redacted =====
+    # (written only where the audit log is; beta mode on or off is beta.json, SWISSARMYBENCH_BETA wins)
+    secret_values = (token, *(v for v in os.environ.values() if len(v) >= 8))
+    beta = BetaLog(
+        ws,
+        BetaFiles(state_dir / "logs" if audit_log else None, settings.beta_log_bytes, settings.beta_log_days),
+        BetaSwitch(state_dir / "beta.json" if audit_log else None),
+        variable=env("SWISSARMYBENCH_BETA"),
+        facts={
+            "version": __version__,
+            "os": f"{platform.system()} {platform.release()}",
+            "python": platform.python_version(),
+        },
+        home=str(Path.home()),
+        names=lambda: {
+            "table": [info.name for info in store.all()],
+            "column": [c.name for info in store.all() for c in info.columns],
+        },
+        # Never in a message: the server's token, and any environment variable's value.
+        secrets=lambda: secret_values,
+        listen=listen_for_crashes,
+        now=time.time,
     )
 
     # ===== the services =====
@@ -247,7 +286,7 @@ def bootstrap(
     streamlit = StreamlitApps(
         ws,
         AppFiles(),
-        StreamlitRunner(),
+        StreamlitRunner(report=lambda *e: process_event("streamlit", *e)),
         export_writer,
         now=time.time,
         read_document=documents.read,
@@ -289,7 +328,7 @@ def bootstrap(
         workbench=Workbench(
             ws,
             documents,
-            Launcher(),
+            Launcher(report=lambda *e: process_event("kernel", *e)),
             os.environ,
             now=time.time,
             folder_of=lambda path: str(Path(path).expanduser().parent),
@@ -307,6 +346,7 @@ def bootstrap(
         workbench_window=WorkbenchWindow(ws),
         table_cells=table_cells,
         panels=Panels(ws),
+        beta=beta,
         streamlit=streamlit,
         projects=Projects(
             ws,

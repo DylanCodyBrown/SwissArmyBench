@@ -18,7 +18,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
 
@@ -107,9 +108,27 @@ def _client(manager: AsyncKernelManager) -> Any:
     return client
 
 
+# The beta log's hook (services/beta_log.py): (event, exit code, seconds, reason) for a kernel's start,
+# restart, crash and end.
+Report = Callable[[str, int | None, float | None, str], None]
+
+
+def _no_report(event: str, code: int | None, seconds: float | None, reason: str = "") -> None:
+    return None
+
+
 class Kernel:
-    def __init__(self, manager: AsyncKernelManager, python: str, sockets: str | None = None) -> None:
+    def __init__(
+        self,
+        manager: AsyncKernelManager,
+        python: str,
+        sockets: str | None = None,
+        report: Report = _no_report,
+    ) -> None:
         self.manager = manager
+        self._report = report
+        self._started = time.monotonic()
+        self._ended = False
         self.client = _client(manager)
         self.python = python
         self._sockets = sockets  # the private folder of its local sockets, removed when it ends
@@ -202,6 +221,7 @@ class Kernel:
                         self.client.input(value)
                         continue
                     if self._generation == generation and not await self.manager.is_alive():
+                        self._gone("crash")
                         yield {"done": {"ok": False, "dead": True, "execution_count": count}}
                         return
                     continue
@@ -362,7 +382,21 @@ class Kernel:
         await self.manager.interrupt_kernel()
 
     async def alive(self) -> bool:
-        return bool(await self.manager.is_alive())
+        alive = bool(await self.manager.is_alive())
+        if not alive:
+            self._gone("crash")
+        return alive
+
+    def _exit_code(self) -> int | None:
+        process = getattr(getattr(self.manager, "provisioner", None), "process", None)
+        code = getattr(process, "returncode", None)
+        return code if isinstance(code, int) else None
+
+    def _gone(self, event: str) -> None:
+        """Say once how the kernel ended: a crash (it died by itself) or an end (it was stopped)."""
+        if not self._ended:
+            self._ended = True
+            self._report(event, self._exit_code(), time.monotonic() - self._started, "")
 
     async def is_complete(self, code: str) -> dict[str, Any]:
         """Whether code is a whole statement yet (the console's Enter), and the indent to go on with."""
@@ -375,6 +409,7 @@ class Kernel:
         self._generation += 1
         self._interrupts += 1
         await self.manager.restart_kernel(now=True)
+        self._report("restart", None, time.monotonic() - self._started, "")
         self.client.stop_channels()
         self.client = _client(self.manager)
         await self.ready()
@@ -385,12 +420,16 @@ class Kernel:
             await self.manager.shutdown_kernel(now=True)
         except Exception:  # noqa: S110 (already gone)
             pass
+        self._gone("end")
         if self._sockets:
             shutil.rmtree(self._sockets, ignore_errors=True)
 
 
-async def start(python: str, folder: str | None, environ: dict[str, str]) -> Kernel:
+async def start(
+    python: str, folder: str | None, environ: dict[str, str], report: Report = _no_report
+) -> Kernel:
     """A kernel in `python`, its working folder `folder` (the document's), ready to run."""
+    began = time.monotonic()
     found = check_python(python)
     if not found["ipykernel"]:
         raise KernelError(
@@ -426,18 +465,26 @@ async def start(python: str, folder: str | None, environ: dict[str, str]) -> Ker
     except Exception as error:
         if sockets:
             shutil.rmtree(sockets, ignore_errors=True)
+        report("failed", None, time.monotonic() - began, type(error).__name__)
         raise KernelError(f"The kernel did not start: {error}") from None
-    kernel = Kernel(manager, found["python"], sockets)
+    kernel = Kernel(manager, found["python"], sockets, report)
     try:
         await kernel.ready()
-    except Exception:
+    except Exception as error:
+        kernel._ended = True  # said here, not again by shutdown
+        report("failed", kernel._exit_code(), time.monotonic() - began, type(error).__name__)
         await kernel.shutdown()
         raise
+    report("start", None, time.monotonic() - began, "")
     return kernel
 
 
 class Launcher:
-    """The Workbench's kernels port (services/workbench.py): kernels, and the environments they run in."""
+    """The Workbench's kernels port (services/workbench.py): kernels, and the environments they run in.
+    `report` hears each kernel's start, restart, crash and end (the beta log)."""
+
+    def __init__(self, report: Report = _no_report) -> None:
+        self._report = report
 
     def create_environment(
         self, folder: str, version: str | None, packages: list[str]
@@ -452,7 +499,7 @@ class Launcher:
         return environments.beside(folder)
 
     async def start(self, python: str, folder: str | None, environ: dict[str, str]) -> Kernel:
-        return await start(python, folder, environ)
+        return await start(python, folder, environ, self._report)
 
     def check_python(self, python: str) -> dict[str, Any]:
         return check_python(python)

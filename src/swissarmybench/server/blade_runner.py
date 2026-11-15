@@ -22,6 +22,8 @@ import json
 import os
 import shutil
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -128,8 +130,19 @@ def load_payload(store: BladeStore) -> dict[str, Any] | None:
     }
 
 
-async def run(job: dict[str, Any], timeout: float) -> dict[str, Any]:
-    """Run the job in a child process; its answer, or RefreshError."""
+# The beta log's hook: (event, exit code, seconds, reason) for each run's start and how it ended.
+Report = Callable[[str, int | None, float | None, str], None]
+
+
+def _no_report(event: str, code: int | None, seconds: float | None, reason: str = "") -> None:
+    return None
+
+
+async def run(job: dict[str, Any], timeout: float, report: Report = _no_report) -> dict[str, Any]:
+    """Run the job in a child process; its answer, or RefreshError. `report` hears how it went (the
+    beta log): never the blade's own words, which can name the user's servers."""
+    began = time.monotonic()
+    report("start", None, None, "")
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-I",
@@ -145,6 +158,7 @@ async def run(job: dict[str, Any], timeout: float) -> dict[str, Any]:
     except TimeoutError:
         process.kill()
         await process.wait()
+        report("timeout", process.returncode, time.monotonic() - began, "")
         raise RefreshError(
             f"{job['label']} did not finish within {timeout:.0f} seconds and was stopped. "
             "Check the server name and network, or narrow the catalog query."
@@ -155,9 +169,12 @@ async def run(job: dict[str, Any], timeout: float) -> dict[str, Any]:
         answer = None
     if not isinstance(answer, dict):
         tail = err.decode("utf-8", "replace").strip().splitlines()[-1:] or ["no answer"]
+        report("crash", process.returncode, time.monotonic() - began, "no answer")
         raise RefreshError(f"{job['label']} stopped unexpectedly: {tail[0][:500]}")
     if "error" in answer:
+        report("failed", process.returncode, time.monotonic() - began, "the blade's code raised an error")
         raise RefreshError(str(answer["error"]), answer.get("missing_module"))
+    report("end", process.returncode, time.monotonic() - began, "")
     if "arrow" in answer:  # a table's rows, typed: Arrow IPC in base64
         answer["table"] = ipc.open_stream(io.BytesIO(base64.b64decode(answer.pop("arrow")))).read_all()
     return answer

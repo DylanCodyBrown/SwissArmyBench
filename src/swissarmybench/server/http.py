@@ -31,6 +31,7 @@ from swissarmybench.domain.export import ExportError
 from swissarmybench.domain.grids import GridLimitError, StaleRequestError
 from swissarmybench.domain.sql_guard import SqlRefused
 from swissarmybench.domain.steps import StepError
+from swissarmybench.server.beta_requests import report
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, TimedOut
 
 T = TypeVar("T")
@@ -98,7 +99,15 @@ def json_response(content: Any, status_code: int = 200, max_bytes: int | None = 
 
 
 def error_response(error: Exception) -> Response:
-    """Map the engine's error types to HTTP status codes with plain-language messages."""
+    """Map the engine's error types to HTTP status codes with plain-language messages. An error that is
+    not one of a use case's outcomes goes to the beta log too (redacted: server/beta_requests.py)."""
+    response = _error_response(error)
+    if not isinstance(error, Refused | NotFound | TimedOut | Conflict | StaleRequestError):
+        report(error, response.status_code)
+    return response
+
+
+def _error_response(error: Exception) -> Response:
     status = 500
     # What a use case ended in besides its answer (services/workspace.py).
     for outcome, code in ((Refused, 403), (NotFound, 404), (TimedOut, 408), (Conflict, 409)):

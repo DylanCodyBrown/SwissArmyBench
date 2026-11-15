@@ -20,6 +20,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
+  routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
@@ -47,6 +48,7 @@ from swissarmybench.bootstrap import bootstrap
 from swissarmybench.server import (
     routes_agent,
     routes_analysis,
+    routes_beta_log,
     routes_blades,
     routes_cards,
     routes_catalog,
@@ -68,6 +70,7 @@ from swissarmybench.server import (
     routes_workbench,
     streamlit_proxy,
 )
+from swissarmybench.server.beta_requests import BetaRequests
 from swissarmybench.server.security import (
     OLD_WEBSOCKET_SUBPROTOCOL,
     WEBSOCKET_SUBPROTOCOL,
@@ -144,12 +147,14 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
         pruner = asyncio.create_task(drop_silent_sessions())
+        ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
         yield
         pruner.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         workers.close()
+        ctx.beta.stopped()
 
     app = Starlette(
         routes=[
@@ -169,6 +174,7 @@ def create_app(
             *routes_streamlit.routes(ctx.streamlit),
             *routes_projects.routes(ctx.projects),
             *routes_panels.routes(ctx.panels),
+            *routes_beta_log.routes(ctx.beta),
             *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),
@@ -182,7 +188,10 @@ def create_app(
             Route("/workbench", workbench_page),
             Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
         ],
-        middleware=[Middleware(LocalOnlyGuard, port=port, token=token)],
+        middleware=[
+            Middleware(LocalOnlyGuard, port=port, token=token),
+            Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
+        ],
         lifespan=lifespan,
     )
     app.state.ctx = ctx

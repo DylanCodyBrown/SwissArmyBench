@@ -15,6 +15,8 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -75,11 +77,25 @@ def _free_port() -> int:
         return int(probe.getsockname()[1])
 
 
+# The beta log's hook: (event, exit code, seconds, reason) for a Streamlit process's start, crash and end.
+Report = Callable[[str, int | None, float | None, str], None]
+
+
+def _no_report(event: str, code: int | None, seconds: float | None, reason: str = "") -> None:
+    return None
+
+
 class Process:
-    def __init__(self, process: asyncio.subprocess.Process, port: int, python: str) -> None:
+    def __init__(
+        self, process: asyncio.subprocess.Process, port: int, python: str, report: Report = _no_report
+    ) -> None:
         self.process = process
         self.port = port
         self.python = python
+        self._report = report
+        self._started = time.monotonic()
+        self._stopping = False
+        self._watch: asyncio.Task[None] | None = None
         self.lines: list[str] = []  # what it last said, for a start that fails
         self._reader: asyncio.Task[None] | None = None
 
@@ -97,7 +113,18 @@ class Process:
 
         self._reader = asyncio.create_task(lines())
 
+    def watch(self) -> None:
+        """Say how it ends: an end when the app stopped it, a crash when it stopped by itself."""
+
+        async def ended() -> None:
+            code = await self.process.wait()
+            event = "end" if self._stopping else "crash"
+            self._report(event, code, time.monotonic() - self._started, "")
+
+        self._watch = asyncio.create_task(ended())
+
     async def stop(self) -> None:
+        self._stopping = True
         if self.process.returncode is None:
             with contextlib.suppress(ProcessLookupError):
                 self.process.terminate()
@@ -124,7 +151,7 @@ def _answers(port: int, base: str) -> bool:
         connection.close()
 
 
-async def start(python: str, folder: str, base: str) -> Process:
+async def start(python: str, folder: str, base: str, report: Report = _no_report) -> Process:
     """`streamlit run app.py` in `folder`, in `python`, under the path `base` (the proxy's), on a free
     port of 127.0.0.1. Ready to answer when this returns."""
     port = _free_port()
@@ -157,18 +184,23 @@ async def start(python: str, folder: str, base: str) -> Process:
             stderr=asyncio.subprocess.STDOUT,
         )
     except OSError as error:
+        report("failed", None, 0.0, type(error).__name__)
         raise StreamlitProcessError(f"Streamlit did not start in {python}: {error}") from None
-    running = Process(process, port, python)
+    running = Process(process, port, python, report)
     running.read()
     deadline = asyncio.get_running_loop().time() + _START_SECONDS
     while asyncio.get_running_loop().time() < deadline:
         if not running.alive():
             said = "\n".join(running.lines[-8:])
+            report("failed", process.returncode, time.monotonic() - running._started, "stopped as it started")
             raise StreamlitProcessError(f"Streamlit stopped as it started:\n{said}"[:2000])
         if await asyncio.to_thread(_answers, port, "/" + base.strip("/")):
+            report("start", None, time.monotonic() - running._started, "")
+            running.watch()
             return running
         await asyncio.sleep(0.2)
     await running.stop()
+    report("timeout", None, time.monotonic() - running._started, "")
     raise StreamlitProcessError(f"Streamlit did not answer within {_START_SECONDS:.0f} seconds.")
 
 
@@ -201,7 +233,11 @@ async def install(python: str, packages: list[str]) -> tuple[int | None, str]:
 
 
 class Runner:
-    """The service's port (services/streamlit.py): check a Python, start, stop, install."""
+    """The service's port (services/streamlit.py): check a Python, start, stop, install. `report` hears
+    each Streamlit process's start, crash and end (the beta log)."""
+
+    def __init__(self, report: Report = _no_report) -> None:
+        self._report = report
 
     def default_python(self) -> str:
         return sys.executable
@@ -210,7 +246,7 @@ class Runner:
         return await asyncio.to_thread(check, python)
 
     async def start(self, python: str, folder: str, base: str) -> Process:
-        return await start(python, folder, base)
+        return await start(python, folder, base, self._report)
 
     async def install(self, python: str, packages: list[str]) -> tuple[int | None, str]:
         return await install(python, packages)
