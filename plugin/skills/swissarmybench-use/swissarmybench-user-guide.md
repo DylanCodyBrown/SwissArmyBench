@@ -801,6 +801,39 @@ before it made. The order on the canvas is yours; the order they run in comes fr
 - **Tell the reader:** check messages (an error, a warning or a success by what the rows hold), toast
   (a short message in the corner after a click).
 
+**The Controllers starters** drive a page: a filter with defaults (its Makes line a contract, below), a
+form with validation (a range refused with what to fix, the last good one kept), an action button whose
+callback puts the page's filters back (clicking twice does what clicking once does), a cross-page
+filter (the pick follows the reader from page to page, kept in `st.session_state`), and a query
+parameter filter (`?region=South` in the address opens the page filtered, and a pick writes it back).
+
+**The Text and layout starters** dress it: a title with a subtitle, a section heading, a divider, a
+caption, a callout, a logo and a picture (each read from beside the app), a spacer, and a footer with
+where the figures come from, how many rows and when they were read, pinned to the bottom of the window
+unless you set Pin to the bottom to no.
+
+![A Streamlit page made of Text and layout and Controllers starters: a title and subtitle, a callout, the region filter, a section heading, the rows, and the footer pinned at the window's bottom.](images/25-text-and-layout-page.png)
+
+### Controllers: contracts, Test this page, thin cells
+
+- **A contract** is a cell's header line that says what it makes, with types and defaults:
+  `# Makes: region: str = "All"; by_region: table = orders` (types: str, int, float, bool, date, list,
+  table, any; a table's default is another table's name). `# Role: filter`, `action` or `view` says
+  its role; without it the app reads it from the code.
+- **A block whose filter is not on the page** reads the filter's defaults, and says so quietly on the
+  block (`region = 'All' · Region filter is not on this page`), so a page of charts runs before its
+  filter is placed. A contract the code does not keep is said in red.
+- **Test this page** (beside Play) runs the page with Streamlit's own test runner, in your notebook's
+  Python: as it opens, then each filter's values one at a time (a dropdown's options, a slider's ends,
+  a switch both ways, a text that matches nothing, a click) and each address parameter it reads. A
+  block that fails turns red with the value that broke it; a short message says how many values were
+  tried.
+- **Thin cells:** a view that filters, groups or joins a table shows **Move to data.ipynb**. Those
+  lines become a named cell at the end of the project's data.ipynb, and the view keeps one line that
+  reads them back (`from data import big`). Both documents change as if typed: save them.
+- **The agent:** `streamlit_app` gives each block's controller, defaults and failures; `streamlit_check`,
+  `streamlit_test`, `workbench_canvas_move_to_data`.
+
 ### Your own HTML and JavaScript in Streamlit (the Components starters)
 
 When Streamlit has no widget that looks or acts the way you want, you can put HTML, CSS and JavaScript

@@ -21,6 +21,8 @@ snippet = r"""
 #                       st-key-<key>, that a style can find
 #   st.caption(text)    small, quiet text
 #   st.html(body)       HTML on the page itself: here only a <style>, which takes no room
+#   st.context.theme    the page's theme as the reader sees it: .type is "light" or "dark"
+#   st.context          what Streamlit knows of the reader's page (its theme, its address)
 #
 # The time is when this run read the rows: each rerun (a click, a pick) reads them again.
 import datetime
@@ -35,12 +37,14 @@ _read = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 with st.container(key="<<name: page_footer>>"):
     st.caption(f"Source: <<source: Made-up sales data>> · {_rows:,} rows · read {_read}")
 if _PIN:
-    # Pinned: the box leaves the flow of the page and sits on the window's bottom edge; the page
-    # gets room at its end so the box covers nothing.
+    # Pinned: the box leaves the flow of the page and sits on the window's bottom edge, on the
+    # theme's own background (Streamlit's light and dark), and the page gets room at its end so the
+    # box covers nothing.
+    _under = "#0e1117" if st.context.theme.type == "dark" else "#ffffff"
     st.html(
         "<style>"
         ".st-key-<<name>> {position: fixed; left: 0; right: 0; bottom: 0; z-index: 99;"
-        " padding: 0.25rem 1rem; backdrop-filter: blur(8px);"
+        f" padding: 0.25rem 1rem; background: {_under};"
         " border-top: 1px solid rgba(128, 128, 128, 0.3);}"
         "[data-testid='stMainBlockContainer'] {padding-bottom: 4rem;}"
         "</style>"
