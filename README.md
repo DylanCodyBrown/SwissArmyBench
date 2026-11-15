@@ -114,7 +114,7 @@ What a grid page does:
 - **Agent door (MCP):** the agent sees what the page shows; its exports wait for the user's
   Allow. Settings lists its activity and has a copyable prompt that installs the MCP in any agent.
 - **Connections** (the Application row's **Connections**): your databases and files. Add one with a
-  form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a Power BI dataset, read with DAX;
+  form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a Power BI workspace, its datasets read with DAX;
   a CSV, workbook, Parquet or JSON file, or a folder of them), its password kept in the system keyring, **Test connection** before
   saving. Then `conn = sag.connection("Warehouse")` in any Python, or a whole SQL cell on it:
   `%%sql Warehouse` in Jupyter or IPython.
@@ -246,8 +246,9 @@ Notebooks and Python scripts, in a window of their own: the grid page's **Workbe
 brings it forward). On the left, your connections and blades (drag one into a cell or the script for
 its line) and the data explorer (drag a table or column for its name).
 
-- **Notebooks** are Python, SQL and Markdown cells, saved as `.ipynb` (Jupyter and VS Code open them;
-  a SQL cell is saved as a `%%sql <connection>` cell). Shift+Enter runs a cell and moves on, Ctrl+Enter
+- **Notebooks** are Python, SQL, DAX, HTML and Markdown cells, saved as `.ipynb` (Jupyter and VS Code
+  open them; a SQL cell is saved as a `%%sql <connection>` cell, a DAX cell as
+  `%%dax <connection>/<dataset>`). Shift+Enter runs a cell and moves on, Ctrl+Enter
   runs it in place; Run all, Interrupt, Restart. Outputs stream as they come: text, errors, DataFrames,
   pictures, Plotly figures.
 - **Scripts** are an editor over a Python console: F5 runs the file, Ctrl+Enter the selection or the
@@ -258,7 +259,8 @@ its line) and the data explorer (drag a table or column for its name).
   make yourself wins. The left panel shows each one's name in code (Sales DB is `sales_db`).
 - **Completion as you type:** Python from the running kernel (your variables, their attributes, a
   DataFrame's columns; hover for a signature and its help); a SQL cell from its connection's catalog
-  (schemas, tables, columns: `orders.` gives orders' columns); `sag.connection("` gives your connections.
+  (schemas, tables, columns: `orders.` gives orders' columns); a DAX cell from its dataset (DAX's
+  functions, `'Sales'`, `'Sales'[Amount]`, `[Total Sales]`); `sag.connection("` gives your connections.
 - **Each notebook's own environment:** pick **New environment…** in the Environment box: where it goes
   (a `.venv` beside the notebook), the Python version, and libraries from presets (Data analysis,
   Charts, Statistics and models, Databases) or by group, plus any other package. It is made with uv
@@ -287,25 +289,57 @@ waits, and the SQL cell's suggestions pick it up as it lands. One that signs in 
 database changes. Catalogs stay in memory only. Connections are kept with the
 blades (so folders, packs, the catalog and Refresh work the same) but listed apart.
 
-A **Power BI dataset** (a semantic model) is a connection too, read with DAX through Power BI's Execute
-Queries request. Its form asks for the workspace id and the dataset id (both are in the dataset's
-address in Power BI) and how to sign in. The first way is an **app registration** (service principal):
+A **Power BI workspace** is a connection too: one connection reaches every dataset (semantic model)
+in the workspace, each read with DAX through Power BI's Execute Queries request. Its form asks for the
+workspace id (it is in the workspace's address in Power BI) and how to sign in, never for a dataset.
+The first way is an **app registration** (service principal):
 its tenant id, client id and client secret are each picked as an entry of your key vault, so the
 connection's code reads them by name (`secret("powerbi_client_secret")`) and the same notebook runs in
 an Azure Function, where the function app's Key Vault references put those names in the environment.
 The ids may also be typed, with only the secret from the vault; **Browser sign-in** is for trying a
-dataset by hand (it needs Microsoft's `azure-identity`, installed with the form's Install button; the
-app registration's way needs no package). The catalog shows the model's tables with their columns and,
-marked, their measures; **Open as grid** runs `EVALUATE TOPN(<rows to open>, 'Table')` and counts the
-table, so the grid says "first N of M rows"; a notebook's SQL cell on it holds DAX
-(`%%sql "Sales model"`, then `EVALUATE ...`) and gives a DataFrame. **Import its relationships** (on the
-connection's row, the catalog's Model node, and offered when a table opens) reads the dataset's own
-relationships into the current model, so the Diagram and the Key Finder's known joins show them: an
-inactive one stays inactive and is drawn dashed. Power BI gives at most 100,000 rows or 1,000,000
+workspace by hand (it needs Microsoft's `azure-identity`, installed with the form's Install button; the
+app registration's way needs no package).
+
+The catalog shows the workspace's datasets, each with its tables, their columns and, marked, their
+measures. Datasets are read one after another (the first 25, for at most 200 seconds); one that cannot
+be read is marked on itself and the rest still load. **Open as grid** runs
+`EVALUATE TOPN(<rows to open>, 'Table')` on the table's dataset and counts the table, so the grid says
+"first N of M rows". A grid is named after its table; when two datasets have a table of that name,
+after the dataset too (`Sales_model_Date`).
+
+In a notebook, DAX has **a cell kind of its own**: pick DAX in a cell's kind picker (or the toolbar's
+DAX, or X in command mode), pick the dataset (`Finance/Sales model`: the connection, a slash, the
+dataset) and write `EVALUATE ...`. It is coloured as DAX, completes DAX's functions and that dataset's
+tables, columns and measures, and gives a DataFrame, as a SQL cell does. It is saved as a
+`%%dax Finance/Sales model` cell, which plain Jupyter with the client runs too. In Python:
+
+```python
+import swissarmygrid as sag
+
+by_region = sag.dax(
+    "Finance/Sales model",
+    """
+EVALUATE SUMMARIZECOLUMNS('Customer'[Region], "Total Sales", [Total Sales])
+""",
+)
+
+conn = sag.connection("Finance")  # the workspace itself
+conn.datasets()  # each dataset's name and id
+conn.dataset("Sales model").cursor()  # one dataset, used as a database's cursor is
+```
+
+A workspace with one dataset needs only the connection's name; with several, `Finance` alone is
+refused with their names. In a script a DAX cell is that `sag.dax(...)` call under a `# %% [dax]`
+marker.
+
+**Import its relationships** (on a dataset in the catalog: its page and its right-click; and offered
+when one of its tables opens) reads that dataset's own relationships into the current model, so the
+Diagram and the Key Finder's known joins show them: an inactive one stays inactive and is drawn
+dashed. Power BI gives at most 100,000 rows or 1,000,000
 values (rows times columns) for one query; an answer that reaches that is refused with a message, never
 passed off as whole. The tenant must allow the Execute Queries request (the admin setting **Dataset
 Execute Queries REST API**) and, for an app registration, service principals to use the Power BI APIs;
-the sign-in needs Read and Build permission on the dataset. Not yet run against a real tenant: it is
+the sign-in needs Read and Build permission on each dataset. Not yet run against a real tenant: it is
 tested against a stand-in on this computer.
 
 A **key vault** (Azure Key Vault, AWS Secrets Manager or Parameter Store, Google Secret Manager,
@@ -500,7 +534,7 @@ It asks the running server and never starts one (`SWISSARMYGRID_COMPLETE=0` turn
 
 ## The agent commands: `sag` and the MCP server
 
-**The golden rule: everything you can do, the agent can do too** (210 commands, each an MCP tool):
+**The golden rule: everything you can do, the agent can do too** (212 commands, each an MCP tool):
 grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
@@ -508,7 +542,7 @@ with two exceptions: its exports still wait for your Allow (and it cannot answer
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever
 that Python can, as yours can. The audit log (Settings) names everything it did.
 
-Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 210 of
+Every action the page has is a named command in one registry (`swissarmygrid/cli/commands.py`), 212 of
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
@@ -520,7 +554,7 @@ run it:
 - `swissarmygrid-mcp` is a stdio MCP server that registers one typed tool per command, generated from
   the registry, so the model sees `steps_add(grid, kind, params, index?)` with its real arguments
   rather than composing a generic call. Descriptions are one line each and the schemas are slimmed, so
-  the whole tool list is about 11,000 tokens for 188 tools (a test holds it under a budget). `guide` and
+  the whole tool list is about 11,000 tokens for 190 tools (a test holds it under a budget). `guide` and
   `commands` (the catalog) carry the detail. A command added
   to the registry becomes a tool with no change to the MCP server.
 - `sag` is the same commands in a terminal (standard library only, in the plain wheel):

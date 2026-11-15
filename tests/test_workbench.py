@@ -910,3 +910,30 @@ def test_a_closed_windows_kernels_stop_a_minute_later(client: TestClient) -> Non
         assert gone.status_code == 404
     finally:
         client.delete(f"/workbench/kernels/{agents['kernel']}", headers=AUTH)
+
+
+def test_a_busy_reader_loses_none_of_what_a_kernel_prints(tmp_path: Path) -> None:
+    """6,000 lines printed while nothing reads them (this process busy elsewhere) all arrive, and
+    the run ends: ZeroMQ's default limit of 1,000 waiting messages once dropped the rest."""
+    import asyncio
+    import os
+    import sys
+
+    from swissarmygrid.server import kernels
+
+    async def run() -> tuple[int, bool]:
+        kernel = await kernels.start(sys.executable, str(tmp_path), dict(os.environ))
+        try:
+            lines, ended, waited = 0, False, False
+            async for item in kernel.execute("for i in range(6000):\n    print('line', i, flush=True)"):
+                if not waited:
+                    waited = True
+                    await asyncio.sleep(5)  # the kernel prints on; nothing is read meanwhile
+                if item.get("output_type") == "stream":
+                    lines += str(item["text"]).count("\n")
+                ended = ended or "done" in item
+            return lines, ended
+        finally:
+            await kernel.shutdown()
+
+    assert asyncio.run(asyncio.wait_for(run(), 120)) == (6000, True)

@@ -374,9 +374,16 @@ class ConnectionTables:
         self._datasets = datasets
 
     async def store(
-        self, name: str, table: Any, who: str, opened: Opened | None, connection: str = "", sql: str = ""
+        self,
+        name: str,
+        table: Any,
+        who: str,
+        opened: Opened | None,
+        connection: str = "",
+        sql: str = "",
+        dax: bool = False,
     ) -> dict[str, Any]:
-        origin = Origin("connection", connection=connection or None, sql=sql or None)
+        origin = Origin("connection", connection=connection or None, sql=sql or None, dax=dax)
         result = await self._datasets.store_table(
             name, table, "connection", True, who, opened=opened, origin=origin
         )

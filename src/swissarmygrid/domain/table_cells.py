@@ -296,7 +296,7 @@ class PlanCell:
     """A cell as the arrangement sees it. `number` never changes once given."""
 
     number: int | None
-    kind: str  # code, sql, html or markdown
+    kind: str  # code, sql, dax, html or markdown
     source: str
     role: str = ""  # one of ROLES
     table: str | None = None
@@ -906,6 +906,7 @@ class Origin:
     filename: str | None = None
     connection: str | None = None
     sql: str | None = None  # the query a connection's table was read with, or a "+" tab's query
+    dax: bool = False  # the query is DAX, on a Power BI workspace's dataset (`connection` names both)
 
     def to_json(self) -> dict[str, Any]:
         return {"kind": self.kind, "kernel": self.kernel}
@@ -988,7 +989,8 @@ def load_code(
         )
     if origin.kind == "connection" and origin.connection and origin.sql:
         text = python_string(origin.sql)
-        return ["import swissarmygrid as sag"], f"{var} = sag.sql({origin.connection!r}, {text})"
+        reader = "dax" if origin.dax else "sql"
+        return ["import swissarmygrid as sag"], f"{var} = sag.{reader}({origin.connection!r}, {text})"
     if origin.kind == "query" and origin.sql:
         return [duck], f"{var} = {module}.sql({python_string(origin.sql.strip())}).df()"
     if origin.kind == "paste":

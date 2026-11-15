@@ -4994,7 +4994,8 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   display: block;
 }
 
-.wb-cell.kind-sql .wb-cell-head {
+.wb-cell.kind-sql .wb-cell-head,
+.wb-cell.kind-dax .wb-cell-head {
   background: var(--accent-soft);
 }
 

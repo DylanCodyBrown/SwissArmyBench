@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from swissarmygrid.client.completion import complete
     from swissarmygrid.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
     from swissarmygrid.client.sandbox_client import sandbox
-    from swissarmygrid.client.sql_cell import sql
+    from swissarmygrid.client.sql_cell import dax, sql
     from swissarmygrid.client.watcher import start as watch
     from swissarmygrid.client.watcher import stop as unwatch
 
@@ -47,6 +47,7 @@ __all__ = [
     "blades",
     "complete",
     "connection",
+    "dax",
     "load",
     "push",
     "sandbox",
@@ -64,6 +65,8 @@ _LAZY: dict[str, tuple[str, str]] = {
     # A connection (a database or file, added in the app's Connections) is run the way a blade is.
     "connection": ("swissarmygrid.client.blades_client", "blade"),
     "sql": ("swissarmygrid.client.sql_cell", "sql"),
+    # DAX on one dataset of a Power BI workspace connection: sag.dax("Finance/Sales model", ...).
+    "dax": ("swissarmygrid.client.sql_cell", "dax"),
     "sandbox": ("swissarmygrid.client.sandbox_client", "sandbox"),
     "complete": ("swissarmygrid.client.completion", "complete"),
     "DatasetTooLargeError": ("swissarmygrid.client.push_client", "DatasetTooLargeError"),

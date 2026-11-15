@@ -64,7 +64,7 @@ export function consoleView(
     // A table result is named after the code's last variable (`orders` -> the grid "orders").
     const hooks = options.errors?.(origin);
     const open = hooks?.openResult;
-    const area = outputArea(dark, follow, hooks && { ...hooks, openResult: open && ((n, name) => open(n, name ?? resultName(body.kind === "sql" ? "" : body.code))) });
+    const area = outputArea(dark, follow, hooks && { ...hooks, openResult: open && ((n, name) => open(n, name ?? resultName(body.kind === "sql" || body.kind === "dax" ? "" : body.code))) });
     const entry = h("div", { class: "wb-console-entry running" }, h("pre", { class: "wb-console-code" }, label), area.element);
     log.append(entry);
     running.add(entry);

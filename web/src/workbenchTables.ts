@@ -51,7 +51,7 @@ export interface TableLine {
 
 export interface ArrangedCell {
   number: number;
-  kind: "code" | "sql" | "html" | "markdown";
+  kind: "code" | "sql" | "dax" | "html" | "markdown";
   source: string;
   role: string;
   table: string | null;

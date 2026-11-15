@@ -57,7 +57,7 @@ const rail = mountRail({
     clear(detail, ...tableDetails(view));
     detail.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" });
   },
-  showSchema: (label, catalog, dialect) => clear(detail, ...schemaDetails(label, catalog, dialect)),
+  showSchema: (label, catalog, dialect, schema, note) => clear(detail, ...schemaDetails(label, catalog, dialect, schema, note)),
 });
 
 showWelcome();

@@ -346,7 +346,7 @@ def test_a_python_without_streamlit_says_so_with_install(
     workbench.locator(".wb-toolbar").get_by_role("button", name="Python", exact=True).click()
     plain = workbench.locator(".wb-cell").nth(2)
     expect(plain.locator("select[aria-label='Cell kind'] option")).to_have_text(
-        ["Python", "SQL", "HTML", "Streamlit", "Markdown"]
+        ["Python", "SQL", "DAX", "HTML", "Streamlit", "Markdown"]
     )
     workbench.keyboard.press("Escape")
     workbench.keyboard.press("t")

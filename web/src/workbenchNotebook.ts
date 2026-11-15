@@ -1,14 +1,15 @@
 /**
- * workbenchNotebook.ts: a notebook in the Workbench: cells of Python, SQL on a connection, HTML,
- * Streamlit or Markdown, run in the document's IPython kernel. [WIRE]
+ * workbenchNotebook.ts: a notebook in the Workbench: cells of Python, SQL on a connection, DAX on a
+ * Power BI workspace's dataset, HTML, Streamlit or Markdown, run in the document's IPython kernel. [WIRE]
  *
- *   [CELL]     its kind (Python, SQL, HTML, Streamlit, Markdown); a SQL cell's connection; Run; More: run above, run
+ *   [CELL]     its kind (Python, SQL, DAX, HTML, Streamlit, Markdown); a SQL cell's connection, a DAX cell's
+ *              dataset (`Finance/Sales model`: only Power BI workspaces' datasets); Run; More: run above, run
  *              below, insert above or below, duplicate, clear or hide its output; move up and down; delete
  *   [EDIT]     Shift+Enter runs and goes to the next cell (a new one after the last); Ctrl+Enter runs in
  *              place; Escape leaves the editor for command mode; a Markdown cell shows as text until
  *              double-clicked (or Enter)
  *   [COMMAND]  Jupyter's keys on the selected cell: Enter edits; A and B insert above and below; D D
- *              deletes; Y, M, S, H and T make it Python, Markdown, SQL, HTML or Streamlit; J and K (or Down and Up) move the
+ *              deletes; Y, M, S, X, H and T make it Python, Markdown, SQL, DAX, HTML or Streamlit; J and K (or Down and Up) move the
  *              selection; Z undoes a delete or move; Shift+Enter and Ctrl+Enter run
  *   [OUTPUTS]  as the run streams them (workbenchOutputs.ts), kept with the cell and saved with it; a
  *              box when the code asks for a line (input()); a word when the kernel stopped or restarted
@@ -17,7 +18,8 @@
  *              a frame or "In your code" goes to its cell and line; "Run the cell that makes x" finds it
  *
  * A SQL cell runs as `%%sql <connection>` (client/sql_cell.py) in the kernel: its connection's own SQL,
- * or DuckDB over a file's tables.
+ * or DuckDB over a file's tables. A DAX cell (docs/ideas.md, 2026-11-15) runs as `%%dax <connection>/<dataset>`
+ * the same way; a SQL cell saved on a Power BI connection before DAX cells opens as a DAX cell.
  *
  *   [NUMBERS]  every cell has a number that never changes (#7 in its head; not the run count): given
  *              when the cell is made, never reused; `@cell7` in a comment is a link to it
@@ -47,7 +49,7 @@ import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { loadEditors } from "./workbenchConsole";
-import { holdsDax, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
+import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
@@ -61,7 +63,7 @@ export function sqlLine(connection: string | null): string {
   return /\s/.test(connection) ? `%%sql '${connection.replace(/'/g, "'\"'\"'")}'` : `%%sql ${connection}`;
 }
 
-export type CellKind = "code" | "sql" | "html" | "streamlit" | "markdown";
+export type CellKind = "code" | "sql" | "dax" | "html" | "streamlit" | "markdown";
 export interface CellData {
   kind: CellKind;
   source: string;
@@ -142,12 +144,15 @@ interface Cell extends Omit<CellData, "outputs" | "number" | "role" | "table" | 
 /** What Undo puts back. */
 type Undo = { kind: "delete"; data: CellData; at: number; filler: Cell | null } | { kind: "move"; cell: Cell; from: number };
 
-const LANGUAGE: Record<CellKind, "python" | "sql" | "markdown" | "html"> = { code: "python", sql: "sql", markdown: "markdown", html: "html", streamlit: "python" };
-const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", html: "HTML", streamlit: "Streamlit", markdown: "Markdown" };
-const KINDS: CellKind[] = ["code", "sql", "html", "streamlit", "markdown"];
+const LANGUAGE: Record<CellKind, "python" | "sql" | "dax" | "markdown" | "html"> = { code: "python", sql: "sql", dax: "dax", markdown: "markdown", html: "html", streamlit: "python" };
+const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", dax: "DAX", html: "HTML", streamlit: "Streamlit", markdown: "Markdown" };
+const KINDS: CellKind[] = ["code", "sql", "dax", "html", "streamlit", "markdown"];
 /** The kinds with two faces: the code while it is edited, what it draws when it is not. */
 const drawn = (kind: CellKind): boolean => kind === "html" || kind === "streamlit";
-const usesForm = (kind: CellKind): UsesForm => (kind === "sql" ? "sql" : kind === "html" ? "html" : "python");
+// A DAX cell names its dataset's own tables, never the kernel's: it gets no uses line (a `-- uses` one it has goes).
+const usesForm = (kind: CellKind): UsesForm => (kind === "sql" || kind === "dax" ? "sql" : kind === "html" ? "html" : "python");
+/** A cell that runs on a source picked in its head: SQL on a connection, DAX on a dataset. */
+const hasSource = (kind: CellKind): kind is "sql" | "dax" => kind === "sql" || kind === "dax";
 const empty = (kind: CellKind = "code", connection: string | null = null): CellData => ({ kind, source: "", connection, outputs: [], execution_count: null });
 
 export interface NotebookView {
@@ -167,6 +172,8 @@ export interface NotebookView {
   remove: (index?: number) => void;
   move: (by: -1 | 1) => void;
   setKind: (kind: CellKind) => void;
+  /** Put the selected SQL cell on a connection, or the selected DAX cell on a dataset. */
+  setConnection: (name: string) => void;
   duplicate: () => void;
   clearOutput: (index?: number) => void;
   clearAll: () => void;
@@ -242,8 +249,13 @@ export function notebookView(
     tablesChanged?: () => void;
     /** The document's Streamlit app, for its Streamlit cells. */
     streamlit?: StreamlitHost;
+    /** What a DAX cell runs on: each Power BI workspace's datasets, as `Finance/Sales model`. */
+    datasets?: () => string[];
   } = {},
 ): NotebookView {
+  const datasets = (): string[] => hooks.datasets?.() ?? [];
+  /** The sources a cell of this kind picks from. */
+  const sources = (kind: CellKind): string[] => (kind === "dax" ? datasets() : connections());
   const python = pythonCompleter(kernel, () => ({ connections: connections(), blades: blades(), codeNames: codeNames() }));
   const list = h("div", { class: "wb-cells", role: "list", "aria-label": "Cells" });
   const cells: Cell[] = [];
@@ -468,7 +480,7 @@ export function notebookView(
     cell.count.textContent = "[*]";
     cell.element.classList.add("running");
     try {
-      const done = await runInto(kernel, { code: cell.source, kind: cell.kind === "sql" ? "sql" : "code", connection: cell.connection }, cell.area);
+      const done = await runInto(kernel, { code: cell.source, kind: hasSource(cell.kind) ? cell.kind : "code", connection: cell.connection }, cell.area);
       cell.execution_count = done.execution_count;
       cell.count.textContent = done.error ? "[!]" : done.execution_count ? `[${done.execution_count}]` : "[ ]";
       cell.element.classList.toggle("failed", !done.ok);
@@ -537,7 +549,7 @@ export function notebookView(
     cell.kind = kind;
     cell.kindPicker.value = kind;
     cell.part.textContent = "";
-    cell.element.classList.remove("kind-code", "kind-sql", "kind-markdown", "kind-html", "kind-streamlit", "stale");
+    cell.element.classList.remove("kind-code", "kind-sql", "kind-dax", "kind-markdown", "kind-html", "kind-streamlit", "stale");
     cell.element.classList.add(`kind-${kind}`);
     if (wasHtml || drawn(kind)) {
       // Its outputs were the other kind's: an HTML cell keeps a design, not a run's output.
@@ -547,11 +559,12 @@ export function notebookView(
       cell.htmlNotes = [];
       setTimeout(() => cell.editor?.layout(), 0);
     }
-    cell.connectionPicker.hidden = kind !== "sql";
-    if (kind === "sql" && !cell.connection) cell.connection = connections()[0] ?? null;
+    cell.connectionPicker.hidden = !hasSource(kind);
+    // A SQL cell's connection is not a DAX cell's dataset: one that is not this kind's goes.
+    if (hasSource(kind) && (!cell.connection || !sources(kind).includes(cell.connection))) cell.connection = sources(kind)[0] ?? null;
     // The box shows the connection the cell runs on (it is drawn again on focus; once showed the
     // %sql_connect placeholder while the cell ran on the first connection).
-    if (kind === "sql") cell.connectionPicker.dispatchEvent(new Event("focus"));
+    if (hasSource(kind)) cell.connectionPicker.dispatchEvent(new Event("focus"));
     cell.editor?.setLanguage(LANGUAGE[kind]);
     relabel();
     edited();
@@ -609,7 +622,7 @@ export function notebookView(
     return {
       shown: (detail) => {
         shown = detail;
-        if (running.kind === "sql") {
+        if (hasSource(running.kind)) {
           running.editor?.setProblems(sqlProblems(detail));
           return;
         }
@@ -622,7 +635,7 @@ export function notebookView(
         if (fix.kind === "replace") {
           const target = where();
           const entry = shown?.chain[shown.chain.length - 1];
-          const near = running.kind === "sql" ? (entry?.sql?.line ?? 1) : (yourFrame(entry)?.line ?? entry?.syntax?.line ?? 1);
+          const near = hasSource(running.kind) ? (entry?.sql?.line ?? 1) : (yourFrame(entry)?.line ?? entry?.syntax?.line ?? 1);
           if (!target.editor?.applyFix(fix, near)) toast(`${fix.target ?? "That"} is no longer in the cell.`, "error");
           else {
             select(target);
@@ -677,7 +690,10 @@ export function notebookView(
     return null;
   };
 
-  const make = (data: CellData, at: number): Cell => {
+  const make = (given: CellData, at: number): Cell => {
+    // A SQL cell saved on a Power BI connection (before DAX cells) is a DAX cell.
+    const old = given.kind === "sql" && !!given.connection && isWorkspace(given.connection.split("/")[0]!.trim());
+    const data: CellData = old ? { ...given, kind: "dax" } : given;
     const number = data.number && !byNumber(data.number) ? data.number : nextNumber;
     nextNumber = Math.max(nextNumber, number + 1);
     const role = data.role ?? "";
@@ -696,13 +712,17 @@ export function notebookView(
     const kindPicker = h("select", { "aria-label": "Cell kind" }, ...KINDS.map((k) => h("option", { value: k, selected: k === data.kind }, KIND_NAMES[k]))) as HTMLSelectElement;
     const connectionPicker = h("select", { "aria-label": "Connection", class: "wb-connection", title: "Connection" }) as HTMLSelectElement;
     const fillConnections = (): void => {
-      const names = connections();
+      // A DAX cell: only Power BI workspaces' datasets; a SQL cell: every other connection.
+      const dax = cell.kind === "dax";
+      const names = sources(cell.kind);
       const current = cell.connection;
+      const what = dax ? "Dataset" : "Connection";
+      connectionPicker.setAttribute("aria-label", what);
+      connectionPicker.title = what;
       clear(
         connectionPicker,
-        h("option", { value: "" }, "(%sql_connect)"),
-        // A Power BI dataset's cells hold DAX, not SQL: said beside its name.
-        ...names.map((n) => h("option", { value: n, selected: n === current }, holdsDax(n) ? `${n} (DAX)` : n)),
+        dax ? (current ? null : h("option", { value: "" }, "")) : h("option", { value: "" }, "(%sql_connect)"),
+        ...names.map((n) => h("option", { value: n, selected: n === current }, n)),
         ...(current && !names.includes(current) ? [h("option", { value: current, selected: true }, `${current} (not found)`)] : []),
       );
     };
@@ -782,9 +802,14 @@ export function notebookView(
       return cell;
     }
     const sql = sqlCompleter(kernel, () => cell.connection);
-    connectionPicker.hidden = data.kind !== "sql";
+    const dax = daxCompleter(() => cell.connection);
+    connectionPicker.hidden = !hasSource(data.kind);
     fillConnections();
-    connectionPicker.addEventListener("focus", fillConnections);
+    connectionPicker.addEventListener("focus", () => {
+      // First use: a workspace whose datasets are not listed yet loads its catalog; the list follows.
+      if (cell.kind === "dax") datasetsWanted();
+      fillConnections();
+    });
     connectionPicker.addEventListener("change", () => {
       cell.connection = connectionPicker.value || null;
       changed();
@@ -822,9 +847,10 @@ export function notebookView(
         grow: true,
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
-        placeholder: cell.kind === "sql" ? (holdsDax(cell.connection) ? "DAX" : "SQL") : cell.kind === "html" ? "HTML" : cell.kind === "streamlit" ? "Python that draws with st.*" : undefined,
-        // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog.
-        complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "code" || cell.kind === "streamlit" ? python(text, offset) : Promise.resolve([])),
+        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : cell.kind === "streamlit" ? "Python that draws with st.*" : undefined,
+        // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog,
+        // DAX from its dataset's part of the workspace's catalog.
+        complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "dax" ? dax(text, offset) : cell.kind === "code" || cell.kind === "streamlit" ? python(text, offset) : Promise.resolve([])),
         help: (text, offset) => (cell.kind === "code" || cell.kind === "streamlit" ? kernel.help(text, offset) : Promise.resolve("")),
         sendToAgent: (what, ask) => sendToAgent(codeItem(`cell ${indexOf(cell) + 1} of ${currentDocument()}${what.startLine === what.endLine ? `, line ${what.startLine}` : `, lines ${what.startLine} to ${what.endLine}`}`, what, LANGUAGE[cell.kind]), ask),
         keys: {
@@ -895,7 +921,7 @@ export function notebookView(
   };
 
   const insertAt = (at: number, kind: CellKind = "code", source = ""): Cell => {
-    const cell = make({ ...empty(kind, kind === "sql" ? (connections()[0] ?? null) : null), source }, Math.max(0, Math.min(at, cells.length)));
+    const cell = make({ ...empty(kind, hasSource(kind) ? (sources(kind)[0] ?? null) : null), source }, Math.max(0, Math.min(at, cells.length)));
     select(cell);
     cell.element.scrollIntoView({ block: "nearest" });
     focusEditor(cell);
@@ -924,7 +950,7 @@ export function notebookView(
   const dataOf = (c: Cell): CellData => ({
     kind: c.kind,
     source: sourceOf(c),
-    connection: c.kind === "sql" ? c.connection : null,
+    connection: hasSource(c.kind) ? c.connection : null,
     // An HTML cell keeps its last run's output: the filled design (what plain Jupyter shows) and the values.
     outputs: c.kind === "markdown" || c.kind === "streamlit" ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
     execution_count: c.execution_count,
@@ -1031,6 +1057,7 @@ export function notebookView(
     } else if (plain && key === "y" && !isApp(cell.role)) setKind(cell, "code");
     else if (plain && key === "m" && !isApp(cell.role)) setKind(cell, "markdown");
     else if (plain && key === "s" && !isApp(cell.role)) setKind(cell, "sql");
+    else if (plain && !e.shiftKey && key === "x" && !isApp(cell.role)) setKind(cell, "dax");
     else if (plain && !e.shiftKey && key === "h" && !isApp(cell.role)) setKind(cell, "html");
     else if (plain && !e.shiftKey && key === "t" && !isApp(cell.role)) setKind(cell, "streamlit");
     else if (plain && key === "z") undo();
@@ -1323,6 +1350,12 @@ export function notebookView(
     },
     setKind: (kind) => {
       if (selected) setKind(selected, kind);
+    },
+    setConnection: (name) => {
+      if (!selected || !hasSource(selected.kind)) return;
+      selected.connection = name || null;
+      selected.connectionPicker.dispatchEvent(new Event("focus")); // drawn again, with this one picked
+      edited();
     },
     duplicate: () => {
       if (selected) duplicate(selected);

@@ -33,7 +33,7 @@ DIALECTS: tuple[str, ...] = (
     "snowflake",
     "oracle",
     "trino",
-    "dax",  # a Power BI dataset (semantic model): its language is DAX, not SQL
+    "dax",  # a Power BI workspace: each dataset (semantic model) a schema; its language is DAX
     "other",
 )
 _DIALECT_ALIASES: dict[str, str] = {
@@ -83,6 +83,9 @@ class CatalogInfo:
     tables: int
     views: int
     columns: int
+    # What the source said of a schema it could not list (database, schema, the words): a row
+    # with no table and a description. A Power BI workspace's dataset that could not be read.
+    notes: tuple[tuple[str, str, str], ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -201,7 +204,7 @@ def dax_column(column: str, table: str = "") -> str:
 
 
 def _source(dialect: str, database: str, schema: str, table: str) -> str:
-    if dialect == "dax":  # a dataset has no schemas: a table is named by itself
+    if dialect == "dax":  # the schema is the dataset the query is sent to: a table is named by itself
         return dax_table(table)
     return ".".join(quote_identifier(p, dialect) for p in (database, schema, table) if p)
 

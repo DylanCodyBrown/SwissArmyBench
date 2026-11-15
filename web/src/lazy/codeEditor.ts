@@ -1,7 +1,7 @@
 /**
  * lazy/codeEditor.ts: the Monaco editor for the Workbench (a notebook's cells, a script). [WIRE]
  *
- * Python, SQL, HTML or Markdown; the theme follows the page. A cell editor grows with its text (no
+ * Python, SQL, DAX, HTML or Markdown; the theme follows the page. A cell editor grows with its text (no
  * scrollbar of its own); a script's fills its pane. Drop text on it (a connection's line, a table's
  * name from the left panel) and it lands where it was dropped: Monaco's own drop.
  */
@@ -28,7 +28,9 @@ monaco.html.htmlDefaults.setModeConfiguration({
   documentRangeFormattingEdits: false,
 });
 
-export type EditorLanguage = "python" | "sql" | "markdown" | "html";
+export type EditorLanguage = "python" | "sql" | "dax" | "markdown" | "html";
+/** Monaco's own name for a language: its DAX grammar is `msdax` (keywords, functions, 'Table'[Column], [Measure]). */
+const monacoId = (language: EditorLanguage): string => (language === "dax" ? "msdax" : language);
 
 const THEMES: Record<string, string> = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
 
@@ -41,6 +43,9 @@ export interface Suggestion {
   /** Where the insert goes, as offsets into the text (default: the word at the cursor). */
   start?: number;
   end?: number;
+  /** What the typed text is matched against, when it is not the label: a DAX name's insert begins
+   *  with the quote or bracket already typed ('Customer', [Total Sales]). */
+  filter?: string;
 }
 export type Completer = (text: string, offset: number) => Promise<Suggestion[]>;
 
@@ -106,10 +111,10 @@ const outlines = new WeakMap<monaco.editor.ITextModel, ScriptOutline>();
 const CELL_LINK = /@cell(\d+)\b/g;
 
 /** Where a line's comment starts (0-based column; -1: it has none). Python's `#`, SQL's `--`; a
- *  Markdown cell is all words. A `#` inside a quoted text on the line is not a comment. */
+ *  Markdown cell is all words; DAX's is `--`, as SQL's. A `#` inside a quoted text on the line is not a comment. */
 function commentStart(line: string, language: string): number {
   if (language === "markdown" || language === "html") return 0;
-  const mark = language === "sql" ? "--" : "#";
+  const mark = language === "sql" || language === "msdax" ? "--" : "#";
   let quote = "";
   for (let i = 0; i < line.length; i++) {
     const ch = line[i]!;
@@ -218,7 +223,7 @@ function register(language: string): void {
   if (registered.has(language)) return;
   registered.add(language);
   monaco.languages.registerCompletionItemProvider(language, {
-    triggerCharacters: [".", "\"", "'"],
+    triggerCharacters: language === "msdax" ? [".", "'", "["] : [".", "\"", "'"],
     provideCompletionItems: async (model, position) => {
       const own = completers.get(model)?.complete;
       if (!own) return { suggestions: [] };
@@ -235,6 +240,7 @@ function register(language: string): void {
           return {
             label: s.label,
             insertText: s.insert ?? s.label,
+            filterText: s.filter,
             kind: KINDS[s.kind ?? ""] ?? monaco.languages.CompletionItemKind.Text,
             detail: s.detail ?? s.kind,
             range,
@@ -433,7 +439,7 @@ export interface CodeEditorOptions {
 export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions): CodeEditor {
   const editor = monaco.editor.create(host, {
     value: options.value,
-    language: options.language,
+    language: monacoId(options.language),
     theme: THEMES[options.theme] ?? "vs",
     automaticLayout: !options.grow,
     minimap: { enabled: false },
@@ -463,7 +469,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   const model = editor.getModel();
   if (model && (options.complete || options.help || options.cellLinks)) {
     completers.set(model, { complete: options.complete, help: options.help });
-    for (const language of ["python", "sql", "markdown", "html"]) register(language);
+    for (const language of ["python", "sql", "msdax", "markdown", "html"]) register(language);
   }
   // Cell links: drawn as links, followed on a plain click.
   const linkMarks = editor.createDecorationsCollection([]);
@@ -728,7 +734,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     },
     setLanguage: (language) => {
       const model = editor.getModel();
-      if (model) monaco.editor.setModelLanguage(model, language);
+      if (model) monaco.editor.setModelLanguage(model, monacoId(language));
       editor.updateOptions({ wordWrap: language === "markdown" ? "on" : "off" });
     },
     setZones: (list) => {

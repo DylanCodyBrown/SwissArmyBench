@@ -28,6 +28,7 @@ class ConnectionService:
         catalog_state: Callable[[str], dict[str, str] | None] = lambda name: None,
         tables: Tables | None = None,
         models: RelationshipModels | None = None,
+        catalogs: LoadedCatalogs | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -38,6 +39,8 @@ class ConnectionService:
         self._tables = tables
         # Where a Power BI dataset's relationships go: the current model (services/relationships.py).
         self._models = models
+        # A Power BI workspace's loaded catalog: its datasets, and the table names several of them hold.
+        self._catalogs = catalogs
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -257,7 +260,9 @@ class ConnectionService:
         count = (
             None if every else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
         )
-        answer = await self._blades.rows(blade, sql, count, body)
+        dax = blade.dialect == powerbi.DIALECT
+        within = place["schema"] if dax else ""  # a Power BI workspace: the table's dataset
+        answer = await self._blades.rows(blade, sql, count, body, within)
         table, total = answer["table"], answer.get("total")
         if table.num_columns == 0:
             # Power BI names an answer's columns only on its rows: an empty table comes with none.
@@ -268,9 +273,17 @@ class ConnectionService:
             if limit is not None and isinstance(total, int) and total > shown
             else None
         )
-        dataset = rules.dataset_name(place["table"])
-        stored = await self._tables.store(dataset, table, who, opened, blade.name, sql)
+        if dax:
+            # Its own name; with its dataset's when another dataset of the workspace has one too.
+            dataset = powerbi.grid_name(within, place["table"], await self._shared(blade.name))
+        else:
+            dataset = rules.dataset_name(place["table"])
+        origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sag.dax(origin, sql)
+        stored = await self._tables.store(dataset, table, who, opened, origin, sql, dax)
         return stored | {"shown": shown, "total": total}
+
+    async def _shared(self, name: str) -> set[str]:
+        return set() if self._catalogs is None else await self._catalogs.shared_tables(name)
 
     async def preview(self, name: str, body: Any) -> dict[str, Any]:
         """A table's first rows, for the catalog page beside its columns (nothing is kept)."""
@@ -286,40 +299,93 @@ class ConnectionService:
         sql = select_sql(
             blade.dialect, place["database"], place["schema"], place["table"], [], rules.PREVIEW_ROWS
         )
-        table = (await self._blades.rows(blade, sql, None, body))["table"]
+        within = place["schema"] if blade.dialect == powerbi.DIALECT else ""
+        table = (await self._blades.rows(blade, sql, None, body, within))["table"]
         return {"columns": list(table.column_names), "rows": [list(r.values()) for r in table.to_pylist()]}
 
-    # ===== a Power BI dataset's own relationships, into the current model =====
+    # ===== a Power BI workspace: its datasets, and a dataset's own relationships into the model =====
 
-    async def import_relationships(self, name: str, body: Any, who: str) -> dict[str, Any]:
-        """Read a Power BI dataset's relationships (DAX's INFO functions, on the connection) and merge
-        them into the current model, the tables named as they open as grids: the Diagram and the Key
-        Finder's known joins then show them. Answers the model, what the merge changed, and what came."""
-        if self._models is None:
-            raise BladeError("Importing relationships needs the relationship model.")
+    def _workspace(self, name: str) -> Blade:
         blade = self._blades.get(name)
         if blade.dialect != powerbi.DIALECT:
             raise BladeError(
-                f"{blade.name} is not a Power BI dataset: only a dataset's own relationships are read "
-                "this way. For other tables, find them (Find relationships) or import a .tang."
+                f"{blade.name} is not a Power BI workspace: only a workspace has datasets, and only a "
+                "dataset's own relationships are read this way. For other tables, find them (Find "
+                "relationships) or import a .tang."
             )
-        answer = await self._blades.queries(blade, powerbi.RELATIONSHIP_QUERIES, body)
+        return blade
+
+    async def datasets(self, name: str, body: Any, live: bool | None = None) -> dict[str, Any]:
+        """A Power BI workspace's datasets. From its loaded catalog (each name, and the note of one
+        that could not be read); with `live`, or before the catalog is loaded, from Power BI itself
+        (names and ids). `live` False never asks Power BI (a page that only lists: no sign-in window
+        opens for it): none until the catalog is loaded. Each is named for a DAX cell too:
+        `Finance/Sales model`."""
+        blade = self._workspace(name)
+        listed = None if live or self._catalogs is None else await self._catalogs.schema_names(blade.name)
+        if listed is None and live is False:
+            return {"connection": blade.name, "datasets": [], "from": "none"}
+        if listed is not None:
+            found = [
+                {"name": str(s["schema"])} | ({"note": s["note"]} if s.get("note") else {}) for s in listed
+            ]
+            origin = "catalog"
+        else:
+            asked = await self._blades.datasets(blade, body)
+            found, origin = ([{"name": ""}] if asked is None else list(asked)), "powerbi"
+        for dataset in found:
+            dataset["cell"] = powerbi.joined_name(blade.name, dataset["name"])
+        return {"connection": blade.name, "datasets": found, "from": origin}
+
+    async def import_relationships(self, name: str, body: Any, who: str) -> dict[str, Any]:
+        """Read one dataset's relationships (DAX's INFO functions, on the connection) and merge them
+        into the current model, the tables named as they open as grids: the Diagram and the Key
+        Finder's known joins then show them. `{"dataset"}` names it; a workspace with one dataset
+        needs none. Answers the model, what the merge changed, and what came."""
+        if self._models is None:
+            raise BladeError("Importing relationships needs the relationship model.")
+        blade = self._workspace(name)
+        dataset = str(body.get("dataset") or "").strip() if isinstance(body, dict) else ""
+        try:
+            answer = await self._blades.queries(blade, powerbi.RELATIONSHIP_QUERIES, body, dataset)
+        except Exception as error:
+            if dataset or "name the one to read" not in str(error):
+                raise
+            # Several datasets and none named: say how to name one here, not in the connection's Python.
+            has = str(error).split("It has:", 1)[-1].strip()
+            raise BladeError(
+                f"{blade.name} has several datasets: name the one to import. It has: {has}"
+            ) from None
         try:
             model, skipped = powerbi.relationships_model(
-                blade.name, int(answer["attempt"]), list(answer["results"])
+                blade.name,
+                int(answer["attempt"]),
+                list(answer["results"]),
+                dataset,
+                await self._shared(blade.name),
             )
         except powerbi.PowerBIError as error:
             raise BladeError(str(error)) from None
+        what = powerbi.joined_name(blade.name, dataset)
         if not model.relationships:
-            raise BladeError(f"{blade.name} has no relationships to import.")
+            raise BladeError(f"{what} has no relationships to import.")
         merged = await self._models.apply(model, who)
         return {
+            "dataset": dataset,
             "model": {k: v for k, v in merged.items() if k != "changed"},
             "changed": merged.get("changed", []),
             "imported": [r.to_json() for r in model.relationships],
             "tables": sorted(model.tables()),
             "skipped": skipped,  # those of the date tables Power BI makes by itself
         }
+
+
+class LoadedCatalogs(Protocol):
+    """The loaded catalogs (services/catalogs.py): a Power BI workspace's datasets are its schemas."""
+
+    async def shared_tables(self, name: str) -> set[str]: ...
+
+    async def schema_names(self, name: str) -> list[dict[str, Any]] | None: ...
 
 
 class RelationshipModels(Protocol):
@@ -332,7 +398,14 @@ class Tables(Protocol):
     """Where a connection's table goes as a grid (services/datasets.py)."""
 
     async def store(
-        self, name: str, table: Any, who: str, opened: Opened | None, connection: str = "", sql: str = ""
+        self,
+        name: str,
+        table: Any,
+        who: str,
+        opened: Opened | None,
+        connection: str = "",
+        sql: str = "",
+        dax: bool = False,
     ) -> dict[str, Any]: ...
 
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]: ...

@@ -339,8 +339,8 @@ their own, run in an IPython kernel on this computer.
   table (a DataFrame as a cell's last line) has **Open as grid** under it: a cell ending in a variable
   (`orders`) opens as that name, anything else (`orders.head()`) as `out_` and its number, so the
   table itself is never replaced. Shift+Enter runs a cell and moves on. Escape leaves the editor for Jupyter's command
-  mode: A and B insert, D D deletes, Z brings it back, Y, M, S and H make a cell Python, Markdown, SQL
-  or HTML.
+  mode: A and B insert, D D deletes, Z brings it back, Y, M, S, X and H make a cell Python, Markdown, SQL,
+  DAX or HTML.
   Each cell's More menu runs the cells above or below, duplicates, clears or hides the output.
 - **When code fails:** the error panel says what happened in plain words, where in your code (click
   to go there), and offers fixes with one click: use the close name, add the missing import, install
@@ -376,14 +376,19 @@ their own, run in an IPython kernel on this computer.
 
 - **SQL Server and Azure SQL** ask how to sign in: **Windows sign-in**, **User name and password** (a SQL login; the password from any of the three places) or **MFA (Microsoft Entra)**, which opens Microsoft's sign-in window. Switching keeps the server and database you typed. **Trust server certificate** is a checkbox (off by default; tick it for a server whose certificate this computer does not know, such as a self-signed one), and so is **Encrypt**.
 - **Trino** connects over https with a password and your company's certificate file (**Browse…** for a `.pem`); **Trust server certificate** skips the check, for testing only.
-- **A Power BI dataset** (a semantic model) is read with DAX. Fill in the **Workspace id** and the **Dataset id** (both are in the dataset's address in Power BI: `.../groups/<workspace id>/datasets/<dataset id>`), then choose how to sign in:
+- **A Power BI workspace:** one connection reaches every dataset (semantic model) in the workspace, each read with DAX. Fill in the **Workspace id** (it is in the workspace's address in Power BI: `.../groups/<workspace id>/...`); the form asks for no dataset. Then choose how to sign in:
   - **App registration, from a key vault** (the first choice): the **Tenant id**, the **Client id** and the **Client secret** each start on **A key vault**; pick each one's entry from **Entry in the vault**. The connection then reads them by name, so the same notebook runs in an Azure Function whose Key Vault references put those names in its environment. This way needs no package installed.
   - **App registration, ids typed here:** type the tenant id and the client id; only the client secret comes from a vault, an environment variable or this computer.
-  - **Browser sign-in, as yourself:** Microsoft's sign-in window, for trying a dataset by hand. It needs `azure-identity` (the form's **Install** button), and its catalog waits for first use.
-  - Its catalog shows the model: each table with its columns and, marked **measure**, its measures. **Open as grid** opens a table's first rows (Rows to open) and says how many the table holds; **Copy the EVALUATE** gives the DAX. In a notebook, a SQL cell on the connection (shown as **(DAX)**) holds DAX: `EVALUATE TOPN(10, 'Sales')`.
-  - **Import its relationships** (on the connection's row, on the catalog's **Model** node, and offered in the message when a table opens) brings the dataset's own relationships into the Diagram and the Key Finder's known joins. An inactive relationship stays inactive (a dashed line).
+  - **Browser sign-in, as yourself:** Microsoft's sign-in window, for trying a workspace by hand. It needs `azure-identity` (the form's **Install** button), and its catalog waits for first use.
+  - **Test connection** signs in and lists the workspace's datasets: "It works: signed in and found 3 datasets."
+  - Its catalog shows the workspace's datasets, and under each one its tables, with their columns and, marked **measure**, their measures. Datasets are read one after another: the first 25, for at most 200 seconds. A dataset that could not be read has a circled **!** on it (point at it, or click the dataset, for the reason); the others are not affected.
+  - **Open as grid** opens a table's first rows (Rows to open) from its own dataset and says how many the table holds; **Copy the EVALUATE** gives the DAX. The grid is named after the table. When two datasets have a table of the same name, the grid is named after the dataset too: `Sales_model_Date`.
+  - **Import its relationships** is on a dataset: on its page (click the dataset in the catalog), in its right-click menu, and offered in the message when one of its tables opens. It brings that dataset's own relationships into the Diagram and the Key Finder's known joins. An inactive relationship stays inactive (a dashed line).
+  - **DAX goes in a DAX cell** (the Workbench, below): `EVALUATE TOPN(10, 'Sales')` on the dataset picked in the cell's head. In Python: `sag.dax("Finance/Sales model", "EVALUATE ...")`. A dataset is named after its connection: the connection, a slash, the dataset.
+  - In Python the connection is the workspace: `conn = sag.connection("Finance")`, then `conn.datasets()` (each dataset's name and id) and `conn.dataset("Sales model").cursor()` (one dataset, used as a database's cursor is; a dataset is found by its name or its id).
+  - A connection saved before this, for one dataset, still works: it shows as one dataset called **Model**, and a DAX cell names the connection alone.
   - Power BI gives at most 100,000 rows or 1,000,000 values (rows times columns) for one query. An answer that reaches that is refused with a message: ask for fewer rows or columns, or summarize in DAX.
-  - What the tenant needs: the admin setting **Dataset Execute Queries REST API** on, service principals allowed to use the Power BI APIs (for an app registration, which must also be a member of the workspace), and Read and Build permission on the dataset.
+  - What the tenant needs: the admin setting **Dataset Execute Queries REST API** on, service principals allowed to use the Power BI APIs (for an app registration, which must also be a member of the workspace), and Read and Build permission on each dataset.
 - **A key vault** (Azure Key Vault, AWS, Google, HashiCorp, 1Password, a `.env` file, Windows Credential Manager or the macOS Keychain): fill in its address and save. **Every secret in the vault** is on by default: each secret becomes an environment variable under its own name (`SqlPassword` stays `SqlPassword`; `Sql--Password` becomes `Sql__Password`, Azure's convention; `warehouse-password` becomes `warehouse_password`), and a secret added to the vault later is there at the next kernel. Once its address is filled in, the form lists the vault's secrets by name: leave a box empty and the secret keeps its own name (shown faintly), or type a name to map it to that variable. Untick Every secret to choose them instead.
 - **Every Workbench kernel starts with those variables set.** `os.environ["WAREHOUSE_PASSWORD"]` works in any notebook or script, and so does a connection whose password is `secret("WAREHOUSE_PASSWORD")`. The Variables pane's Environment section shows each one as set or not set, never its value. A vault that cannot be read (signed out of Azure, say) says so when the kernel starts, and the kernel starts without its variables.
 - No vault yet? Choose **A key vault** for a password and press **New vault**: the connection's form waits and comes back with the new vault in its list.
@@ -462,6 +467,46 @@ here: its code lives there.
 - **The agent** reads every table's cell (`workbench_table_cells`), a document's tables and their
   state (`workbench_tables`), runs a table's cell (`workbench_table_run`) and goes to a cell by its
   number (`workbench_cell_goto`).
+
+### DAX cells: a query on a Power BI dataset
+
+A DAX cell holds one DAX query and runs it on one dataset of a Power BI workspace connection. Add one
+with the toolbar's **DAX**, the kind picker in a cell's head, the palette (**Add a DAX cell**), or
+**X** in command mode.
+
+- **The dataset** is picked in the cell's head, beside its kind. The list holds only Power BI
+  workspaces' datasets, each named `Finance/Sales model` (the connection, a slash, the dataset). A SQL
+  cell's list holds every other connection, never a Power BI one. The list comes from each
+  workspace's catalog; a workspace whose catalog has not loaded shows by its own name, and loads when
+  you open the list.
+- **Write DAX:** `EVALUATE TOPN(10, 'Sales')`. The cell is coloured as DAX. As you type it offers
+  DAX's functions and keywords, and that dataset's tables (`'Sales'`), columns (`'Sales'[Amount]`;
+  after `'Sales'[`, that table's columns) and measures (`[Total Sales]`). It never offers SQL's words
+  or another dataset's names.
+- **The result is a DataFrame,** as a SQL cell's: shown under the cell with **Open as grid**, kept
+  under a name with `-> name` on the cell's first line in Jupyter.
+- **In the file** it is a code cell that starts `%%dax Finance/Sales model`, so Jupyter and VS Code
+  run it too, with the SwissArmyGrid client installed.
+- **In a script** a DAX cell is plain Python under a marker, so the file runs anywhere:
+
+  ```python
+  # %% [dax]
+  result = sag.dax(
+      "Finance/Sales model",
+      """
+  EVALUATE TOPN(10, 'Sales')
+  """,
+  )
+  ```
+
+- **`Finance` alone** (the workspace, no dataset) works when the workspace has one dataset. With
+  several it is refused, and the message names them.
+- **Cells saved earlier:** a SQL cell on a Power BI connection, or a `%%sql Finance/Sales model` cell,
+  opens as a DAX cell.
+- **No uses line:** a DAX cell names its dataset's tables, not the tables open in the grid.
+- **The agent** lists a workspace's datasets (`connections_datasets`), adds a DAX cell
+  (`workbench_dax_add`) and runs DAX (`workbench_run` with kind `dax` and the dataset as its
+  connection).
 
 ### HTML cells: a design drawn from its HTML
 

@@ -54,7 +54,7 @@ def payload(
         rows = {"rows": encoded, "columns": extra.get("columns", [])}
     return {
         **rows,
-        "mode": mode,  # "catalog", "test", "rows", "queries", "names" or "analysis"
+        "mode": mode,  # "catalog", "test", "rows", "queries", "datasets", "names" or "analysis"
         "label": blade.name,
         "kind": blade.kind,
         "code": blade.code,
@@ -82,6 +82,8 @@ def payload(
         "count_sql": (extra or {}).get("count_sql"),
         # mode "queries": groups of statements, tried in order (a Power BI dataset's relationships).
         "attempts": (extra or {}).get("attempts"),
+        # modes "rows" and "queries" on a Power BI workspace: the dataset the statements are sent to.
+        "dataset": (extra or {}).get("dataset"),
     }
 
 
@@ -211,6 +213,8 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
             return _rows(job, secrets)
         if job["mode"] == "queries":
             return _queries(job, secrets)
+        if job["mode"] == "datasets":
+            return _datasets(job, secrets)
         if job["kind"] == "vault":
             every = bool(job.get("vault_all"))
             values = run_vault(
@@ -249,10 +253,11 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     try:
         if not job.get("sql"):
             return {"path": str(value)}
-        columns, rows = _sql_rows(value, job["sql"])
+        source = _within(value, job)
+        columns, rows = _sql_rows(source, job["sql"])
         total = None
         if job.get("count_sql"):
-            _, counted = _sql_rows(value, job["count_sql"])
+            _, counted = _sql_rows(source, job["count_sql"])
             total = int(counted[0][0]) if counted and counted[0] else None
     finally:
         close_quietly(value)
@@ -270,6 +275,28 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     return {"arrow": base64.b64encode(sink.getvalue()).decode("ascii"), "total": total}
 
 
+def _within(value: Any, job: dict[str, Any]) -> Any:
+    """What the statements run on: the connection, or, for a Power BI workspace, the dataset the job
+    names (the connection's own `dataset(name)`)."""
+    pick = getattr(value, "dataset", None)
+    return pick(job["dataset"]) if job.get("dataset") and callable(pick) else value
+
+
+def _datasets(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
+    """A Power BI workspace's datasets, from the connection's own `datasets()`: each one's name and
+    id. None for a connection that has no such list (it is one dataset by itself)."""
+    from swissarmygrid.adapters.blade_run import close_quietly, run_code
+
+    value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
+    try:
+        lister = getattr(value, "datasets", None)
+        if not callable(lister):
+            return {"datasets": None}
+        return {"datasets": [{"name": str(d["name"]), "id": str(d["id"])} for d in lister()]}
+    finally:
+        close_quietly(value)
+
+
 def _queries(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     """Several statements on the connection, signed in once. `attempts` is groups of statements, tried
     in order: the first group whose every statement the source answers is the answer ({"attempt": which
@@ -279,11 +306,12 @@ def _queries(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
     refused: BaseException | None = None
     try:
+        source = _within(value, job)
         for at, statements in enumerate(job.get("attempts") or []):
             try:
                 results = []
                 for statement in statements:
-                    columns, rows = _sql_rows(value, str(statement))
+                    columns, rows = _sql_rows(source, str(statement))
                     results.append({"columns": columns, "rows": rows})
                 return {"attempt": at, "results": results}
             except BaseException as error:
@@ -363,6 +391,10 @@ def _tested(value: Any) -> dict[str, Any]:
         if path.is_file():
             return made | {"found": f"a file of {path.stat().st_size:,} bytes"}
         return {"error": f"{path} is not there: check the path (and that this computer can reach it)."}
+    lister = getattr(value, "datasets", None)
+    if module == "__blade__" and callable(lister):  # a Power BI workspace: it signed in and listed them
+        count = len(lister())
+        return made | {"found": f"signed in and found {count} dataset{'' if count == 1 else 's'}"}
     return made
 
 

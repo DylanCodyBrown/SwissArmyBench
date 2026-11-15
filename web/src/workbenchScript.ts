@@ -79,6 +79,8 @@ export interface ScriptView {
   renameTable: (from: string, to: string) => void;
   /** Add an HTML cell after the cursor's cell (at the end without one), with the cursor in it. */
   addHtml: (source?: string, height?: number | null) => Promise<void>;
+  /** Add a DAX cell after the cell at the cursor: `# %% [dax]` over one sag.dax() call, plain Python. */
+  addDax: (dataset: string, source?: string) => Promise<void>;
   /** Its HTML cells and each one's state. */
   htmlCells: () => HtmlReport[];
   /** Run an HTML cell by its number (without one: every one that is not up to date). */
@@ -184,7 +186,7 @@ export function scriptView(
   console: ConsoleView,
   theme: () => string,
   changed: () => void,
-  names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[] },
+  names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[]; datasets?: string[] },
   file: ScriptFile,
   hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost } = {},
 ): ScriptView {
@@ -870,6 +872,24 @@ export function scriptView(
       editor.replaceText([...lines.slice(0, at), marker, ...body, ...closing, ...after].join("\n") + "\n");
       editor.focus();
       editor.moveTo(at + 3); // the first line of the HTML
+      if (quiet !== null) window.clearTimeout(quiet);
+      quiet = null;
+      await arrange(true);
+    },
+    addDax: async (dataset, source = "") => {
+      if (!editor) throw new Error("The script's editor is not ready yet.");
+      const lines = editor.value().split("\n");
+      if (lines[lines.length - 1] === "") lines.pop();
+      const here = outlineVersion === version ? outline.cells.find((c) => editor!.cursorLine() >= c.line && editor!.cursorLine() <= c.end && !c.grouped) : undefined;
+      const at = here ? Math.min(here.end, lines.length) : lines.length;
+      const after = lines.slice(at);
+      const closing = after.some((l) => l.trim()) && !/^# ?%%/.test(after.find((l) => l.trim()) ?? "") ? ["# %%"] : [];
+      // The file runs as plain Python: the cell is one sag.dax() call, its DAX a string.
+      const imported = /^\s*import swissarmygrid as sag\b/m.test(editor.value()) ? [] : ["import swissarmygrid as sag"];
+      const dax = (source.trim() || "EVALUATE ").replace(/\\/g, "\\\\").replace(/"""/g, '\\"\\"\\"');
+      const body = [...imported, `result = sag.dax(${JSON.stringify(dataset)}, """`, ...dax.split("\n"), '""")'];
+      editor.replaceText([...lines.slice(0, at), "# %% [dax]", ...body, ...closing, ...after].join("\n") + "\n");
+      editor.reveal(at + 3 + imported.length, dax.split("\n")[0]!.length + 1); // in the DAX
       if (quiet !== null) window.clearTimeout(quiet);
       quiet = null;
       await arrange(true);

@@ -33,6 +33,8 @@ interface SchemaRow {
   schema: string;
   tables: number;
   views: number;
+  /** What the source said of a schema it could not list (a Power BI workspace's dataset that could not be read). */
+  note?: string;
 }
 
 interface TableRow {
@@ -105,24 +107,26 @@ export interface TableView {
 }
 
 /** Whether the current model already holds this dataset's relationships (its tables say where they came from). */
-async function relationshipsImported(connection: string): Promise<boolean> {
+async function relationshipsImported(connection: string, dataset: string): Promise<boolean> {
   try {
     const model = await api<{ tables: Record<string, { source?: string }> }>("/relationships");
-    return Object.values(model.tables).some((t) => t.source === `${connection} (Power BI)`);
+    const from = `${dataset ? `${connection}/${dataset}` : connection} (Power BI)`;
+    return Object.values(model.tables).some((t) => t.source === from);
   } catch {
     return true; // not known: nothing extra is offered
   }
 }
 
 /** A catalog's table as a grid, on the connection the catalog came from (a catalog is named after it).
- * A Power BI dataset's table (`dax`) arrives with an offer to bring the dataset's relationships too,
- * until they are in the model. */
+ * A Power BI workspace's table (`dax`) arrives with an offer to bring its dataset's relationships
+ * too (the table's schema is its dataset), until they are in the model. */
 export async function openTableAsGrid(catalog: string, where: { schema?: string; table: string; database?: string }, dax = false): Promise<void> {
   toast(`Opening ${where.table}…`);
   try {
     const answer = await api<{ dataset: string; shown?: number; total?: number | null }>(`/connections/${encodeURIComponent(catalog)}/open`, "POST", where);
     const cut = answer.total && answer.shown !== undefined && answer.total > answer.shown;
-    const offer = dax && !(await relationshipsImported(catalog)) ? { label: "Import its relationships", run: () => void importRelationships(catalog) } : undefined;
+    const dataset = where.schema ?? "";
+    const offer = dax && !(await relationshipsImported(catalog, dataset)) ? { label: "Import its relationships", run: () => void importRelationships(catalog, dataset) } : undefined;
     toast(cut ? `${answer.dataset}: the first ${answer.shown!.toLocaleString()} of ${answer.total!.toLocaleString()} rows open as a grid.` : `${answer.dataset} is open as a grid.`, "info", offer);
   } catch (e) {
     toast(errorText(e), "error");
@@ -156,8 +160,9 @@ export interface RailHost {
   /** True while the editor holds unsaved work: the tree then keeps the page as it is. */
   isEditing(): boolean;
   showTable(view: TableView): void;
-  /** A schema's page; a Power BI dataset's one node is its model (`dialect` "dax"). */
-  showSchema?(label: string, catalog: string, dialect: string): void;
+  /** A schema's page; a Power BI workspace's (`dialect` "dax") is a dataset: `schema` its name, `note`
+   *  why it could not be read. */
+  showSchema?(label: string, catalog: string, dialect: string, schema: string, note: string): void;
   /** In the Workbench every connection is there by its name: drag and copy give the name alone. */
   connectionsByName?: boolean;
 }
@@ -182,13 +187,16 @@ export function copy(text: string, what: string): void {
   );
 }
 
-/** A schema's page. A Power BI dataset has one node, its model, with Import its relationships. */
-export function schemaDetails(label: string, catalog: string, dialect: string): HTMLElement[] {
+/** A schema's page. A Power BI workspace's is one of its datasets, with Import its relationships; one
+ * that could not be read says why instead. */
+export function schemaDetails(label: string, catalog: string, dialect: string, schema = "", note = ""): HTMLElement[] {
   if (dialect !== "dax") return [h("h2", {}, label), h("p", { class: "hint" }, `Schema in ${catalog}`)];
   return [
     h("h2", {}, label),
-    h("p", { class: "hint" }, `The Power BI dataset ${catalog}: its tables, columns and measures`),
-    h("div", { class: "row-actions" }, button("Import its relationships", () => void importRelationships(catalog), { icon: "import", class: "primary" })),
+    h("p", { class: "hint" }, `Dataset in ${catalog} · DAX`),
+    note
+      ? h("p", { class: "status-error", role: "alert" }, note)
+      : h("div", { class: "row-actions" }, button("Import its relationships", () => void importRelationships(catalog, schema), { icon: "import", class: "primary" })),
   ];
 }
 
@@ -258,7 +266,7 @@ export function mountRail(host: RailHost): Rail {
 
   function qualified(row: { database: string; schema: string; table: string }): string {
     const dialect = current?.dialect ?? "other";
-    if (dialect === "dax") return quoteName(row.table, dialect); // a dataset has no schemas
+    if (dialect === "dax") return quoteName(row.table, dialect); // the schema is the dataset the DAX is sent to
     const parts = [current && current.databases > 1 ? row.database : "", row.schema, row.table].filter(Boolean);
     return parts.map((p) => quoteName(p, dialect)).join(".");
   }
@@ -506,6 +514,8 @@ export function mountRail(host: RailHost): Rail {
     kind: NodeKind;
     database: string;
     schema: string;
+    /** A schema the source could not list: what it said. */
+    note?: string;
     table?: string;
     tableKind?: "table" | "view";
     column?: string;
@@ -525,6 +535,8 @@ export function mountRail(host: RailHost): Rail {
       h("span", { class: "twisty", "aria-hidden": "true" }, expandable ? "▸" : ""),
       h("span", { class: "node-label" }, label),
       data.kind === "table" && data.tableKind === "view" ? h("span", { class: "node-kind" }, "view") : null,
+      // A dataset that could not be read: marked on itself only, the reason on hover and on its page.
+      data.note ? h("span", { class: "node-error", role: "img", "aria-label": `Error: ${data.note}`, title: data.note }, "!") : null,
       meta ? h("span", { class: "node-meta" }, meta) : null,
     );
     node.style.setProperty("--depth", String(depth)); // a custom property needs setProperty, not assignment
@@ -538,13 +550,13 @@ export function mountRail(host: RailHost): Rail {
         ]);
       });
     }
-    if (data.kind === "schema" && current?.dialect === "dax") {
-      // A Power BI dataset's model: its relationships come from here too.
+    if (data.kind === "schema" && current?.dialect === "dax" && !data.note) {
+      // A Power BI workspace's dataset: its relationships come from here.
       node.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         event.stopPropagation();
         const name = current?.name ?? "";
-        showMenu(event.clientX, event.clientY, name, [["import", "Import its relationships", () => void importRelationships(name)]]);
+        showMenu(event.clientX, event.clientY, data.schema || name, [["import", "Import its relationships", () => void importRelationships(name, data.schema)]]);
       });
     }
     if (data.kind === "table" || data.kind === "column") {
@@ -579,7 +591,7 @@ export function mountRail(host: RailHost): Rail {
   }
 
   function schemaLabel(row: { database: string; schema: string }): string {
-    // A Power BI dataset has no schemas: its one node is the model itself.
+    // A Power BI workspace's schemas are its datasets; a connection saved for one dataset has one node, its model.
     const schema = row.schema || (current?.dialect === "dax" ? "Model" : "(no schema)");
     return current && current.databases > 1 && row.database ? `${row.database}.${schema}` : schema;
   }
@@ -603,7 +615,8 @@ export function mountRail(host: RailHost): Rail {
     }
     for (const row of schemas) {
       const count = row.views ? `${formatCount(row.tables)} + ${formatCount(row.views)} views` : formatCount(row.tables);
-      tree.append(treeItem({ kind: "schema", database: row.database, schema: row.schema }, 0, schemaLabel(row), count, true));
+      const unread = Boolean(row.note) && row.tables + row.views === 0; // nothing under it to open
+      tree.append(treeItem({ kind: "schema", database: row.database, schema: row.schema, note: row.note }, 0, schemaLabel(row), unread ? "" : count, !unread));
     }
     const first = tree.querySelector<HTMLElement>('[role="treeitem"]');
     if (first) select(first, false);
@@ -783,7 +796,7 @@ export function mountRail(host: RailHost): Rail {
       return;
     }
     if (data.kind === "table" || data.kind === "column") await showTable(data, data.column);
-    if (data.kind === "schema") host.showSchema?.(schemaLabel(data), current.name, current.dialect);
+    if (data.kind === "schema") host.showSchema?.(schemaLabel(data), current.name, current.dialect, data.schema, data.note ?? "");
   }
 
   async function showTable(data: NodeData, focusColumn?: string): Promise<void> {

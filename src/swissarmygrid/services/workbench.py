@@ -275,7 +275,9 @@ class Workbench:
         return kernel
 
     def execute(self, kernel_id: str, body: Any) -> AsyncIterator[dict[str, Any]]:
-        """Run code (kind code), a SQL cell (kind sql, its connection), an HTML cell (kind html: `code`
+        """Run code (kind code), a SQL cell (kind sql, its connection), a DAX cell (kind dax, its
+        connection naming a Power BI workspace's dataset: Finance/Sales model), an HTML cell (kind html:
+        `code`
         is its HTML; each `{{ name }}` is filled from the kernel's variables and the design comes back
         as the output), a table's read-only cell (kind
         table, with `table`: it starts from the original the user's code made, so running it again
@@ -310,10 +312,10 @@ class Workbench:
             if len(body["code"]) > rules.MAX_CELL_CHARS:
                 raise ValueError("An HTML cell holds at most a million characters.")
             code = f"get_ipython().run_cell_magic('sag_html', '', {body['code']!r})"
-        elif kind == "sql":
+        elif kind in ("sql", "dax"):
             connection = body.get("connection")
             named = connection if isinstance(connection, str) else None
-            code = rules.code_of(rules.Cell("sql", body["code"], named))
+            code = rules.code_of(rules.Cell(kind, body["code"], named))
         else:
             code = body["code"]
         kernel = self._kernel(kernel_id)
@@ -327,7 +329,7 @@ class Workbench:
                     item = {"error_detail": errors.explain_detail(item["error_detail"])}
                 elif item.get("output_type") == "stream" and item.get("name") == "stderr":
                     usage = (usage + str(item.get("text", "")))[-20_000:]
-                if "done" in item and kind == "sql" and "UsageError" in usage:
+                if "done" in item and kind in ("sql", "dax") and "UsageError" in usage:
                     message = usage[usage.index("UsageError") :].split(":", 1)[-1].strip()
                     entry = sql_error_entry(message)
                     yield {"error_detail": errors.explain_detail({"chain": [entry]})}
