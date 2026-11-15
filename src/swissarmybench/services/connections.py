@@ -316,7 +316,12 @@ class ConnectionService:
         else:
             dataset = rules.dataset_name(place["table"])
         origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sab.dax(origin, sql)
-        stored = await self._tables.store(dataset, table, who, opened, origin, sql, dax)
+        # The table came whole: the notebook reads it whole again (no LIMIT), so a run next month, with
+        # more rows than Rows to open, is not cut without a word. A table that was cut keeps its LIMIT,
+        # as the grid shows it.
+        whole = limit is not None and isinstance(total, int) and total <= shown
+        again = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], None)
+        stored = await self._tables.store(dataset, table, who, opened, origin, again if whole else sql, dax)
         return stored | {"shown": shown, "total": total}
 
     async def _shared(self, name: str) -> set[str]:
