@@ -177,6 +177,13 @@ class Kernel:
                     return
                 try:
                     msg = await self.client.get_iopub_msg(timeout=_IDLE_POLL_SECONDS)
+                except asyncio.CancelledError:
+                    # A restart closed the channels this was reading (the wait is cancelled, not
+                    # failed): the run ends saying so, as it does when it sees the restart first.
+                    if self._generation == generation:
+                        raise
+                    yield {"done": {"ok": False, "restarted": True, "execution_count": count}}
+                    return
                 except Exception:  # queue.Empty: nothing yet; is it asking for input, or gone?
                     if stdin and not silent and (asked := await self._input_request()) is not None:
                         yield {"input_request": asked}

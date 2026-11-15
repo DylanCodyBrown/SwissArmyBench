@@ -397,6 +397,10 @@ def test_the_variables_overlay_through_a_kernel(
 # ===== the stress test's findings (2026-11-14), each kept fixed =====
 
 
+# A run that says it has started, then waits.
+GO = "print('go', flush=True)\nimport time\ntime.sleep(30)"
+
+
 def stream(client: TestClient, kernel: str, body: dict[str, Any], seen: list[dict[str, Any]]) -> None:
     """Run in a thread: each output appended to `seen` as it arrives (so a test can answer input())."""
     with client.stream("POST", f"/workbench/kernels/{kernel}/execute", json=body, headers=AUTH) as answer:
@@ -429,15 +433,14 @@ def test_interrupt_cancels_queued_runs_and_restart_ends_the_run_under_way(client
         first: list[dict[str, Any]] = []
         queued: list[dict[str, Any]] = []
         threads = [
-            threading.Thread(
-                target=stream, args=(client, kernel, {"code": "import time\ntime.sleep(30)"}, first)
-            ),
+            threading.Thread(target=stream, args=(client, kernel, {"code": GO}, first)),
             threading.Thread(
                 target=stream, args=(client, kernel, {"code": "print('should not run')"}, queued)
             ),
         ]
         threads[0].start()
-        time.sleep(1.0)
+        # Under way for certain: a sleep here lost the race on a busy computer.
+        wait_for(first, lambda o: o.get("output_type") == "stream")
         threads[1].start()
         time.sleep(0.5)
         assert client.post(f"/workbench/kernels/{kernel}/interrupt", headers=AUTH).status_code == 200
@@ -447,14 +450,12 @@ def test_interrupt_cancels_queued_runs_and_restart_ends_the_run_under_way(client
         assert queued == [{"done": {"ok": False, "cancelled": True, "execution_count": None}}]
         # A run under way when the kernel restarts ends, saying so.
         under: list[dict[str, Any]] = []
-        worker = threading.Thread(
-            target=stream, args=(client, kernel, {"code": "import time\ntime.sleep(30)"}, under)
-        )
+        worker = threading.Thread(target=stream, args=(client, kernel, {"code": GO}, under))
         worker.start()
-        time.sleep(1.0)
+        wait_for(under, lambda o: o.get("output_type") == "stream")
         assert client.post(f"/workbench/kernels/{kernel}/restart", headers=AUTH).status_code == 200
         worker.join(30)
-        assert under[-1]["done"]["restarted"] is True
+        assert under[-1]["done"]["restarted"] is True, under
         # An error no longer drops the run queued behind it (stop_on_error is off).
         assert run(client, kernel, "1/0")[-1]["done"]["ok"] is False
         assert run(client, kernel, "print('next')")[0]["text"] == "next\n"
