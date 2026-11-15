@@ -487,6 +487,11 @@ version never touches your copy.
   kernel's variables in double braces, `{{ total }}`): styled table (a DataFrame by its name), KPI
   tile, KPI row, progress bar, badge, bar chart (drawn in CSS from a table's rows), list, header block,
   card grid, invoice layout.
+- **Markdown** (for a Markdown cell; each says in its description which `{{ names }}` it reads):
+  title with subtitle, section heading with a value (`## Sales in {{ region }}`), KPI sentence
+  (`Total for {{ region }}: **{{ total_sales }}**`), callout, key figures table, what this page shows,
+  executive summary, data dictionary entry, change log entry, footer with source and refresh time. What
+  you type in a blank is written as text: a `*` or a `[` you type shows as itself.
 - **Streamlit pieces** (below: Learning Streamlit with the starter pieces): dropped into a notebook,
   a piece fills an empty Python cell (or makes one) and names it, so it shows by name in the
   Streamlit cells pane, ready for a canvas.
@@ -640,6 +645,19 @@ H in a notebook's command mode.
   With the cursor in the cell its lines show; with the cursor elsewhere they are put away and the
   design shows under the marker (click the marker line to edit). In a script the HTML is coloured as a
   Python string. Run file fills the script's HTML cells once the file has run.
+- **Markdown cells take names too.** `{{ total }}` in a Markdown cell is filled the same way when the
+  cell runs (Shift+Enter, its **Run**, Run all), and the cell shows the filled text when you are not
+  editing it. A value is always text: its `*`, `_`, `[`, backticks and markup show as typed, never as
+  formatting, a link or HTML. A table alone on its line shows as a Markdown table (its first 50 rows);
+  elsewhere it says its size. Inside code (a `span` or a fenced block) only plain words and numbers go
+  in. Out of date and Not run yet work as for an HTML cell. A Markdown cell without names is plain
+  Markdown, as before. (Saved notebooks keep no values for a Markdown cell: it shows its names as
+  written until it runs again.)
+- **Diagrams in Markdown.** A ```mermaid block in a Markdown cell is drawn as a diagram (a flowchart,
+  a sequence, an entity diagram...) when you are not editing the cell, by the app's own Mermaid:
+  nothing comes from the internet. A diagram that cannot be drawn says why in its place. A `{{ name }}`
+  inside it is filled as text: its marks show in their full-width form (`－－＞`), so a value never
+  changes the diagram. On a Streamlit page the block shows as its text (Streamlit draws no Mermaid).
 - **The agent** adds an HTML cell (`workbench_html_add`), reads them and their state
   (`workbench_html_cells`), runs one (`workbench_html_run`), sizes its pane (`workbench_html_resize`),
   and can fill a design without the window (`workbench_run` with kind html, `workbench_html_fill`,
@@ -647,8 +665,8 @@ H in a notebook's command mode.
 
 ### Streamlit apps: a canvas of blocks linked to cells
 
-Build a Streamlit app from the Python cells of your notebooks and scripts. There is no Streamlit kind
-of cell: write Python.
+Build a Streamlit app from the Python cells of your notebooks and scripts, and their Markdown and HTML
+cells. There is no Streamlit kind of cell: write Python.
 
 - **A cell that calls Streamlit is live.** A Python cell with `st.something(...)` in it (or a call
   through the name it imports streamlit under) shows live in its own cell, its widgets working: click
@@ -661,7 +679,13 @@ of cell: write Python.
   palette) opens a **canvas** as a tab: the app's
   pages, each a 12-column grid. It is saved as its own file, `<name>.stapp.json` (Ctrl+S): pages,
   blocks and their places, and links to cells. No code is copied into it.
-- **Put a cell on the canvas:** drag any Python cell by its number (`#3`) or its head onto the canvas
+- **Markdown and HTML cells go on a page too.** A Markdown cell is `st.markdown` on the page, an HTML
+  cell `st.html` (with Streamlit's `unsafe_allow_javascript=True` only when it holds a `<script>`).
+  Their `{{ names }}` are filled on the page by the same rules as in the notebook, from the blocks that
+  make them: a filter making `region` drives a Markdown block that says `Sales in {{ region }}`, and
+  the run order counts the names. A name no block makes shows as *{{ name }} not found*. Their blocks
+  are marked **T**.
+- **Put a cell on the canvas:** drag any Python, Markdown or HTML cell by its number (`#3`) or its head onto the canvas
   (from the same window: onto the app's tab; from another Workbench window: onto the grid itself).
   Or copy it (**C** in command mode, More: Copy; in a script the palette's "Copy the cell") and paste
   on the canvas (**Ctrl+V**). The notebook must be saved first: a block links to a cell of a file.
@@ -670,7 +694,8 @@ of cell: write Python.
   after its marker: `# %% [7] Region filter`). The name shows in the cell's head, on its block and in
   the Streamlit cells pane; links still go by the cell's number.
 - **The Streamlit cells pane** (the Data panel, under Tables and Variables) lists every cell that calls
-  Streamlit, from the open notebooks and scripts and the project's files, by name. Drag one onto a
+  Streamlit, from the open notebooks and scripts and the project's files, by name, and under **Text**
+  each Markdown and HTML cell (marked **T**). Drag one onto a
   canvas to place it; click one to go to it. A cell already on the canvas page in front has a check.
 - **A block** shows the cell's name (or its first comment line, or its first line), its file and `@cell` number,
   and what it makes and reads. Drag it to move it (or the arrow keys), drag its corner to resize it
@@ -689,10 +714,15 @@ of cell: write Python.
   environment). If that Python lacks it, the cell or the canvas says so and offers **Install**
   (streamlit, pandas and pyarrow, into that Python).
 - **Export…** writes a folder that runs alone: `app.py`, `app_pages/`, the data as Parquet in
-  `data/`, `requirements.txt`. Run it with `streamlit run app.py`.
+  `data/`, `requirements.txt`. Run it with `streamlit run app.py`. A page with a Markdown or HTML
+  block that names a value comes with `sab_text.py` beside `app.py`: the rules that fill the names,
+  standard library only, so nothing new is installed (a block that runs a script asks for Streamlit
+  1.52 or later in `requirements.txt`).
 - **Save as zip…** zips the app's **project** to add to your own Streamlit app: `pages/*.py` (each starts
   with `from data import ...`), `data.py`, `requirements.txt`, `README.txt`, and the sources
-  (data.ipynb, the canvas, the notebooks it links to). No rows and no passwords go into the zip.
+  (data.ipynb, the canvas, the notebooks it links to), and `sab_text.py` when a Markdown or HTML block
+  names a value (copy it beside `data.py`; the zip's README says so). No rows and no passwords go into
+  the zip.
 - **Private.** The Streamlit process listens on this computer only, and stops when its window or the
   server does.
 

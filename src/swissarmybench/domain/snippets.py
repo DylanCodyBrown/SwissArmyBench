@@ -1,6 +1,7 @@
 """Snippets: blades that are text to drop into a cell (docs/ideas.md, the starter pack, 2026-11-15).
 
-A snippet is a piece of DAX, HTML or Streamlit (Python) with **placeholders** for the names it needs.
+A snippet is a piece of DAX, HTML, Markdown or Streamlit (Python) with **placeholders** for the names
+it needs.
 Dropped on a cell of its language (or picked from the cell's menu), a small form asks for each one,
 prefilled from the cell's dataset or the open tables, and the text goes in at the cursor, filled.
 
@@ -28,7 +29,9 @@ declaration), by its last word:
 **Filling writes each value where it stands, safely,** by its kind and the snippet's language: DAX
 doubles the quote that closes its place (`'` in a table, `]` in a column or measure, `"` in text);
 HTML escapes markup; Python takes a table or a name only as an identifier and anything else as the
-inside of a string. A line break is refused everywhere. Standard library only, no I/O.
+inside of a string; Markdown (text cells on the canvas, 2026-11-15) escapes the marks that would format
+or link, and inside a code span takes the value as it is (no backtick). A line break is refused
+everywhere. Standard library only, no I/O.
 """
 
 from __future__ import annotations
@@ -42,11 +45,25 @@ from typing import Any
 
 from swissarmybench.domain import html_cells
 
-LANGUAGES: tuple[str, ...] = ("dax", "html", "streamlit")
+LANGUAGES: tuple[str, ...] = ("dax", "html", "markdown", "streamlit")
 # The cell a snippet of each language goes into, in the user's words.
-CELL_KIND: dict[str, str] = {"dax": "dax", "html": "html", "streamlit": "code"}
-CELL_WORDS: dict[str, str] = {"dax": "a DAX cell", "html": "an HTML cell", "streamlit": "a Python cell"}
-LANGUAGE_WORDS: dict[str, str] = {"dax": "DAX", "html": "HTML", "streamlit": "Streamlit"}
+CELL_KIND: dict[str, str] = {"dax": "dax", "html": "html", "markdown": "markdown", "streamlit": "code"}
+CELL_WORDS: dict[str, str] = {
+    "dax": "a DAX cell",
+    "html": "an HTML cell",
+    "markdown": "a Markdown cell",
+    "streamlit": "a Python cell",
+}
+LANGUAGE_WORDS: dict[str, str] = {
+    "dax": "DAX",
+    "html": "HTML",
+    "markdown": "Markdown",
+    "streamlit": "Streamlit",
+}
+# A typed value in Markdown: the marks that would format, link or fill a name are escaped (a backslash;
+# markup as HTML's own references), the rest is as typed, so "Made-up, 2026-01-31" reads as it is.
+_MARKDOWN_MARKS: frozenset[str] = frozenset("\\`*_[]{}|~$")
+_MARKDOWN_REFERENCES: dict[str, str] = {"&": "&amp;", "<": "&lt;", ">": "&gt;"}
 
 PLACEHOLDER: re.Pattern[str] = re.compile(r"<<\s*([a-z][a-z0-9_ ]{0,39}?)\s*(?::\s*([^<>\n]{0,200}?)\s*)?>>")
 # An opening `<<` that does not start a well-formed placeholder (a typing slip in a snippet).
@@ -171,6 +188,8 @@ def python_name(text: str) -> str:
 #           doubled), a comment (plain words), or bare (a number or a name only)
 #   Python  inside a string (backslashes and quotes escaped), a comment, or bare (a name or a number)
 #   HTML    inside an HTML cell's {{ ... }} (a Python name only), else text with its markup escaped
+#   Markdown  inside a {{ ... }} (a Python name only), inside code (as typed, no backtick), else text
+#             with its formatting and linking marks escaped
 
 _BARE: re.Pattern[str] = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|-?\d+(\.\d+)?")
 
@@ -251,6 +270,21 @@ def _html_places(text: str) -> dict[int, str]:
     return places
 
 
+def _markdown_places(text: str) -> dict[int, str]:
+    """Each placeholder's place in Markdown: inside a Markdown cell's {{ ... }} (a name, as an HTML
+    cell's), inside code (a code span or a fenced block), or the text."""
+    code = html_cells.markdown_code(text)
+    return {
+        at: "code" if place == "markup" and any(a <= at < b for a, b in code) else place
+        for at, place in _html_places(text).items()
+    }
+
+
+def markdown_value(value: str) -> str:
+    """A typed value as Markdown text: its formatting and linking marks escaped, the rest as typed."""
+    return "".join(_MARKDOWN_REFERENCES.get(c) or (f"\\{c}" if c in _MARKDOWN_MARKS else c) for c in value)
+
+
 def _written(value: str, place: str, language: str, kind: str, label: str) -> str:
     """A value as it is written where its placeholder stands."""
     if "\n" in value or "\r" in value:
@@ -271,6 +305,12 @@ def _written(value: str, place: str, language: str, kind: str, label: str) -> st
 
     elif language == "html" and place == "markup":
         return html.escape(value, quote=True)
+    elif language == "markdown" and place == "markup":
+        return markdown_value(value)
+    elif language == "markdown" and place == "code":
+        if "`" in value:
+            raise SnippetError(f"{label} goes inside code here: it cannot hold a backtick (`).")
+        return value
     # Bare in DAX or Python, or an HTML cell's name: a name or a number, nothing that could be code.
     if not _BARE.fullmatch(value) or keyword.iskeyword(value):
         what = "a Python name" if language != "dax" else "a name"
@@ -314,7 +354,12 @@ def fill(text: str, language: str, values: Mapping[str, Any]) -> str:
     go where it stands."""
     found = {p.name: p for p in check(text, language)}
     given = resolved(text, language, values)
-    places = {"dax": _dax_places, "streamlit": _python_places, "html": _html_places}[language](text)
+    places = {
+        "dax": _dax_places,
+        "streamlit": _python_places,
+        "html": _html_places,
+        "markdown": _markdown_places,
+    }[language](text)
 
     def write(match: re.Match[str]) -> str:
         name = " ".join(_words(match.group(1)))

@@ -351,13 +351,11 @@ def test_a_canvas_holds_links_to_cells_and_reads_them_as_they_are_now(
     )
     assert state["pages"][0]["order"] == ["b2", "b1"] and state["pages"][0]["problems"] == []
     assert blocks[0]["document"] == path and blocks[0]["missing"] is None and blocks[0]["state"] == "notRun"
-    # Any Python cell can be placed, one that never calls Streamlit too. Not Markdown; not a missing cell.
+    # Any Python cell can be placed, one that never calls Streamlit too; a Markdown or HTML cell too
+    # (text cells on the canvas, 2026-11-15). Not a SQL cell; not a missing cell.
     _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 5}))
-    for cell in (2, 99):
-        refused = client.post(
-            f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": cell}
-        )
-        assert refused.status_code == 400 and f"sales.ipynb has no Python cell {cell}" in refused.text
+    refused = client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 99})
+    assert refused.status_code == 400 and "sales.ipynb has no cell 99 for a page" in refused.text
     missing = client.post(
         f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": str(tmp_path / "no.ipynb"), "cell": 1}
     )
@@ -403,6 +401,11 @@ def test_a_canvas_holds_links_to_cells_and_reads_them_as_they_are_now(
             "pages": [{"id": "p1", "name": "Sales overview", "blocks": 2}],
         }
     ]
+    # The notebook's Markdown cell (2, "# Sales") goes on the page too: a text block, named by its words.
+    text = _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 2}))
+    block = next(b for b in text["pages"][0]["blocks"] if b["cell"] == 2)
+    assert (block["kind"], block["name"], block["makes"], block["reads"]) == ("markdown", "Sales", [], [])
+    assert {b["kind"] for b in text["pages"][0]["blocks"] if b["cell"] != 2} == {"code"}
 
 
 def test_play_runs_the_linked_cells_current_code_and_says_when_a_page_is_out_of_date(
@@ -467,7 +470,7 @@ def test_play_runs_the_linked_cells_current_code_and_says_when_a_page_is_out_of_
     _ok(client.put(f"/streamlit/apps/{doc}", headers=AUTH, json={"cells": less}))
     lost = _ok(client.get(base, headers=AUTH))["pages"][0]
     assert lost["blocks"][0]["state"] == "missing" and lost["out_of_date"] is True
-    assert lost["blocks"][0]["missing"] == f"sales.ipynb has no Python cell 4 now ({path})."
+    assert lost["blocks"][0]["missing"] == f"sales.ipynb has no cell 4 for a page now ({path})."
     assert lost["blocks"][0]["missing"] in lost["problems"][0]
     # The notebook closes and its file goes: every block of it says the file is missing.
     assert client.delete(f"/streamlit/apps/{doc}", headers=AUTH).status_code == 200
@@ -1318,3 +1321,205 @@ def test_a_streamlit_process_ends_when_the_server_that_started_it_goes(tmp_path:
         except OSError:
             gone = True
     assert gone, "the Streamlit process outlived the server that started it"
+
+
+# ===== Markdown and HTML cells on a canvas (text cells on the canvas, 2026-11-15) =====
+
+KPI_TEXT = "## Sales in {{ region }}\nTotal for {{ region }}: **{{ total }}**"
+KPI_HTML = (
+    '<div class="kpi"><b>{{ total }}</b> in {{ region }}</div><script>window.sabTotal = {{ total }};</script>'
+)
+TOTAL_VALUE = '# Total value\ntotal = int(orders[orders["region"] == region]["amount"].sum())'
+HOSTILE_VALUE = "</script><b>*x*</b>"
+
+
+def _text_notebook(folder: Path) -> Path:
+    """A saved notebook: the filter (1), the total (2), a Markdown cell (3), an HTML cell (4), a note (5)."""
+    cells = [
+        notebooks.Cell("code", FILTER),
+        notebooks.Cell("code", TOTAL_VALUE),
+        notebooks.Cell("markdown", KPI_TEXT),
+        notebooks.Cell("html", KPI_HTML, name="KPI card"),
+        notebooks.Cell("markdown", "Made-up figures, for testing."),
+    ]
+    path = folder / "story.ipynb"
+    path.write_text(notebooks.write_notebook(cells), encoding="utf-8")
+    return path
+
+
+def test_markdown_and_html_cells_go_on_a_page_by_the_canvas_commands(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, runner = served
+    path = str(_text_notebook(tmp_path))
+    app = _canvas(client)["app"]
+    base = f"/streamlit/apps/{app}"
+    page = _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Overview"}))["page"]
+    # The text first on the page, the filter last: the run order still puts the filter first.
+    for cell in (3, 4, 2, 1):
+        _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": cell}))
+    state = _ok(client.get(base, headers=AUTH))["pages"][0]
+    blocks = {b["cell"]: b for b in state["blocks"]}
+    assert [(blocks[c]["kind"], blocks[c]["name"]) for c in (3, 4, 1)] == [
+        ("markdown", "Sales in {{ region }}"),
+        ("html", "KPI card"),
+        ("code", "Region filter"),
+    ]
+    assert blocks[3]["reads"] == ["region", "total"] and blocks[3]["makes"] == []
+    assert blocks[4]["reads"] == ["total", "region"]
+    ids = {c: blocks[c]["id"] for c in blocks}
+    assert state["order"] == [ids[1], ids[2], ids[3], ids[4]] and state["problems"] == []
+    # Play: the page's code, and the rules that fill the names beside it (nothing new to install).
+    ran = _ok(client.post(f"{base}/run", headers=AUTH))
+    root = _files(runner)
+    code = next(root.glob("page_p1_*.py")).read_text(encoding="utf-8")
+    assert "st.markdown(_sab_text.page_markdown(" in code and "unsafe_allow_javascript=True" in code
+    helper = (root / "sab_text.py").read_text(encoding="utf-8")
+    assert helper.startswith("# Written by Swiss Army Bench") and "def page_markdown" in helper
+    assert all(b["state"] == "current" for b in ran["pages"][0]["blocks"])
+    # A plain Markdown cell needs no copy; an empty one is not offered.
+    second = _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Notes"}))["page"]
+    _ok(client.post(f"{base}/pages/{second}/blocks", headers=AUTH, json={"document": path, "cell": 5}))
+    notes = _ok(client.get(base, headers=AUTH))["pages"][1]["blocks"][0]
+    assert (notes["kind"], notes["name"], notes["reads"]) == ("markdown", "Made-up figures, for testing.", [])
+
+
+def test_a_windows_markdown_and_html_cells_are_listed_under_text_and_never_live(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    client, _ = served
+    document = str(tmp_path / "story.ipynb")
+    cells = [
+        {"cell": 1, "code": FILTER},
+        {"cell": 2, "code": KPI_TEXT, "kind": "markdown"},
+        {"cell": 3, "code": KPI_HTML, "kind": "html", "name": "KPI card"},
+        {"cell": 4, "code": "   ", "kind": "markdown"},
+    ]
+    opened = _open(client, document=document, cells=cells)
+    # Only the Python cell that calls Streamlit is live in its cell; the text cells are not.
+    assert [p["cell"] for p in opened["pieces"]] == [1]
+    pane = _ok(client.get("/streamlit/cells", headers=AUTH))["documents"][0]["cells"]
+    assert [(c["cell"], c["kind"], c["name"], c["reads"]) for c in pane] == [
+        (1, "code", "Region filter", []),
+        (2, "markdown", "Sales in {{ region }}", ["region", "total"]),
+        (3, "html", "KPI card", ["total", "region"]),
+    ]
+    # A script's HTML cell sends its lines; the server reads the HTML from its string.
+    script = [{"cell": 7, "code": 'r"""\n<p>{{ region }}</p>\n"""', "kind": "html", "form": "script"}]
+    state = _ok(client.put(f"/streamlit/apps/{opened['app']}", headers=AUTH, json={"cells": script}))
+    assert state["pieces"] == []
+    listed = _ok(client.get("/streamlit/cells", headers=AUTH))["documents"][0]["cells"]
+    assert [(c["cell"], c["kind"], c["reads"]) for c in listed] == [(7, "html", ["region"])]
+    bad = [{"cell": 8, "code": "x", "kind": "sql"}]
+    assert (
+        client.put(f"/streamlit/apps/{opened['app']}", headers=AUTH, json={"cells": bad}).status_code == 400
+    )
+
+
+TEXT_APP_TEST = """
+import json, sys
+from streamlit.testing.v1 import AppTest
+at = AppTest.from_file(sys.argv[1], default_timeout=60).run()
+def seen():
+    return {
+        "errors": [e.value for e in at.error] + [str(e.value) for e in at.exception],
+        "markdown": [m.value for m in at.markdown],
+        "html": [[h.proto.body, h.proto.unsafe_allow_javascript] for h in at.get("html")],
+    }
+out = {"first": seen()}
+at.selectbox[0].set_value(sys.argv[2]).run()
+out["picked"] = seen()
+print(json.dumps(out))
+"""
+
+
+def _text_app_test(page: Path, pick: str, cwd: Path) -> dict[str, Any]:
+    assert STREAMLIT_PYTHON is not None
+    done = subprocess.run(  # noqa: S603 (the test's own Streamlit Python)
+        [STREAMLIT_PYTHON, "-c", TEXT_APP_TEST, str(page), pick],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+        cwd=cwd,
+    )
+    assert done.returncode == 0, done.stderr[-2000:]
+    return dict(json.loads(done.stdout.strip().splitlines()[-1]))
+
+
+@needs_streamlit
+def test_the_real_streamlit_fills_a_markdown_and_an_html_block_from_a_filter(
+    live: Live,  # noqa: F811
+    tmp_path: Path,
+) -> None:
+    assert STREAMLIT_PYTHON is not None
+    csv = tmp_path / "orders.csv"
+    csv.write_text("order_id,region,amount\n1,East,100\n2,West,250\n3,East,40\n4,North,75\n")
+    command("datasets_load", name="orders", path=str(csv))
+    project = command("project_new", folder=str(tmp_path), name="story", notebooks=["mockups"])
+    folder = Path(project["folder"])
+    notebook = folder / "story.ipynb"
+    markdown, card, hostile = (
+        KPI_TEXT + "\n\nNote: {{ hostile }}",
+        KPI_HTML + "<p>{{ hostile }}</p>",
+        f"hostile = {HOSTILE_VALUE!r}",
+    )
+    cells = [
+        notebooks.Cell("code", FILTER),
+        notebooks.Cell("code", TOTAL_VALUE),
+        notebooks.Cell("markdown", markdown),
+        notebooks.Cell("html", card, name="KPI card"),
+        notebooks.Cell("code", hostile),
+    ]
+    notebook.write_text(notebooks.write_notebook(cells), encoding="utf-8")
+    # The notebook is open in a window (its Python: the test's Streamlit one), which sends its cells.
+    sent = [
+        {"cell": 1, "code": FILTER},
+        {"cell": 2, "code": TOTAL_VALUE},
+        {"cell": 3, "code": markdown, "kind": "markdown"},
+        {"cell": 4, "code": card, "kind": "html", "name": "KPI card"},
+        {"cell": 5, "code": hostile},
+    ]
+    window = {"title": "story.ipynb", "document": str(notebook), "python": STREAMLIT_PYTHON, "cells": sent}
+    document = live.user("POST", "/streamlit/apps", window)["app"]
+    app = command("streamlit_open", path=str(folder / "story.stapp.json"))["app"]
+    command("streamlit_page_add", app=app, name="Overview")
+    # The golden rule: the agent places them with the canvas's own commands.
+    for cell in (3, 4, 1, 2, 5):
+        command("streamlit_block_place", app=app, page="p1", document=str(notebook), cell=cell)
+    command("streamlit_save", app=app)
+    ran = command("streamlit_run", app=app)
+    try:
+        assert ran["running"] is True and ran["problem"] is None, ran["problem"]
+        temporary = Path(ran["folder"])
+        seen = _text_app_test(next(temporary.glob("page_p1_*.py")), "West", temporary)
+        # Choosing a region changes the Markdown's text and the HTML's; a value is text, never markup.
+        first, picked = seen["first"], seen["picked"]
+        assert first["errors"] == [] and picked["errors"] == []
+        assert first["markdown"][0].startswith("## Sales in East\nTotal for East: **140**")
+        assert picked["markdown"][0].startswith("## Sales in West\nTotal for West: **250**")
+        assert "&lt;/script&gt;&lt;b&gt;\\*x\\*&lt;/b&gt;" in picked["markdown"][0]
+        body, scripts = picked["html"][0]
+        assert scripts is True and "<b>250</b> in West" in body and "window.sabTotal = 250;" in body
+        assert "<p>&lt;/script&gt;&lt;b&gt;*x*&lt;/b&gt;</p>" in body
+        with allowing(live):
+            exported = command("streamlit_export", app=app, folder=str(tmp_path / "exported"))
+        zipped = command("streamlit_save_as", app=app, path=str(tmp_path / "story.zip"))
+    finally:
+        command("streamlit_stop", app=app)
+        command("streamlit_close", app=document)
+    # The export runs alone: its pages import sab_text.py beside app.py; nothing new is needed.
+    out = Path(exported["folder"])
+    assert (out / "sab_text.py").is_file() and "streamlit>=1.52" in (out / "requirements.txt").read_text()
+    assert "nothing new installed" in (out / "README.txt").read_text()
+    alone = _text_app_test(out / "app_pages" / "overview.py", "North", out)
+    assert alone["picked"]["errors"] == [] and alone["picked"]["markdown"][0].startswith("## Sales in North")
+    # The saved project's pages: sab_text.py beside data.py, and the README says nothing new is needed.
+    unzipped = tmp_path / "unzipped"
+    with zipfile.ZipFile(zipped["path"]) as held:
+        held.extractall(unzipped)
+        names = held.namelist()
+    assert "sab_text.py" in names and "nothing new installed" in (unzipped / "README.txt").read_text()
+    saved = _text_app_test(unzipped / "pages" / "overview.py", "West", unzipped)
+    assert saved["picked"]["errors"] == [] and "Total for West: **250**" in saved["picked"]["markdown"][0]
+    assert saved["picked"]["html"][0][1] is True

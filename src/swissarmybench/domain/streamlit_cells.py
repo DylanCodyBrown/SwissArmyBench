@@ -21,13 +21,21 @@ Pure rules, no I/O:
 
 A Python cell that calls Streamlit (domain/streamlit_use.py) is also shown live in its own cell: a
 piece alone, with the cells that make the names it reads.
+
+A Markdown or HTML cell goes on a page too (docs/ideas.md, text cells on the canvas, 2026-11-15): it is
+written as the Python a page runs (`text_code`): `st.markdown(...)`, or `st.html(...)` (with
+`unsafe_allow_javascript=True` when it holds a <script>). Its `{{ name }}` values are what it reads, so
+a filter drives the text and the run order counts them; they are filled by the HTML cells' own rules
+(domain/html_cells.py, a copy of which goes beside the page as `sab_text.py`). It makes nothing.
 """
 
 from __future__ import annotations
 
 import ast
+import html
 import io
 import json
+import keyword
 import ntpath
 import posixpath
 import re
@@ -37,7 +45,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
-from swissarmybench.domain import notebooks, table_cells
+from swissarmybench.domain import html_cells, notebooks, table_cells
 from swissarmybench.domain.blades import pip_name, provided
 from swissarmybench.domain.html_cells import check_height
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
@@ -94,6 +102,17 @@ WIDGETS: frozenset[str] = frozenset(
 # What every page has before its blocks run: Streamlit and pandas, under their usual names.
 PROVIDED: frozenset[str] = frozenset({"st", "pd"})
 REQUIREMENTS: tuple[str, ...] = ("streamlit>=1.36", "pandas", "pyarrow")
+# A Markdown or HTML cell on a page: the kinds, and the module beside the page that fills its names (a
+# copy of domain/html_cells.py, standard library only: nothing new to install).
+TEXT_KINDS: tuple[str, ...] = ("markdown", "html")
+TEXT_MODULE: str = "sab_text"
+TEXT_FILE: str = f"{TEXT_MODULE}.py"
+TEXT_HEADER: str = (
+    "# Written by Swiss Army Bench: the rules that fill a Markdown or HTML block's {{ names }} on these\n"
+    "# pages (its domain/html_cells.py). Standard library only.\n"
+)
+# st.html runs a block's own scripts with unsafe_allow_javascript, which Streamlit 1.52 brought.
+SCRIPT_STREAMLIT: str = "streamlit>=1.52"
 
 # A block's cell: the linked file's path (as the app holds it) and the cell's own number. A piece
 # shown alone in its own document has "" for the path.
@@ -175,10 +194,94 @@ def tables_named(code: str, tables: Iterable[str]) -> list[str]:
     return [name for name in table_cells.names_used(body(code)) if name in known]
 
 
-def live_cells(cells: Sequence[tuple[int, str]]) -> list[int]:
-    """The cells of a document that call Streamlit (each is shown live in its cell), by number."""
-    usual = usual_name(tuple(code for _, code in cells))
-    return [number for number, code in cells if code.strip() and uses_streamlit(body(code), usual)]
+def live_cells(cells: Sequence[tuple[int, str]], texts: Iterable[int] = ()) -> list[int]:
+    """The cells of a document that call Streamlit (each is shown live in its cell), by number.
+    `texts`: its Markdown and HTML cells (their page code calls Streamlit, but they are not live)."""
+    skip = set(texts)
+    python = tuple(code for number, code in cells if number not in skip)
+    usual = usual_name(python)
+    return [
+        number
+        for number, code in cells
+        if number not in skip and code.strip() and uses_streamlit(body(code), usual)
+    ]
+
+
+# ===== a Markdown or HTML cell, as a page writes it =====
+
+_BLOCK_TAGS = re.compile(
+    r"</?(?:h[1-6]|p|div|li|ul|ol|tr|table|br|hr|header|footer|section|article|aside|nav|main|"
+    r"blockquote|pre|figure|figcaption|caption|dl|dt|dd)\b[^>]*>",
+    re.IGNORECASE,
+)
+
+
+def text_title(kind: str, text: str, number: int) -> str:
+    """What a Markdown or HTML cell is called on a canvas without a name of its own: its first line of
+    words (an HTML cell's without its tags; a Markdown cell's without its marks, outside its fenced
+    blocks: one that is only a ```mermaid block is "Mermaid diagram"), else "Markdown cell N" or "HTML
+    cell N" (N: the cell's own number)."""
+    plain = text
+    if kind == "html":
+        plain = re.sub(r"<!--.*?(?:-->|$)", " ", plain, flags=re.DOTALL)
+        plain = re.sub(r"<(script|style)\b.*?(?:</\1\s*>|$)", " ", plain, flags=re.DOTALL | re.IGNORECASE)
+        plain = html.unescape(re.sub(r"<[^>]*>", "", _BLOCK_TAGS.sub("\n", plain)))
+    else:
+        fenced = sorted(html_cells.markdown_code(text), reverse=True)
+        for start, end in fenced:
+            if text.startswith(("```", "~~~"), start) or text[start:].lstrip(" ").startswith(("```", "~~~")):
+                plain = plain[:start] + "\n" + plain[end:]
+    for line in plain.split("\n"):
+        words = line.strip()
+        if kind == "markdown":
+            words = re.sub(r"^(?:[#>]+|[-*+]|\d+[.)])\s+", "", words)
+            words = re.sub(r"[*`]+|(?<!\w)_+|_+(?!\w)", "", words).strip()
+            if re.fullmatch(r"[-=*_|: ]*", words):  # a rule, a table's rule row
+                continue
+        words = " ".join(words.split()).lstrip("%!")
+        if words:
+            return words[:MAX_NAME]
+    if kind == "markdown" and html_cells.mermaid_blocks(text):
+        return "Mermaid diagram"
+    return f"{'Markdown' if kind == 'markdown' else 'HTML'} cell {number}"
+
+
+def _python_text(text: str) -> str:
+    """Text as a Python literal: as typed (a raw string) whenever Python can hold it that way."""
+    plain = not re.search(r"[\x00-\x08\x0b-\x1f\x7f]", text)
+    if plain and '"""' not in text and not text.endswith(('"', "\\")):
+        return f'r"""{text}"""'
+    return repr(text)
+
+
+def text_code(kind: str, text: str, number: int) -> str:
+    """A Markdown or HTML cell as a page runs it: `st.markdown(...)` or `st.html(...)`, the latter with
+    `unsafe_allow_javascript=True` only when it holds a <script> the browser would run. Its `{{ name }}`
+    values are read where the page stands (each through a lambda, so the run order counts them as
+    reads) and filled by the HTML cells' rules, from the copy beside the page. Without names the text
+    goes in as it is. An HTML cell's uses line is the app's, not the page's: it is left out."""
+    text = table_cells.split_uses(text, html=True)[1] if kind == "html" else text
+    head = f"# {text_title(kind, text, number)}"
+    if not text.strip():
+        return head + "\n"  # it shows nothing: the page runs `pass` in its slot
+    named = [name for name in html_cells.names(text) if not keyword.iskeyword(name)]
+    literal = _python_text(text)
+    lines = [head]
+    if named:
+        getters = ", ".join(f'"{name}": lambda: {name}' for name in named)
+        lines += [f"import {TEXT_MODULE} as _sab_text", ""]
+        literal = f"_sab_text.page_{kind}({literal}, {{{getters}}})"
+    if kind == "markdown":
+        lines.append(f"st.markdown({literal})")
+    else:
+        scripts = ", unsafe_allow_javascript=True" if html_cells.has_script(text) else ""
+        lines.append(f"st.html({literal}{scripts})")
+    return "\n".join(lines) + "\n"
+
+
+def uses_text_module(code: str) -> bool:
+    """The code fills a text block's names from `sab_text.py` (the copy goes beside the page)."""
+    return TEXT_MODULE in facts(code).modules
 
 
 # ===== links: a block's file against the app's file; a linked file's Python cells =====
@@ -236,35 +339,61 @@ def same_file(a: str, b: str) -> bool:
     return left == right
 
 
-def document_cells(path: str, text: str) -> list[tuple[int, str]]:
-    """A notebook's or script's Python cells as (the cell's own number, its code), in file order: the
-    cells a block can link to. A table's read-only cell and the Tables group's own lines are not the
-    user's; a script cell without a number yet (never opened here) cannot be linked."""
+@dataclass(frozen=True)
+class Linkable:
+    """A cell a block can link to: its own number, its kind (code, markdown, html), its code as a page
+    runs it (a Markdown or HTML cell's: `text_code`), and its own name."""
+
+    number: int
+    kind: str
+    code: str
+    name: str | None = None
+
+
+def linkable(path: str, text: str) -> list[Linkable]:
+    """A notebook's or script's cells that go on a page, in file order: its Python cells, its Markdown
+    and HTML cells. A table's read-only cell and the Tables group's own lines are not the user's; a
+    script cell without a number yet (never opened here) cannot be linked; a script's HTML cell whose
+    string is not whole yet is left out."""
+    found: list[Linkable] = []
     if notebooks.kind_of(path) == "notebook":
         cells, _ = notebooks.read_document(text)
-        return [
-            (c.number, c.source)
-            for c in cells
-            if c.kind == "code" and c.role in ("", "maker") and c.number is not None
-        ]
-    return [
-        (c.number, c.source.rstrip("\n"))
-        for c in table_cells.parse_script(text).cells
-        if c.number is not None and not c.fixed and not c.html and c.role in ("", "maker")
-    ]
+        for c in cells:
+            if c.number is None:
+                continue
+            if c.kind == "code" and c.role in ("", "maker"):
+                found.append(Linkable(c.number, "code", c.source, c.name))
+            elif c.kind in TEXT_KINDS and c.role == "":
+                found.append(Linkable(c.number, c.kind, text_code(c.kind, c.source, c.number), c.name))
+        return found
+    for s in table_cells.parse_script(text).cells:
+        if s.number is None or s.fixed or s.role not in ("", "maker"):
+            continue
+        name = table_cells.marker_name(s.title)
+        if not s.html:
+            found.append(Linkable(s.number, "code", s.source.rstrip("\n"), name))
+            continue
+        held = html_cells.read_script_body(s.source)[0]
+        if held is not None:
+            found.append(Linkable(s.number, "html", text_code("html", held, s.number), name))
+    return found
+
+
+def document_cells(path: str, text: str) -> list[tuple[int, str]]:
+    """A notebook's or script's cells a block can link to (`linkable`) as (the cell's own number, its
+    code as a page runs it), in file order."""
+    return [(c.number, c.code) for c in linkable(path, text)]
 
 
 def document_names(path: str, text: str) -> dict[int, str]:
-    """The names a notebook's or script's Python cells have (a notebook's metadata, a script's marker
-    words), by the cell's own number. A cell without a name is not listed."""
-    if notebooks.kind_of(path) == "notebook":
-        cells, _ = notebooks.read_document(text)
-        return {c.number: c.name for c in cells if c.kind == "code" and c.number is not None and c.name}
-    return {
-        c.number: name
-        for c in table_cells.parse_script(text).cells
-        if c.number is not None and not c.fixed and not c.html and (name := table_cells.marker_name(c.title))
-    }
+    """The names those cells have (a notebook's metadata, a script's marker words), by the cell's own
+    number. A cell without a name is not listed."""
+    return {c.number: c.name for c in linkable(path, text) if c.name}
+
+
+def document_kinds(path: str, text: str) -> dict[int, str]:
+    """Which of those cells are Markdown or HTML cells, by the cell's own number."""
+    return {c.number: c.kind for c in linkable(path, text) if c.kind in TEXT_KINDS}
 
 
 def cell_title(code: str, number: int, name: str | None = None) -> str:
@@ -693,7 +822,7 @@ def indented(code: str, by: str = "    ") -> str:
     return "\n".join(out)
 
 
-def _runs_something(code: str) -> bool:
+def runs_something(code: str) -> bool:
     try:
         return bool(ast.parse(code).body)
     except (SyntaxError, ValueError, RecursionError):
@@ -879,7 +1008,7 @@ def page_code(
         text = keyed(body(piece.code).rstrip("\n"), b.id)
         if notes and block_id in notes:
             text = f"st.caption({notes[block_id]!r})\n{text}"
-        if not _runs_something(text):
+        if not runs_something(text):
             text = "pass"
         out.append(f"with _slot_{b.id}:")
         if guard:
@@ -1004,11 +1133,14 @@ def slug(name: str, taken: Iterable[str] = ()) -> str:
 def requirements(codes: Iterable[str], base: Sequence[str] = REQUIREMENTS) -> list[str]:
     """What the app needs: Streamlit, pandas and pyarrow (or `base`), and what its cells import (found
     with Python's parser; the standard library and this app left out)."""
+    every = list(codes)
     needed = list(base)
+    if any("unsafe_allow_javascript" in code for code in every):
+        needed = [SCRIPT_STREAMLIT if re.match(r"streamlit\b", line) else line for line in needed]
     have = {re.split(r"[<>=!~ ]", line)[0].lower() for line in needed}
-    for code in codes:
+    for code in every:
         for module in facts(code).modules:
-            if provided(module):
+            if provided(module) or module == TEXT_MODULE:
                 continue
             name = pip_name(module)[0]
             if name.lower() not in have:
@@ -1035,7 +1167,18 @@ Run it:
 app.py          the app: its pages
 app_pages/      one module for each page, laid out as it was designed
 data/           the tables the pages read, as Parquet
-"""
+{text}"""
+
+# What a README says of the copy that fills the Markdown and HTML blocks' names (nothing new to install).
+TEXT_README: str = (
+    f"{TEXT_FILE}     fills the {{{{ names }}}} of the Markdown and HTML blocks: standard library only, so\n"
+    "                they need nothing new installed\n"
+)
+
+
+def text_file(helper: str) -> str:
+    """`sab_text.py`: the HTML cells' rules (domain/html_cells.py's text, `helper`) with a line on top."""
+    return TEXT_HEADER + helper
 
 
 def export(
@@ -1046,9 +1189,12 @@ def export(
     found: Mapping[Key, Facts] | None = None,
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
+    helper: str = "",
 ) -> Export:
     """The pages as a runnable folder: app.py (st.navigation over the pages), one module a page,
-    requirements.txt and README.txt. The tables it names go into data/ (the caller writes them)."""
+    requirements.txt and README.txt. The tables it names go into data/ (the caller writes them). A
+    page with a Markdown or HTML block that names a value gets `sab_text.py` beside app.py: `helper`,
+    the text of domain/html_cells.py (the pages import it; Streamlit puts app.py's folder on the path)."""
     if not pages:
         raise StreamlitError("There is no page to export yet.")
     named = list(tables)
@@ -1090,7 +1236,10 @@ def export(
     lines += ["    ]", ").run()", ""]
     files["app.py"] = "\n".join(lines)
     files["requirements.txt"] = "\n".join(requirements(codes)) + "\n"
-    files["README.txt"] = README.format(title=title)
+    texts = bool(helper) and any(uses_text_module(code) for code in codes)
+    if texts:
+        files[TEXT_FILE] = text_file(helper)
+    files["README.txt"] = README.format(title=title, text=TEXT_README if texts else "")
     return Export(files, tuple(used), tuple(problems))
 
 
@@ -1103,6 +1252,8 @@ class SavedPages:
     tables: tuple[str, ...]  # the names the pages import from data.py
     problems: tuple[str, ...]
     requirements: tuple[str, ...]  # what the pages' own code needs installed
+    # A page fills a Markdown or HTML block's names: sab_text.py goes beside data.py (`text_file`).
+    texts: bool = False
 
 
 # A saved page's second line: whose export it is. Save as writes over (and takes away) only the
@@ -1164,7 +1315,8 @@ def saved_pages(
         problems += [f"{page.name}: {p}" for p in made.problems]
         codes += [pieces[b.key].code for b in page.blocks if b.key in pieces]
     needed = requirements(codes, ["streamlit>=1.36", "pandas"])
-    return SavedPages(files, tuple(used), tuple(problems), tuple(needed))
+    texts = any(uses_text_module(code) for code in codes)
+    return SavedPages(files, tuple(used), tuple(problems), tuple(needed), texts)
 
 
 def bundle_names(documents: Sequence[str], taken: Iterable[str] = ()) -> dict[str, str]:

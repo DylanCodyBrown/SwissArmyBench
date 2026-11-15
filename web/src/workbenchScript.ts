@@ -119,15 +119,20 @@ interface PieceCell {
 }
 
 const PIECE_MARKER = /^# ?%% \[(\d+)\](?! \[(?:html|table|transformations)\])(?:\s|$)/;
+const HTML_MARKER = /^# ?%% \[(\d+)\] \[html\](?:\s|$)/;
 
-/** A script's numbered Python cells from its text: each `# %% [n]` cell's lines (the Tables group's
- *  own cells and HTML cells left out). */
+/** A script's numbered cells from its text: each Python `# %% [n]` cell's lines, and each HTML cell's
+ *  lines as `form: "script"` (the server reads the HTML from its string: they go on a page too). The
+ *  Tables group's own cells are left out. */
 export function scriptPieces(text: string): PieceSource[] {
   const found: PieceSource[] = [];
-  let current: { cell: number; name: string; lines: string[] } | null = null;
+  let current: { cell: number; name: string; lines: string[]; html: boolean } | null = null;
   let grouped = false;
   const close = (): void => {
-    if (current && current.lines.some((l) => l.trim())) found.push({ cell: current.cell, code: current.lines.join("\n").replace(/\s+$/, ""), ...(current.name ? { name: current.name } : {}) });
+    if (current && current.lines.some((l) => l.trim())) {
+      const html = current.html ? ({ kind: "html", form: "script" } as const) : {};
+      found.push({ cell: current.cell, code: current.lines.join("\n").replace(/\s+$/, ""), ...html, ...(current.name ? { name: current.name } : {}) });
+    }
     current = null;
   };
   for (const line of text.split("\n")) {
@@ -135,9 +140,9 @@ export function scriptPieces(text: string): PieceSource[] {
     else if (/^# ?endregion\b/.test(line)) grouped = false;
     if (/^# ?(%%|region Tables\s*$|endregion\b)/.test(line)) {
       close();
-      const marker = grouped ? null : PIECE_MARKER.exec(line);
+      const marker = grouped ? null : (PIECE_MARKER.exec(line) ?? HTML_MARKER.exec(line));
       // The cell's name: its marker's own words (`# %% [7] Region filter`).
-      if (marker) current = { cell: Number(marker[1]), name: markerName(markerWordsOf(line) ?? ""), lines: [] };
+      if (marker) current = { cell: Number(marker[1]), name: markerName(markerWordsOf(line) ?? ""), lines: [], html: HTML_MARKER.test(line) };
     } else if (current) current.lines.push(line);
   }
   close();
@@ -950,11 +955,14 @@ export function scriptView(
     },
     copy: (number) => {
       const line = editor?.cursorLine() ?? 0;
-      const cell = outline.cells.find((c) => (number === undefined ? line >= c.line && line <= c.end : c.number === number) && !c.grouped && c.kind !== "html");
-      if (!cell || cell.number === null) throw new Error(number === undefined ? "The cursor is not in a numbered Python cell (a `# %%` cell)." : `This script has no Python cell ${number}.`);
-      const source = scriptPieces(editor ? editor.value() : text).find((c) => c.cell === cell.number)?.code ?? "";
+      const cell = outline.cells.find((c) => (number === undefined ? line >= c.line && line <= c.end : c.number === number) && !c.grouped);
+      if (!cell || cell.number === null) throw new Error(number === undefined ? "The cursor is not in a numbered cell (a `# %%` cell)." : `This script has no Python or HTML cell ${number}.`);
+      // An HTML cell is copied as its HTML: a canvas places its link, a notebook pastes an HTML cell.
+      const html = cell.kind === "html";
+      if (html && cell.html == null) throw new Error(cell.problem ?? "This HTML cell's string is not whole yet.");
+      const source = html ? (cell.html ?? "") : (scriptPieces(editor ? editor.value() : text).find((c) => c.cell === cell.number)?.code ?? "");
       const where = hooks.streamlit?.link() ?? { document: null, title: "this script" };
-      copyCell({ document: where.document, cell: cell.number, title: where.title, kind: "code", source, connection: null, height: cell.height ?? null });
+      copyCell({ document: where.document, cell: cell.number, title: where.title, kind: html ? "html" : "code", source, connection: null, height: cell.height ?? null });
       return { cell: cell.number, document: where.document };
     },
     nameCell: (number, name) => {

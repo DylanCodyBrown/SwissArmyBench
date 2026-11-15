@@ -14,10 +14,10 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import snippets
+from swissarmybench.domain import html_cells, snippets
 from swissarmybench.domain.blades import FAMILIES, STARTERS, parse_blade, read_blade, write_blade
 from swissarmybench.domain.snippets import SnippetError, fill, placeholders
-from swissarmybench.domain.streamlit_cells import facts
+from swissarmybench.domain.streamlit_cells import facts, text_code
 from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
@@ -58,7 +58,7 @@ def filled(blade: dict[str, Any]) -> str:
 
 def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     found = blades()
-    assert len(found) == 87
+    assert len(found) == 97
     counts = Counter(b["family"] for b in found)
     assert counts == {
         "Power BI": 13,
@@ -66,6 +66,7 @@ def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
         "Files": 3,
         "DAX": 11,
         "HTML": 10,
+        "Markdown": 10,
         "Streamlit": 29,
         "Components": 9,
     }
@@ -161,6 +162,23 @@ def test_html_escapes_markup_and_takes_only_a_name_in_an_html_cells_braces() -> 
         fill(text, "html", {"label": "x", "table": "orders }}<script>"})
 
 
+def test_markdown_escapes_the_marks_that_format_and_takes_code_as_typed() -> None:
+    text = "# <<title>>\n\n**{{ <<total name>> }}** in `<<column>>`"
+    # A value reads as typed, but for the marks that would format, link, fill a name or become markup.
+    values = {"title": "Made-up *sales*, 2026-01-31 [draft] <b>", "total name": "total", "column": "c"}
+    out = fill(text, "markdown", values)
+    assert out.startswith("# Made-up \\*sales\\*, 2026-01-31 \\[draft\\] &lt;b&gt;\n\n**{{ total }}**")
+    # Inside a code span the value goes as it is (an underscore is not escaped there); no backtick.
+    filled = fill(text, "markdown", {"title": "T", "total name": "total", "column": "order_date"})
+    assert filled.endswith("in `order_date`")
+    with pytest.raises(SnippetError, match="cannot hold a backtick"):
+        fill(text, "markdown", {"title": "T", "total name": "total", "column": "a`b"})
+    # Inside a Markdown cell's braces only a name, as in an HTML cell's; a typed value cannot make one.
+    with pytest.raises(SnippetError, match="is a Python name"):
+        fill(text, "markdown", {"title": "T", "total name": "x }} {{ y", "column": "c"})
+    assert "{{" not in fill("<<title>>", "markdown", {"title": "{{ secret }}"})
+
+
 def test_a_broken_placeholder_or_a_line_break_is_refused() -> None:
     with pytest.raises(SnippetError, match="Line 2: a placeholder is <<name>>"):
         snippets.check("ok\n<<Not Lowercase>>", "dax")
@@ -207,6 +225,24 @@ def test_an_html_snippet_fills_with_inline_styles_and_nothing_from_outside(blade
     assert "<<" not in text and text.strip()
     assert not re.search(r"https?://|//[a-z]|<link|@import|url\(|src=", text, re.IGNORECASE)
     assert text.count("<div") == text.count("</div>")
+
+
+@pytest.mark.parametrize(
+    "blade", [b for b in blades() if b.get("language") == "markdown"], ids=lambda b: b["name"]
+)
+def test_a_markdown_snippet_says_the_names_it_reads_and_fills_as_text(blade: dict[str, Any]) -> None:
+    text = filled(blade)
+    assert "<<" not in text and text.strip()
+    # Its description ends with the names its {{ }} read, as filled with its own defaults.
+    said = re.search(r"\(reads (.+)\)$", blade["description"])
+    assert said, blade["description"]
+    listed = [] if said.group(1) == "no names" else said.group(1).split(", ")
+    assert html_cells.names(text) == listed
+    # Markdown only: nothing from outside, and no HTML (a Streamlit page's st.markdown shows it as text).
+    assert not re.search(r"https?://|<[a-z!/]", text, re.IGNORECASE)
+    # On a page it is st.markdown, its names the reads the run order counts.
+    page = text_code("markdown", text, 3)
+    assert facts(page).reads == ("st", *listed) and "unsafe" not in page
 
 
 def _header(text: str, word: str) -> list[str]:

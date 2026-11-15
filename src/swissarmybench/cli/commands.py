@@ -1309,7 +1309,7 @@ def blades_import(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_starters",
-    "The built-in starter pack by family (Power BI, Excel, Files, DAX, HTML, Streamlit, Components): "
+    "The built-in starter pack by family (Power BI, Excel, Files, DAX, HTML, Markdown, Streamlit, Components): "
     "read-only blades and snippets",
 )
 def blades_starters(a: dict[str, Any]) -> Any:
@@ -2595,8 +2595,8 @@ def workbench_dax_add(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_snippet_insert",
-    "Insert a filled snippet into the front Workbench document: DAX or HTML into a cell of its kind, a "
-    "Streamlit piece as a named Python cell",
+    "Insert a filled snippet into the front Workbench document: DAX, HTML or Markdown into a cell of its "
+    "kind, a Streamlit piece as a named Python cell",
     req("name", "The snippet."),
     opt("values", '{"placeholder": "value"} (default: each one\'s own)', "json"),
     opt("number", "The cell's own number (default: a new cell, or the selected one).", "int"),
@@ -2608,7 +2608,8 @@ def workbench_snippet_insert(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_cells",
-    "The front Workbench document's HTML cells: number, HTML, names, height, and whether it needs a run",
+    "The front Workbench document's HTML cells (and Markdown cells with names): number, text, names, "
+    "height, and whether it needs a run",
 )
 def workbench_html_cells(a: dict[str, Any]) -> Any:
     return _window("html.list", {})
@@ -2616,7 +2617,8 @@ def workbench_html_cells(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_html_run",
-    "Run an HTML cell in the front Workbench document: fill its names and draw it (default: every one "
+    "Run an HTML cell (or a Markdown cell with names) in the front Workbench document: fill its names "
+    "and draw it (default: every one "
     "that needs a run)",
     opt("number", "The cell's own number.", "int"),
 )
@@ -2638,14 +2640,16 @@ def workbench_html_resize(a: dict[str, Any]) -> Any:
 @command(
     "workbench_html_fill",
     "An HTML cell's design as text: its HTML with each {{ name }} filled from a run's values (nothing runs)",
-    req("html", "The cell's HTML."),
+    req("html", "The cell's HTML (or a Markdown cell's text, with markdown)."),
     opt(
         "values", "{name: value} from a run's output (default: none, so every name shows as written).", "json"
     ),
+    opt("markdown", "It is a Markdown cell's text: each value is written as text.", "bool"),
     values=True,
 )
 def workbench_html_fill(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/workbench/html/fill", {"html": a["html"], "values": a.get("values") or {}})
+    key = "markdown" if a.get("markdown") else "html"
+    return api.call("POST", "/workbench/html/fill", {key: a["html"], "values": a.get("values") or {}})
 
 
 @command(
@@ -2659,8 +2663,8 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
 
 
 # ===== Streamlit: the canvas, live cells, projects (docs/ideas.md, 2026-11-15) =====
-# A Streamlit app is a document of its own: pages of blocks, each block a link to a Python cell of a
-# notebook or script. There is no Streamlit kind of cell: a Python cell that calls Streamlit is shown
+# A Streamlit app is a document of its own: pages of blocks, each block a link to a Python, Markdown or
+# HTML cell of a notebook or script (a Markdown or HTML cell is st.markdown or st.html on the page). There is no Streamlit kind of cell: a Python cell that calls Streamlit is shown
 # live in its cell. The window's commands work on what is in front; the streamlit_* commands on an
 # app by its id; the project_* commands on a project's folder.
 
@@ -2732,7 +2736,8 @@ def workbench_cell_name(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_cells",
-    "Every Python cell that calls Streamlit, by document (the Streamlit cells pane)",
+    "Every Python cell that calls Streamlit, and every Markdown and HTML cell (kind), by document (the "
+    "Streamlit cells pane)",
     opt("folder", "A project's folder: its files on disk too."),
 )
 def streamlit_cells(a: dict[str, Any]) -> Any:
@@ -2964,7 +2969,7 @@ def streamlit_page_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_block_place",
-    "Place a Python cell's link on a canvas's page (as dragging it there)",
+    "Place a Python, Markdown or HTML cell's link on a canvas's page (as dragging it there)",
     req("app", "The app's id."),
     req("page", "The page's id."),
     req("document", "The saved notebook's or script's path."),

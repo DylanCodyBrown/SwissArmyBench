@@ -7190,6 +7190,78 @@ body.dropping-file::after {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Markdown and HTML cells go on a page too (text cells on the canvas): under their own heading, Text,
+   each marked T (in the pane and on a canvas's block). */
+.wb-st-text-head {
+  margin: 6px 0 3px;
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wb-st-cell.text {
+  border-left-color: var(--muted);
+}
+
+/* The T mark, then the name at the start of the line (the check mark still at its end). */
+.wb-st-cell.text .wb-data-name {
+  align-items: center;
+  gap: 0;
+}
+
+.wb-st-cell.text .wb-data-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-st-t {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* A Markdown cell with names: its state line above its text (an HTML cell's design bar). */
+.wb-markdown-view .wb-text-bar {
+  margin: 0 0 6px;
+}
+
+.wb-markdown-view > .note-body,
+.wb-markdown-view > .wb-design-notes {
+  padding: 2px 12px 6px;
+}
+
+.wb-markdown-view .wb-text-bar[hidden] {
+  display: none;
+}
+
+/* A Markdown cell's ```mermaid block, drawn (or its error, in place). */
+.wb-markdown-view .md-mermaid {
+  margin: 6px 0;
+  overflow-x: auto;
+}
+
+.wb-markdown-view .md-mermaid.error-text {
+  color: var(--error);
+  font-size: 0.92em;
+}
+
+.wb-cell.kind-markdown.stale .wb-text-bar {
+  background: var(--warn-soft);
+}
+
 /* A document on its way to another Workbench window: nothing more is typed here. */
 .wb-doc-body.moving {
   opacity: 0.55;

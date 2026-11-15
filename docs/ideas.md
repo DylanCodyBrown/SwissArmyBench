@@ -1984,3 +1984,85 @@ Decided on that basis:
   - the Power BI sign-in uses Python's own web library for the app registration (no new dependency);
   - the canvas has no separate Cells list (the Data panel's Streamlit cells pane does that job);
   - the uv installer stays (the desktop app above is parked).
+
+## Text cells on the canvas: Markdown and HTML cells on a Streamlit page (2026-11-15, the owner; built)
+
+"Right we should definitely create some markdown blades and make it compatible to drive markdown cells
+into streamlit app and make it compatible to drag HTML cells into the streamlit app." "If it were
+possible to use a markdown so in a notebook it would be amazing." "Make sure the markdown and HTML
+cells are available for streamlit." Built, for the first beta (0.0.1):
+
+- **A Markdown or HTML cell goes on a canvas like a Python cell:** dragged by its number or head, from
+  the Streamlit cells pane, or copied and pasted (a script's HTML cell by Copy the cell). The canvas
+  commands take them as they are (`streamlit_block_place` and the rest): a block is a link, so the
+  app's file is unchanged (no kind, no code) and old app files read as before.
+- **On the page** a Markdown cell is `st.markdown(...)` and an HTML cell `st.html(...)`, with
+  `unsafe_allow_javascript=True` only when the HTML holds a `<script>` the browser would run (found by
+  the HTML cells' own reading: one inside a comment or a `<textarea>` does not count). Checked in
+  Streamlit 1.67; the parameter came in Streamlit 1.52, so an export with such a block asks for
+  `streamlit>=1.52`. An HTML cell's uses line is the app's: it is left off the page.
+- **Names are reads.** `{{ region }}` in a text cell is read on the page through a small lambda per
+  name, so Python's parser counts it as a read: the run order puts the filter first, the wiring
+  ("reads region") and "place that cell here too" work as for a Python cell. A text cell makes
+  nothing. A name no block makes shows *{{ region }} not found*, as in an HTML cell.
+- **One filler, the HTML cells' own.** The page fills its names with domain/html_cells.py itself, a
+  copy written beside the pages as `sab_text.py` (with a line on top saying what it is): it is standard
+  library only and imports nothing of Swiss Army Bench, so an export and a saved project need nothing
+  new installed. To make that true, the reading of a value by its shape (a DataFrame, a figure) moved
+  from client/html_cells.py into domain/html_cells.py (`record_of`); the kernel's side calls it. The
+  copy goes into the live app's folder, an export's folder (beside app.py) and a saved project (beside
+  data.py, in the zip, and the README says it needs nothing new). Only when a block names a value: a
+  plain Markdown or HTML block is written as its text. The Workbench does not open `sab_text.py` as a
+  project's script.
+- **Live Markdown in the notebook.** A Markdown cell with `{{ name }}` runs as an HTML cell does (the
+  same `%%sab_html` run gives its values and marks) and shows its filled text when not being edited,
+  with the HTML cells' states (Not run yet, Out of date · total changed, Run). A Markdown cell without
+  names is plain Markdown, as before. **A value in Markdown is always text** (`markdown_text`): every
+  Markdown mark (`\ ` * _ { } [ ] ( ) # + - . ! | ~ : $ = ^`) is escaped with a backslash and the
+  markup characters as HTML's references, on one line (a line break would end a heading or a table's
+  row). Inside code (a code span or a fenced block) only plain words and numbers go, as inside an HTML
+  tag. A table alone on its line is a pipe table (first 50 rows, 30 columns, and what it leaves out);
+  elsewhere its size. A picture says so (an HTML cell shows it). The Workbench's own Markdown renderer
+  now reads a backslash escape and those references as their characters (Jupyter and Streamlit
+  already do).
+- **Decided while building** (each can be changed): a saved notebook keeps no values for a Markdown
+  cell (nbformat gives a Markdown cell no outputs), so after opening it shows its names as written,
+  "Not run yet", until it runs; the page writes Markdown with Streamlit's default (no raw HTML), as the
+  Workbench shows it; a text block's title is its cell's name, else its first words without marks or
+  tags, else "Markdown cell N"; the Streamlit cells pane lists a document's text cells under their own
+  heading, **Text**, each marked **T** (the canvas's blocks too), every non-empty Markdown and HTML
+  cell of the user's (not the Tables group's headings), so a documentation-heavy notebook lists many.
+- **A Markdown starter family** (10, snippets for a Markdown cell): title with subtitle, section heading
+  with a value, KPI sentence, callout, key figures table, what this page shows, executive summary, data
+  dictionary entry, change log entry, footer with source and refresh time. Each one's description ends
+  with the names it reads (`(reads region, total_sales)`, a test holds it to its text); a Markdown
+  snippet has no comment of its own, because an HTML comment would show as text on a Streamlit page.
+  A typed value is written for its place: inside `{{ }}` a Python name only; inside code as typed (no
+  backtick); elsewhere its formatting, linking and name marks escaped (`\ ` * _ [ ] { } | ~ $`, markup
+  as references), the rest as typed, so "Made-up, 2026-01-31" reads as it is. Snippet insertion takes
+  Markdown cells (the cell's menu, a drop, the palette, `workbench_snippet_insert`); a wrong kind is
+  refused ("A Markdown snippet goes in a Markdown cell."). 88 starters.
+- **The agent** (the golden rule): the canvas commands place them; `streamlit_cells` lists them with
+  their `kind`; `workbench_html_cells` and `workbench_html_run` take a Markdown cell with names;
+  `workbench_html_fill` fills a Markdown cell's text with `markdown: true`.
+- **Not built:** Markdown cells in scripts (a script has none); pictures in a Markdown cell's names;
+  dragging a script's cell (it is copied, as before).
+- **Mermaid in a Markdown cell** (the owner, the same day: "Make sure our markdown cell supports
+  mermaid rendering."). A ```mermaid block in a Markdown cell is drawn as a diagram when the cell is
+  not being edited, by the app's own Mermaid (lazy/diagram.ts, loaded the first time one is needed:
+  strict, labels as SVG text, its drawing cleaned by lazy/svgSafe.ts; nothing comes from the
+  internet). A broken diagram says why in its place ("This diagram could not be drawn: Parse error on
+  line 3 ..."). A script has no Markdown cells, so this is notebooks only. **`{{ name }}` in a
+  Mermaid block is Mermaid text** (`mermaid_text`): letters, digits, spaces, `.` and `,` as they are,
+  every other ASCII mark in its full-width form (U+FF01 to U+FF5E: a value's `-->` draws as
+  `－－＞`, its `"`, `[`, `%%` and `;` mean nothing to Mermaid), so a value can close no label, draw
+  no link and start no comment, directive or statement. Mermaid's own entity codes (`#45;`) were tried
+  first and show as `&#45;` in this app's drawings (labels are plain SVG text, `htmlLabels: false`, a
+  safety setting kept), hence the full-width forms. A name not run yet shows as written, in the same
+  form (bare `{{ }}` would be Mermaid's hexagon). A cell that is only a diagram is called "Mermaid
+  diagram" on a canvas.
+- **On a Streamlit page a Mermaid block stays a code block.** Streamlit's Markdown draws no Mermaid,
+  and there is no simple offline way: drawing it needs Mermaid's JavaScript in the browser (about 3 MB,
+  inlined into every page through `st.html` with scripts allowed) or a headless browser to draw it to
+  SVG when the page is written (Node and Chromium, not this app's to install). The page shows the
+  diagram's text; nothing is loaded from a CDN. To be decided by the owner if wanted.

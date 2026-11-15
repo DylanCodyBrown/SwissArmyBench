@@ -249,8 +249,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
   async function paste(): Promise<boolean> {
     const link = copiedCell();
     if (!link) return false;
-    if (link.kind !== "code") {
-      toast("Only a Python cell goes on a Streamlit app's canvas.", "error");
+    if (link.kind !== "code" && link.kind !== "markdown" && link.kind !== "html") {
+      toast("A Python, Markdown or HTML cell goes on a Streamlit app's canvas.", "error");
       return true;
     }
     await place(link);
@@ -455,6 +455,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
       h(
         "div",
         { class: "cv-block-head" },
+        // A Markdown or HTML cell's block: st.markdown or st.html on the page (text cells on the canvas).
+        block.kind === "markdown" || block.kind === "html" ? h("span", { class: "wb-st-t", title: block.kind === "markdown" ? "A Markdown cell" : "An HTML cell", "aria-label": block.kind === "markdown" ? "A Markdown cell" : "An HTML cell" }, "T") : null,
         h("span", { class: "cv-block-name" }, name),
         h("span", { class: "spacer" }),
         others.length ? button("Move to another page", (e) => moveMenu(page, block, e.currentTarget as HTMLElement), { icon: "forward", iconOnly: true, class: "ghost" }) : null,
@@ -556,7 +558,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost): CanvasView {
     if (!refocus && held?.dataset.block) refocus = `${held.dataset.block}${active!.classList.contains("cv-grip") ? ":grip" : ""}`;
     ghost = null;
     board.classList.toggle("empty", !page?.blocks.length);
-    if (!page?.blocks.length) clear(board, h("p", { class: "cv-empty" }, "Drag a Python cell here"));
+    if (!page?.blocks.length) clear(board, h("p", { class: "cv-empty" }, "Drag a cell here: Python, Markdown or HTML"));
     else {
       const byId = new Map(page.blocks.map((b) => [b.id, b]));
       clear(board, ...page.rows.map((row) => h("div", { class: "cv-row" }, ...row.map((blockId) => card(page, byId.get(blockId)!)))));

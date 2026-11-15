@@ -291,7 +291,7 @@ def test_a_link_is_relative_to_the_apps_own_folder() -> None:
     assert rules.same_file("C:\\Work\\a.py", "c:/work/A.py") and not rules.same_file("/w/a.py", "/w/A.py")
 
 
-def test_a_linked_files_python_cells_are_the_ones_a_block_can_name() -> None:
+def test_a_linked_files_python_markdown_and_html_cells_are_the_ones_a_block_can_name() -> None:
     cells = [
         notebooks.Cell("markdown", "# Sales"),
         notebooks.Cell("code", FILTER),
@@ -300,9 +300,20 @@ def test_a_linked_files_python_cells_are_the_ones_a_block_can_name() -> None:
             "code", "import duckdb\norders = duckdb.sql('...').df()", role="transformations", table="orders"
         ),
         notebooks.Cell("code", TOTAL),
+        notebooks.Cell("html", "<p>{{ total }}</p>"),
     ]
     text = notebooks.write_notebook(cells)
-    assert rules.document_cells("/work/sales.ipynb", text) == [(2, FILTER), (5, TOTAL)]
+    # A Markdown or HTML cell is linked as the Python its page runs (text cells on the canvas, 2026-11-15).
+    assert rules.document_cells("/work/sales.ipynb", text) == [
+        (1, rules.text_code("markdown", "# Sales", 1)),
+        (2, FILTER),
+        (5, TOTAL),
+        (6, rules.text_code("html", "<p>{{ total }}</p>", 6)),
+    ]
+    assert rules.document_kinds("/work/sales.ipynb", text) == {1: "markdown", 6: "html"}
+    # The Tables group's own headings are the app's, not the user's: never on a page.
+    heading = notebooks.Cell("markdown", "## Tables", role="tables")
+    assert rules.document_kinds("/work/t.ipynb", notebooks.write_notebook([heading])) == {}
     # A script's cell without a number (never opened here) cannot be linked; its main code never.
     assert rules.document_cells("/work/s.py", "x = 1\n# %%\ny = 2\n# %% [3] Named\nz = 3\n") == [(3, "z = 3")]
 
@@ -324,7 +335,8 @@ def test_a_notebook_cells_name_is_kept_in_its_metadata_both_ways() -> None:
     assert "name" not in held[2]["metadata"]["swissarmybench"]
     read, _ = notebooks.read_document(text)
     assert [(c.number, c.name) for c in read] == [(1, "Region [filter] #1"), (2, "Read me"), (3, None)]
-    assert rules.document_names("/work/sales.ipynb", text) == {1: "Region [filter] #1"}  # Python cells
+    # The cells a page takes: Python, Markdown and HTML (text cells on the canvas, 2026-11-15).
+    assert rules.document_names("/work/sales.ipynb", text) == {1: "Region [filter] #1", 2: "Read me"}
     # As the window sends it: checked, one line; "" is no name.
     sent = notebooks.read_cells([{"kind": "code", "source": "x = 1", "name": "  Total  "}])
     assert sent[0].name == "Total" and sent[0].to_json()["name"] == "Total"
@@ -358,7 +370,11 @@ def test_a_script_cells_name_is_its_markers_own_words_both_ways() -> None:
         "# %% [6] [html] Report\nhtml = '<b>hi</b>'\n\n"
         "# %% [7]\nx = 1\n"
     )
-    assert rules.document_names("/work/sales.py", script) == {4: "Region filter", 5: "[html] total"}
+    assert rules.document_names("/work/sales.py", script) == {
+        4: "Region filter",
+        5: "[html] total",
+        6: "Report",
+    }
     outline = table_cells.outline(script)
     assert [(c["number"], c["kind"], c["height"], c["name"]) for c in outline["cells"]] == [
         (4, "streamlit", None, "Region filter"),
@@ -837,3 +853,131 @@ def test_the_zips_workbench_files_have_names_of_their_own() -> None:
         "/other/data.py": "data_2.py",
         "/x/Analysis.ipynb": "Analysis_2.ipynb",
     }
+
+
+# ===== Markdown and HTML cells on a page (text cells on the canvas, 2026-11-15) =====
+
+KPI = "## Sales\nTotal for {{ region }}: **{{ total_sales }}**"
+CARD_HTML = '<!-- uses orders @cell1 -->\n<div class="kpi"><h3>Region</h3><p>{{ region }}</p></div>'
+SCRIPTED = "<p id='n'>{{ total_sales }}</p><script>document.title = {{ region }};</script>"
+
+
+def test_a_markdown_cell_is_written_as_st_markdown_and_its_names_are_reads() -> None:
+    plain = rules.text_code("markdown", "# Sales overview\nMade-up figures.", 4)
+    assert plain == '# Sales overview\nst.markdown(r"""# Sales overview\nMade-up figures.""")\n'
+    assert rules.facts(plain).reads == ("st",) and rules.facts(plain).makes == ()
+    live = rules.text_code("markdown", KPI, 5)
+    found = rules.facts(live)
+    assert found.reads == ("st", "region", "total_sales") and rules.shown_makes(found) == []
+    assert "import sab_text as _sab_text" in live and "st.markdown(_sab_text.page_markdown(" in live
+    assert '{"region": lambda: region, "total_sales": lambda: total_sales}' in live
+    assert rules.uses_text_module(live) and not rules.uses_text_module(plain)
+    ast.parse(live)
+    # Named by its first words, without its marks; an empty cell by its kind and number.
+    assert rules.piece_name(live, 5) == "Sales"
+    assert rules.text_title("markdown", "\n---\n* **Key** _figures_ for {{ region_name }}", 2) == (
+        "Key figures for {{ region_name }}"
+    )
+    assert rules.text_code("markdown", "  \n", 9) == "# Markdown cell 9\n"
+
+
+def test_an_html_cell_is_written_as_st_html_with_javascript_only_when_it_has_a_script() -> None:
+    card = rules.text_code("html", CARD_HTML, 6)
+    # The uses line is the app's, not the page's; no script: Streamlit's own st.html.
+    assert "uses orders" not in card and "unsafe_allow_javascript" not in card
+    assert card.startswith("# Region\n") and "st.html(_sab_text.page_html(" in card
+    assert rules.facts(card).reads == ("st", "region")
+    scripted = rules.text_code("html", SCRIPTED, 7)
+    assert scripted.rstrip().endswith(", unsafe_allow_javascript=True)")
+    hidden = rules.text_code("html", "<p>hi</p><!-- <script>x()</script> -->", 8)
+    assert "unsafe_allow_javascript" not in hidden and hidden.endswith(
+        'st.html(r"""<p>hi</p><!-- <script>x()</script> -->""")\n'
+    )
+    # Text Python cannot hold raw is written escaped, and reads back the same.
+    awkward = 'He said """hi""" and left a \\'
+    literal = rules.text_code("markdown", awkward, 3).split("st.markdown(", 1)[1].rstrip()[:-1]
+    assert ast.literal_eval(literal) == awkward
+
+
+def test_text_cells_go_on_a_page_in_the_order_their_names_need() -> None:
+    region_filter = 'region = st.selectbox("Region", ["East", "West"])\ntotal_sales = 120'
+    pieces = {
+        (DOC, 2): PieceCode(2, "Sales", rules.text_code("markdown", KPI, 2), "sales.ipynb @cell2"),
+        (DOC, 3): PieceCode(3, "Region", rules.text_code("html", SCRIPTED, 3), "sales.ipynb @cell3"),
+        (DOC, 4): PieceCode(4, "Region filter", region_filter, "sales.ipynb @cell4"),
+    }
+    # The text first on the page, the filter last: the filter still runs first (the text reads its names).
+    placed = [Block("b1", DOC, 2, 1, 1, 6), Block("b2", DOC, 3, 1, 7, 6), Block("b3", DOC, 4, 2, 1, 12)]
+    made = rules.page_code("Overview", placed, pieces, ["orders"])
+    assert made.order == ("b3", "b1", "b2") and made.problems == ()
+    ordered = rules.run_order([(b.id, rules.facts(pieces[b.key].code)) for b in placed])
+    assert ("b1", "region", "b3") in ordered.links and ("b2", "total_sales", "b3") in ordered.links
+    code = made.code
+    assert code.index("_slot_b3:") < code.index("_slot_b1:\n") < code.index("_slot_b2:\n")
+    assert "with _slot_b1:\n    try:\n        # Sales\n        import sab_text as _sab_text" in code
+    ast.parse(code)
+    # A text cell is never live in its own cell, though its page code calls Streamlit.
+    cells = [(2, pieces[(DOC, 2)].code), (4, region_filter)]
+    assert rules.live_cells(cells, [2]) == [4]
+    # What the export needs: no package for sab_text; Streamlit 1.52 once a block runs a script.
+    assert rules.requirements([pieces[(DOC, 2)].code]) == list(rules.REQUIREMENTS)
+    assert rules.requirements([pieces[(DOC, 3)].code])[0] == "streamlit>=1.52"
+
+
+def test_the_export_and_the_saved_pages_carry_the_filler_only_when_a_block_names_a_value() -> None:
+    helper = "# the HTML cells' rules\n"
+    pieces = {
+        (DOC, 2): PieceCode(2, "Sales", rules.text_code("markdown", KPI, 2)),
+        (DOC, 4): PieceCode(4, "Filter", 'region = "East"\ntotal_sales = 1'),
+        (DOC, 5): PieceCode(5, "Note", rules.text_code("markdown", "Made-up figures.", 5)),
+    }
+    page = Page("p1", "Overview", [Block("b1", DOC, 2), Block("b2", DOC, 4, 2)])
+    made = rules.export("Sales", [page], pieces, [], helper=helper)
+    assert made.files["sab_text.py"] == rules.TEXT_HEADER + helper
+    assert "sab_text.py" in made.files["README.txt"] and "nothing new installed" in made.files["README.txt"]
+    assert "sab_text" not in made.files["requirements.txt"]
+    plain = rules.export("Sales", [Page("p1", "Notes", [Block("b1", DOC, 5)])], pieces, [], helper=helper)
+    assert "sab_text.py" not in plain.files and "sab_text" not in plain.files["README.txt"]
+    saved = rules.saved_pages([page], pieces, [])
+    assert saved.texts is True and "import sab_text as _sab_text" in saved.files["pages/overview.py"]
+    assert rules.saved_pages([Page("p1", "Notes", [Block("b1", DOC, 5)])], pieces, []).texts is False
+
+
+def test_an_old_apps_file_still_reads_and_a_text_block_adds_nothing_to_it() -> None:
+    old = (
+        '{\n  "swissarmygrid": "streamlit-app",\n  "version": 1,\n  "pages": [\n    {\n'
+        '      "name": "Overview",\n      "blocks": [\n'
+        '        {"document": "sales.ipynb", "cell": 3, "row": 1, "column": 1, "width": 6, "height": null}\n'
+        "      ]\n    }\n  ]\n}\n"
+    )
+    pages = rules.read_app(old)
+    assert [(b.document, b.cell, b.w) for b in pages[0].blocks] == [("sales.ipynb", 3, 6)]
+    # A block on a Markdown cell is a link like any: the file holds no kind and no code.
+    pages[0].blocks.append(Block("b9", "sales.ipynb", 2, 2))
+    written = rules.write_app(pages)
+    assert (
+        '{"document": "sales.ipynb", "cell": 2, "row": 2, "column": 1, "width": 6, "height": null}' in written
+    )
+    assert "markdown" not in written and rules.read_app(written)[0].blocks[1].cell == 2
+
+
+def test_a_scripts_html_cell_goes_on_a_page_by_its_string() -> None:
+    script = (
+        "import streamlit as st\n\n"
+        f"# %% [4] Region filter\n{FILTER}\n\n"
+        '# %% [6] [html] height=200 Card\nr"""\n<p>{{ region }}</p>\n"""\n\n'
+        '# %% [7] [html]\nr"""\n<p>not closed\n'
+    )
+    cells = rules.linkable("/work/sales.py", script)
+    assert [(c.number, c.kind, c.name) for c in cells] == [(4, "code", "Region filter"), (6, "html", "Card")]
+    assert cells[1].code == rules.text_code("html", "<p>{{ region }}</p>", 6)
+
+
+def test_a_mermaid_block_stays_a_code_block_on_the_page_and_names_no_block() -> None:
+    diagram = "```mermaid\nflowchart LR\n  A[{{ region }}] --> B[Done]\n```"
+    # Streamlit's Markdown draws no Mermaid: on the page the block is the Markdown's own code block.
+    code = rules.text_code("markdown", diagram, 2)
+    assert code.startswith("# Mermaid diagram\n") and "st.markdown(_sab_text.page_markdown(" in code
+    assert rules.facts(code).reads == ("st", "region")
+    assert rules.text_title("markdown", "## Flow\n" + diagram, 1) == "Flow"
+    assert rules.text_title("markdown", "```python\nx = 1\n```\nAfter the code", 3) == "After the code"

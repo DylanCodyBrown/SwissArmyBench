@@ -321,7 +321,7 @@ export function mountRail(host: RailHost): Rail {
           ]);
         },
       },
-      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, snippet ? { dax: "DAX", html: "HTML", streamlit: "Streamlit" }[language] : "Python"),
+      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit" }[language] : "Python"),
       h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );

@@ -13,23 +13,33 @@ Pure rules, no I/O, standard library only (the kernel's side, client/html_cells.
               inside a <script>        a JavaScript literal (a number, a quoted text, a list of rows)
               inside a tag or <style>  plain words and numbers only; anything else is left out
               inside a comment         nothing: it stays as written
+  markdown  a Markdown cell's `{{ name }}` filled from the same values (docs/ideas.md, text cells on
+            the canvas, 2026-11-15): a value is always text, its Markdown and markup characters
+            escaped; inside code (a `span` or a fenced block) plain words and numbers only
+  objects   a Python value as its record, told by its shape: a table, a figure or picture, a value
+  pages     a Markdown or HTML block on a Streamlit page fills its names by these same rules
   scripts   the cell in a .py file: `# %% [7] [html] height=320`, then the HTML as one Python string
             that does nothing when the file runs
   frame     the Content-Security-Policy of the frame a design is drawn in
 
 In a notebook file the cell is a code cell that starts with `%%html` (IPython's own cell magic, so
 plain Jupyter draws it when run); domain/notebooks.py reads and writes it.
+
+This module imports nothing of Swiss Army Bench: a Streamlit page with a Markdown or HTML block that
+names a value carries a copy of it (`sab_text.py`), so the page fills its names without this app.
 """
 
 from __future__ import annotations
 
 import ast
+import base64
 import hashlib
 import html as markup
+import io
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -170,10 +180,25 @@ def table_value(
             f'<table class="sab-table">{caption}<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
         ),
         "json": _literal(data),
+        "markdown": _markdown_table(shown_columns, shown, parts),
         "rows": total_rows,
         "columns": every,
         "size": size,
     }
+
+
+def _markdown_table(heads: Sequence[str], rows: Sequence[Sequence[Any]], parts: Sequence[str]) -> str:
+    """A table as Markdown: a pipe table, each cell escaped text, and under it what it leaves out."""
+    if not heads:
+        return markdown_text("(a table with no columns)")
+    lines = [
+        "| " + " | ".join(markdown_text(h) or " " for h in heads) + " |",
+        "| " + " | ".join("---" for _ in heads) + " |",
+    ]
+    lines += ["| " + " | ".join(markdown_text(_cell(v)) or " " for v in row) + " |" for row in rows]
+    if parts:
+        lines += ["", "*" + markdown_text(" · ".join(parts)) + "*"]
+    return "\n".join(lines)
 
 
 def picture_value(png_base64: str, name: str) -> dict[str, Any]:
@@ -370,6 +395,259 @@ def fill(text: str, values: Mapping[str, Mapping[str, Any]]) -> Filled:
                     notes.append(note)
     out.append(text[at:])
     return Filled("".join(out), tuple(names(text)), tuple(missing), tuple(waiting), tuple(notes))
+
+
+def has_script(text: str) -> bool:
+    """The HTML holds a <script> the browser would run (one inside a comment does not count): on a
+    Streamlit page its block is `st.html(..., unsafe_allow_javascript=True)`, else Streamlit drops it."""
+    return any(kind == "script" for _, kind in _regions(text))
+
+
+# ===== markdown: a Markdown cell's names, filled =====
+#
+# The same values as an HTML cell's, written for Markdown: a value is always text. Its Markdown marks
+# (asterisks, underscores, brackets, backticks...) are escaped with a backslash and its markup
+# characters as HTML's own references, so it can neither format nor link nor become markup, in the
+# Workbench, in Jupyter or on a Streamlit page. A value is one line (a line break would end a heading
+# or a table's row). Inside code, where escapes show as they are, only plain words and numbers go.
+
+_MARKDOWN_MARKS: frozenset[str] = frozenset("\\`*_{}[]()#+-.!|~:$=^")
+_REFERENCES: dict[str, str] = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;"}
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_TICKS = re.compile(r"`+")
+
+
+def markdown_text(text: str) -> str:
+    """Text as Markdown shows it, whatever it holds: on one line, every mark escaped."""
+    flat = re.sub(r"\s*[\r\n]+\s*", " ", text)
+    return "".join(_REFERENCES.get(c) or (f"\\{c}" if c in _MARKDOWN_MARKS else c) for c in flat)
+
+
+def _fences(text: str) -> list[tuple[int, int, str]]:
+    """Markdown's fenced blocks, as (start, end, the first word after the fence: `mermaid`, `python`)."""
+    found: list[tuple[int, int, str]] = []
+    at, fence, opened, info = 0, "", 0, ""
+    for line in text.split("\n"):
+        mark = _FENCE.match(line)
+        if fence:
+            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence):
+                found.append((opened, at + len(line), info))
+                fence = ""
+        elif mark:
+            fence, opened = mark.group(1), at
+            info = (line[mark.end() :].split() or [""])[0].lower()
+        at += len(line) + 1
+    if fence:
+        found.append((opened, len(text), info))
+    return found
+
+
+def mermaid_blocks(text: str) -> list[tuple[int, int]]:
+    """Where a Markdown cell holds a ```mermaid block (the Workbench draws it as a diagram)."""
+    return [(a, b) for a, b, info in _fences(text) if info == "mermaid"]
+
+
+def mermaid_text(text: str) -> str:
+    """Text as a Mermaid diagram shows it, whatever it holds: on one line; letters, digits, spaces, `.`
+    and `,` as they are; every other ASCII mark as its full-width form (U+FF0D for -, U+FF02 for "),
+    which reads as the same mark and means nothing to Mermaid, so a value can close no label, draw no
+    link and start no comment, directive or statement. (Mermaid's own `#45;` codes would show as
+    `&#45;`: the app draws a diagram's labels as plain SVG text.)"""
+    flat = re.sub(r"\s+", " ", text)
+    return "".join(
+        chr(ord(c) + 0xFEE0) if "!" <= c <= "~" and not c.isalnum() and c not in ".," else c for c in flat
+    )
+
+
+def markdown_code(text: str) -> list[tuple[int, int]]:
+    """Where Markdown holds code, as (start, end): fenced blocks, then the code spans outside them
+    (a run of backticks up to the next run of the same length)."""
+    spans: list[tuple[int, int]] = [(a, b) for a, b, _ in _fences(text)]
+    blocks = list(spans)
+    index = 0
+    while True:
+        found = _TICKS.search(text, index)
+        if found is None:
+            break
+        index = found.end()
+        if any(a <= found.start() < b for a, b in blocks):
+            continue
+        close = re.compile(rf"(?<!`){found.group(0)}(?!`)").search(text, found.end())
+        if close is None:
+            continue
+        spans.append((found.start(), close.end()))
+        index = close.end()
+    return spans
+
+
+def _alone_on_its_line(text: str, start: int, end: int) -> bool:
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    return (
+        not text[line_start:start].strip() and not text[end : len(text) if line_end < 0 else line_end].strip()
+    )
+
+
+def fill_markdown(text: str, values: Mapping[str, Mapping[str, Any]]) -> Filled:
+    """A Markdown cell's text with each `{{ name }}` filled from `values` (the records an HTML cell's
+    run gives), as `Filled` (its `html` holds the Markdown). Among the words a value is escaped text; a
+    table alone on its line is a pipe table, elsewhere its size; a name with no value yet shows as
+    written; one the kernel does not hold says "not found". In code only plain words and numbers go;
+    in a ```mermaid block a value is Mermaid text (`mermaid_text`), so it cannot change the diagram."""
+    code = markdown_code(text)
+    mermaid = mermaid_blocks(text)
+    out: list[str] = []
+    notes: list[str] = []
+    missing: list[str] = []
+    waiting: list[str] = []
+    at = 0
+    for found in NAME.finditer(text):
+        name = found.group(1)
+        value = values.get(name)
+        kind = str(value.get("kind")) if value is not None else "waiting"
+        if kind == "missing" and name not in missing:
+            missing.append(name)
+        if kind == "waiting" and name not in waiting:
+            waiting.append(name)
+        out.append(text[at : found.start()])
+        at = found.end()
+        if any(a <= found.start() < b for a, b in mermaid):
+            if value is None:
+                said = found.group(0)  # as written, as text (bare, {{ }} is Mermaid's hexagon)
+            elif kind == "missing":
+                said = f"{{{{ {name} }}}} not found"
+            elif kind == "text":
+                said = str(value.get("text", ""))
+            else:
+                said = f"({name}: {value.get('size') or 'a ' + kind})"
+            out.append(mermaid_text(said))
+        elif any(a <= found.start() < b for a, b in code):
+            words = str(value.get("text", "")) if value is not None else ""
+            if value is None:
+                out.append(found.group(0))
+            elif kind == "text" and _SAFE_IN_TAG.fullmatch(words):
+                out.append(words)
+            elif kind != "missing":
+                note = f"{{{{ {name} }}}} is left out of code: only plain words and numbers go there."
+                if note not in notes:
+                    notes.append(note)
+        elif value is None:
+            out.append(markdown_text(found.group(0)))
+        elif kind == "missing":
+            out.append("*" + markdown_text(f"{{{{ {name} }}}} not found") + "*")
+        elif kind == "table":
+            table = value.get("markdown")
+            if isinstance(table, str) and _alone_on_its_line(text, found.start(), found.end()):
+                out.append(f"\n{table}\n")
+            else:
+                out.append(markdown_text(f"({name}: {value.get('size') or 'a table'})"))
+        elif kind == "picture":
+            out.append(markdown_text(f"({name}: a picture; an HTML cell shows it)"))
+        else:
+            out.append(markdown_text(str(value.get("text", ""))))
+    out.append(text[at:])
+    return Filled("".join(out), tuple(names(text)), tuple(missing), tuple(waiting), tuple(notes))
+
+
+# ===== objects: a Python value as its record, told by its shape =====
+#
+# pandas, Polars, Arrow, DuckDB and matplotlib are never imported: a value is read by its type's
+# module and name, so this runs in any Python (the kernel's, a Streamlit page's).
+
+
+def _module(value: Any) -> str:
+    return str(getattr(type(value), "__module__", "") or "").split(".")[0]
+
+
+def table_of(value: Any) -> dict[str, Any] | None:
+    """A table's first rows, by its kind (None: not a table)."""
+    module, kind = _module(value), type(value).__name__
+    need = DATA_ROWS
+    if module == "pandas" and kind == "DataFrame":
+        head = value.head(need)
+        columns = [str(c) for c in head.columns]
+        rows = [list(row) for row in head.itertuples(index=False, name=None)]
+        return table_value(columns, rows, len(value), len(columns))
+    if module == "polars" and kind == "DataFrame":
+        head = value.head(need)
+        rows = [list(row) for row in head.rows()]
+        return table_value(list(head.columns), rows, value.height, value.width)
+    if module == "pyarrow" and kind in ("Table", "RecordBatch"):
+        columns = list(value.schema.names)
+        head = value.slice(0, need).to_pylist()
+        rows = [[row.get(c) for c in columns] for row in head]
+        return table_value(columns, rows, value.num_rows, len(columns))
+    if module in ("duckdb", "_duckdb") and kind == "DuckDBPyRelation":
+        columns = list(value.columns)
+        rows = [list(row) for row in value.limit(need).fetchall()]
+        total = len(rows)
+        if total >= need:
+            total = int(value.count("*").fetchall()[0][0])
+        return table_value(columns, rows, total, len(columns))
+    return None
+
+
+def picture_of(value: Any, name: str) -> dict[str, Any] | None:
+    """A figure or an image as a PNG (None: not a picture, or too large to put in a design)."""
+    data: Any = None
+    if _module(value) == "matplotlib" and hasattr(value, "savefig"):
+        target = io.BytesIO()
+        value.savefig(target, format="png", bbox_inches="tight")
+        data = target.getvalue()
+    elif hasattr(value, "_repr_png_"):
+        data = value._repr_png_()
+        if isinstance(data, tuple):  # (bytes, metadata)
+            data = data[0]
+        if isinstance(data, str):  # already base64
+            data = base64.b64decode(data)
+    if not isinstance(data, bytes | bytearray) or not data:
+        return None
+    if len(data) > PICTURE_BYTES:
+        return text_value(f"({name}: a picture too large for a design)")
+    return picture_value(base64.b64encode(bytes(data)).decode("ascii"), name)
+
+
+def record_of(value: Any, name: str) -> dict[str, Any]:
+    """What `{{ name }}` draws for a value this Python holds. A value that cannot be read says so in
+    plain words, never an error."""
+    try:
+        return table_of(value) or picture_of(value, name) or text_value(value)
+    except Exception as error:
+        return text_value(f"({name} could not be shown: {type(error).__name__})")
+
+
+# ===== pages: a Markdown or HTML block on a Streamlit page =====
+#
+#     import sab_text as _sab_text
+#     st.markdown(_sab_text.page_markdown(r"""Total for {{ region }}""", {"region": lambda: region}))
+#
+# Each name is read where the page stands when the block runs (the block that makes it ran first: the
+# run order counts the names); a name no block made says "not found".
+
+Getters = Mapping[str, Callable[[], Any]]
+
+
+def page_values(getters: Getters) -> dict[str, dict[str, Any]]:
+    """Each name's record, read through its getter (a NameError: the page does not hold it)."""
+    found: dict[str, dict[str, Any]] = {}
+    for name, get in list(getters.items())[:MAX_NAMES]:
+        try:
+            held = get()
+        except NameError:
+            found[name] = missing_value(name)
+            continue
+        found[name] = record_of(held, name)
+    return found
+
+
+def page_markdown(text: str, getters: Getters) -> str:
+    """A Markdown block's text with its names filled, for `st.markdown`."""
+    return fill_markdown(text, page_values(getters)).html
+
+
+def page_html(text: str, getters: Getters) -> str:
+    """An HTML block's HTML with its names filled, for `st.html`."""
+    return fill(text, page_values(getters)).html
 
 
 # ===== scripts: the cell in a .py file =====

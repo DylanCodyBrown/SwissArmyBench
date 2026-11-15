@@ -73,6 +73,8 @@ export interface BlockState {
   w: number;
   h: number | null;
   name: string | null;
+  /** code, markdown or html: a text block is marked T. */
+  kind: "code" | "markdown" | "html" | null;
   where: string;
   makes: string[];
   reads: string[];
@@ -187,9 +189,14 @@ export const mayUseStreamlit = (code: string): boolean => /\bst\s*\.|streamlit/.
 
 export interface PieceSource {
   cell: number;
+  /** Its code; a Markdown or HTML cell's text (the server writes it as a page's st.markdown or st.html). */
   code: string;
   /** The cell's own name (none: it has none). */
   name?: string;
+  /** A Markdown or HTML cell (none: a Python cell). */
+  kind?: "markdown" | "html";
+  /** A script's HTML cell sends its lines (the HTML as one Python string). */
+  form?: "script";
 }
 
 // ===== a cell's name (docs/ideas.md, named cells, 2026-11-15) =====
@@ -231,6 +238,8 @@ export interface PaneCell {
   name: string;
   /** It has a name of its own (else `name` is its first comment line or first line). */
   named: boolean;
+  /** code, or a Markdown or HTML cell (the pane lists those under Text). */
+  kind: "code" | "markdown" | "html";
   where: string;
   makes: string[];
   reads: string[];
