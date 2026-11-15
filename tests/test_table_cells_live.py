@@ -243,7 +243,7 @@ def test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_resul
         ran_file = lines(live, execute, {"kind": "file", "path": str(script)})
         assert ran_file[-1]["done"]["ok"] is True, ran_file
         assert "rows 2\n" in "".join(str(o.get("text", "")) for o in ran_file)
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + 60  # a busy machine (the release workflow's) is slow here
         while time.monotonic() < deadline and [r[:2] for r in grid_rows(live, grid)] != [[8, 60], [9, 70]]:
             time.sleep(0.3)
         assert [r[:2] for r in grid_rows(live, grid)] == [[8, 60], [9, 70]]

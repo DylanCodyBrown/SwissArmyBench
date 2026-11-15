@@ -53,6 +53,8 @@ _CONNECTION_QUERY = (
     "WHERE NOT internal AND schema_name = 'main'"
 )
 _BACKOFF_SECONDS = 3.0
+# A table the server refused for now (busy, or an error on its side) is sent again this many times.
+_SEND_TRIES = 5
 _MAX_ERRORS = 5
 
 
@@ -308,6 +310,7 @@ class Watcher:
         self._push_lock = threading.Lock()  # one push at a time
         self._pushed: dict[str, str] = {}  # table name -> fingerprint of what was last sent
         self._errors: list[dict[str, str]] = []
+        self._tries: dict[str, int] = {}  # table name -> failed sends of what it holds now
 
     # ----- lifecycle
 
@@ -359,12 +362,20 @@ class Watcher:
                 return
             except push_client.ServerNotRunningError as error:
                 raise _ServerDown from error
-            except Exception as error:  # too large, refused, a table Arrow could not convert
+            except (push_client.DatasetTooLargeError, TypeError, ValueError, ImportError) as error:
+                # The table itself cannot be sent (too large, a type Arrow cannot read): said once.
                 self._fail(name, str(error))
-            # Success or a reported failure: either way this is the object we are done with, so a
-            # table that cannot be sent is not retried until its variable is assigned again.
+            except Exception as error:  # refused for now (the server busy, say): tried again
+                with self._lock:
+                    tries = self._tries[name] = self._tries.get(name, 0) + 1
+                if tries < _SEND_TRIES:
+                    return  # not marked sent: the next scan sends it again
+                self._fail(name, str(error))
+            # Sent, or a failure said: this is the object we are done with, so a table that cannot be
+            # sent is not tried again until its variable is assigned again.
             with self._lock:
                 self._pushed[name] = table.fingerprint
+                self._tries.pop(name, None)
 
     def mark_sent(self, name: str) -> None:
         """What `name` holds now is what the grid has (it was just sent another way): not sent again

@@ -234,6 +234,38 @@ def test_a_table_that_is_too_large_is_reported_for_the_page(monkeypatch: pytest.
     assert w.take_errors() == []
 
 
+def test_a_send_the_server_refuses_for_now_is_tried_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    def busy_then_fine(*args: Any, **kwargs: Any) -> str:
+        calls.append(1)
+        if len(calls) < 3:
+            raise RuntimeError("Swiss Army Bench refused the push (503): busy")
+        return ""
+
+    monkeypatch.setattr(push_client, "push", busy_then_fine)
+    namespace: dict[str, Any] = {"orders": pd.DataFrame({"a": [1]})}
+    w = Watcher(lambda: namespace)
+    for _ in range(3):
+        w.load("orders", follow=True)
+    assert len(calls) == 3 and w.take_errors() == []
+    fingerprint = next(t.fingerprint for t in watcher.find_tables(namespace) if t.name == "orders")
+    assert w._pushed["orders"] == fingerprint  # sent at last, and not sent again
+
+
+def test_a_send_refused_every_time_is_said_once_then_left(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*args: Any, **kwargs: Any) -> str:
+        raise RuntimeError("Swiss Army Bench refused the push (500): broken")
+
+    monkeypatch.setattr(push_client, "push", refuse)
+    namespace: dict[str, Any] = {"orders": pd.DataFrame({"a": [1]})}
+    w = Watcher(lambda: namespace)
+    for _ in range(watcher._SEND_TRIES):
+        w.load("orders", follow=True)
+    assert [e["name"] for e in w.take_errors()] == ["orders"]
+    assert "orders" in w._pushed
+
+
 # ===== the whole loop against a real server =====
 
 

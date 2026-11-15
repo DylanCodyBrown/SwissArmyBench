@@ -1177,3 +1177,11 @@ environment with Streamlit 1.67.0 and pandas (SWISSARMYBENCH_STREAMLIT_PYTHON).
   Chromium with the seventh family's line.
 - **Not checked:** Edge itself, a dark theme in the app (a frame follows the computer's setting), a
   page with two keyboard pieces, Streamlit before 1.67.
+
+- (2026-11-15) **A table refused for now is sent again.** The release workflow's trial run for 0.0.1 failed
+  `test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_result` once: after Run file,
+  the kernel's new table did not reach the grid within 20 seconds. It failed 1 time in 6 here under four
+  busy loops, and 0 times in 25 with logging added (the logging changed the timing). The cause was not
+  caught. Two changes: the watcher no longer gives up on a table after one refused send (any error but
+  too large or an unreadable type is tried again, up to 5 times, then said once; tests/test_watch.py has
+  both cases), and the test waits up to 60 seconds on a busy machine.
