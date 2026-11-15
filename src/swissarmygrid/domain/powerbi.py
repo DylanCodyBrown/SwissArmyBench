@@ -1,17 +1,27 @@
-"""A Power BI dataset (semantic model) as a connection: what its relationships are in the app's model.
+"""A Power BI workspace as a connection: how its datasets are named, how their tables are named as
+grids, and what a dataset's relationships are in the app's model.
 
-The connection itself is a starter (server/blade_templates.py POWERBI): code that signs in and sends
-DAX to Power BI's Execute Queries request, shaped like a database connection, so the catalog, Open as
-grid and `%%sql` cells use it as they use one. Its dialect is `dax` (domain/catalogs.py quotes for it).
+The connection is per workspace (the owner, 2026-11-15: "you designed the connection per dataset; it
+should be per workspace"): one connection gives every dataset (semantic model) in the workspace, as a
+database connection gives every schema. It is a starter (server/blade_templates.py POWERBI): code
+that signs in, lists the workspace's datasets and sends DAX to any one of them through Power BI's
+Execute Queries request; a dataset is shaped like a database connection, so the catalog, Open as grid
+and DAX cells use it as they use one. Its dialect is `dax` (domain/catalogs.py quotes for it), and in
+the catalog each dataset is a schema.
 
-This file is the rules for reading the dataset's own relationships (the owner, 2026-11-15: "an existing
+- A dataset is named with its connection: `Finance/Sales model` (split_name, joined_name). A DAX cell,
+  `sag.dax()` and the agent's commands all say it that way.
+- A table opens as a grid under its own name; when two of the workspace's datasets hold a table of
+  that name, under the dataset's name and its own (grid_name: `Sales_model_Date`).
+
+The rest is the rules for reading a dataset's own relationships (the owner, 2026-11-15: "an existing
 Power BI model's joins arrive with its tables"):
 
 - which DAX asks for them: `INFO.VIEW.RELATIONSHIPS()`, which names tables and columns; where a model
   does not know the VIEW form, `INFO.RELATIONSHIPS()` with `INFO.TABLES()` and `INFO.COLUMNS()`, whose
   rows hold ids and numbers that are resolved here;
-- how each becomes a Relationship: tables named as they open as grids (domain/connections.py
-  dataset_name), columns by their own names (as a grid's headers are), `Many` to `One` as
+- how each becomes a Relationship: tables named as they open as grids (grid_name), columns by
+  their own names (as a grid's headers are), `Many` to `One` as
   `many-to-one` and the like, an inactive relationship kept inactive, a cross-filter in both
   directions said in its note.
 
@@ -21,6 +31,7 @@ Pure rules: the rows arrive already read (services/connections.py runs the DAX i
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from typing import Any
 
 from swissarmygrid.domain.connections import dataset_name
@@ -40,6 +51,36 @@ _OWN_TABLES: tuple[str, ...] = ("LocalDateTable_", "DateTableTemplate_")
 
 class PowerBIError(ValueError):
     """The dataset's answer cannot be read as relationships. The message says what was missing."""
+
+
+def split_name(name: str) -> tuple[str, str]:
+    """`Finance/Sales model`: the connection and the dataset in its workspace ("" when none is named).
+    A connection's own name has no slash; a dataset's may."""
+    connection, _, dataset = name.partition("/")
+    return connection.strip(), dataset.strip()
+
+
+def joined_name(connection: str, dataset: str) -> str:
+    """A dataset with its connection, as a DAX cell names it: `Finance/Sales model`."""
+    return f"{connection}/{dataset}" if dataset else connection
+
+
+def grid_name(dataset: str, table: str, shared: Collection[str] = ()) -> str:
+    """A dataset's table as a grid: its own name; the dataset's name before it when another of the
+    workspace's datasets holds a table of that name (`shared`: those names, casefolded)."""
+    if dataset and table.casefold() in shared:
+        return dataset_name(f"{dataset} {table}")
+    return dataset_name(table)
+
+
+def model_name(connection: str, dataset: str) -> str:
+    """The imported model's name: the connection and the dataset, in the letters a model's name takes."""
+    return re.sub(r"[^A-Za-z0-9 _-]+", " ", f"{connection} {dataset}").strip()[:64] or "Power BI"
+
+
+def source(connection: str, dataset: str) -> str:
+    """Where a model's table came from, as the Diagram says it."""
+    return f"{joined_name(connection, dataset)} (Power BI)"
 
 
 def is_own_table(table: str) -> bool:
@@ -91,13 +132,15 @@ def relationship(
     to_cardinality: object,
     cross_filter: object,
     active: object,
+    dataset: str = "",
+    shared: Collection[str] = (),
 ) -> Relationship:
     """One of the dataset's relationships as the app's: its tables named as they open as grids."""
     kind = f"{'many' if _many(from_cardinality) else 'one'}-to-{'many' if _many(to_cardinality) else 'one'}"
     return Relationship(
-        dataset_name(from_table),
+        grid_name(dataset, from_table, shared),
         (from_column,),
-        dataset_name(to_table),
+        grid_name(dataset, to_table, shared),
         (to_column,),
         kind,
         "filters both ways" if _both(cross_filter) else "",
@@ -145,10 +188,13 @@ def _by_id(results: list[Any]) -> list[tuple[str, str, str, str, dict[str, Any]]
     return found
 
 
-def relationships_model(connection: str, attempt: int, results: list[Any]) -> tuple[Model, int]:
-    """The dataset's relationships as a model to merge into the current one, and how many were left out
-    (those of the date tables Power BI makes by itself). `attempt`: which of RELATIONSHIP_QUERIES
-    answered; `results`: its answers, in order."""
+def relationships_model(
+    connection: str, attempt: int, results: list[Any], dataset: str = "", shared: Collection[str] = ()
+) -> tuple[Model, int]:
+    """One dataset's relationships as a model to merge into the current one, and how many were left
+    out (those of the date tables Power BI makes by itself). `attempt`: which of RELATIONSHIP_QUERIES
+    answered; `results`: its answers, in order; `shared`: the table names several of the workspace's
+    datasets hold, which open as grids under the dataset's name too."""
     rows = _named(results) if attempt == 0 else _by_id(results)
     kept: list[Relationship] = []
     skipped = 0
@@ -166,13 +212,15 @@ def relationships_model(connection: str, attempt: int, results: list[Any]) -> tu
                 row.get("tocardinality"),
                 row.get("crossfilteringbehavior"),
                 row.get("isactive", True),
+                dataset,
+                shared,
             )
         )
     kept.sort(key=lambda r: not r.active)  # of two joins between the same tables, the active one first
     tables = {t for r in kept for t in (r.from_table, r.to_table)}
     model = Model(
-        name=connection,
-        sources={t: f"{connection} (Power BI)" for t in sorted(tables)},
+        name=model_name(connection, dataset),
+        sources={t: source(connection, dataset) for t in sorted(tables)},
         relationships=tuple(kept),
     )
     return parse_model(model.to_json()), skipped  # the model's own limits and name rules apply

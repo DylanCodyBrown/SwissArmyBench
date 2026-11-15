@@ -2069,7 +2069,7 @@ def connections_vaults(a: dict[str, Any]) -> Any:
 _TABLE_ARGS = (
     req("name", "The connection's name."),
     opt("table", "The table (a database's table; a workbook's sheet; a file in a folder connection)."),
-    opt("schema", "The table's schema (as the catalog shows it)."),
+    opt("schema", "The table's schema (as the catalog shows it); a Power BI workspace's: the dataset."),
     opt("database", "The table's database, when the catalog spans more than one."),
 )
 
@@ -2095,15 +2095,30 @@ def connections_preview_table(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "connections_datasets",
+    "A Power BI workspace connection's datasets (semantic models), asked of Power BI: each one's name, "
+    "id, and its name for a DAX cell (`Finance/Sales model`). Its tables: catalog_tables with the dataset "
+    "as the schema. To run DAX on one: workbench_run with kind dax and that name as the connection, or "
+    'sag.dax("Finance/Sales model", "EVALUATE ...").',
+    req("name", "The Power BI workspace connection's name."),
+)
+def connections_datasets(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/connections/{_q(a['name'])}/datasets?live=1")
+
+
+@command(
     "connections_import_relationships",
-    "Import a Power BI dataset's own relationships into the current relationship model (merged: the "
+    "Import one Power BI dataset's own relationships into the current relationship model (merged: the "
     "dataset's wins for a join both name). Tables are named as they open as grids; an inactive "
-    "relationship stays inactive. Answers the model, what the merge changed, and what was imported. To "
-    "run DAX on the dataset, use workbench_run with a `%%sql <connection>` cell or sag.sql().",
-    req("name", "The Power BI dataset connection's name."),
+    "relationship stays inactive. Answers the model, what the merge changed, and what was imported.",
+    req("name", "The Power BI workspace connection's name."),
+    opt(
+        "dataset", "The dataset, by name or id (connections_datasets lists them); needed when it has several."
+    ),
 )
 def connections_import_relationships(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/connections/{_q(a['name'])}/relationships", {})
+    body = {"dataset": a["dataset"]} if a.get("dataset") else {}
+    return api.call("POST", f"/connections/{_q(a['name'])}/relationships", body)
 
 
 @command(
@@ -2279,12 +2294,17 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
 
 @command(
     "workbench_run",
-    "Run code in a kernel (kind sql: a SQL cell on its connection; kind file: a script as python would; "
-    "kind table: a table's cell; kind html: an HTML cell, its {{ names }} filled from the kernel)",
+    "Run code in a kernel (kind sql: a SQL cell on its connection; kind dax: a DAX cell on a Power BI "
+    "workspace's dataset; kind file: a script as python would; kind table: a table's cell; kind html: an "
+    "HTML cell, its {{ names }} filled from the kernel)",
     req("kernel", "The kernel's id."),
-    opt("code", "Python; SQL with kind sql; an unsaved script's text with kind file; HTML with kind html."),
-    opt("kind", "code (default), sql, file, table or html."),
-    opt("connection", "A SQL cell's connection."),
+    opt(
+        "code",
+        "Python; SQL with kind sql; DAX with kind dax; an unsaved script's text with kind file; HTML "
+        "with kind html.",
+    ),
+    opt("kind", "code (default), sql, dax, file, table or html."),
+    opt("connection", "A SQL cell's connection; a DAX cell's dataset: `Finance/Sales model`."),
     opt("table", "kind table: the table (its cell starts from the table as made, so a rerun is safe)."),
     opt("path", "kind file: a saved script to run (its __file__)."),
     opt("args", "kind file: its command-line arguments (sys.argv)."),

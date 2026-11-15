@@ -110,6 +110,13 @@ class CatalogStore:
                     count(DISTINCT (database, schema, "table")) FILTER (WHERE kind = 'view'),
                     count(*) FROM {target}"""  # noqa: S608
             ).fetchall()[0]
+            # A row with no table but a description is what the source said of that schema.
+            notes = cur.execute(
+                f"""WITH rows AS ({normalizing_select(staging, picked)})
+                SELECT database, schema, any_value(description) FROM rows
+                WHERE "table" = '' AND description IS NOT NULL
+                GROUP BY database, schema ORDER BY lower(schema)"""  # noqa: S608
+            ).fetchall()
         except duckdb.Error as error:
             cur.execute(f"DROP TABLE IF EXISTS {target}")
             raise CatalogError(f"DuckDB could not read this catalog: {error}") from error
@@ -126,6 +133,7 @@ class CatalogStore:
             tables=int(counts[2]),
             views=int(counts[3]),
             columns=int(counts[4]),
+            notes=tuple((str(r[0]), str(r[1]), str(r[2])) for r in notes),
         )
         with self._lock:
             old = self._catalogs.get(key)
@@ -169,7 +177,25 @@ class CatalogStore:
             FROM {info.table} GROUP BY database, schema
             ORDER BY lower(database), lower(schema), database, schema"""  # noqa: S608
         ).fetchall()
-        return [{"database": r[0], "schema": r[1], "tables": r[2], "views": r[3]} for r in rows]
+        found = [{"database": r[0], "schema": r[1], "tables": r[2], "views": r[3]} for r in rows]
+        # A schema the source could not list is in the tree all the same, with what the source said.
+        for database, schema, note in info.notes:
+            listed = next((s for s in found if (s["database"], s["schema"]) == (database, schema)), None)
+            if listed is None:
+                listed = {"database": database, "schema": schema, "tables": 0, "views": 0}
+                found.append(listed)
+            listed["note"] = note
+        return sorted(found, key=lambda s: (s["database"].lower(), s["schema"].lower()))
+
+    def shared_tables(self, cur: duckdb.DuckDBPyConnection, name: str) -> set[str]:
+        """The table names more than one of the catalog's schemas hold (casefolded): a Power BI
+        workspace's two datasets with a Date table each."""
+        info = self.get(name)
+        rows = cur.execute(
+            f"""SELECT table_l FROM {info.table}
+            GROUP BY table_l HAVING count(DISTINCT (database, schema)) > 1"""  # noqa: S608
+        ).fetchall()
+        return {str(r[0]) for r in rows}
 
     def tables(
         self,

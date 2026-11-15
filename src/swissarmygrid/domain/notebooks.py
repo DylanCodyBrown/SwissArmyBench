@@ -1,10 +1,13 @@
 """The Workbench's documents: notebooks (.ipynb, so Jupyter and VS Code open them too) and scripts (.py).
 Pure rules: no I/O. Plans/workbench-and-connections.plan.md.
 
-A notebook here is a list of cells, each code (Python), sql (run on a connection), html (a design:
-domain/html_cells.py) or markdown, with the outputs a run gave (kept as nbformat's own output records).
+A notebook here is a list of cells, each code (Python), sql (run on a connection), dax (run on one
+dataset of a Power BI workspace), html (a design: domain/html_cells.py) or markdown, with the outputs a
+run gave (kept as nbformat's own output records).
 In the file, a SQL cell is a code cell that starts with its `%%sql <connection>` line (any Jupyter with
-SwissArmyGrid runs it as it is), marked so the Workbench opens it as a SQL cell again. An HTML cell is a
+SwissArmyGrid runs it as it is), marked so the Workbench opens it as a SQL cell again. A DAX cell (the
+owner, 2026-11-15: "a new kind of cell, a DAX cell") is the same with `%%dax <connection>/<dataset>`:
+`%%dax Finance/Sales model`. An HTML cell is a
 code cell that starts with `%%html`, IPython's own cell magic, so plain Jupyter draws it when run; the
 height of its pane is kept in the cell's metadata.
 
@@ -28,10 +31,12 @@ from swissarmygrid.domain.html_cells import check_height
 MAX_CELLS: int = 2_000
 MAX_CELL_CHARS: int = 1_000_000
 MAX_OUTPUTS_PER_CELL: int = 200
-KINDS: tuple[str, ...] = ("code", "sql", "html", "markdown")
+KINDS: tuple[str, ...] = ("code", "sql", "dax", "html", "markdown")
+MAX_CONNECTION_CHARS: int = 200  # a DAX cell's is a connection, a slash and a dataset's name
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
 MAX_STEPS_CHARS: int = 200_000
 _SQL_LINE = re.compile(r"^%%(?:sql|sag)\b(?!_)")
+_DAX_LINE = re.compile(r"^%%dax\b")
 _HTML_LINE = re.compile(r"^%%html\b")
 
 
@@ -41,9 +46,11 @@ class NotebookError(ValueError):
 
 @dataclass
 class Cell:
-    kind: str  # code, sql, html or markdown
-    source: str  # a SQL cell's query, without its %%sql line; an HTML cell's HTML, without %%html
-    connection: str | None = None  # a SQL cell's connection (None: the %sql_connect one)
+    kind: str  # code, sql, dax, html or markdown
+    # A SQL or DAX cell's query, without its %%sql or %%dax line; an HTML cell's HTML, without %%html.
+    source: str
+    # A SQL cell's connection (None: the %sql_connect one); a DAX cell's dataset: Finance/Sales model.
+    connection: str | None = None
     outputs: list[dict[str, Any]] = field(default_factory=list)
     execution_count: int | None = None
     number: int | None = None  # the cell's own number: never changes, never reused
@@ -74,8 +81,8 @@ class Cell:
     def marks(self) -> dict[str, Any]:
         """What the file keeps about the cell beside its text (the notebook's `swissarmygrid` metadata)."""
         kept: dict[str, Any] = {}
-        if self.kind == "sql":
-            kept |= {"kind": "sql", "connection": self.connection}
+        if self.kind in ("sql", "dax"):
+            kept |= {"kind": self.kind, "connection": self.connection}
         if self.kind == "html":
             kept["kind"] = "html"
             if self.height is not None:
@@ -100,10 +107,17 @@ def sql_line(connection: str | None) -> str:
     return f"%%sql {shlex.quote(connection) if re.search(r'\s', connection) else connection}"
 
 
+def dax_line(dataset: str | None) -> str:
+    """The first line of a DAX cell's code: `%%dax Finance/Sales_model`, quoted when it has a space."""
+    return "%%dax" + sql_line(dataset)[len("%%sql") :]
+
+
 def code_of(cell: Cell) -> str:
     """What the kernel runs for the cell (markdown runs nothing)."""
     if cell.kind == "sql":
         return f"{sql_line(cell.connection)}\n{cell.source}"
+    if cell.kind == "dax":
+        return f"{dax_line(cell.connection)}\n{cell.source}"
     if cell.kind == "html":
         return f"%%html\n{cell.source}"
     return cell.source if cell.kind == "code" else ""
@@ -181,14 +195,15 @@ def read_document(text: str) -> tuple[list[Cell], int]:
             cells.append(_marked(Cell("markdown", source), raw))
         elif kind == "code":
             first, _, rest = source.partition("\n")
-            marked = (raw.get("metadata") or {}).get("swissarmygrid", {}).get("kind") == "sql"
-            if _SQL_LINE.match(first) or marked:
+            marked = (raw.get("metadata") or {}).get("swissarmygrid", {}).get("kind")
+            dax = bool(_DAX_LINE.match(first)) or (marked == "dax" and not _SQL_LINE.match(first))
+            if dax or _SQL_LINE.match(first) or marked == "sql":
                 words = first.split(None, 1)
                 try:
                     named = " ".join(shlex.split(words[1])) if len(words) > 1 else None
                 except ValueError:
                     named = words[1] if len(words) > 1 else None
-                cell = Cell("sql", rest, named or None)
+                cell = Cell("dax" if dax else "sql", rest, named or None)
             elif _HTML_LINE.match(first):
                 cell = Cell("html", rest)
             else:
@@ -217,16 +232,19 @@ def read_cells(sent: Any) -> list[Cell]:
     for raw in sent:
         if not isinstance(raw, dict) or raw.get("kind") not in KINDS:
             raise NotebookError(
-                'Each cell is {"kind": "code", "sql", "html" or "markdown", "source": "..."}.'
+                'Each cell is {"kind": "code", "sql", "dax", "html" or "markdown", "source": "..."}.'
             )
         source = raw.get("source", "")
         if not isinstance(source, str) or len(source) > MAX_CELL_CHARS:
             raise NotebookError("A cell's source is text of at most a million characters.")
         connection = raw.get("connection")
         if connection is not None and (
-            not isinstance(connection, str) or "\n" in connection or len(connection) > 64
+            not isinstance(connection, str) or "\n" in connection or len(connection) > MAX_CONNECTION_CHARS
         ):
-            raise NotebookError("A SQL cell's connection is a connection's name.")
+            raise NotebookError(
+                "A SQL cell's connection is a connection's name; a DAX cell's, a connection and its "
+                "dataset (Finance/Sales model)."
+            )
         outputs = raw.get("outputs") or []
         if not isinstance(outputs, list) or not all(isinstance(o, dict) for o in outputs):
             raise NotebookError("A cell's outputs are a list of output records.")

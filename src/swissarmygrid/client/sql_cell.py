@@ -1,4 +1,5 @@
-"""SQL cells on a connection, in Jupyter and IPython: pick the connection once, write only SQL.
+"""SQL cells on a connection, and DAX cells on a Power BI workspace's dataset, in Jupyter and
+IPython: pick the connection once, write only SQL (or DAX).
 
     %%sql Warehouse                    # the whole cell runs on the Warehouse connection
     SELECT TOP 10 * FROM sales.orders
@@ -11,6 +12,11 @@
     SELECT region, sum(amount) FROM "Forecast" GROUP BY region
 
     %sql_connections                   # the connections a cell can use, and what each one is
+
+    %%dax Finance/Sales model          # DAX on one dataset of the Power BI workspace "Finance"
+    EVALUATE TOPN(10, 'Sales')
+
+    %%dax "Finance/Sales model" -> by_region --grid      # the same options as a SQL cell
 
 Connections are added in the app (the Application row's Connections). What runs the SQL depends on
 what the connection's code makes:
@@ -25,12 +31,14 @@ what the connection's code makes:
                             as the connection's catalog names them)
     a table (DataFrame)     a blade that makes one: DuckDB, in this Python, the table under its
                             variable's name
-    a Power BI dataset      the dataset itself, and the cell holds DAX, not SQL:
-                            `EVALUATE TOPN(10, 'Sales')`
+    a Power BI workspace    one of its datasets, named after the connection and a slash
+                            (`Finance/Sales model`; a workspace with one dataset needs no name), in a
+                            `%%dax` cell, which holds DAX, not SQL: `EVALUATE TOPN(10, 'Sales')`
 
 A database statement that returns no rows (an UPDATE, an INSERT) is committed and says how many rows it
 changed. `%%sql` is taken only when no other extension has it (JupySQL keeps its own); `%%sag` always
-works. The same, outside a notebook: `sag.sql("Warehouse", "SELECT ...")`. Each connection is opened
+works. The same, outside a notebook: `sag.sql("Warehouse", "SELECT ...")`, and
+`sag.dax("Finance/Sales model", "EVALUATE ...")`. Each connection is opened
 once per Python session (`%sql_connect Warehouse` opens it again). Standard library only: DuckDB and
 pandas are imported when a cell needs them, from this Python.
 """
@@ -84,9 +92,11 @@ class Connection:
     describe: str
     workbooks: dict[str, float] = field(default_factory=dict)  # a workbook's path -> when it was read
     sources: list[Path] = field(default_factory=list)
+    language: str = "sql"  # "dax": a Power BI workspace's dataset
 
 
 _connections: dict[str, Connection] = {}
+_workspaces: dict[str, Any] = {}  # a Power BI workspace, signed in once for all its datasets
 _default: list[str] = []  # the %sql_connect choice (one name, or none)
 
 
@@ -258,39 +268,70 @@ def _runs_sql(value: Any) -> bool:
 
 
 def _language(dialect: Any) -> str:
-    """What a database connection's cells are written in: its SQL, or DAX for a Power BI dataset."""
-    if not dialect or dialect == "other":
-        return ""
-    return " (DAX)" if dialect == "dax" else f" ({dialect} SQL)"
+    """What a database connection's cells are written in: its SQL."""
+    return "" if not dialect or dialect == "other" else f" ({dialect} SQL)"
 
 
-def open_connection(name: str) -> Connection:
-    """Run the connection's code in this Python and keep what it makes for the cells to use."""
-    record = _record(name)
+def _open_dataset(label: str, value: Any, dataset: str) -> Connection:
+    """One dataset of a Power BI workspace (the connection's own `dataset(name)`): what a DAX cell
+    runs on. No dataset named: the workspace's one; with several, refused, naming them."""
+    made = "a Power BI dataset (DAX)"
+    lister = getattr(value, "datasets", None)
+    if not callable(lister):  # a connection that is one dataset by itself (saved before workspaces)
+        if dataset:
+            raise SqlCellError(f"{label} is one dataset, not a workspace: name it alone, as {label}.")
+        return Connection(label, "database", value, made, language="dax")
+    listed = [str(d["name"]) for d in lister()]
+    if not dataset:
+        if len(listed) != 1:
+            raise SqlCellError(
+                f"{label} is a Power BI workspace with {len(listed)} datasets: name one, as "
+                f"{label}/{listed[0] if listed else '<dataset>'}. It has: {', '.join(listed) or 'none'}."
+            )
+        dataset = listed[0]
+    try:
+        target = value.dataset(dataset)
+    except Exception as error:  # its own words: the workspace has no such dataset, and what it has
+        raise SqlCellError(f"{label}: {error}") from None
+    return Connection(f"{label}/{target.name}", "database", target, made, language="dax")
+
+
+def open_connection(name: str, fresh: bool = True) -> Connection:
+    """Run the connection's code in this Python and keep what it makes for the cells to use. A Power
+    BI workspace's dataset is named after the connection: `Finance/Sales model`; the workspace is
+    signed in to once for all its datasets (`fresh`: again)."""
+    base, _, dataset = name.partition("/")
+    record = _record(base.strip())
     label, kind = str(record["name"]), str(record.get("kind", "other"))
     if kind in ("vault", "secret", "analysis"):
         raise SqlCellError(
             f"{label} is a {kind} blade, not a connection. %sql_connections lists the connections."
         )
-    value = blades_client.blade(label)
-    if isinstance(value, (str, os.PathLike)):
+    dax = record.get("dialect") == "dax"
+    if dataset.strip() and not dax:
+        raise SqlCellError(f"{label} is not a Power BI workspace: name it alone, as {label}.")
+    value = None if fresh or not dax else _workspaces.get(label.casefold())
+    if value is None:
+        value = blades_client.blade(label)
+    if dax:
+        _workspaces[label.casefold()] = value
+        found = _open_dataset(label, value, dataset.strip())
+        _connections[" ".join(name.split()).casefold()] = found
+    elif isinstance(value, (str, os.PathLike)):
         found = _open_files(label, value)
     elif _is_table(value) or (
         isinstance(value, dict) and value and all(_is_table(v) for v in value.values())
     ):
         found = _open_tables(label, value, str(record.get("variable") or ""))
     elif _runs_sql(value):
-        dialect = record.get("dialect")
-        made = (
-            "a Power BI dataset" if dialect == "dax" else f"{type(value).__module__.split('.')[0]} connection"
-        )
-        found = Connection(label, "database", value, made + _language(dialect))
+        made = f"{type(value).__module__.split('.')[0]} connection"
+        found = Connection(label, "database", value, made + _language(record.get("dialect")))
     else:
         raise SqlCellError(
             f"{label} makes a {type(value).__name__}, which can't run SQL. A cell can use a database "
             "connection, a file or folder path, or a table (DataFrame)."
         )
-    _connections[label.casefold()] = found
+    _connections[found.name.casefold()] = found
     return found
 
 
@@ -302,7 +343,7 @@ def connection(name: str | None) -> Connection:
                 "Name the connection (%%sql Warehouse) or choose one first: %sql_connect Warehouse."
             )
         name = _default[0]
-    return _connections.get(name.casefold()) or open_connection(name)
+    return _connections.get(" ".join(name.split()).casefold()) or open_connection(name, fresh=False)
 
 
 def tables(found: Connection) -> list[str]:
@@ -404,7 +445,7 @@ def run(found: Connection, sql: str) -> Any:
     """The SQL on the connection: a DataFrame (or rows), or a line saying what changed."""
     text = sql.strip()
     if not text:
-        raise SqlCellError("The cell has no SQL to run.")
+        raise SqlCellError(f"The cell has no {'DAX' if found.language == 'dax' else 'SQL'} to run.")
     if found.kind == "database":
         return _run_database(found.target, text.rstrip(";") if text.count(";") == 1 else text)
     _refresh(found)
@@ -415,6 +456,24 @@ def sql(connection_name: str, query: str) -> Any:
     """Run `query` on a connection in this Python: `sag.sql("Warehouse", "SELECT ...")`. A DataFrame (or
     rows, without pandas), or a line saying what changed."""
     return run(connection(connection_name), query)
+
+
+def _not_dax(found: Connection) -> SqlCellError:
+    return SqlCellError(
+        f"{found.name} is not a Power BI workspace's dataset, so it takes SQL, not DAX: use a SQL cell "
+        "(%%sql) or sag.sql()."
+    )
+
+
+def dax(dataset_name: str, query: str) -> Any:
+    """Run a DAX `query` on one dataset of a Power BI workspace connection, in this Python:
+    `sag.dax("Finance/Sales model", "EVALUATE TOPN(10, 'Sales')")` (the connection's name, a slash,
+    the dataset's name or id; a workspace with one dataset needs only the connection's name). A
+    DataFrame (or rows, without pandas)."""
+    found = connection(dataset_name)
+    if found.language != "dax":
+        raise _not_dax(found)
+    return run(found, query)
 
 
 # ===== the magics =====
@@ -429,16 +488,22 @@ def _stop(message: str) -> Exception:
     return usage(message)
 
 
-def _cell(shell: Any, line: str, cell: str) -> Any:
+def _cell(shell: Any, line: str, cell: str, dax: bool = False) -> Any:
+    """A `%%sql` cell, or (`dax`) a `%%dax` cell: the same in every way but the language it holds."""
+    what = "DAX cell" if dax else "SQL cell"
     try:
         parsed = parse_line(line)
+        if dax and parsed.name is None and not _default:
+            raise SqlCellError("Name the dataset: %%dax <connection>/<dataset>.")
         found = connection(parsed.name)
+        if dax and found.language != "dax":
+            raise _not_dax(found)
     except SqlCellError as error:
-        raise _stop(f"SQL cell: {error}") from None
+        raise _stop(f"{what}: {error}") from None
     try:
         result = run(found, cell)
     except SqlCellError as error:
-        raise _stop(f"SQL cell: {error}") from None
+        raise _stop(f"{what}: {error}") from None
     except Exception as error:  # the database's own refusal, in its words
         raise _stop(f"{found.name}: {type(error).__name__}: {error}") from None
     if isinstance(result, str):
@@ -474,9 +539,10 @@ def listing() -> list[tuple[str, str]]:
     """The connections a cell can use and what each is: databases, then files."""
     out = []
     for c in blades_client._call("GET", "/connections")["connections"]:
-        if c.get("connection") == "database":
-            dialect = c.get("dialect")
-            what = ("a Power BI dataset" if dialect == "dax" else "database") + _language(dialect)
+        if c.get("connection") == "database" and c.get("dialect") == "dax":
+            what = f"a Power BI workspace: a DAX cell names a dataset, %%dax {c['name']}/<dataset>"
+        elif c.get("connection") == "database":
+            what = "database" + _language(c.get("dialect"))
         else:
             what = f"{FILE_TEMPLATES.get(str(c.get('template')), 'a file')}, read by DuckDB here"
         out.append((str(c["name"]), what))
@@ -498,7 +564,8 @@ _registered: list[Any] = []
 
 
 def register(shell: Any) -> list[str]:
-    """Add the magics to this IPython: %%sag always, %%sql where no other extension has it."""
+    """Add the magics to this IPython: %%sag always, %%sql and %%dax where no other extension has
+    them."""
     if any(s is shell for s in _registered):
         return []
     names: list[str] = []
@@ -506,9 +573,14 @@ def register(shell: Any) -> list[str]:
     def cell(line: str, cell_text: str) -> Any:
         return _cell(shell, line, cell_text)
 
-    for name in ("sag", "sql"):
+    def dax_cell(line: str, cell_text: str) -> Any:
+        return _cell(shell, line, cell_text, dax=True)
+
+    for name in ("sag", "sql", "dax"):
         if name == "sag" or shell.find_cell_magic(name) is None:
-            shell.register_magic_function(cell, magic_kind="cell", magic_name=name)
+            shell.register_magic_function(
+                dax_cell if name == "dax" else cell, magic_kind="cell", magic_name=name
+            )
             names.append(f"%%{name}")
     for prefix in ("sag", "sql"):
         for suffix, fn in (("connect", _connect), ("connections", _connections_magic)):

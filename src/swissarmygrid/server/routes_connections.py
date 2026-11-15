@@ -13,8 +13,11 @@ answer holds a password's value:
   POST   /connections/{name}/catalog  load its catalog in the background now (first use: a SQL cell asks)
   POST   /connections/{name}/open     a table as a grid {database, schema, table, all} (a file: its file)
   POST   /connections/{name}/preview  a table's first rows {database, schema, table} (nothing kept)
-  POST   /connections/{name}/relationships   a Power BI dataset's own relationships, merged into the
-                                      current model (the Diagram, the Key Finder's known joins)
+  GET    /connections/{name}/datasets a Power BI workspace's datasets: from its loaded catalog, or
+                                      (?live=1, or no catalog yet) from Power BI itself, with their ids
+  POST   /connections/{name}/relationships   {dataset}: one of a Power BI workspace's datasets' own
+                                      relationships, merged into the current model (the Diagram, the
+                                      Key Finder's known joins)
 
 Removing, secrets, Refresh, favourites and export are the blade routes' (routes_blades.py).
 The use cases are services/connections.py.
@@ -120,6 +123,18 @@ def routes(connections: ConnectionService, blades: BladeService, loading: Catalo
         except Exception as error:
             return error_response(error)
 
+    async def datasets(request: Request) -> Response:
+        try:
+            name = request.path_params["name"]
+            live = request.query_params.get("live") in ("1", "true")
+            return json_response(await connections.datasets(name, {}, live))
+        except NeedsValues as error:
+            return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
+        except RefreshError as error:
+            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+        except Exception as error:
+            return error_response(error)
+
     async def source(request: Request) -> Response:
         try:
             return json_response(await connections.source(await read_json(request)))
@@ -148,6 +163,7 @@ def routes(connections: ConnectionService, blades: BladeService, loading: Catalo
         Route("/connections/{name}/open", open_table, methods=["POST"]),
         Route("/connections/{name}/preview", preview, methods=["POST"]),
         Route("/connections/{name}/relationships", import_relationships, methods=["POST"]),
+        Route("/connections/{name}/datasets", datasets),
         Route("/connections/{name}", details),
         Route("/connections/{name}", save, methods=["PUT"]),
     ]

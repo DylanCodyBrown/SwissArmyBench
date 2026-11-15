@@ -1,13 +1,20 @@
 """A stand-in for Power BI on this computer, for tests and screenshots: no real tenant is ever reached.
 
-It answers the two requests the Power BI dataset connection makes, the way Microsoft documents them:
+It answers the three requests the Power BI workspace connection makes, the way Microsoft documents them:
 
   POST /{tenant}/oauth2/v2.0/token                                    the client credentials sign-in
+  GET  /v1.0/myorg/groups/{workspace}/datasets                        the workspace's datasets
   POST /v1.0/myorg/groups/{workspace}/datasets/{dataset}/executeQueries   one DAX query, rows as JSON
 
-over a made-up model: Sales, Customer, Product and Date, three measures, four relationships (one of
-them inactive, one filtering both ways) and one of the date tables Power BI makes by itself. It knows
-only the DAX the app sends (the INFO functions, TOPN, COUNTROWS, a table by its name) and one
+over a made-up workspace of three datasets:
+
+  Sales model    Sales, Customer, Product and Date, three measures, four relationships (one of them
+                 inactive, one filtering both ways) and one of the date tables Power BI makes by itself
+  Budget model   Budget, Department and Date (a Date table of its own: the name is shared), one
+                 measure, two relationships
+  Broken model   answers every query with an error, as a dataset being refreshed does
+
+It knows only the DAX the app sends (the INFO functions, TOPN, COUNTROWS, a table by its name) and one
 SUMMARIZECOLUMNS for a notebook cell; anything else is refused in the real service's error shape.
 
 Every request is kept (`requests`), so a test can prove what the sign-in carried. Made-up values only.
@@ -21,6 +28,7 @@ import json
 import re
 import sys
 import threading
+from dataclasses import dataclass
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -30,7 +38,10 @@ TENANT = "made-up-tenant-0001"
 CLIENT = "made-up-client-0002"
 SECRET = "made-up-client-secret-0003"
 WORKSPACE = "11111111-aaaa-4bbb-8ccc-222222222222"
-DATASET = "33333333-dddd-4eee-8fff-444444444444"
+DATASET = "33333333-dddd-4eee-8fff-444444444444"  # Sales model
+BUDGET_DATASET = "55555555-aaaa-4bbb-8ccc-666666666666"
+BROKEN_DATASET = "77777777-dddd-4eee-8fff-888888888888"
+BROKEN_MESSAGE = "The dataset is being refreshed and cannot be queried now."
 SCOPE = "https://analysis.windows.net/powerbi/api/.default"
 TOKEN = "made-up-access-token-0004"
 
@@ -114,8 +125,72 @@ RELATIONSHIPS: list[tuple[str, str, str, str, bool, bool]] = [
     ("Sales", "Ship Date", "Date", "Date", False, False),
     ("Date", "Date", "LocalDateTable_made-up", "Date", True, False),
 ]
-_TABLE_IDS = {name: 100 + i for i, name in enumerate(dict.fromkeys(c[0] for c in COLUMNS))}
-_COLUMN_IDS = {(t, c): 1000 + i for i, (t, c, _, _) in enumerate(COLUMNS)}
+
+
+def budget_tables() -> dict[str, list[dict[str, Any]]]:
+    """The second dataset's rows: a budget by department and month, with its own Date table."""
+    departments = [
+        {"DepartmentKey": i, "Department": name}
+        for i, name in enumerate(["Operations", "Marketing", "Research"], 1)
+    ]
+    months = [{"Date": _iso(date(2026, m, 1)), "Quarter": f"Q{(m - 1) // 3 + 1}"} for m in range(1, 13)]
+    budget = [
+        {
+            "BudgetKey": i,
+            "DepartmentKey": i % 3 + 1,
+            "Month": _iso(date(2026, i % 12 + 1, 1)),
+            "Planned": 1000.0 + 250 * (i % 7),
+        }
+        for i in range(1, 25)
+    ]
+    return {"Budget": budget, "Department": departments, "Date": months}
+
+
+BUDGET_COLUMNS: list[tuple[str, str, str, int]] = [
+    ("Budget", "BudgetKey", "Integer", 6),
+    ("Budget", "DepartmentKey", "Integer", 6),
+    ("Budget", "Month", "DateTime", 9),
+    ("Budget", "Planned", "Decimal", 10),
+    ("Department", "DepartmentKey", "Integer", 6),
+    ("Department", "Department", "Text", 2),
+    ("Date", "Date", "DateTime", 9),
+    ("Date", "Quarter", "Text", 2),
+]
+BUDGET_MEASURES: list[tuple[str, str, str, int]] = [("Budget", "Total Planned", "Decimal", 10)]
+BUDGET_RELATIONSHIPS: list[tuple[str, str, str, str, bool, bool]] = [
+    ("Budget", "DepartmentKey", "Department", "DepartmentKey", True, False),
+    ("Budget", "Month", "Date", "Date", True, False),
+]
+
+
+@dataclass(frozen=True)
+class MadeUpModel:
+    """One dataset of the made-up workspace. `broken`: it answers every query with an error."""
+
+    id: str
+    name: str
+    rows: dict[str, list[dict[str, Any]]]
+    columns: list[tuple[str, str, str, int]]
+    measures: list[tuple[str, str, str, int]]
+    relationships: list[tuple[str, str, str, str, bool, bool]]
+    broken: bool = False
+
+    @property
+    def table_ids(self) -> dict[str, int]:
+        return {name: 100 + i for i, name in enumerate(dict.fromkeys(c[0] for c in self.columns))}
+
+    @property
+    def column_ids(self) -> dict[tuple[str, str], int]:
+        return {(t, c): 1000 + i for i, (t, c, _, _) in enumerate(self.columns)}
+
+
+SALES_MODEL = MadeUpModel(DATASET, "Sales model", tables(), COLUMNS, MEASURES, RELATIONSHIPS)
+BUDGET_MODEL = MadeUpModel(
+    BUDGET_DATASET, "Budget model", budget_tables(), BUDGET_COLUMNS, BUDGET_MEASURES, BUDGET_RELATIONSHIPS
+)
+BROKEN_MODEL = MadeUpModel(BROKEN_DATASET, "Broken model", {}, [], [], [], broken=True)
+MODELS: list[MadeUpModel] = [SALES_MODEL, BUDGET_MODEL, BROKEN_MODEL]
+DATASET_NAMES: list[str] = [m.name for m in MODELS]
 
 
 def _keyed(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -123,8 +198,10 @@ def _keyed(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{f"[{k}]": v for k, v in row.items()} for row in rows]
 
 
-def _info(function: str) -> list[dict[str, Any]] | None:
-    """The INFO functions' answers over the made-up model; None for one this stand-in does not know."""
+def _info(function: str, model: MadeUpModel = SALES_MODEL) -> list[dict[str, Any]] | None:
+    """The INFO functions' answers over a made-up model; None for one this stand-in does not know."""
+    _TABLE_IDS, _COLUMN_IDS = model.table_ids, model.column_ids
+    COLUMNS, MEASURES, RELATIONSHIPS = model.columns, model.measures, model.relationships
     if function == "INFO.VIEW.TABLES":
         return [
             {"ID": i, "Name": t, "Model": "Model", "IsHidden": t.startswith("Local")}
@@ -213,15 +290,19 @@ class DaxError(Exception):
     """A query the stand-in refuses, in the words the real service would use."""
 
 
-def _table_rows(name: str) -> list[dict[str, Any]]:
-    found = tables().get(name.replace("''", "'"))
+def _table_rows(name: str, model: MadeUpModel = SALES_MODEL) -> list[dict[str, Any]]:
+    found = model.rows.get(name.replace("''", "'"))
     if found is None:
         raise DaxError(f"Cannot find table '{name}'.")
     return [{f"{name}[{k}]": v for k, v in row.items()} for row in found]
 
 
-def evaluate(dax: str, view_forms: bool = True, info_forms: bool = True) -> list[dict[str, Any]]:
+def evaluate(
+    dax: str, view_forms: bool = True, info_forms: bool = True, model: MadeUpModel = SALES_MODEL
+) -> list[dict[str, Any]]:
     """One DAX query's rows, keyed as Power BI keys them (Table[Column], [Name])."""
+    if model.broken:
+        raise DaxError(BROKEN_MESSAGE)
     text = re.sub(r"(--|//)[^\n]*", "", dax).strip()  # a DAX cell may begin with a comment line
     text = re.sub(r"\s+", " ", text)
     if (found := re.fullmatch(r"EVALUATE ROW\(\s*\"(\w+)\"\s*,\s*1\s*\)", text, re.I)) is not None:
@@ -229,7 +310,7 @@ def evaluate(dax: str, view_forms: bool = True, info_forms: bool = True) -> list
     if (found := re.fullmatch(r"EVALUATE (INFO(?:\.VIEW)?\.[A-Z]+)\(\)", text, re.I)) is not None:
         function = found.group(1).upper()
         allowed = view_forms if function.startswith("INFO.VIEW.") else info_forms
-        rows = _info(function) if allowed else None
+        rows = _info(function, model) if allowed else None
         if rows is None:
             raise DaxError(
                 f"Failed to resolve name '{found.group(1)}'. It is not a valid table, variable, or "
@@ -238,34 +319,39 @@ def evaluate(dax: str, view_forms: bool = True, info_forms: bool = True) -> list
         return _keyed(rows)
     if re.fullmatch(r"EVALUATE COLUMNSTATISTICS\(\)", text, re.I):
         return _keyed(
-            [{"Table Name": t, "Column Name": c, "Cardinality": len(tables()[t])} for t, c, _, _ in COLUMNS]
+            [
+                {"Table Name": t, "Column Name": c, "Cardinality": len(model.rows[t])}
+                for t, c, _, _ in model.columns
+            ]
             + [
                 {"Table Name": t, "Column Name": f"RowNumber-made-up-{i}", "Cardinality": 1}
-                for t, i in _TABLE_IDS.items()
+                for t, i in model.table_ids.items()
             ]
         )
     if (
         found := re.fullmatch(r"EVALUATE TOPN\(\s*(\d+)\s*,\s*'((?:[^']|'')+)'\s*\)", text, re.I)
     ) is not None:
-        return _table_rows(found.group(2))[: int(found.group(1))]
+        return _table_rows(found.group(2), model)[: int(found.group(1))]
     if (found := re.fullmatch(r"EVALUATE '((?:[^']|'')+)'", text, re.I)) is not None:
-        return _table_rows(found.group(1))
+        return _table_rows(found.group(1), model)
     if (
         found := re.fullmatch(
             r"EVALUATE ROW\(\s*\"(\w+)\"\s*,\s*COUNTROWS\(\s*'((?:[^']|'')+)'\s*\)\s*\)", text, re.I
         )
     ) is not None:
-        return [{f"[{found.group(1)}]": len(_table_rows(found.group(2)))}]
-    if re.fullmatch(
-        r"EVALUATE SUMMARIZECOLUMNS\(\s*'Customer'\[Region\]\s*,\s*"
-        r"\"Total Sales\"\s*,\s*\[Total Sales\]\s*\)",
-        text,
-        re.I,
+        return [{f"[{found.group(1)}]": len(_table_rows(found.group(2), model))}]
+    if (
+        re.fullmatch(
+            r"EVALUATE SUMMARIZECOLUMNS\(\s*'Customer'\[Region\]\s*,\s*"
+            r"\"Total Sales\"\s*,\s*\[Total Sales\]\s*\)",
+            text,
+            re.I,
+        )
+        and model is SALES_MODEL
     ):
-        model = tables()
-        region = {c["CustomerKey"]: c["Region"] for c in model["Customer"]}
+        region = {c["CustomerKey"]: c["Region"] for c in model.rows["Customer"]}
         totals: dict[Any, float] = {}
-        for sale in model["Sales"]:
+        for sale in model.rows["Sales"]:
             where = region[sale["CustomerKey"]]
             totals[where] = totals.get(where, 0.0) + (sale["Amount"] or 0.0)
         return [
@@ -292,6 +378,7 @@ class StandIn:
         self.requests: list[dict[str, Any]] = []
         self.view_forms = True
         self.info_forms = True
+        self.models: list[MadeUpModel] = list(MODELS)  # a test may leave one dataset, or add many
         standin = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -306,6 +393,10 @@ class StandIn:
                 self.end_headers()
                 self.wfile.write(data)
 
+            def do_GET(self) -> None:
+                status, answer = standin.listing(self.path, self.headers.get("Authorization") or "")
+                self._send(status, answer)
+
             def do_POST(self) -> None:
                 body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
                 status, answer = standin.answer(self.path, body, self.headers.get("Authorization") or "")
@@ -314,6 +405,22 @@ class StandIn:
         self._server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
         self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+
+    def listing(self, path: str, authorization: str) -> tuple[int, dict[str, Any]]:
+        """GET .../groups/{workspace}/datasets: the workspace's datasets, names and ids."""
+        found = re.fullmatch(r"/v1\.0/myorg/groups/([^/]+)/datasets", path)
+        self.requests.append({"what": "datasets", "path": path, "authorization": authorization})
+        if found is None:
+            return 404, _refusal("PowerBIEntityNotFound")
+        if authorization != f"Bearer {TOKEN}":
+            return 401, _refusal("TokenExpired")
+        if found.group(1) != WORKSPACE:
+            return 404, _refusal("PowerBIEntityNotFound")
+        listed = [
+            {"id": m.id, "name": m.name, "isRefreshable": True, "configuredBy": "made.up@example.com"}
+            for m in self.models
+        ]
+        return 200, {"value": listed}
 
     def answer(self, path: str, body: bytes, authorization: str) -> tuple[int, dict[str, Any]]:
         if path.endswith("/oauth2/v2.0/token"):
@@ -343,19 +450,25 @@ class StandIn:
         self.requests.append({"what": "query", "dax": dax, "authorization": authorization, "body": sent})
         if authorization != f"Bearer {TOKEN}":
             return 401, _refusal("TokenExpired")
-        if found.groups() != (WORKSPACE, DATASET):
+        model = next((m for m in self.models if m.id == found.group(2)), None)
+        if found.group(1) != WORKSPACE or model is None:
             return 404, _refusal("PowerBIEntityNotFound")
+        self.requests[-1]["dataset"] = model.name
         try:
-            rows = evaluate(dax, self.view_forms, self.info_forms)
+            rows = evaluate(dax, self.view_forms, self.info_forms, model)
         except DaxError as error:
             return 400, _refusal("DatasetExecuteQueriesError", str(error))
         if not sent.get("serializerSettings", {}).get("includeNulls"):
             rows = [{k: v for k, v in row.items() if v is not None} for row in rows]  # as the real one does
         return 200, {"results": [{"tables": [{"rows": rows}]}]}
 
-    def queries(self) -> list[str]:
-        """Every DAX query received, in order."""
-        return [r["dax"] for r in self.requests if r["what"] == "query"]
+    def queries(self, dataset: str | None = None) -> list[str]:
+        """Every DAX query received, in order (one dataset's, when named)."""
+        return [
+            r["dax"]
+            for r in self.requests
+            if r["what"] == "query" and (dataset is None or r.get("dataset") == dataset)
+        ]
 
     def start(self) -> StandIn:
         self._thread.start()

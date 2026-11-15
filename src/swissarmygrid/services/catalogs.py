@@ -34,6 +34,8 @@ class Catalogs(Protocol):
 
     def schemas(self, cur: Any, name: str) -> list[dict[str, Any]]: ...
 
+    def shared_tables(self, cur: Any, name: str) -> set[str]: ...
+
     def tables(
         self,
         cur: Any,
@@ -117,6 +119,26 @@ class CatalogService:
         info = self._catalogs.get(name)
         found = await self._on_worker(lambda cur: self._catalogs.schemas(cur, name))
         return {"catalog": info.to_json(), "schemas": found}
+
+    async def shared_tables(self, name: str) -> set[str]:
+        """The table names several of the catalog's schemas hold, casefolded; none when the catalog
+        is not loaded (a Power BI workspace's tables open under their own names until it is)."""
+        try:
+            self._catalogs.get(name)
+        except KeyError:
+            return set()
+        found: set[str] = await self._on_worker(lambda cur: self._catalogs.shared_tables(cur, name))
+        return found
+
+    async def schema_names(self, name: str) -> list[dict[str, Any]] | None:
+        """The loaded catalog's schemas (a Power BI workspace's datasets), each with its note; None
+        when the catalog is not loaded."""
+        try:
+            self._catalogs.get(name)
+        except KeyError:
+            return None
+        found: list[dict[str, Any]] = await self._on_worker(lambda cur: self._catalogs.schemas(cur, name))
+        return found
 
     async def tables(
         self, name: str, schema: str, database: str | None, offset: int, limit: int

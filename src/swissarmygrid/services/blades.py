@@ -313,17 +313,31 @@ class BladeService:
         values = {k: v for k, v in (typed or {}).items() if v}
         return await self._run_blade(blade, "test", self._typed_values(blade, data), {"secrets": values})
 
-    async def rows(self, blade: Blade, sql: str | None, count: str | None, body: Any) -> dict[str, Any]:
+    async def rows(
+        self, blade: Blade, sql: str | None, count: str | None, body: Any, dataset: str = ""
+    ) -> dict[str, Any]:
         """A connection's table rows (a SELECT and its COUNT in its own SQL), or with no SQL the file a
-        file connection reaches, run in a child process as Refresh is: {"table", "total"} or {"path"}."""
+        file connection reaches, run in a child process as Refresh is: {"table", "total"} or {"path"}.
+        `dataset`: the one of a Power BI workspace's the statements are sent to."""
         typed = self._typed_values(blade, body)
-        return await self._run_blade(blade, "rows", typed, {"sql": sql, "count_sql": count})
+        more = {"sql": sql, "count_sql": count, "dataset": dataset or None}
+        return await self._run_blade(blade, "rows", typed, more)
 
-    async def queries(self, blade: Blade, attempts: Sequence[Sequence[str]], body: Any) -> dict[str, Any]:
+    async def queries(
+        self, blade: Blade, attempts: Sequence[Sequence[str]], body: Any, dataset: str = ""
+    ) -> dict[str, Any]:
         """Several statements on a connection, signed in once, in a child process as Refresh is. The
         first group of `attempts` the source answers whole: {"attempt", "results": [{"columns", "rows"}]}."""
         typed = self._typed_values(blade, body)
-        return await self._run_blade(blade, "queries", typed, {"attempts": [list(a) for a in attempts]})
+        more = {"attempts": [list(a) for a in attempts], "dataset": dataset or None}
+        return await self._run_blade(blade, "queries", typed, more)
+
+    async def datasets(self, blade: Blade, body: Any) -> list[dict[str, str]] | None:
+        """A Power BI workspace's datasets (names and ids), asked of Power BI in a child process; None
+        for a connection that is one dataset by itself."""
+        answer = await self._run_blade(blade, "datasets", self._typed_values(blade, body))
+        found = answer.get("datasets")
+        return None if found is None else [dict(d) for d in found]
 
     async def vault_names(self, data: Any) -> dict[str, Any]:
         """A vault's secret names (its names()), saved (`{"name"}`) or a draft (the form: code, variable,

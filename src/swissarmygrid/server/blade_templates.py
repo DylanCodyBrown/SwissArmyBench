@@ -1,4 +1,4 @@
-"""Starter blades: the most used databases, a Power BI dataset, common file patterns, vaults and a few
+"""Starter blades: the most used databases, a Power BI workspace, common file patterns, vaults and a few
 analyses (plan, the owner's request).
 
 Each template is a starting point the user edits on the save screen: the driver's import, the
@@ -161,11 +161,13 @@ SQLSERVER_WINDOWS = _sql_server("my-server", _WINDOWS)
 AZURE_MFA = _sql_server(_AZURE_SERVER, _MFA)
 
 
-# ===== a Power BI dataset (semantic model), read with DAX =====
+# ===== a Power BI workspace: its datasets (semantic models), read with DAX =====
 #
-# The code signs in and sends DAX to Power BI's Execute Queries request, and is shaped like a database
-# connection (cursor, execute, description, fetchall), so the catalog, Open as grid and %%sql cells use
-# it as they use a database. Its web requests are the standard library's: the app registration's
+# The connection is per workspace (the owner, 2026-11-15), as a database connection gives every
+# schema: the code signs in, lists the workspace's datasets (GET .../groups/{workspace}/datasets) and
+# sends DAX to any one of them through Power BI's Execute Queries request. A dataset is shaped like a
+# database connection (cursor, execute, description, fetchall), so the catalog, Open as grid and DAX
+# cells use it as they use a database. Its web requests are the standard library's: the app registration's
 # sign-in needs no package at all (so the same code runs in an Azure Function as it is); only the
 # browser sign-in needs Microsoft's azure-identity. Two environment variables move it to another
 # cloud (or, in the tests, to a stand-in on this computer): POWERBI_API_URL and POWERBI_LOGIN_URL.
@@ -181,9 +183,8 @@ from datetime import datetime
 """
 
 _POWERBI_WHERE = """
-# Both ids are in the dataset's address in Power BI: .../groups/<workspace id>/datasets/<dataset id>
+# The workspace's id is in its address in Power BI: .../groups/<workspace id>/...
 workspace_id = "my-workspace-id"
-dataset_id = "my-dataset-id"
 """
 
 _POWERBI_APP = '''
@@ -204,12 +205,12 @@ def sign_in():
         "scope": "https://analysis.windows.net/powerbi/api/.default",
     }
     sent = urllib.parse.urlencode(form).encode()
-    answer = post(f"{login}/{tenant_id}/oauth2/v2.0/token", sent, {}, "The sign-in")
+    answer = ask(f"{login}/{tenant_id}/oauth2/v2.0/token", sent, {}, "The sign-in")
     return answer["access_token"], time.time() + int(answer.get("expires_in", 3600))
 '''
 
 _POWERBI_BROWSER = '''
-# Sign in as yourself, in a browser window: for trying a dataset by hand.
+# Sign in as yourself, in a browser window: for trying a workspace by hand.
 tenant_id = "organizations"
 credential = InteractiveBrowserCredential(tenant_id=tenant_id)
 
@@ -226,7 +227,8 @@ class PowerBIError(RuntimeError):
     """The sign-in or Power BI refused. The message is its own words, and what usually causes it."""
 
 
-def post(url, data, headers, what):
+def ask(url, data, headers, what):
+    """One web request (with `data`, a POST; without, a GET): its JSON answer."""
     request = urllib.request.Request(url, data, headers)
     try:
         with urllib.request.urlopen(request, timeout=120) as answer:
@@ -254,7 +256,7 @@ def why(what, status, body):
         403: "The tenant must allow the Execute Queries request (Dataset Execute Queries REST API) and, "
         "for an app registration, service principals to use the Power BI APIs; the sign-in needs Read "
         "and Build permission on the dataset.",
-        404: "Check the workspace id and the dataset id, and that this sign-in is a member of the workspace.",
+        404: "Check the workspace id, and that this sign-in is a member of the workspace.",
         429: "Power BI takes 120 queries a minute from one user: wait a minute.",
     }
     first = str(error).strip().splitlines()[0] if str(error).strip() else "no reason"
@@ -280,10 +282,10 @@ def dates(column):
         return column
 
 
-class PowerBI:
-    """A dataset (semantic model) read with DAX through Power BI's Execute Queries request. Shaped
-    like a database connection (cursor, execute, description, fetchall), so a %%sql cell, Open as
-    grid and the catalog use it as they use a database."""
+class Dataset:
+    """One dataset (semantic model) of the workspace, read with DAX through Power BI's Execute
+    Queries request. Shaped like a database connection (cursor, execute, description, fetchall), so
+    a DAX cell, Open as grid and the catalog use it as they use a database."""
 
     # Power BI's limits for one query: 100,000 rows or 1,000,000 values (rows times columns),
     # whichever comes first, and 15 MB of data; one query in a request; 120 requests a minute for
@@ -291,12 +293,9 @@ class PowerBI:
     MAX_ROWS = 100_000
     MAX_VALUES = 1_000_000
 
-    def __init__(self, workspace_id, dataset_id, sign_in):
-        api = os.environ.get("POWERBI_API_URL", "https://api.powerbi.com")
-        self.url = f"{api}/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/executeQueries"
-        self.sign_in, self.token, self.expires = sign_in, "", 0.0
+    def __init__(self, workspace, name, id):
+        self.workspace, self.name, self.id = workspace, name, id
         self.description, self.rows = None, []
-        self.execute('EVALUATE ROW("ok", 1)')  # signs in and reaches the dataset now: Test means it
 
     def cursor(self):
         return self
@@ -305,11 +304,8 @@ class PowerBI:
         pass
 
     def execute(self, dax):
-        if time.time() > self.expires - 300:
-            self.token, self.expires = self.sign_in()
         body = {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}}
-        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        answer = post(self.url, json.dumps(body).encode(), headers, "The query")
+        answer = self.workspace.ask(f"/datasets/{self.id}/executeQueries", body, "The query")
         result = (answer.get("results") or [{}])[0]
         table = (result.get("tables") or [{}])[0]
         rows = table.get("rows") or []
@@ -336,7 +332,66 @@ class PowerBI:
         return rows
 
 
-conn = PowerBI(workspace_id, dataset_id, sign_in)'''
+class PowerBI:
+    """A Power BI workspace: every dataset (semantic model) in it, each read with DAX.
+
+        conn.datasets()                        each dataset's name and id
+        conn.dataset("Sales model")            one of them, by its name or its id
+        conn.dataset("Sales model").cursor()   runs DAX on it, as a database's cursor runs SQL
+        conn.cursor(dataset="Sales model")     the same
+        conn.cursor()                          the workspace's one dataset (refused when it has several)
+    """
+
+    def __init__(self, workspace_id, sign_in):
+        api = os.environ.get("POWERBI_API_URL", "https://api.powerbi.com")
+        self.url = f"{api}/v1.0/myorg/groups/{workspace_id}"
+        self.sign_in, self.token, self.expires = sign_in, "", 0.0
+        self.found = None
+        self.datasets()  # signs in and reaches the workspace now: Test means it
+
+    def ask(self, path, body, what):
+        if time.time() > self.expires - 300:
+            self.token, self.expires = self.sign_in()
+        headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+        return ask(self.url + path, None if body is None else json.dumps(body).encode(), headers, what)
+
+    def datasets(self):
+        """Each dataset's name and id, listed once. Two with one name are told apart by their ids."""
+        if self.found is None:
+            listed = self.ask("/datasets", None, "Listing the workspace's datasets").get("value") or []
+            names = [str(d.get("name") or d["id"]) for d in listed]
+            self.found = [
+                {"name": n if names.count(n) == 1 else f"{n} ({str(d['id'])[:8]})", "id": str(d["id"])}
+                for d, n in zip(listed, names)
+            ]
+        return [dict(d) for d in self.found]
+
+    def names(self):
+        return ", ".join(d["name"] for d in self.datasets()) or "none"
+
+    def dataset(self, name):
+        wanted = str(name).strip().lower()
+        for d in self.datasets():
+            if wanted in (d["name"].lower(), d["id"].lower()):
+                return Dataset(self, d["name"], d["id"])
+        raise PowerBIError(f"The workspace has no dataset {str(name)!r}. It has: {self.names()}.")
+
+    def cursor(self, dataset=None):
+        if dataset is None:
+            found = self.datasets()
+            if len(found) != 1:
+                raise PowerBIError(
+                    f"The workspace has {len(found)} datasets: name the one to read, as "
+                    f'conn.cursor(dataset="..."). It has: {self.names()}.'
+                )
+            dataset = found[0]["id"]
+        return self.dataset(dataset)
+
+    def close(self):
+        pass
+
+
+conn = PowerBI(workspace_id, sign_in)'''
 
 
 def _powerbi(sign_in: str, imports: str = "") -> str:
@@ -351,55 +406,94 @@ POWERBI_VAULT = _powerbi_app('secret("tenant id")', 'secret("client id")')
 POWERBI_TYPED = _powerbi_app('"my-tenant-id"', '"my-client-id"')
 POWERBI_BROWSER = _powerbi(_POWERBI_BROWSER, "\nfrom azure.identity import InteractiveBrowserCredential\n")
 
-# Tables, columns (with types) and measures, each measure listed on its own table and marked. The
-# model's own description (INFO.VIEW) first; an older model's numbered form; then, for a sign-in that
-# may not read the model's description, the columns' statistics (no types, no measures).
-POWERBI_CATALOG = """def read(dax):
-    conn.execute(dax)
-    columns = [d[0] for d in conn.description]
-    return [dict(zip(columns, row)) for row in conn.fetchall()]
+# The workspace's datasets, each as a schema: its tables, columns (with types) and measures, each
+# measure listed on its own table and marked. A dataset is asked the model's own description
+# (INFO.VIEW) first; an older model's numbered form; then, for a sign-in that may not read the model's
+# description, the columns' statistics (no types, no measures). Datasets are read one after another,
+# at most MAX_DATASETS of them and for at most MAX_SECONDS; one that cannot be read (or was not
+# reached) is a row with no table and the reason, which the tree shows on that dataset alone
+# (adapters/catalogs.py keeps it as the schema's note).
+POWERBI_CATALOG = """MAX_DATASETS = 25  # each takes two queries or more; Power BI takes 120 a minute
+MAX_SECONDS = 200
+
+
+def read(dataset, dax):
+    dataset.execute(dax)
+    columns = [d[0] for d in dataset.description]
+    return [dict(zip(columns, row)) for row in dataset.fetchall()]
 
 
 def own(table):  # the date tables Power BI makes by itself
     return str(table).startswith(("LocalDateTable_", "DateTableTemplate_"))
 
 
-try:
-    found = read("EVALUATE INFO.VIEW.COLUMNS()")
-    columns = [(c["Table"], c["Name"], c.get("DataType") or "") for c in found]
-    found = read("EVALUATE INFO.VIEW.MEASURES()")
-    measures = [(m["Table"], m["Name"], m.get("DataType") or "") for m in found]
-except (PowerBIError, KeyError):
-    try:  # the numbered form: ids for tables, numbers for types
-        types = {2: "Text", 6: "Integer", 8: "Double", 9: "DateTime", 10: "Decimal", 11: "Boolean"}
-        tables = {t["ID"]: t["Name"] for t in read("EVALUATE INFO.TABLES()")}
-        columns = [
-            (
-                tables.get(c["TableID"]),
-                c.get("ExplicitName") or c.get("InferredName"),
-                types.get(c.get("ExplicitDataType"), ""),
-            )
-            for c in read("EVALUATE INFO.COLUMNS()")
-            if c.get("Type") != 3  # 3: each table's hidden row number
-        ]
-        measures = [
-            (tables.get(m["TableID"]), m["Name"], types.get(m.get("DataType"), ""))
-            for m in read("EVALUATE INFO.MEASURES()")
-        ]
+def described(dataset):
+    try:
+        found = read(dataset, "EVALUATE INFO.VIEW.COLUMNS()")
+        columns = [(c["Table"], c["Name"], c.get("DataType") or "") for c in found]
+        found = read(dataset, "EVALUATE INFO.VIEW.MEASURES()")
+        measures = [(m["Table"], m["Name"], m.get("DataType") or "") for m in found]
     except (PowerBIError, KeyError):
-        found = read("EVALUATE COLUMNSTATISTICS()")
-        columns = [(c["Table Name"], c["Column Name"], "") for c in found]
-        measures = []
+        try:  # the numbered form: ids for tables, numbers for types
+            types = {2: "Text", 6: "Integer", 8: "Double", 9: "DateTime", 10: "Decimal", 11: "Boolean"}
+            tables = {t["ID"]: t["Name"] for t in read(dataset, "EVALUATE INFO.TABLES()")}
+            columns = [
+                (
+                    tables.get(c["TableID"]),
+                    c.get("ExplicitName") or c.get("InferredName"),
+                    types.get(c.get("ExplicitDataType"), ""),
+                )
+                for c in read(dataset, "EVALUATE INFO.COLUMNS()")
+                if c.get("Type") != 3  # 3: each table's hidden row number
+            ]
+            measures = [
+                (tables.get(m["TableID"]), m["Name"], types.get(m.get("DataType"), ""))
+                for m in read(dataset, "EVALUATE INFO.MEASURES()")
+            ]
+        except (PowerBIError, KeyError):
+            found = read(dataset, "EVALUATE COLUMNSTATISTICS()")
+            columns = [(c["Table Name"], c["Column Name"], "") for c in found]
+            measures = []
+    return [
+        (table, name, kind)
+        for table, name, kind in columns
+        if table and name and not own(table) and not str(name).startswith("RowNumber-")
+    ] + [
+        (table, name, f"measure, {kind}" if kind else "measure")
+        for table, name, kind in measures
+        if table and name
+    ]
 
-catalog = [
-    {"table_name": table, "column_name": name, "data_type": kind}
-    for table, name, kind in columns
-    if table and name and not own(table) and not str(name).startswith("RowNumber-")
-] + [
-    {"table_name": table, "column_name": name, "data_type": f"measure, {kind}" if kind else "measure"}
-    for table, name, kind in measures
-    if table and name
-]"""
+
+def row(dataset, table="", column="", kind="", note=""):
+    return {
+        "schema_name": dataset,
+        "table_name": table,
+        "column_name": column,
+        "data_type": kind,
+        "description": note,
+    }
+
+
+started = time.time()
+catalog = []
+for at, found in enumerate(conn.datasets()):
+    rows = []
+    if at >= MAX_DATASETS:
+        note = f"Not read: the catalog reads a workspace's first {MAX_DATASETS} datasets."
+    elif time.time() - started > MAX_SECONDS:
+        note = f"Not read: the catalog stops after {MAX_SECONDS} seconds."
+    else:
+        try:
+            rows = described(conn.dataset(found["id"]))
+            note = "" if rows else "It has no tables."
+        except (PowerBIError, KeyError) as error:
+            note = f"Could not be read: {error}"
+    if note:
+        catalog.append(row(found["name"], note=note))
+    catalog += [row(found["name"], table, name, kind) for table, name, kind in rows]
+if not catalog:
+    raise PowerBIError("The workspace has no datasets this sign-in may read.")"""
 
 
 DATABASES: tuple[Template, ...] = (
@@ -692,7 +786,7 @@ conn = pyodbc.connect("DSN=my_data_source")""",
     ),
     _db(
         "powerbi",
-        "Power BI dataset",
+        "Power BI workspace",
         "dax",
         POWERBI_VAULT,
         POWERBI_CATALOG,
