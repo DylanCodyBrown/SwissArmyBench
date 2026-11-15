@@ -556,6 +556,14 @@ cd web; npm run typecheck
 
 SwissArmyGrid is built with Claude, by Anthropic.
 
+**How it was built.** Dylan Brown designed it and decided every feature, one question at a time; Claude
+wrote the code, the tests and the documentation, and checked each change in a real browser with made-up
+data. The commit history covers four days, 12 to 15 November 2026: 268 commits and 12 releases (0.10.0
+to 1.6.0), with commits spread over about 66 hours. Larger pieces (read-only table cells, HTML cells,
+the cleanup and the last round of usability changes) were built by Claude working as several agents
+in parallel, each checked before it was kept. The work before 1.0.0 was squashed into that release's
+single commit, so it is not counted here.
+
 ## License
 
 Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the
