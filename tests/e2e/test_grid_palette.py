@@ -48,8 +48,9 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
               const shown = b => b.getClientRects().length > 0;
               const name = b => (b.getAttribute('aria-label') || b.textContent).trim();
               const found = [];
+              // The tour bubble's two buttons are a one-time offer, not commands.
               for (const b of document.querySelectorAll('.app-row button'))
-                if (shown(b)) found.push(['Application', name(b)]);
+                if (shown(b) && !b.closest('.tour-bubble')) found.push(['Application', name(b)]);
               for (const row of document.querySelectorAll('.ribbon .ribbon-group')) {
                 const group = row.querySelector('.ribbon-caption strong').textContent.trim();
                 for (const b of row.querySelectorAll('button'))
@@ -64,6 +65,7 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
         assert len(on_page) > 35
         missing = [pair for pair in on_page if (pair[0], pair[1]) not in titles]
         assert not missing, f"buttons with no command: {missing}"
+        assert ("Application", "Not now") not in titles  # the tour bubble's dismiss is not a command
         # And what has no button of its own: the Analyze menu's entries, the tabs, the cell's menu.
         for wanted in (
             ("Analyze", "Odds…"),

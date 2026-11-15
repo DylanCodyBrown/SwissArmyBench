@@ -70,7 +70,8 @@ function commands(): Command[] {
   const active = activeContext();
   const onGrid = !document.body.classList.contains("agent-view");
   // The Application row is on every tab.
-  out.push(...buttonsOf("Application", document, ".app-row button"));
+  // The tour bubble's two buttons are a one-time offer, not commands (Tour is already in the row).
+  out.push(...buttonsOf("Application", document, ".app-row button", (b) => b.closest(".tour-bubble") !== null));
   out.push({ id: "application.zoom-reset", group: "Application", title: "Zoom 100%", keys: "Ctrl+0", run: () => setGridZoom(1) });
   // The ribbon's rows, each under its own name; the Analyze button is its menu's entries.
   for (const row of document.querySelectorAll<HTMLElement>(".ribbon .ribbon-group")) {
