@@ -312,12 +312,27 @@ def widgets(code: str) -> list[Widget]:
 
 def params(code: str) -> list[str]:
     """The query parameters the code reads by name: `st.query_params.get("region")`,
-    `st.query_params["region"]`, `"region" in st.query_params`."""
+    `st.query_params["region"]`, `"region" in st.query_params`; the name as text, or a name the cell
+    gives a text at its top level (`_PARAM = "region"`)."""
     try:
         tree = ast.parse(code)
     except (SyntaxError, ValueError, RecursionError):
         return []
     found: list[str] = []
+    texts = {
+        target.id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+
+    def _text(node: ast.expr | None) -> str | None:
+        if isinstance(node, ast.Name):
+            return texts.get(node.id)
+        return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
 
     def is_params(node: ast.expr) -> bool:
         return _chain(node)[-1:] == ["query_params"]
@@ -524,6 +539,8 @@ def test_plan(blocks: Sequence[tuple[str, str, str]], page: str = "page.py") -> 
         for widget in widgets(code):
             if widget.kind not in TRIED:
                 continue
+            if widget.key is None and widget.kind == "form_submit_button":
+                continue  # pressed with its form's fields, each time one is tried
             if widget.key is None:
                 untried.append(f"{name}: {widget.label or widget.kind} (its key is worked out as it runs)")
                 continue

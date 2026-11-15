@@ -14,7 +14,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import html_cells, snippets
+from swissarmybench.domain import controllers, html_cells, snippets
 from swissarmybench.domain.blades import FAMILIES, STARTERS, parse_blade, read_blade, write_blade
 from swissarmybench.domain.snippets import SnippetError, fill, placeholders
 from swissarmybench.domain.streamlit_cells import facts, text_code
@@ -58,7 +58,7 @@ def filled(blade: dict[str, Any]) -> str:
 
 def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     found = blades()
-    assert len(found) == 97
+    assert len(found) == 111
     counts = Counter(b["family"] for b in found)
     assert counts == {
         "Power BI": 13,
@@ -68,6 +68,8 @@ def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
         "HTML": 10,
         "Markdown": 10,
         "Streamlit": 29,
+        "Controllers": 5,
+        "Text and layout": 9,
         "Components": 9,
     }
     assert set(counts) == set(FAMILIES)
@@ -248,6 +250,11 @@ def test_a_markdown_snippet_says_the_names_it_reads_and_fills_as_text(blade: dic
 def _header(text: str, word: str) -> list[str]:
     found = re.search(rf"^# {word}: (.*)$", text, re.MULTILINE)
     assert found, f"no '# {word}:' line"
+    if word == "Makes":
+        # The Makes line is the cell's contract (domain/controllers.py): its names, by Python's parser.
+        contract = controllers.describe(text)
+        assert contract.problems == (), contract.problems
+        return [m.name for m in contract.makes if m.declared]
     words = found.group(1).split(" (")[0]
     return [] if words.strip() == "nothing" else [w.strip() for w in words.split(",")]
 
