@@ -475,6 +475,20 @@ def test_a_table_no_code_made_starts_with_its_load() -> None:
     assert "# sales was made outside this file" in outside and outside.endswith('""").df()')
 
 
+def test_where_a_table_came_from_reads_in_a_word_or_two() -> None:
+    """The Workbench's Data panel names each table's source under its name."""
+    assert tc.Origin("file", path="/data/orders.csv").label() == "orders.csv"
+    assert tc.Origin("file", path="C:\\shop\\sales.xlsx", sheet="Jan").label() == "sales.xlsx · Jan"
+    assert tc.Origin("dropped", filename="orders.csv").label() == "orders.csv"
+    assert tc.Origin("connection", connection="Warehouse", sql="SELECT 1").label() == "Warehouse"
+    assert [tc.Origin(k).label() for k in ("python", "paste", "query", "unknown")] == [
+        "Python",
+        "Pasted",
+        "Query",
+        "",
+    ]
+
+
 def test_a_small_paste_is_written_out_and_reads_back_the_same() -> None:
     columns = [
         Column("item", "VARCHAR"),

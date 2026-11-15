@@ -4542,22 +4542,344 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   white-space: nowrap;
 }
 
-/* ===== THE WORKBENCH (workbench.html: workbenchPage.ts, workbenchNotebook.ts, workbenchScript.ts) ===== */
+/* ===== THE WORKBENCH (workbench.html: workbenchPage.ts, workbenchNotebook.ts, workbenchScript.ts) =====
+   The redesign of 2026-11-15 (docs/ideas.md): one row on top, the Data panel on the left, tab groups
+   (workbenchGroups.ts) with one row of controls each, a status bar under them. */
 .workbench-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
 
 .wb-layout {
   display: flex;
-  height: 100vh;
   min-height: 0;
 }
 
-.wb-layout > .cat-rail {
+.wb-grow {
+  flex: 1;
+}
+
+/* ----- the top bar: the mark, the name, Save, Save as…, "…" */
+.wb-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: calc(52px * var(--ui-zoom, 1));
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-size: calc(14px * var(--ui-zoom, 1));
+}
+
+.wb-mark {
+  display: grid;
   flex: none;
-  width: 320px;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.wb-mark svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.wb-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: 14px;
+  font-size: 1.07em;
+  font-weight: 650;
+}
+
+.wb-name-text {
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-name-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.wb-top .btn {
+  gap: 7px;
+  padding: 6px 10px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.wb-top .btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+/* ----- the Data panel */
+.wb-data {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 22px;
+  width: calc(264px * var(--ui-zoom, 1));
+  min-height: 0;
+  padding: 18px 16px 16px;
+  border-right: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-size: calc(14px * var(--ui-zoom, 1));
+}
+
+.wb-data-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wb-data-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.07em;
+}
+
+.wb-data-head h2 svg {
+  color: var(--cat-2);
+}
+
+.wb-data.collapsed {
+  width: calc(48px * var(--ui-zoom, 1));
+  padding: 14px 6px;
+}
+
+.wb-data.collapsed .wb-data-head {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wb-data.collapsed .wb-data-title {
+  display: none;
+}
+
+.wb-data-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+  margin: 0 -16px;
+  padding: 0 16px;
   overflow: auto;
+}
+
+.wb-data-body[hidden] {
+  display: none;
+}
+
+.wb-data-section h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.82em;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.wb-data-section h3 .btn {
+  padding: 3px 8px;
+  color: var(--fg);
+  font-size: 0.93rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.wb-data-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-data-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-data-card:hover {
+  border-color: var(--border-strong);
+}
+
+.wb-data-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.wb-data-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-data-count {
+  color: var(--muted);
+  font-size: 0.86em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.wb-data-value {
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+
+.wb-data-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.89em;
+}
+
+.wb-data-meta .icon-svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wb-data-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-data-empty {
+  color: var(--muted);
+  font-size: 0.89em;
+}
+
+/* A project's files: at the bottom, folded under their folder's name (hidden until a project exists). */
+.wb-files {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font: 0.89em / 1.9 "Cascadia Code", Consolas, monospace;
+}
+
+.wb-files[hidden] {
+  display: none;
+}
+
+.wb-files-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wb-files-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.wb-file.derived {
+  padding-left: 19px;
+  color: var(--muted);
+}
+
+.wb-file .icon-svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wb-file-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+}
+
+.wb-file-note {
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font: 600 0.92em / 1.6 inherit;
+}
+
+/* What "+ Table" and "+ Blade" open beside the panel: the catalog, or the blades (catalogRail.ts). */
+.wb-flyout {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  z-index: 30;
+  width: 340px;
+  border-right: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  font-size: calc(13px * var(--ui-zoom, 1));
+  resize: none;
+}
+
+.wb-flyout[hidden],
+.wb-flyout .rail-section[hidden] {
+  display: none;
+}
+
+.wb-flyout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 2px 14px;
+}
+
+.wb-flyout-head h2 {
+  margin: 0;
+  font-size: 1.1em;
 }
 
 .wb-main {
@@ -4568,40 +4890,38 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   min-height: 0;
 }
 
-.wb-toolbar {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 16px;
-  padding: 2px 4px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+/* The drop-down menus (workbenchMenu.ts): an icon, the words, the keys. */
+.wb-menu {
+  min-width: 220px;
 }
 
-.wb-toolbar .ribbon-tools {
-  padding: 3px 4px;
+.wb-menu button {
+  gap: 10px;
 }
 
-.wb-toolbar .btn {
-  border-color: transparent;
-  background: transparent;
+.wb-menu-text {
+  flex: 1;
 }
 
-.wb-toolbar .btn.primary,
-.wb-toolbar .btn[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-fg);
+.wb-menu-gap {
+  width: 15px;
 }
 
-.wb-toolbar select {
-  max-width: 280px;
+.wb-menu kbd {
+  margin-left: 16px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.wb-menu-line {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
 }
 
 .wb-state {
   color: var(--muted);
-  font-size: 0.9em;
   white-space: nowrap;
 }
 
@@ -4610,15 +4930,404 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   color: var(--warn);
 }
 
-.wb-tabs {
+/* ----- tab groups (workbenchGroups.ts): any number, side by side or stacked */
+.wb-groups {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb-groups[hidden] {
+  display: none;
+}
+
+.wb-gsplit {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb-gsplit.column {
+  flex-direction: column;
+}
+
+.wb-gsash {
+  position: relative;
+  flex: none;
+  background: var(--surface-2);
+  touch-action: none;
+}
+
+.wb-gsash.row {
+  width: 7px;
+  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  cursor: col-resize;
+}
+
+.wb-gsash.column {
+  height: 7px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: row-resize;
+}
+
+.wb-gsash::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 28px;
+  margin: -14px 0 0 -1.5px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  content: "";
+}
+
+.wb-gsash.column::after {
+  width: 28px;
+  height: 3px;
+  margin: -1.5px 0 0 -14px;
+}
+
+.wb-gsash:hover,
+.wb-gsash.dragging,
+.wb-gsash:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+}
+
+.wb-gsash:hover::after,
+.wb-gsash.dragging::after,
+.wb-gsash:focus-visible::after {
+  background: var(--accent);
+}
+
+.wb-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+/* One row per group: its tabs, "+", and (focused) its document's controls on the right. */
+.wb-gstrip {
   display: flex;
   flex: none;
   align-items: flex-end;
   gap: 2px;
-  min-height: 34px;
-  padding: 4px 8px 0;
-  overflow-x: auto;
+  height: calc(48px * var(--ui-zoom, 1));
+  padding: 0 12px 0 8px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: calc(14px * var(--ui-zoom, 1));
+}
+
+.wb-gstrip > .btn {
+  align-self: center;
+}
+
+.wb-tabs {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mark-notebook {
+  --kc: var(--muted);
+}
+
+.mark-data {
+  --kc: var(--cat-2);
+}
+
+.mark-page {
+  --kc: var(--accent);
+}
+
+.wb-tab {
+  position: relative;
+  top: 1px;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  height: calc(40px * var(--ui-zoom, 1));
+  padding: 0 8px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  box-shadow: inset 0 3px 0 -1px color-mix(in srgb, var(--kc) 45%, transparent);
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wb-tab:hover {
+  color: var(--fg);
+}
+
+.wb-tab.active {
+  border-color: var(--border);
+  background: var(--bg);
+  box-shadow: inset 0 3px 0 var(--kc);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.wb-tab:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -3px;
+}
+
+.wb-tab-icon {
+  display: flex;
+  color: var(--kc);
+}
+
+.wb-tab .tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-tab-dirty {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.wb-tab-dirty[hidden] {
+  display: none;
+}
+
+.wb-tab .tab-close {
+  min-width: 0;
+  min-height: 0;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.wb-tab .tab-close svg {
+  width: 12px;
+  height: 12px;
+}
+
+.wb-tab.active .tab-close,
+.wb-tab:hover .tab-close,
+.wb-tab:focus-within .tab-close {
+  opacity: 1;
+}
+
+.wb-tab.lifted {
+  border: 1px dashed var(--border-strong);
+  border-bottom: 0;
+  opacity: 0.4;
+}
+
+.wb-tab-new {
+  color: var(--muted);
+}
+
+.wb-gcontrols {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+}
+
+.wb-gcontrols .btn {
+  padding: 6px 12px;
+}
+
+.wb-gcontrols .btn.icon {
+  padding: 6px;
+}
+
+.wb-gcontrols .btn.line {
+  border-color: var(--border);
+  background: var(--raised);
+}
+
+.wb-gcontrols .wb-more {
+  color: var(--muted);
+}
+
+/* A narrow group: the controls keep their icons, the tabs come closer. */
+@container (max-width: 640px) {
+  .wb-gcontrols .btn .btn-label {
+    display: none;
+  }
+
+  .wb-tab {
+    gap: 6px;
+    padding: 0 6px 0 9px;
+  }
+}
+
+.wb-gbody {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Dragging a tab: its ghost under the pointer, the place in a row, the five-way guide over a group. */
+body.wb-dragging-tab,
+body.wb-dragging-tab * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.wb-tab-ghost {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--raised);
+  box-shadow: var(--shadow), inset 0 3px 0 var(--kc);
+  font-size: calc(14px * var(--ui-zoom, 1));
+  font-weight: 600;
+  pointer-events: none;
+  transform: rotate(-2deg);
+}
+
+.wb-tab-ghost svg {
+  color: var(--kc);
+}
+
+.wb-tab-insert {
+  position: absolute;
+  top: 6px;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.wb-drop {
+  position: absolute;
+  inset: calc(48px * var(--ui-zoom, 1)) 0 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.wb-drop-zone {
+  position: absolute;
+  display: none;
+  place-items: center;
+  border: 2px dashed var(--border-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  color: var(--fg);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.wb-drop[data-zone="center"] .wb-drop-zone {
+  display: grid;
+  inset: 10px;
+}
+
+.wb-drop[data-zone="left"] .wb-drop-zone {
+  display: grid;
+  top: 10px;
+  bottom: 10px;
+  left: 10px;
+  width: calc(50% - 15px);
+}
+
+.wb-drop[data-zone="right"] .wb-drop-zone {
+  display: grid;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: calc(50% - 15px);
+}
+
+.wb-drop[data-zone="up"] .wb-drop-zone {
+  display: grid;
+  top: 10px;
+  right: 10px;
+  left: 10px;
+  height: calc(50% - 15px);
+}
+
+.wb-drop[data-zone="down"] .wb-drop-zone {
+  display: grid;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  height: calc(50% - 15px);
+}
+
+.wb-compass {
+  position: absolute;
+  top: 27%;
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 5px;
+  width: 96px;
+  height: 96px;
+  margin-left: -48px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+}
+
+.wb-compass i {
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.wb-compass i[data-zone="up"] {
+  grid-area: 1 / 2;
+}
+
+.wb-compass i[data-zone="left"] {
+  grid-area: 2 / 1;
+}
+
+.wb-compass i[data-zone="center"] {
+  grid-area: 2 / 2;
+}
+
+.wb-compass i[data-zone="right"] {
+  grid-area: 2 / 3;
+}
+
+.wb-compass i[data-zone="down"] {
+  grid-area: 3 / 2;
+}
+
+.wb-compass i.on {
+  border-color: var(--muted);
+  background: var(--muted);
 }
 
 .wb-body {
@@ -4710,32 +5419,17 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   display: none;
 }
 
-/* A notebook's console not in use: its title bar only, a click opens it (workbenchLayout.ts). */
-.wb-panes.console-compact > .wb-col-left {
-  grid-template-rows: minmax(0, 1fr) 0 auto;
-}
-
-/* Kept in its (zero) row, so the console stays in the last one. */
-.wb-panes.console-compact > .wb-col-left > .wb-split {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.wb-panes.console-compact .wb-console > :not(.wb-console-head) {
+/* Nothing open: the empty state has the whole area. */
+.wb-panes.nothing-open > .wb-col-right,
+.wb-panes.nothing-open > .wb-split.vertical,
+.wb-panes.nothing-open > .wb-col-left > .wb-split,
+.wb-panes.nothing-open > .wb-col-left > .wb-console-pane {
   display: none;
 }
 
-.wb-panes.console-compact .wb-console-head {
-  cursor: pointer;
-  border-bottom: 0;
-  border-top: 1px solid var(--border);
-}
-
-.wb-panes.console-compact .wb-console-head::after {
-  content: "Click to open";
-  color: var(--muted);
-  font-size: 0.85em;
-  order: 1;
+.wb-panes.nothing-open > .wb-col-left {
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr) 0 0;
 }
 
 /* Under 1100 pixels the right column opens over the source, as a drawer. */
@@ -4756,9 +5450,16 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   box-shadow: -8px 0 24px rgb(0 0 0 / 0.18);
 }
 
-/* The right column holds Variables alone (pictures go to the Sandbox). */
+/* The right column holds Variables alone (pictures go to the Sandbox), under a band level with the
+   groups' rows. */
 .wb-col-right {
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: calc(48px * var(--ui-zoom, 1)) minmax(0, 1fr);
+  border-left: 1px solid var(--border);
+}
+
+.wb-right-band {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 /* F1 help: a card over the source's top right corner. */
@@ -4856,23 +5557,89 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   width: 100%;
 }
 
-/* The status bar: the kernel, the environment, the cursor. */
+/* The status bar: the focused document's kernel, environment and cursor; Console and Variables. */
 .wb-status {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 18px;
-  min-height: 24px;
-  padding: 0 10px;
+  gap: 4px;
+  min-height: calc(34px * var(--ui-zoom, 1));
+  padding: 0 12px;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  font-size: 0.85em;
+  color: var(--muted);
+  font-size: calc(12.5px * var(--ui-zoom, 1));
   white-space: nowrap;
   overflow: hidden;
 }
 
+.wb-status[hidden] {
+  display: none;
+}
+
 .wb-status .spacer {
   flex: 1;
+}
+
+.wb-status-kernel,
+.wb-status-env {
+  display: flex;
+  align-items: center;
+}
+
+.wb-status-cursor {
+  margin-left: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-status .btn {
+  min-height: 0;
+  padding: 3px 8px;
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  box-shadow: none;
+}
+
+.wb-status .btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.wb-status .btn[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--selected);
+  color: var(--fg);
+}
+
+.wb-status .btn[aria-pressed="true"]::before {
+  content: none;
+}
+
+.wb-status .btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wb-kernel .wb-dot {
+  margin-right: 2px;
+  background: var(--border-strong);
+}
+
+.wb-env-pick {
+  max-width: 280px;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.wb-env-pick:hover {
+  background: var(--surface-2);
 }
 
 .wb-dot {
@@ -4955,20 +5722,17 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   font-size: 0.8em;
 }
 
-/* At narrow widths the toolbar shows icons (its words stay for screen readers and in tooltips). */
-@media (max-width: 1280px) {
-  .wb-toolbar .btn:not(.primary) .btn-label {
-    display: none;
-  }
-}
-
 .wb-doc-body {
   min-height: 100%;
 }
 
 /* A script fills the window: the editor above, the console below, each scrolling on its own (the
    stress test's W1: the console grew with its output and pushed the editor and the prompt away). */
-.wb-source:has(> .wb-doc-body.kind-script) {
+.wb-source {
+  overflow: hidden;
+}
+
+.wb-gbody:has(> .wb-doc-body.kind-script) {
   overflow: hidden;
 }
 
@@ -4981,15 +5745,49 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   padding: 16px 20px;
 }
 
-.wb-welcome {
-  max-width: 720px;
-  margin: 10vh auto 0;
-  padding: 0 20px;
+/* Nothing open: two choices, nothing else (principle 7.1). */
+.wb-empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 96px;
+  font-size: calc(14px * var(--ui-zoom, 1));
 }
 
-.wb-recent {
-  list-style: none;
-  padding: 0;
+.wb-empty[hidden] {
+  display: none;
+}
+
+.wb-empty-choice {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+}
+
+.wb-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.wb-empty-icon svg {
+  width: 34px;
+  height: 34px;
+  stroke-width: 1.3;
+}
+
+.wb-empty-icon.app {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wb-empty .btn {
+  padding: 9px 18px;
 }
 
 .wb-cells {

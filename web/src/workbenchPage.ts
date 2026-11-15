@@ -1,55 +1,69 @@
 /**
  * workbenchPage.ts: the Workbench, in a window of its own (Plans/workbench-and-connections.plan.md;
- * opened from the grid page's Workbench tab). [COMPOSITION]
+ * opened from the grid page's Workbench tab; redesigned 2026-11-15, docs/ideas.md). [COMPOSITION]
  *
- *   [PANES]    after RStudio (workbenchLayout.ts): the source, its console under it, Variables on the
- *              right; splitters; a status bar (kernel, environment, cursor). Pictures go to the Sandbox
+ *   [TOP]      one row: the mark, the focused document's name (a dot while it has unsaved changes),
+ *              Save, Save as…, and "…" (New notebook, New script, Open…, Recent, split, Commands)
+ *   [DATA]     the Data panel on the left (workbenchData.ts; Ctrl+B folds it): the open tables, the
+ *              blades' variables, a project's files when there is one. "+ Table" (Open file…, a
+ *              connection's tables, the catalog's search) and "+ Blade" open the side bar's old lists
+ *              (catalogRail.ts) beside it
+ *   [GROUPS]   the documents as tabs in groups (workbenchGroups.ts): drag a tab along a row, or to a
+ *              group's edge to split it; splitters size them. The focused group's row ends with its
+ *              document's controls: a notebook's "+ Cell", Run all and "…"; a script's "+ Cell", Run
+ *              file and "…" (Open…, Recent, Interrupt, Restart, Save as…, the Streamlit app, split)
+ *   [PANES]    after RStudio (workbenchLayout.ts): the focused document's console under the groups and
+ *              Variables on the right, both closed until the status bar opens them (a run in the
+ *              console opens it). Pictures go to the Sandbox
+ *   [STATUS]   for the focused document: its kernel (a menu: Interrupt, Restart), its environment, the
+ *              cursor; then the Console and Variables toggles
+ *   [EMPTY]    nothing open: Start a notebook (and Start an app, once app pages are registered)
  *   [AGENT]    right-click an error or selected code: Send to the agent (workbenchAgent.ts)
- *   [LEFT]     the side bar (catalogRail.ts, Ctrl+B folds it): Connections and Blades (drag one into a
- *              cell or the script for its line; Add connection; a new blade), and the data explorer
- *              (each connection's catalog: drag a table or column for its name)
- *   [FILE]     New notebook, New script, Open…, Recent ▾, Save, Save as… (the file chooser: real paths)
- *   [TABS]     the open documents (a dot when changed); closing one stops its kernel
- *   [RUN]      the Python the kernel runs in (this server's own, or a project's environment), the
- *              kernel's state, Run all or Run file, Interrupt, Restart
  *   [DOC]      a notebook (workbenchNotebook.ts) or a script (workbenchScript.ts), each with its own
- *              console (workbenchConsole.ts) on its kernel; a blade being edited; a table from the explorer
+ *              console (workbenchConsole.ts) on its kernel; a blade being edited; a table from the catalog
  *   [COMMANDS] every action by one name (workbenchCommands.ts): the palette (Ctrl+Shift+P), the keys, and
- *              the agent's workbench_window tool
+ *              the agent's workbench_window tool; the groups' too (split right, split down, move a tab,
+ *              focus a group) and the Data panel's
  *   [KEYS]     F5 runs (the file, or every cell) wherever the focus is, never reloading the window;
  *              Ctrl+S saves, Ctrl+O opens; Ctrl+Z outside an editor undoes a cell's delete or move;
  *              Ctrl+1 to Ctrl+3 (and F6) move between the panes; Ctrl+Alt+Page Up and Page Down switch
- *              documents; F1 on a name shows its help
- *   [RESTORE]  open documents and their unsaved text come back after a reload or a crashed tab (kept in
- *              this window's session storage, in the browser only: nothing is written to disk)
+ *              documents; Ctrl+\ splits right; F1 on a name shows its help
+ *   [RESTORE]  open documents, their unsaved text and the groups' layout come back after a reload or a
+ *              crashed tab (kept in this window's session storage, in the browser only: nothing is
+ *              written to disk)
  *   [TABLES]   every table open in the grid has a read-only cell in the document it belongs to
  *              (docs/ideas.md, 2026-11-14): the document whose kernel sent it, else the one that
- *              already holds its cell, else the one in front. The toolbar offers Run tables when a
+ *              already holds its cell, else the one in front. The group's row offers Run tables when a
  *              table's cell is out of date or has not run
  *   [STREAMLIT] a document with Streamlit cells has an app (workbenchStreamlit.ts): its pieces show live
  *              in their cells; Push to page sends one to the page designer (a window of its own); the
- *              toolbar's Streamlit app menu runs it, opens the designer or the app, and exports it
+ *              group's "…" runs it, opens the designer or the app, and exports it
  *
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { api, ApiError, connect, onNotice, openedWith, tellFocus } from "./api";
-import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
+import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
-import { button, clear, h, toast } from "./dom";
+import { openConnections } from "./connectionsWindow";
+import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { openFile, tableName } from "./openFile";
 import { effectiveTheme } from "./theme";
 import { allCommands, answerAgent, type Command, openPalette, registerCommands, runCommand } from "./workbenchCommands";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
 import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./workbenchCompletion";
 import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
+import { mountDataPanel } from "./workbenchData";
+import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, tabKinds } from "./workbenchGroups";
 import { mountLayout } from "./workbenchLayout";
+import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
-import { type CellData, notebookView, type NotebookView } from "./workbenchNotebook";
+import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { type AppState, type ExportResult, openApp, openDesigner, problemText, pushMenu, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
@@ -69,8 +83,6 @@ interface Doc {
   script?: ScriptView;
   /** Its console, on its kernel (notebooks and scripts). */
   console?: ConsoleView;
-  /** A notebook's console was used (clicked, focused, run in): shown at its size from then on. */
-  consoleUsed?: boolean;
   /** Its Streamlit app (its Streamlit cells' pieces and their pages). */
   streamlit?: StreamlitDoc;
 }
@@ -82,24 +94,21 @@ interface PythonChoice {
   swissarmygrid: boolean;
 }
 
-const tabs = document.getElementById("wb-tabs") as HTMLElement;
-const toolbar = document.getElementById("wb-toolbar") as HTMLElement;
-// The four panes; Variables docked top right (the toolbar's Variables shows or hides the right column).
+const top = document.getElementById("wb-top") as HTMLElement;
+// The panes around the groups: the console under them, Variables on the right (the status bar's
+// Console and Variables open them).
 const layout = mountLayout(
   document.getElementById("wb-body") as HTMLElement,
-  document.querySelector(".wb-layout > .cat-rail") as HTMLElement,
   document.querySelector(".wb-main") as HTMLElement,
   () => focusSource(),
   () => focusConsole(),
+  () => window.setTimeout(() => drawStatus()),
 );
 const variables = variablesPanel(() => {
   layout.toggle("right", false);
-  drawToolbar();
+  drawStatus();
 });
 layout.variables.append(variables.element);
-const docHost = layout.source;
-// A click or the focus in the console (a compact title bar too) opens it at its size.
-for (const kind of ["pointerdown", "focusin"]) layout.console.addEventListener(kind, () => current && useConsole(current));
 let cursor = { line: 1, column: 1 };
 const docs: Doc[] = [];
 let current: Doc | null = null;
@@ -111,6 +120,7 @@ let workspaceNames: string[] = []; // the Power BI workspaces
 let datasetNames: string[] = []; // their datasets, as a DAX cell names them: Finance/Sales model
 let bladeNames: string[] = [];
 let codeNames: { name: string; connection: string; kind: string }[] = [];
+let bladeVariables: BladeSummary[] = []; // the blades that are not connections: the Data panel's Variables
 let editingBlade = false;
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
@@ -124,12 +134,15 @@ async function loadConnections(): Promise<void> {
     workspaceNames = every.filter((b) => b.connection && b.dialect === "dax").map((b) => b.name);
     bladeNames = every.filter((b) => !b.connection).map((b) => b.name);
     codeNames = every.filter((b) => b.code_name).map((b) => ({ name: b.code_name!, connection: b.name, kind: b.connection ?? "" }));
+    bladeVariables = (every as BladeSummary[]).filter((b) => !b.connection);
   } catch {
     connectionNames = [];
     workspaceNames = [];
     bladeNames = [];
     codeNames = [];
+    bladeVariables = [];
   }
+  data.setBlades(bladeVariables);
   await loadDatasets();
 }
 
@@ -144,7 +157,7 @@ const names = (): { connections: string[]; blades: string[]; codeNames: typeof c
 const hooks = {
   cursor: (line: number, column: number): void => {
     cursor = { line, column };
-    drawStatus();
+    drawCursor();
   },
   help: (): void => void showHelp(),
 };
@@ -198,6 +211,7 @@ function refreshTablesSoon(): void {
     void fetchTables().then(
       (found) => {
         tables = found;
+        data.setTables(found.map((t) => ({ name: t.name, variable: t.variable, rows: t.rows ?? 0, source: t.source ?? "", origin: t.origin, steps: t.steps })));
         assignTables();
       },
       () => undefined, // the server is away: the cells stay as they are
@@ -205,7 +219,7 @@ function refreshTablesSoon(): void {
   }, 120);
 }
 
-/** The toolbar's word on the front document's tables: Run tables, when one is not up to date. */
+/** The group row's word on the focused document's tables: Run tables, when one is not up to date. */
 function drawTablesTool(): void {
   const view = current ? viewOf(current) : undefined;
   const waiting = view ? view.tables().filter((t) => t.state === "outOfDate" || t.state === "notRun" || t.state === "notRunSinceOpening") : [];
@@ -239,7 +253,7 @@ function attachStreamlit(doc: Doc, pages: SavedPage[]): void {
         if (doc.script) doc.script.setPages(doc.streamlit!.pages());
         else markChanged(doc)();
       }
-      if (doc === current) drawToolbar();
+      if (doc === current) drawControls();
     },
   );
 }
@@ -300,7 +314,6 @@ const streamlitHost = (doc: Doc): StreamlitHost => ({
   state: () => doc.streamlit?.state ?? null,
   changed: () => {
     doc.streamlit?.syncSoon();
-    if (doc === current) drawToolbarSoon();
   },
   run: () => runApp(doc),
   install: () => void installStreamlit(doc),
@@ -312,38 +325,17 @@ const streamlitHost = (doc: Doc): StreamlitHost => ({
   designer: (page) => void showDesigner(doc, page).catch((e: Error) => toast(e.message, "error")),
 });
 
-/** The toolbar's Streamlit app menu: run, the designer, the app, export, stop. */
-function streamlitMenu(doc: Doc, anchor: HTMLElement): void {
-  document.querySelector(".menu")?.remove();
+/** The Streamlit app's entries (in a group's "…"): run, the designer, the app, export, stop. */
+function streamlitEntries(doc: Doc): MenuEntry[] {
   const state = doc.streamlit?.state;
   const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
-  const item = (text: string, act: () => void, off = false): HTMLElement => h("button", { type: "button", role: "menuitem", disabled: off, onclick: () => { menu.remove(); act(); } }, text);
-  const menu = h(
-    "div",
-    { class: "menu", role: "menu", "aria-label": "Streamlit app" },
-    item(state?.running ? "Refresh the app" : "Run the app", guarded(() => runApp(doc))),
-    item("Page designer", guarded(() => showDesigner(doc))),
-    item("Open the app in its own window", guarded(() => showApp(doc))),
-    item("Export as Streamlit app…", guarded(() => exportApp(doc)), !doc.streamlit?.pages().length),
-    state?.running ? item("Stop the app", guarded(() => doc.streamlit!.stop())) : null,
-  );
-  document.body.append(menu);
-  const box = anchor.getBoundingClientRect();
-  menu.style.top = `${box.bottom + 4}px`;
-  menu.style.left = `${Math.max(8, Math.min(box.left, innerWidth - menu.offsetWidth - 8))}px`;
-  (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
-  setTimeout(() => document.addEventListener("mousedown", function away(e) { if (!menu.contains(e.target as Node)) { menu.remove(); document.removeEventListener("mousedown", away); } }));
-  menu.addEventListener("keydown", (e) => { if (e.key === "Escape") { menu.remove(); anchor.focus(); } });
-}
-
-let toolbarTimer: number | null = null;
-function drawToolbarSoon(): void {
-  if (toolbarTimer !== null) return;
-  toolbarTimer = window.setTimeout(() => {
-    toolbarTimer = null;
-    // Only when what it shows changed (the Streamlit app menu comes with the first piece).
-    if (!!document.querySelector(".wb-streamlit-app") !== hasPieces(current)) drawToolbar();
-  }, 300);
+  return [
+    { label: state?.running ? "Refresh the app" : "Run the app", icon: "play", run: guarded(() => runApp(doc)) },
+    { label: "Page designer", icon: "page", run: guarded(() => showDesigner(doc)) },
+    { label: "Open the app in its own window", icon: "popout", run: guarded(() => showApp(doc)) },
+    { label: "Export as Streamlit app…", icon: "export", run: guarded(() => exportApp(doc)), disabled: !doc.streamlit?.pages().length, title: doc.streamlit?.pages().length ? undefined : "Push a piece to a page first" },
+    ...(state?.running ? [{ label: "Stop the app", icon: "stop", run: guarded(() => doc.streamlit!.stop()) }] : []),
+  ];
 }
 
 const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => toast(e.message, "error"));
@@ -354,10 +346,7 @@ function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified
     const kernel = new Kernel(() => doc.path, () => doc.python);
     doc.kernel = kernel;
     kernel.onState(() => {
-      if (doc === current) {
-        drawToolbar();
-        drawStatus();
-      }
+      if (doc === current) drawStatus();
       assignSoon(); // a started kernel has its id: the tables it sends belong to this document
     });
     doc.console = consoleView(kernel, () => effectiveTheme(), {
@@ -417,7 +406,7 @@ async function openAt(path: string, line: number): Promise<void> {
   if (doc?.script) setTimeout(() => doc.script?.reveal(line), 300);
 }
 
-/** F5 and the toolbar's main Run: the file, or every cell. */
+/** F5 and the group row's main Run: the file, or every cell. */
 async function runPrimary(doc: Doc | null): Promise<void> {
   if (doc?.script) await doc.script.runFile();
   else if (doc?.notebook) await doc.notebook.runAll();
@@ -426,7 +415,7 @@ async function runPrimary(doc: Doc | null): Promise<void> {
 function focusSource(): void {
   if (current?.script) current.script.focus();
   else if (current?.notebook) current.notebook.commandMode();
-  else (docHost.querySelector("button, input, [tabindex]") as HTMLElement | null)?.focus();
+  else (document.querySelector(".wb-group.focused .wb-gbody")?.querySelector("button, input, [tabindex]") as HTMLElement | null)?.focus();
 }
 
 function focusConsole(): void {
@@ -485,24 +474,28 @@ function openScript(path: string | null, text: string, modified: number | null):
   return doc;
 }
 
-/** A notebook's console in use: at its size (and from then on, for this notebook). */
+/** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
-  doc.consoleUsed = true;
-  if (doc === current) layout.compact(false);
+  if (doc !== current || layout.state().console) return;
+  layout.toggle("console", true);
+  drawStatus();
 }
 
+/** Show a document: in front of its group, that group focused (a new one opens in the focused group). */
 function show(doc: Doc): void {
+  groups.show(doc);
+}
+
+/** The focused group's document changed: everything that follows the focused document follows. */
+function focused(doc: Doc | null): void {
   current = doc;
-  // A notebook's cells hold their own outputs: its console is a title bar until it is used.
-  layout.compact(doc.kind === "notebook" && !doc.consoleUsed);
-  variables.show(doc.kernel);
-  docHost.replaceChildren(doc.element);
-  layout.console.replaceChildren(doc.console?.element ?? h("p", { class: "hint wb-pane-empty" }, "No console"));
+  variables.show(doc?.kernel ?? null);
+  layout.console.replaceChildren(doc?.console?.element ?? h("p", { class: "hint wb-pane-empty" }, "No console"));
   cursor = { line: 1, column: 1 };
-  drawTabs();
-  drawToolbar();
+  drawEmpty();
+  drawControls();
   drawStatus();
-  document.title = `${doc.title} · Workbench`;
+  document.title = doc ? `${doc.title} · Workbench` : "Workbench";
   remember();
   assignSoon(); // a table with no document yet goes to the one in front
 }
@@ -513,27 +506,58 @@ function close(doc: Doc): void {
   doc.streamlit?.close(); // its Streamlit process and temporary folder go with it
   docs.splice(docs.indexOf(doc), 1);
   tablesSent.delete(doc);
-  remember();
   if (doc.kind === "blade") editingBlade = false;
-  if (current === doc) {
-    const next = docs[docs.length - 1];
-    if (next) show(next);
-    else showWelcome();
-  } else drawTabs();
+  groups.remove(doc); // the group's next document comes to the front (and the group goes with its last)
+  drawEmpty();
+  remember();
 }
 
+/** A document's title or unsaved dot changed. */
 function drawTabs(): void {
-  clear(
-    tabs,
-    ...docs.map((doc) =>
-      h(
-        "div",
-        { class: `tab-item ${doc === current ? "active" : ""}`, role: "tab", "aria-selected": String(doc === current), tabindex: doc === current ? "0" : "-1", title: doc.path ?? doc.title, onclick: () => show(doc) },
-        h("span", { class: "tab-label" }, `${doc.dirty ? "● " : ""}${doc.title}`),
-        button(`Close ${doc.title}`, (e) => { e.stopPropagation(); close(doc); }, { icon: "close", iconOnly: true, class: "tab-close" }),
-      ),
-    ),
-  );
+  groups.redraw();
+  drawTop();
+}
+
+/** A document's kind of tab: Data (a notebook named data.ipynb), Notebook, Script, Blade, Table. */
+function kindOf(doc: Doc): string {
+  if (doc.kind === "notebook") return doc.title.toLowerCase() === "data.ipynb" ? "data" : "notebook";
+  return doc.kind === "table" ? "explorer" : doc.kind;
+}
+
+registerTabKind({ id: "data", label: "Data", icon: "sql", mark: "data" });
+registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
+registerTabKind({ id: "script", label: "Script", icon: "code", mark: "notebook", start: { label: "New script", run: () => void openScript(null, "", null) } });
+registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "notebook" });
+registerTabKind({ id: "explorer", label: "Table", icon: "rows", mark: "notebook" });
+
+const groups = mountGroups<Doc>({
+  kindOf,
+  focused,
+  close: (doc) => close(doc),
+  plus: (anchor) => void openMenu(anchor, "New tab", newEntries()),
+  changed: () => remember(),
+});
+const empty = h("div", { class: "wb-welcome wb-empty", hidden: true });
+layout.source.append(groups.element, empty);
+
+/** What a group's "+" and the top bar's "…" make: each kind that starts from there, then Open and Recent. */
+function newEntries(): MenuEntry[] {
+  return [
+    ...tabKinds()
+      .filter((k) => k.start)
+      .map((k) => ({ label: k.start!.label, icon: k.icon, run: k.start!.run })),
+    null,
+    { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
+    { label: "Recent…", icon: "more", run: () => recentMenu(document.activeElement instanceof HTMLElement && document.activeElement.closest(".wb-gstrip, .wb-top") ? document.activeElement : top) },
+  ];
+}
+
+/** Whether a document's group has another tab to keep when it moves out to a new group. */
+const canSplit = (doc: Doc | null): boolean => !!doc && (groups.list()[groups.indexOf(doc)]?.tabs.length ?? 0) > 1;
+const SPLIT_WHY = "its group has only this tab: open another first";
+
+function splitDoc(doc: Doc | null, side: Side): void {
+  if (!doc || !groups.split(doc, side)) throw new Error(`It cannot split: ${SPLIT_WHY}.`);
 }
 
 // ===== files =====
@@ -551,7 +575,7 @@ async function open(path?: string): Promise<void> {
     if (found.python && current) {
       current.python = found.python;
       if (!pythons.some((p) => p.python === found.python)) pythons.push({ python: found.python, version: "", ipykernel: true, swissarmygrid: true });
-      drawToolbar();
+      drawStatus();
     }
     void refreshHome();
   } catch (e) {
@@ -612,24 +636,17 @@ async function refreshHome(): Promise<void> {
 }
 
 function recentMenu(anchor: HTMLElement): void {
-  document.querySelector(".menu")?.remove();
-  const box = anchor.getBoundingClientRect();
-  const menu = h(
-    "div",
-    { class: "menu", role: "menu", "aria-label": "Recent files" },
-    ...(recent.length
-      ? recent.map((r) => h("button", { type: "button", role: "menuitem", disabled: !r.exists, title: r.exists ? r.path : `${r.path} (missing)`, onclick: () => { menu.remove(); void open(r.path); } }, baseName(r.path), h("span", { class: "hint" }, `  ${r.path}`)))
-      : [h("div", { class: "menu-label" }, "No recent files")]),
+  openMenu(
+    anchor,
+    "Recent files",
+    recent.length
+      ? recent.map((r) => ({ label: baseName(r.path), title: r.exists ? r.path : `${r.path} (missing)`, disabled: !r.exists, run: () => void open(r.path) }))
+      : [{ label: "No recent files", heading: true }],
+    { align: anchor.closest(".wb-top") ? "right" : "left" },
   );
-  document.body.append(menu);
-  menu.style.top = `${box.bottom + 4}px`;
-  menu.style.left = `${Math.min(box.left, innerWidth - menu.offsetWidth - 8)}px`;
-  (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
-  setTimeout(() => document.addEventListener("mousedown", function away(e) { if (!menu.contains(e.target as Node)) { menu.remove(); document.removeEventListener("mousedown", away); } }));
-  menu.addEventListener("keydown", (e) => { if (e.key === "Escape") menu.remove(); });
 }
 
-// ===== toolbar =====
+// ===== the top bar, a group's row, the status bar =====
 
 // A kernel that is ready says nothing (principle 7.9): only the states that explain a wait, or need a click.
 const STATE_WORDS: Record<string, string> = { off: "not started", starting: "starting…", busy: "running…" };
@@ -649,11 +666,11 @@ function useEnvironment(doc: Doc, python: string): void {
     toast("Kernel stopped");
   }
   if (doc.path) void api("/workbench/environment", "POST", { path: doc.path, python }).catch((e: Error) => toast(e.message, "error"));
-  drawToolbar();
+  drawStatus();
 }
 
 function pythonPicker(doc: Doc): HTMLElement {
-  const select = h("select", { "aria-label": "Environment", title: "Environment" }) as HTMLSelectElement;
+  const select = h("select", { class: "wb-env-pick", "aria-label": "Environment", title: "Environment" }) as HTMLSelectElement;
   const own = pythons[0];
   const label = (p: PythonChoice): string => {
     // An environment by its last two folders (project/.venv), the whole path in the option's title.
@@ -670,13 +687,13 @@ function pythonPicker(doc: Doc): HTMLElement {
         useEnvironment(doc, made.python);
         if (made.imports.length && doc.notebook) doc.notebook.add("code", made.imports.join("\n"), true);
       }
-      drawToolbar();
+      drawStatus();
       return;
     }
     if (select.value === "__other") {
       const path = await chooseFile({ title: "Choose a Python", mode: "file", start: folderOf(doc.path) });
       if (path) useEnvironment(doc, path);
-      drawToolbar();
+      drawStatus();
       return;
     }
     useEnvironment(doc, select.value);
@@ -684,65 +701,113 @@ function pythonPicker(doc: Doc): HTMLElement {
   return select;
 }
 
-function drawToolbar(): void {
+// ----- the top bar: the mark, the focused document's name, Save, Save as…, "…"
+
+const topName = h("span", { class: "wb-name" });
+const saveButton = button("Save", () => void save(current), { icon: "save", title: "Save (Ctrl+S)" });
+const saveAsButton = button("Save as…", () => void save(current, true), { icon: "folder", title: "Save as (Ctrl+Shift+S)" });
+const topMenu = menuButton(button("Workbench menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost", title: "More" }), "Workbench menu", () => topEntries(), { align: "right" });
+{
+  // The app's mark: the window's icon, drawn small.
+  const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  mark.setAttribute("viewBox", "0 0 100 100");
+  mark.setAttribute("aria-hidden", "true");
+  mark.innerHTML = '<path d="M42 23h16v19h19v16H58v19H42V58H23V42h19z"/>';
+  top.append(h("span", { class: "wb-mark" }, mark), topName, saveButton, saveAsButton, h("span", { class: "wb-grow" }), topMenu);
+}
+
+function drawTop(): void {
   const doc = current;
-  const file = [
-    button("Side bar", () => {
-      layout.toggle("rail");
-      drawToolbar();
-    }, { icon: "panel", iconOnly: true, pressed: layout.state().rail, title: "Side bar (Ctrl+B)" }),
-    button("New notebook", () => openNotebook(null, [], null), { icon: "plus" }),
-    button("New script", () => openScript(null, "", null), { icon: "code" }),
-    button("Open…", () => void open(), { icon: "folder", title: "Open (Ctrl+O)" }),
-    button("Recent", (e) => recentMenu(e.currentTarget as HTMLElement), { icon: "more" }),
-    button("Save", () => void save(current), { icon: "save", title: "Save (Ctrl+S)" }),
-  ];
-  const palette = button("Commands", () => openPalette(), { icon: "steps", title: "Commands (Ctrl+Shift+P)" });
-  const right = button("Variables", () => {
-    if (layout.toggle("right")) void variables.refresh();
-    drawToolbar();
-  }, { icon: "columns", pressed: layout.state().right });
-  if (!doc || (doc.kind !== "notebook" && doc.kind !== "script")) {
-    clear(toolbar, h("div", { class: "ribbon-tools" }, ...file), h("div", { class: "ribbon-tools" }, right, palette));
-    return;
+  clear(topName, h("span", { class: "wb-name-text" }, doc?.title ?? "Workbench"), doc?.dirty ? h("span", { class: "wb-name-dot", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes" }) : null);
+  topName.title = doc?.path ?? doc?.title ?? "";
+  for (const b of [saveButton, saveAsButton]) {
+    b.disabled = !isCode();
+    b.title = isCode() ? (b === saveButton ? "Save (Ctrl+S)" : "Save as (Ctrl+Shift+S)") : "Nothing that saves is in front";
   }
-  const kernel = doc.kernel!;
-  const run =
-    doc.kind === "notebook"
+}
+
+/** The top bar's "…": what makes a document, opens one, splits the groups, and every command. */
+function topEntries(): MenuEntry[] {
+  const folded = data.collapsed();
+  return [
+    ...newEntries(),
+    null,
+    { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
+    { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
+    null,
+    { label: folded ? "Expand the Data panel" : "Collapse the Data panel", icon: folded ? "expand" : "collapse", keys: "Ctrl+B", run: () => void data.toggle() },
+    { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
+    { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
+    null,
+    { label: "Commands…", icon: "steps", keys: "Ctrl+Shift+P", run: () => openPalette() },
+  ];
+}
+
+// ----- a group's row: the focused document's controls
+
+/** The kinds of cell "+ Cell" adds: a notebook's six, a script's three (its cells are marked lines). */
+function cellEntries(doc: Doc): MenuEntry[] {
+  if (doc.script) {
+    return [
+      { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: () => void doc.script!.addDax(datasetNames[0] ?? "") },
+      { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: () => void doc.script!.addHtml() },
+      { label: "Streamlit", icon: "bucket", title: "A piece of a page (a chart, a filter, a number), live in its cell", run: () => void doc.script!.addStreamlit() },
+    ];
+  }
+  const add = (kind: CellKind) => (): void => doc.notebook!.add(kind);
+  return [
+    { label: "Python", icon: "code", keys: "B", run: add("code") },
+    { label: "SQL", icon: "sql", run: add("sql") },
+    { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: add("dax") },
+    { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: add("html") },
+    { label: "Streamlit", icon: "bucket", title: "A piece of a page (a chart, a filter, a number), live in its cell", run: add("streamlit") },
+    { label: "Markdown", icon: "edit", run: add("markdown") },
+  ];
+}
+
+/** A group's "…": the rest of what the old toolbar held, for the document in front of it. */
+function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
+  const kernel = doc.kernel;
+  const split = canSplit(doc);
+  return [
+    ...(doc.script ? [{ label: "Run statement", icon: "play", keys: "Ctrl+Enter", run: () => void doc.script!.runSelection() }] : []),
+    ...(doc.notebook ? [{ label: "Clear every output", icon: "clean", run: () => doc.notebook!.clearAll() }] : []),
+    null,
+    { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
+    { label: "Recent…", icon: "more", run: () => recentMenu(anchor) },
+    ...(doc.notebook || doc.script ? [{ label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) }] : []),
+    null,
+    ...(kernel
       ? [
-          button("Python", () => doc.notebook!.add("code"), { icon: "plus", title: "Add Python cell (B)" }),
-          button("SQL", () => doc.notebook!.add("sql"), { icon: "sql", title: "Add SQL cell" }),
-          button("DAX", () => doc.notebook!.add("dax"), { icon: "group", title: "Add DAX cell: a query on a Power BI workspace's dataset" }),
-          button("HTML", () => doc.notebook!.add("html"), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
-          button("Streamlit", () => doc.notebook!.add("streamlit"), { icon: "bucket", title: "Add Streamlit cell: a piece of a page (a chart, a filter, a number), live in its cell" }),
-          button("Markdown", () => doc.notebook!.add("markdown"), { icon: "edit", title: "Add Markdown cell" }),
-          button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" }),
+          { label: "Interrupt", icon: "stop", run: () => void kernel.interrupt() },
+          { label: "Restart", icon: "back", run: () => void restartKernel(kernel) },
         ]
-      : [
-          button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" }),
-          button("Run statement", () => void doc.script!.runSelection(), { icon: "play", title: "Run statement (Ctrl+Enter)" }),
-          button("DAX", () => void doc.script!.addDax(datasetNames[0] ?? ""), { icon: "group", title: "Add DAX cell: a query on a Power BI workspace's dataset" }),
-          button("HTML", () => void doc.script!.addHtml(), { icon: "image", title: "Add HTML cell: a design drawn from its HTML" }),
-          button("Streamlit", () => void doc.script!.addStreamlit(), { icon: "bucket", title: "Add Streamlit cell: a piece of a page (a chart, a filter, a number), live in its cell" }),
-        ];
-  // A document with pieces has an app: run it, design its pages, open it, export it.
-  const app = hasPieces(doc) ? [button("Streamlit app", (e) => streamlitMenu(doc, e.currentTarget as HTMLElement), { icon: "more", class: "wb-streamlit-app", title: "This document's Streamlit app: run, page designer, open, export" })] : [];
-  clear(
-    toolbar,
-    h("div", { class: "ribbon-tools" }, ...file),
-    h(
-      "div",
-      { class: "ribbon-tools" },
-      ...run,
-      ...app,
-      button("Interrupt", () => void kernel.interrupt(), { icon: "stop" }),
-      button("Restart", () => void restartKernel(kernel), { icon: "back" }),
-      pythonPicker(doc),
-      tablesHost,
-      right,
-      palette,
-    ),
-  );
+      : []),
+    null,
+    // A document with pieces has an app: run it, design its pages, open it, export it.
+    ...(hasPieces(doc) ? [{ label: "Streamlit app…", icon: "bucket", run: () => void openMenu(anchor, "Streamlit app", streamlitEntries(doc), { align: "right" }) }] : []),
+    null,
+    { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "right") },
+    { label: "Split down", icon: "splitDown", disabled: !split, title: split ? undefined : SPLIT_WHY, run: () => splitDoc(doc, "down") },
+    { label: "Close", icon: "close", run: () => close(doc) },
+  ];
+}
+
+/** The focused group's row, right side: Run tables (only while one waits), "+ Cell", the main Run, "…". */
+function drawControls(): void {
+  drawTop();
+  const host = groups.controls();
+  const doc = current;
+  if (!doc) return void host.replaceChildren();
+  const more = button("Document menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost wb-more", title: "More" });
+  menuButton(more, "Document menu", () => moreEntries(doc, more), { align: "right" });
+  if (!doc.notebook && !doc.script) return void host.replaceChildren(more);
+  const addCell = h("button", { type: "button", class: "btn line wb-add-cell", "aria-label": "Add cell", title: "Add cell" }, icon("plus"), h("span", { class: "btn-label" }, "Cell"), icon("down")) as HTMLButtonElement;
+  menuButton(addCell, "Cell kinds", () => cellEntries(doc));
+  const run = doc.notebook
+    ? button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" })
+    : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
+  host.replaceChildren(tablesHost, addCell, run, more);
   drawTablesTool();
 }
 
@@ -752,27 +817,65 @@ async function restartKernel(kernel: Kernel): Promise<boolean> {
   return did;
 }
 
-/** The status bar: the kernel while it is not ready, the runs waiting, an environment of the notebook's
- *  own, the cursor. What is as expected (a ready kernel, this app's Python, the kind of file) is not said. */
+// ----- the status bar: for the focused document
+
+const kernelHost = h("span", { class: "wb-status-kernel" });
+const envHost = h("span", { class: "wb-status-env" });
+const cursorHost = h("span", { class: "wb-status-cursor" });
+const consoleToggle = button("Console", () => {
+  layout.toggle("console");
+  drawStatus();
+}, { class: "ghost wb-toggle", pressed: false });
+const variablesToggle = button("Variables", () => {
+  if (layout.toggle("right")) void variables.refresh();
+  drawStatus();
+}, { class: "ghost wb-toggle", pressed: false });
+layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), consoleToggle, variablesToggle);
+
+function drawCursor(): void {
+  const doc = current;
+  cursorHost.textContent = doc?.notebook || doc?.script ? `Line ${cursor.line}, column ${cursor.column}` : "";
+}
+
+/** The status bar: the kernel (its state only while it is not ready, as principle 7.9 asks; its menu
+ *  always), the environment, the cursor; the Console and Variables toggles. */
 function drawStatus(): void {
   const doc = current;
   const kernel = doc?.kernel;
-  const python = doc?.python ?? pythons[0]?.python ?? "";
-  const env = !doc?.python || doc.python === pythons[0]?.python ? "" : python.replace(/[\\/](bin[\\/]python[\d.]*|Scripts[\\/]python\.exe)$/i, "").split(/[\\/]/).filter(Boolean).slice(-2).join("/");
-  clear(
-    layout.status,
-    kernel
-      ? STATE_WORDS[kernel.state]
-        ? h("span", { class: `wb-state ${kernel.state}` }, h("span", { class: "wb-dot", "aria-hidden": "true" }), `Kernel: ${STATE_WORDS[kernel.state]}`, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "")
-        : null
-      : h("span", { class: "hint" }, doc ? "No kernel" : "Nothing open"),
-    kernel && env ? h("span", { title: python }, env) : null,
-    doc?.kind === "script" || doc?.kind === "notebook" ? h("span", {}, `Line ${cursor.line}, column ${cursor.column}`) : null,
-    doc?.kind === "blade" || doc?.kind === "table" ? h("span", {}, doc.kind === "blade" ? "Blade" : "Explorer") : null,
-  );
+  if (kernel) {
+    const words = STATE_WORDS[kernel.state];
+    const knob = h(
+      "button",
+      { type: "button", class: `btn ghost wb-kernel ${kernel.state}`, "aria-label": "Kernel", title: "Kernel: Interrupt, Restart" },
+      h("span", { class: "wb-dot", "aria-hidden": "true" }),
+      h("span", {}, "Kernel"),
+      words ? h("span", { class: `wb-state ${kernel.state}` }, words, kernel.running > 1 ? ` (${kernel.running - 1} waiting)` : "") : null,
+      icon("down"),
+    ) as HTMLButtonElement;
+    menuButton(knob, "Kernel", () => [
+      { label: "Interrupt", icon: "stop", run: () => void kernel.interrupt() },
+      { label: "Restart", icon: "back", run: () => void restartKernel(kernel) },
+    ], { above: true });
+    clear(kernelHost, knob);
+    // Not drawn again while the picker is in use (a run's state changes would close it).
+    if (!envHost.contains(document.activeElement) || envHost.dataset.doc !== String(doc.id)) {
+      clear(envHost, pythonPicker(doc));
+      envHost.dataset.doc = String(doc.id);
+    }
+  } else {
+    clear(kernelHost, doc ? h("span", { class: "hint" }, doc.kind === "blade" ? "Blade" : "Table") : null);
+    clear(envHost);
+    envHost.dataset.doc = "";
+  }
+  drawCursor();
+  const state = layout.state();
+  consoleToggle.setAttribute("aria-pressed", String(state.console));
+  variablesToggle.setAttribute("aria-pressed", String(state.right));
+  consoleToggle.disabled = !doc?.console;
+  consoleToggle.title = doc?.console ? "Console (Ctrl+2)" : "No console for what is in front";
 }
 
-// ===== the left panel: connections, blades, the data explorer =====
+// ===== the Data panel: the tables, the blades' variables; the catalog and the blades beside it =====
 
 function bladeDoc(name: string | null): void {
   const doc = makeDoc("blade", name ?? "New blade", null, null);
@@ -787,9 +890,49 @@ function bladeDoc(name: string | null): void {
   show(doc);
 }
 
+const data = mountDataPanel({
+  goToTable: (name) => goToTable(name),
+  addTable: (anchor) => void openMenu(anchor, "Add a table", tableEntries()),
+  openBlade: (name) => bladeDoc(name),
+  valueOf: (variable) => variables.snapshot()?.variables.find((v) => v.name === variable)?.value ?? "",
+  toggled: () => remember(),
+});
+(document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);
+
+/** "+ Table": a file, a connection's tables, the catalog's search, a new connection. */
+function tableEntries(): MenuEntry[] {
+  const sources = [...connectionNames, ...workspaceNames];
+  return [
+    { label: "Open file…", icon: "folder", run: () => void openFile() },
+    null,
+    ...(sources.length ? [{ label: "Connections", heading: true }] : []),
+    ...sources.map((name) => ({ label: name, icon: "sql", run: () => browse(name) })),
+    { label: "Search the catalog…", icon: "zoom", run: () => browse() },
+    { label: "Add connection…", icon: "plus", run: () => void openConnections().then(() => void rail.loadBlades()) },
+  ];
+}
+
+/** The catalog beside the Data panel: a connection's tables (or the search, without one). */
+function browse(connection?: string): void {
+  data.flyout("catalog");
+  if (connection) void rail.loadCatalogs(connection);
+}
+
+/** A table's click in the Data panel: its read-only cell in the focused document. */
+function goToTable(name: string): void {
+  const view = current ? viewOf(current) : undefined;
+  const line = view?.tables().find((t) => t.name === name);
+  if (!view || !line?.cell) {
+    toast(current ? `${name} has no cell in ${current.title}` : `Open a notebook for ${name}'s cell`);
+    return;
+  }
+  view.foldTables(false, name);
+  view.goTo(line.cell);
+}
+
 const rail = mountRail({
-  bladesHost: document.getElementById("blades") as HTMLElement,
-  catalogHost: document.getElementById("catalog") as HTMLElement,
+  bladesHost: data.bladesHost,
+  catalogHost: data.catalogHost,
   editBlade: bladeDoc,
   isEditing: () => editingBlade,
   showTable: (view) => {
@@ -842,12 +985,15 @@ function rememberNow(): void {
         // A saved document comes back from its file; only changed ones keep their text here.
         ...(d.dirty || !d.path ? (d.notebook ? { cells: d.notebook.cells().map((c) => (withOutputs ? c : { ...c, outputs: [] })), next_cell: d.notebook.nextCell(), pages: d.streamlit?.pages() ?? [] } : { text: d.script!.text() }) : {}),
       }));
-  const at = current ? docs.filter((d) => d.notebook || d.script).indexOf(current) : -1;
+  const code = docs.filter((d) => d.notebook || d.script);
+  const at = current ? code.indexOf(current) : -1;
+  // The groups as they are: each document by its place in `docs` (a blade or a table is left out).
+  const layoutNow = groups.save((d) => (code.includes(d) ? code.indexOf(d) : null));
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ docs: kept(true), current: at }));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ docs: kept(true), current: at, groups: layoutNow }));
   } catch {
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ docs: kept(false), current: at })); // too big with outputs
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ docs: kept(false), current: at, groups: layoutNow })); // too big with outputs
     } catch {
       /* storage refused: a reload starts empty, as before */
     }
@@ -860,7 +1006,7 @@ function remember(): void {
 
 /** The documents open before a reload (false: there were none). */
 async function restore(): Promise<boolean> {
-  type Saved = { docs: Remembered[]; current: number } | null;
+  type Saved = { docs: Remembered[]; current: number; groups?: SavedLayout } | null;
   const read = (): Saved => {
     try {
       return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "null") as Saved;
@@ -871,11 +1017,15 @@ async function restore(): Promise<boolean> {
   const saved = read();
   if (!saved?.docs?.length) return false;
   const opened: Doc[] = [];
-  for (const r of saved.docs) {
+  const byKey = new Map<number, Doc>();
+  for (const [key, r] of saved.docs.entries()) {
     if (r.path && !r.dirty) {
       await open(r.path); // fresh from its file
       const reopened = docs.find((d) => d.path === r.path);
-      if (reopened) opened.push(reopened);
+      if (reopened) {
+        opened.push(reopened);
+        byKey.set(key, reopened);
+      }
       continue;
     }
     const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.pages ?? []) : openScript(r.path, r.text ?? "", r.modified);
@@ -883,35 +1033,47 @@ async function restore(): Promise<boolean> {
     if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmygrid: true });
     doc.dirty = r.dirty;
     opened.push(doc);
+    byKey.set(key, doc);
   }
-  const back = opened[saved.current] ?? opened[opened.length - 1];
-  if (back) show(back);
+  // The groups as they were (their tabs, sizes and the focused one); without them, the one in front.
+  if (saved.groups) groups.restore(saved.groups, (key) => byKey.get(key));
+  else {
+    const back = byKey.get(saved.current) ?? opened[opened.length - 1];
+    if (back) show(back);
+  }
   drawTabs();
   return opened.length > 0;
 }
 
 // ===== start =====
 
-function showWelcome(): void {
-  current = null;
-  variables.show(null);
-  layout.console.replaceChildren();
-  drawTabs();
-  drawToolbar();
-  drawStatus();
-  document.title = "Workbench";
+/** Nothing open: the empty state has the area (Start a notebook; Start an app once app pages exist). */
+function drawEmpty(): void {
+  const none = docs.length === 0;
+  groups.element.hidden = none;
+  empty.hidden = !none;
+  layout.empty(none);
+  layout.status.hidden = none;
+  if (!none || empty.childElementCount) return;
+  const app = tabKinds().find((k) => k.mark === "page" && k.start);
   clear(
-    docHost,
+    empty,
+    h("div", { class: "wb-empty-choice" }, h("span", { class: "wb-empty-icon" }, icon("notebook")), button("Start a notebook", () => void openNotebook(null, [], null), { icon: "plus", class: "primary" })),
     h(
       "div",
-      { class: "wb-welcome" },
-      h("h1", {}, "Workbench"),
-      h("div", { class: "row-actions" }, button("New notebook", () => openNotebook(null, [], null), { icon: "plus", class: "primary" }), button("New script", () => openScript(null, "", null), { icon: "code" }), button("Open…", () => void open(), { icon: "folder" })),
-      recent.length ? h("h3", {}, "Recent") : null,
-      recent.length ? h("ul", { class: "wb-recent" }, ...recent.map((r) => h("li", {}, h("button", { type: "button", class: "link", disabled: !r.exists, onclick: () => void open(r.path) }, baseName(r.path)), h("span", { class: "hint" }, ` ${r.path}`)))) : null,
+      { class: "wb-empty-choice app" },
+      h("span", { class: "wb-empty-icon app" }, icon("page")),
+      app
+        ? button("Start an app", () => app.start!.run(), { icon: "plus", class: "primary" })
+        : Object.assign(button("Start an app", () => undefined, { icon: "plus", class: "primary", title: "App pages are not here yet" }), { disabled: true }),
     ),
   );
 }
+// App pages arrive by registering their kind: the empty state's second button follows.
+onTabKinds(() => {
+  clear(empty);
+  drawEmpty();
+});
 
 // ===== commands: the palette, the keys and the agent (workbench_window) =====
 
@@ -970,9 +1132,31 @@ async function pieceReport(): Promise<unknown> {
   };
 }
 const step = (by: 1 | -1): void => {
-  if (!current || docs.length < 2) return;
-  show(docs[(docs.indexOf(current) + by + docs.length) % docs.length]!);
+  const order = groups.tabs(); // group by group, as the rows show them
+  if (!current || order.length < 2) return;
+  show(order[(order.indexOf(current) + by + order.length) % order.length]!);
 };
+/** A document named by `index` (from 0, as "documents" lists them), else the one in front. */
+const docArg = (args: Record<string, unknown>): Doc => {
+  const at = num(args, "index");
+  const doc = at === undefined ? current : docs[at];
+  if (!doc) throw new Error(at === undefined ? "Nothing is open." : `There is no document ${at}.`);
+  return doc;
+};
+const groupArg = (args: Record<string, unknown>, name = "group"): number => {
+  const at = num(args, name);
+  if (at === undefined) throw new Error(`Send ${name}: a group, from 0 in reading order ("documents" lists them).`);
+  if (!groups.list()[at]) throw new Error(`There is no group ${at}: there ${groups.list().length === 1 ? "is 1 group" : `are ${groups.list().length} groups`}.`);
+  return at;
+};
+const sideArg = (args: Record<string, unknown>): Side | undefined => {
+  const side = text(args, "side");
+  if (side === undefined) return undefined;
+  if (side !== "left" && side !== "right" && side !== "up" && side !== "down") throw new Error('side is "left", "right", "up" or "down".');
+  return side;
+};
+const hasTabs = (): boolean => groups.tabs().length > 0;
+const manyGroups = (): boolean => groups.list().length > 1;
 
 /** What the window holds: for the agent's "documents" (and the palette's nothing). */
 function documents(): unknown {
@@ -987,8 +1171,11 @@ function documents(): unknown {
       kernel: d.kernel ? { id: d.kernel.id, state: d.kernel.state, runs_waiting: Math.max(0, d.kernel.running - 1) } : null,
       python: d.python,
       selected_cell: d.notebook ? d.notebook.selected() : null,
+      group: groups.indexOf(d),
     })),
-    panes: layout.state(),
+    // The tab groups in reading order: each one's documents (by index), the one in front, the focused one.
+    groups: groups.list().map((g, index) => ({ index, documents: g.tabs.map((d) => docs.indexOf(d)), in_front: g.active ? docs.indexOf(g.active) : null, focused: g.focused })),
+    panes: { ...layout.state(), data_panel: data.collapsed() ? "collapsed" : "open" },
     cursor: current?.script || current?.notebook ? cursor : null,
   };
 }
@@ -1163,12 +1350,69 @@ const COMMANDS: Command[] = [
   { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
-  { id: "view.toggleSidebar", group: "View", title: "Show or hide the side bar", keys: "Ctrl+B", run: () => { layout.toggle("rail"); drawToolbar(); } },
-  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", run: () => { if (layout.toggle("right")) void variables.refresh(); drawToolbar(); } },
-  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", run: () => layout.toggle("console") },
-  { id: "view.standard", group: "View", title: "Layout: standard", run: () => { layout.setLayout("standard"); drawToolbar(); } },
-  { id: "view.focus", group: "View", title: "Layout: source only", keys: "Ctrl+Shift+1", run: () => { layout.setLayout("focus"); drawToolbar(); } },
-  { id: "view.wide", group: "View", title: "Layout: wide data", run: () => { layout.setLayout("wide"); drawToolbar(); } },
+  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
+  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", run: (a) => {
+    const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
+    if (shown) void variables.refresh();
+    drawStatus();
+    return { shown };
+  } },
+  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", run: (a) => {
+    const shown = layout.toggle("console", typeof a.show === "boolean" ? a.show : undefined);
+    drawStatus();
+    return { shown };
+  } },
+  { id: "view.standard", group: "View", title: "Layout: standard", run: () => { layout.setLayout("standard"); drawStatus(); } },
+  { id: "view.focus", group: "View", title: "Layout: source only", keys: "Ctrl+Shift+1", run: () => { layout.setLayout("focus"); drawStatus(); } },
+  { id: "view.wide", group: "View", title: "Layout: wide data", run: () => { layout.setLayout("wide"); drawStatus(); } },
+  // Groups: tabs side by side or stacked, as Visual Studio Code's editor groups
+  { id: "group.splitRight", group: "Groups", title: "Split right: the tab moves to a new group on the right", keys: "Ctrl+\\", args: "index: a document (default: the one in front)", when: () => canSplit(current), whyNot: SPLIT_WHY, run: (a) => {
+    splitDoc(docArg(a), "right");
+    return { groups: groups.list().length, focused: groups.focusedIndex() };
+  } },
+  { id: "group.splitDown", group: "Groups", title: "Split down: the tab moves to a new group below", args: "index: a document (default: the one in front)", when: () => canSplit(current), whyNot: SPLIT_WHY, run: (a) => {
+    splitDoc(docArg(a), "down");
+    return { groups: groups.list().length, focused: groups.focusedIndex() };
+  } },
+  { id: "group.moveTab", group: "Groups", title: "Move a tab to another group", args: "group: the group, from 0 in reading order; index: a document (default: the one in front); position: its place in that group's row, from 0 (default: the end); side: left, right, up or down to split that side of the group instead", when: hasTabs, whyNot: "nothing is open", run: (a) => {
+    const doc = docArg(a);
+    const at = groupArg(a);
+    const side = sideArg(a);
+    if (side) {
+      if (!groups.split(doc, side, at)) throw new Error(`It cannot split: ${SPLIT_WHY}.`);
+    } else groups.move(doc, at, num(a, "position"));
+    return { group: groups.indexOf(doc), groups: groups.list().length };
+  } },
+  { id: "group.moveToNext", group: "Groups", title: "Move the tab to the next group", when: manyGroups, whyNot: "there is one group", run: () => {
+    const doc = docArg({});
+    groups.move(doc, (groups.indexOf(doc) + 1) % groups.list().length);
+  } },
+  { id: "group.focus", group: "Groups", title: "Focus a group", args: "group: from 0, in reading order", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.focusGroup(groupArg(a)) },
+  { id: "group.focusNext", group: "Groups", title: "Focus the next group", when: manyGroups, whyNot: "there is one group", run: () => groups.focusGroup((groups.focusedIndex() + 1) % groups.list().length) },
+  { id: "group.focusPrevious", group: "Groups", title: "Focus the previous group", when: manyGroups, whyNot: "there is one group", run: () => groups.focusGroup((groups.focusedIndex() - 1 + groups.list().length) % groups.list().length) },
+  { id: "tab.moveLeft", group: "Groups", title: "Move the tab left in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), -1) },
+  { id: "tab.moveRight", group: "Groups", title: "Move the tab right in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), 1) },
+  // The Data panel: tables, the blades' variables
+  { id: "data.list", agentOnly: true, group: "Data", title: "The Data panel's tables and variables", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), collapsed: data.collapsed() }) },
+  { id: "data.goToTable", group: "Data", title: "Go to a table's cell in the focused document", args: "table: the table's name", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    const table = text(a, "table");
+    if (!table) throw new Error("Send the table's name.");
+    const line = tablesView().tables().find((t) => t.name === table);
+    if (!line?.cell) throw new Error(`${table} has no cell in ${current!.title}.`);
+    goToTable(table);
+    return { table, cell: line.cell };
+  } },
+  { id: "data.openFile", group: "Data", title: "Open a file as a table…", args: "path: the file (without it, the file chooser opens)", run: async (a) => {
+    const path = text(a, "path");
+    if (!path) return openFile();
+    const name = tableName(path);
+    await api(`/datasets/${encodeURIComponent(name)}/load`, "POST", { path });
+    return { table: name };
+  } },
+  { id: "data.browse", group: "Data", title: "Browse a connection's tables", args: "connection: its name (default: the catalog as it is)", run: (a) => browse(text(a, "connection")) },
+  { id: "data.blades", group: "Data", title: "Show the blades and connections", run: () => data.flyout("blades") },
+  { id: "data.closeFlyout", group: "Data", title: "Close the catalog or the blades beside the Data panel", when: () => data.flyoutShown() !== null, whyNot: "neither is open", run: () => data.flyout(null) },
+  { id: "data.addConnection", group: "Data", title: "Add connection…", run: () => openConnections().then(() => void rail.loadBlades()) },
   { id: "view.variablesRefresh", group: "View", title: "Read the variables again", when: isCode, whyNot: "no notebook or script is in front", run: () => variables.refresh().then(() => variables.snapshot()) },
   // Help
   { id: "help.atCursor", group: "Help", title: "Help on the name at the cursor", keys: "F1", when: isCode, whyNot: "no notebook or script is in front", run: () => showHelp() },
@@ -1193,6 +1437,7 @@ const WINDOW_KEYS: Record<string, string> = {
   "Ctrl+2": "console.focus",
   "Ctrl+3": "view.variables",
   "Ctrl+Shift+1": "view.focus",
+  "Ctrl+\\": "group.splitRight",
   "Ctrl+Alt+PageDown": "doc.next",
   "Ctrl+Alt+PageUp": "doc.previous",
 };
@@ -1286,7 +1531,7 @@ void Promise.all([
   loadConnections(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),
 ]).then(() => {
-  showWelcome();
+  drawEmpty();
   void restore().then(() => {
     const wanted = openedWith.get("open"); // the address as opened (the page clears it once the token is read)
     if (wanted) void open(wanted);
