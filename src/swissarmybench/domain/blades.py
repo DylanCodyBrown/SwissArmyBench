@@ -1101,7 +1101,8 @@ class Blade:
     # A snippet's language (dax, html or streamlit), and the name a Streamlit piece gives its cell.
     language: str = ""
     cell_name: str = ""
-    # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit), kept on a copy.
+    # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit, Components), kept on
+    # a copy.
     family: str = ""
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
     pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace

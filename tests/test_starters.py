@@ -58,9 +58,17 @@ def filled(blade: dict[str, Any]) -> str:
 
 def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     found = blades()
-    assert len(found) == 78
+    assert len(found) == 87
     counts = Counter(b["family"] for b in found)
-    assert counts == {"Power BI": 13, "Excel": 12, "Files": 3, "DAX": 11, "HTML": 10, "Streamlit": 29}
+    assert counts == {
+        "Power BI": 13,
+        "Excel": 12,
+        "Files": 3,
+        "DAX": 11,
+        "HTML": 10,
+        "Streamlit": 29,
+        "Components": 9,
+    }
     assert set(counts) == set(FAMILIES)
     names = [b["name"].casefold() for b in found]
     assert len(set(names)) == len(names)
@@ -209,9 +217,19 @@ def _header(text: str, word: str) -> list[str]:
 
 
 def _streamlit_calls(tree: ast.AST) -> set[str]:
-    """Every st.<function> (and st.column_config.<function>, st.session_state) the code uses."""
+    """Every st.<function> (and st.column_config.<function>, st.session_state) the code uses; a
+    component's by its whole name (st.components.v2.component, not st.components)."""
     found: set[str] = set()
     for node in ast.walk(tree):
+        chain: list[str] = []
+        part: ast.AST = node
+        while isinstance(part, ast.Attribute):
+            chain.insert(0, part.attr)
+            part = part.value
+        if isinstance(part, ast.Name) and part.id == "st" and chain[:1] == ["components"]:
+            if len(chain) == 3:
+                found.add(".".join(["st", *chain]))
+            continue
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "st":
             found.add(f"st.{node.attr}")
         if (

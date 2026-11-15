@@ -1282,8 +1282,8 @@ def blades_import(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_starters",
-    "The built-in starter pack by family (Power BI, Excel, Files, DAX, HTML, Streamlit): read-only blades "
-    "and snippets",
+    "The built-in starter pack by family (Power BI, Excel, Files, DAX, HTML, Streamlit, Components): "
+    "read-only blades and snippets",
 )
 def blades_starters(a: dict[str, Any]) -> Any:
     return api.call("GET", "/blades/starters")
