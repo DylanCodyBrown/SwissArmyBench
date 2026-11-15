@@ -19,10 +19,11 @@ snippet = r"""
 #   st.bar_chart(table, x, y)   a bar chart of a table: x the column along the bottom, y the bars' height
 #
 # The totals are worked out first (groupby ... sum): Streamlit draws the values it is given.
+# A database's decimals arrive as Python Decimals, which a chart draws as names: numbers first.
 import streamlit as st
 
 st.bar_chart(
-    <<table>>.groupby("<<x column: region>>", as_index=False)["<<y column: amount>>"].sum(),
+    <<table>>.astype({"<<y column: amount>>": float}).groupby("<<x column: region>>", as_index=False)["<<y column: amount>>"].sum(),
     x="<<x column: region>>",
     y="<<y column: amount>>",
 )

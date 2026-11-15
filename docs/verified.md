@@ -1292,3 +1292,54 @@ and `role-${role}` counted as used); identical function bodies in two modules.
 - (2026-11-15) The whole suite after merging Beta mode: 2,622 passed, 9 skipped, 1 failed: the chart click by date
   (`test_chart_clicks_filter_by_date_by_heatmap_cell_and_never_by_a_whole_line`), which then passed 3 of 3 alone: a
   timing failure under the whole suite's load, not a bug. Browser tests are not part of the release workflow.
+
+## The real-world test bed: use cases 1 to 11 (2026-11-15)
+
+`python tools/testbed/testbed.py up` (PostgreSQL 16 on 127.0.0.1:55432, MariaDB on 53306, the made-up
+company's files), then `tests/e2e/test_real_world.py` in Chromium (the browser swap), with the Power BI
+and Key Vault stand-ins started by the tests and `SWISSARMYBENCH_STREAMLIT_PYTHON` set. All 14 tests
+passed (127 seconds). Each use case counts the user's actions (clicks, keys, typed values, choices,
+drags; code of more than one line is pasted, one typed value):
+
+| | Use case | Result | Actions |
+| --- | --- | --- | --- |
+| 1 | orders from PostgreSQL cleaned in the grid, the notebook saved | passed | 35 |
+| 2 | that notebook headless (`jupyter nbconvert`, the keyring's password) | passed | 1 |
+| 3 | as an Azure Function (the exported connection file, SHOP_PASSWORD) | passed | 5 |
+| 4 | Excel statements per customer from the template, the Excel starters | passed | 24 |
+| 5 | a daily CSV export, then run as the scheduled task | passed | 12 |
+| 6 | the daily CSV folder, both workbook sheets and MariaDB's customers; joins found | passed | 35 |
+| 7 | a Power BI dataset's relationships and its five tables read in | passed | 26 |
+| 8 | Power BI's Invoices tied out against PostgreSQL's (the regions of the missed day off) | passed | 10 |
+| 9 | a forecast as a Sandbox report (note and chart), Page view, Print to PDF | passed | 14 |
+| 10 | a story notebook: live Markdown, a by-region table, Mermaid, an HTML cell | passed | 20 |
+| 11 | a project: data.ipynb, a pages notebook, three Streamlit starters on a canvas, Play, a zip | passed | 40 |
+
+- **Agent parity** (MCP commands only, `execute_result`, as the MCP tools call them): use case 1 (a
+  connection made with its password, never shown back; the four steps; the notebook saved and run),
+  4 (the same 25 statements) and 11 (a project with a pages notebook, three snippets filled, blocks
+  placed, played, saved as a zip): all passed. Nothing the user did was missing for the agent.
+- **The zips run elsewhere:** each use case 11 zip, unzipped in a temporary folder, its page run by
+  Streamlit's AppTest in a plain Python (the client wheel, psycopg, Streamlit; no app), data.py reading
+  PostgreSQL through the connection's exported file and SHOP_PASSWORD: no exception, 1,198 invoices,
+  and 316 once North is picked in the filter.
+- **Bugs found and fixed** (each with a test): a blade or text dropped on an editor arrived with
+  Monaco's `$0`, and a second dropped blade landed inside the first's line (e2e, test_starters_page);
+  Send to Sandbox sent only the first card (`??=` with `await`), an analysis blade's too (e2e,
+  test_push_anything, test_analysis_blade_page); a same-named table from another connection replaced
+  the open one's rows, and one differing only in case was refused (test_connections); the Diagram said
+  "No relationships yet." over an imported model with no table open (e2e, test_relationships_page); a
+  tie showed -0 (test_tieout); a forecast counted a month with one day of rows (test_timeseries); 10,000
+  to 99,999 in e notation (test_analysis); a snippet form's column defaulted to an identifier (e2e);
+  the chart starters drew a database's Decimals as names (test_starters_streamlit).
+- **The whole suite** with the bed up (Chromium): 2,646 passed, 6 skipped (17 minutes). **The test bed
+  down:** with `SAB_TESTBED_DIR` pointing at an empty folder the 14 skip, saying "The
+  real-world test bed is not up: python tools/testbed/testbed.py up (tools/testbed/README.md)."
+- **Not checked:** a real Power BI tenant, a real Azure Key Vault, SQL Server (stand-ins only); Edge and
+  Windows (Chromium on Linux here); the browser's own print dialog (stubbed; Chromium's PDF of the
+  print view stands in for Save as PDF); a real scheduler (the commands it would run were run).
+  The use cases' grids and notebooks share one app per module, each use case closing the tables before
+  it starts.
+- **Seen once, not again:** in one partial run, use case 9's print was noted without the print view's
+  class on the page; it passed alone and in the full runs after. The stub now keeps the page's
+  class changes, to say what happened if it comes back.

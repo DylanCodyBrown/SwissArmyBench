@@ -8,7 +8,7 @@ Quillmere Supply (`company.py`), with no real names or addresses.
 
 ```bash
 sudo apt-get install postgresql mariadb-server libmariadb-dev   # once (Ubuntu); test machinery only
-uv pip install --python .venv/bin/python "psycopg[binary]" mariadb pymysql nbclient nbformat keyrings.alt
+uv pip install --python .venv/bin/python "psycopg[binary]" mariadb pymysql nbclient nbformat keyrings.alt openpyxl
 python tools/testbed/testbed.py up       # start and load PostgreSQL and MariaDB, write the files
 python -m pytest -q tests/e2e/test_real_world.py
 python tools/testbed/testbed.py down     # stop both databases, remove the folder
@@ -22,6 +22,30 @@ runs is not touched. The drivers and `keyrings.alt` (a keyring for a machine wit
 environment, never into the app's dependencies.
 
 Without the test bed up (Windows CI, a laptop without the databases), the use cases skip and say why.
+
+Use case 11 (a project played as a Streamlit page) needs a Python with Streamlit and ipykernel:
+`SWISSARMYBENCH_STREAMLIT_PYTHON=<that python>`; without one it skips. The headless runs (2, 3, 5, 11)
+build the client wheel and a plain Python with `uv` (pandas, psycopg, nbconvert, Streamlit: from PyPI).
+`SWISSARMYBENCH_SHOTS=<folder>` keeps a screenshot of each use case (and use case 9's PDF);
+`SAB_TESTBED_COUNTS=<file>` writes the action counts as JSON.
+
+## The use cases
+
+| | What the user does | Actions |
+| --- | --- | --- |
+| 1 | orders from PostgreSQL cleaned in the grid (trim, lower case, no test orders, each once), the notebook saved | 35 |
+| 2 | that notebook run headless by `jupyter nbconvert`, the app closed, the password the keyring's | 1 |
+| 3 | the same as an Azure Function would: the connection's exported file, SHOP_PASSWORD | 5 |
+| 4 | Excel statements, one workbook per customer with open invoices, from the template, with the Excel starters | 24 |
+| 5 | a daily CSV export, saved, then run as the scheduled task runs it | 12 |
+| 6 | the daily CSV folder (Files combine CSVs), both workbook sheets and MariaDB's customers; the joins found | 35 |
+| 7 | the Power BI workspace added (its app registration from the vault); a dataset's relationships and 5 tables read in | 26 |
+| 8 | Power BI's Invoices tied out against PostgreSQL's: the regions of the day the refresh missed are off | 10 |
+| 9 | a forecast of invoiced amounts sent to the Sandbox, Page view, Print to PDF | 14 |
+| 10 | a story notebook: figures, a Markdown cell with live values, a table and a Mermaid diagram, an HTML cell | 20 |
+| 11 | a project: data.ipynb from PostgreSQL, a pages notebook, three Streamlit starters on a canvas, Play, a zip; the zip's page run by AppTest elsewhere | 40 |
+
+Use cases 1, 4 and 11 run again through the agent's MCP commands only (`test_1a`, `test_4a`, `test_11a`).
 
 ## What is in it
 
