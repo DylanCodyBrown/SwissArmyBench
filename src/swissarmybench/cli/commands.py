@@ -2911,6 +2911,25 @@ def streamlit_run(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "streamlit_page_settings",
+    "A canvas's page settings: title, icon, layout (wide, centered), logo, colours (theme)",
+    req("app", "The app's id."),
+    req("settings", '{"title": "Sales", "layout": "centered", "colours": {"primary": "#c8102e"}}', "json"),
+)
+def streamlit_page_settings(a: dict[str, Any]) -> Any:
+    return api.call("PUT", f"/streamlit/apps/{_q(a['app'])}/settings", a["settings"])
+
+
+@command(
+    "streamlit_state",
+    "The live page's session state (State panel): each key, its value, its block",
+    req("app", "The app's id."),
+)
+def streamlit_state(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/session")
+
+
+@command(
     "streamlit_address",
     "A running app's addresses: the app, each page, each live cell",
     req("app", "The app's id."),
@@ -2949,7 +2968,7 @@ def streamlit_install(a: dict[str, Any]) -> Any:
 
 @command(
     "streamlit_save",
-    "Save a canvas to its file (.stapp.json: pages, blocks, links; no code)",
+    "Save a canvas to its file (.stapp.json: pages, blocks, links, page settings; no code)",
     req("app", "The app's id."),
     opt("path", "Where (default: the file it was opened from)."),
 )
@@ -2960,7 +2979,11 @@ def streamlit_save(a: dict[str, Any]) -> Any:
         raise CommandError("Send path: this app has no file yet.")
     if not path.lower().endswith(".stapp.json"):
         path += ".stapp.json"
-    saved = api.call("POST", "/workbench/save", {"path": path, "pages": state["pages"], "force": True})
+    saved = api.call(
+        "POST",
+        "/workbench/save",
+        {"path": path, "pages": state["pages"], "settings": state.get("settings"), "force": True},
+    )
     api.call("PUT", f"/streamlit/apps/{_q(a['app'])}", {"document": saved["path"]})
     return saved
 

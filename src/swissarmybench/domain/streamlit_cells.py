@@ -47,6 +47,7 @@ from typing import Any
 
 from swissarmybench.domain import html_cells, notebooks, table_cells
 from swissarmybench.domain.blades import pip_name, provided
+from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 __all__ = ["uses_streamlit", "usual_name"]
@@ -638,11 +639,15 @@ def pages_json(pages: Sequence[Page]) -> list[dict[str, Any]]:
 # the pages and their blocks' links and places, and nothing else: no ids, no code.
 
 
-def write_app(pages: Sequence[Page], link: Callable[[str], str] = lambda document: document) -> str:
+def write_app(
+    pages: Sequence[Page], link: Callable[[str], str] = lambda document: document, settings: str | None = None
+) -> str:
     """The app's file text. `link` gives each block's path as the file should hold it (relative to
-    the file: `relative_link`)."""
+    the file: `relative_link`). `settings`: the page settings' line (domain/app_settings.py file_line)."""
     said = json.dumps
     lines = ["{", f"  {said(APP_KEY)}: {said(APP_MARK)},", f'  "version": {APP_VERSION},']
+    if settings:
+        lines.append(settings)
     if not pages:
         return "\n".join([*lines, '  "pages": []', "}"]) + "\n"
     lines.append('  "pages": [')
@@ -908,6 +913,9 @@ def _layout(placed: Sequence[Block]) -> list[str]:
     return out
 
 
+LAYOUT_LINE: str = "# The layout: empty slots, drawn before any block runs."
+
+
 def page_code(
     title: str,
     placed: Sequence[Block],
@@ -959,7 +967,7 @@ def page_code(
         out += ["", f"from data import {', '.join(also)}"]
     out.append("")
 
-    out.append("# The layout: empty slots, drawn before any block runs.")
+    out.append(LAYOUT_LINE)
     out += _layout(placed)
     out.append("")
 
@@ -1092,7 +1100,11 @@ import streamlit as st
 
 _HERE = Path(__file__).resolve().parent
 _MANIFEST = json.loads((_HERE / "manifest.json").read_text(encoding="utf-8"))
-st.set_page_config(page_title=_MANIFEST["title"], layout="wide")
+st.set_page_config(
+    page_title=_MANIFEST["title"], page_icon=_MANIFEST.get("icon"), layout=_MANIFEST.get("layout") or "wide"
+)
+if _MANIFEST.get("logo"):
+    st.logo(_MANIFEST["logo"])
 _PAGES = [
     st.Page(str(_HERE / page["file"]), title=page["title"], url_path=page["path"], default=page["default"])
     for page in _MANIFEST["pages"]
@@ -1189,6 +1201,8 @@ def export(
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
     helper: str = "",
+    head: Sequence[str] = (),
+    config: str | None = None,
 ) -> Export:
     """The pages as a runnable folder: app.py (st.navigation over the pages), one module a page,
     requirements.txt and README.txt. The tables it names go into data/ (the caller writes them). A
@@ -1225,7 +1239,7 @@ def export(
         'Run: streamlit run app.py"""',
         "import streamlit as st",
         "",
-        f'st.set_page_config(page_title={title!r}, layout="wide")',
+        *(head or [f'st.set_page_config(page_title={title!r}, layout="wide")']),
         "st.navigation(",
         "    [",
     ]
@@ -1239,6 +1253,8 @@ def export(
     if texts:
         files[TEXT_FILE] = text_file(helper)
     files["README.txt"] = README.format(title=title, text=TEXT_README if texts else "")
+    if config:
+        files[".streamlit/config.toml"] = config  # the page settings' theme colours
     return Export(files, tuple(used), tuple(problems))
 
 
@@ -1281,6 +1297,7 @@ def saved_pages(
     where: Mapping[Key, str] | None = None,
     gone: Mapping[str, str] | None = None,
     app: str = "app.stapp.json",
+    head: Sequence[str] = (),
 ) -> SavedPages:
     """The pages as a project's pages/*.py: each a page to drop into a Streamlit app, starting with
     `from data import ...` for the tables (and blade variables) it names. `tables`: the names data.py
@@ -1309,6 +1326,8 @@ def saved_pages(
             loader="data",
         )
         title, _, rest = made.code.partition("\n")
+        if head:  # the page settings: st.set_page_config and st.logo, before the layout
+            rest = rest.replace(LAYOUT_LINE, "\n".join([*head, "", LAYOUT_LINE]), 1)
         files[f"pages/{name}.py"] = f"{title}\n{page_mark(app)}\n{rest}"
         used += [t for t in made.tables if t not in used]
         problems += [f"{page.name}: {p}" for p in made.problems]
@@ -1336,3 +1355,41 @@ def bundle_names(documents: Sequence[str], taken: Iterable[str] = ()) -> dict[st
         held.add(name.lower())
         names[document] = name
     return names
+
+
+# ===== the agent's approval: what its export or Save as writes =====
+
+
+def _rows_of(tables: Sequence[DatasetInfo]) -> list[str]:
+    return [f"  {info.name} ({info.row_count:,} rows as loaded)" for info in tables]
+
+
+def export_detail(target: str, pages: list[str], tables: Sequence[DatasetInfo]) -> str:
+    """The approval prompt's words for the agent's Streamlit export: which folder, which pages, and
+    which tables' rows are copied there."""
+    lines = [
+        "An app that runs alone (app.py, its pages, requirements.txt), written into the folder:",
+        f"  {target}",
+        f"Pages: {', '.join(pages) if pages else '(none)'}",
+    ]
+    if tables:
+        lines.append("With a copy of these tables' rows, after their grid's steps, as Parquet in data/:")
+        lines += _rows_of(tables)
+    else:
+        lines.append("No table rows: the pages read no open table.")
+    return "\n".join(lines)
+
+
+def save_as_detail(target: str, notebook: str, tables: Sequence[DatasetInfo]) -> str:
+    """The approval prompt's words for a Save as that first writes the project's data.ipynb, which
+    holds the rows pasted into the grid (the zip itself holds no rows)."""
+    return "\n".join(
+        [
+            "The project as one zip (it holds no rows):",
+            f"  {target}",
+            "First, the project's data.ipynb, written into its folder:",
+            f"  {notebook}",
+            "It holds the rows pasted into the grid of:",
+            *_rows_of(tables),
+        ]
+    )

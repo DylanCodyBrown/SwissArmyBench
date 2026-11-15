@@ -42,15 +42,26 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from swissarmybench.domain import app_settings as page_settings
 from swissarmybench.domain import html_cells, notebooks, projects
 from swissarmybench.domain import streamlit_cells as rules
+from swissarmybench.domain.app_settings import AppSettings
 from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.projects import DataCell
-from swissarmybench.domain.streamlit_cells import Block, Facts, Key, Page, PieceCode, StreamlitError
+from swissarmybench.domain.streamlit_cells import (
+    Block,
+    Facts,
+    Key,
+    Page,
+    PieceCode,
+    StreamlitError,
+    export_detail,
+    save_as_detail,
+)
 from swissarmybench.services.agent import Approvals
 from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
@@ -78,6 +89,8 @@ class Files(Protocol):
     def has_table(self, folder: str, name: str) -> bool: ...
 
     def remove(self, folder: str) -> None: ...
+
+    def read(self, folder: str, name: str) -> str | None: ...  # a file the live app wrote (its state)
 
     def export_target(self, folder: str) -> str: ...
 
@@ -147,6 +160,7 @@ class App:
     # Every cell of the document, as the window holds it (only a project's data.ipynb sends them).
     every: list[DataCell] | None = None
     pages: list[Page] = field(default_factory=list)  # a canvas's
+    settings: AppSettings = field(default_factory=AppSettings)  # a canvas's page settings
     # What was last written: each cell's code (None: it was missing), each page's layout, each
     # table's mark, the files' names.
     ran: dict[Key, str | None] = field(default_factory=dict)
@@ -336,6 +350,7 @@ class StreamlitApps:
                 app.canvas = True
                 app.title = rules.app_title(full)
                 app.pages = rules.read_app(text, lambda link: rules.resolve_link(full, link))
+                app.settings = page_settings.read_app_settings(text)
             else:
                 app.title = _name(full)
                 app.python = self._environment_of(full)
@@ -382,6 +397,8 @@ class StreamlitApps:
         if "unsaved" in body:
             app.unsaved = body["unsaved"] is True
         if app.canvas:
+            if "settings" in body:
+                app.settings = page_settings.read_settings(body["settings"])
             if "pages" in body:
                 app.pages = rules.read_pages(body["pages"])
                 for page in app.pages:
@@ -679,7 +696,43 @@ class StreamlitApps:
             "python": linked.python or self._runner.default_python(),
             "unsaved": [_name(d) for d in linked.unsaved],
             "pages": pages,
+            "settings": app.settings.to_json(),
         }
+
+    # ===== App mode: the page settings, and the live page's state =====
+
+    def _logo(self, app: App) -> str | None:
+        """The logo's whole path (the settings hold it relative to the app's file)."""
+        logo = app.settings.logo
+        if not logo or rules.is_absolute(logo) or not app.document:
+            return logo or None
+        return self._project.path(self._project.folder_of(app.document), logo)
+
+    async def set_settings(self, app_id: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """The page settings: {"title", "icon", "layout", "logo", "colours": {...}} (a part is enough)."""
+        app = self._app(app_id, canvas=True)
+        app.settings = page_settings.changed(app.settings, body)
+        self.ws.audit.write(who, "streamlit_page_settings", app.title)
+        await self._changed(app)
+        return self._state(app)
+
+    def session(self, app_id: str) -> dict[str, Any]:
+        """What the live page's session holds (st.session_state), each key with its block's name."""
+        app = self._app(app_id, canvas=True)
+        raw = self._files.read(app.folder, page_settings.STATE_FILE) if app.folder and app.running() else None
+        try:
+            held = json.loads(raw) if raw else {}
+        except ValueError:
+            held = {}
+        linked = self._linked(app)
+        pieces = self._canvas_pieces(app, linked)[0]
+        blocks = [
+            (b.id, pieces[b.key].name, pieces[b.key].code)
+            for p in app.pages
+            for b in p.blocks
+            if b.key in pieces
+        ]
+        return {"app": app.id, "running": app.running(), "state": page_settings.state_rows(held, blocks)}
 
     async def _changed(self, app: App) -> None:
         await self.ws.live.broadcast({"type": "streamlit_changed", "app": app.id})
@@ -958,7 +1011,7 @@ class StreamlitApps:
                     imports=given,
                 )
                 name = f"page_{page.id}_{stamp}.py"
-                files[name] = made.code
+                files[name] = made.code + page_settings.STATE_TAIL  # what the session holds: the State panel
                 used += [t for t in made.tables if t not in used]
                 entry = {"kind": "page", "file": name, "title": page.name, "path": f"page-{page.id}"}
                 listed.append(entry | {"default": False})
@@ -980,7 +1033,11 @@ class StreamlitApps:
                 listed.append(entry | {"default": False})
                 ran[("", cell)] = rules.body(app.codes[cell])
         # The manifest last: the pages it names are already there.
-        files["manifest.json"] = json.dumps({"title": app.title, "pages": listed}, indent=1)
+        shown = page_settings.manifest(app.settings, app.title, self._logo(app) if app.canvas else None)
+        files["manifest.json"] = json.dumps(shown | {"pages": listed}, indent=1)
+        theme = page_settings.config_toml(app.settings, app.title) if app.canvas else None
+        if theme:  # Streamlit reads the theme from the folder it runs in (read when it starts)
+            files[page_settings.CONFIG_FILE] = theme
         for table in used:
             info, grid = tables[table]
             mark = self._mark(info, grid)
@@ -1140,7 +1197,18 @@ class StreamlitApps:
         linked = self._linked(app)
         pieces, found, where = self._canvas_pieces(app, linked)
         gone = {b.id: said for p in app.pages for b in p.blocks if (said := self._gone(b, linked))}
-        made = rules.export(app.title, app.pages, pieces, tables, found, where, gone, self._files.helper())
+        made = rules.export(
+            app.title,
+            app.pages,
+            pieces,
+            tables,
+            found,
+            where,
+            gone,
+            self._files.helper(),
+            head=page_settings.page_head(app.settings, app.title),
+            config=page_settings.config_toml(app.settings, app.title),
+        )
         try:
             target = self._files.export_target(folder)
         except FileNotFoundError as error:
@@ -1285,7 +1353,20 @@ class StreamlitApps:
             if data is None:
                 raise Conflict(f"{folder}'s data.ipynb cannot be read: data.py was not written.")
             app_name = _name(app.document)
-            made = rules.saved_pages(app.pages, pieces, data.names, found, where, gone, app_name)
+            made = rules.saved_pages(
+                app.pages,
+                pieces,
+                data.names,
+                found,
+                where,
+                gone,
+                app_name,
+                page_settings.page_head(app.settings, app.title),
+            )
+            # The theme's colours: .streamlit/config.toml, never over one of the user's own.
+            theme = page_settings.config_toml(app.settings, app_name)
+            if theme and page_settings.is_own_config(self._project.read(folder, page_settings.CONFIG_FILE)):
+                self._project.write(folder, page_settings.CONFIG_FILE, theme)
             problems = list(made.problems)
             lacking = [t for t in named if t not in data.names]
             if lacking:
@@ -1360,7 +1441,11 @@ class StreamlitApps:
                 f"{_name(document)} has changes that are not saved: the exports have them, the zip's copy "
                 "of the file does not."
             )
-        files[app_name] = rules.write_app(app.pages, lambda d: placed.get(d, d))
+        files[app_name] = rules.write_app(
+            app.pages, lambda d: placed.get(d, d), page_settings.file_line(app.settings)
+        )
+        if theme:
+            files[page_settings.CONFIG_FILE] = theme
         files["README.txt"] = projects.readme(
             app.title,
             [p.name for p in app.pages],
@@ -1385,38 +1470,3 @@ class StreamlitApps:
             "fill_in": list(data.fill_in),
             "problems": problems,
         }
-
-
-def _rows_of(tables: list[DatasetInfo]) -> list[str]:
-    return [f"  {info.name} ({info.row_count:,} rows as loaded)" for info in tables]
-
-
-def export_detail(target: str, pages: list[str], tables: list[DatasetInfo]) -> str:
-    """The approval prompt's words for the agent's Streamlit export: which folder, which pages, and
-    which tables' rows are copied there."""
-    lines = [
-        "An app that runs alone (app.py, its pages, requirements.txt), written into the folder:",
-        f"  {target}",
-        f"Pages: {', '.join(pages) if pages else '(none)'}",
-    ]
-    if tables:
-        lines.append("With a copy of these tables' rows, after their grid's steps, as Parquet in data/:")
-        lines += _rows_of(tables)
-    else:
-        lines.append("No table rows: the pages read no open table.")
-    return "\n".join(lines)
-
-
-def save_as_detail(target: str, notebook: str, tables: list[DatasetInfo]) -> str:
-    """The approval prompt's words for a Save as that first writes the project's data.ipynb, which
-    holds the rows pasted into the grid (the zip itself holds no rows)."""
-    return "\n".join(
-        [
-            "The project as one zip (it holds no rows):",
-            f"  {target}",
-            "First, the project's data.ipynb, written into its folder:",
-            f"  {notebook}",
-            "It holds the rows pasted into the grid of:",
-            *_rows_of(tables),
-        ]
-    )

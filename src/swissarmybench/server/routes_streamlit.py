@@ -21,6 +21,9 @@ golden rule: every action here has its command).
   POST   /streamlit/apps/{app}/pages/{page}/blocks          {"document", "cell", "row"?, "column"?, "w"?}
   PATCH  /streamlit/apps/{app}/pages/{page}/blocks/{block}  {"row", "column", "insert"?}, {"w", "h"}, {"page"}
   DELETE /streamlit/apps/{app}/pages/{page}/blocks/{block}  take it off the page
+  PUT    /streamlit/apps/{app}/settings         the page settings: {"title", "icon", "layout", "logo",
+                                                "colours"}
+  GET    /streamlit/apps/{app}/session          the live page's session state, each key with its block
 
 The live pages themselves are passed through by server/streamlit_proxy.py (/streamlit/live/...).
 """
@@ -125,6 +128,14 @@ def routes(apps: StreamlitApps) -> list[BaseRoute]:
             await apps.remove_block(params["app"], params["page"], params["block"], actor(request))
         )
 
+    async def settings(request: Request) -> Response:
+        return json_response(
+            await apps.set_settings(request.path_params["app"], await body_of(request), actor(request))
+        )
+
+    async def session(request: Request) -> Response:
+        return json_response(apps.session(request.path_params["app"]))
+
     block = "/streamlit/apps/{app}/pages/{page}/blocks/{block}"
     return [
         Route("/streamlit/apps", safely(listing)),
@@ -144,4 +155,6 @@ def routes(apps: StreamlitApps) -> list[BaseRoute]:
         Route("/streamlit/apps/{app}/pages/{page}/blocks", safely(place), methods=["POST"]),
         Route(block, safely(change_block), methods=["PATCH"]),
         Route(block, safely(remove_block), methods=["DELETE"]),
+        Route("/streamlit/apps/{app}/settings", safely(settings), methods=["PUT"]),
+        Route("/streamlit/apps/{app}/session", safely(session)),
     ]

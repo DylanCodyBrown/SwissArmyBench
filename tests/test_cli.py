@@ -551,7 +551,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The starter pack (2026-11-15) added four: list it, copy a starter as your own, a snippet's form
     # (or its filled text), and inserting one into a cell.
     # Beta mode (2026-11-15) added five: the switch, the log, the notes, clear and export the zip.
-    assert size < 56_000, f"the tool list is {size} characters"
+    # The Workbench's modes and kind colours (2026-11-15) added eight: the kind colours, an app's page
+    # settings and its live state, a script's run settings, its scheduled run and its history, a notebook's
+    # run order, and data.ipynb's dictionary.
+    assert size < 59_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

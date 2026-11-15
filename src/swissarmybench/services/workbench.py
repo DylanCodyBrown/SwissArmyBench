@@ -9,8 +9,8 @@ import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+from swissarmybench.domain import app_settings, errors, html_cells, streamlit_cells
 from swissarmybench.domain import environments as envs
-from swissarmybench.domain import errors, html_cells, streamlit_cells
 from swissarmybench.domain import notebooks as rules
 from swissarmybench.domain.datasets import validate_name
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
@@ -171,6 +171,7 @@ class Workbench:
                 "kind": kind,
                 "modified": modified,
                 "pages": streamlit_cells.pages_json(pages),
+                "settings": app_settings.read_app_settings(text).to_json(),
             }
         return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python}
 
@@ -193,7 +194,10 @@ class Workbench:
                 pages = streamlit_cells.read_pages(body.get("pages"))
             except streamlit_cells.StreamlitError as error:
                 raise ValueError(str(error)) from None
-            text = streamlit_cells.write_app(pages, lambda d: streamlit_cells.relative_link(path, d))
+            settings = app_settings.file_line(app_settings.read_settings(body.get("settings")))
+            text = streamlit_cells.write_app(
+                pages, lambda d: streamlit_cells.relative_link(path, d), settings
+            )
         else:
             script = body.get("text")
             if not isinstance(script, str) or len(script) > rules.MAX_CELL_CHARS * 5:
