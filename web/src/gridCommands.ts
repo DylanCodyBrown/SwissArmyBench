@@ -22,6 +22,7 @@
  */
 import { analysisEntries } from "./analyzeMenu";
 import { betaCommands } from "./betaNotes";
+import { updateCommands } from "./updates";
 import { cellCommands } from "./cellMenu";
 import { focusedCell } from "./gridView";
 import { activateGrid, activeContext, closeGrid, compareWith, gridList, openWorkbench, renameActive, showAgentView, showErdView, showGridView } from "./panes";
@@ -75,6 +76,7 @@ function commands(): Command[] {
   out.push(...buttonsOf("Application", document, ".app-row button", (b) => b.closest(".tour-bubble") !== null));
   out.push({ id: "application.zoom-reset", group: "Application", title: "Zoom 100%", keys: "Ctrl+0", run: () => setGridZoom(1) });
   out.push(...betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
+  out.push(...updateCommands()); // Update to X, What's new, Check for updates
   // The ribbon's rows, each under its own name; the Analyze button is its menu's entries.
   for (const row of document.querySelectorAll<HTMLElement>(".ribbon .ribbon-group")) {
     const name = row.querySelector(".ribbon-caption strong")?.textContent?.trim() ?? "Table";

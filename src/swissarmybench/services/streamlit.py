@@ -323,6 +323,10 @@ class StreamlitApps:
             ):
                 await self._changed(app)
 
+    def unsaved(self) -> list[str]:
+        """The open documents whose windows hold changes their files do not (asked before an update)."""
+        return [app.title for app in self._apps.values() if app.unsaved]
+
     def listing(self) -> dict[str, Any]:
         return {"apps": [self._summary(app) for app in self._apps.values()]}
 

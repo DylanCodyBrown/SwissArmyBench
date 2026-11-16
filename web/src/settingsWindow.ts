@@ -13,6 +13,7 @@
  *                                 (the server's, for every window; all on again at each start)
  *          [KIND COLOURS]         app pages, notebooks, scripts: a colour each -> kindColours.ts (the
  *                                 server's, for every window; kept across restarts)
+ *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
@@ -21,6 +22,7 @@
  */
 import { agentAccessSection } from "./agentAccess";
 import { betaSection } from "./betaNotes";
+import { updatesSection } from "./updates";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
 import { loadPanels, panelList, setPanel } from "./panels";
@@ -135,6 +137,7 @@ export function openSettings(): void {
     ),
     panelsSection(),
     kindColoursSection(),
+    updatesSection(),
     betaSection(),
     h(
       "fieldset",

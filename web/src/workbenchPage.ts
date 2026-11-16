@@ -68,6 +68,7 @@ import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { kindIcon, kindOfPath, loadKindColours } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
+import { updateCommands, updateMark } from "./updates";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
@@ -1603,7 +1604,7 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), betaMark(), consoleToggle, modeToggles, variablesToggle);
+layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -2397,6 +2398,7 @@ const COMMANDS: Command[] = [
 ];
 registerCommands(COMMANDS);
 registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
+registerCommands(updateCommands()); // Update to X, What's new, Check for updates
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
 // What is sent to the agent or the Sandbox names the document it came from.

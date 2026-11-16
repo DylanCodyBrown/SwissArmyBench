@@ -2833,6 +2833,32 @@ def app_beta_log_export(a: dict[str, Any]) -> Any:
     return api.call("POST", "/beta/export", {"path": a["path"]})
 
 
+# ===== updates: the one request that leaves the computer (PyPI, then GitHub), and Update to X =====
+
+
+@command(
+    "app_update_check",
+    "Version running, the latest, whether an update is available; `now` checks again, `on` sets the switch",
+    opt("now", "true: ask the release list now.", "bool"),
+    opt("on", "Check for updates: true or false (kept).", "bool"),
+)
+def app_update_check(a: dict[str, Any]) -> Any:
+    if a.get("on") is not None:
+        api.call("PUT", "/updates", {"check": a["on"]})
+    if a.get("now"):
+        return api.call("POST", "/updates/check")
+    return api.call("GET", "/updates")
+
+
+@command(
+    "app_update",
+    "Update to the available version (waits for the user's Allow; the app stops, installs it, restarts)",
+    opt("version", "The version app_update_check offers."),
+)
+def app_update(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/updates/install", {"version": a.get("version")}, timeout=200)
+
+
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
 def workbench_new_app(a: dict[str, Any]) -> Any:
     return _window("file.newApp", {})

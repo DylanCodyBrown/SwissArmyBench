@@ -156,6 +156,7 @@ NOT_COMMANDS = {
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
     "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",
+    "/updates/tray": "the tray's menu (tray plumbing): tabs_list and workbench_window documents say the same",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }

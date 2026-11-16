@@ -15,6 +15,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from swissarmybench.domain.updates import FEEDS
 from swissarmybench.renamed import env, home_state_folder, workbench_folder
 
 MIB: int = 1024 * 1024
@@ -69,6 +70,15 @@ def _claude_dir() -> Path:
     return Path(override) if override else Path.home() / ".claude"
 
 
+def _update_feeds() -> tuple[str, ...]:
+    """Where the update check asks (PyPI, then GitHub). SWISSARMYBENCH_UPDATE_FEED names one address
+    instead (a stand-in on 127.0.0.1 in tests), or "none": the check never asks anything."""
+    override = env("SWISSARMYBENCH_UPDATE_FEED", "\0")
+    if override == "\0":
+        return FEEDS
+    return () if override.strip().lower() in ("", "none", "0", "off") else (override.strip(),)
+
+
 def _default_dataset_cap() -> int:
     """1 GiB per dataset (room for Excel's 1,048,576 rows on a wide table), or
     SWISSARMYBENCH_MAX_DATASET_MB when set; always within the total budget."""
@@ -105,6 +115,9 @@ class Settings:
     # start-up (but not one that signs in with a browser window: that one on first use), and on first use;
     # so many at once.
     auto_load_catalogs: bool = True
+    # The update check (services/updates.py): the one request that leaves the computer, at start and every
+    # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
+    update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)
     catalogs_at_once: int = 2
     # How long reading the vaults may hold up a Workbench kernel's start (it then starts without them).
     vault_timeout_seconds: float = 60.0

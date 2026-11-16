@@ -33,6 +33,9 @@ server = [
     # The copy check runs the user's copied code exactly, `.df()` included, and the pandas copy option
     # is a pandas program: without pandas beside the server neither can be verified.
     "pandas>=2.2",
+    # The tray icon (`swissarmybench tray`; the plan's decision 6): pystray shows it, Pillow paints it.
+    "pillow>=11",
+    "pystray>=0.19.5",
     "sqlglot>=30.24.0",
     "starlette>=0.46",
     "uvicorn>=0.34",
@@ -90,8 +93,8 @@ files = ["src", "tests", "examples", "tools", "build.py"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-# These ship no type information.
-module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*"]
+# These ship no type information (Pillow does, but the tray reads it only where it is installed).
+module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*", "pystray", "pystray.*", "PIL", "PIL.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

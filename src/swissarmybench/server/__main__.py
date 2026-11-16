@@ -4,6 +4,7 @@
     uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
     uv run swissarmybench status          is one running, and where
     uv run swissarmybench stop            ask the running one to shut down
+    uv run swissarmybench tray            the tray icon (`start` starts it too, unless --no-tray)
 
 Swiss Army Bench lives in VS Code: its extension runs this command when VS Code opens (with
 SWISSARMYBENCH_STARTED_BY=vscode), and a server it started stops once no VS Code window has been
@@ -46,6 +47,7 @@ from swissarmybench.server.lifecycle import (
     running_server,
 )
 from swissarmybench.server.routes_processes import QuietHeartbeats
+from swissarmybench.server.tray import start_tray
 from swissarmybench.settings import Settings
 
 # Long enough to ride out a window reload (the extension reconnects within a few seconds).
@@ -70,10 +72,16 @@ class _Server(uvicorn.Server):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Swiss Army Bench server on localhost.")
-    parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "status"])
+    parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "status", "tray"])
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
+    parser.add_argument("--no-tray", action="store_true", help="Start without the tray icon.")
     args = parser.parse_args()
     path = info_file_path()
+
+    if args.command == "tray":
+        from swissarmybench.server.tray import run_tray
+
+        sys.exit(run_tray(path))
 
     if args.command == "status":
         info = running_server(path)
@@ -95,13 +103,19 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        start(args.port)
+        start(args.port, tray=not args.no_tray)
     except (AlreadyRunningError, AlreadyStartingError, PortError) as error:
+        if (
+            isinstance(error, AlreadyRunningError)
+            and not args.no_tray
+            and env("SWISSARMYBENCH_TRAY", "1") != "0"
+        ):
+            start_tray()  # its tray, if it has none (a second one ends at once)
         print(error, file=sys.stderr)
         sys.exit(1)
 
 
-def start(port: int | None) -> None:
+def start(port: int | None, tray: bool = True) -> None:
     # Swiss Army Bench was SwissArmyGrid: its state folder moves on the first start (renamed.py).
     moved = move_state_folder(in_use=lambda old_info: running_server(old_info) is not None)
     if moved:
@@ -160,6 +174,10 @@ def start(port: int | None) -> None:
         },
     )
     print(f"Swiss Army Bench {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
+    # The tray, as its own process (Windows and macOS; Linux on a desktop), unless --no-tray or VS Code
+    # started this server (it has its own status bar item); SWISSARMYBENCH_TRAY=0 for tests.
+    if tray and started_by != "vscode" and env("SWISSARMYBENCH_TRAY", "1") != "0":
+        start_tray()
     if started_by == "vscode":
         live: LiveUpdates = app.state.ctx.live
         threading.Thread(

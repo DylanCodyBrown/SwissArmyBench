@@ -31,6 +31,9 @@ SERVER_PACKAGES = (
     "xlsxwriter",
     "pytz",
     "websockets",
+    # The tray icon (the plan's decision 6).
+    "pystray",
+    "PIL",
 )
 # The plain client: every module `import swissarmybench`, `sab`, `sab.push`, `sab.blade` can reach.
 CLIENT_MODULES = (

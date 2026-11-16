@@ -1,0 +1,49 @@
+"""Updates (services/updates.py), for the pages, the tray and the agent.
+
+GET    /updates           the current version, the latest, whether one is available      app_update_check
+PUT    /updates           {"check": false}: Settings' Check for updates (kept)            app_update_check on=
+POST   /updates/check     check now (nothing is sent with the switch off)          app_update_check now=
+POST   /updates/install   {"version"?, "confirmed"?}: Update to X (the agent's asks)   app_update
+GET    /updates/tray      the tray's menu: the update, the open tables and documents (tray plumbing)
+"""
+
+from __future__ import annotations
+
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import BaseRoute, Route
+
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.updates import Updates
+
+
+def routes(updates: Updates) -> list[BaseRoute]:
+    async def state(request: Request) -> Response:
+        return json_response(updates.state())
+
+    async def switch(request: Request) -> Response:
+        try:
+            return json_response(await updates.set(await read_json(request), actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def check(request: Request) -> Response:
+        return json_response(await updates.check())
+
+    async def install(request: Request) -> Response:
+        try:
+            body = await read_json(request) if await request.body() else {}
+            return json_response(await updates.install(body, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def tray(request: Request) -> Response:
+        return json_response(await updates.tray())
+
+    return [
+        Route("/updates", state),
+        Route("/updates", switch, methods=["PUT"]),
+        Route("/updates/check", check, methods=["POST"]),
+        Route("/updates/install", install, methods=["POST"]),
+        Route("/updates/tray", tray),
+    ]

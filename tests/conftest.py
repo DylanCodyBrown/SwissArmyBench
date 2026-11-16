@@ -30,13 +30,20 @@ def no_folder_in_the_real_home(tmp_path_factory: pytest.TempPathFactory) -> Iter
     In tests that folder is a temporary one, for every server a test starts (in this process or its own)."""
     import os
 
-    before = os.environ.get("SWISSARMYBENCH_WORKBENCH_DIR")
-    os.environ["SWISSARMYBENCH_WORKBENCH_DIR"] = str(tmp_path_factory.mktemp("home") / "SwissArmyBench")
+    # Nor a tray, nor an update check (nothing leaves this computer): a test that is about them asks.
+    wanted = {
+        "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp_path_factory.mktemp("home") / "SwissArmyBench"),
+        "SWISSARMYBENCH_TRAY": "0",
+        "SWISSARMYBENCH_UPDATE_FEED": "none",
+    }
+    before = {key: os.environ.get(key) for key in wanted}
+    os.environ.update(wanted)
     yield
-    if before is None:
-        os.environ.pop("SWISSARMYBENCH_WORKBENCH_DIR", None)
-    else:
-        os.environ["SWISSARMYBENCH_WORKBENCH_DIR"] = before
+    for key, value in before.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 def make_client(tmp_path: Path, **overrides: Any) -> TestClient:

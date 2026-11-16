@@ -125,6 +125,9 @@ def main() -> None:
         SWISSARMYBENCH_INFO=str(state / "server.json"),
         SWISSARMYBENCH_STATE=str(state),
         SWISSARMYBENCH_OPEN="0",
+        # No tray on the test machine, and no update check: nothing leaves it.
+        SWISSARMYBENCH_TRAY="0",
+        SWISSARMYBENCH_UPDATE_FEED="none",
     )
     log = (state / "server.log").open("w")
     server = subprocess.Popen([command, "start"], stdout=log, stderr=subprocess.STDOUT)

@@ -9,6 +9,7 @@ The doors (server/app.py and its route modules) are given the services and nothi
 
 from __future__ import annotations
 
+import asyncio
 import os
 import platform
 import sys
@@ -44,9 +45,11 @@ from swissarmybench.adapters.state_files import (
     JsonFile,
     ModelFiles,
     ThemeFiles,
+    info_file_path,
     is_own_file,
 )
 from swissarmybench.adapters.streamlit_files import AppFiles
+from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain import python_connections
@@ -59,6 +62,7 @@ from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
+from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.apis import Apis
@@ -92,6 +96,7 @@ from swissarmybench.services.streamlit import StreamlitApps
 from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
+from swissarmybench.services.updates import Updates
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WorkbenchWindow
 from swissarmybench.services.workspace import Addresses, Workspace
@@ -144,6 +149,7 @@ class Services:
     kind_colours: KindColours
     script_runs: ScriptRuns
     beta: BetaLog
+    updates: Updates
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -373,6 +379,51 @@ def bootstrap(
     )
     # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
     apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
+    workbench_window = WorkbenchWindow(ws)
+
+    async def open_work() -> dict[str, Any]:
+        """What is open (the tray's menu) and what an update would lose: the tables, the Workbench
+        window's documents (when one is open), the documents with unsaved changes, the kernels."""
+        tables = [{"grid": g.id, "name": g.dataset} for g in ws.grids.all() if store.get(g.dataset)]
+        documents: list[dict[str, Any]] = []
+        if live.workbench_open():
+            try:
+                answer = await asyncio.wait_for(workbench_window.ask("documents", {}, "app"), 3.0)
+                listed = answer.get("documents", []) if isinstance(answer, dict) else []
+                documents = [
+                    {
+                        "key": d.get("index"),
+                        "title": d.get("title"),
+                        "unsaved": d.get("unsaved_changes") is True,
+                    }
+                    for d in listed
+                    if isinstance(d, dict) and d.get("kind") in ("notebook", "script", "app")
+                ]
+            except Exception:  # noqa: S110 (a window that does not answer lists nothing)
+                pass
+        titles = [str(d["title"]) for d in documents if d["unsaved"]] + streamlit.unsaved()
+        return {
+            "tables": tables,
+            "documents": documents,
+            "unsaved": list(dict.fromkeys(titles)),
+            "kernels": workbench.kernel_count(),
+        }
+
+    # The update check (the one request that leaves the computer, the owner's call) and Update to X.
+    failure_note = state_dir / "update_failed.json" if audit_log else None
+    updates = Updates(
+        current=__version__,
+        feeds=settings.update_feeds,
+        feed=HttpFeed(),
+        switch=UpdateSwitchFile(state_dir / "update.json" if audit_log else None),
+        helper=UpdateHelper(info_file_path(), state_dir / "update_failed.json"),
+        open_work=open_work,
+        approvals=approvals,
+        audit=ws.audit,
+        live=live,
+        stop=on_shutdown or (lambda: None),
+        failed=take_failure_note(failure_note),
+    )
     return Services(
         settings=settings,
         ws=ws,
@@ -403,12 +454,13 @@ def bootstrap(
         compares=compares,
         tie_out=TieOut(compares),
         snapshots=Snapshots(ws),
-        workbench_window=WorkbenchWindow(ws),
+        workbench_window=workbench_window,
         table_cells=table_cells,
         panels=Panels(ws),
         script_runs=script_runs,
         kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
         beta=beta,
+        updates=updates,
         streamlit=streamlit,
         # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
         controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),

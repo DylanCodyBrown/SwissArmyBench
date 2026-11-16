@@ -27,6 +27,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
+  routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
@@ -79,6 +80,7 @@ from swissarmybench.server import (
     routes_table_cells,
     routes_tieout,
     routes_timeseries,
+    routes_updates,
     routes_workbench,
     streamlit_proxy,
 )
@@ -159,10 +161,13 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
         pruner = asyncio.create_task(drop_silent_sessions())
+        # The update check: at start, then every six hours (nothing with the switch off or no feeds).
+        checker = asyncio.create_task(ctx.updates.run_forever())
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
         yield
         pruner.cancel()
+        checker.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         workers.close()
@@ -193,6 +198,7 @@ def create_app(
             *routes_kind_colours.routes(ctx.kind_colours),
             *routes_script_runs.routes(ctx.script_runs),
             *routes_beta_log.routes(ctx.beta),
+            *routes_updates.routes(ctx.updates),
             *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),

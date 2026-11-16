@@ -326,6 +326,10 @@ class Workbench:
         vaults = {"set": sorted(from_vaults), "problems": problems}
         return {"kernel": kernel_id, "python": kernel.python, "vaults": vaults}
 
+    def kernel_count(self) -> int:
+        """How many kernels are running (the question before an update)."""
+        return len(self._running)
+
     def _kernel(self, kernel_id: str) -> Kernel:
         kernel = self._running.get(kernel_id)
         if kernel is None:
