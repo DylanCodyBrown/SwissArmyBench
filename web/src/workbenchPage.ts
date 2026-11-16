@@ -72,6 +72,7 @@ import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, noteboo
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { updateCommands, updateMark, versionMark } from "./updates";
+import { claudeCommands, launchButton } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
@@ -1843,7 +1844,7 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), consoleToggle, modeToggles, variablesToggle);
+layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -2764,6 +2765,7 @@ const COMMANDS: Command[] = [
 registerCommands(COMMANDS);
 registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
 registerCommands(updateCommands()); // Update to X, What's new, Check for updates
+registerCommands(claudeCommands()); // Launch Claude (Claude Code, Claude Desktop)
 // No token and no good cookie (a bookmark after a restart): the page says how to open the app.
 void requireSession();
 // Getting around: Back closes a dialog and moves inside Connections; a dialog the address names opens.

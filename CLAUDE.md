@@ -75,6 +75,11 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone).
+  **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
+  folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
+  row, value or secret), `claude.json` keeps the chosen installs and the bypass switch, and a Claude
+  Desktop install's claude_desktop_config.json gets the `swissarmybench` server (asked once, a dated
+  backup first, nothing else changed, no token).
   **Projects as one .sab file (the owner, 2026-11-16):** a .sab is written on Save, on New project (where
   the user named, at once), by Autosave when the user turned it on, and by the Autosave switch itself
   (project.json only); the agent's save waits for the user's Allow when it keeps a table's rows. An open
@@ -224,6 +229,10 @@ src/swissarmybench/
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
+    claude.py            Launch Claude: Claude Code and Claude Desktop found loosely (registry, Store, Start menu,
+                         bundles, .desktop files, PATH answers read), the official first; CLAUDE.md (what is
+                         open: names, counts, types, steps in words, never a value), .mcp.json, the prompt
+                         hook; the user's terminal as an argument list; Desktop's config merged; install help
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
                          this session by kind, a card's status word, the settings it may show (no password)
@@ -268,6 +277,8 @@ src/swissarmybench/
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
                          work would be lost; the agent's waits for Allow), start at sign-in
+    claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
+                         Desktop started (Desktop's config asked once); the agent reads only
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     streamlit.py         Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
@@ -308,6 +319,7 @@ src/swissarmybench/
     export.py            CSV, Excel and Parquet writers; the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
     beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
+    claude.py            Launch Claude's files: claude/<project>/, claude.json, a Desktop config (backup first)
     updates.py           the release list's one GET, update.json, the helper's and the tray's notes
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
@@ -340,6 +352,9 @@ src/swissarmybench/
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
                          installs with uv, checks the version, starts the app, or the old one and a note
     routes_updates.py    the update check, its switch, Update to X, the tray's menu, start at sign-in
+    routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)
+    claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
+                         starting it detached; SWISSARMYBENCH_CLAUDE_STANDIN's stand-in for tests
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
@@ -476,6 +491,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Application row (Save, Save as, Close, Autosave) and the strip of tables to fix;
                          updates.ts the status bars' "Update available" (Update to X, What's new) and
                          Settings' Check for updates;
+                         claudeLaunch.ts the status bars' Launch Claude (one found: straight to it; both: a
+                         menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
                          in its group, the status bar's toggles), workbenchApp.ts (App: Properties, page
                          settings, State), workbenchStarters.ts (the Data panel's Starters gallery),

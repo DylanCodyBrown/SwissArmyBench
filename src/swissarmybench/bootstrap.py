@@ -31,6 +31,7 @@ from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
 from swissarmybench.adapters.catalogs import CatalogStore
+from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, open_database
 from swissarmybench.adapters.datasets import DatasetStore
@@ -62,6 +63,9 @@ from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.blade_templates import TEMPLATES
+from swissarmybench.server.claude_finder import Finder as ClaudeFinder
+from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
+from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
@@ -75,6 +79,7 @@ from swissarmybench.services.blades import BladeService
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.charts import Cards
+from swissarmybench.services.claude import Claude
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
@@ -162,6 +167,7 @@ class Services:
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
+    claude: Claude
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -556,6 +562,21 @@ def bootstrap(
         autostart=autostart,
         failed=take_failure_note(failure_note),
     )
+    # Launch Claude: Claude Code in the user's terminal, or Claude Desktop, found wherever it is installed.
+    standin = settings.claude_standin
+    claude = Claude(
+        ws,
+        StandinFinder(standin) if standin else ClaudeFinder(),
+        RecordingStarter(standin.with_suffix(".launches.jsonl")) if standin else ClaudeStarter(),
+        ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if audit_log else None),
+        version=__version__,
+        home=str(Path.home()),
+        environ=dict(os.environ),
+        commands=own_command,
+        project=lambda: sab_projects.state().get("project"),
+        connections=lambda: connections.listing()["connections"],
+        documents=lambda: project_scope.documents()["documents"],
+    )
     # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
     for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
         beta.process("server", str(event["event"]), event.get("code"), None, str(event.get("reason") or ""))
@@ -598,6 +619,7 @@ def bootstrap(
         kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
         beta=beta,
         updates=updates,
+        claude=claude,
         streamlit=streamlit,
         # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
         controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),

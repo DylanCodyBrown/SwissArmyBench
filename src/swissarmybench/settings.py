@@ -70,6 +70,13 @@ def _claude_dir() -> Path:
     return Path(override) if override else Path.home() / ".claude"
 
 
+def _claude_standin() -> Path | None:
+    """SWISSARMYBENCH_CLAUDE_STANDIN (tests): a JSON file says which Claude was found; launches are written
+    beside it, so nothing is probed and no terminal opens."""
+    override = env("SWISSARMYBENCH_CLAUDE_STANDIN")
+    return Path(override) if override else None
+
+
 def _update_feeds() -> tuple[str, ...]:
     """Where the update check asks (PyPI, then GitHub). SWISSARMYBENCH_UPDATE_FEED names one address
     instead (a stand-in on 127.0.0.1 in tests), or "none": the check never asks anything."""
@@ -121,6 +128,9 @@ class Settings:
     # Start at sign-in (server/autostart.py) writes its entry under this home folder instead of the user's
     # own (tests); None: the user's.
     autostart_home: Path | None = None
+    # Launch Claude (services/claude.py): a stand-in for finding and starting Claude (tests); None: the real
+    # ones.
+    claude_standin: Path | None = field(default_factory=_claude_standin)
     catalogs_at_once: int = 2
     # How long reading the vaults may hold up a Workbench kernel's start (it then starts without them).
     vault_timeout_seconds: float = 60.0

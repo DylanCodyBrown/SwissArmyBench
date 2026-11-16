@@ -740,6 +740,16 @@ IDE hands Claude the open file. It prints nothing when no server is running.
 Build the one wheel (the page inside it) with `python build.py`; `python build.py --vsix`
 packages the VS Code extension around it too.
 
+## Launch Claude
+
+The status bar's **Launch Claude** (the grids' page and the Workbench) starts Claude Code in the user's own
+terminal, in `~/.swissarmybench/claude/<project>/` (CLAUDE.md with the app's index and what is open,
+metadata only; `.mcp.json`; the prompt hook; `--add-dir` the project's working folder), or Claude Desktop
+with the `swissarmybench` server added to its claude_desktop_config.json (asked once, a backup first, the
+other entries kept). Both are found wherever they are installed, a company's own build included (the
+registry, Start menu, Store, /Applications and Spotlight, .desktop files, PATH, npm). Settings, Claude
+chooses the install and turns on bypass permissions. The agent reads (`app_claude`); only the user launches.
+
 ## The tray icon and updates
 
 `swissarmybench start` also puts Swiss Army Bench's icon in the system tray (Windows and macOS; Linux on

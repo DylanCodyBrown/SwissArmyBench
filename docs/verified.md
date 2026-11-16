@@ -1985,3 +1985,41 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** Edge and Firefox; Windows paths in the page's rule (the domain rule's test has them);
   a .sab project opened from the home page with the Workbench already open (the folder project was used;
   both set the same project folder).
+
+## Launch Claude (2026-11-16, branch launch-claude)
+
+- **Rules** (tests/test_claude.py, made-up probe answers only): names matched loosely, uninstallers and
+  updaters left out; the registry (an official install by its DisplayIcon, a company build by its
+  InstallLocation, an App Paths default); a Store package's launch id and its config folder; Start menu
+  shortcuts telling the app from the CLI; macOS bundles by bundle id or name; a .desktop file's Exec line
+  as arguments (field codes dropped, other groups and translations ignored, a Terminal entry left to
+  PATH); ranking once each, official first, the user's choice kept while it exists; the Linux and Windows
+  finders against made-up folders and a made-up PowerShell answer (nothing run).
+- **Desktop's config**: merged with every other entry kept, unchanged when already there (no write, no
+  backup), no token; not JSON or a bad mcpServers refused in words; config places per system and by the
+  app's name.
+- **Claude Code's folder**: CLAUDE.md has the project, its .sab and working folder, a table's rows,
+  columns and steps in words, connections and documents, the index; a made-up distinctive value in a
+  filter, an "in" list and a SQL step appears nowhere. .mcp.json and settings.json have no token and no
+  permissions; a path with spaces is quoted in the hook. Folder names made safe (quotes, `;`, `..`, CON).
+- **The terminal**: gnome-terminal, konsole, x-terminal-emulator (first found), none (None); Windows
+  Terminal with `;` escaped; a new console; macOS's one line read back by shlex into exactly the folder and
+  the arguments, with a name holding quotes, spaces, `;`, `$()` and backticks. Bypass adds the flag last.
+- **HTTP** (a stand-in finder and starter: nothing probed, no terminal): the agent reads `/claude` and
+  `/claude/context` but gets 403 on the launch and on Settings; a launch writes the folder (no row value
+  in CLAUDE.md) and records `x-terminal-emulator -e claude` in that folder; the bypass switch; none found
+  (both kinds' help); both found (asks which); Desktop asked once, then the config written with a backup
+  and the app started, the next launch writing nothing; an unofficial build with no config said, then the
+  user's file used; Other… refuses a file that is not there.
+- **MCP**: the resource swissarmybench://context listed and read (said plainly with no app running).
+- **In the browser** (Chromium, tests/e2e/test_claude_launch_page.py): the button and its icon in the home
+  page's footer and the Workbench's; a click records gnome-terminal in the no-project folder and CLAUDE.md
+  names the pushed table without its values; both found: the menu, Claude Desktop, the one question, its
+  config written beside a made-up server kept; none found: the dialog with the install commands and the
+  download link; Settings' Claude: two found, one chosen, bypass on, and the next launch uses both.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,205 passed, 33 skipped, 2 failed in 18
+  minutes: the narrow window's sideways scroll (421 of 420 pixels: the new button; fixed, the sparkle alone
+  below 760 pixels, passes) and test_rail_page's new-window test (passes alone: load).
+- **Not checked:** real Windows (registry, PowerShell's Store and Start menu answers, Windows Terminal,
+  the new console), real macOS (Spotlight, Info.plist, Terminal through osascript), a real Linux terminal
+  opening, a real Claude Code or Claude Desktop starting and reading the folder or the config.
