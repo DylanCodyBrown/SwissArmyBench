@@ -5,7 +5,6 @@ closes its window and shows the new tab. Made-up orders."""
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from playwright.sync_api import Browser, expect
