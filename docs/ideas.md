@@ -2676,3 +2676,66 @@ for workspaces.
   Agents, the push client and VS Code keep the Bearer token. Found on the way: catalogPage.ts mounts
   beta mode inside the blade editor's `closed` callback (a stray indent from an earlier merge), so the
   blades page's Beta mark appears only after an editor closes; left as it was, reported.
+
+## Navigation (the owner, 2026-11-16; branch navigation)
+
+The owner, on the first real use of the beta: "I've noticed there is no navigation in the app to get
+back to the home page or go back anywhere. No back buttons."
+
+### The survey: every page and window, how it is reached and left (before this change)
+
+| Place | Reached by | Left by | Where the user was stuck |
+|---|---|---|---|
+| `/workspace`, the home page: grid tabs, Sandbox, Diagram, the "+" query draft | the tray, `swissarmybench open`, a push | closing the browser tab | no mark at all; a tab switch left no trace in the address, so the browser's Back left the app (or did nothing), a reload lost the Sandbox or Diagram in front, and the title stayed "Grid" on the Sandbox |
+| `/g/{id}` | a push's link | the same page as `/workspace` | its address never followed the tab in front: it kept naming the first grid |
+| `/catalog`, the blades page: welcome, a table, a schema (a Power BI dataset), the blade editor, the template picker | Blades and catalog (Application row), Analyze's blades | closing the tab | no way home; every view one address, so Back left the app and a reload lost the table shown; no trail for Catalog > schema > table; the title always "Blades and catalog" |
+| `/workbench` and its pop-out windows | the Workbench tab, the tray | closing the window | the mark was a picture, not a link; nothing brought the home window forward; the title read "sales.ipynb · Workbench" (the place last) |
+| The steps window (`/g/{id}?panel=steps`) | Edit steps | closing the window | no mark, no way to the home window |
+| The Key Finder window (`/g/{id}?panel=keys`) | the Table row | closing the window | no mark, no way to the home window |
+| Settings (a dialog) | the Application row, the Workbench's "…" | Close, Escape | flat (no nested sections): only Back closing it was missing; a reload lost it |
+| Connections: the list, Add connection's types, a type's form, Edit, Python (your own code), Add API, then the new connection's form | the Application row, the blades page, the Workbench | Close, a "Back" in the footer | the footer's Back did not say where it went; the browser's Back left the app with the dialog open; a reload lost the form; no trail for Connections > Add connection > PostgreSQL |
+| The file chooser | Browse… in any form | Choose, Cancel | its folder walk has `..` and Go; the browser's Back left the app under it |
+| Key Finder, Compare (key picker), Analyze's forms (odds, fit test, outliers, find predictors, regression, time series, forecast), tie-out, export, step forms, profiles, the Tables (Open) dialog, relationships and tangs, packs, imports | buttons and menus | Close, Escape | one task each (principle 4.4): their own setup and results on one screen, Compare's setup one click away again (the Compare row's Keys…). The only trap: the browser's Back (or a mouse's back button) left the page under an open dialog |
+| The tour | the question mark | Skip, Start | has its own Back between cards; the browser's Back left the app under it |
+| Error and empty states | | | "Could not open this grid" (a page that failed to start) and the steps window of a closed table offered nothing; the blades page's "Nothing matches." and the home page's "No grids open" are the places themselves |
+| The signed-out page | a bookmark after a restart | | a dead end by design: there is no session to go home to; it says how to open the app |
+
+### Built: one navigation model, everywhere (web/src/nav.ts)
+
+- **The mark goes home.** Every page and window starts its top row with the mark (the red square and its
+  cross, the tab's icon), a link to `/workspace` named and titled "Home". On the home page it is the
+  grid view (closing what is open over it). In any other window it brings the home window to the front
+  when one is open (`window.open("", "sab-home")`: the home page names its window `sab-home`) and opens
+  it when not. Alt+Home does the same everywhere. **Decision:** the mark carries no word: the product's
+  name stays off the screens (principle 7.8); "Home" is its name and tooltip.
+- **Views live in the address, and Back is the browser's.** `history.pushState` on each move the user
+  makes; a move the app makes by itself (a push bringing a table to the front, a closed tab) replaces
+  the entry instead, so Back never walks through things the user did not do. The token never enters
+  the address (the cookie keeps the session, 0.0.4), so a reload keeps the view.
+  - Home: `/g/{id}` for a table in front, `/workspace?view=sandbox`, `?view=diagram`, `?view=query`
+    (the "+" draft: a reload brings back an empty draft).
+  - Over it: `&open=settings`, `&open=connections` with `&at=types`, `&at=form&type=postgres`,
+    `&at=edit&name=Warehouse`, `&at=api`.
+  - The blades page: `/catalog?catalog=Warehouse&schema=sales&table=orders` (`&database=` when the
+    catalog has several), `?catalog=…&schema=…` (a schema or a Power BI dataset), `?blade=<name>` (the
+    editor), `?blade=` (a new blade's template picker).
+  - **Every other dialog** pushes an entry with no new words in the address: Back closes the dialog on
+    top, Forward does not bring it back (its work is gone). **Decision:** an agent's approval ("The
+    agent is asking") is the one dialog Back does not close: it waits for Allow or Deny.
+  - **Decision: the Workbench's documents are not in the address.** They are a session restored on
+    reload already, with their own keys (Ctrl+Alt+Page Up and Down); a document per Back would fight the
+    editor's own undo. Back there closes dialogs and moves inside Connections.
+- **A visible Back (←)** where a view was entered from another, named for where it goes: "← Connections",
+  "← Add connection", "← Catalog", "← Blades". It goes back in the browser's history when that is where
+  it came from, and to the named place otherwise (a bookmark of a form).
+- **Breadcrumbs past one level**, each crumb a link: Connections › Add connection › PostgreSQL;
+  Catalog › Warehouse › sales › orders.
+- **Titles name the place, the page first:** the table's name on the home page ("orders"), "Sandbox",
+  "Diagram", "New query"; "Blades · Warehouse › sales › orders", "Blades · Edit refresh_sales";
+  "Workbench · sales.ipynb"; "Steps · orders"; "Key Finder · orders"; "Settings", "Connections ·
+  Add connection" over the page under them.
+- **No dead ends:** "Could not open this grid", the steps window of a closed table, a catalog address
+  whose table is gone, an unknown blade: each says so and offers the mark and a Back.
+- **The agent** (the golden rule): `app_navigate` (to: home, back, forward, sandbox, diagram, query,
+  settings, connections, add_connection, add_api, grid:<id>, catalog; window: home, catalog, workbench);
+  the Workbench's `workbench_window` commands `nav.home` and `nav.back`.
