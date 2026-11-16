@@ -211,6 +211,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
         "Port",
         "Catalog",
         "Scheme",
+        "Sign in",  # a password, or a client certificate from a keystore (2026-11-16)
         "User",
         "Password comes from",
         "Password",
