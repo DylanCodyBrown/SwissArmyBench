@@ -10477,3 +10477,23 @@ g.follow-pulse > path:first-of-type {
     stroke-width: 4px;
   }
 }
+
+/* The project's name and tools inside the Application row (startView.ts), set apart from Zoom by a rule. */
+.app-row .project-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 12px;
+  margin-right: 8px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+
+.app-row .project-group[hidden] {
+  display: none;
+}
+
+.app-row .project-group .project-name {
+  max-width: 220px;
+  margin-right: 6px;
+}

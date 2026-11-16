@@ -11,7 +11,7 @@
  *          [GRIDS]    /workspace?view=grids: Grids with no table open while a project is: Open a file,
  *                     Paste, Query (the "+" tab), the project's connections (each its catalog) and the
  *                     catalog, and the project's tables that did not come back, each with its fix
- *          [PROJECT]  the Application row's first group: the project's name (● with unsaved changes),
+ *          [PROJECT]  in the Application row, before Zoom: the project's name (● with unsaved changes),
  *                     Save (Ctrl+S), Save as…, Close, the Autosave switch
  *          [FIXES]    a strip under the tabs, only while a table did not come back: its one click
  *          [ASKED]    a double-click on a .sab with unsaved work open: the page asks
@@ -221,17 +221,14 @@ function drawGroup(state: ProjectState): void {
   if (!project) return clear(group);
   const autosave = autosaveSwitch(project.autosave, (on) => void setAutosave(on).catch((e: Error) => toast(e.message, "error")));
   if (project.autosave_error) autosave.element.title = project.autosave_error;
+  // In the Application row (the owner, 2026-11-16): the project's name, then its tools, before Zoom.
   clear(
     group,
-    h("div", { class: "ribbon-caption" }, h("strong", { class: "project-name", title: project.path ?? project.name }, projectLabel(project))),
-    h(
-      "div",
-      { class: "ribbon-tools" },
-      button("Save", guard(() => saveProject()), { icon: "save", class: "ribbon-btn", title: project.read_only ?? "Save (Ctrl+S)" }),
-      button("Save as…", guard(() => saveProject(true)), { icon: "folder", class: "ribbon-btn", title: "Save as (Ctrl+Shift+S)" }),
-      button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
-      autosave.element,
-    ),
+    h("strong", { class: "project-name", title: project.path ?? project.name }, projectLabel(project)),
+    button("Save", guard(() => saveProject()), { icon: "save", class: "ribbon-btn", title: project.read_only ?? "Save (Ctrl+S)" }),
+    button("Save as…", guard(() => saveProject(true)), { icon: "folder", class: "ribbon-btn", title: "Save as (Ctrl+Shift+S)" }),
+    button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
+    autosave.element,
   );
 }
 
