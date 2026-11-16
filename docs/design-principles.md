@@ -416,7 +416,12 @@ never instructions.
 ## 11. Privacy and safety
 
 **11.1 Local only.** Listen on 127.0.0.1; a token on every data route (kept out of logs); check Host and
-Origin; no telemetry, no update checks, no outbound calls.
+Origin; no telemetry, no outbound calls but one: the update check.
+- The one exception, by the owner's call (2026-11-16, "we should add a button that appears in the tray
+  saying an update is available"): at start and every six hours the server asks PyPI's JSON for
+  `swissarmybench` (GitHub's latest release if PyPI cannot be read) which version is the latest. The
+  request carries nothing but itself (no identifiers, no data); Settings' "Check for updates" turns it
+  off, and then nothing is sent.
 
 **11.2 Lock the engine.** The query engine cannot read or write files, reach the network or load
 extensions, and does not spill to disk; the app's own code does file work.

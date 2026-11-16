@@ -170,8 +170,9 @@ One command per platform, from a release:
   then **New workspace** (asks for a name, creates it, opens its tab), the blades page, Restart, Start
   with Windows (a Startup folder shortcut), and Stop and quit. The list is read fresh each time the menu
   opens. A server started by the tray or the command line never stops on its own; one started by VS Code
-  still ends with VS Code. Not built yet: the user guide described a tray before it existed, and that
-  section was removed until it does.
+  still ends with VS Code. **Built 2026-11-16** (branch tray-update) with today's tables and Workbench
+  documents in place of workspaces, plus updates and start at sign-in (docs/ideas.md, "The tray icon,
+  updates, and start at sign-in"); the user guide's "Tray and updates" is back.
 - MCP: every tool takes `workspace`; `workspaces_list`, `workspace_create`, `workspace_close`.
 - Done when: two Python processes each `create_workspace()` and push a table named `df`, both grids
   stay correct, each page sees only its own tables, and the agent sees both by workspace.

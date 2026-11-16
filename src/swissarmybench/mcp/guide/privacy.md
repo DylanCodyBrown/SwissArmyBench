@@ -43,3 +43,15 @@ password.
   `server_errors` ids in the log to see the stack. A picture is named only; it is in the zip.
 - `app_beta_log_export(path)` saves the zip (yours leaves the pictures out); `app_beta_log_clear`
   empties it. Off, nothing is logged and the menu item is gone; the files stay until cleared.
+
+## Updates, the tray, start at sign-in
+- The one request that leaves the computer, by the owner's call: the update check (PyPI's JSON, then
+  GitHub's latest release), at start and every six hours, carrying nothing but itself.
+- `app_update_check` reads the version running, the latest and whether an update is available; `now`
+  asks again; `on` sets Settings' Check for updates (off: nothing is sent).
+- `app_update` updates to the offered version: it waits for the user's Allow (the prompt names unsaved
+  documents and running kernels), then the app stops, installs it with uv and starts again. Your
+  connection ends with it; `health` says when it is back. A failure starts the old version, and
+  `app_update_check` then has `failed` with the reason.
+- `app_autostart(on=...)`: start at sign-in (the tray, which starts the server and starts it again if it
+  dies). The user's tray icon has the same switch.

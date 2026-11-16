@@ -2591,3 +2591,75 @@ source document's colour wherever a cell shows; violet only for the app. Built o
 - **Not built here** (other branches' or later): text cells' "Text and layout" starters and the "Pin to
   the bottom" footer option, live markdown on pages beyond what text cells already do, controllers and
   the contract check, lineage's own view, approved outputs. A Run file's log in the history.
+
+
+## The tray icon, updates, and start at sign-in (the owner, 2026-11-16; built, branch tray-update)
+
+The owner, after installing the 0.0.1 beta on Windows: "we should add a button that appears in the tray
+saying an update is available and you can right click to update". Then: "Swiss Army Bench should start
+itself then stay running when it's on the computer." The plan's tray (Plans/standalone-workspaces.plan.md,
+the owner's spec of 2026-11-12) is built with what exists today: tables and Workbench documents stand in
+for workspaces.
+
+- **The tray** (`swissarmybench tray`, server/tray.py; pystray and Pillow, the plan's decision 6, in the
+  `[server]` extra only): a left click opens `/workspace#token=…`; the right-click menu, as data in
+  domain/updates.py (`tray_menu`): Update to X and What's new first when there is one, then Open, the
+  open tables and the Workbench window's documents (a • for unsaved changes; read as the menu opens on
+  Windows, every 5 seconds elsewhere), Open the Workbench, Open the blades page, Restart, Start with
+  Windows (Open at login on macOS and Linux), Stop and quit. Stopped: Start (or, after the watchdog gave
+  up, "Swiss Army Bench stopped: Restart"). The icon is the pages' mark drawn with Pillow; an update adds
+  a blue dot and the tooltip "Update available: X". One tray at a time: the server's InstanceLock, named
+  for tray.json (which holds its process id for the update's helper).
+- **`swissarmybench start`** starts the tray as its own process (no window) unless `--no-tray`, VS Code
+  started it, or `SWISSARMYBENCH_TRAY=0` (the tests, the smoke test); on Linux only with a display and
+  pystray. A second `start` while one runs starts its tray if it has none.
+- **The check** (services/updates.py, adapters/updates.py): PyPI's JSON, then GitHub's latest release,
+  at start and every six hours; nothing but the GET (Python's own User-Agent, no query, no cookies); a
+  pre-release offered only to someone on one; yanked releases and releases with no files never. PEP 440
+  is implemented in the domain (standard library only; no `packaging` dependency). The switch, Settings'
+  "Check for updates", is kept in update.json; off sends nothing; turned on asks at once.
+  `SWISSARMYBENCH_UPDATE_FEED` names a stand-in (the tests) or "none" (the test suite, the smoke test).
+- **Recorded in the posture**: CLAUDE.md's posture line and design principle 11.1 (the one request that
+  leaves the computer, by the owner's call).
+- **Update to X**: asks first only when a notebook has unsaved changes (the Workbench window's
+  "documents" answer and the Streamlit registry's unsaved flag) or a kernel runs; saves nothing. The
+  agent's (`app_update`) always waits for the user's Allow, through the existing approval prompt. The
+  server writes the plan, copies server/updater.py (standard library only) to a temporary folder and
+  starts it with the base Python, outside the tool's environment that uv replaces, detached (Windows:
+  CREATE_NO_WINDOW, a new process group, out of the terminal's job when allowed), then stops. The
+  helper waits for the server's and the tray's processes, runs `uv tool install --force --python <the
+  running minor> "swissarmybench[server]==X"` (three tries: Windows can hold a just-ended program's
+  files; "files in use" named in the note), checks the installed version, starts the app (its tray, its
+  page). On a failure it writes update_failed.json and starts the old version, reinstalling it first if
+  it no longer starts. **Decision:** when only GitHub answered, uv installs that release's wheel by its
+  URL rather than asking PyPI for a version it may not have. **Decision:** a copy not installed by uv
+  (no uv-receipt.toml) is refused in words, never half-updated.
+- **The status bars** (web/src/updates.ts): a quiet green "Update available" in the grid page's and the
+  Workbench's status bars only while there is one (principle 7.9: never "up to date"); its menu has
+  Update to X and What's new. "Update failed" (red) carries the reason. The `update_changed` and
+  `app_updating` notices keep every window current. Palette commands: Update to X, What's new, Check for
+  updates on and off.
+- **Start at sign-in** (server/autostart.py; the owner: "start itself then stay running"): on by the
+  installers, off with the tray's tick or `swissarmybench autostart off`. **Decision:** a Startup folder
+  shortcut on Windows (not a Task Scheduler task: no registration, no admin, listed in Windows' Startup
+  apps) to the tool's `pythonw.exe -m swissarmybench.server tray`; a LaunchAgent with RunAtLoad on macOS
+  (KeepAlive only for a crashed tray, never after Stop and quit); an XDG autostart entry on Linux (not a
+  systemd user service: a tray needs the desktop session). The tray starts the server when none runs.
+- **Stays running**: a server started by hand, the tray or at sign-in never stops on its own. The tray
+  tells a crash (its connection file left, its process gone) from a stop on purpose (the file removed),
+  restarts a crashed server at most 3 times in 5 minutes, then says "Swiss Army Bench stopped: Restart".
+  What it saw goes to server_events.json, which the next server writes into the beta log (process kind
+  "server": crash, restart, failed) and removes.
+- **`swissarmybench start --background`**: the server detached, no console, returning at once; the tray
+  uses the same command line (`start --no-browser --no-tray`, detached, with the console Python beside a
+  pythonw so CREATE_NO_WINDOW reaches its kernels).
+- **The installers** turn on start at sign-in, start the app in the background and open its page once;
+  `-NoAutostart -NoStart` / `--no-autostart --no-start`, `SWISSARMYBENCH_NO_AUTOSTART=1` and any `CI`
+  skip them; the release workflow passes the flags and fails if `autostart status` is not off. The
+  PowerShell 5.1 `Quiet` helper stays.
+- **0.0.2's page address** pointed at `/`, which the guard answers with 401: `page_address` (now in
+  server/lifecycle.py, shared by `open`, `start` and the tray) uses `/workspace`.
+- **The agent** (the golden rule): `app_update_check` (now, on), `app_update`, `app_autostart`. The tray's
+  menu route (`/updates/tray`) is plumbing (tests/test_cli.py NOT_COMMANDS).
+- **Not built:** a menu item per workspace and New workspace (workspaces are not built); a Windows toast
+  with buttons (pystray's notification is plain text).

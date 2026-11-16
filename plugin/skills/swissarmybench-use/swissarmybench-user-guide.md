@@ -26,10 +26,11 @@ Without Python: the folder button beside + opens a file (CSV, Parquet, JSON, Arr
 
 ## Tray and updates
 
-`swissarmybench start` starts the app and puts its icon in the system tray (on Linux, when the desktop has a tray).
+Swiss Army Bench starts itself when you sign in and stays running: the installer sets that up, starts it and opens its page once. Its icon sits in the system tray (on Linux, when the desktop has a tray). `swissarmybench start` in a terminal starts it by hand and opens the page; `swissarmybench open` opens the page of the one running.
 
 - **Click** the icon to open the page.
-- **Right-click** it for what is open (your tables and Workbench documents; a • marks unsaved changes; choose one to go to it), **Open the Workbench**, **Open the blades page**, **Restart**, **Start with Windows** (a tick when on) and **Stop and quit**. When the app is stopped, the menu has **Start**.
+- **Right-click** it for what is open (your tables and Workbench documents; a • marks unsaved changes; choose one to go to it), **Open the Workbench**, **Open the blades page**, **Restart**, **Start with Windows** (**Open at login** on a Mac or Linux; a tick when on) and **Stop and quit**. When the app is stopped, the menu has **Start**.
+- **It stays running:** only **Stop and quit**, `swissarmybench stop` or signing out stop it. If it stops by itself, the tray starts it again; after three times in five minutes the menu says **Swiss Army Bench stopped: Restart**. `swissarmybench autostart off` (or the tray's tick) stops it starting at sign-in.
 - **An update:** when a newer version is out, the icon gets a blue dot, its tooltip says "Update available: 0.0.2", and the menu starts with **Update to 0.0.2** and **What's new**. The status bars of the grid page and the Workbench show **Update available**, which offers the same.
 - **Update to X** asks first only if a notebook has unsaved changes or a kernel is running (nothing is saved for you). The app closes, installs the new version and opens again. If that fails, the old version opens again and the status bar says **Update failed**, with the reason.
 - **Settings, Updates, Check for updates** turns the check off. The check asks PyPI (then GitHub) which version is the latest; it is the only thing that leaves your computer, and it sends nothing about you or your data.

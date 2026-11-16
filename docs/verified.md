@@ -1531,3 +1531,70 @@ drags; code of more than one line is pasted, one typed value):
   Streamlit 1.67 in its own Python, the test bed down): 2,888 passed, 29 skipped (the test bed's use
   cases among them), 15 minutes. No test failed, so none needed a rerun alone.
 - **Not checked:** Edge and Windows; the test bed's use cases with the bed up after the merge.
+
+## The tray icon, updates, and start at sign-in (2026-11-16, branch tray-update)
+
+- **Versions:** PEP 440 ordering in domain/updates.py against twelve pairs (dev before pre-releases, a
+  final after its candidates, post releases, an epoch, `0.0.9` < `0.0.10`), equal spellings, refusals
+  (tests/test_updates.py).
+- **The check against a stand-in PyPI on 127.0.0.1:** newer (offered, the notice sent), the same and
+  older (nothing, no notice), unreachable, an HTML answer, a 503 (an error, nothing offered), PyPI
+  failing and GitHub's stand-in answering (offered, source github), a yanked release and one with no
+  files (never offered), a pre-release only to someone on one. The request: one GET of the JSON path,
+  no query, headers no more than Host, Accept, Accept-Encoding, User-Agent (Python-urllib) and
+  Connection. **The switch off sends nothing** (the stand-in saw no request), kept across a restart
+  (a new service reading update.json sent nothing either).
+- **Update to X (the service):** hands the version to the helper and stops the app 0.5 s later; a second
+  update is refused; asks first only with unsaved documents or running kernels (`{"confirm": ...}`, then
+  `confirmed`); refuses a version that is not the offered one; the agent's waits for the Allow (declined:
+  refused, nothing launched; the prompt names the unsaved documents), and asks even with nothing open.
+- **The helper (fake operations):** wait, install, check, start, in order; three tries on a failed
+  install, then the old version started and a note with uv's words; Windows' "Access is denied (os
+  error 5)" said as files in use; a new version that does not start replaced by a reinstall of the old
+  one; the wrong version installed is a failure; an app that does not stop is left alone and nothing is
+  installed. The server's side: a copy not installed by uv refused, uv not found refused, the helper's
+  copy and plan handed to the base Python with `-I`, waiting for the server and the tray, `UV_TOOL_DIR`
+  set to this tool's own folder. The helper's file imports nothing from the package.
+- **A real upgrade (tests/test_updater.py):** this repository's wheel built twice (the current version
+  and `<version>.post42`, never on PyPI), the current one installed with `uv tool install` into a
+  temporary `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR`, then the helper's `run` with `SystemOps` and `--find-links`
+  installed post42 over it, checked the version and started it: the new server's connection file names
+  post42 and the tool's Python (14 s here). Stopped afterwards.
+- **The tray, without a desktop:** the menu as data with and without an update, stopped, given up, a long
+  list ("3 more…"), unsaved marks; pystray's menu built from it with its dummy backend (the same texts
+  and order, one default item, an item's action opening `/workspace#token=…&grid=…`, the menu read
+  fresh); each item's action against a stand-in server (open, Workbench, blades, What's new, a document
+  shown in the Workbench window, Update, Restart, Quit); the system box asked only when the server says
+  so; the tray ending itself while the app updates; an update's failure said once; the icon's mark and
+  its blue dot (pixels); one tray at a time (a second `swissarmybench tray` exits 0 while the lock is
+  held); `run_tray` writing and removing tray.json and starting the server when none runs.
+- **Stays running:** the watchdog's limit (3 in 5 minutes; spaced restarts never give up; the user's
+  Restart counts afresh); a stand-in server dying four times: three restarts, then "Swiss Army Bench
+  stopped: Restart", the events crash/restart ×3, crash/failed in server_events.json; a server stopped
+  on purpose (no connection file) left stopped; at sign-in the tray starts a server when none runs.
+- **Start at sign-in:** the entry's contents per system under a temporary home: the XDG .desktop (Exec
+  quoted for a space, XDG_CONFIG_HOME honoured), the LaunchAgent plist (RunAtLoad, KeepAlive only on a
+  crash), the Windows shortcut's PowerShell (Startup folder, pythonw.exe, `-m swissarmybench.server
+  tray`, quotes doubled), its failure and a missing APPDATA said in words. `swissarmybench autostart
+  status|on|off` in a subprocess with a temporary HOME; the route and the agent (`/autostart`).
+- **`start --background`:** returned at once (under 10 s; the server took longer to answer), and the
+  server it left answered /health with its token from another process; stopped with `stop`.
+- **0.0.2's address:** `/` answered 401; `/workspace` answers 200 with the page (a test opens what
+  `page_address` gives).
+- **The installers:** read by a test (the `Quiet` helper, the flags, the CI and
+  SWISSARMYBENCH_NO_AUTOSTART guards, `autostart on`, `start --background`); `sh -n install.sh`. The
+  release workflow passes `-NoAutostart -NoStart` / `--no-autostart --no-start` and fails if
+  `autostart status` is not off.
+- **Browser (Chromium, tests/e2e/test_update_page.py):** a server whose feed is a stand-in with 9.9.9:
+  the grid page's status bar says "Update available" (title "Update to 9.9.9"), its menu has Update to
+  9.9.9 and What's new; Update to 9.9.9 on a copy run from source says "not installed with uv" and
+  nothing stops; the Workbench's status bar says the same; the same version on the list: both marks go,
+  live, and no status bar says "up to date". Settings' Check for updates: off hides the mark and a check
+  sends nothing to the stand-in; on brings it back.
+- **Not checked (no desktop here):** the real tray on Windows, macOS and a Linux desktop (pystray's
+  win32 backend, the right click refreshing the menu, the notification, the dot at 16 px); the
+  MessageBox, osascript and zenity questions; the Startup shortcut made by PowerShell and its start at
+  sign-in; the LaunchAgent and the XDG entry at a real login; pythonw and CREATE_NO_WINDOW keeping every
+  window hidden; `uv tool install --force` over a running MCP server on Windows (files in use: the note
+  says so, untested); an update from PyPI itself (no newer release exists yet); the installers run on
+  Windows PowerShell 5.1 and macOS with the new step (the release workflow runs them).

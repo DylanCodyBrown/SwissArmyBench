@@ -691,8 +691,26 @@ packages the VS Code extension around it too.
 a desktop that has a tray), as its own process; `--no-tray` leaves it out, and `swissarmybench tray`
 starts it alone. One tray at a time. **A click** opens the page. **A right click** lists what is open (each
 table, each Workbench document; a • marks unsaved changes), then Open the Workbench, Open the blades page,
-Restart, Start with Windows (a shortcut in the Startup folder to the uv tool's `swissarmybench.exe start`)
-and Stop and quit. With the server stopped the menu offers Start.
+Restart, Start with Windows (Open at login on macOS and Linux) and Stop and quit. With the server stopped
+the menu offers Start.
+
+**It starts itself and stays running.** The installers turn on start at sign-in, start the app in the
+background and open its page once (`-NoAutostart -NoStart` on Windows, `--no-autostart --no-start` on
+macOS and Linux install only; a build machine, `CI` set, never gets either). At sign-in the tray starts,
+and it starts the server in the background, with no window and no browser. The sign-in entry is a
+Startup folder shortcut to the uv tool's `pythonw.exe -m swissarmybench.server tray` on Windows, a
+LaunchAgent (`~/Library/LaunchAgents/com.swissarmybench.tray.plist`, RunAtLoad) on macOS, and an XDG
+autostart entry (`~/.config/autostart/swissarmybench.desktop`) on Linux.
+
+```bash
+swissarmybench autostart on        # off, status; the tray's Start with Windows does the same
+swissarmybench start --background  # detached, no console window; returns at once (the page opens)
+```
+
+A server started by hand, by the tray or at sign-in never stops on its own: only **Stop and quit**,
+`swissarmybench stop` or signing out stop it (one VS Code started still ends with VS Code). If its process
+dies, the tray starts it again, at most 3 times in 5 minutes; after that the menu says **Swiss Army Bench
+stopped: Restart**, and the beta log has the crashes.
 
 **Updates:** the server asks PyPI (`https://pypi.org/pypi/swissarmybench/json`, then GitHub's latest
 release if PyPI cannot be read) at start and every six hours. That one request is the only thing that

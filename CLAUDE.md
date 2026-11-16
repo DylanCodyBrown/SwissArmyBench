@@ -63,6 +63,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   nothing written to disk except explicit exports, saved dashboards, the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
+  **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
+  `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
+  itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
+  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone).
 
 ## Layout
 
@@ -184,6 +188,8 @@ src/swissarmybench/
                          a scheduled run's plan, a run's record
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
+    updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
+                         update's plan (uv tool install --force), the tray's menu as data
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
 
@@ -221,6 +227,8 @@ src/swissarmybench/
     script_runs.py       a script's run settings (run_settings.json), Run as scheduled, its run history
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
+    updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
+                         work would be lost; the agent's waits for Allow), start at sign-in
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     streamlit.py         Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
@@ -253,6 +261,7 @@ src/swissarmybench/
     export.py            CSV, Excel and Parquet writers; the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
     beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
+    updates.py           the release list's one GET, update.json, the helper's and the tray's notes
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
@@ -273,6 +282,14 @@ src/swissarmybench/
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
+                         (start [--background], stop, status, open, tray, autostart on|off|status)
+    tray.py              the tray icon (pystray, Pillow): its menu (domain/updates.py's model), the left
+                         click, the server started and watched (restarted 3 times in 5 minutes at most)
+    autostart.py         start at sign-in: a Startup shortcut (Windows), a LaunchAgent (macOS), an XDG
+                         autostart entry (Linux), each running the tray
+    updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
+                         installs with uv, checks the version, starts the app, or the old one and a note
+    routes_updates.py    the update check, its switch, Update to X, the tray's menu, start at sign-in
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
@@ -376,6 +393,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Test this page, a default said quietly, a thin-cell hint and Move to data.ipynb);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>);
+                         updates.ts the status bars' "Update available" (Update to X, What's new) and
+                         Settings' Check for updates;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
                          in its group, the status bar's toggles), workbenchApp.ts (App: Properties, page
                          settings, State), workbenchStarters.ts (the Data panel's Starters gallery),
