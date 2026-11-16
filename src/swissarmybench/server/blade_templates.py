@@ -14,6 +14,7 @@ to install them.
 
 from __future__ import annotations
 
+from swissarmybench.domain import dataverse
 from swissarmybench.domain.blades import Template
 
 # ===== catalog queries =====
@@ -805,6 +806,20 @@ conn = pyodbc.connect("DSN=my_data_source")""",
             ("Browser sign-in, as yourself", "InteractiveBrowserCredential", POWERBI_BROWSER),
         ),
         secrets_from="vault",
+    ),
+    # A Dataverse environment (domain/dataverse.py): its tables read through the Web API, SQL through
+    # its read-only SQL endpoint; signed in as you, a managed identity or an app registration whose
+    # client secret comes from a key vault only.
+    _db(
+        dataverse.TEMPLATE,
+        "Dataverse",
+        dataverse.DIALECT,
+        dataverse.YOU,
+        dataverse.CATALOG,
+        "",
+        language="python",
+        sign_ins=dataverse.SIGN_INS,
+        secrets_from=dataverse.VAULT_ONLY,
     ),
 )
 

@@ -58,10 +58,11 @@ def filled(blade: dict[str, Any]) -> str:
 
 def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     found = blades()
-    assert len(found) == 111
+    assert len(found) == 113
     counts = Counter(b["family"] for b in found)
     assert counts == {
         "Power BI": 13,
+        "Dataverse": 2,
         "Excel": 12,
         "Files": 3,
         "DAX": 11,
@@ -95,6 +96,10 @@ def test_a_python_starter_makes_one_function_and_its_settings_are_found(path: Pa
         from swissarmybench.domain.blades import detect_settings
 
         assert [(s.key, s.value) for s in detect_settings(blade.code)] == [("WORKSPACE", "Finance")]
+    if blade.family == "Dataverse":
+        from swissarmybench.domain.blades import detect_settings
+
+        assert [(s.key, s.value) for s in detect_settings(blade.code)] == [("ENVIRONMENT", "Sales CRM")]
 
 
 # ===== snippets: placeholders, and writing a value where it stands =====

@@ -1,6 +1,6 @@
 # Connections and catalogs
 
-A connection is a saved way to reach data: a database, a file, a Power BI workspace, the user's own
+A connection is a saved way to reach data: a database, a file, a Power BI workspace, Dataverse, the user's own
 Python, or a key vault (Connections in the Application row). Every Workbench kernel has each one as a
 variable by its name.
 
@@ -28,6 +28,17 @@ variable by its name.
 - DAX: `workbench_dax_add`, or `workbench_run(kind="dax", connection="Finance/Sales model")`.
   At most 100,000 rows or 1,000,000 values a query: summarize in DAX.
 - `connections_import_relationships(name, dataset)`: the dataset's joins into the relationship model.
+
+## Dataverse
+- One connection (the `dataverse` type, dialect dataverse) reaches an environment's tables: its
+  `url` (https://<name>.crm.dynamics.com) and a sign-in (`sign_ins`: as you, managed identity, an app
+  registration whose client secret is a vault's entry; a typed secret is refused).
+- Its catalog: one schema, dbo; each table's display name is `title` in `catalog_tables`.
+- `connections_open_table(name, table)` and `connections_preview_table` read through the Web API (no
+  admin setting needed); choice columns arrive as labels. In code: `sab.read(name, table)`,
+  `conn.read(table, columns=, filter=, order_by=, limit=)` (OData), `conn.fetch(fetch_xml)`.
+- SQL (`workbench_run(kind="sql", connection=name)`) is T-SQL on its read-only SQL endpoint: when that
+  is off, the error says so and gives the sab.read line instead.
 
 ## Your own Python
 - Three boxes: Connect (makes `conn`), List the tables (its catalog), Read a table (rows, or

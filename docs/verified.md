@@ -1713,3 +1713,56 @@ drags; code of more than one line is pasted, one typed value):
 - **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,029 passed, 33 skipped, 0 failed,
   18 minutes. (A first run on the rail alone: 5 failed, all fixed above; tests/test_agent_index.py's
   MCP resources test failed once under load and passes alone.)
+
+## Dataverse: a connection type (2026-11-16, branch dataverse)
+
+- **Against the stand-in (tests/test_dataverse.py, tests/dataverse_standin.py):** the form (Address,
+  three sign-ins each found by its own mark, the client secret offered from a vault only, azure-identity
+  and pyodbc offered as packages); As you waits for first use (DefaultAzureCredential with the browser
+  allowed); the app registration's client credentials request carries the environment's own scope
+  (`<url>/.default`) and signs in once; the managed identity's request (IDENTITY_ENDPOINT,
+  `api-version=2019-08-01`, `resource`, a user-assigned `client_id`); a wrong secret, an address that is
+  not https (plain http only to 127.0.0.1) and no managed identity said plainly, the secret never in the
+  words. The metadata (`EntityDefinitions`, `$filter=IsPrivate eq false`, `$expand=Attributes(...)`) as
+  one schema, dbo, a private table left out, each table's display name, each column's type and display
+  name, a choice's own name column and an image not read, a lookup's name column kept; loaded through
+  Refresh, its tables' `title` in `catalog_tables`, its first SELECT in T-SQL without the schema. OData:
+  `$select`, `$filter`, `$orderby`, `$top`, `$count` encoded; paging by `@odata.nextLink` with
+  `Prefer: odata.maxpagesize` (three pages of a 1,000-row cap for 2,500 rows); past 5,000 the count comes
+  from RetrieveTotalRecordCount, and a filtered read past 5,000 has none; a next link outside the
+  environment is not followed. Choice labels (Picklist, State, Status), Yes/No as booleans, money and
+  dates as themselves (the stand-in also sends the formatted text for them, as the real one does).
+  FetchXML; Test (signed in, 4 tables, account's 12 rows); Open as grid through the Web API (Rows to open
+  1,000: "first 1,000 of 6,200", `$top=1000`), the preview, the table's cell reading it again with
+  `sab.read`; no secret, token or identity header in any answer, the audit log or a saved file. A typed
+  client secret is refused on Test, Save and `blades_secrets`. The two starters run against it.
+- **The SQL endpoint (TDS), with a stand-in for pyodbc only:** the connection string
+  (`Driver={ODBC Driver 18 for SQL Server};Server=<host>,5558;Encrypt=yes;TrustServerCertificate=no;`, no
+  user, no password), the token as SQL_COPT_SS_ACCESS_TOKEN (1256: its length, then UTF-16-LE),
+  connected once; "TDS protocol endpoint is disabled" said as the endpoint being off with the admin
+  center's setting, the SQL cell adding `account = sab.read("Sales CRM", "account")`, and the error panel's
+  "Read the table instead" fix; a missing ODBC driver said plainly.
+- **End to end (tests/test_dataverse_export.py):** the running app, `sab.read` and
+  `sab.connection(...).read(filter=...)` in this Python; Export as one Python script with the managed
+  identity: no pyodbc and no azure-identity required, no token in the script; run in a fresh Python with
+  only its requirements, the two CSVs right; with no managed identity reachable, a plain message and a
+  code that is not 0.
+- **In Chromium (tests/e2e/test_dataverse_page.py):** the type's tile with its icon, the three sign-ins,
+  App registration's fields written into the code, the client secret's source offering only an
+  environment variable and a key vault (no password box), the vault's entry picked, Test ("It works:
+  signed in and found 4 tables." and account's 12 rows), Save, the row's `sab.read` line, the catalog
+  loading itself; the catalog page: dbo, four tables, User beside systemuser only, opportunity's page
+  with the `sab.read` line, Picklist and Sales Stage, its first 50 rows; Open as grid; the grid's
+  `salesstage` and `statecode` as labels.
+- **Found and fixed on the way:** switching a form's Sign in kept the first way's packages (Dataverse's As
+  you needs azure-identity, its app registration none): the form now offers the chosen way's own.
+- **NOT checked against a real Dataverse** (no tenant here): the metadata request with `$expand` and
+  `$filter=IsPrivate eq false` together, and its size and time on a real environment's ~800 tables;
+  `$count` alongside `$top`; RetrieveTotalRecordCount's answer shape; the formatted values of
+  multi-select choices; FetchXML's answer for linked entities; the SQL endpoint itself (pyodbc,
+  ODBC Driver 18, the token's audience being the environment's URL, its exact refusal words when off,
+  whether a `Database=` is needed); DefaultAzureCredential's browser window and the Azure CLI sign-in;
+  a managed identity in a real Function App.
+- **The whole suite on dataverse** (Chromium, Streamlit 1.67 in its own Python): 3,049 passed, 33
+  skipped, 1 failed, 18 minutes. The one failure was tests/e2e/test_starters_page.py counting the starter
+  families before Dataverse's (changed: the family is in the list); it passes after (7 passed).

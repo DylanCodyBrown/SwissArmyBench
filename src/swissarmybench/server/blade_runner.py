@@ -30,7 +30,7 @@ from typing import Any
 import pyarrow.ipc as ipc
 
 from swissarmybench.adapters.blades import BladeStore
-from swissarmybench.domain import python_connections
+from swissarmybench.domain import dataverse, python_connections
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import TEST_ROWS
 
@@ -65,6 +65,15 @@ def payload(
             "set": python_connections.plain_values(blade.variables),
             "keyring": python_connections.keyring_names(blade.variables),
             # mode "read": which table, and how many rows (None: every row)
+            "place": (extra or {}).get("place"),
+            "limit": (extra or {}).get("limit"),
+        }
+    elif dataverse.is_dataverse(blade.dialect) and mode == "read":
+        # A Dataverse environment's table, through its Web API: the connection's own read.
+        python = {
+            "read": dataverse.READ,
+            "set": {},
+            "keyring": [],
             "place": (extra or {}).get("place"),
             "limit": (extra or {}).get("limit"),
         }
@@ -533,6 +542,21 @@ def _tested(value: Any) -> dict[str, Any]:
         if path.is_file():
             return made | {"found": f"a file of {path.stat().st_size:,} bytes"}
         return {"error": f"{path} is not there: check the path (and that this computer can reach it)."}
+    tester = getattr(value, "tested", None)
+    if module == "__blade__" and callable(tester):  # its own Test (a Dataverse environment's): rows too
+        said = tester(TEST_ROWS)
+        made["found"] = str(said.get("found") or "")
+        shown = said.get("preview")
+        if isinstance(shown, dict) and shown.get("rows"):
+            arrow, total = read_result(shown["rows"], shown.get("total"), TEST_ROWS)
+            made["preview"] = {
+                "table": str(shown.get("table") or ""),
+                "schema": "",
+                "columns": [str(c) for c in arrow.column_names],
+                "rows": [[_plain(v) for v in row.values()] for row in arrow.to_pylist()],
+                "total": total,
+            }
+        return made
     lister = getattr(value, "datasets", None)
     if module == "__blade__" and callable(lister):  # a Power BI workspace: it signed in and listed them
         count = len(lister())

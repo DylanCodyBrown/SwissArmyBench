@@ -2135,8 +2135,8 @@ Kept in case they come back on their own:
 - **OpenAPI file → a "Python (your own code)" connection.** GET operations that return arrays become
   tables, the response schemas become their columns, the security type maps to the vault, and other
   operations become action blades. This works for any OpenAPI service, not only Power Platform.
-- **Dataverse:** reads through its read-only TDS endpoint (SQL Server style) and writes through the
-  Web API, signed in with the vault's app registration as Power BI is.
+- **Dataverse:** moved out (the owner, 2026-11-16: "Add Dataverse to 0.0.7"): a connection of its own,
+  without Power Apps. See "Dataverse: a connection type" below.
 
 ## Add API: an OpenAPI file or a short form, made into a ready-to-call connection (the owner, 2026-11-15; first after the beta) — built 2026-11-15
 
@@ -2869,3 +2869,64 @@ connection types."
   icon in the set, no two alike; every icon name the page asks for by name exists (none drawn blank).
 - **Merge note:** the `dataverse` branch adds one type with the icon name `dataverse` to the same set;
   `connectionIcon` picks it up by the type's id.
+
+## Dataverse: a connection type (the owner, 2026-11-16; built, branch dataverse)
+
+The owner: "Add Dataverse to 0.0.7". Before this, on 2026-11-15, Dataverse was parked with Power Apps
+(above); the note kept there said it "reads through its read-only TDS endpoint (SQL Server style) and
+writes through the Web API, signed in with the vault's app registration as Power BI is". It is now a
+connection on its own, without Power Apps. Reading only; writing is later.
+
+Built (domain/dataverse.py, its starter in server/blade_templates.py, tests/dataverse_standin.py):
+- **The form:** Dataverse, under Databases, with its own icon. The environment's Address
+  (`https://your-org.crm.dynamics.com`) and Sign in: **As you** (azure-identity's
+  DefaultAzureCredential with the browser allowed: the Azure command line's sign-in, else a browser
+  window; in Azure, the app's managed identity), **Managed identity** (for an Azure Function, by
+  Azure's own local request: no package), **An app registration** (tenant id and client id typed, the
+  client secret a key vault's entry). Test before saving: it signs in (WhoAmI), counts the tables and
+  shows the first rows of `account` (or the first table).
+- **The catalog:** the Web API's metadata (`EntityDefinitions`, `$filter=IsPrivate eq false`, with their
+  `Attributes` expanded), loaded in the background as other catalogs are: one schema (dbo, as the SQL
+  endpoint names its tables), each table by its logical name with its display name, each column with
+  Dataverse's type (String, Money, Lookup, Picklist...) and its display name.
+- **Reading a table** (Open as grid, the preview, `sab.read`, the catalog's first line, Test): the Web
+  API's OData (`$select`, `$filter`, `$orderby`, `$top`, `$count`, paging by `@odata.nextLink` with
+  `Prefer: odata.maxpagesize`) and the formatted values annotation. No admin setting is needed.
+  `conn.read(table, columns=, filter=, order_by=, limit=)`, `conn.rows` (with the count),
+  `conn.fetch(fetch_xml)`, `conn.tables()`, `conn.columns(table)`, `conn.get(path)` for anything else.
+- **SQL:** `%%sql <connection>` and `sab.sql` on the read-only SQL endpoint (TDS,
+  `<org>.crm.dynamics.com,5558`) through pyodbc and ODBC Driver 18, signed in with the same Entra token
+  (SQL_COPT_SS_ACCESS_TOKEN). An environment with the endpoint off: the cell says so in plain words
+  (an admin turns on "Enable TDS endpoint" in the Power Platform admin center) and the error panel
+  offers a cell that reads the table instead (`account = sab.read("Sales CRM", "account")`; a fix of a
+  new kind, `cell`; in a script it is copied).
+- **Export as one Python script:** the connection inlined as its own code, like Power BI's; a managed
+  identity signs in inside an Azure Function, As you too (DefaultAzureCredential uses the managed
+  identity there). pyodbc is required only when a SQL cell runs on it.
+- **The starter pack:** a Dataverse family: "Dataverse FetchXML query" and "Dataverse choice options"
+  (a choice column's numbers and labels), each through the connection's own sign-in.
+- **The agent:** no new command: `connections_types`, `connections_test`, `connections_create`,
+  `connections_load_catalog`, `catalog_*`, `connections_open_table` and `connections_preview_table`
+  already reach it; the index and the connections guide name it.
+
+Decisions:
+- **It is a database connection** (kind sql, dialect `dataverse`) whose `conn` also reads by itself:
+  the app opens its tables through `conn.rows` (READ), never through SQL, so Open as grid works where
+  the SQL endpoint is off. Its dialect quotes as T-SQL and names a table alone (`[account]`): the
+  endpoint has the one schema.
+- **The client secret is a key vault's only** (the owner's rule): the form offers a key vault or an
+  environment variable, never "Saved on this computer"; the server refuses a typed secret on Test, Save
+  and `blades_secrets`. The ids are typed (they are not secrets).
+- **A choice column reads as its labels** (Picklist, State, Status, multi-select); **a Yes/No column
+  stays true or false**; a lookup keeps its id under its own name, and its name column
+  (`primarycontactidname`, as the SQL endpoint has it) holds the formatted value. Money, numbers and
+  dates read as themselves, never the formatted text Dataverse also sends.
+- **Counts:** `$count` says up to 5,000; past that, Dataverse's own RetrieveTotalRecordCount (a snapshot)
+  gives the total for a whole table; a filtered read past 5,000 has none.
+- **The token never leaves the environment:** a next page outside its address is not followed; plain
+  http only to 127.0.0.1 (the stand-in).
+- **Display names in the catalog:** a catalog row with a table but no column, and a description, is that
+  table's name for people (adapters/catalogs.py `titles`); the tree shows it beside the table only when
+  it says more than the name (User for systemuser; not Account for account).
+- Not built: writing (the Web API's POST and PATCH), FetchXML paging past its first page, the catalog
+  read per table for very large environments (one request with every table's columns).

@@ -28,6 +28,7 @@ BLADES_FOLDER = "blades"
 STARTERS = "Swiss Army Bench starters"
 FAMILIES: tuple[str, ...] = (
     "Power BI",
+    "Dataverse",
     "Excel",
     "Files",
     "DAX",

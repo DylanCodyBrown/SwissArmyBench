@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
-from swissarmybench.domain import notebooks
+from swissarmybench.domain import dataverse, notebooks
 from swissarmybench.domain import script_export as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
@@ -134,7 +134,7 @@ class ScriptExports:
             blade.code,
             blade.variable or "",
             blade.dialect,
-            read=blade.read_command,
+            read=dataverse.READ if dataverse.is_dataverse(blade.dialect) else blade.read_command,
             secrets=tuple(secrets),
             vault_mapping=dict(blade.vault_mapping),
             vault_all=blade.vault_all,

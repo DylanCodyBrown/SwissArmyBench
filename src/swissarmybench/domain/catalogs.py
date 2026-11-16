@@ -34,6 +34,7 @@ DIALECTS: tuple[str, ...] = (
     "oracle",
     "trino",
     "dax",  # a Power BI workspace: each dataset (semantic model) a schema; its language is DAX
+    "dataverse",  # a Dataverse environment: its SQL endpoint's T-SQL, every table in one schema (dbo)
     "other",
 )
 _DIALECT_ALIASES: dict[str, str] = {
@@ -86,6 +87,9 @@ class CatalogInfo:
     # What the source said of a schema it could not list (database, schema, the words): a row
     # with no table and a description. A Power BI workspace's dataset that could not be read.
     notes: tuple[tuple[str, str, str], ...] = ()
+    # What the source calls a table for people (database, schema, table, the words): a row with a
+    # table but no column, and a description. A Dataverse table's display name.
+    titles: tuple[tuple[str, str, str, str], ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -185,7 +189,7 @@ def normalizing_select(source: str, picked: dict[str, str]) -> str:
 def quote_identifier(name: str, dialect: str) -> str:
     if dialect == "dax":
         return dax_table(name)
-    if dialect == "sqlserver":
+    if dialect in ("sqlserver", "dataverse"):
         return "[" + name.replace("]", "]]") + "]"
     if dialect == "mysql":
         return "`" + name.replace("`", "``") + "`"
@@ -206,6 +210,8 @@ def dax_column(column: str, table: str = "") -> str:
 def _source(dialect: str, database: str, schema: str, table: str) -> str:
     if dialect == "dax":  # the schema is the dataset the query is sent to: a table is named by itself
         return dax_table(table)
+    if dialect == "dataverse":  # every table is in its one schema: named by itself
+        return quote_identifier(table, dialect)
     return ".".join(quote_identifier(p, dialect) for p in (database, schema, table) if p)
 
 
@@ -224,7 +230,7 @@ def select_sql(
     picked = ", ".join(quote_identifier(c, dialect) for c in columns) or "*"
     if rows is None:
         return f"SELECT {picked}\nFROM {source}"
-    if dialect == "sqlserver":
+    if dialect in ("sqlserver", "dataverse"):
         return f"SELECT TOP {rows} {picked}\nFROM {source}"
     if dialect == "oracle":
         return f"SELECT {picked}\nFROM {source}\nFETCH FIRST {rows} ROWS ONLY"

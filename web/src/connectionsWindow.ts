@@ -45,7 +45,7 @@ import { button, clear, closeDialogs, h, hasIcon, icon, openDialog, toast } from
 import { chooseFile } from "./fileChooser";
 import { pickSheets } from "./openFile";
 import { backButton, crumbs, dismissDialog, go, layerOpened, registerLayer, setOverTitle, watchLayerDialog, withParams } from "./nav";
-import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested } from "./pythonConnectionForm";
+import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
 
 interface Field {
   id: string;
@@ -344,14 +344,14 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           c.entries
             ? h("div", { class: "vault-entries" }, c.every ? h("span", { class: "badge" }, "Every secret") : null, ...c.entries.map((e) => h("code", { class: "hint", title: `${e.secret} in the vault` }, `${e.env} ← ${e.secret}`)))
             : // A Power BI workspace's cells are DAX cells, each on one of its datasets; your own Python's reads with sab.read.
-              h("code", { class: "hint" }, c.dialect === "dax" ? `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>` : c.connection === "python" ? `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)` : `sab.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
+              h("code", { class: "hint" }, c.dialect === "dax" ? `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>` : c.connection === "python" || c.dialect === "dataverse" ? `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)${c.dialect === "dataverse" ? `  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}` : ""}` : `sab.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
         ),
         h(
           "span",
           { class: "connection-actions" },
           c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(c.name), { icon: "rows", class: "primary" }) : null,
           readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name: c.name }, () => void showForm({ edit: c.name })), { icon: "edit" }),
-          button("Test", () => void testSaved(c.name, c.connection === "python" ? tested : undefined), { icon: "play" }),
+          button("Test", () => void testSaved(c.name, c.connection === "python" || c.dialect === "dataverse" ? tested : undefined), { icon: "play" }),
           c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
           c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
           readOnly
@@ -646,13 +646,15 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         "fieldset",
         { class: "connection-passwords" },
         // A Power BI workspace's are an app registration's values (two ids and a secret), not passwords alone.
-        h("legend", {}, form.dialect === "dax" ? "App registration" : "Passwords"),
+        h("legend", {}, form.dialect === "dax" || form.dialect === "dataverse" ? "App registration" : "Passwords"),
         ...form.secrets.map((s) => {
           const inVault = vaults.find((v) => v.entries.some((e) => e.env === s)) ?? vaults.find((v) => v.name === pointedAt.get(s));
           // A starter may say its passwords come from a key vault first (a Power BI dataset's app registration).
-          const first = form.secrets_from === "vault" && !editing && labels.get(s) === s ? "vault" : "keyring";
-          const origin = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : first);
-          const from = h("select", { "aria-label": `Where ${label(s)} comes from` }, h("option", { value: "keyring", selected: origin === "keyring" }, "Saved on this computer"), h("option", { value: "env", selected: origin === "env" }, "An environment variable"), h("option", { value: "vault", selected: origin === "vault" }, "A key vault"));
+          const vaultOnly = form.secrets_from === "vault only"; // never typed into the app
+          const first = (form.secrets_from === "vault" && !editing && labels.get(s) === s) || vaultOnly ? "vault" : "keyring";
+          const guess = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : first);
+          const origin = vaultOnly && guess === "keyring" ? "vault" : guess;
+          const from = h("select", { "aria-label": `Where ${label(s)} comes from` }, vaultOnly ? null : h("option", { value: "keyring", selected: origin === "keyring" }, "Saved on this computer"), h("option", { value: "env", selected: origin === "env" }, "An environment variable"), h("option", { value: "vault", selected: origin === "vault" }, "A key vault"));
           const slot = h("span", { class: "field-row" });
           // The box's own label, above it: what to type or pick there.
           const boxLabel = h("span", {});
@@ -882,7 +884,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         if (r.name && !name.value.trim()) name.value = r.name;
         result.replaceChildren(
           h("p", { class: "status-ok" }, `It works: ${worked(r)}.`),
-          ...(r.preview ? previewOf(r.preview) : []),
+          // A table's first rows (a Dataverse environment's), or a file's.
+          ...(r.preview ? ("table" in r.preview ? tablePreview(r.preview as unknown as TablePreview) : previewOf(r.preview)) : []),
           r.preview_error ? h("p", { class: "status-error" }, `Its rows could not be read: ${r.preview_error}`) : "",
         );
       } catch (e) {
@@ -910,7 +913,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const switchSignIn = async (way: { code: string }): Promise<void> => {
       const typedSoFar = new Map(fields.filter((f) => !f.placeholder).map((f) => [f.name, f.value]));
       try {
-        const next = await api<{ settings: Field[]; secrets: string[] }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
+        const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
         const keep = Object.fromEntries(next.settings.filter((s) => typedSoFar.has(s.name) && s.name !== "driver").map((s) => [s.id, typedSoFar.get(s.name)]));
         const answer = Object.keys(keep).length
           ? await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code: way.code, values: keep, template: form.id || null, name: editing })
@@ -922,6 +925,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         labels.clear();
         for (const secret of next.secrets) labels.set(secret, secret);
         passwordsSlot.replaceChildren(drawPasswords() ?? "");
+        // The packages are this way's own (Dataverse's As you needs azure-identity; its others do not).
+        form.install_here = next.install_here;
+        form.packages = next.packages;
+        drawInstall();
         result.replaceChildren();
       } catch (e) {
         failed(e);
