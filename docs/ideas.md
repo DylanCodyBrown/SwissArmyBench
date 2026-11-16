@@ -3018,3 +3018,79 @@ The owner's two choices, asked and answered:
 - The diagram is drawn from the model (no positions to keep yet): `diagram` is an empty object for now.
 - A double-click shows a console window for a moment on Windows (uv's launcher is a console program).
 - `swissarmybench uninstall` does not exist, so nothing removes the association yet.
+
+## Every rail icon lands on a page (the owner, 2026-11-16; built, branch rail-pages)
+
+The owner, the same day as the rail:
+1. "the rail icons is opening a new tab every time instead of navigating the current page, the open in
+   new tab is optional" (a rail click moves this tab; Ctrl+click, a middle click and the right-click's
+   Open in a new window open another);
+2. "every time I click the rail it pops out a box from the icon to create something get rid of that its
+   duplicated behavior we should only create things from the panel";
+3. "connection rail icon should open a connections page where all the active connections are presented
+   as cards and I can click one to see all the references in the workbench that use that connection and
+   an overview of its configuration and how many times it has been called this session";
+4. "the same for others clicking the rail should land on a page not open a form".
+
+### Built
+- **A rail icon is a page.** Grids, Sandbox, Diagram and Blades were pages already. Notebooks, Scripts
+  and Apps land on their kind's page in the Workbench; Connections and Settings are pages of their own
+  (web/src/areaPage.ts) over whichever page you are on, the whole width right of the rail. No area opens a
+  dialog or a menu any more; the right-click's one item, Open in a new window, stays (it is asked for).
+- **The Workbench's landing page for a kind** (web/src/workbenchLanding.ts, `?kind=notebook&view=list`):
+  its documents as cards, the ones open in this window first (the one in front marked, ● when unsaved,
+  "Open"), then the others (today the recent files of that kind; `projectDocuments` is the one seam
+  project-scope's list replaces). Its own panel has New (notebook, script, Streamlit app) and Open….
+  A card's click is a move (pushed): Back comes back to the cards. An app chosen there (or New Streamlit
+  app) still unfolds the Data panel's Streamlit cells beside the canvas.
+- **The Connections page** (`open=connections`, the address the dialog had): a card per connection,
+  grouped (databases, files, your own code, key vaults): its type's icon, name, type, a status word and
+  its calls this session ("3 calls · 2 min ago"); Add connection and Add API in its heading row. A card
+  opens its **detail** (`at=detail&name=`): Used in (each notebook or script cell, canvas block and open
+  grid that uses it; a click opens that cell in the Workbench: this window's when the page is the
+  Workbench, else the Workbench window, opened at the cell when there is none), Configuration (type,
+  description, sign-in, its settings, each password's source by kind and name, the vault's entries, the
+  name in code), Calls this session (catalog loads, queries, table reads, tests, connects, the last use);
+  Open as grid, Edit, Test, Refresh catalog, Copy for Python, Remove. Edit's Back returns to the detail,
+  Save shows it again. The forms (connectionsWindow.ts, addApi.ts, pythonConnectionForm.ts) open in the
+  page as they did in the dialog.
+- **References** (domain/connection_usage.py): `%%sql Warehouse`, `%%dax Finance/Sales model`, and in
+  Python the client's calls `sab.sql`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection` (any alias of
+  the module, and a function imported by name) with the name as their first argument, read with ast: a
+  comment or a name inside another string is no use. A table's read-only cell whose load names it is
+  marked "Table cell". A canvas block is a use when the cell it links to is one. Open grids read from it
+  (their origin) are listed too.
+- **Calls** (services/connection_usage.py, memory only): every run of a connection the app makes (a
+  catalog load, a table read, a query, a test: the one place the server runs a connection's code,
+  bootstrap's run_blade) and a Workbench kernel's report (client/connection_use.py: `%%sql`/`sab.sql`/
+  `%%dax`/`sab.dax` a query, `sab.read` a read, `sab.blade`/`sab.connection` a connect), a fire-and-forget
+  POST /connections/{name}/used from a daemon thread, carrying only the name and the kind.
+- **Status, a cheap check (never a run):** Failing (its last call failed, or its catalog did not load),
+  Needs a password (one is in none of its places: the keyring, a vault that maps it or loads every secret,
+  this computer's environment), Works (its last call worked), Ready (not used yet).
+- **Settings is a page** (`open=settings`), its sections side by side as the width allows; no Close (the
+  rail or Back leaves).
+- **The agent (the golden rule):** `connections_overview` (the cards) and `connections_usage` (a card's
+  detail); `app_navigate(to="connection:<name>")` shows the detail; the Workbench window's `file.openCell`
+  opens a reference's cell. The index and the guide's connections and grids topics say so.
+
+### Decisions
+- **The landing page, not the last document:** a rail click on Notebooks shows that kind's page even when
+  a notebook is open; the open ones are its first cards, one click away, and Back returns from a card. A
+  tab click or a document opened any other way (Open…, the agent, a reference) takes the page away.
+- **The addresses stay the layers' (`open=settings`, `open=connections&at=...`)** rather than new
+  `view=` words: every old address, bookmark and the agent's places land on the pages unchanged, and the
+  page under them keeps its own view (a grid, a document). One page at a time: opening one makes the other
+  go (Back brings it again).
+- **The Connections page in the Workbench and the blades page too,** over the page, so a kernel or an
+  editor is never left to reach it.
+- **Status needs no sign-in check:** a browser-window sign-in (Power BI, MFA) cannot be known without
+  running it, so such a connection reads Ready until its first call.
+- **Not counted:** code in the user's own Jupyter or terminal (no SWISSARMYBENCH_KERNEL there); a vault's
+  own runs.
+- **Seams with project-scope:** references are looked for in the Workbench's recent files, the documents
+  open in a Workbench window and the open project's files (bootstrap.usage_documents); the landing page's
+  other documents come from `projectDocuments` (workbenchLanding.ts). Each is one function to swap for the
+  project's documents list.
+- **Not built:** references in unsaved edits of an open document (its saved file is read); a count of
+  the calls each reference made.

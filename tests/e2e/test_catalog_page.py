@@ -6,6 +6,7 @@ Made-up data only. No test saves a secret: on Windows that would reach the real 
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
@@ -237,15 +238,15 @@ def test_a_theme_remembered_before_the_rename_is_still_followed(browser: Browser
     page.close()
 
 
-def test_the_grid_page_opens_the_blades_page_in_its_own_tab(browser: Browser, orders_url: str) -> None:
+def test_the_rail_takes_this_tab_to_the_blades_page(browser: Browser, orders_url: str) -> None:
+    """A rail click moves this tab (the owner, 2026-11-16: "the open in new tab is optional")."""
     page = open_grid(browser, orders_url)
-    with page.context.expect_page() as opened:
-        page.locator(".nav-rail [data-area='blades']").click()
-    blades = opened.value
-    blades.wait_for_load_state()
-    assert blades.url.split("#")[0].endswith("/catalog")
-    expect(blades.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
-    blades.close()
+    pages = len(page.context.pages)
+    page.locator(".nav-rail [data-area='blades']").click()
+    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
+    expect(page.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
+    assert len(page.context.pages) == pages
+    page.close()
 
 
 # ===== portable blades: search, tags, favourites, import, export, blade folders =====

@@ -7,8 +7,8 @@
  *             (the window named sab-home), or opens it. Alt+Home does the same everywhere.
  *   [ADDRESS] a view the user moves to is in the address (go: history.pushState); a move the app makes by
  *             itself replaces the entry. Back and Forward are the browser's: popstate hands the address
- *             to the page (onPlace) and to the layers, the dialogs with views of their own (Connections,
- *             Settings), each by its `open=` key. The token is never in the address (the cookie keeps the
+ *             to the page (onPlace) and to the layers, the rail's pages over any page (Connections,
+ *             Settings: areaPage.ts; dialogs until 2026-11-16, the same addresses), each by its `open=` key. The token is never in the address (the cookie keeps the
  *             session), so a reload keeps the view.
  *   [DIALOGS] every other dialog (dom.openDialog) pushes an entry of its own at the same address: Back
  *             closes it, and closing it takes the entry away again.
@@ -39,7 +39,7 @@ interface Entry {
   layer?: { key: string; n: number; back: boolean };
 }
 
-/** A dialog with views of its own, kept in the address as open=<key> (Connections, Settings). */
+/** A page over the page (Connections, Settings: areaPage.ts), kept in the address as open=<key>. */
 export interface Layer {
   isOpen(): boolean;
   /** Open it showing the view in `url` (Forward, a reload, the agent). */
@@ -62,7 +62,9 @@ const load = Math.random().toString(36).slice(2, 8);
 let serial = 0;
 let queue: Promise<void> = Promise.resolve();
 const openDialogs = new Map<string, HTMLDialogElement>();
-const popped = new WeakSet<HTMLDialogElement>();
+const popped = new WeakSet<HTMLElement>();
+/** A dialog, or a page of the rail's (areaPage.ts): closed by its close(), heard by its close event. */
+export type Closable = HTMLElement & { close(): void };
 const layers = new Map<string, Layer>();
 let placeListener: ((url: URL) => void) | null = null;
 const addressListeners: ((url: URL) => void)[] = [];
@@ -221,9 +223,18 @@ export function hasLayer(key: string): boolean {
  *  the page under it stays as it is. */
 export function openLayer(key: string): void {
   const layer = layers.get(key);
-  if (!layer || layer.isOpen()) return;
+  if (!layer) return;
   const url = withParams({ open: key, at: null, type: null, name: null });
-  void go(url, "push").then(() => layer.open(new URL(url, location.href)));
+  if (layer.isOpen()) {
+    // On show already (a connection's detail, a form): back to its first view, pushed.
+    if (here() !== normal(url)) visit(url);
+    return;
+  }
+  void go(url, "push").then(() => {
+    // One page at a time: the one on show makes way (Back brings it again, by its address).
+    for (const [other, shown] of layers) if (other !== key && shown.isOpen()) shown.dismiss();
+    layer.open(new URL(url, location.href));
+  });
 }
 
 /** The layer open now (its dialog on screen), or null: a page's own move keeps its words only then. */
@@ -260,7 +271,7 @@ export function layerClosed(key: string, keys: string[]): void {
 
 /** A layer's dialog: closed by its own Close, Escape or ×, its entries go (layerClosed); `closed` runs
  *  however it closes. */
-export function watchLayerDialog(dialog: HTMLDialogElement, key: string, keys: string[], closed: () => void): void {
+export function watchLayerDialog(dialog: Closable, key: string, keys: string[], closed: () => void): void {
   dialog.addEventListener(
     "close",
     () => {
@@ -272,7 +283,7 @@ export function watchLayerDialog(dialog: HTMLDialogElement, key: string, keys: s
 }
 
 /** Close a dialog because the address no longer has it (Back): no history move of its own. */
-export function dismissDialog(dialog: HTMLDialogElement): void {
+export function dismissDialog(dialog: Closable): void {
   popped.add(dialog);
   dialog.close();
   dialog.remove();
@@ -545,6 +556,8 @@ function agentUrl(n: NavNotice): string {
     add_api: { open: "connections", at: "api", type: null, name: null },
   };
   if (n.to && layer[n.to]) return withParams(layer[n.to]!);
+  // A connection's detail on the Connections page: where it is used, its configuration, its calls.
+  if (n.to === "connection" && n.name) return withParams({ open: "connections", at: "detail", type: null, name: n.name });
   const home = { open: null, at: null, type: null, name: null };
   if (n.to === "sandbox" || n.to === "diagram" || n.to === "query") return withParams({ ...home, view: n.to }, HOME_URL);
   if (n.to === "grid" && n.grid) return `/g/${encodeURIComponent(n.grid)}`;

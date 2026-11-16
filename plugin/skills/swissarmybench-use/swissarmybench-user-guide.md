@@ -53,11 +53,11 @@ The page has these parts:
 ### Getting around
 
 - **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Sandbox**, **Diagram**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - From the Workbench or another window, Grids, Sandbox and Diagram bring the grids' window to the front; Notebooks, Scripts and Apps bring the Workbench forward with that kind of document in front (or offer New and your recent files of that kind). Apps opens the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
-  - **Right-click** Notebooks, Scripts or Apps (or Ctrl+click, or middle-click) for **Open in a new window**: a Workbench window of its own, for another screen.
+  - **Every icon lands on a page**, in the tab you are in: Grids, Sandbox and Diagram on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; **New** and **Open…** on the page's own panel); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
+  - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Sandbox, Diagram, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
-- **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the forms inside Connections, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
+- **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the Settings and Connections pages, a connection's detail and its forms, a kind's page of documents, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
 - **Reload** (F5 on the grid page) keeps what you were looking at, the Sandbox, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**, **Catalog › Warehouse › sales › orders**.
 - **The browser tab** names the place: the table's name, "Sandbox", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
@@ -99,7 +99,7 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 ### Settings
 
-Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
+Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
 
 **Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history; and on every page, the navigation rail.
 
@@ -446,7 +446,14 @@ their own, run in an IPython kernel on this computer.
 
 ## Connections and key vaults
 
-**Connections** in the Application row lists your databases, files, connections made of your own Python, and key vaults, and **Add connection** makes one with a form for its type. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
+**Connections** on the rail opens the Connections page: a card for each of your databases, files, connections made of your own Python, and key vaults, with its type, a status (**Works**, **Ready**: not used yet, **Needs a password**: one is in none of its places, **Failing**: its last call or its catalog failed) and how many times it has been called this session. **Add connection** (and **Add API**) at the top makes one with a form for its type. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
+
+Click a card for its **detail**:
+
+- **Used in:** every notebook and script cell that uses it (a SQL cell `%%sql Warehouse`, a DAX cell, `sab.sql("Warehouse", …)`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection`; a table's read-only cell is marked **Table cell**), every Streamlit app block on such a cell, and every open grid read from it. Click one to open that cell in the Workbench (or the grid). A name in a comment, or inside some other text, is not a use. The documents looked in are your recent ones, the ones open in the Workbench and the open project's.
+- **Configuration:** its type, how it signs in, its settings (server, database and so on), and where each password comes from (the system keyring, a key vault's entry, an environment variable, or nowhere yet). Never a password itself.
+- **Calls this session:** catalog loads, queries, table reads, tests and connects, and when it was last used. Calls made through the app and from Workbench notebooks and scripts count; code you run in your own Jupyter does not.
+- **Open as grid** (a file), **Edit**, **Test**, **Refresh catalog**, **Copy for Python** and **Remove**. Edit's Back returns to the detail, and Save shows it again.
 
 - **Every database form reads in the same order:** the server, the port and the catalog or database; then the user and the password, each under its own label; then the certificate file and **Trust server certificate** together.
 - **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows.

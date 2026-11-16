@@ -1,11 +1,11 @@
 # ruff: noqa: F811
 """The rail (the owner, 2026-11-16: "this app needs a navigation pane somehow"; a slim icon rail down the
 left of every page and window), in a real browser: on every page and window, each area goes to its place
-(this page's view, a layer, or another window brought forward), the current area is marked and follows
-Back, Forward and a reload, the keyboard moves along it, Notebooks, Scripts and Apps bring their kind
-forward in the Workbench (Apps with the Streamlit cells pane beside the canvas) or open a window of
-their own, Settings' Panels switch takes it away and the page its width back, and nothing sits under
-it. Made-up data only.
+(this page's view, a page of its own: Settings, Connections, a kind's landing page in the Workbench),
+the current area is marked and follows Back, Forward and a reload, the keyboard moves along it,
+Notebooks, Scripts and Apps land on their kind's page in the Workbench (an app chosen there comes with
+the Streamlit cells pane beside its canvas) or open a window of their own, and nothing sits under it.
+Made-up data only.
 
 With SWISSARMYBENCH_RAIL_SHOTS set to a folder, the tests also save screenshots there (2x)."""
 
@@ -138,19 +138,21 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     page.locator(f".tab-item[data-grid='{grid_of(orchard)}']").click()
     expect(current(page)).to_have_attribute("data-area", "grids")
 
-    # Connections and Settings open their layers here, in the address; closing them moves the mark back.
+    # Connections and Settings are pages over this one, in the address (2026-11-16: no dialogs); Back
+    # takes them away and moves the mark back.
     area(page, "connections").click()
     expect(page).to_have_url(re.compile(r"open=connections"))
-    expect(page.locator("dialog[open]")).to_be_visible()
+    expect(page.locator(".area-page[data-page='connections']")).to_be_visible()
+    expect(page.locator("dialog[open]")).to_have_count(0)
     expect(current(page)).to_have_attribute("data-area", "connections")
     page.go_back()
-    expect(page.locator("dialog[open]")).to_have_count(0)
+    expect(page.locator(".area-page")).to_have_count(0)
     expect(current(page)).to_have_attribute("data-area", "grids")
     area(page, "settings").click()
     expect(page).to_have_url(re.compile(r"open=settings"))
     expect(current(page)).to_have_attribute("data-area", "settings")
-    page.keyboard.press("Escape")
-    expect(page.locator("dialog[open]")).to_have_count(0)
+    page.go_back()
+    expect(page.locator(".area-page")).to_have_count(0)
     expect(current(page)).to_have_attribute("data-area", "grids")
 
     # Grids from the Sandbox: the grids, as the mark goes.
@@ -215,15 +217,16 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     expect(current(page)).to_have_attribute("data-area", "notebooks")
     assert len(page.context.pages) == pages
     assert left_of(page, ".wb-top") >= right_edge(page) - 0.5
-    # No notebook open: New and the recent notebooks, beside the rail.
-    menu = page.get_by_role("menu", name="Notebooks")
-    expect(menu).to_be_visible(timeout=20000)
-    menu.get_by_role("menuitem", name="New notebook").click()
+    # The notebooks' landing page (2026-11-16: no menu beside the icon): New is on its own panel.
+    landing = page.locator(".wb-landing")
+    expect(landing).to_be_visible(timeout=20000)
+    expect(page.get_by_role("menu")).to_have_count(0)
+    landing.get_by_role("button", name="New notebook").click()
     expect(page.locator(".wb-tab").first).to_be_visible(timeout=20000)
-    # Scripts, inside the Workbench: its menu, New script; Notebooks brings the notebook forward, pushed.
+    # Scripts, inside the Workbench: its page, New script; Notebooks lands on its page again, pushed.
     area(page, "scripts").click()
     expect(page).to_have_url(re.compile(r"kind=script"))
-    page.get_by_role("menu", name="Scripts").get_by_role("menuitem", name="New script").click()
+    landing.get_by_role("button", name="New script").click()
     expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
     area(page, "notebooks").click()
     expect(current(page)).to_have_attribute("data-area", "notebooks")
@@ -231,10 +234,10 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     expect(current(page)).to_have_attribute("data-area", "scripts")
     page.mouse.move(900, 500)
     shot(page, "rail-workbench")
-    # Settings opens in the Workbench itself (it has the layer).
+    # Settings is a page in the Workbench itself.
     area(page, "settings").click()
-    expect(page.locator("dialog[open]")).to_be_visible()
-    page.keyboard.press("Escape")
+    expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
+    page.go_back()
     expect(current(page)).to_have_attribute("data-area", "scripts")
 
     # The Sandbox, from the Workbench: this tab goes home, at the Sandbox.
@@ -248,8 +251,8 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     assert left_of(page, ".cat-top") >= right_edge(page) - 0.5
     area(page, "settings").click()
     expect(page).to_have_url(re.compile(r"open=settings"))
-    expect(page.locator("dialog[open]")).to_be_visible()
-    page.keyboard.press("Escape")
+    expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
+    page.go_back()
     expect(current(page)).to_have_attribute("data-area", "blades")
     area(page, "diagram").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
@@ -297,9 +300,8 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
     window(server, "view.toggleSidebar", collapsed=True)
     expect(workbench.locator(".wb-data.collapsed")).to_be_visible()
     area(workbench, "apps").click()
-    menu = workbench.get_by_role("menu", name="Apps")
-    expect(menu).to_be_visible()
-    menu.get_by_role("menuitem", name="New Streamlit app").click()
+    expect(workbench.get_by_role("menu")).to_have_count(0)
+    workbench.locator(".wb-landing").get_by_role("button", name="New Streamlit app").click()
     board = workbench.locator(".cv-board")
     expect(board).to_be_visible(timeout=20000)
     expect(current(workbench)).to_have_attribute("data-area", "apps")
@@ -318,13 +320,15 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
     expect(workbench.locator(".cv-block .cv-block-where")).to_have_text("rail mockups.ipynb @cell2")
     expect(pane.locator(".wb-st-cell.placed")).to_have_count(1)
     shot(workbench, "rail-apps-cells-pane")
-    # Folded again, Apps unfolds it again (the canvas is open: brought forward, no menu).
+    # Folded again, the app chosen on the Apps page unfolds it again (no menu anywhere).
     pane.locator("#wb-data-streamlit").click()
     expect(pane.locator(".wb-st-list")).to_be_hidden()
     area(workbench, "notebooks").click()
     area(workbench, "apps").click()
+    expect(workbench.get_by_role("menu")).to_have_count(0)
+    workbench.locator(".wb-landing-card").first.click()
+    expect(board).to_be_visible()
     expect(pane.locator(".wb-st-list")).to_be_visible()
-    expect(workbench.get_by_role("menu", name="Apps")).to_have_count(0)
     workbench.context.close()
 
 
@@ -339,11 +343,15 @@ def test_the_steps_window_has_the_rail_and_grids_brings_the_home_window_forward(
     expect(rail(steps)).to_be_visible()
     expect(current(steps)).to_have_attribute("data-area", "grids")
     assert left_of(steps, ".window-top") >= right_edge(steps) - 0.5
+    pages = len(page.context.pages)
+    # A rail click moves this tab (2026-11-16: "the open in new tab is optional"): the steps window
+    # itself goes to the grids; the home window stays where it was.
     page.locator(".nav-rail [data-area='sandbox']").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    pages = len(page.context.pages)
     area(steps, "grids").click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
+    expect(steps.locator(".workspace")).to_have_attribute("data-view", "grid", timeout=20000)
+    expect(current(steps)).to_have_attribute("data-area", "grids")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     assert len(page.context.pages) == pages
     page.context.close()
 
@@ -360,11 +368,11 @@ def test_the_rail_has_no_switch_and_nothing_repeats_it(
     for name in ("Settings", "Connections", "Blades and catalog"):
         expect(page.locator(".app-row").get_by_role("button", name=name, exact=True)).to_have_count(0)
     page.locator(".nav-rail [data-area='settings']").click()
-    panels = page.locator("dialog[open] fieldset", has_text="Panels")
+    panels = page.locator(".area-page[data-page='settings'] fieldset", has_text="Panels")
     expect(panels.get_by_role("group", name="Grid page")).to_be_visible()
     expect(panels.get_by_label("Navigation rail")).to_have_count(0)
     with pytest.raises(urllib.error.HTTPError):
         call(server, "PUT", "/panels", {"app.rail": False}, agent=True)
-    page.keyboard.press("Escape")
+    page.go_back()
     expect(rail(page)).to_be_visible()
     page.context.close()

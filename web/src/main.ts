@@ -34,7 +34,7 @@ import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, closeDialogs, h, toast } from "./dom";
-import { appMark, HOME_URL, mountNav, setTitle, startNav } from "./nav";
+import { appMark, HOME_URL, layerShown, mountNav, setTitle, startNav, visit, withParams } from "./nav";
 import { mountNavRail } from "./rail";
 import { renderKeyFinder } from "./keyFinder";
 import { mountBeta } from "./betaNotes";
@@ -200,7 +200,9 @@ async function start(): Promise<void> {
     show: (url) => void showPlace(url),
     home: () => {
       closeDialogs();
-      showStartView("push");
+      // A page of the rail's over the grids (Settings, Connections) makes way for the Start view.
+      if (layerShown()) visit(withParams({ open: null, at: null, type: null, name: null, view: "start" }, HOME_URL));
+      else showStartView("push");
     },
   });
   mountNavRail("home"); // the areas down the left

@@ -62,7 +62,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     vault |= {"variable": "get", "code": VAULT_CODE, "vault_all": True, "vault_mapping": []}
     call(server, "POST", "/connections", vault)
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")  # the Connections page (2026-11-16)
 
     # The form: the workspace's id and the sign-in. No dataset is asked for.
     page.locator(".nav-rail [data-area='connections']").click()
@@ -98,9 +98,9 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     assert token["form"]["client_secret"] == made_up.SECRET and token["tenant"] == made_up.TENANT
     assert made_up.SECRET not in dialog.inner_text() and made_up.SECRET not in code.input_value()
     dialog.get_by_role("button", name="Save").click()
-    row = dialog.locator(".connection-row", has_text="Finance")
-    expect(row.locator(".badge")).to_have_text("Power BI workspace")
-    # Relationships are a dataset's: the row offers none (the catalog does, on each dataset).
+    row = dialog  # its detail
+    expect(row.locator(".connection-config")).to_contain_text("Power BI workspace")
+    # Relationships are a dataset's: the detail offers none (the catalog does, on each dataset).
     expect(row.get_by_role("button", name="Import its relationships")).to_have_count(0)
     # Saved: its catalog loads itself.
     wait_until(lambda: any(c["name"] == "Finance" for c in call(server, "GET", "/catalogs")["catalogs"]))
@@ -168,7 +168,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
 
     # The grid page: the second dataset's table is a tab, a date read as a date.
     page.bring_to_front()
-    dialog.get_by_role("button", name="Close").last.click()
+    page.locator(".nav-rail [data-area='grids']").click()  # the page makes way for the grids
     page.locator(".tab-item[data-grid]").filter(has_text=re.compile("^Budget$")).click()
     pane = page.locator(".pane:not([hidden])")
     expect(pane.locator(".ag-header-cell[col-id='Planned']")).to_be_visible(timeout=30000)

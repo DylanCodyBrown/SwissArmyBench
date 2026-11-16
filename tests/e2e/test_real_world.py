@@ -217,8 +217,8 @@ def wait_until(done: Any, seconds: float = 90) -> None:
 
 
 def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str, Any]) -> None:
-    """Connections, Add connection, a database's form filled in, Test, Save, Close."""
-    dialog = page.locator("dialog")
+    """Connections, Add connection, a database's form filled in, Test, Save, back to the grids."""
+    dialog = page.locator(".area-page[data-page='connections']")
     act.click(page.locator(".nav-rail [data-area='connections']"))
     act.click(page.get_by_role("button", name="Add connection"))
     act.click(page.locator(".connection-type", has_text=kind))
@@ -231,8 +231,8 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
     act.click(dialog.get_by_role("button", name="Test connection"))
     expect(dialog.locator(".connection-result")).to_contain_text("It works", timeout=LONG)
     act.click(dialog.get_by_role("button", name="Save"))
-    expect(dialog.locator(".connection-row", has_text=name)).to_be_visible(timeout=20000)
-    act.click(dialog.locator(".dialog-foot").get_by_role("button", name="Close"))
+    expect(dialog.locator(".area-page-title")).to_contain_text(name, timeout=20000)  # its detail
+    act.click(page.locator(".nav-rail [data-area='grids']"))
 
 
 def open_catalog(act: Actions, page: Page) -> Page:
@@ -853,7 +853,7 @@ def add_finance(act: Actions, page: Page) -> None:
     """The Power BI workspace, its app registration from the team's vault (the stand-in)."""
     from tests import powerbi_standin as made_up
 
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")
     act.click(page.locator(".nav-rail [data-area='connections']"))
     act.click(page.get_by_role("button", name="Add connection"))
     act.click(page.locator(".connection-type", has_text="Power BI workspace"))
@@ -872,8 +872,8 @@ def add_finance(act: Actions, page: Page) -> None:
     act.click(dialog.get_by_role("button", name="Test connection"))
     expect(dialog.locator(".connection-result")).to_contain_text("It works", timeout=LONG)
     act.click(dialog.get_by_role("button", name="Save"))
-    expect(dialog.locator(".connection-row", has_text="Finance")).to_be_visible(timeout=20000)
-    act.click(dialog.locator(".dialog-foot").get_by_role("button", name="Close"))
+    expect(dialog.locator(".area-page-title")).to_contain_text("Finance", timeout=20000)  # its detail
+    act.click(page.locator(".nav-rail [data-area='grids']"))
 
 
 def team_vault(bench: dict[str, Any]) -> None:

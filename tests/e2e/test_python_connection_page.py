@@ -59,7 +59,7 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     vault |= {"variable": "get", "code": VAULT_CODE, "vault_mapping": [{"env": "OTHER", "secret": "other"}]}
     call(server, "POST", "/connections", vault)
     page = open_grid(browser, january_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")  # the Connections page (2026-11-16)
 
     # Add connection: its own group, and a form of three code boxes.
     page.locator(".nav-rail [data-area='connections']").click()
@@ -99,8 +99,8 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
 
     # Save: one connection, listed under its own heading; what was typed is what was saved.
     dialog.get_by_role("button", name="Save").click()
-    row = dialog.locator(".connection-row", has_text="Orders API")
-    expect(row.locator(".badge")).to_have_text("Python (your own code)")
+    row = dialog  # its detail
+    expect(row.locator(".connection-config")).to_contain_text("Python (your own code)")
     saved = call(server, "GET", "/connections/Orders%20API")
     assert saved["catalog"]["command"] == TABLES and saved["read"]["command"] == READ
     assert saved["row_limit"] == 10 and saved["variables"] == [
@@ -110,7 +110,7 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     assert API_KEY not in str(saved)
     # Its catalog loads itself; the row's Test shows the rows under it.
     wait_until(lambda: any(c["name"] == "Orders API" for c in call(server, "GET", "/catalogs")["catalogs"]))
-    row.get_by_role("button", name="Test", exact=True).click()
+    row.locator(".connection-detail-tools").get_by_role("button", name="Test", exact=True).click()
     expect(row.locator(".connection-tested tbody tr")).to_have_count(20, timeout=60000)
 
     # The catalog: the tree, a table's columns with their descriptions, its first rows, the line to read it.
@@ -137,7 +137,7 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     ).to_be_visible(timeout=60000)
     catalog.close()
     page.bring_to_front()
-    dialog.get_by_role("button", name="Close").last.click()
+    page.locator(".nav-rail [data-area='grids']").click()  # the page makes way for the grids
     page.locator(".tab-item[data-grid]").filter(has_text=re.compile("^orders$")).click()
     note = page.locator(".opened-note")
     expect(note).to_contain_text("First 10 of 30 rows", timeout=30000)

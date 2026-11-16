@@ -21,7 +21,7 @@ def test_export_beta_log_from_settings_writes_the_zip(browser: Browser, server: 
     page = open_grid(browser, url)
     try:
         page.locator(".nav-rail [data-area='settings']").click()
-        dialog = page.locator("dialog[open]")
+        dialog = page.locator(".area-page[data-page='settings']")  # a page (2026-11-16)
         dialog.get_by_role("button", name="Export beta log…").click()
         chooser = page.locator("dialog[open]").last
         name = chooser.get_by_label("File name")
