@@ -230,9 +230,19 @@ def test_the_data_notebook_and_an_apps_notebook_have_icons_of_their_own(
     expect(icon("scratch.ipynb")).to_have_attribute("data-icon", "notebook")
     expect(icon("views.ipynb")).to_have_attribute("data-icon", "appNotebook", timeout=20000)
     # The Data panel's files and the landing's cards wear them too.
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=notebook&view=list#token={server['token']}")
+    for title, name in (
+        ("data.ipynb", "dataNotebook"),
+        ("scratch.ipynb", "notebook"),
+        ("views.ipynb", "appNotebook"),
+    ):
+        expect(page.locator(".wb-file-open", has_text=title).locator("svg")).to_have_attribute(
+            "data-icon", name
+        )
+    page.locator(".nav-rail [data-area='notebooks']").click()
     landing = page.locator(".wb-landing")
     expect(landing).to_be_visible(timeout=20000)
+    views = landing.locator(".wb-landing-card", has_text="views.ipynb").first.locator(".wb-landing-icon svg")
+    expect(views).to_have_attribute("data-icon", "appNotebook")
     shot(page, "notebook-icons")
 
 

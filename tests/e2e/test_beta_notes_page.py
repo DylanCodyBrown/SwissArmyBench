@@ -166,7 +166,8 @@ def test_notes_on_a_workbench_tab_a_canvas_block_and_the_editor_then_beta_mode_o
         expect(block).to_be_visible()
         leave_note(page, block.locator(".cv-block-name"), "This block should be wider")
         block_note = notes(server)[-1]
-        assert "cv-block" in block_note["element"]["path"] and block_note["tabs"] == ["notebook", "page"]
+        # (the notebook now feeds an app, so its tab is an app notebook: 2026-11-16)
+        assert "cv-block" in block_note["element"]["path"] and block_note["tabs"] == ["appNotebook", "page"]
 
         # ----- beta mode off, from the Workbench's "…": no mark, no item, at once
         menu(page, "Workbench menu", "Turn beta mode off")

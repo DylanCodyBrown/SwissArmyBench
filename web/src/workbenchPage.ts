@@ -443,7 +443,7 @@ function listProject(again = true): void {
   if (!project) return void data.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
-    const file = { path: name, icon: kindIcon(kindOfPath(name), name), open: () => void open(path) };
+    const file = { path: name, icon: kindIcon(kindOfPath(name), path), open: () => void open(path) };
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });

@@ -1953,5 +1953,9 @@ drags; code of more than one line is pasted, one typed value):
   words) opens the cell, the Notebooks page shows it too, and the agent's tables.transformations.
 - **Updated:** the rail tests (New in the top bar, the page heading exact), the saved notebook test (it
   opens unfolded; its user-made table still waits).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,168 passed, 33 skipped, 1 failed in
+  17 minutes: test_beta_notes_page's tab kinds (a notebook placed on a canvas is now an app notebook; the
+  test was updated and passes, with the Data panel's file icons and the icon tagging made after the run:
+  test_workbench_feedback, test_beta_notes_page, test_workbench_groups rerun, all pass).
 - **Not checked:** a very large table's output (pandas' own truncation applies); Windows paths for the
   app-notebook role (the rule handles backslashes; not run on Windows).
