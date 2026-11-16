@@ -223,10 +223,11 @@ def test_the_metadata_becomes_one_schema_of_tables_and_typed_columns(standin: ma
         "account",
         "contact",
         "opportunity",
+        "systemuser",
     ]  # not the private one
     # Each table's display name: a row with no column. Each column: its type and display name.
     assert {r["table_name"]: r["description"] for r in rows if not r["column_name"]} == {
-        "account": "Account", "contact": "Contact", "opportunity": "Opportunity",
+        "account": "Account", "contact": "Contact", "opportunity": "Opportunity", "systemuser": "User",
     }  # fmt: skip
     account = {
         r["column_name"]: (r["data_type"], r["description"]) for r in rows if r["table_name"] == "account"
@@ -247,13 +248,14 @@ def test_the_catalog_loads_and_its_tables_carry_their_display_names(
     refreshed = client.post("/blades/Sales%20CRM/refresh", json={}, headers=AUTH)
     assert refreshed.status_code == 200, refreshed.text
     assert (
-        refreshed.json()["catalog"]["tables"] == 3 and refreshed.json()["catalog"]["dialect"] == "dataverse"
+        refreshed.json()["catalog"]["tables"] == 4 and refreshed.json()["catalog"]["dialect"] == "dataverse"
     )
     schemas = client.get("/catalogs/Sales%20CRM/schemas", headers=AGENT).json()["schemas"]
     assert [s["schema"] for s in schemas] == ["dbo"]
     tables = client.get("/catalogs/Sales%20CRM/tables?schema=dbo", headers=AGENT).json()["tables"]
     assert [(t["table"], t.get("title")) for t in tables] == [
         ("account", "Account"), ("contact", "Contact"), ("opportunity", "Opportunity"),
+        ("systemuser", "User"),
     ]  # fmt: skip
     columns = client.get("/catalogs/Sales%20CRM/columns?schema=dbo&table=account", headers=AGENT).json()
     assert columns["select"].startswith("SELECT TOP 100 [accountid], [accountnumber]")
@@ -307,7 +309,9 @@ def test_a_read_is_odata_select_filter_order_and_top(standin: made_up.StandIn) -
     assert 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"' in read["prefer"]
     # By its logical name, its entity set or its display name; an unknown one says what there is.
     assert conn.table("opportunities")["table"] == conn.table("OPPORTUNITY")["table"] == "opportunity"
-    with pytest.raises(RuntimeError, match=r"no table 'nope'.*It has: account, contact, opportunity"):
+    with pytest.raises(
+        RuntimeError, match=r"no table 'nope'.*It has: account, contact, opportunity, systemuser"
+    ):
         conn.rows("nope")
     with pytest.raises(RuntimeError, match="account has no column 'nope'"):
         conn.rows("account", columns=["nope"])
@@ -385,7 +389,7 @@ def test_test_signs_in_counts_the_tables_and_shows_first_rows(
     tested = client.post("/blades/Sales%20CRM/test", json={}, headers=AGENT)
     assert tested.status_code == 200, tested.text
     said = tested.json()
-    assert said["found"] == "signed in and found 3 tables" and said["type"] == "Dataverse"
+    assert said["found"] == "signed in and found 4 tables" and said["type"] == "Dataverse"
     assert said["preview"]["table"] == "account" and said["preview"]["total"] == 12
     assert said["preview"]["columns"][:2] == ["accountid", "accountnumber"]
     assert len(said["preview"]["rows"]) == 12

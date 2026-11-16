@@ -20,7 +20,8 @@ documents them:
   GET  /api/data/v9.2/RetrieveTotalRecordCount(EntityNames=@p)?@p=["opportunity"]
 
 over a made-up company's sales: accounts, contacts and opportunities (6,200 of them: more than the
-5,000 a count and a page stop at), and a private table that is never listed. The SQL endpoint (TDS)
+5,000 a count and a page stop at), its users (systemuser, shown as User), and a private table that is
+never listed. The SQL endpoint (TDS)
 cannot be stood in for: tests/test_dataverse.py checks its connection string and token only.
 
 Every request is kept (`requests`), so a test can prove what the sign-in carried. Made-up values only.
@@ -132,12 +133,18 @@ COLUMNS: dict[str, list[Column]] = {
         Column("statecode", "State", "Status", options=OPPORTUNITY_STATE),
         Column("estimatedclosedate", "DateTime", "Est. Close Date"),
     ],
+    "systemuser": [
+        Column("systemuserid", "Uniqueidentifier", "User"),
+        Column("fullname", "String", "Full Name"),
+        Column("internalemailaddress", "String", "Primary Email"),
+    ],
     "msdyn_internalcache": [Column("msdyn_internalcacheid", "Uniqueidentifier", "Internal cache")],
 }
 TABLES: dict[str, tuple[str, str, bool]] = {  # logical name -> (entity set, display name, private)
     "account": ("accounts", "Account", False),
     "contact": ("contacts", "Contact", False),
     "opportunity": ("opportunities", "Opportunity", False),
+    "systemuser": ("systemusers", "User", False),  # a display name that says more than its own name
     "msdyn_internalcache": ("msdyn_internalcaches", "Internal cache", True),
 }
 SETS = {entity_set: logical for logical, (entity_set, _, _) in TABLES.items()}
@@ -197,7 +204,21 @@ def records() -> dict[str, list[dict[str, Any]]]:
                 "estimatedclosedate": (_START + timedelta(days=i % 200)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             }
         )
-    return {"account": accounts, "contact": contacts, "opportunity": opportunities, "msdyn_internalcache": []}
+    users = [
+        {
+            "systemuserid": _id(0x5, i),
+            "fullname": name,
+            "internalemailaddress": f"{name.split()[0].lower()}@example.com",
+        }
+        for i, name in enumerate(["Sam Okafor", "Rita Lindqvist", "Tom Achebe"], 1)
+    ]
+    return {
+        "account": accounts,
+        "contact": contacts,
+        "opportunity": opportunities,
+        "systemuser": users,
+        "msdyn_internalcache": [],
+    }
 
 
 def _names(rows: dict[str, list[dict[str, Any]]]) -> dict[tuple[str, str], str]:
