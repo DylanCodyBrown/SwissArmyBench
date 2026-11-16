@@ -14,12 +14,15 @@
  *          [SHARED MODELS]    Apply -> applyShared(name)
  *          [MANAGE]           -> relationshipsDialog.openRelationships()
  *          [FIND]             -> openRelationships(true): the window, its finder already running
+ *          [FOLLOW]           the agent added a relationship (Follow the agent, sessionPage.ts): its line
+ *                             and its two tables pulse as the diagram draws it -> highlightRelationships()
  */
 import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { contextOf, gridList, onAgentView, viewingErd } from "./panes";
 import { currentModel, onRelationshipsChange } from "./relationships";
 import { importRelationships, openRelationships } from "./relationshipsDialog";
+import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
 
 let host: HTMLElement;
@@ -67,7 +70,11 @@ function openTables(): string[] {
   return [...new Set(gridList().map((g) => contextOf(g.id)?.dataset).filter((d): d is string => !!d))];
 }
 
+// Each draw's number: a slower, older draw (the model was still loading) never paints over a newer one.
+let renders = 0;
+
 async function render(): Promise<void> {
+  const mine = ++renders;
   // Read the model as main.ts keeps it (loaded at start and on each relationships_updated).
   // Loading it here would notify onRelationshipsChange, which redraws: a loop.
   const model = currentModel();
@@ -92,6 +99,8 @@ async function render(): Promise<void> {
     button("Actual size", () => { fitted = false; fit(); }, { icon: "zoom" }),
   ];
   if (!covered.length) {
+    const shared = await sharedModels(open);
+    if (mine !== renders) return;
     clear(
       host,
       // ===== EMPTY STATE =====
@@ -102,7 +111,7 @@ async function render(): Promise<void> {
         h("strong", {}, "No relationships yet."),
         button("Find relationships", () => openRelationships(true), { icon: "zoom", class: "primary" }),
         actions,
-        await sharedModels(open),
+        shared,
       ),
     );
     return;
@@ -119,9 +128,12 @@ async function render(): Promise<void> {
   try {
     const erd = await api<{ mermaid: string }>(`/relationships/erd?tables=${encodeURIComponent(covered.join(","))}`);
     const m = await diagrams();
+    if (mine !== renders) return;
     await m.drawDiagram(slot, erd.mermaid, effectiveTheme() !== "light");
     fitted = true; // a diagram just drawn fits the window
     fit();
+    drawn = erd.mermaid;
+    marked();
   } catch (e) {
     slot.textContent = (e as Error).message;
   }
@@ -163,4 +175,55 @@ async function importModel(file: HTMLInputElement): Promise<void> {
   const picked = file.files?.[0];
   file.value = "";
   if (picked) await importRelationships(picked);
+}
+
+// ===== Follow the agent: a relationship just added, highlighted as it is drawn =====
+
+/** The Mermaid text on screen (its relationship lines are drawn in its order). */
+let drawn = "";
+/** The relationships to highlight ("orders.customer_id -> customers.id"), until a diagram shows them. */
+let wanted: { keys: string[]; until: number } | null = null;
+const HIGHLIGHT_WAIT_MS = 8000;
+
+/** Highlight these relationships once the ERD draws them (now, if it shows them already). */
+export function highlightRelationships(keys: string[]): void {
+  wanted = { keys, until: Date.now() + HIGHLIGHT_WAIT_MS };
+  if (viewingErd()) marked();
+}
+
+/** A relationship's two tables, by its key's words. */
+function tablesOf(key: string): [string, string] | null {
+  const [left, right] = key.split(" -> ");
+  if (!left || !right) return null;
+  return [left.slice(0, left.lastIndexOf(".")), right.slice(0, right.lastIndexOf("."))];
+}
+
+const ident = (name: string): string => name.replace(/[^A-Za-z0-9_-]/g, "_") || "_";
+
+function marked(): void {
+  if (!wanted || Date.now() > wanted.until) {
+    wanted = null;
+    return;
+  }
+  const svg = host?.querySelector<SVGSVGElement>(".erd-diagram svg");
+  if (!svg || !drawn) return;
+  const lines = svg.querySelectorAll<SVGPathElement>("path.relationshipLine");
+  // The relationship lines in the text's order: "    orders }o--|| customers : ..."
+  const order = drawn.split("\n").map((line) => /^\s{4}(\S+) \S+ (\S+) : "/.exec(line)).filter((m): m is RegExpExecArray => !!m);
+  let found = 0;
+  for (const key of wanted.keys) {
+    const tables = tablesOf(key);
+    if (!tables) continue;
+    const a = ident(tables[0]);
+    const b = ident(tables[1]);
+    const at = order.findIndex((m) => (m[1] === a && m[2] === b) || (m[1] === b && m[2] === a));
+    if (at < 0 || !lines[at]) continue;
+    found += 1;
+    const line = lines[at]!;
+    line.dataset.followed = key;
+    pulse(line, 4000);
+    for (const name of [a, b]) pulse(svg.querySelector(`g[id^="entity-${CSS.escape(name)}-"]`), 4000);
+    if (found === 1) (line as unknown as HTMLElement).scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }
+  if (found) wanted = null;
 }

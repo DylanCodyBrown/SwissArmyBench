@@ -33,6 +33,7 @@ import { renderMarkdown } from "./markdown";
 import { saveBlob } from "./profileView";
 import { state } from "./state";
 import { sandboxMarkdown, svgToPng } from "./sandboxExport";
+import { pulse } from "./sessionPage";
 import { onShowCard } from "./sandboxShow";
 import { dashboardsDialog } from "./sandboxDashboards";
 import { applySandboxTheme, loadThemes, sandboxDark, sandboxTheme, themeControls } from "./sandboxThemes";
@@ -452,6 +453,7 @@ function arrive(): void {
   card.scrollIntoView({ block: "center" });
   // A short outline says which card it is; it needs no action, so it goes by itself.
   card.classList.add("arrived");
+  pulse(card); // a soft pulse too (Follow the agent, sessionPage.ts; still when motion is reduced)
   window.setTimeout(() => card.classList.remove("arrived"), 2500);
 }
 

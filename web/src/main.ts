@@ -46,6 +46,10 @@ import { openCompareDialog } from "./compareDialog";
 // them, so they load here even with no button of theirs on the page.
 import "./settingsWindow";
 import "./connectionsWindow";
+import { pulse, setFollower, setGoer, type Entry, type Target } from "./sessionPage";
+import { highlightRelationships } from "./erdView";
+import { showInSandbox } from "./sandboxShow";
+import type { Move } from "./nav";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, showStartView, viewingStart } from "./panes";
 import { mountStart } from "./startView";
 import { mountRibbon, setStepsRow, zoomControl } from "./ribbon";
@@ -149,6 +153,47 @@ function onLiveNotice(notice: Notice): void {
   handleAgentNotice(notice);
 }
 
+// ===== the Session page's objects (sessionPage.ts): a link's, and Follow the agent's =====
+
+/** Bring an entry's object to the front here: a grid (its table's), a card, a relationship, a view. */
+function goToTarget(t: Target, how: Move): boolean {
+  if (t.place === "grid" || t.place === "dataset") {
+    const id = t.grid && contextOf(t.grid) ? t.grid : contextsOf(t.dataset ?? "")[0]?.id;
+    if (!id) return false;
+    showGridView(how);
+    void activateGrid(id, how);
+    return true;
+  }
+  if (t.place === "card") {
+    showInSandbox(t.card ?? null, how);
+    return true;
+  }
+  if (t.place === "relationship") {
+    highlightRelationships(t.relationships ?? []);
+    showErdView(how);
+    return true;
+  }
+  if (t.place === "area" && t.area === "visualizations") showAgentView(how);
+  else if (t.place === "area" && t.area === "erd") showErdView(how);
+  else if (t.place === "area" && t.area === "grids") showGridView(how);
+  else return false;
+  return true;
+}
+
+/** Follow the agent: its action's area to the front (a move of the app's: the address is replaced), the
+ *  object pulsed. The grids, Visualizations and the ERD move here; nothing else does. */
+function follow(entry: Entry): boolean {
+  const t = entry.target;
+  if (!t || (t.place === "area" && t.area === "grids")) return false; // a table closed: nothing to show
+  if (!goToTarget(t, "replace")) return false;
+  if (t.place === "grid" || t.place === "dataset") {
+    // The step's effect: the grid redraws (grid_updated), the strip's count pulses; else the table's tab.
+    const stepped = ["steps", "undo", "redo", "highlights"].includes(entry.action);
+    window.setTimeout(() => pulse(stepped ? document.querySelector(".steps-strip .steps-count, .steps-strip") : document.querySelector(".tabs-row [role=tab][aria-selected=true]")), 350);
+  }
+  return true;
+}
+
 /** A window of one grid (?panel=steps, keys, sql): its state, for the live notices. */
 let singleState: PageState | null = null;
 
@@ -231,6 +276,8 @@ async function start(): Promise<void> {
     },
   });
   mountNavRail("home"); // the areas down the left
+  setGoer((t) => goToTarget(t, "auto"));
+  setFollower(follow);
   $(".tabbar").prepend(appMark());
   const workspace = $(".workspace");
   // The grid has the whole page (plan decision 13): no Table Transformations panel and no SQL box here.

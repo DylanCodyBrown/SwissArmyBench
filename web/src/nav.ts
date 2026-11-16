@@ -572,6 +572,11 @@ export function setAreaRunner(run: (area: string, newWindow: boolean) => boolean
   areaRunner = run;
 }
 
+/** Go to a rail's area as its click does (the Session page's links): false where there is no rail. */
+export function runArea(area: string): boolean {
+  return areaRunner?.(area, false) ?? false;
+}
+
 function agentMove(kind: PageKind, notice: Notice): void {
   const n = notice as NavNotice;
   if (n.type !== "navigate" || n.window !== kind) return;

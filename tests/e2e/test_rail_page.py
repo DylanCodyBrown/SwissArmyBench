@@ -191,7 +191,7 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
 ) -> None:
     page = home_page(browser, orchard)
     # One stop in the Tab order: the current area's.
-    assert [area(page, a).get_attribute("tabindex") for a in AREAS] == ["0"] + ["-1"] * 8
+    assert [area(page, a).get_attribute("tabindex") for a in AREAS] == ["0"] + ["-1"] * (len(AREAS) - 1)
     area(page, "grids").focus()
     tip = area(page, "grids").locator(".nav-rail-tip")
     expect(tip).to_be_visible()  # the name shows on keyboard focus, not only on hover

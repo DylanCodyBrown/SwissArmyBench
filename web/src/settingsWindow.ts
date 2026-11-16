@@ -15,6 +15,7 @@
  *                                 (the server's, for every window; all on again at each start)
  *          [KIND COLOURS]         app pages, notebooks, scripts: a colour each -> kindColours.ts (the
  *                                 server's, for every window; kept across restarts)
+ *          [SESSION]              Follow the agent (kept across restarts; the user's switch) -> sessionPage.ts
  *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
@@ -28,6 +29,7 @@ import { button, h, icon, toast } from "./dom";
 import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { loadPanels, panelList, setPanel } from "./panels";
+import { followSwitch } from "./sessionPage";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 
 /** One switch for each panel, by page. A panel turned off is gone from every window at once. */
@@ -156,6 +158,8 @@ function drawSettings(): void {
     ),
     panelsSection(),
     kindColoursSection(),
+    // Follow the agent (the Session page has the same switch): its actions' areas come to the front.
+    h("fieldset", { class: "fieldset follow-fieldset" }, h("legend", {}, icon("session"), "Session"), followSwitch()),
     updatesSection(),
     claudeSection(),
     betaSection(),
