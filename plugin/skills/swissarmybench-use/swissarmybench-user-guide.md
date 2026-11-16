@@ -52,6 +52,10 @@ The page has these parts:
 
 ### Getting around
 
+- **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Sandbox**, **Diagram**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+  - From the Workbench or another window, Grids, Sandbox and Diagram bring the grids' window to the front; Notebooks, Scripts and Apps bring the Workbench forward with that kind of document in front (or offer New and your recent files of that kind). Apps opens the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
+  - **Right-click** Notebooks, Scripts or Apps (or Ctrl+click, or middle-click) for **Open in a new window**: a Workbench window of its own, for another screen.
+  - Settings' **Panels** has a switch for the rail (Navigation rail) if you would rather have the room.
 - **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the forms inside Connections, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
 - **Reload** (F5 on the grid page) keeps what you were looking at, the Sandbox, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
@@ -97,7 +101,7 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, the setup prompt for connecting an agent and the agent activity list described below.
 
-**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history.
+**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history; and on every page, the navigation rail.
 
 **Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
 
@@ -464,6 +468,38 @@ their own, run in an IPython kernel on this computer.
   - A connection saved before this, for one dataset, still works: it shows as one dataset called **Model**, and a DAX cell names the connection alone.
   - Power BI gives at most 100,000 rows or 1,000,000 values (rows times columns) for one query. An answer that reaches that is refused with a message: ask for fewer rows or columns, or summarize in DAX.
   - What the tenant needs: the admin setting **Dataset Execute Queries REST API** on, service principals allowed to use the Power BI APIs (for an app registration, which must also be a member of the workspace), and Read and Build permission on each dataset.
+- **Dataverse:** one connection reaches a Dataverse environment's tables. Fill in its **Address**
+  (`https://<name>.crm.dynamics.com`: Power Apps, Settings, Session details), then choose how to sign in:
+  - **As you** (the first choice): the Azure command line's sign-in (`az login`), else Microsoft's
+    sign-in window. It needs `azure-identity` (the form's **Install** button), and its catalog waits for
+    first use. In Azure (an exported script in a Function App) it signs in as the app's managed identity.
+  - **Managed identity:** for a run in Azure (a Function App, App Service or VM); fill in a **Client
+    id** for a user-assigned identity. It needs no package. The identity must be an application user of
+    the environment.
+  - **App registration, its secret from a key vault:** type the **Tenant id** and the **Client id**;
+    the **Client secret** comes from **A key vault** (pick its entry) or an environment variable, never
+    typed into the app. The app registration must be an application user of the environment, with a
+    security role that reads its tables.
+  - **Test connection** signs in, counts the tables and shows the first rows of `account`: "It works:
+    signed in and found 812 tables."
+  - Its catalog has one schema, **dbo**, and every table by its logical name (`account`), its display
+    name beside it where it says more (`systemuser` **User**); each column has Dataverse's type
+    (String, Money, Lookup, Picklist...) and its display name.
+  - **Open as grid**, the first rows and `sab.read("Sales CRM", "account")` read a table through the
+    Web API: no admin setting is needed. A choice column reads as its labels (**Won**, not 1), a Yes/No
+    column as true or false, a lookup as its id with its name in the column beside it
+    (`primarycontactid`, `primarycontactidname`), money and dates as numbers and dates. The grid says
+    how many rows the table holds.
+  - In Python: `conn = sab.connection("Sales CRM")`, then `conn.read("opportunity",
+    columns=["name", "estimatedvalue"], filter="statecode eq 1", order_by="estimatedvalue desc",
+    limit=100)` (a DataFrame; `filter` and `order_by` are OData), `conn.fetch("<fetch>...</fetch>")` (a
+    FetchXML query), `conn.tables()`, `conn.columns("account")`.
+  - **SQL** (`%%sql Sales CRM`, `sab.sql("Sales CRM", "SELECT TOP 10 name FROM account")`) runs on the
+    environment's read-only SQL endpoint, in T-SQL (SELECT only). It needs `pyodbc` and Microsoft's ODBC
+    Driver 18 for SQL Server, and the endpoint turned on: when it is off, the cell says so (an admin
+    turns on **Enable TDS endpoint** in the Power Platform admin center, the environment's Settings,
+    Product, Features) and the error panel offers **Read the table instead**, a cell with the
+    `sab.read` line.
 - **Python (your own code)**, under **Your own code**: a connection to anything Python can reach (an internal web service, a vendor's library, your own files). Its form has three code boxes:
   - **Connect** makes `conn`, any object.
   - **List the tables** returns the catalog for `conn`: a list of dicts or a DataFrame with `table` and `column`, and optionally `schema`, `type` and `description` (one row per column). Leave it empty for no catalog.
@@ -553,6 +589,9 @@ version never touches your copy.
   (until done, with a timeout), refresh status (the latest one), refresh history (a table), refresh
   dataflow, dataflow history, list datasets, list reports, list dataflows, read parameters, update
   parameters, take over dataset (make your sign-in its owner), refresh schedule.
+- **Dataverse** (through your Dataverse connection's own sign-in): FetchXML query (a query's rows, as
+  a table) and choice options (a choice column's numbers and labels:
+  `choice_options("opportunity", "salesstage")`).
 - **Excel** (the workbook is saved in place; a sheet or a file is written over only with
   `overwrite=True`): add sheet, set cell values (a dict of cells, or rows from a cell), write table (a
   DataFrame from a cell), borders (thin or thick, every cell or the outline), fonts and fills, number

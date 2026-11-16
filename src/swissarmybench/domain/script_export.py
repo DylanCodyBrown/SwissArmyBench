@@ -45,7 +45,7 @@ import shlex
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from swissarmybench.domain import python_connections, streamlit_cells, table_cells
+from swissarmybench.domain import dataverse, python_connections, streamlit_cells, table_cells
 from swissarmybench.domain import script_runtime as runtime
 from swissarmybench.domain.blades import env_name_for_secret
 from swissarmybench.domain.codegen import python_string, variable_name
@@ -612,6 +612,8 @@ def _piece(piece: Piece) -> tuple[str, str]:
     }.get(piece.connection or "", "a blade")
     if piece.dialect == "dax":
         what = "a Power BI workspace: its sign-in, then DAX on one of its datasets"
+    if dataverse.is_dataverse(piece.dialect):
+        what = "a Dataverse environment: its sign-in, its tables read through the Web API, SQL on its SQL endpoint"
     prefix = "vault" if piece.kind == "vault" else "connect" if piece.connection else "blade"
     name = _func_name(prefix, piece.name)
     head = f'@functools.cache\ndef {name}():\n    """{piece.name}: {what}. Its own code, as saved in the app."""\n'
@@ -659,7 +661,7 @@ def _piece(piece: Piece) -> tuple[str, str]:
     if piece.kind == "vault":
         lister = "names" if "names" in table_cells.facts(piece.code).made else "None"
         ending = [f"return {piece.variable}, {lister}"]
-    elif piece.connection == "python":
+    elif _reads(piece):
         read = piece.read or 'raise ValueError("This connection has no Read a table box.")'
         inner = _last_as_return(read, "rows")
         reader = (
@@ -670,6 +672,12 @@ def _piece(piece: Piece) -> tuple[str, str]:
     else:
         ending = [f"return {piece.variable}"]
     return name, head + _body(piece.code, ending, before) + "\n"
+
+
+def _reads(piece: Piece) -> bool:
+    """A connection that reads a table by its own code: the user's own Python (its Read a table box),
+    or a Dataverse environment (its Web API read)."""
+    return piece.connection == "python" or dataverse.is_dataverse(piece.dialect)
 
 
 # ===== the script's own helpers (written in only when used) =====
@@ -933,7 +941,7 @@ def _shared(made: Plan) -> _Shared:
         if piece.kind == "vault":
             vaults.append(f"    {piece.name!r}: {name},")
             registry_made.append(f"    {piece.name!r}: lambda: load_vault({piece.name!r}),")
-        elif piece.connection == "python":
+        elif _reads(piece):
             registry_made.append(f"    {piece.name!r}: lambda: {name}()[0],")
             readers.append(f"    {piece.name!r}: {name},")
         else:
@@ -983,6 +991,10 @@ def _shared(made: Plan) -> _Shared:
     requirements = runtime.requirements_of(scan, made.extra)
     for module, _ in made.clients:  # travels inline: not a package to install
         requirements.pop(module, None)
+    if "run_sql(" not in all_text and not any(
+        "pyodbc" in p.code for p in pieces if not dataverse.is_dataverse(p.dialect)
+    ):
+        requirements.pop("pyodbc", None)  # Dataverse's SQL endpoint, and no SQL runs on it
     listing = "\n".join(f"    {m!r}: {r!r}," for m, r in requirements.items())
     requirements_text = (
         "# ===== REQUIREMENTS: what it needs installed (checked before anything of them is imported) =====\n"

@@ -2135,8 +2135,8 @@ Kept in case they come back on their own:
 - **OpenAPI file → a "Python (your own code)" connection.** GET operations that return arrays become
   tables, the response schemas become their columns, the security type maps to the vault, and other
   operations become action blades. This works for any OpenAPI service, not only Power Platform.
-- **Dataverse:** reads through its read-only TDS endpoint (SQL Server style) and writes through the
-  Web API, signed in with the vault's app registration as Power BI is.
+- **Dataverse:** moved out (the owner, 2026-11-16: "Add Dataverse to 0.0.7"): a connection of its own,
+  without Power Apps. See "Dataverse: a connection type" below.
 
 ## Add API: an OpenAPI file or a short form, made into a ready-to-call connection (the owner, 2026-11-15; first after the beta) — built 2026-11-15
 
@@ -2767,6 +2767,169 @@ back to the home page or go back anywhere. No back buttons."
 - **Not built:** Back between the Workbench's documents (above); the Key Finder window's results and
   Compare's key picker stay one screen each (Compare's setup is one click away again, the Compare row's
   Keys…); Forward onto a plain dialog's entry does nothing visible (its entry is turned into the page's).
+
+## The rail: a slim icon navigation pane (the owner, 2026-11-16; built, branch nav-rail)
+
+The owner, after 0.0.6's navigation: "As much as I hate to say it, this app needs a navigation pane
+somehow." Asked which kind, the owner chose **a slim icon rail**: a narrow strip down the left of every
+page and window, as VS Code's Activity Bar, an icon per area with its name on hover. Two corrections
+the same day: "Data is just the tabbed datagrids and you should call it grids" (Data became Grids, and
+the old Home entry, the same place, went); and "Shouldn't the app canvas be on the rail separate from
+the workbench. We could split notebooks, scripts, and app canvas on the rail as well and give options to
+open them in an external tab." And: "do we still get a cell navigator to help build the streamlit app
+page?" (yes: below).
+
+### Built (web/src/rail.ts, one module mounted by each page's composition)
+
+- **The areas, top to bottom:** Grids (the home page's tabbed grids), Sandbox, Diagram, Notebooks,
+  Scripts, Apps (the Streamlit canvas), Blades, Connections, and Settings pinned at the bottom. 48px wide,
+  fixed at the left of the home page (`/workspace`, `/g/{id}`), the blades page, the Workbench and its
+  pop-out windows, the steps window and the Key Finder window. The page moves right by its width
+  (`body.has-rail`'s padding), so nothing sits under it; a window under 600px keeps it at 48px.
+- **Icons:** our own line icons in the one set (dom.ts ICONS): a grid with its tab, the Sandbox's cards,
+  two tables and their join, a blade, a plug, the cog. Notebooks, Scripts and Apps use their documents'
+  own icons (notebook, code, page) in their kind colours (blue, green, violet: the theme's tokens or the
+  colour chosen in Settings). No other text (principle 7.1): the name shows in a tip on hover **and on
+  keyboard focus**; each item has its `aria-label`. **Decision:** no `title`: the tip already shows the
+  name, and a `title` would show it a second time a moment later.
+- **A rail click is a navigation like any other (nav.ts):** an area the page shows is pushed (Back,
+  Forward and a reload work, and the mark follows them: `onAddress`); Connections and Settings open their
+  layers (`open=<key>`) on the page you are on (the blades page now has Settings too); an area another
+  window shows brings that window forward, or opens it: Grids, Sandbox and Diagram the home window
+  (`sab-home`; told by a message from this origin which area to show), Notebooks, Scripts and Apps the
+  Workbench window (code always opens in its own window, never the grid page), Blades the blades page
+  (**decision:** plan decision 18 keeps it in a tab of its own, so the rail brings that tab forward
+  rather than turning the home tab into the blades page). A window opened for an area is given it in
+  its address (`?view=sandbox`, `?open=settings`, `/workbench?kind=script`). This window is never sent
+  away from its work.
+- **Notebooks, Scripts, Apps in the Workbench:** the kind's document in front (the one in front already,
+  else the last opened of that kind), so the Workbench is in that kind's mode; none open: a menu beside
+  the rail's item with New notebook (script, Streamlit app), that kind's recent files and Open…. The
+  kind is in the address (`?kind=notebook`): a rail click pushes it, a tab click replaces it (the
+  documents themselves stay out of the address, as 0.0.6 decided), so Back after a rail move brings the
+  previous kind forward again. **Open in a new window** (the owner's "external tab"): right-click, a
+  Ctrl+click (Cmd+click) or a middle click on any of the three, from any page: a Workbench window of its
+  own for that kind, as a popped-out tab's window (`fresh`, `popped`); it opens at that kind's menu.
+  **Decision:** it does not hand the document in front over (the tab's own "Move to a new window" does
+  that); it is a new window for the kind.
+- **Apps keeps the cell navigator.** Apps opens (or unfolds) the Data panel and its Streamlit cells pane
+  beside the canvas: the rail, then the Data panel, then the canvas, side by side; the Starters switch
+  stays. **Found and fixed:** the pane listed only the open documents' cells (and a project's files), so
+  a canvas whose notebook was not open in a window showed "No cells call Streamlit" beside its own
+  linked blocks (the App mode screenshot: "app mockups.ipynb" was not open). It now also lists every
+  notebook and script an open canvas links to, read from its file as the canvas reads it, and a
+  project's data.ipynb lists its named cells (the model a page reads) beside its Streamlit cells.
+- **The current area** has a bar on its left edge (the accent; the kind colour for the code areas) and
+  its icon at full strength, with `aria-current="page"`: Grids for the grids (and the steps and Key
+  Finder windows, which are a grid's), the Sandbox and Diagram views, Settings or Connections while
+  their layer is open, Blades on the blades page, the front document's kind in the Workbench.
+- **Keys:** the rail is one Tab stop (`role="navigation"` "Areas" around a vertical toolbar): the arrows
+  move between the areas (round at the ends), Home and End, Enter goes. Alt+Home is still the grids.
+- **The mark stays** at the top-left of each page's top row and still goes home (Alt+Home).
+  **Decision:** Grids is that same place, so from another window the mark now also brings the grids to
+  the front there (closing what is over them), not only the window.
+- **Settings' Panels:** a switch, "Navigation rail" (Every page), on at every start like the others.
+  Off: the rail is gone from every window at once and the page takes its width back; the grid, Monaco
+  and the canvas measure again (a resize).
+- **The agent (the golden rule):** `app_navigate` takes every rail area from every window (`grids` and
+  `home` are the same place), and `new_window: true` for notebooks, scripts and apps. The rail's switch
+  is a panel, so `app_panels` covers it.
+- **Not built:** a document list inside the rail (the menu shows recent files only when no document of
+  the kind is open); the rail's order is fixed.
+
+## Icons: a glow-up (the owner, 2026-11-16; built, branch nav-rail)
+
+The owner: "And it needs a glow up with icons. For example our connection panel has no icons on the
+connection types."
+
+### Built
+
+- **One set** (web/src/dom.ts `ICONS`), our own line icons, now about 140. **Decision:** the set stays
+  in dom.ts (a `web/src/icons.ts` would only move it); shared parts (a database's cylinder, a file's
+  sheet, a lock, a cloud) are named constants above it.
+- **Connections:** every type the server offers has an icon of its own, named by the type's id
+  (`postgres`, `excel`, `azure_key_vault`, ...; `connectionIcon` in connectionsWindow.ts, falling back
+  to the group's): each database the cylinder with its own mark (a server rack for SQL Server, a cloud
+  for Azure SQL, a snowflake, a magnifier for BigQuery, a feather for SQLite, a duck for DuckDB, bars for
+  ClickHouse, ...; no two alike), Power BI its bars, files their sheet, grid, columns, braces or folder,
+  Python a prompt, each vault its lock, shield, cloud or triangle. **No brand logos** (trademarks, and
+  nothing loads from the network). The type tiles are a picker: the icon beside the name, tinted by the
+  group (the theme's category tokens: databases blue, files green, vaults magenta, Python violet; never amber),
+  a hover that takes the group's colour, a clear focus ring. The saved connections list: each row its
+  type's icon in a soft square. Add API: OpenAPI and Endpoints have theirs, and the preset its own
+  beside its box (Azure Function App, AWS Lambda, Google).
+- **The sweep:** the catalog tree's nodes (a schema, a table, a view; a column by its kind of value:
+  number, text, date, true/false), the blades list (a connection its type's icon, a blade its kind's),
+  the starter pack's families (Power BI, Excel, Files, DAX, HTML, Markdown, Streamlit, Controllers, Text
+  and layout, Components) and a snippet's language, the Data panel's tables by their file's kind, the
+  Sandbox's card kinds beside each title, Settings' sections (every legend), and the home page's
+  Sandbox and Diagram tabs now wear the rail's icons for them. Menus already had icons on every entry
+  (Analyze, the right-click menus); empty states kept their words.
+- **Checked by tests/test_icons.py:** every type the server offers and every Add API preset has its own
+  icon in the set, no two alike; every icon name the page asks for by name exists (none drawn blank).
+- **Merge note:** the `dataverse` branch adds one type with the icon name `dataverse` to the same set;
+  `connectionIcon` picks it up by the type's id.
+
+## Dataverse: a connection type (the owner, 2026-11-16; built, branch dataverse)
+
+The owner: "Add Dataverse to 0.0.7". Before this, on 2026-11-15, Dataverse was parked with Power Apps
+(above); the note kept there said it "reads through its read-only TDS endpoint (SQL Server style) and
+writes through the Web API, signed in with the vault's app registration as Power BI is". It is now a
+connection on its own, without Power Apps. Reading only; writing is later.
+
+Built (domain/dataverse.py, its starter in server/blade_templates.py, tests/dataverse_standin.py):
+- **The form:** Dataverse, under Databases, with its own icon. The environment's Address
+  (`https://your-org.crm.dynamics.com`) and Sign in: **As you** (azure-identity's
+  DefaultAzureCredential with the browser allowed: the Azure command line's sign-in, else a browser
+  window; in Azure, the app's managed identity), **Managed identity** (for an Azure Function, by
+  Azure's own local request: no package), **An app registration** (tenant id and client id typed, the
+  client secret a key vault's entry). Test before saving: it signs in (WhoAmI), counts the tables and
+  shows the first rows of `account` (or the first table).
+- **The catalog:** the Web API's metadata (`EntityDefinitions`, `$filter=IsPrivate eq false`, with their
+  `Attributes` expanded), loaded in the background as other catalogs are: one schema (dbo, as the SQL
+  endpoint names its tables), each table by its logical name with its display name, each column with
+  Dataverse's type (String, Money, Lookup, Picklist...) and its display name.
+- **Reading a table** (Open as grid, the preview, `sab.read`, the catalog's first line, Test): the Web
+  API's OData (`$select`, `$filter`, `$orderby`, `$top`, `$count`, paging by `@odata.nextLink` with
+  `Prefer: odata.maxpagesize`) and the formatted values annotation. No admin setting is needed.
+  `conn.read(table, columns=, filter=, order_by=, limit=)`, `conn.rows` (with the count),
+  `conn.fetch(fetch_xml)`, `conn.tables()`, `conn.columns(table)`, `conn.get(path)` for anything else.
+- **SQL:** `%%sql <connection>` and `sab.sql` on the read-only SQL endpoint (TDS,
+  `<org>.crm.dynamics.com,5558`) through pyodbc and ODBC Driver 18, signed in with the same Entra token
+  (SQL_COPT_SS_ACCESS_TOKEN). An environment with the endpoint off: the cell says so in plain words
+  (an admin turns on "Enable TDS endpoint" in the Power Platform admin center) and the error panel
+  offers a cell that reads the table instead (`account = sab.read("Sales CRM", "account")`; a fix of a
+  new kind, `cell`; in a script it is copied).
+- **Export as one Python script:** the connection inlined as its own code, like Power BI's; a managed
+  identity signs in inside an Azure Function, As you too (DefaultAzureCredential uses the managed
+  identity there). pyodbc is required only when a SQL cell runs on it.
+- **The starter pack:** a Dataverse family: "Dataverse FetchXML query" and "Dataverse choice options"
+  (a choice column's numbers and labels), each through the connection's own sign-in.
+- **The agent:** no new command: `connections_types`, `connections_test`, `connections_create`,
+  `connections_load_catalog`, `catalog_*`, `connections_open_table` and `connections_preview_table`
+  already reach it; the index and the connections guide name it.
+
+Decisions:
+- **It is a database connection** (kind sql, dialect `dataverse`) whose `conn` also reads by itself:
+  the app opens its tables through `conn.rows` (READ), never through SQL, so Open as grid works where
+  the SQL endpoint is off. Its dialect quotes as T-SQL and names a table alone (`[account]`): the
+  endpoint has the one schema.
+- **The client secret is a key vault's only** (the owner's rule): the form offers a key vault or an
+  environment variable, never "Saved on this computer"; the server refuses a typed secret on Test, Save
+  and `blades_secrets`. The ids are typed (they are not secrets).
+- **A choice column reads as its labels** (Picklist, State, Status, multi-select); **a Yes/No column
+  stays true or false**; a lookup keeps its id under its own name, and its name column
+  (`primarycontactidname`, as the SQL endpoint has it) holds the formatted value. Money, numbers and
+  dates read as themselves, never the formatted text Dataverse also sends.
+- **Counts:** `$count` says up to 5,000; past that, Dataverse's own RetrieveTotalRecordCount (a snapshot)
+  gives the total for a whole table; a filtered read past 5,000 has none.
+- **The token never leaves the environment:** a next page outside its address is not followed; plain
+  http only to 127.0.0.1 (the stand-in).
+- **Display names in the catalog:** a catalog row with a table but no column, and a description, is that
+  table's name for people (adapters/catalogs.py `titles`); the tree shows it beside the table only when
+  it says more than the name (User for systemuser; not Account for account).
+- Not built: writing (the Web API's POST and PATCH), FetchXML paging past its first page, the catalog
+  read per table for very large environments (one request with every table's columns).
 
 ## Projects as one .sab file (the owner, 2026-11-16; built, branch sab-projects)
 

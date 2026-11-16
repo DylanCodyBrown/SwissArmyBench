@@ -136,7 +136,7 @@ def back_to_grid(page: Page, url: str) -> None:
 
 def set_theme(page: Page, theme: str) -> None:
     """Pick a theme in the Settings window, then close it."""
-    page.get_by_role("button", name="Settings").click()
+    page.locator(".app-row").get_by_role("button", name="Settings").click()
     page.locator(f"dialog input[name='theme'][value='{theme}']").check()
     page.keyboard.press("Escape")
 
@@ -203,7 +203,7 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
         "All selected"
     )
     page.keyboard.press("Escape")
-    page.get_by_role("button", name="Settings").click()
+    page.locator(".app-row").get_by_role("button", name="Settings").click()
     expect(page.locator("dialog").get_by_role("radio").first).to_be_visible()  # the theme stays there
     expect(page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles"))).to_have_count(
         0
@@ -866,7 +866,7 @@ def test_agent_activity_in_settings(browser: Browser, orders_url: str, server: d
     page = open_grid(browser, orders_url)
     sql = "SELECT count(*) AS activity_check FROM grid"
     call(server, "POST", f"/grids/{grid_of(orders_url)}/sql", {"sql": sql}, agent=True)
-    page.get_by_role("button", name="Settings").click()
+    page.locator(".app-row").get_by_role("button", name="Settings").click()
     dialog = page.locator("dialog")
     expect(dialog.locator(".activity li").first).to_contain_text(sql)  # newest first
     # The privacy levels and column masks are gone.
@@ -1068,7 +1068,11 @@ def test_forced_colors_mode(browser: Browser, orders_url: str) -> None:
 
 def test_keyboard_only_reaches_the_toolbar_and_grid(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
-    # The tab bar comes first: the mark (Home, at the top left), then the tabs themselves.
+    # The rail comes first, one stop (its current area, Grids); then the tab bar: the mark (Home, at the
+    # top left), then the tabs themselves.
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Grids"
+    assert page.evaluate("document.activeElement.closest('.nav-rail') !== null")
     page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Home"
     page.keyboard.press("Tab")

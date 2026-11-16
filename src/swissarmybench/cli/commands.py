@@ -3617,13 +3617,16 @@ def app_audit(a: dict[str, Any]) -> Any:
     "Move a window as the user does: home (the mark), back, forward, or a view",
     req(
         "to",
-        "home, back, forward, settings, connections, add_connection, add_api; home: sandbox, diagram, "
-        "query, grid:<id>; catalog: catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
+        "the rail: grids (= home), sandbox, diagram, notebooks, scripts, apps, blades, connections, "
+        "settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
+        "catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
     ),
     opt("window", "home (default), catalog or workbench."),
+    opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),
 )
 def app_navigate(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/navigate", {k: a[k] for k in ("to", "window") if a.get(k) is not None})
+    keys = ("to", "window", "new_window")
+    return api.call("POST", "/navigate", {k: a[k] for k in keys if a.get(k) is not None})
 
 
 @command("app_shutdown", "Stop the server (the grids close; this MCP stops answering until it starts again)")

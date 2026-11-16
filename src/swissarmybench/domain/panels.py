@@ -29,6 +29,8 @@ PANELS: tuple[tuple[str, str, str], ...] = (
     ("grid.ribbon", "Grid page", "Ribbon"),
     ("grid.steps", "Grid page", "Steps strip"),
     ("grid.status", "Grid page", "Status bar"),
+    # The rail (2026-11-16): the areas down the left of every page and window (web/src/rail.ts).
+    ("app.rail", "Every page", "Navigation rail"),
 )
 IDS: tuple[str, ...] = tuple(panel for panel, _, _ in PANELS)
 

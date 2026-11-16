@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.adapters.blades import BladeStore
-from swissarmybench.domain import python_connections
+from swissarmybench.domain import dataverse, python_connections
 from swissarmybench.domain.blades import Blade, VaultUnavailableError, is_blade, read_blade
 from swissarmybench.domain.connections import connection_kind, env_name_for
 from swissarmybench.renamed import env, home_state_folder
@@ -139,6 +139,8 @@ def spec(name: str) -> dict[str, Any]:
         # A variable a vault gives runs that vault only when the variable is not set already.
         unset = {n: s for n, s in blade.variables.items() if not os.environ.get(n)}
         jobs = python_connections.vault_jobs(unset, blades.get, blades.saved_secrets)
+    elif dataverse.is_dataverse(blade.dialect):  # its Web API read (sab.read)
+        python = {"tables": None, "read": dataverse.READ, "set": {}, "keyring": []}
     return {
         "python": python,
         "name": blade.name,

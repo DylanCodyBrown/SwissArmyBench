@@ -41,17 +41,48 @@ def test_each_window_names_the_places_it_has() -> None:
         "name": "refresh_sales",
     }
     assert rules.place("workbench", "forward") == {"window": "workbench", "to": "forward"}
-    assert "grid:<id>" in rules.places("home") and "sandbox" not in rules.places("workbench")
+    assert "grid:<id>" in rules.places("home") and "query" not in rules.places("workbench")
+
+
+def test_every_rail_area_is_a_place_from_every_window() -> None:
+    """The rail (2026-11-16): each area, in the rail's order, from each window, as a rail click goes."""
+    assert rules.AREAS == (
+        "grids",
+        "sandbox",
+        "diagram",
+        "notebooks",
+        "scripts",
+        "apps",
+        "blades",
+        "connections",
+        "settings",
+    )
+    for window in rules.WINDOWS:
+        for area in rules.AREAS:
+            assert area in rules.places(window)
+            # Grids is the home page's tabbed grids: the same place as home (the mark).
+            to = "home" if area == "grids" else area
+            assert rules.place(window, area) == {"window": window, "to": to}
+        assert rules.place(window, "home") == rules.place(window, " grids ")
+        # Notebooks, Scripts and Apps open in a Workbench window of their own too (the "external tab").
+        for code in ("notebooks", "scripts", "apps"):
+            assert rules.place(window, code, True) == {"window": window, "to": code, "new_window": True}
+            assert rules.place(window, code, False) == {"window": window, "to": code}
+    assert rules.said(rules.place("home", "apps", True)) == "home window to apps, in a new window"
+    with pytest.raises(rules.NavigationError, match="Only notebooks, scripts, apps open in a new window"):
+        rules.place("home", "sandbox", True)
+    with pytest.raises(rules.NavigationError, match="new_window is true or false"):
+        rules.place("home", "apps", "yes")
 
 
 @pytest.mark.parametrize(
     ("window", "to", "words"),
     [
         ("tray", "home", "window is one of home, catalog, workbench"),
-        ("home", "", "to is where to go: home, back"),
+        ("home", "", "to is where to go: home, grids, sandbox"),
         ("home", None, "to is where to go"),
-        ("home", "kitchen", "The home window cannot go to 'kitchen'. It can go to: home, back"),
-        ("workbench", "sandbox", "The workbench window cannot go to 'sandbox'"),
+        ("home", "kitchen", "The home window cannot go to 'kitchen'. It can go to: home, grids"),
+        ("workbench", "query", "The workbench window cannot go to 'query'"),
         ("catalog", "grid:g1", "The catalog window cannot go to 'grid:g1'"),
         ("home", "grid:", "cannot go to 'grid:'"),
         ("catalog", "blade:", "cannot go to 'blade:'"),

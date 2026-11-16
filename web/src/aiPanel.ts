@@ -81,6 +81,19 @@ const DEFAULT_SIZE: Record<CardKind, { w: number; h: number }> = {
   vegalite: { w: 6, h: 10 },
   image: { w: 6, h: 10 },
 };
+/** Each card kind's icon (dom.ts ICONS), beside its title. */
+const KIND_ICONS: Record<CardKind, string> = {
+  chart: "profile",
+  note: "note",
+  table: "table",
+  diagram: "diagram",
+  graphviz: "lineage",
+  plotly: "profile",
+  echarts: "profile",
+  vegalite: "profile",
+  image: "image",
+};
+
 const KIND_NAMES: Record<CardKind, string> = {
   chart: "Chart",
   note: "Note",
@@ -531,7 +544,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     ]), { icon: "more", iconOnly: true, class: "ghost" }),
     h("span", { class: "danger-gap" }, button("Remove", () => void api(`/cards/${card.id}`, "DELETE").then(() => render()), { icon: "trash", iconOnly: true, class: "ghost" })),
   );
-  const header = h("div", { class: "card-header" }, h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "the Sandbox"}` }, card.dataset ?? card.origin ?? "Sandbox"), actions);
+  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind])), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "the Sandbox"}` }, card.dataset ?? card.origin ?? "Sandbox"), actions);
   const element = h(
     "article",
     { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "data-card": card.id, "aria-label": card.title || KIND_NAMES[card.kind] },

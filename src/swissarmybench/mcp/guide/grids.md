@@ -43,8 +43,11 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 - `app_snapshot(area)`: a PNG of what the user sees (app, ribbon, grid, steps or sandbox); the page's
   tab must be visible. It shows real values and is audited.
 - `app_panels`: Settings' panel switches (all on at each start). `files_list`: a folder's files.
-- `app_navigate(to, window)`: move a window as the user does. `home` (the mark), `back`, `forward`;
-  `sandbox`, `diagram`, `query`, `grid:<id>`; `settings`, `connections`, `add_connection`, `add_api`.
+- `app_navigate(to, window, new_window)`: move a window as the user does. `home` (the mark), `back`,
+  `forward`; the rail's areas from any window: `grids` (= home), `sandbox`, `diagram`, `notebooks`,
+  `scripts`, `apps` (the Workbench in that kind's mode; `new_window=true`: a Workbench window of its
+  own), `blades`, `connections`, `settings`; the home window's `query`, `grid:<id>`; `add_connection`,
+  `add_api`.
   The blades page (`window="catalog"`): `catalog:<name>/<schema>/<table>`, `blade:<name>`, `new_blade`.
   Views are in the page's address, so the user's Back undoes your move too.
 - `agent_events`: wait for the user's next change instead of polling. `app_shutdown` stops the server.

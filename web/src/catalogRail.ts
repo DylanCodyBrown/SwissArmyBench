@@ -10,7 +10,7 @@
  */
 import { api, errorText, query } from "./api";
 import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor";
-import { importRelationships, openConnections } from "./connectionsWindow";
+import { connectionIcon, importRelationships, openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
 import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
 import type { Move } from "./nav";
@@ -45,6 +45,8 @@ interface TableRow {
   table: string;
   kind: "table" | "view";
   columns: number;
+  /** What the source calls it for people (a Dataverse table's display name). */
+  title?: string;
 }
 
 export interface ColumnRow {
@@ -98,6 +100,8 @@ export interface TableView {
   table: string;
   kind: "table" | "view";
   where: string; // "sales in Warehouse"
+  /** What the source calls it for people, when that is more than its name (a Dataverse table's). */
+  title?: string;
   name: string; // quoted for the source's dialect
   select: string; // a first SELECT, quoted for the dialect
   dialect: string;
@@ -245,7 +249,7 @@ export function tableDetails(view: TableView): HTMLElement[] {
     ),
   );
   return [
-    h("h2", {}, view.table, view.kind === "view" ? h("span", { class: "hint" }, "  view") : null),
+    h("h2", {}, view.table, view.kind === "view" ? h("span", { class: "hint" }, "  view") : null, view.title ? h("span", { class: "hint" }, `  ${view.title}`) : null),
     h("p", { class: "hint" }, `${view.where} · ${counted}`),
     h(
       "div",
@@ -283,7 +287,7 @@ export function mountRail(host: RailHost): Rail {
 
   function quoteName(name: string, dialect: string): string {
     if (dialect === "dax") return `'${name.replaceAll("'", "''")}'`; // a table: 'Order Lines'
-    if (dialect === "sqlserver") return `[${name.replaceAll("]", "]]")}]`;
+    if (dialect === "sqlserver" || dialect === "dataverse") return `[${name.replaceAll("]", "]]")}]`;
     if (dialect === "mysql") return `\`${name.replaceAll("`", "``")}\``;
     return `"${name.replaceAll('"', '""')}"`;
   }
@@ -291,6 +295,7 @@ export function mountRail(host: RailHost): Rail {
   function qualified(row: { database: string; schema: string; table: string }): string {
     const dialect = current?.dialect ?? "other";
     if (dialect === "dax") return quoteName(row.table, dialect); // the schema is the dataset the DAX is sent to
+    if (dialect === "dataverse") return quoteName(row.table, dialect); // its one schema needs no naming
     const parts = [current && current.databases > 1 ? row.database : "", row.schema, row.table].filter(Boolean);
     return parts.map((p) => quoteName(p, dialect)).join(".");
   }
@@ -342,7 +347,7 @@ export function mountRail(host: RailHost): Rail {
           ]);
         },
       },
-      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit" }[language] : "Python"),
+      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit" }[language] : "Python"),
       h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );
@@ -369,6 +374,7 @@ export function mountRail(host: RailHost): Rail {
           },
         },
         icon(open ? "down" : "forward"),
+        h("span", { class: "starter-family-icon" }, icon(FAMILY_ICONS[family] ?? "bolt")),
         h("span", {}, family),
         h("span", { class: "hint" }, String(shown.length)),
       );
@@ -459,8 +465,8 @@ export function mountRail(host: RailHost): Rail {
           pressed: blade.pinned,
         }),
         blade.connection
-          ? h("span", { class: `blade-kind ${blade.connection === "database" ? "sql" : "other"}` }, { database: "Database", file: "File", vault: "Key vault", python: "Python" }[blade.connection] ?? "File")
-          : h("span", { class: `blade-kind ${blade.kind}` }, kindLabel(blade.kind)),
+          ? h("span", { class: `blade-kind ${blade.connection === "database" ? "sql" : "other"}` }, icon(connectionIcon(blade.template, blade.connection)), { database: "Database", file: "File", vault: "Key vault", python: "Python" }[blade.connection] ?? "File")
+          : h("span", { class: `blade-kind ${blade.kind}` }, icon(BLADE_ICONS[blade.kind] ?? "bolt"), kindLabel(blade.kind)),
         h(
           "span",
           { class: "blade-text" },
@@ -614,6 +620,8 @@ export function mountRail(host: RailHost): Rail {
     note?: string;
     table?: string;
     tableKind?: "table" | "view";
+    /** A table's name for people, when it says more than its name. */
+    title?: string;
     column?: string;
     type?: string;
     offset?: number;
@@ -622,6 +630,17 @@ export function mountRail(host: RailHost): Rail {
 
   const nodes = new WeakMap<HTMLElement, NodeData>();
 
+  /** A node's icon: a schema (a Power BI dataset its bars), a table or view, a column by its kind of value. */
+  function nodeIcon(data: NodeData): string {
+    if (data.kind === "schema") return current?.dialect === "dax" ? "powerbi" : "schema";
+    if (data.kind === "table") return data.tableKind === "view" ? "view" : "table";
+    const type = (data.type ?? "").toLowerCase();
+    if (/int|dec|num|float|double|real|money|serial/.test(type)) return "number";
+    if (/date|time/.test(type)) return "calendar";
+    if (/bool|bit\b|^bit/.test(type)) return "toggle";
+    return "case";
+  }
+
   function treeItem(data: NodeData, depth: number, label: string, meta: string, expandable: boolean): HTMLElement {
     const item = h("li", { role: "treeitem", "aria-level": String(depth + 1), "aria-selected": "false", tabindex: "-1" });
     if (expandable) item.setAttribute("aria-expanded", "false");
@@ -629,8 +648,10 @@ export function mountRail(host: RailHost): Rail {
       "div",
       { class: `node ${data.kind === "more" ? "more" : ""}` },
       h("span", { class: "twisty", "aria-hidden": "true" }, expandable ? "▸" : ""),
+      data.kind === "more" ? null : h("span", { class: `node-icon node-${data.kind}` }, icon(nodeIcon(data))),
       h("span", { class: "node-label" }, label),
       data.kind === "table" && data.tableKind === "view" ? h("span", { class: "node-kind" }, "view") : null,
+      data.kind === "table" && data.title ? h("span", { class: "node-kind" }, data.title) : null,
       // A dataset that could not be read: marked on itself only, the reason on hover and on its page.
       data.note ? h("span", { class: "node-error", role: "img", "aria-label": `Error: ${data.note}`, title: data.note }, "!") : null,
       meta ? h("span", { class: "node-meta" }, meta) : null,
@@ -686,6 +707,12 @@ export function mountRail(host: RailHost): Rail {
     return type.startsWith("measure") ? name : quoteName(table, "dax") + name;
   }
 
+  /** A table's name for people, when it says more than its own name does (Account for account: no). */
+  function titled(t: TableRow): string | undefined {
+    const bare = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return t.title && bare(t.title) !== bare(t.table) ? t.title : undefined;
+  }
+
   function schemaLabel(row: { database: string; schema: string }): string {
     // A Power BI workspace's schemas are its datasets; a connection saved for one dataset has one node, its model.
     const schema = row.schema || (current?.dialect === "dax" ? "Model" : "(no schema)");
@@ -737,7 +764,7 @@ export function mountRail(host: RailHost): Rail {
       );
       for (const t of page.tables) {
         list.append(
-          treeItem({ kind: "table", database: t.database, schema: data.schema, table: t.table, tableKind: t.kind }, 1, t.table, formatCount(t.columns), true),
+          treeItem({ kind: "table", database: t.database, schema: data.schema, table: t.table, tableKind: t.kind, title: titled(t) }, 1, t.table, formatCount(t.columns), true),
         );
       }
       const shown = offset + page.tables.length;
@@ -908,13 +935,16 @@ export function mountRail(host: RailHost): Rail {
     }
     // A connection from the user's own Python: no SELECT, the line that reads the table in a notebook.
     const text = (value: string): string => JSON.stringify(value);
-    const own = blades.find((b) => b.name.toLowerCase() === current!.name.toLowerCase())?.connection === "python";
-    const line = `sab.read(${text(current.name)}, ${text(data.table)}${data.schema ? `, schema=${text(data.schema)}` : ""})`;
+    // A Dataverse environment's is read through its Web API too, by the same line (its one schema unnamed).
+    const dataverse = current.dialect === "dataverse";
+    const own = dataverse || blades.find((b) => b.name.toLowerCase() === current!.name.toLowerCase())?.connection === "python";
+    const line = `sab.read(${text(current.name)}, ${text(data.table)}${data.schema && !dataverse ? `, schema=${text(data.schema)}` : ""})`;
     host.showTable({
       catalog: current.name,
       table: data.table,
       kind: data.tableKind ?? "table",
       where: `${schemaLabel(data)} in ${current.name}`,
+      title: data.title,
       name: qualified({ database: data.database, schema: data.schema, table: data.table }),
       select: own ? line : answer.select,
       dialect: own ? "python" : answer.dialect,
@@ -1092,3 +1122,19 @@ export function mountRail(host: RailHost): Rail {
     goTo,
   };
 }
+
+/** Each blade kind's icon, each starter family's, each snippet language's (dom.ts ICONS). */
+const BLADE_ICONS: Record<string, string> = { sql: "sql", other: "bolt", vault: "key", secret: "key", analysis: "fit", snippet: "copy" };
+const LANGUAGE_ICONS: Record<string, string> = { dax: "formula", html: "html", markdown: "markdown", streamlit: "page" };
+const FAMILY_ICONS: Record<string, string> = {
+  "Power BI": "powerbi",
+  Excel: "excel",
+  Files: "folder",
+  DAX: "formula",
+  HTML: "html",
+  Markdown: "markdown",
+  Streamlit: "page",
+  Controllers: "sliders",
+  "Text and layout": "align",
+  Components: "group",
+};

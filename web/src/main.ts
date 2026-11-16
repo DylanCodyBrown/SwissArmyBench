@@ -35,6 +35,7 @@ import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, closeDialogs, h, toast } from "./dom";
 import { appMark, HOME_URL, mountNav, setTitle, startNav } from "./nav";
+import { mountNavRail } from "./rail";
 import { renderKeyFinder } from "./keyFinder";
 import { settingsButton } from "./settingsWindow";
 import { mountBeta } from "./betaNotes";
@@ -186,6 +187,7 @@ async function start(): Promise<void> {
   });
   if (popout || keysWindow) {
     mountNav(popout ? "steps" : "keys");
+    mountNavRail(popout ? "steps" : "keys"); // the areas: Grids brings the home window forward
     await startSingle();
     return;
   }
@@ -199,6 +201,7 @@ async function start(): Promise<void> {
       showStartView("push");
     },
   });
+  mountNavRail("home"); // the areas down the left
   $(".tabbar").prepend(appMark());
   const workspace = $(".workspace");
   // The grid has the whole page (plan decision 13): no Table Transformations panel and no SQL box here.

@@ -17,7 +17,8 @@ from tests.test_cli import run as command
 def test_every_panel_is_on_until_switched_off() -> None:
     state = rules.defaults()
     assert set(state) == set(rules.IDS) and all(state.values())
-    assert {page for _, page, _ in rules.PANELS} == {"Workbench", "Grid page"}
+    assert {page for _, page, _ in rules.PANELS} == {"Workbench", "Grid page", "Every page"}
+    assert rules.PANELS[-1] == ("app.rail", "Every page", "Navigation rail")
     assert rules.changes({"workbench.console": False}) == {"workbench.console": False}
     for bad, words in (
         ({}, "Send the switches"),

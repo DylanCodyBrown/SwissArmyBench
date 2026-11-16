@@ -78,6 +78,8 @@ export interface DataPanel {
   setStreamlitCells(documents: PaneDocument[], placed: Set<string>): void;
   /** Fold or open the panel (no argument: the other way); true when folded. */
   toggle(collapsed?: boolean): boolean;
+  /** The Streamlit cells pane unfolded (the rail's Apps: the cells to build a page from). */
+  openStreamlit(): void;
   collapsed(): boolean;
   /** The hosts the catalog and the blades are mounted in (catalogRail.ts). */
   bladesHost: HTMLElement;
@@ -112,6 +114,17 @@ function keep(key: string, on: boolean): void {
 }
 
 const SOURCE_ICONS: Record<string, string> = { file: "file", dropped: "file", connection: "sql", query: "sql", python: "code", paste: "copy" };
+/** A table's source icon: a file's by its kind (CSV, Excel, Parquet, JSON), else its origin's. */
+function sourceIcon(origin: string, source: string): string {
+  if (origin === "file" || origin === "dropped") {
+    const name = source.toLowerCase();
+    if (/\.csv$|\.tsv$|\.txt$/.test(name)) return "csv";
+    if (/\.xlsx?$|\.xlsm$/.test(name)) return "excel";
+    if (/\.parquet$/.test(name)) return "parquet";
+    if (/\.jsonl?$/.test(name)) return "json";
+  }
+  return SOURCE_ICONS[origin] ?? "rows";
+}
 
 export function mountDataPanel(host: DataPanelHost): DataPanel {
   let folded = recall(COLLAPSED_KEY);
@@ -243,7 +256,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
               },
             },
             h("span", { class: "wb-data-name" }, h("span", { class: "wb-data-label" }, t.name), h("span", { class: "wb-data-count" }, plural(t.rows, "row"))),
-            h("span", { class: "wb-data-meta" }, icon(SOURCE_ICONS[t.origin] ?? "rows"), h("span", {}, [t.source, t.steps ? plural(t.steps, "step") : ""].filter(Boolean).join(" · "))),
+            h("span", { class: "wb-data-meta" }, icon(sourceIcon(t.origin, t.source)), h("span", {}, [t.source, t.steps ? plural(t.steps, "step") : ""].filter(Boolean).join(" · "))),
           ),
         );
         return item;
@@ -415,6 +428,11 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     setStreamlitCells: (documents, onPage) => {
       paneDocs = documents;
       placed = onPage;
+      drawStreamlit();
+    },
+    openStreamlit: () => {
+      streamlitFolded = false;
+      keep(STREAMLIT_KEY, false);
       drawStreamlit();
     },
     toggle,

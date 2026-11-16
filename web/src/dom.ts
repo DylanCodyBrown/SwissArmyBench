@@ -58,6 +58,13 @@ export function $(selector: string): HTMLElement {
   return found;
 }
 
+// The parts some icons share: a database's cylinder (its own mark goes beside it, lower right), a
+// file's sheet, a lock.
+const CYL = '<ellipse cx="8.5" cy="5.5" rx="5.5" ry="2.2"/><path d="M3 5.5v12.5c0 1.2 2.5 2.2 5.5 2.2M14 5.5V10M3 12c0 1.2 2.5 2.2 5.5 2.2"/>';
+const SHEET = '<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>';
+const LOCK = '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 018 0V11"/>';
+const CLOUD = '<path d="M7 19h10a4 4 0 00.6-8 5.6 5.6 0 00-10.8 1.4A3.4 3.4 0 007 19z"/>';
+
 // Line icons (24x24, stroke). Fixed markup, so innerHTML is safe here.
 const ICONS: Record<string, string> = {
   // The Settings button: a cog (a toothed wheel around a hub).
@@ -69,6 +76,8 @@ const ICONS: Record<string, string> = {
   steps: '<path d="M4 6h16M4 12h10M4 18h6"/>',
   case: '<path d="M3 18l4-12 4 12M4.5 14h5M14 13.5a3 3 0 1 0 6 0v4.5M20 13.5a3 3 0 0 0-6 0"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  // A Dataverse environment: a table of rows inside a hexagon (our own drawing).
+  dataverse: '<path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M7.5 9.5h9M7.5 13h9M7.5 16.5h9M12 9.5v7"/>',
   sql: '<ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
   profile: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   code: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM10 11l-2 2 2 2M14 11l2 2-2 2"/>',
@@ -154,7 +163,77 @@ const ICONS: Record<string, string> = {
   // ----- projects as one .sab file (startView.ts, projectFile.ts) -----
   // A project: a page with its corner folded, the app's cross on it (the .sab file's own icon, small).
   project: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 10v6M9 13h6"/>',
+  // The rail's areas (rail.ts, 2026-11-16; Settings is the cog, Notebooks, Scripts and Apps their documents'
+  // icons): the Sandbox's cards, the Diagram's two tables and their join, a blade, a plug; Grids: a grid's tabs.
+  sandbox: '<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/>',
+  diagram: '<rect x="2.5" y="3" width="9" height="7.5" rx="1.5"/><rect x="12.5" y="13.5" width="9" height="7.5" rx="1.5"/><path d="M2.5 6.2h9M12.5 16.7h9M11.5 8.3h2.5a2 2 0 012 2v3.2"/>',
+  blade: '<path d="M2.5 14.5h12a3 3 0 010 6h-12a3 3 0 010-6z"/><path d="M11 14.5L20.5 4c1.2 4.2-.6 8.3-4.4 10.5"/><circle cx="5.5" cy="17.5" r=".6"/>',
+  plug: '<path d="M9 3v4.5M15 3v4.5M6 7.5h12v3.5a6 6 0 01-12 0zM12 17v4"/>',
+  grids: '<path d="M3 8V5.5A1.5 1.5 0 014.5 4H10l1.5 4"/><rect x="3" y="8" width="18" height="12" rx="1.5"/><path d="M3 12h18M3 16h18M9 12v8M15 12v8"/>',
+  // ----- connection types (2026-11-16, the owner: "our connection panel has no icons on the connection
+  // types"), each by its type's id (connectionsWindow.ts): our own line icons, never a brand's logo. A
+  // database is the cylinder with a mark of its own beside it; a file its sheet, grid, columns or braces;
+  // a vault its lock, shield or cloud. Every database's is different (tests/test_icons.py).
+  sqlserver: CYL + '<rect x="13" y="12" width="9" height="4" rx="1"/><rect x="13" y="17.5" width="9" height="4" rx="1"/><path d="M15.5 14h.01M15.5 19.5h.01"/>',
+  azuresql: CYL + '<path d="M14.5 21.5h6a2.6 2.6 0 00.4-5.2 3.6 3.6 0 00-7 .9 2.2 2.2 0 00.6 4.3z"/>',
+  postgres: CYL + '<path d="M13 13h5.5a3.5 3.5 0 013.5 3.5V19a2.5 2.5 0 01-2.5 2.5M17 13v6.5a2 2 0 01-2 2"/>',
+  mysql: CYL + '<path d="M13 20.5c2-3.5 4.8-5.3 9-6-1.6 1.7-2 3.8-1.4 6.5M16.5 20l2.2-1.2"/>',
+  mariadb: CYL + '<path d="M13 21.5c1-4.2 3.6-6.8 8.5-8-1 3-.8 5.6 1 8"/><path d="M18.6 16.4h.01"/>',
+  oracle: CYL + '<ellipse cx="17.5" cy="17" rx="4.5" ry="3"/>',
+  sqlite: CYL + '<path d="M14 22l7.5-9.5M21.5 12.5c-4.2 0-6.8 2.6-6.8 6.8 3.2 0 5.8-2.6 6.8-6.8zM16.5 17.6h2.3"/>',
+  duckdb: CYL + '<circle cx="17" cy="15.3" r="2.4"/><path d="M19.4 15.3H22l-1.5 1.4M13.5 22c0-2.2 1.6-3.6 3.6-3.6h2c1.6 0 2.9 1.2 2.9 2.8V22z"/>',
+  snowflake: CYL + '<path d="M17.5 12v10M13.2 14.5l8.6 5M13.2 19.5l8.6-5"/>',
+  bigquery: CYL + '<circle cx="17" cy="16.5" r="3.6"/><path d="M19.6 19.1L22.5 22M15.6 17.6v-1.1M17.2 17.6v-2.6"/>',
+  redshift: CYL + '<path d="M13.5 21.5l8-8M16 13.5h5.5V19"/>',
+  databricks: CYL + '<path d="M17.5 12.5l4.5 2.5-4.5 2.5-4.5-2.5zM13 18.2l4.5 2.5 4.5-2.5"/>',
+  db2: CYL + '<path d="M13 13.5h9M13 17h9M13 20.5h9"/>',
+  teradata: CYL + '<path d="M13 13h9M17.5 13v9"/>',
+  trino: CYL + '<path d="M17.5 12.5l4.5 9h-9z"/>',
+  clickhouse: CYL + '<path d="M14 13v9M16.5 13v9M19 13v9M21.5 16v3"/>',
+  saphana: CYL + '<path d="M17.5 12l4.5 5-4.5 5-4.5-5z"/>',
+  vertica: CYL + '<path d="M13 13l4.5 9 4.5-9"/>',
+  sybase: CYL + '<rect x="13.5" y="13" width="8" height="8" rx="1.5"/><path d="M17.5 17h.01"/>',
+  access: CYL + '<path d="M18 13h4v9h-4M13 17.5h6M16.5 15l2.5 2.5-2.5 2.5"/>',
+  odbc: CYL + '<path d="M15.5 12v2.5M19.5 12v2.5M13.5 14.5h8v2a4 4 0 01-8 0zM17.5 20.5v2"/>',
+  // A Power BI workspace: its bars (datasets, not a cylinder).
+  powerbi: '<rect x="4" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="16" y="3" width="4" height="18" rx="1"/>',
+  csv: SHEET + '<path d="M9 12h1.5M12.5 12H15M9 15.5h1.5M12.5 15.5H15M9 19h1.5M12.5 19H15"/>',
+  excel: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M3 14.5h18M9 4v16M15 4v16"/>',
+  parquet: '<rect x="4" y="4" width="4" height="16" rx="1"/><rect x="10" y="4" width="4" height="16" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/><path d="M4 9h4M10 13h4M16 8h4"/>',
+  json: '<path d="M9 4C7 4 6 5 6 7v2.5C6 11 5 12 3.5 12 5 12 6 13 6 14.5V17c0 2 1 3 3 3M15 4c2 0 3 1 3 3v2.5c0 1.5 1 2.5 2.5 2.5-1.5 0-2.5 1-2.5 2.5V17c0 2-1 3-3 3"/>',
+  // Your own Python: a prompt and its code.
+  python: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>',
+  azure_key_vault: CLOUD + '<path d="M12 13v3.5"/>',
+  aws_secrets_manager: LOCK + '<path d="M12 13.5v5M9.8 14.8l4.4 2.4M14.2 14.8l-4.4 2.4"/>',
+  aws_parameter_store: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 8v8M12 8v8M16 8v8M6.5 11h3M10.5 14h3M14.5 10h3"/>',
+  google_secret_manager: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><circle cx="12" cy="11" r="1.6"/><path d="M12 12.6V16"/>',
+  hashicorp_vault: '<path d="M3 4h18l-9 17z"/><path d="M10 8h.01M14 8h.01M12 11h.01M10 11h.01M14 11h.01"/>',
+  onepassword: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v9"/>',
+  dotenv: SHEET + '<path d="M9 13.5h6M9 16.5h6"/>',
+  os_vault: LOCK + '<circle cx="12" cy="15.5" r="1.3"/><path d="M12 16.8v1.7"/>',
+  // Add API's presets (a function host's bolt in its own frame) and its two ways in.
+  "api-azure": CLOUD + '<path d="M12.5 11.5L10.5 15h3l-2 3"/>',
+  "api-aws": '<path d="M5 20L11 4h3M9.5 8.5L15 20h4"/>',
+  "api-google": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M13 8l-3 4.5h4L11 17"/>',
+  "api-openapi": SHEET + '<path d="M10 11l-1.5 2 1.5 2M14 11l1.5 2-1.5 2"/>',
+  "api-form": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h3M7 13h3M7 17h3M12 9h5M12 13h5M12 17h5"/>',
+  // The catalog's tree: a schema, a table, a view; a column by its kind of value.
+  schema: '<path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5L12 21l9-4.5"/>',
+  table: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M3 14.5h18M9 9v11"/>',
+  view: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18"/><path d="M7 14.5s2-2.5 5-2.5 5 2.5 5 2.5-2 2.5-5 2.5-5-2.5-5-2.5z"/>',
+  number: '<path d="M10 4L8 20M16 4l-2 16M4.5 9h15M4 15h15"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  toggle: '<rect x="2.5" y="7" width="19" height="10" rx="5"/><circle cx="16.5" cy="12" r="3"/>',
+  // The starter pack's families and a snippet's languages: DAX's sum, HTML's brackets, Markdown's M.
+  formula: '<path d="M18 4H6l6.5 8L6 20h12"/>',
+  html: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/>',
+  markdown: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 15V9l2.5 3L11 9v6M16.5 9v6M14.5 13l2 2 2-2"/>',
+  // A Sandbox's note card (a chart is profile's bars, a table and a diagram their own, above).
+  note: '<path d="M5 3h10l4 4v14H5z"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4"/>',
 };
+
+/** Whether the set has `name` (an icon picked by a type's id falls back to its group's). */
+export const hasIcon = (name: string): boolean => Object.prototype.hasOwnProperty.call(ICONS, name);
 
 export function icon(name: string): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

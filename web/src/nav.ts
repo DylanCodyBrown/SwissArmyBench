@@ -16,7 +16,9 @@
  *             else to that place (a reload, a bookmark).
  *   [CRUMBS]  crumbs(): the trail past one level, each crumb a link.
  *   [TITLE]   setTitle(page, where): "Blades · Warehouse › sales › orders", "Workbench · sales.ipynb".
- *   [AGENT]   the `navigate` notice (app_navigate): home, back, forward, or a view's address.
+ *   [AGENT]   the `navigate` notice (app_navigate): home, back, forward, a rail's area, or a view's address.
+ *   [RAIL]    rail.ts, the areas down the left: onAddress (its current mark follows the address),
+ *             homeWindow and namedWindow (another window brought forward), hasLayer, setAreaRunner.
  *
  * Every history move goes through one queue: history.back() lands later, so a push made right after it
  * (a dialog closed, another opened) waits for it instead of being the entry Back takes away.
@@ -63,6 +65,8 @@ const openDialogs = new Map<string, HTMLDialogElement>();
 const popped = new WeakSet<HTMLDialogElement>();
 const layers = new Map<string, Layer>();
 let placeListener: ((url: URL) => void) | null = null;
+const addressListeners: ((url: URL) => void)[] = [];
+let areaRunner: ((area: string, newWindow: boolean) => boolean) | null = null;
 let homeHere: (() => void) | null = null;
 let pageName = "";
 let where = "";
@@ -140,6 +144,17 @@ function write(target: string, push: boolean, fromLabel: string): void {
   const next: Entry = push ? { n: now.n + 1, from: here(), fromLabel, dialogs, layer } : { ...now, dialogs, layer };
   if (push) history.pushState({ sab: next }, "", target);
   else history.replaceState({ sab: next }, "", target);
+  told();
+}
+
+/** The address changed (a move, Back, Forward, a layer closed): the rail's mark follows it. */
+export function onAddress(listener: (url: URL) => void): void {
+  addressListeners.push(listener);
+}
+
+function told(): void {
+  const url = new URL(location.href);
+  for (const listener of addressListeners) listener(url);
 }
 
 /** Go to `url` and show it, as Back and Forward show an address (the agent's named views). */
@@ -197,6 +212,20 @@ export function registerLayer(key: string, layer: Layer): void {
   layers.set(key, layer);
 }
 
+/** Whether this page has the layer `key` (Settings, Connections): the rail opens it here, else at home. */
+export function hasLayer(key: string): boolean {
+  return layers.has(key);
+}
+
+/** Open the layer `key` at its first view, its address pushed (the rail's Settings and Connections);
+ *  the page under it stays as it is. */
+export function openLayer(key: string): void {
+  const layer = layers.get(key);
+  if (!layer || layer.isOpen()) return;
+  const url = withParams({ open: key, at: null, type: null, name: null });
+  void go(url, "push").then(() => layer.open(new URL(url, location.href)));
+}
+
 /** The layer open now (its dialog on screen), or null: a page's own move keeps its words only then. */
 export function layerShown(): string | null {
   for (const [key, layer] of layers) if (layer.isOpen()) return key;
@@ -225,6 +254,7 @@ export function layerClosed(key: string, keys: string[]): void {
     const url = new URL(location.href);
     for (const k of ["open", ...keys]) url.searchParams.delete(k);
     history.replaceState({ sab: { ...now, layer: undefined } }, "", url.pathname + url.search);
+    told();
   });
 }
 
@@ -306,6 +336,7 @@ function apply(): void {
     drawTitle();
   }
   placeListener?.(url);
+  told();
 }
 
 // ===== the page's part =====
@@ -365,32 +396,50 @@ export function goHome(): void {
     homeHere();
     return;
   }
-  // The window that opened this one (or the one that opened it): no new window is asked for, so it
-  // works for the agent's nav.home too, with no click to allow a pop-up.
+  const found = homeWindow();
+  if (!found) return;
+  if (found.fresh || found.win === window) found.win.location.href = HOME_URL;
+  // The grids in front there (the rail's Grids: what is over them closes), as its own mark does.
+  else found.win.postMessage({ sab: "area", area: "grids" }, location.origin);
+  found.win.focus();
+}
+
+/** Another window of the app, by its name: the one found (`fresh`: just opened, still blank), or null
+ *  when the browser blocked it (said in a toast). This window itself when it has that name. */
+export interface Found {
+  win: Window;
+  fresh: boolean;
+}
+
+/** The home window: the window that opened this one (or the one that opened it), so no new window is
+ *  asked for and it works for the agent's nav.home too, with no click to allow a pop-up; else by name. */
+export function homeWindow(): Found | null {
   let up: Window | null = window.opener as Window | null;
   for (let hops = 0; up && hops < 5; hops += 1) {
     try {
-      if (!up.closed && up.name === HOME_WINDOW && up.location.origin === location.origin) {
-        up.focus();
-        return;
-      }
+      if (!up.closed && up.name === HOME_WINDOW && up.location.origin === location.origin) return { win: up, fresh: false };
       up = up.opener as Window | null;
     } catch {
       break; // another site's window: not ours
     }
   }
-  const win = window.open("", HOME_WINDOW);
+  // Never this window instead (unless it is the home window's tab): a Workbench would lose its kernels.
+  return namedWindow(HOME_WINDOW, "The browser blocked the home window: allow pop-ups for this address.");
+}
+
+/** The window named `name`, open or opened (blank: `fresh`); null when the browser blocked it. */
+export function namedWindow(name: string, blocked = "The browser blocked the new window: allow pop-ups for this address."): Found | null {
+  if (window.name === name) return { win: window, fresh: false };
+  const win = window.open("", name);
   if (!win) {
-    // Never this window instead: a Workbench would lose its kernels.
-    toast("The browser blocked the home window: allow pop-ups for this address.", "error");
-    return;
+    toast(blocked, "error");
+    return null;
   }
   try {
-    if (win.location.href === "about:blank") win.location.href = HOME_URL;
+    return { win, fresh: win.location.href === "about:blank" };
   } catch {
-    win.location.href = HOME_URL;
+    return { win, fresh: true }; // not readable: not one of ours yet
   }
-  win.focus();
 }
 
 /** The mark: the window's icon, drawn small, a link home. */
@@ -485,7 +534,7 @@ export function setOverTitle(place: string): void {
 
 // ===== the agent (app_navigate) =====
 
-type NavNotice = Notice & { window?: string; to?: string; grid?: string; catalog?: string; schema?: string; table?: string };
+type NavNotice = Notice & { window?: string; to?: string; grid?: string; catalog?: string; schema?: string; table?: string; new_window?: boolean };
 
 /** Where the agent's named view is, as an address of this page ("" when this page has no such view). */
 function agentUrl(n: NavNotice): string {
@@ -505,12 +554,18 @@ function agentUrl(n: NavNotice): string {
   return "";
 }
 
+/** The rail's areas, run as its click runs them (rail.ts): true when `area` is one. */
+export function setAreaRunner(run: (area: string, newWindow: boolean) => boolean): void {
+  areaRunner = run;
+}
+
 function agentMove(kind: PageKind, notice: Notice): void {
   const n = notice as NavNotice;
   if (n.type !== "navigate" || n.window !== kind) return;
-  if (n.to === "home") goHome();
+  if (n.to === "home" || n.to === "grids") goHome(); // the rail's Grids is home (the mark)
   else if (n.to === "back") back();
   else if (n.to === "forward") forward();
+  else if (n.to && areaRunner?.(n.to, n.new_window === true)) return; // a rail's area, here or brought forward
   else {
     const url = agentUrl(n);
     if (url) visit(url);

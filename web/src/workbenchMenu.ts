@@ -35,8 +35,8 @@ export function closeMenu(): void {
   shown = null;
 }
 
-/** Open a menu under (or over) its button. */
-export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[], options: { align?: "left" | "right"; above?: boolean } = {}): HTMLElement {
+/** Open a menu under (or over) its button; `beside`: to its right, level with it (the rail's menus). */
+export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[], options: { align?: "left" | "right"; above?: boolean; beside?: boolean } = {}): HTMLElement {
   closeMenu();
   document.querySelector(".menu")?.remove(); // another module's menu
   // Opened by a right-click (a tab's menu): beta mode's "Leave a note…" at its end.
@@ -80,9 +80,10 @@ export function openMenu(anchor: HTMLElement, label: string, entries: MenuEntry[
   if (menu.lastElementChild?.classList.contains("wb-menu-line")) menu.lastElementChild.remove();
   document.body.append(menu);
   const box = anchor.getBoundingClientRect();
-  const left = options.align === "right" ? box.right - menu.offsetWidth : box.left;
+  const left = options.beside ? box.right + 4 : options.align === "right" ? box.right - menu.offsetWidth : box.left;
   menu.style.left = `${Math.max(8, Math.min(left, innerWidth - menu.offsetWidth - 8))}px`;
-  if (options.above) menu.style.top = `${Math.max(8, box.top - menu.offsetHeight - 4)}px`;
+  if (options.beside) menu.style.top = `${Math.max(8, Math.min(box.top, innerHeight - menu.offsetHeight - 8))}px`;
+  else if (options.above) menu.style.top = `${Math.max(8, box.top - menu.offsetHeight - 4)}px`;
   else menu.style.top = `${Math.min(box.bottom + 4, innerHeight - menu.offsetHeight - 8)}px`;
   anchor.setAttribute("aria-expanded", "true");
   const items = (): HTMLButtonElement[] => [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];

@@ -57,7 +57,8 @@ def is_connection(kind: str, template: str | None) -> bool:
 # Code that signs in by asking the person (a browser window, a phone prompt): its catalog is never
 # loaded unasked at start-up, only on first use (the owner, 2026-11-14: no sign-in window out of nowhere).
 _INTERACTIVE = re.compile(
-    r"ActiveDirectoryInteractive|externalbrowser|InteractiveBrowserCredential|DeviceCodeCredential",
+    r"ActiveDirectoryInteractive|externalbrowser|InteractiveBrowserCredential|DeviceCodeCredential"
+    r"|exclude_interactive_browser_credential\s*=\s*False",  # DefaultAzureCredential with a browser
     re.IGNORECASE,
 )
 

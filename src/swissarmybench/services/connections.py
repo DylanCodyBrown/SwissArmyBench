@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import powerbi, python_connections
+from swissarmybench.domain import dataverse, powerbi, python_connections
 from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
 from swissarmybench.domain.datasets import Opened
@@ -115,6 +115,8 @@ class ConnectionService:
             "sign_ins": next(
                 (t.to_json()["sign_ins"] for t in self._templates if t.id == blade.template), []
             ),
+            # Where its passwords may come from (Dataverse's: a key vault only), as its type says.
+            "secrets_from": next((t.secrets_from for t in self._templates if t.id == blade.template), ""),
         }
         reads = self._reads(blade.code, blade.catalog_command, blade.read_command)
         return (
@@ -135,6 +137,19 @@ class ConnectionService:
             raise BladeError(
                 "A connection is made from a database, file or key vault starter, or from your own "
                 'Python (template "python"). Other code is saved as a blade.'
+            )
+        typed = body.get("secrets")
+        only = next((t for t in self._templates if t.id == body.get("template")), None)
+        if (
+            isinstance(typed, dict)
+            and any(typed.values())
+            and only
+            and only.secrets_from == dataverse.VAULT_ONLY
+        ):
+            # Its app registration's client secret is a key vault's secret, never typed into the app.
+            raise BladeError(
+                f"A {only.label} connection's secret comes from a key vault (or an environment variable), "
+                "never typed here: point it at the vault's entry (connections_password_source)."
             )
 
     async def save(self, body: Any, previous: str | None) -> dict[str, Any]:
@@ -279,8 +294,10 @@ class ConnectionService:
         if not place["table"]:
             raise ValueError("Name the table to open.")
         limit = None if every else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
-        if kind == "python":
-            # The user's own Python reads it (Read a table): the first rows, and the count it gave.
+        reads = dataverse.is_dataverse(blade.dialect)  # Dataverse: through its Web API, not its SQL
+        if kind == "python" or reads:
+            # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,
+            # and the count it gave.
             answer = await self._blades.read(blade, place, limit, body)
             table, total = answer["table"], answer.get("total")
             shown = int(table.num_rows)
@@ -289,7 +306,8 @@ class ConnectionService:
                 if limit is not None and isinstance(total, int) and total > shown
                 else None
             )
-            again = python_connections.read_call(blade.name, place["schema"], place["table"])
+            schema = "" if reads else place["schema"]  # Dataverse's one schema needs no naming
+            again = python_connections.read_call(blade.name, schema, place["table"])
             dataset = self._grid_name(rules.dataset_name(place["table"]), blade.name)
             where = (place["database"], place["schema"], place["table"])
             stored = await self._tables.store(
@@ -349,7 +367,7 @@ class ConnectionService:
             return await self._tables.peek(path, sheet, rules.PREVIEW_ROWS)
         if not place["table"]:
             raise ValueError("Name the table to preview.")
-        if kind == "python":
+        if kind == "python" or dataverse.is_dataverse(blade.dialect):
             read = (await self._blades.read(blade, place, rules.PREVIEW_ROWS, body))["table"]
             return {"columns": list(read.column_names), "rows": [list(r.values()) for r in read.to_pylist()]}
         sql = select_sql(

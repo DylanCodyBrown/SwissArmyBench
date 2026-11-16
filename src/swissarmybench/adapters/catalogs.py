@@ -117,6 +117,14 @@ class CatalogStore:
                 WHERE "table" = '' AND description IS NOT NULL
                 GROUP BY database, schema ORDER BY lower(schema)"""  # noqa: S608
             ).fetchall()
+            # A row with a table but no column, and a description, is the table's name for people.
+            titles = cur.execute(
+                f"""WITH rows AS ({normalizing_select(staging, picked)})
+                SELECT database, schema, "table", any_value(description) FROM rows
+                WHERE "table" <> '' AND "column" = '' AND description IS NOT NULL
+                GROUP BY database, schema, "table"
+                """  # noqa: S608
+            ).fetchall()
         except duckdb.Error as error:
             cur.execute(f"DROP TABLE IF EXISTS {target}")
             raise CatalogError(f"DuckDB could not read this catalog: {error}") from error
@@ -134,6 +142,7 @@ class CatalogStore:
             views=int(counts[3]),
             columns=int(counts[4]),
             notes=tuple((str(r[0]), str(r[1]), str(r[2])) for r in notes),
+            titles=tuple((str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in titles),
         )
         with self._lock:
             old = self._catalogs.get(key)
@@ -217,10 +226,12 @@ class CatalogStore:
             params,
         ).fetchall()
         total = rows[0][4] if rows else self._count_tables(cur, info, where, params)
+        titles = {(d, t): words for d, s, t, words in info.titles if s == schema}
         return {
             "total": total,
             "tables": [
                 {"database": r[0], "schema": schema, "table": r[1], "kind": r[2], "columns": r[3]}
+                | ({"title": titles[(r[0], r[1])]} if (r[0], r[1]) in titles else {})
                 for r in rows
             ],
         }

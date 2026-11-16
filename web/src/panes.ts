@@ -596,7 +596,7 @@ function render(): void {
           }
         },
       },
-      icon("profile"),
+      icon("sandbox"), // the rail's own (one icon per area)
       h("span", { class: "tab-label" }, "Sandbox"),
     ),
     // The ERD tab: always second, never closed or moved.
@@ -610,7 +610,7 @@ function render(): void {
         title: "Relationship diagram",
         onclick: () => showErdView(),
       },
-      icon("crown"),
+      icon("diagram"),
       h("span", { class: "tab-label" }, "Diagram"),
     ),
     // The Workbench tab: notebooks and scripts, always in a window of their own (code never sits in

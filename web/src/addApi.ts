@@ -14,7 +14,7 @@
  * ROUTING: GET /apis/choices; POST /apis/preview (as the form changes); POST /apis (Add)
  */
 import { api, errorText } from "./api";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { backButton } from "./nav";
 
@@ -124,8 +124,8 @@ export function showAddApi(host: AddApiHost): void {
       formPart.hidden = to !== "form";
       later();
     };
-    const documentTab = button("OpenAPI", () => pick("document"), { pressed: true, class: "segment" });
-    const formTab = button("Endpoints", () => pick("form"), { pressed: false, class: "segment" });
+    const documentTab = button("OpenAPI", () => pick("document"), { pressed: true, class: "segment", icon: "api-openapi" });
+    const formTab = button("Endpoints", () => pick("form"), { pressed: false, class: "segment", icon: "api-form" });
     let fromFile = "";
     const url = h("input", { type: "url", class: "mono", "aria-label": "OpenAPI document's address", placeholder: "https://…/openapi.json", spellcheck: false }) as HTMLInputElement;
     const pasted = h("textarea", { class: "mono connection-code", rows: 6, spellcheck: false, "aria-label": "OpenAPI document" }) as HTMLTextAreaElement;
@@ -268,6 +268,11 @@ export function showAddApi(host: AddApiHost): void {
       });
       settingsHost.replaceChildren(...inputs.filter((i): i is HTMLLabelElement => i !== null));
     };
+    // The preset's own icon beside its box (a function host's bolt; none: Add API's own).
+    const presetIcon = h("span", { class: "add-api-preset-icon", "aria-hidden": "true" });
+    const drawPresetIcon = (): void => presetIcon.replaceChildren(icon(hasIcon(`api-${preset.value}`) ? `api-${preset.value}` : "api-openapi"));
+    drawPresetIcon();
+    preset.addEventListener("change", drawPresetIcon);
     preset.addEventListener("change", () => {
       const chosen = found.presets.find((p) => p.id === preset.value);
       if (chosen) {
@@ -412,7 +417,7 @@ export function showAddApi(host: AddApiHost): void {
       body,
       h("h3", {}, "Add API"),
       h("div", { class: "add-api" },
-        h("label", { class: "field" }, h("span", {}, "Preset"), preset),
+        h("label", { class: "field" }, h("span", {}, "Preset"), h("span", { class: "field-row" }, presetIcon, preset)),
         h("label", { class: "field" }, h("span", {}, "Name"), name),
         h("div", { class: "segmented", role: "group", "aria-label": "From" }, documentTab, formTab),
         documentPart,
