@@ -684,6 +684,26 @@ IDE hands Claude the open file. It prints nothing when no server is running.
 Build the one wheel (the page inside it) with `python build.py`; `python build.py --vsix`
 packages the VS Code extension around it too.
 
+## The tray icon and updates
+
+`swissarmybench start` also puts Swiss Army Bench's icon in the system tray (Windows and macOS; Linux on
+a desktop that has a tray), as its own process; `--no-tray` leaves it out, and `swissarmybench tray`
+starts it alone. One tray at a time. **A click** opens the page. **A right click** lists what is open (each
+table, each Workbench document; a • marks unsaved changes), then Open the Workbench, Open the blades page,
+Restart, Start with Windows (a shortcut in the Startup folder to the uv tool's `swissarmybench.exe start`)
+and Stop and quit. With the server stopped the menu offers Start.
+
+**Updates:** the server asks PyPI (`https://pypi.org/pypi/swissarmybench/json`, then GitHub's latest
+release if PyPI cannot be read) at start and every six hours. That one request is the only thing that
+leaves the computer, and it carries nothing but itself. A pre-release is offered only to someone on one.
+When a newer version exists, the tray's icon gets a dot, its first menu item is **Update to X** (with
+**What's new**), and the grid page's and the Workbench's status bars say **Update available**. Update to
+X asks first only when notebooks have unsaved changes or kernels are running, and saves nothing for you;
+the app stops, a small helper installs the version with `uv tool install --force
+"swissarmybench[server]==X"`, and the new version starts with its tray and its page. If it fails, the old
+version starts again and says why. **Settings, Updates, Check for updates** turns the check off (kept).
+The agent has `app_update_check` and `app_update` (which waits for your Allow).
+
 ## Beta mode: the beta log and notes
 
 During the beta, Swiss Army Bench keeps a **beta log** in `~/.swissarmybench/logs`: server errors with

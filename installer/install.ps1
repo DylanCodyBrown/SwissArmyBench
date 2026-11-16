@@ -4,7 +4,8 @@
 #   irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.ps1 | iex
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1 .\swissarmybench-__VERSION__-py3-none-any.whl
-param([string]$Wheel = "")
+#   ... -NoStart                     install only (it otherwise offers to start the app at the end)
+param([string]$Wheel = "", [switch]$NoStart)
 
 $ErrorActionPreference = "Stop"
 
@@ -80,3 +81,23 @@ Write-Host "  Start it:              swissarmybench start"
 Write-Host "  The Python client:     uv pip install `"$WheelName`"   (in any project's environment)"
 Write-Host "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
 Write-Host "(Open a new terminal first if the swissarmybench command is not found.)"
+
+# 5. Offer to start it now: the server, its tray icon and the page. Not on a build machine (CI), and not
+# when nothing can answer (input redirected, or -NoStart).
+function ToolBin {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { return (uv tool dir --bin 2>$null) } finally { $ErrorActionPreference = $previous }
+}
+if (-not $NoStart -and -not $env:CI -and -not [Console]::IsInputRedirected) {
+    $answer = Read-Host "Start Swiss Army Bench now? [Y/n]"
+    if ($answer -eq "" -or $answer -match '^[Yy]') {
+        $Exe = Join-Path ((ToolBin) | Select-Object -First 1) "swissarmybench.exe"
+        if (-not (Test-Path $Exe)) { $Exe = Join-Path $LocalBin "swissarmybench.exe" }
+        if (Test-Path $Exe) {
+            Start-Process -FilePath $Exe -ArgumentList "start" -WindowStyle Minimized
+        } else {
+            Write-Host "Open a new terminal and run: swissarmybench start"
+        }
+    }
+}
