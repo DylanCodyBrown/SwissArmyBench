@@ -2617,8 +2617,9 @@ void Promise.all([
     // A document popped out of another window: this window was opened to take it.
     const handed = openedWith.get("take");
     if (handed) void takeDocument(handed).catch((e: Error) => toast(e.message, "error"));
-    // Opened for a kind (the rail's Notebooks, Scripts, Apps; a reload of one): that kind in front.
+    // Opened for a kind (the rail's Notebooks, Scripts, Apps) with none of it open: New and its recent
+    // files. (A reload's documents came back as they were, the one in front too.)
     const k = handed || wanted ? null : codeKindOf(new URLSearchParams(location.search).get("kind"));
-    if (k) showKind(k, railItem(k));
+    if (k && !docs.some((d) => docKindOf(d) === k)) showKind(k, railItem(k));
   });
 });
