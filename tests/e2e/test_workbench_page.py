@@ -181,7 +181,7 @@ def stand_in_missing(page: Page, installed: dict[str, Any]) -> list[Any]:
 def test_a_missing_package_is_asked_for_in_the_users_face_and_installed(
     browser: Browser, orders_url: str
 ) -> None:
-    """The owner, 2026-11-16: "Install <package>?" with "<Feature> will not work without <package>." at once, Install now and Not now. Install now
+    """The owner, 2026-11-16: "Install <package>?" at once, Install now and Not now. Install now
     shows its progress, says a failure plainly (Try again), and once it is in, reads the form again."""
     page = open_grid(browser, orders_url)
     installed: dict[str, Any] = {"fail_once": True}
