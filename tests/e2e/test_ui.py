@@ -126,7 +126,7 @@ def open_steps(browser: Browser, grid_url: str) -> Page:
 
 def open_agent(page: Page) -> Locator:
     """The Sandbox tab (the first tab): the Sandbox lives only there."""
-    page.locator(".tab-agent").click()
+    page.locator(".nav-rail [data-area='sandbox']").click()
     return page.locator("#ai-panel")
 
 
@@ -136,7 +136,7 @@ def back_to_grid(page: Page, url: str) -> None:
 
 def set_theme(page: Page, theme: str) -> None:
     """Pick a theme in the Settings window, then close it."""
-    page.locator(".app-row").get_by_role("button", name="Settings").click()
+    page.locator(".nav-rail [data-area='settings']").click()
     page.locator(f"dialog input[name='theme'][value='{theme}']").check()
     page.keyboard.press("Escape")
 
@@ -203,7 +203,7 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
         "All selected"
     )
     page.keyboard.press("Escape")
-    page.locator(".app-row").get_by_role("button", name="Settings").click()
+    page.locator(".nav-rail [data-area='settings']").click()
     expect(page.locator("dialog").get_by_role("radio").first).to_be_visible()  # the theme stays there
     expect(page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles"))).to_have_count(
         0
@@ -866,7 +866,7 @@ def test_agent_activity_in_settings(browser: Browser, orders_url: str, server: d
     page = open_grid(browser, orders_url)
     sql = "SELECT count(*) AS activity_check FROM grid"
     call(server, "POST", f"/grids/{grid_of(orders_url)}/sql", {"sql": sql}, agent=True)
-    page.locator(".app-row").get_by_role("button", name="Settings").click()
+    page.locator(".nav-rail [data-area='settings']").click()
     dialog = page.locator("dialog")
     expect(dialog.locator(".activity li").first).to_contain_text(sql)  # newest first
     # The privacy levels and column masks are gone.
@@ -1079,18 +1079,15 @@ def test_keyboard_only_reaches_the_toolbar_and_grid(browser: Browser, orders_url
     assert page.evaluate("document.activeElement.getAttribute('role')") == "tab"
     outline = page.evaluate("getComputedStyle(document.activeElement).outlineStyle")
     assert outline != "none"
-    # Further on, the Application row (above the ribbon): Settings, Connections, the blades page, the tour.
+    # Further on, the Application row (above the ribbon): the tour (Settings, Connections and the blades
+    # page are the rail's while it shows).
     for _ in range(30):
         page.keyboard.press("Tab")
-        if page.evaluate("document.activeElement.getAttribute('aria-label')") == "Settings":
+        if page.evaluate("document.activeElement.getAttribute('aria-label')") == "Tour":
             break
     else:
-        raise AssertionError("Tab never reached Settings")
+        raise AssertionError("Tab never reached Tour")
     assert page.evaluate("document.activeElement.closest('.app-row') !== null")
-    page.keyboard.press("Tab")
-    assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Connections"
-    page.keyboard.press("Tab")
-    assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Blades and catalog"
 
 
 def test_no_column_is_cut_beside_the_row_numbers(
@@ -1635,11 +1632,11 @@ def test_the_agent_tab_comes_first_and_holds_the_panel(browser: Browser, server:
     push_client.push(second_tab, new_grid=True)
     url = push_client.push(first_tab, new_grid=True)
     page = open_grid(browser, url)
-    tabs = page.locator(".tabs-row .tab-item")
-    # Always first, and it has no close button.
-    expect(tabs.first).to_have_text("Sandbox")
-    expect(tabs.first.locator("svg")).to_be_visible()  # an icon, so it's easy to find
-    assert tabs.first.get_by_role("button").count() == 0
+    # The Sandbox is the rail's (2026-11-16): no tab of its own, so the grids come first.
+    expect(page.locator(".tabs-row .tab-agent")).to_have_count(0)
+    expect(page.locator(".tabs-row .tab-item:visible").first).to_have_attribute("data-grid", re.compile(".+"))
+    # the rail's Sandbox: an icon, so it's easy to find
+    expect(page.locator(".nav-rail [data-area='sandbox'] svg")).to_be_visible()
     open_agent(page)
     expect(page.locator("#ai-panel-title")).to_have_text("Sandbox")
     expect(page.locator("#ai-panel .tabs")).to_have_count(0)  # one panel, no inner tabs
@@ -1726,10 +1723,7 @@ def test_the_erd_tab_shows_keys_or_says_none_are_defined(browser: Browser, serve
     push_client.push(erd_customers, new_grid=True)
     page = open_grid(browser, push_client.push(erd_orders, new_grid=True))
     call(server, "POST", "/relationships", {"model": {"name": "empty"}, "replace": True})
-    tabs = page.locator(".tabs-row .tab-item")
-    expect(tabs.nth(1)).to_have_text("Diagram")  # right after Agent, and it can't be closed
-    assert tabs.nth(1).get_by_role("button").count() == 0
-    tabs.nth(1).click()
+    page.locator(".nav-rail [data-area='diagram']").click()  # the rail's (2026-11-16)
     erd = page.locator("#erd-view")
     expect(erd).to_contain_text("No relationships yet")
     expect(erd.get_by_role("button", name="Import relationships")).to_be_visible()
@@ -2261,12 +2255,13 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     page = open_grid(browser, orders_url, width=1440)
     app = page.locator(".app-row")
     expect(app.locator(".ribbon-caption strong")).to_have_text("Application")
-    expect(app.locator(".ribbon-btn")).to_have_text(["Settings", "Connections", "Blades and catalog", "Tour"])
+    # Settings, Connections and the blades page are the rail's (rail.ts); the row keeps the tour.
+    expect(app.locator(".ribbon-btn:visible")).to_have_text(["Tour"])
     table_row = page.locator(".ribbon .ribbon-group").first
     assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
     # On the Sandbox tab the ribbon goes, the Application row stays.
-    page.get_by_role("tab", name="Sandbox").click()
+    page.locator(".nav-rail [data-area='sandbox']").click()
     expect(page.locator(".ribbon")).to_be_hidden()
-    expect(app.get_by_role("button", name="Settings")).to_be_visible()
+    expect(app.get_by_role("button", name="Tour", exact=True)).to_be_visible()
     page.close()
