@@ -18,7 +18,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 # The grid tests' fixtures (browser, server, orders_url), imported by name.
-from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
 
 
 @pytest.fixture
@@ -273,6 +273,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
             page.wait_for_timeout(100)
 
     page.locator(".connection-type", has_text="Trino").click()
+    not_now(page)
     drawn()
     assert labels() == [
         "Name",
@@ -295,6 +296,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
 
     page.locator(".connection-type", has_text="PostgreSQL").click()
+    not_now(page)
     drawn()
     found = labels()
     assert found[2:7] == ["Server", "Port", "Database", "User", "Password comes from"], found
@@ -302,6 +304,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
 
     # SQL Server: the user arrives with another way to sign in, and lands in the same place.
     page.locator(".connection-type", has_text="SQL Server").first.click()
+    not_now(page)
     dialog.get_by_role("combobox", name="Sign in").select_option(label="User name and password")
     expect(dialog.get_by_role("textbox", name="User")).to_be_visible()
     found = labels()
@@ -336,6 +339,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         dialog.get_by_role("button", name="New vault").click()
         expect(dialog.locator("h3")).to_have_text(["Key vaults"])  # only vaults from here
         page.locator(".connection-type", has_text="Azure Key Vault").click()
+        not_now(page)
         dialog.locator("summary", has_text="Python code").click()
         code = dialog.get_by_role("textbox", name="The Python this connection runs")
         code.fill(MADE_UP_VAULT)
@@ -421,6 +425,7 @@ def test_sql_server_signs_in_three_ways_and_trusts_a_certificate_on_a_tick(
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="SQL Server").first.click()
+    not_now(page)
     sign_in = dialog.get_by_role("combobox", name="Sign in")
     expect(sign_in.locator("option:checked")).to_have_text("Windows sign-in")
     expect(dialog.locator(".connection-passwords")).to_have_count(0)  # Windows: no password

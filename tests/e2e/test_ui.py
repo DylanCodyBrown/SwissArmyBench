@@ -116,6 +116,18 @@ def open_grid(browser: Browser, url: str, width: int = 1920, height: int = 900, 
     return page
 
 
+def not_now(page: Page, seconds: float = 3) -> None:
+    """A package this Python lacks is asked for in the user's face (missingPackages.ts): Not now, when it
+    comes (it does not where the package is installed)."""
+    prompt = page.locator("dialog.missing-packages")
+    try:
+        prompt.wait_for(timeout=seconds * 1000)
+    except Exception:  # no prompt: nothing is missing here
+        return
+    prompt.get_by_role("button", name="Not now").click()
+    expect(prompt).to_have_count(0)
+
+
 def open_steps(browser: Browser, grid_url: str) -> Page:
     """The grid's steps window: the Table Transformations panel in a tab of its own (plan decision 13)."""
     page = browser.new_page(viewport={"width": 520, "height": 900})

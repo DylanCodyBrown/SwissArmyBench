@@ -16,7 +16,7 @@ import pytest
 from playwright.sync_api import Browser, expect
 
 from tests import dataverse_standin as made_up
-from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
 from tests.e2e.test_workbench_page import wait_until
 
 VAULT_CODE = f"""values = {{"crm-client-secret": "{made_up.SECRET}"}}
@@ -62,6 +62,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     tile = page.locator(".connection-type", has_text="Dataverse")
     expect(tile.locator("svg")).to_have_count(1)  # its own icon
     tile.click()
+    not_now(page)  # As you needs azure-identity, which this Python may lack
     sign_in = dialog.get_by_role("combobox", name="Sign in")
     expect(sign_in).to_have_value("0")
     expect(sign_in.locator("option")).to_have_text(

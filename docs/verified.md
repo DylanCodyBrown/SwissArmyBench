@@ -2023,3 +2023,32 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** real Windows (registry, PowerShell's Store and Start menu answers, Windows Terminal,
   the new console), real macOS (Spotlight, Info.plist, Terminal through osascript), a real Linux terminal
   opening, a real Claude Code or Claude Desktop starting and reading the folder or the config.
+
+## A missing package, in the user's face (2026-11-16, branch package-prompt)
+
+- **The shape** (tests/test_missing_packages.py): `{"feature", "packages", "python", "command"}`, the
+  packages once each, "app" for the app's own Python and a path for another; the sentence "<Feature> will
+  not work without a, b and c."; features in plain words (Key Vault connections, Trino / Presto
+  connections, The Sales blade); `MissingPackagesError` answered 422 with `error` and `missing`.
+- **Each place over HTTP:** `/blades/inspect` (a made-up module: The Bakery blade; nothing missing: None);
+  `/connections/types` (the Key Vault and Trino forms where their packages are absent; SQLite: None); a
+  connection test that stops on a made-up import names the form's kind; a YAML API document with PyYAML
+  made unimportable (the user's and the agent's answers); a failed refresh (tests/test_catalog_routes.py);
+  a Streamlit app's and Test this page's problem (tests/test_streamlit_apps.py,
+  tests/test_controllers_canvas.py); a kernel error's `missing` with the kernel's Python
+  (tests/test_errors.py).
+- **In the browser** (Chromium, tests/e2e/test_workbench_page.py, the package check and the installer
+  stood in for with page routes, nothing downloaded): the Trino form's prompt at once, its title and
+  sentence, Install now failing once (said, with its output, Try again), then installed (the toast, the
+  form read again, no note left); Not now leaves the reminder and the command, the same form again does
+  not ask, the reminder asks again and installs. tests/e2e/test_streamlit_page.py: a cell's run in a
+  Python without Streamlit prompts "Streamlit apps needs streamlit…"; Not now; the canvas's Play does not
+  ask again; its Install reminder does. Tests that open forms whose packages this Python lacks (SQL
+  Server, Azure Key Vault, Dataverse's As you) say Not now first (test_ui.not_now).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,220 passed, 33 skipped, 4 failed in
+  20 minutes; the four (test_open_file's catalog preview, test_ui's "+" tab query, test_compare's compare
+  started elsewhere, test_processes' follow) pass alone: load.
+- **Not checked:** a real install through the prompt (uv downloading a package); the notebook cell's
+  prompt and its `%pip install` then re-run in a browser (the server's shape is tested, the page's path
+  by typecheck only); the blade editor's and Add API's prompts in a browser; the Trino keystore's pyjks
+  (another branch).
