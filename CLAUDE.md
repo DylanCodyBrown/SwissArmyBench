@@ -35,7 +35,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   call: made on 2026-11-14 by the golden rule (the agent runs code in Workbench kernels).
 - **What exists:** milestones M0-M8, blades and the catalog, connections (database and file blades,
   added with a form; a Power BI workspace, its datasets read with DAX, a dataset's relationships
-  imported; a connection made of the user's own Python, its environment variables mapped; Add API: an
+  imported; a Dataverse environment, its tables read through the Web API, SQL on its SQL endpoint; a
+  connection made of the user's own Python, its environment variables mapped; Add API: an
   OpenAPI document or a form made into API_<name>.py and its connection, every auth type), the SQL
   cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`, `sab.dax`), the
   Workbench (notebooks, scripts,
@@ -100,6 +101,11 @@ src/swissarmybench/
                          finder's rules (judge, suggest, implied joins, paths between tables)
     catalogs.py          catalog rules: dialects (DAX among them: 'Table'[Column], EVALUATE TOPN, COUNTROWS),
                          names, which source column is read as what
+    dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
+                         API's OData reads, paging, choice labels, the metadata as the catalog, FetchXML; SQL
+                         on the read-only SQL endpoint, TDS port 5558, pyodbc with the Entra token), its three
+                         sign-ins (as you, managed identity, an app registration whose secret is a vault's),
+                         its Read a table, the SQL endpoint being off said plainly with the sab.read instead
     powerbi.py           a Power BI workspace: a dataset's name with its connection (Finance/Sales model),
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
@@ -306,7 +312,7 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (78 read-only .blade.py: Power BI, Excel, Files, DAX, HTML,
+  starters/              the built-in starter pack (113 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
                          Streamlit), listed apart, found by name, Copy as your own (tests/test_starters*.py)
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
@@ -419,7 +425,9 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
                          test_architecture.py (the layers, the depth, the plain client),
                          powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
-                         workspace of three made-up datasets), orders_service.py (a made-up web service
+                         workspace of three made-up datasets), dataverse_standin.py (a Dataverse environment's
+                         Web API, its metadata and its sign-ins: a made-up company's accounts, contacts and
+                         opportunities), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
                          orders service, every sign-in it takes stood in for)
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:

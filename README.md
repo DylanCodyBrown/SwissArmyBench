@@ -130,6 +130,7 @@ What a grid page does:
   Allow. Settings lists its activity and has a copyable prompt that installs the MCP in any agent.
 - **Connections** (the Application row's **Connections**): your databases and files. Add one with a
   form per type (SQL Server, PostgreSQL, Snowflake... 21 databases; a Power BI workspace, its datasets read with DAX;
+  a Dataverse environment, its tables read through the Web API and SQL on its SQL endpoint;
   a CSV, workbook, Parquet or JSON file, or a folder of them; or your own Python, for anything
   else), its password kept in the system keyring, **Test connection** before
   saving. Then `conn = sab.connection("Warehouse")` in any Python, or a whole SQL cell on it:
@@ -393,6 +394,27 @@ Execute Queries REST API**) and, for an app registration, service principals to 
 the sign-in needs Read and Build permission on each dataset. Not yet run against a real tenant: it is
 tested against a stand-in on this computer.
 
+A **Dataverse** environment is a connection too: its form asks for the environment's address
+(`https://<name>.crm.dynamics.com`) and how to sign in: **As you** (the Azure command line's sign-in,
+else a browser window, through Microsoft's `azure-identity`), a **managed identity** (for an Azure
+Function; no package) or an **app registration** whose client secret is a key vault's entry, never
+typed into the app. Its catalog is the Web API's metadata: one schema (dbo), every table with its display
+name, every column with its type. **Open as grid**, the preview and `sab.read("Sales CRM", "account")`
+read a table through the Web API (OData `$select`, `$filter`, `$top`, paging by `@odata.nextLink`), so
+they work in every environment with no admin setting; a choice column reads as its labels. SQL cells
+(`%%sql Sales CRM`, `sab.sql`) run T-SQL on the environment's read-only SQL endpoint (TDS, port 5558)
+through `pyodbc` and ODBC Driver 18 with the same Entra token; when an environment has that endpoint off,
+the cell says so and the error panel offers the `sab.read` line instead. In Python:
+
+```python
+conn = sab.connection("Sales CRM")
+won = conn.read("opportunity", columns=["name", "estimatedvalue"], filter="statecode eq 1", limit=100)
+rows = conn.fetch('<fetch top="10"><entity name="account"><attribute name="name"/></entity></fetch>')
+```
+
+Export as one Python script writes the connection out as it is, so a managed identity signs in inside
+an Azure Function. Tested against a stand-in on this computer; not yet run against a real environment.
+
 A **connection made of your own Python** (**Python (your own code)**, under Your own code) reaches
 anything Python can: an internal web service, a vendor's library, your own files. Its form has three
 code boxes. **Connect** makes `conn`, any object. **List the tables** returns its catalog: a list of
@@ -497,7 +519,7 @@ sab.load(conn.execute("SELECT * FROM INFORMATION_SCHEMA.COLUMNS").df(), name="Wa
 
 ### The starter pack
 
-Every install has **Swiss Army Bench starters**, 78 read-only blades and snippets shipped inside the
+Every install has **Swiss Army Bench starters**, 113 read-only blades and snippets shipped inside the
 package (`src/swissarmybench/starters/*.blade.py`), listed under **Starters** in the blade list by
 family. **Copy as your own** makes one of your blades from a starter; a new version of the app brings
 new starters and never touches your copies.
@@ -505,6 +527,7 @@ new starters and never touches your copies.
 | Family | What | How it is used |
 |---|---|---|
 | Power BI (13) | refresh a dataset or a dataflow, refresh and wait, status and history, list datasets, reports and dataflows, read and update parameters, take over a dataset, the refresh schedule | `refresh = sab.blade("Power BI refresh dataset")`, `refresh("Finance/Sales model")`: signed in through the workspace connection's own sign-in (its new `conn.access_token()`), never a copy of the secret |
+| Dataverse (2) | a FetchXML query's rows, a choice column's options (numbers and labels) | `fetch_xml = sab.blade("Dataverse FetchXML query")`, `fetch_xml("<fetch>...</fetch>")`: through the Dataverse connection's own sign-in |
 | Excel (12) | add a sheet, set values, write a DataFrame, borders, fonts and fills, number formats, autofit, freeze panes, merge, conditional colours, a range as a table, copy a template | `add_sheet = sab.blade("Excel add sheet")`, `add_sheet("report.xlsx", "Summary")` (openpyxl; nothing written over without `overwrite=True`) |
 | Files (3) | combine a folder of CSVs, split a CSV by a column, change a delimiter or encoding | a function each |
 | DAX (11) | year to date, same period last year, running total, top N, percent of total, a measure by month, date table checks, the INFO functions | a **snippet**: dragged onto a DAX cell |
