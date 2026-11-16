@@ -71,10 +71,42 @@ if ((ListTools) -match '^swissarmygrid ') {
     Quiet { uv tool uninstall swissarmygrid }
 }
 
-# 4. The server, as a uv tool in its own environment.
+# 4. The server, as a uv tool in its own environment. Windows will not replace files a running program has
+#    open, so whatever runs from the installed copy stops first: the server (asked politely), its tray, and
+#    any agent tool (MCP) server an editor started from it.
+function ToolDir {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { return (uv tool dir 2>$null) } finally { $ErrorActionPreference = $previous }
+}
+function StopRunningCopies {
+    if (Get-Command swissarmybench -ErrorAction SilentlyContinue) { Quiet { swissarmybench stop } }
+    $tools = ToolDir
+    if (-not $tools) { return }
+    $installed = Join-Path $tools "swissarmybench"
+    $running = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and $_.Path.StartsWith($installed, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    if ($running) {
+        Write-Host "Stopping Swiss Army Bench processes still running from the installed copy..."
+        $running | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+    }
+}
+StopRunningCopies
 Write-Host "Installing the Swiss Army Bench server $Version..."
-uv tool install --force --python 3.12 "$WheelPath[server]"
-if ($LASTEXITCODE -ne 0) { Fail "uv could not install the server." }
+$installed = $false
+foreach ($try in 1..3) {
+    uv tool install --force --python 3.12 "$WheelPath[server]"
+    if ($LASTEXITCODE -eq 0) { $installed = $true; break }
+    # Files still held (an editor's agent tools restarting, a virus scan): stop them again and retry.
+    Start-Sleep -Seconds 3
+    StopRunningCopies
+}
+if (-not $installed) {
+    Fail ("uv could not install the server. A program may still be using the installed copy: close VS Code and " +
+        "Claude Code (their Swiss Army Bench tools run from it), then run this installer again.")
+}
 Quiet { uv tool update-shell }
 if ($Temp) { Remove-Item -Recurse -Force $Temp -ErrorAction SilentlyContinue }
 
