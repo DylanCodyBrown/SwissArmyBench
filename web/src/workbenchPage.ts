@@ -71,7 +71,7 @@ import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, onKindColours, setAppNotebooks } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
-import { updateCommands, updateMark } from "./updates";
+import { updateCommands, updateMark, versionMark } from "./updates";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
@@ -1843,7 +1843,7 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), consoleToggle, modeToggles, variablesToggle);
+layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), consoleToggle, modeToggles, variablesToggle, versionMark());
 
 function drawCursor(): void {
   const doc = current;

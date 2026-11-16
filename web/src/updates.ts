@@ -68,6 +68,21 @@ function onUpdates(listener: () => void): void {
   listeners.push(listener);
 }
 
+/** The version this app is, at the bottom of every status bar (the owner, 2026-11-16: "we should add a version
+ *  stamp to the bottom of the app"). Its tooltip says the newest one when another is offered. */
+export function versionMark(): HTMLElement {
+  const mark = h("span", { class: "version-mark" });
+  const draw = (): void => {
+    const s = state;
+    mark.textContent = s?.current ? `Version ${s.current}` : "";
+    mark.title = s?.available && s.version ? `Swiss Army Bench ${s.current}; ${s.version} is out` : s?.current ? `Swiss Army Bench ${s.current}` : "";
+  };
+  onUpdates(draw);
+  void loadUpdates().then(draw);
+  draw();
+  return mark;
+}
+
 /** The status bar's quiet mark: only while an update exists (or the last one failed). */
 export function updateMark(): HTMLElement {
   const mark = h("button", { type: "button", class: "update-mark", hidden: true }) as HTMLButtonElement;

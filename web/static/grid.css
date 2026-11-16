@@ -10120,3 +10120,11 @@ body.sql-window dialog[open] textarea.code-input {
 .window-top .window-close {
   margin-left: auto;
 }
+
+/* The version stamp at the end of every status bar (updates.ts versionMark). */
+.version-mark {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 0 4px;
+}
