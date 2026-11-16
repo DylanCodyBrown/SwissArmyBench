@@ -299,7 +299,9 @@ def test_start_opens_the_page_with_its_token_and_open_finds_a_running_one(
     could not be reached. The address now carries the token in its fragment, and `open` reads it back."""
     from swissarmybench.server import __main__ as command
 
-    assert command.page_address({"port": 58064, "token": "abc"}) == "http://127.0.0.1:58064/#token=abc"
+    assert (
+        command.page_address({"port": 58064, "token": "abc"}) == "http://127.0.0.1:58064/workspace#token=abc"
+    )
     opened: list[str] = []
 
     def browse(url: str) -> bool:
@@ -311,4 +313,17 @@ def test_start_opens_the_page_with_its_token_and_open_finds_a_running_one(
     assert command.open_page(tmp_path / "server.json") is False and opened == []
     monkeypatch.setattr(command, "running_server", lambda path: {"port": 58064, "token": "abc"})
     assert command.open_page(tmp_path / "server.json") is True
-    assert opened == ["http://127.0.0.1:58064/#token=abc"]
+    assert opened == ["http://127.0.0.1:58064/workspace#token=abc"]
+
+
+def test_the_bare_address_goes_to_the_apps_page_without_a_token() -> None:
+    """0.0.2 opened http://127.0.0.1:<port>/#token=...; the bare address had no page and answered 401.
+    It now sends the browser on to /workspace (which keeps the fragment), and holds no data itself."""
+    from starlette.testclient import TestClient
+
+    from swissarmybench.server.app import create_app
+    from swissarmybench.settings import Settings
+
+    client = TestClient(create_app(8000, "t", Settings()), base_url="http://127.0.0.1:8000")
+    answer = client.get("/", follow_redirects=False)
+    assert answer.status_code == 307 and answer.headers["location"] == "/workspace"

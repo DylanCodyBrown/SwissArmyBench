@@ -125,7 +125,7 @@ def main() -> None:
 
 def page_address(info: dict[str, Any]) -> str:
     """The app's page with its token in the fragment (never sent over the network)."""
-    return f"http://127.0.0.1:{info['port']}/#token={info['token']}"
+    return f"http://127.0.0.1:{info['port']}/workspace#token={info['token']}"
 
 
 def open_page(path: Path | None = None) -> bool:

@@ -143,6 +143,7 @@ NOT_COMMANDS = {
     "/snapshots/{}/error": "the page's failure reply to app_snapshot (page plumbing)",
     "/ws": "reached through events",
     "/g/{}": "page shell",
+    "/": "page shell: the bare address goes on to /workspace",
     "/workspace": "page shell",
     "/catalog": "page shell",
     "/workbench": "page shell: the Workbench window (the agent works its files and kernels directly)",
