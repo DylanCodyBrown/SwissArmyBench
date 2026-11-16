@@ -352,27 +352,23 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
     workbench.context.close()
 
 
-def test_the_steps_window_has_the_rail_and_grids_brings_the_home_window_forward(
-    browser: Browser, orchard: str
-) -> None:
+def test_the_steps_window_is_only_the_transformations(browser: Browser, orchard: str) -> None:
+    """The owner (2026-11-16): transformations "should open in a pop out window in their own window not as a
+    duplicate of the entire page": no rail, no tabs, no ribbon; the grid page's row says Transformations."""
     page = home_page(browser, orchard)
+    caption = page.locator(".ribbon-caption strong", has_text="Transformations")
+    row = page.locator(".ribbon .ribbon-group", has=caption)
+    expect(row).to_be_visible()
+    captions = page.locator(".ribbon .ribbon-caption strong")
+    expect(captions).to_have_text(["Table", "Transformations", "Column"])
+    expect(page.locator(".titlebar")).to_be_hidden()
     with page.context.expect_page() as opened:
-        page.evaluate("window.open(location.pathname + '?panel=steps', 'steps-rail', 'width=520,height=820')")
+        row.get_by_role("button", name="View steps").click()
     steps = opened.value
     expect(steps.locator(".steps-panel .step.source")).to_be_visible(timeout=20000)
-    expect(rail(steps)).to_be_visible()
-    expect(current(steps)).to_have_attribute("data-area", "grids")
-    assert left_of(steps, ".window-top") >= right_edge(steps) - 0.5
-    pages = len(page.context.pages)
-    # A rail click moves this tab (2026-11-16: "the open in new tab is optional"): the steps window
-    # itself goes to the grids; the home window stays where it was.
-    page.locator(".nav-rail [data-area='visualizations']").click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    area(steps, "grids").click()
-    expect(steps.locator(".workspace")).to_have_attribute("data-view", "grid", timeout=20000)
-    expect(current(steps)).to_have_attribute("data-area", "grids")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    assert len(page.context.pages) == pages
+    expect(steps.locator(".steps-panel h2")).to_have_text("Transformations")
+    for gone in (".nav-rail", ".tabbar", ".ribbon", ".app-row"):
+        expect(steps.locator(gone)).to_have_count(0)
     page.context.close()
 
 
@@ -395,4 +391,44 @@ def test_the_rail_has_no_switch_and_nothing_repeats_it(
         call(server, "PUT", "/panels", {"app.rail": False}, agent=True)
     page.go_back()
     expect(rail(page)).to_be_visible()
+    page.context.close()
+
+
+def test_a_sql_step_is_written_in_a_window_of_its_own(browser: Browser, orchard: str) -> None:
+    """The owner (2026-11-16): Add a SQL step and editing one open "a resizable window so the user can
+    type large sql transformations"; the steps window has a Close and no Copy transformations button."""
+    page = home_page(browser, orchard)
+    with page.context.expect_page() as opened:
+        page.get_by_role("button", name="View steps").click()
+    steps = opened.value
+    expect(steps.locator(".steps-panel .step.source")).to_be_visible(timeout=20000)
+    expect(steps.get_by_role("button", name="Copy transformations as SQL or Python")).to_have_count(0)
+    expect(steps.locator(".window-top").get_by_role("button", name="Close")).to_be_visible()
+    with steps.context.expect_page() as sql_opened:
+        steps.get_by_role("button", name="Add a SQL step").click()
+    sql = sql_opened.value
+    box = sql.get_by_role("textbox", name="SQL")
+    expect(box).to_be_visible(timeout=20000)
+    for gone in (".nav-rail", ".tabbar", ".ribbon"):
+        expect(sql.locator(gone)).to_have_count(0)
+    # The box fills the window, and grows with it.
+    small = box.bounding_box()
+    assert small and small["height"] > sql.viewport_size["height"] * 0.5  # type: ignore[index]
+    sql.set_viewport_size({"width": 1400, "height": 1000})
+    sql.wait_for_timeout(200)
+    big = box.bounding_box()
+    assert big and big["height"] > small["height"] + 200
+    box.fill("SELECT *\nFROM grid\nWHERE true")
+    with sql.expect_event("close"):
+        sql.get_by_role("button", name="Add step").click()
+    step = steps.locator(".step-list li").nth(1)
+    expect(step).to_contain_text("SQL", timeout=20000)
+    # Its pencil opens the same window, holding its SQL.
+    with steps.context.expect_page() as edit_opened:
+        step.get_by_role("button", name="Edit step 1").click()
+    edit = edit_opened.value
+    expect(edit.get_by_role("textbox", name="SQL")).to_have_value(
+        "SELECT *\nFROM grid\nWHERE true", timeout=20000
+    )
+    edit.close()
     page.context.close()

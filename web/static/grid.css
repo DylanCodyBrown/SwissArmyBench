@@ -10068,3 +10068,42 @@ body.has-rail .area-page {
 .card-kind-icon {
   margin-right: 2px;
 }
+
+/* ===== The SQL step's window (?panel=sql, the owner 2026-11-16): the form fills the window, the box grows with
+   it, so a long transformation has room. ===== */
+body.sql-window {
+  height: 100vh;
+  overflow: hidden;
+}
+
+body.sql-window dialog[open] {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+body.sql-window dialog[open] .dialog-body,
+body.sql-window dialog[open] .form-grid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.sql-window dialog[open] textarea.code-input {
+  flex: 1;
+  min-height: 200px;
+  resize: none;
+}
+
+.window-top .window-close {
+  margin-left: auto;
+}

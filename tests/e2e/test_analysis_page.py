@@ -24,7 +24,7 @@ def test_fit_test_then_outliers_within_each_vendor_shown_as_a_step(
             page.locator(f".ag-header-cell[col-id='{column}'] .sab-header-name").click(button="right")
             page.get_by_role("menuitem", name=entry).click()
 
-        column_row = page.locator(".ribbon .ribbon-group").nth(1)
+        column_row = page.locator(".ribbon .ribbon-group").nth(2)
         for gone in ("Fit test…", "Outliers…"):
             expect(column_row.get_by_role("button", name=gone)).to_have_count(0)
         page.locator(".ag-header-cell[col-id='amount'] .sab-header-name").click()

@@ -340,7 +340,7 @@ def test_profile_click_value_adds_a_filter(browser: Browser, orders_url: str) ->
     page = open_grid(browser, orders_url)
     # The Column row's Profile: a one-time popup over the grid; the grid tab stays open behind it.
     page.locator(".ag-header-cell[col-id='product'] .sab-header-name").click()
-    page.locator(".ribbon .ribbon-group").nth(1).get_by_role("button", name="Profile", exact=True).click()
+    page.locator(".ribbon .ribbon-group").nth(2).get_by_role("button", name="Profile", exact=True).click()
     expect(page.locator(".sab-header-profile")).to_have_count(0)  # no profile button in the headers
     dialog = page.locator("dialog")
     expect(dialog.locator(".stat-grid")).to_contain_text("Distinct")
@@ -355,7 +355,7 @@ def test_profile_click_value_adds_a_filter(browser: Browser, orders_url: str) ->
     dialog.get_by_role("button", name="Close").first.click()
     # The Column row's Profile opens the same popup for the selected column.
     page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
-    page.locator(".ribbon .ribbon-group").nth(1).get_by_role("button", name="Profile", exact=True).click()
+    page.locator(".ribbon .ribbon-group").nth(2).get_by_role("button", name="Profile", exact=True).click()
     expect(page.locator("dialog .dialog-head h2")).to_have_text("Profile of region")
     page.locator("dialog").get_by_role("button", name="Close").first.click()
     page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Profile", exact=True).click()
@@ -381,13 +381,13 @@ def test_copy_as_sql_and_python_run_on_the_users_own_table(
     strip = page.locator(".steps-strip")
     expect(strip.locator(".steps-count")).to_have_text("4 steps")
     # The copy buttons left the strip (2026-11-14): the table's cell in the Workbench is the code.
-    expect(strip.get_by_role("button", name="Edit steps")).to_be_visible()
+    expect(strip.get_by_role("button", name="View steps")).to_be_visible()
     for gone in ("Copy as SQL", "Copy as Python", "To Python"):
         expect(strip.get_by_role("button", name=gone)).to_have_count(0)
     # The steps window's Code tab still copies the one query, checked against the grid.
     window = open_steps(browser, orders_url)
     window.evaluate("() => { navigator.clipboard.writeText = async (text) => { window.__copied = text; }; }")
-    window.get_by_role("button", name="Copy transformations as SQL or Python").click()
+    window.get_by_role("tab", name="Code").click()  # the Copy transformations button left (2026-11-16)
     expect(window.locator(".code-view").get_by_role("button", name="Copy as SQL")).to_be_visible(
         timeout=30000
     )
@@ -439,27 +439,32 @@ def test_the_grid_has_the_whole_page_and_its_steps_open_in_their_own_tab(
     expect(strip.get_by_role("button", name="Undo", exact=True)).to_be_disabled()
     expect(strip.get_by_role("button", name="Redo", exact=True)).to_be_disabled()
     with page.context.expect_page() as opened:
-        strip.get_by_role("button", name="Edit steps").click()
+        strip.get_by_role("button", name="View steps").click()
     steps = opened.value
-    expect(steps.locator(".steps-panel h2")).to_have_text("Table Transformations")
+    expect(steps.locator(".steps-panel h2")).to_have_text("Transformations")
     expect(steps.locator(".steps-panel .step.source")).to_be_visible(timeout=15000)
-    assert steps.title().startswith("Table Transformations \u00b7 ")
+    assert steps.title().startswith("Transformations \u00b7 ")
     steps.close()
+
+
+def sql_step_window(steps: Page) -> Locator:
+    """Add a SQL step: its own window (2026-11-16), the form filling it."""
+    with steps.context.expect_page() as opened:
+        steps.get_by_role("button", name="Add a SQL step").click()
+    return opened.value.locator("dialog")
 
 
 def test_a_sql_step_has_its_own_form_in_the_steps_window(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     steps = open_steps(browser, orders_url)
-    steps.get_by_role("button", name="Add a SQL step").click()
-    dialog = steps.locator("dialog")
+    dialog = sql_step_window(steps)
     box = dialog.get_by_label("SQL")
     box.fill("SELECT * FROM grid WHERE quantity > 40")
     dialog.get_by_role("button", name="Add step").click()
     expect(page.locator(".steps-strip .steps-count")).to_have_text("1 step")
     expect(page.locator("#status")).to_contain_text("of 1,000")
     # Anything but one read-only query is refused when the view is built: the strip names the step.
-    steps.get_by_role("button", name="Add a SQL step").click()
-    dialog = steps.locator("dialog")
+    dialog = sql_step_window(steps)
     dialog.get_by_label("SQL").fill("DROP TABLE orders")
     dialog.get_by_role("button", name="Add step").click()
     expect(page.locator(".steps-strip .status-error")).to_contain_text("Step 2", timeout=15000)
@@ -471,7 +476,7 @@ def test_popout_steps_window(browser: Browser, orders_url: str) -> None:
     page = browser.new_page()
     page.goto(f"{path}?panel=steps#{fragment}")
     expect(page.locator(".steps-panel .step.source")).to_be_visible(timeout=15000)
-    assert page.title().startswith("Table Transformations · ")
+    assert page.title().startswith("Transformations · ")
     # Only the steps: no copy of the ribbon, and no button to pop out a window that already is one.
     expect(page.locator(".ribbon")).to_have_count(0)
     expect(page.locator(".app-row")).to_have_count(0)
@@ -1176,7 +1181,7 @@ def test_header_selects_its_column_and_the_column_tools_follow(
     # Excel's status bar, over all 5,000 rows (not just the loaded ones).
     total = int(demo_frame()["quantity"].sum())
     expect(page.locator(".statusbar")).to_contain_text(f"Sum {total:,}")
-    expect(page.locator(".ribbon .ribbon-caption").nth(1)).to_contain_text("quantity")
+    expect(page.locator(".ribbon .ribbon-caption").nth(2)).to_contain_text("quantity")
     page.get_by_role("button", name="Sort Z→A").click()
     wait_for_cell(page, 0, "quantity", "50")
     page.locator(".ag-header-cell[col-id='note'] .sab-header-name").click()
@@ -1220,7 +1225,7 @@ def test_clicking_off_the_grid_clears_a_selected_column_but_the_ribbon_keeps_it(
     page.locator(".ag-header-cell[col-id='quantity'] .sab-header-name").click()
     expect(header).to_have_class(re.compile("col-selected"))
     # The ribbon's tools act on the selection, so a click there leaves it.
-    page.locator(".ribbon .ribbon-caption").nth(1).click()
+    page.locator(".ribbon .ribbon-caption").nth(2).click()
     expect(header).to_have_class(re.compile("col-selected"))
     # A click anywhere else outside the grid clears it.
     page.locator(".statusbar").click()
@@ -1251,7 +1256,9 @@ def test_clicking_off_the_grid_clears_a_select_all(browser: Browser, orders_url:
 def test_the_cells_right_click_keeps_rows_with_the_selected_value(browser: Browser, orders_url: str) -> None:
     """The ribbon has no Cell row (2026-11-14): its four tools are on the cell's right-click menu."""
     page = open_grid(browser, orders_url)
-    expect(page.locator(".ribbon .ribbon-caption strong")).to_have_text(["Table", "Column"])
+    expect(page.locator(".ribbon .ribbon-caption strong")).to_have_text(
+        ["Table", "Transformations", "Column"]
+    )
     for gone in ("Keep these", "Exclude these", "View value", "Copy"):
         expect(page.locator(".ribbon").get_by_role("button", name=gone, exact=True)).to_have_count(0)
     page.locator(row_cell(0, "product")).click()
@@ -2088,14 +2095,14 @@ def test_ctrl_click_on_the_only_selected_header_selects_nothing(browser: Browser
     expect(page.locator(".statusbar")).to_contain_text("5,000 cells selected")
     name.click(modifiers=["Control"])
     expect(page.locator(".statusbar")).not_to_contain_text("selected")
-    expect(page.locator(".ribbon .ribbon-caption").nth(1)).to_have_text("Column")  # no column named
+    expect(page.locator(".ribbon .ribbon-caption").nth(2)).to_have_text("Column")  # no column named
     page.wait_for_timeout(500)
     assert refused == []
 
 
 def test_a_narrow_window_has_no_sideways_page_scroll(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url, width=420, height=760)
-    expect(page.locator(".steps-strip").get_by_role("button", name="Edit steps")).to_be_visible(timeout=15000)
+    expect(page.locator(".steps-strip").get_by_role("button", name="View steps")).to_be_visible(timeout=15000)
     assert page.evaluate("document.documentElement.scrollWidth") <= 420
     grid = page.locator(".pane.active .grid-host").bounding_box()
     assert grid is not None and grid["width"] > 200  # most of the width stays with the grid

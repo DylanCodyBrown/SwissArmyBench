@@ -37,6 +37,12 @@ import { matchingSummary, openTextMatching } from "./textMatching";
 import { gridZoom, onThemeChange, stepZoom } from "./theme";
 
 let host: HTMLElement;
+/** The steps strip (stepsStrip.ts), shown as the Transformations row below Table (the owner, 2026-11-16). */
+let stepsRow: HTMLElement | null = null;
+
+export function setStepsRow(element: HTMLElement): void {
+  stepsRow = element;
+}
 let onProfile: (column: string) => void = () => {};
 
 export function mountRibbon(element: HTMLElement, openColumnProfile: (column: string) => void): void {
@@ -168,6 +174,7 @@ function render(): void {
       tool("Relationships", "crown", () => openRelationships(), { title: "Keys and joins" }),
       tool("Export", "export", () => openExport()),
     ),
+    stepsRow ? group("Transformations", "", stepsRow) : null,
     group(
       "Column",
       colCaption,

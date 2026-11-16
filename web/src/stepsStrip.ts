@@ -5,7 +5,8 @@
  * page. The ribbon adds steps. This strip says how many are on (a sort made by clicking a header
  * is one of them) and offers:
  *   [N STEPS]  hover, focus or click: the steps in plain words, each with a remove × -> stepOp(delete)
- *   Undo (Ctrl+Z) · Redo (Ctrl+Y) · Clear · Edit steps (the full panel, in a tab of its own).
+ *   Undo (Ctrl+Z) · Redo (Ctrl+Y) · Clear · View steps (the full panel, in a pop-up window of its own).
+ * It is the ribbon's Transformations row, below Table (the owner, 2026-11-16).
  * Undo takes back the last change to the steps, whatever it was (a step added, removed or edited,
  * the steps cleared, a header sort); Redo makes it again. The keys work while the grid is in front
  * and the cursor is not in a text box or an editor.
@@ -24,7 +25,7 @@ function openStepsWindow(): void {
   const info = state.info;
   if (!info) return;
   const page = `/g/${encodeURIComponent(info.grid)}`;
-  const opened = window.open(`${page}?panel=steps#token=${encodeURIComponent(token)}`, `steps-${page}`, "width=440,height=820");
+  const opened = window.open(`${page}?panel=steps#token=${encodeURIComponent(token)}`, `steps-${page}`, "popup,width=460,height=820");
   if (!opened) toast("The browser blocked the steps window.", "error");
 }
 
@@ -66,7 +67,7 @@ function render(): void {
     disabledUnless(info.can_undo, button("Undo", () => void state.undo().catch(failed), { icon: "back", iconOnly: true, class: "ghost", title: info.can_undo ? "Undo the last step change (Ctrl+Z)" : "Nothing to undo" })),
     disabledUnless(info.can_redo, button("Redo", () => void state.redo().catch(failed), { icon: "forward", iconOnly: true, class: "ghost", title: info.can_redo ? "Redo (Ctrl+Y)" : "Nothing to redo" })),
     disabledUnless(info.steps.length > 0, button("Clear the steps", () => void state.saveSteps([]).catch(failed), { icon: "trash", iconOnly: true, class: "ghost" })),
-    button("Edit steps", openStepsWindow, { icon: "steps", class: "ghost" }),
+    button("View steps", openStepsWindow, { icon: "steps", class: "ghost" }),
   );
 }
 

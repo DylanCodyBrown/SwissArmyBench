@@ -1,7 +1,7 @@
 /**
  * stepsPanel.ts: the Table Transformations window (applied steps) and its Code tab
  * (plan sections 7, 9, 10). [WIRE]
- * It shows only in a window of its own (?panel=steps, opened by the strip's Edit steps), and holds
+ * It shows only in a window of its own (?panel=steps, opened by the strip's View steps), and holds
  * only the steps: the step list, Add a SQL step and the Code tab. The grid's page has the ribbon.
  *
  * ROUTING: [ADD SQL STEP]    -> editStep("sql") (a SQL step's own form)
@@ -43,15 +43,20 @@ function scheduleRender(): void {
   });
 }
 
-function showCode(): void {
-  tab = "code";
-  void render();
+/** A SQL step in a window of its own (?panel=sql, &step=N to edit one): resizable, the box filling it. */
+function openSqlWindow(step?: number): void {
+  const at = new URL(location.pathname, location.origin);
+  at.searchParams.set("panel", "sql");
+  if (step !== undefined) at.searchParams.set("step", String(step));
+  const opened = window.open(`${at.pathname}${at.search}`, `sql-${location.pathname}`, "popup,width=960,height=680");
+  if (opened) opened.focus();
+  else toast("The browser blocked the SQL window: allow pop-ups for this address.", "error");
 }
 
 async function render(): Promise<void> {
   const info = state.info;
   if (!info || !host) return;
-  const header = h("div", { class: "panel-header" }, h("h2", { id: "steps-title" }, "Table Transformations"));
+  const header = h("div", { class: "panel-header" }, h("h2", { id: "steps-title" }, "Transformations"));
   const body = h("div", { class: "panel-body" });
   clear(
     host,
@@ -59,11 +64,8 @@ async function render(): Promise<void> {
     h(
       "div",
       { class: "panel-actions" },
-      button("Add a SQL step", () => editStep("sql"), { icon: "sql" }),
-      button("Copy transformations as SQL or Python", () => showCode(), {
-        icon: "code",
-        pressed: tab === "code",
-      }),
+      // A window of its own, as big as you like: room for a long SQL transformation (the owner, 2026-11-16).
+      button("Add a SQL step", () => openSqlWindow(), { icon: "sql" }),
     ),
     h(
       "div",
@@ -149,7 +151,7 @@ function stepRow(step: StepJson, index: number): HTMLElement {
     h(
       "span",
       { class: "actions" },
-      step.kind in KIND_LABELS && step.kind !== "distinct" ? button(`Edit step ${index + 1}`, () => editStep(step.kind, index), { icon: "edit", iconOnly: true, class: "ghost" }) : null,
+      step.kind in KIND_LABELS && step.kind !== "distinct" ? button(`Edit step ${index + 1}`, () => (step.kind === "sql" ? openSqlWindow(index) : editStep(step.kind, index)), { icon: "edit", iconOnly: true, class: "ghost" }) : null,
       button(`Delete step ${index + 1}`, () => void remove(index), { icon: "trash", iconOnly: true, class: "ghost" }),
     ),
     before !== undefined && after !== undefined && before !== after

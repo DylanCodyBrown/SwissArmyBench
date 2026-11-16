@@ -48,7 +48,7 @@ import "./settingsWindow";
 import "./connectionsWindow";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, showStartView, viewingStart } from "./panes";
 import { mountStart } from "./startView";
-import { mountRibbon, zoomControl } from "./ribbon";
+import { mountRibbon, setStepsRow, zoomControl } from "./ribbon";
 import { openColumnProfile } from "./profileView";
 import { mountFileDrop } from "./openFile";
 import { mountOpenMenu } from "./openMenu";
@@ -57,12 +57,15 @@ import { loadRelationships } from "./relationships";
 import { PageState, activate, state } from "./state";
 import { pastedToast } from "./renameTable";
 import { mountStepsPanel } from "./stepsPanel";
+import { editStep } from "./stepForms";
 import { mountStepsStrip } from "./stepsStrip";
 import { setGridZoom, stepZoom } from "./theme";
 
 const panelParam = new URLSearchParams(location.search).get("panel");
 const popout = panelParam === "steps";
 const keysWindow = panelParam === "keys";
+/** A SQL step in a window of its own (the steps window's Add a SQL step, or a SQL step's edit). */
+const sqlWindow = panelParam === "sql";
 
 /** The dataset name is the page's title: centered and large, in its own row. */
 function title(): void {
@@ -120,6 +123,12 @@ function onLiveNotice(notice: Notice): void {
       }).catch(() => undefined); // closed meanwhile: its grid_closed notice drops the tab
     }
   }
+  if (notice.type === "grid_updated" && notice.grid && singleState && notice.grid === gridId) {
+    // A window of one grid (the steps window): its steps changed elsewhere (the grid page, the SQL step's
+    // window, the agent). It has no tabs to look the grid up in, so it reloads its own.
+    singleState.gen = Math.max(singleState.gen, (notice as { gen?: number }).gen ?? 0);
+    void singleState.load().catch(() => undefined);
+  }
   if (notice.type === "grid_updated" && notice.grid) {
     // Steps changed in another window, by a chart click, or by the agent.
     const ctx = contextOf(notice.grid);
@@ -140,9 +149,13 @@ function onLiveNotice(notice: Notice): void {
   handleAgentNotice(notice);
 }
 
+/** A window of one grid (?panel=steps, keys, sql): its state, for the live notices. */
+let singleState: PageState | null = null;
+
 /** The pop-out windows (?panel=steps, ?panel=keys) show one grid: the one in their address. */
 async function startSingle(): Promise<void> {
   const single = new PageState(gridId);
+  singleState = single;
   activate(single);
   const info = await single.load();
   const stepsHost = $("#steps-panel");
@@ -154,6 +167,18 @@ async function startSingle(): Promise<void> {
   onNotice(onLiveNotice);
   mountSnapshots();
   mountContextMenus();
+  if (sqlWindow) {
+    // The SQL step's window: its form alone, filling the window, which the user can make as big as they
+    // like (the owner, 2026-11-16: "a resizable window so the user can type large sql transformations").
+    const at = new URLSearchParams(location.search).get("step");
+    setTitle(at === null ? "Add a SQL step" : `Edit step ${Number(at) + 1}`, info.dataset);
+    for (const selector of [".tabbar", ".titlebar", ".app-row", ".ribbon", ".workspace", ".statusbar"]) $(selector).remove();
+    document.body.classList.add("sql-window");
+    editStep("sql", at === null ? undefined : Number(at));
+    // Saved or cancelled: the form closes, and so does its window.
+    document.querySelector("dialog[open]")?.addEventListener("close", () => window.close());
+    return;
+  }
   if (keysWindow) {
     // The Key Finder window: the finder alone, full width, titled for this grid; the mark goes home.
     setTitle("Key Finder", info.dataset);
@@ -165,11 +190,11 @@ async function startSingle(): Promise<void> {
     await renderKeyFinder(host);
     return;
   }
-  setTitle("Table Transformations", info.dataset);
+  setTitle("Transformations", info.dataset);
   $(".tabbar").remove();
   $(".titlebar").remove();
-  // The steps window's top row: the mark (home), then whose steps these are.
-  document.body.prepend(h("header", { class: "window-top" }, appMark(), h("strong", {}, info.dataset)));
+  // The steps window's top row: whose transformations these are; nothing of the page around it.
+  document.body.prepend(h("header", { class: "window-top" }, h("strong", {}, info.dataset), button("Close", () => window.close(), { icon: "close", class: "ghost window-close" })));
   // The steps window shows only the steps: no ribbon of its own (the grid's page has it).
   $(".app-row").remove();
   $(".ribbon").remove();
@@ -183,12 +208,13 @@ async function start(): Promise<void> {
   if (!(await requireSession())) return; // no token and no good cookie: how to open the app
   // Beta mode (the beta log and Leave a note…): on every window of this page; nothing while it is off.
   mountBeta("grid", {
-    window: popout ? "steps" : keysWindow ? "keys" : "main",
+    window: popout ? "steps" : keysWindow ? "keys" : sqlWindow ? "sql" : "main",
     tabs: () => [`front:${document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid"}`, ...Array.from(document.querySelectorAll(".tabs-row [role=tab]"), () => "tab")],
   });
-  if (popout || keysWindow) {
-    mountNav(popout ? "steps" : "keys");
-    mountNavRail(popout ? "steps" : "keys"); // the areas: Grids brings the home window forward
+  if (popout || keysWindow || sqlWindow) {
+    mountNav(popout || sqlWindow ? "steps" : "keys");
+    if (keysWindow) mountNavRail("keys"); // the areas: Grids brings the home window forward
+    // The steps window shows only the transformations: no rail, no copy of the page (the owner, 2026-11-16).
     await startSingle();
     return;
   }
@@ -211,9 +237,12 @@ async function start(): Promise<void> {
   // The ribbon adds steps; the strip under the title shows them, and opens the panel in a tab of its
   // own; the steps as code are the table's read-only cell in the Workbench.
   $("#steps-panel").remove();
+  // The strip is the ribbon's Transformations row, below Table; the big title went (the tab names the
+  // table; the owner, 2026-11-16). #grid-title stays in the page, hidden, for the compare's words.
   const strip = h("div", { class: "steps-strip" });
-  $(".titlebar").append(strip);
+  setStepsRow(strip);
   mountStepsStrip(strip);
+  $(".titlebar").hidden = true;
   mountBottomBar($(".statusbar"));
   void loadPanels(); // a panel turned off in Settings is gone (grid.css, by <body>'s class)
   mountAiPanel(workspace, $("#ai-panel"), $(".splitter"));
