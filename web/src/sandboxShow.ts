@@ -29,7 +29,7 @@ export function showInSandbox(card: string | null): void {
 /** Say what arrived in the Sandbox, with Show. `made`: the server's answer for the first card sent ({card: its id}). */
 export function sentToast(message: string, made?: unknown): void {
   const id = made && typeof made === "object" && typeof (made as { card?: unknown }).card === "string" ? (made as { card: string }).card : null;
-  if (!document.querySelector(".tab-agent")) {
+  if (!document.querySelector("#ai-panel")) { // the grid page only: its Sandbox is in this page
     toast(message);
     return;
   }
