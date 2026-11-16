@@ -1978,3 +1978,10 @@ drags; code of more than one line is pasted, one typed value):
   project is an app notebook).
 - **Screenshots** (2x, made-up orchard project): the Notebooks page's two groups, data.ipynb with no Data
   panel, an app notebook with it, a new app notebook; looked at.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,175 passed, 33 skipped, 1 failed in
+  18 minutes: test_beta_notes_page's tab kinds (a canvas's notebook with no project open is now plain,
+  not an app notebook; the test was updated and passes). ruff, ruff format, mypy, the page's typecheck and
+  build.
+- **Not checked:** Edge and Firefox; Windows paths in the page's rule (the domain rule's test has them);
+  a .sab project opened from the home page with the Workbench already open (the folder project was used;
+  both set the same project folder).
