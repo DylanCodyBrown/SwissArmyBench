@@ -20,6 +20,8 @@ import type { Command } from "./workbenchCommands";
 
 export interface UpdateState {
   current: string;
+  /** "lite": Swiss Army Bench Lite; else the full app. */
+  edition?: string;
   latest: string | null;
   available: boolean;
   version: string | null;
@@ -68,14 +70,16 @@ function onUpdates(listener: () => void): void {
   listeners.push(listener);
 }
 
-/** The version this app is, at the bottom of every status bar (the owner, 2026-11-16: "we should add a version
- *  stamp to the bottom of the app"). Its tooltip says the newest one when another is offered. */
+/** The app's name and version, at the bottom left of every status bar (the owner, 2026-11-16: "we should add a
+ *  version stamp to the bottom of the app", then "Swiss Army Bench and Swiss Army Bench Lite as the app name in
+ *  the bottom left"). Its tooltip says the newest version when another is offered. */
 export function versionMark(): HTMLElement {
   const mark = h("span", { class: "version-mark" });
   const draw = (): void => {
     const s = state;
-    mark.textContent = s?.current ? `Version ${s.current}` : "";
-    mark.title = s?.available && s.version ? `Swiss Army Bench ${s.current}; ${s.version} is out` : s?.current ? `Swiss Army Bench ${s.current}` : "";
+    const name = s?.edition === "lite" ? "Swiss Army Bench Lite" : "Swiss Army Bench";
+    mark.textContent = s?.current ? `${name} ${s.current}` : name;
+    mark.title = s?.available && s.version ? `${s.version} is out` : "";
   };
   onUpdates(draw);
   void loadUpdates().then(draw);

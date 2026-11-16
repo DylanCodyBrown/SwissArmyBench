@@ -1843,7 +1843,7 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), consoleToggle, modeToggles, variablesToggle, versionMark());
+layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;

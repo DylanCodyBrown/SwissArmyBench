@@ -436,3 +436,16 @@ def test_the_routes_read_switch_and_refuse_without_an_update(tmp_path: Path) -> 
         tray = client.get("/updates/tray", headers=AUTH).json()
         assert tray["tables"] == [] and tray["documents"] == []
         assert client.get("/updates").status_code == 401  # the token, as on every route
+
+
+def test_the_edition_names_the_app_full_unless_lite(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The status bar's name (2026-11-16): Swiss Army Bench, or Swiss Army Bench Lite where its installer set
+    SWISSARMYBENCH_EDITION=lite."""
+    from swissarmybench.server.routes_updates import edition
+
+    monkeypatch.delenv("SWISSARMYBENCH_EDITION", raising=False)
+    assert edition() == "full"
+    monkeypatch.setenv("SWISSARMYBENCH_EDITION", " Lite ")
+    assert edition() == "lite"
+    monkeypatch.setenv("SWISSARMYBENCH_EDITION", "something else")
+    assert edition() == "full"

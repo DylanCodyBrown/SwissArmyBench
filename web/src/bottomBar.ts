@@ -26,7 +26,7 @@ export function mountBottomBar(host: HTMLElement): void {
   selection = h("span", { "aria-live": "polite" });
   meter = h("button", { type: "button", class: "meter", onclick: () => showTables() });
   live = h("span", { id: "live" });
-  clear(host, rows, selection, h("span", { class: "grow" }), meter, live, updateMark(), betaMark(), h("span", { class: "credit" }, "Created by Dylan Brown"), versionMark());
+  clear(host, versionMark(), rows, selection, h("span", { class: "grow" }), meter, live, updateMark(), betaMark(), h("span", { class: "credit" }, "Created by Dylan Brown"));
   state.on("selection", render);
   state.on("info", render);
   onAgentView(render);

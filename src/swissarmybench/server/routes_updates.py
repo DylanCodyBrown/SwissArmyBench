@@ -15,13 +15,21 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
+from swissarmybench.renamed import env
 from swissarmybench.server.http import actor, error_response, json_response, read_json
 from swissarmybench.services.updates import Updates
 
 
+def edition() -> str:
+    """The app's edition: "lite" (Swiss Army Bench Lite) or "full"."""
+    return "lite" if env("SWISSARMYBENCH_EDITION").strip().lower() == "lite" else "full"
+
+
 def routes(updates: Updates) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
-        return json_response(updates.state())
+        # The edition, for the app's name in the status bar: "lite" for Swiss Army Bench Lite (its installer
+        # sets SWISSARMYBENCH_EDITION), else the full app.
+        return json_response(updates.state() | {"edition": edition()})
 
     async def switch(request: Request) -> Response:
         try:
