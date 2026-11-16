@@ -67,6 +67,9 @@ let homeHere: (() => void) | null = null;
 let pageName = "";
 let where = "";
 let over = "";
+// From mountNav until startNav: the page shows the address it was opened with, which is no move of the
+// user's (a click just before a reload still counts as one in Chromium).
+let starting = false;
 
 // ===== the history =====
 
@@ -118,7 +121,7 @@ function label(): string {
  *  app did. The same address does nothing. */
 export function go(url: string, how: Move = "auto"): Promise<void> {
   const fromLabel = label();
-  const push = how === "push" || (how === "auto" && byUser());
+  const push = how === "push" || (how === "auto" && !starting && byUser());
   return enqueue(() => write(normal(url), push, fromLabel));
 }
 
@@ -129,8 +132,12 @@ function write(target: string, push: boolean, fromLabel: string): void {
   const now = entry();
   const was = new URLSearchParams(location.search).get("open");
   const key = new URL(target, location.href).searchParams.get("open");
-  const layer = !key ? undefined : key === was && now.layer?.key === key ? now.layer : { key, n: now.n, back: push && key !== was };
-  const next: Entry = push ? { n: now.n + 1, from: here(), fromLabel, dialogs: now.dialogs, layer } : { ...now, layer };
+  // (Kept on a replace too: a reload's page writes its own view first, then the layer's words again.)
+  const layer = !key ? undefined : now.layer?.key === key && (key === was || !push) ? now.layer : { key, n: now.n, back: push && key !== was };
+  // A dialog closed a moment ago (its close event not yet heard: "Show" closes it and goes to the
+  // Sandbox at once) is not carried into the new entry, so its close takes nothing away from it.
+  const dialogs = now.dialogs.filter((id) => openDialogs.get(id)?.open);
+  const next: Entry = push ? { n: now.n + 1, from: here(), fromLabel, dialogs, layer } : { ...now, dialogs, layer };
   if (push) history.pushState({ sab: next }, "", target);
   else history.replaceState({ sab: next }, "", target);
 }
@@ -188,6 +195,14 @@ export function withParams(params: Record<string, string | null>, path = locatio
 
 export function registerLayer(key: string, layer: Layer): void {
   layers.set(key, layer);
+}
+
+/** The layer open now (its dialog on screen), or null: a page's own move keeps its words only then. */
+export function layerShown(): string | null {
+  for (const [key, layer] of layers) if (layer.isOpen()) return key;
+  // Starting: the layer the address names opens once the page is ready (startNav); its words stay.
+  const named = new URLSearchParams(location.search).get("open");
+  return starting && named && layers.has(named) ? named : null;
 }
 
 /** The layer `key` was opened by the user: its address (`params`, open=key among them) pushed. */
@@ -298,6 +313,7 @@ function apply(): void {
 /** Each page's start: its kind (for the agent's moves), how it shows an address, and what Home is when
  *  this is the home page. The address it was opened with is shown once the page is ready (start). */
 export function mountNav(kind: PageKind, options: { show?: (url: URL) => void; home?: () => void } = {}): void {
+  starting = true;
   placeListener = options.show ?? null;
   homeHere = options.home ?? null;
   if (kind === "home") window.name = HOME_WINDOW; // another window's mark finds this one by its name
@@ -322,11 +338,25 @@ export function mountNav(kind: PageKind, options: { show?: (url: URL) => void; h
 }
 
 /** The page is ready: the layer its address names opens (a reload, a bookmark, Forward). */
-export function startNav(): void {
-  const url = new URL(location.href);
+export function startNav(url: URL = new URL(location.href)): void {
+  // After the moves already asked for while starting (they replace), the user's moves push again.
+  void enqueue(() => {
+    starting = false;
+  });
   const key = url.searchParams.get("open");
   const layer = key ? layers.get(key) : undefined;
-  if (layer && !layer.isOpen()) layer.open(url);
+  if (!layer || layer.isOpen()) return;
+  // Its words back in the address the page wrote meanwhile (its own view's), in this entry's place.
+  void enqueue(() => {
+    const now = new URL(location.href);
+    for (const k of LAYER_PARAMS) {
+      const value = url.searchParams.get(k);
+      if (value === null) now.searchParams.delete(k);
+      else now.searchParams.set(k, value);
+    }
+    write(now.pathname + now.search, false, label());
+  });
+  layer.open(url);
 }
 
 /** Home: the grids, on the home page; any other window brings the home window forward, or opens it. */

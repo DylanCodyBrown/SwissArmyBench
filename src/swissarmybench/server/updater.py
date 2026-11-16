@@ -64,6 +64,8 @@ class Ops(Protocol):
 
     def note(self, path: str, note: dict[str, str]) -> None: ...
 
+    def stop_in(self, folder: str) -> int: ...
+
 
 def _tail(text: str, lines: int = 12) -> str:
     kept = [line for line in text.strip().splitlines() if line.strip()][-lines:]
@@ -99,6 +101,11 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
         if not waited(WAIT_FOR_EXIT_SECONDS, functools.partial(_gone, ops, int(pid))):
             ops.note(plan["note_file"], {"version": version, "reason": "The app did not stop."})
             return "failed"
+    if plan.get("stop_in"):
+        # Windows: any other program still running from the tool's folder (an editor's MCP server)
+        # holds its files; uv cannot replace them while it runs.
+        steps.append("stop")
+        ops.stop_in(str(plan["stop_in"]))
 
     reason = ""
     steps.append("install")
@@ -222,6 +229,30 @@ class SystemOps:
         except OSError:
             pass
 
+    def stop_in(self, folder: str) -> int:
+        """Stop every process whose program is inside `folder`, but this one; how many were stopped.
+        Windows only (elsewhere a running program's files can be replaced): PowerShell's process list
+        with each program's path (the standard library has none), the folder and this process's id
+        passed as variables, never pasted into the command."""
+        if sys.platform != "win32" or not folder:
+            return 0
+        script = (
+            "$f = $env:SAB_STOP_IN.TrimEnd('\\') + '\\'; $me = [int]$env:SAB_SELF; $n = 0; "
+            "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ProcessId -ne $me -and "
+            "$_.ExecutablePath.StartsWith($f, [StringComparison]::OrdinalIgnoreCase) } | "
+            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; $n++ }; $n"
+        )
+        code, output = self.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            {"SAB_STOP_IN": folder, "SAB_SELF": str(os.getpid())},
+        )
+        last = output.strip().splitlines()[-1].strip() if output.strip() else ""
+        if code != 0 or not last.isdigit():
+            return 0
+        if int(last):
+            time.sleep(1.0)  # Windows lets go of a stopped program's files a moment later
+        return int(last)
+
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
@@ -271,12 +302,14 @@ class Helper:
         prefix: Path | None = None,
         spawn: Callable[[list[str]], object] = detached,
         uv: Callable[[], str | None] = find_uv,
+        windows: bool = sys.platform == "win32",
     ) -> None:
         self.info_file = info_file
         self.note_file = note_file
         self.prefix = prefix or Path(sys.prefix)
         self._spawn = spawn
         self._uv = uv
+        self.windows = windows
 
     def launch(self, version: str, source: str) -> None:
         from swissarmybench import __version__
@@ -302,6 +335,8 @@ class Helper:
             note_file=str(self.note_file),
             # This very tool is the one replaced, wherever its folder is.
             environ={"UV_TOOL_DIR": str(self.prefix.parent)},
+            # Windows: what else runs from its folder (an editor's MCP server) is stopped first.
+            stop_in=str(self.prefix) if self.windows else "",
         )
         folder = Path(tempfile.mkdtemp(prefix="sab-update-"))
         script = folder / "sab_update.py"

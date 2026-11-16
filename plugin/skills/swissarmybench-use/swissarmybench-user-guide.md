@@ -50,6 +50,14 @@ The page has these parts:
 - **Status bar.** The row count and the selection summary. The memory meter shows only once the data is past 80% of its budget (click it for the Tables list, which always has the numbers), and "not live: push again" only when the page has lost the server.
 - **Every action by name.** Ctrl+Shift+P opens the command palette: type a few letters of any button, menu entry or tab, and press Enter. A command that cannot run now is greyed, and says why.
 
+### Getting around
+
+- **The mark** (the red square at the top left of every page and window) takes you home: the grids. From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
+- **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the forms inside Connections, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
+- **Reload** (F5 on the grid page) keeps what you were looking at, the Sandbox, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
+- **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**, **Catalog › Warehouse › sales › orders**.
+- **The browser tab** names the place: the table's name, "Sandbox", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
+
 ### Tables: open, closed and in Python
 
 The ≡ button beside + opens **Tables**. **Open tables** are the ones with a tab. **Closed tables** are still in memory after their tabs were closed: **Open** puts the table itself back as a tab (the same table, not a copy). **Python sessions** lists the tables in your running notebooks and scripts, with Open and Reload. The line under the title says how much of the data budget is in use; the bin removes a table from memory.

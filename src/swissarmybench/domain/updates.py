@@ -243,9 +243,13 @@ class UpdatePlan:
     info_file: str
     note_file: str
     environ: dict[str, str] = field(default_factory=dict)
+    # Windows only: the tool's folder. Another program running from it (an editor's MCP server, a
+    # terminal's sab) locks its files, so the helper stops every process whose program is inside it
+    # before the install (never itself: it runs the base Python, outside that folder).
+    stop_in: str = ""
 
     def steps(self) -> list[str]:
-        return ["wait", "install", "check", "start"]
+        return ["wait", *(["stop"] if self.stop_in else []), "install", "check", "start"]
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -259,6 +263,7 @@ class UpdatePlan:
             "info_file": self.info_file,
             "note_file": self.note_file,
             "environ": dict(self.environ),
+            "stop_in": self.stop_in,
             "steps": self.steps(),
         }
 
@@ -276,9 +281,11 @@ def plan_update(
     note_file: str,
     find_links: str | None = None,
     environ: dict[str, str] | None = None,
+    stop_in: str = "",
 ) -> UpdatePlan:
     """The plan for updating from `current` to `version`; `tool_python` is the app's own Python (the uv
-    tool's), which runs the new version once it is installed."""
+    tool's), which runs the new version once it is installed. `stop_in` (Windows): the tool's folder,
+    whose programs still running are stopped before the install."""
     if parse_version(version) <= parse_version(current) and find_links is None:
         raise UpdateError(f"{version} is not newer than {current}.")
     start = (tool_python, "-m", f"{PACKAGE}.server", "start")
@@ -294,6 +301,7 @@ def plan_update(
         info_file=info_file,
         note_file=note_file,
         environ=dict(environ or {}),
+        stop_in=stop_in,
     )
 
 

@@ -2634,6 +2634,12 @@ for workspaces.
   it no longer starts. **Decision:** when only GitHub answered, uv installs that release's wheel by its
   URL rather than asking PyPI for a version it may not have. **Decision:** a copy not installed by uv
   (no uv-receipt.toml) is refused in words, never half-updated.
+  **Added on the navigation branch (2026-11-16, the coordinator):** on Windows an editor's MCP server
+  running from the same uv tool folder locks its files too, so the plan names the tool's folder
+  (`stop_in`, Windows only) and the helper, once the app's own processes are gone, stops every process
+  whose program is inside it (PowerShell's process list with each program's path; never itself, which
+  runs the base Python outside that folder), then installs. Not stopped: a `swissarmybench-mcp.exe`
+  launcher in uv's bin folder (outside the tool's folder; its Python child inside is stopped, so it ends).
 - **The status bars** (web/src/updates.ts): a quiet green "Update available" in the grid page's and the
   Workbench's status bars only while there is one (principle 7.9: never "up to date"); its menu has
   Update to X and What's new. "Update failed" (red) carries the reason. The `update_changed` and
@@ -2677,7 +2683,7 @@ for workspaces.
   beta mode inside the blade editor's `closed` callback (a stray indent from an earlier merge), so the
   blades page's Beta mark appears only after an editor closes; left as it was, reported.
 
-## Navigation (the owner, 2026-11-16; branch navigation)
+## Navigation (the owner, 2026-11-16; built, branch navigation)
 
 The owner, on the first real use of the beta: "I've noticed there is no navigation in the app to get
 back to the home page or go back anywhere. No back buttons."
@@ -2705,20 +2711,33 @@ back to the home page or go back anywhere. No back buttons."
 - **The mark goes home.** Every page and window starts its top row with the mark (the red square and its
   cross, the tab's icon), a link to `/workspace` named and titled "Home". On the home page it is the
   grid view (closing what is open over it). In any other window it brings the home window to the front
-  when one is open (`window.open("", "sab-home")`: the home page names its window `sab-home`) and opens
-  it when not. Alt+Home does the same everywhere. **Decision:** the mark carries no word: the product's
+  when one is open (first the window that opened this one, up the opener chain, so the agent's nav.home
+  needs no pop-up; else `window.open("", "sab-home")`: the home page names its window `sab-home`) and
+  opens it when not. **Decision:** with pop-ups blocked it says so; it never sends the window it is in
+  home instead (a Workbench would lose its kernels). Alt+Home does the same everywhere. **Decision:** the mark carries no word: the product's
   name stays off the screens (principle 7.8); "Home" is its name and tooltip.
 - **Views live in the address, and Back is the browser's.** `history.pushState` on each move the user
-  makes; a move the app makes by itself (a push bringing a table to the front, a closed tab) replaces
-  the entry instead, so Back never walks through things the user did not do. The token never enters
+  makes; a move the app makes by itself (a closed tab, the draft built into a table, a page showing its
+  address at load) replaces the entry instead, so Back never walks through things the user did not do.
+  **Decision:** "made by the user" is the browser's own user activation (a click or a key in the last
+  few seconds), so the many places that switch tabs did not each need a flag; a push that brings a table
+  forward right after a click counts as the user's. One queue orders every history move, so a dialog
+  closed (history.back) and another opened at once never lose an entry to each other. The token never enters
   the address (the cookie keeps the session, 0.0.4), so a reload keeps the view.
   - Home: `/g/{id}` for a table in front, `/workspace?view=sandbox`, `?view=diagram`, `?view=query`
     (the "+" draft: a reload brings back an empty draft).
   - Over it: `&open=settings`, `&open=connections` with `&at=types`, `&at=form&type=postgres`,
-    `&at=edit&name=Warehouse`, `&at=api`.
+    `&at=edit&name=Warehouse`, `&at=api`. **Decision:** a saved form, and Add API's new connection,
+    replace their entry (Back then goes to where the form was opened from, not to a form already done).
+    **Decision:** a key vault made from a password's form (the form waits, kept) stays outside the
+    address, with its own Back to that form.
   - The blades page: `/catalog?catalog=Warehouse&schema=sales&table=orders` (`&database=` when the
     catalog has several), `?catalog=…&schema=…` (a schema or a Power BI dataset), `?blade=<name>` (the
-    editor), `?blade=` (a new blade's template picker).
+    editor), `?blade=` (a new blade's template picker). `?catalog=Warehouse` alone is a new, small page:
+    the catalog's name and what it holds (schemas, tables, views, columns, its dialect), the trail's
+    middle crumb. The editor with work in it keeps the browser's Back from throwing it away (the old
+    "Save or cancel the blade first."); its own Back is its Cancel. An arrow key's walk through the tree
+    replaces the entry (one entry where it stops); a click pushes.
   - **Every other dialog** pushes an entry with no new words in the address: Back closes the dialog on
     top, Forward does not bring it back (its work is gone). **Decision:** an agent's approval ("The
     agent is asking") is the one dialog Back does not close: it waits for Allow or Deny.
@@ -2726,16 +2745,25 @@ back to the home page or go back anywhere. No back buttons."
     reload already, with their own keys (Ctrl+Alt+Page Up and Down); a document per Back would fight the
     editor's own undo. Back there closes dialogs and moves inside Connections.
 - **A visible Back (←)** where a view was entered from another, named for where it goes: "← Connections",
-  "← Add connection", "← Catalog", "← Blades". It goes back in the browser's history when that is where
+  "← Add connection", "← sales" (a table's schema), "← Warehouse", "← Blades". It goes back in the browser's history when that is where
   it came from, and to the named place otherwise (a bookmark of a form).
 - **Breadcrumbs past one level**, each crumb a link: Connections › Add connection › PostgreSQL;
   Catalog › Warehouse › sales › orders.
 - **Titles name the place, the page first:** the table's name on the home page ("orders"), "Sandbox",
-  "Diagram", "New query"; "Blades · Warehouse › sales › orders", "Blades · Edit refresh_sales";
-  "Workbench · sales.ipynb"; "Steps · orders"; "Key Finder · orders"; "Settings", "Connections ·
-  Add connection" over the page under them.
-- **No dead ends:** "Could not open this grid", the steps window of a closed table, a catalog address
-  whose table is gone, an unknown blade: each says so and offers the mark and a Back.
+  "Diagram", the draft's name; "Blades · Warehouse › sales › orders", "Blades · refresh_sales",
+  "Blades · New blade"; "Workbench · sales.ipynb"; "Table Transformations · orders" (the steps window);
+  "Key Finder · orders"; over the page: "Settings", "Connections › Add connection › PostgreSQL" (and
+  "Workbench · Connections" in the Workbench). With nothing open the home page is "Home".
+- **No dead ends:** "Could not open this grid" offers Home; a catalog address whose table is gone and an
+  unknown blade say so, with "← Blades"; a Connections address whose connection is gone says so, with
+  "← Connections"; a `/g/{id}` of a closed table shows the table in front and its address. The steps and
+  Key Finder windows now have the mark (their table closed: the mark is the way out).
 - **The agent** (the golden rule): `app_navigate` (to: home, back, forward, sandbox, diagram, query,
   settings, connections, add_connection, add_api, grid:<id>, catalog; window: home, catalog, workbench);
-  the Workbench's `workbench_window` commands `nav.home` and `nav.back`.
+  the Workbench's `workbench_window` commands `nav.home`, `nav.back` and `nav.forward` (also in its
+  palette). The server checks the place (domain/navigation.py) and that such a window is open (the
+  blades page is now told apart on the socket), and writes the move to the audit log; the window does the
+  move itself, as the user's would be done.
+- **Not built:** Back between the Workbench's documents (above); the Key Finder window's results and
+  Compare's key picker stay one screen each (Compare's setup is one click away again, the Compare row's
+  Keys…); Forward onto a plain dialog's entry does nothing visible (its entry is turned into the page's).

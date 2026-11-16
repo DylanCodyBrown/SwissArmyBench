@@ -375,6 +375,27 @@ next run.
 **8.10 The dashboard is the user's to arrange.** Cards drag, resize and take the user's own notes; it
 prints page by page and exports to markdown with charts as pictures.
 
+**8.11 Getting around: the mark goes home, Back is the browser's.** One model on every page and window,
+in one module, so no screen invents its own.
+- **The mark goes home.** The top-left mark of every page and window is a link home, named "Home"; from
+  another window it brings the home window forward (a named window) rather than opening a second one.
+  Alt+Home does the same.
+- **Views live in the address.** A tab, a form inside a dialog, a step of a wizard, an item of a library:
+  each move the user makes pushes the browser's history with the view in the address (never a secret,
+  never the token); a move the app makes by itself replaces it. The browser's Back and Forward, Alt+Left
+  and a mouse's back button then move between views, and a reload keeps the view.
+- **Back never surprises.** It closes the dialog on top before it changes the page under it, walks out of
+  a dialog one view at a time, and never leaves the app from inside it. A dialog that waits for an answer
+  (an approval) is not closed by Back.
+- **A visible Back where a view was entered from another,** named for where it goes ("← Connections"):
+  back in the history when that is where the user came from, else to that place.
+- **Breadcrumbs past one level,** each crumb a link: Connections › Add connection › PostgreSQL.
+- **Titles name the place, the page first:** "Workbench · sales.ipynb", "Blades · Warehouse › sales ›
+  orders" (the product's name never: 7.8).
+- **No dead ends:** an empty or error state offers the way back or home.
+- The owner (2026-11-16): "I've noticed there is no navigation in the app to get back to the home page or
+  go back anywhere. No back buttons."
+
 ## 9. Errors
 
 **9.1 Explain and fix the error where it happened.** Follow Visual Studio's Exception Helper: the error
@@ -596,3 +617,6 @@ Run this against every new screen or feature.
     commands, tests and docs, in one release.
 18. When it fails in real use, will the log say where without holding data? Can the user point at it with
     a note? Before release: swept for dead code, bloat and slowness (13b)?
+19. Can the user get home and back (8.11)? Is the new view in the address, so Back, Forward and a reload
+    keep it? Does a view entered from another have a Back named for where it goes, a view two levels deep
+    a trail, the window a title that names the place, and an empty or error state a way out?

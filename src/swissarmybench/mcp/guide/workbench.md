@@ -22,6 +22,8 @@ their own (the grid page's Workbench tab opens it; code never opens in the grid 
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data panel).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;
   `workbench_move_back` brings it back.
+- Getting around: "nav.home" brings the home window (the grids) forward; "nav.back" and "nav.forward"
+  are the browser's Back and Forward inside this window (its dialogs, Connections' forms).
 
 ## Cells
 - A cell's number never changes and is never reused: `#7` in a notebook, `# %% [7]` in a script.

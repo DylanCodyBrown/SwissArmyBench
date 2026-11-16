@@ -1615,3 +1615,42 @@ drags; code of more than one line is pasted, one typed value):
 - **The whole suite on tray-update** (0.0.3 merged, Chromium, Streamlit 1.67 in its own Python, the test
   bed down): 2,998 passed, 29 skipped (the test bed's use cases among them), 16 minutes. No test failed,
   so none needed a rerun alone.
+
+## Navigation: the mark, Back, the address, breadcrumbs, titles (2026-11-16, branch navigation)
+
+- **The agent's places (tests/test_navigation.py):** each window's places (home, catalog, workbench)
+  read into the notice, a named view's names (`grid:g1`, `catalog:Warehouse/sales/orders`,
+  `blade:x`), and the words for a place that is not one, a window that is not one, an empty name, a
+  catalog path with a gap, a name past 512 characters. `/navigate` with no home page open: 409 and the
+  words; with one (a `workspace=1` socket) the page gets the notice, `by` the agent; the blades page is
+  told apart on the socket (`catalog=1`, not the Workbench's) and only an open one is told; no Workbench
+  window: 409. The audit log says "home window to grid g7". `app_navigate` through the CLI's commands.
+- **In Chromium (tests/e2e/test_navigation_page.py):** the home page's mark is a link to `/workspace`
+  named Home; the Sandbox, Diagram and a table each put themselves in the address (`?view=sandbox`,
+  `?view=diagram`, `/g/<id>`) and the title ("Sandbox", "Diagram", the table's name); Back three times
+  and Forward twice walk them in order; a reload keeps the Diagram, and a table, with no token in the
+  address; the mark and Alt+Home bring the grids back. Connections: `open=connections`, `&at=types`,
+  `&at=form&type=postgres`, the titles ("Connections › Add connection › PostgreSQL"), the trail's three
+  crumbs, "Back to Add connection"; a reload brings the form back with its trail; the visible Back, the
+  browser's Forward, a crumb, then Back walks out one view at a time and closes the window on the page
+  (still the same table); Forward opens it again; Escape takes its entries away; Settings is in the
+  address and Back closes it. A plain dialog (Tables): Back closes it and the table stays; closed by its
+  own Close, its entry goes, so the next Back is the tab before. The blades page: a schema and a table
+  in the address and the title ("Blades · NavWarehouse › sales › orders"), the four crumbs, "Back to
+  sales"; a reload opens the tree at the table; the catalog's own page (its counts); the welcome; the
+  editor's address (`?blade=`) and "Back to Blades"; an address whose table is gone says so with a way
+  back. The Workbench: its mark (titled "Home (Alt+Home)") brings the home window forward with no second
+  window and no reload (the home window is named `sab-home`), the agent's `nav.home` too and never sends
+  the Workbench away; with the home window closed, Alt+Home opens it again. `app_navigate`: sandbox,
+  add_connection, back (closes it, the Sandbox stays), grid:<id>, home.
+- **Found and fixed on the way:** a dialog closed by "Show" (the Sandbox) or "Open as grid" fires its
+  close event after the page has already moved, and its history.back took the move away
+  (tests/e2e/test_after_sending.py caught it): a push no longer carries a dialog that is already shut.
+  Chromium counts a click just before a reload as the user's for a moment, so the reloaded page pushed
+  its own address: the page's start now only replaces.
+- **Existing tests changed:** tests/e2e/test_workbench_page.py's Connections Back buttons are named for
+  where they go ("Back to Add connection", "Back to Connections").
+- **Not checked:** Edge and Firefox (the tests run Chromium here; `navigator.userActivation` and named
+  windows are in both); a mouse's back button and Alt+Left by hand (the browser's own Back, which the
+  tests drive); the Windows taskbar's titles; bringing a window forward is the browser's choice (the
+  tests see no second window and no reload, not the focus itself).

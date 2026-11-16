@@ -58,6 +58,10 @@ class FakeOps:
     def note(self, path: str, note: dict[str, str]) -> None:
         self.notes.append(note)
 
+    def stop_in(self, folder: str) -> int:
+        self.did.append(f"stop {folder}")
+        return 1
+
 
 def plan() -> dict[str, Any]:
     return rules.plan_update(
@@ -163,7 +167,38 @@ def test_the_server_hands_a_copy_of_the_helper_and_its_plan_to_the_base_python(t
     assert handed["wait_pids"] == [os.getpid(), os.getpid()]  # the server, then the tray
     assert handed["environ"] == {"UV_TOOL_DIR": str(prefix.parent)}
     assert handed["current"] == __version__
+    assert handed["stop_in"] == ""  # not Windows: nothing else is stopped
     shutil.rmtree(Path(script).parent)
+    # On Windows the plan names the tool's own folder: what else runs from it is stopped first.
+    Helper(
+        tmp_path / "server.json",
+        tmp_path / "note.json",
+        prefix=prefix,
+        spawn=spawned.append,
+        uv=lambda: "/bin/uv",
+        windows=True,
+    ).launch("99.0.0", "pypi")
+    handed = json.loads(Path(spawned[-1][3]).read_text())
+    assert handed["stop_in"] == str(prefix)
+    assert handed["steps"] == ["wait", "stop", "install", "check", "start"]
+    shutil.rmtree(Path(spawned[-1][2]).parent)
+
+
+def test_on_windows_what_runs_from_the_tools_folder_is_stopped_before_the_install() -> None:
+    """An editor's MCP server running from the same uv tool folder locks its files (the coordinator,
+    2026-11-16): the helper stops it after the app's own processes are gone, before uv installs."""
+    ops = FakeOps({"install": [(0, "")], "check": [(0, "0.0.2\n")]}, starts=["0.0.2"])
+    steps: list[str] = []
+    stopping = plan() | {"stop_in": r"C:\Users\me\AppData\Roaming\uv\tools\swissarmybench"}
+    assert run(stopping, ops, steps) == "updated"
+    assert steps == ["wait", "stop", "install", "check", "start"]
+    assert ops.did[0] == r"stop C:\Users\me\AppData\Roaming\uv\tools\swissarmybench"
+    # Elsewhere (no folder in the plan) nothing is stopped.
+    ops = FakeOps({"install": [(0, "")], "check": [(0, "0.0.2\n")]}, starts=["0.0.2"])
+    assert run(plan(), ops) == "updated" and not any(d.startswith("stop") for d in ops.did)
+    # The real one does nothing off Windows.
+    if sys.platform != "win32":
+        assert updater.SystemOps().stop_in("/nowhere") == 0
 
 
 def test_the_helper_needs_nothing_from_the_package() -> None:

@@ -253,7 +253,7 @@ async function start(): Promise<void> {
   if (!activeContext()) toolbarEmpty();
   // The view the address named (the Sandbox, the Diagram, a table), then the dialog over it.
   await showPlace(opened);
-  startNav();
+  startNav(opened);
 
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;

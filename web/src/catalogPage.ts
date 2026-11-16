@@ -192,7 +192,7 @@ void rail
   .loadBlades()
   .then(() => rail.loadCatalogs(opened.searchParams.get("catalog") ?? openedWith.get("catalog") ?? undefined))
   .then(() => showAddress(opened))
-  .then(() => startNav());
+  .then(() => startNav(opened));
 connect((live) => {
   if (liveNote) liveNote.textContent = live ? "" : "Not connected to the server";
   if (live) void loadApprovals(); // an agent's request (an export, say) asks here too

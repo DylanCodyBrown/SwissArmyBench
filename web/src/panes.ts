@@ -36,7 +36,7 @@ import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuIte
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
 import { openMenuButton } from "./openMenu";
-import { go, LAYER_PARAMS, type Move, setTitle } from "./nav";
+import { go, LAYER_PARAMS, layerShown, type Move, setTitle } from "./nav";
 import { renameInPlace } from "./renameTable";
 import { PageState, activate } from "./state";
 
@@ -85,9 +85,12 @@ function addressOf(): string {
   const now = new URLSearchParams(location.search);
   const out = new URLSearchParams();
   if (view !== "grid") out.set("view", VIEW_WORDS[view]);
-  for (const key of LAYER_PARAMS) {
-    const value = now.get(key);
-    if (value !== null) out.set(key, value);
+  // A dialog's own words, while it is on screen (one closed a moment ago leaves them behind).
+  if (now.get("open") && layerShown() === now.get("open")) {
+    for (const key of LAYER_PARAMS) {
+      const value = now.get(key);
+      if (value !== null) out.set(key, value);
+    }
   }
   const path = view === "grid" && activeId ? `/g/${encodeURIComponent(activeId)}` : "/workspace";
   const query = out.toString();

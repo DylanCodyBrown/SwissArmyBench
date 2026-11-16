@@ -194,6 +194,7 @@ src/swissarmybench/
                          update's plan (uv tool install --force), the tray's menu as data
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
+    navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -223,6 +224,7 @@ src/swissarmybench/
                          a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
+    navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
     kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
                          restarts (kind_colours.json)
@@ -279,7 +281,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
-                         projects, panels, controllers, kind_colours, script_runs). Every route serves
+                         projects, panels, navigation, controllers, kind_colours, script_runs). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -330,10 +332,16 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (255 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (259 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
+                         nav.ts is getting around on every page and window (design principle 8.11): the mark
+                         (home; another window brings the home window, named sab-home, forward; Alt+Home),
+                         views in the address (go: pushed for the user's moves, replaced for the app's; Back
+                         and Forward are the browser's), layers (a dialog with views of its own, open=<key>:
+                         Settings, Connections), every other dialog an entry Back closes, backButton (named
+                         for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          aiPanel.ts is the Sandbox tab (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find

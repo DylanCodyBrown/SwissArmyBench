@@ -8760,6 +8760,11 @@ body.panel-off-grid-status .statusbar {
   background: var(--surface);
 }
 
+/* The blades page: its Back in a row of its own, a little apart from the heading under it. */
+.cat-main > .row-actions:has(> .back-btn) {
+  margin-bottom: 10px;
+}
+
 .back-btn .back-arrow {
   font-size: 1.1em;
   line-height: 1;
