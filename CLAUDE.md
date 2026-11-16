@@ -342,6 +342,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          and Forward are the browser's), layers (a dialog with views of its own, open=<key>:
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
+                         rail.ts is the slim icon rail down the left of every page and window (Grids,
+                         Sandbox, Diagram, Notebooks, Scripts, Apps, Blades, Connections, Settings at the
+                         bottom): a click is a nav.ts move, or brings another window forward; the current
+                         area marked; Open in a new window for the code areas; its Panels switch app.rail;
                          aiPanel.ts is the Sandbox tab (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find

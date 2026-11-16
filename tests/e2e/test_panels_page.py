@@ -39,7 +39,9 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         menu(workbench, "Workbench menu", "Settings…")
         dialog = workbench.locator("dialog[open]")
         panels = dialog.locator("fieldset", has_text="Panels")
-        expect(panels.locator("input[type=checkbox]")).to_have_count(16)  # the modes (2026-11-15) added six
+        expect(panels.locator("input[type=checkbox]")).to_have_count(
+            17
+        )  # the modes (2026-11-15) added six; the rail (2026-11-16) one
         panels.get_by_label("Streamlit cells").uncheck()
         panels.get_by_label("Console").uncheck()
         panels.locator(".panel-page", has_text="Grid page").get_by_label("Ribbon").uncheck()
@@ -62,7 +64,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         expect(grid.locator(".statusbar")).to_be_visible(timeout=20000)
         expect(grid.locator(".ribbon")).to_be_hidden()
         # On again, from the grid page's Settings this time.
-        grid.get_by_role("button", name="Settings").click()
+        grid.locator(".app-row").get_by_role("button", name="Settings").click()
         grid_panels = grid.locator("dialog[open] fieldset", has_text="Panels")
         expect(grid_panels.get_by_label("Console")).not_to_be_checked()
         grid_panels.get_by_label("Console").check()

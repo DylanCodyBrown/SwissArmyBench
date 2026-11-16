@@ -12,7 +12,7 @@ import { api, onNotice } from "./api";
 
 export interface PanelSwitch {
   id: string;
-  page: "Workbench" | "Grid page";
+  page: "Workbench" | "Grid page" | "Every page";
   name: string;
   on: boolean;
 }

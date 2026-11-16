@@ -393,8 +393,16 @@ in one module, so no screen invents its own.
 - **Titles name the place, the page first:** "Workbench · sales.ipynb", "Blades · Warehouse › sales ›
   orders" (the product's name never: 7.8).
 - **No dead ends:** an empty or error state offers the way back or home.
+- **The rail: the areas, the same on every page and window** (web/src/rail.ts): Grids, Sandbox,
+  Diagram, Notebooks, Scripts, Apps, Blades, Connections, and Settings pinned at the bottom; 48px of
+  icons down the left, each named in a tip on hover and focus, the code areas in their kind colours.
+  The current area is marked (a bar on its left edge, `aria-current`). A rail click is a navigation
+  like any other: pushed, so Back, Forward and a reload follow it; an area another window shows brings
+  that window forward rather than sending this one away (code always in its own window). A new area
+  gets its place on the rail and in `app_navigate` in the same change; Settings' Panels can turn the
+  rail off.
 - The owner (2026-11-16): "I've noticed there is no navigation in the app to get back to the home page or
-  go back anywhere. No back buttons."
+  go back anywhere. No back buttons." And: "this app needs a navigation pane somehow" (a slim icon rail).
 
 ## 9. Errors
 
@@ -619,4 +627,5 @@ Run this against every new screen or feature.
     a note? Before release: swept for dead code, bloat and slowness (13b)?
 19. Can the user get home and back (8.11)? Is the new view in the address, so Back, Forward and a reload
     keep it? Does a view entered from another have a Back named for where it goes, a view two levels deep
-    a trail, the window a title that names the place, and an empty or error state a way out?
+    a trail, the window a title that names the place, and an empty or error state a way out? Is a new
+    area on the rail (and in `app_navigate`), and does the rail mark it current?

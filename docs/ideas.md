@@ -2767,3 +2767,72 @@ back to the home page or go back anywhere. No back buttons."
 - **Not built:** Back between the Workbench's documents (above); the Key Finder window's results and
   Compare's key picker stay one screen each (Compare's setup is one click away again, the Compare row's
   Keys…); Forward onto a plain dialog's entry does nothing visible (its entry is turned into the page's).
+
+## The rail: a slim icon navigation pane (the owner, 2026-11-16; built, branch nav-rail)
+
+The owner, after 0.0.6's navigation: "As much as I hate to say it, this app needs a navigation pane
+somehow." Asked which kind, the owner chose **a slim icon rail**: a narrow strip down the left of every
+page and window, as VS Code's Activity Bar, an icon per area with its name on hover. Two corrections
+the same day: "Data is just the tabbed datagrids and you should call it grids" (Data became Grids, and
+the old Home entry, the same place, went); and "Shouldn't the app canvas be on the rail separate from
+the workbench. We could split notebooks, scripts, and app canvas on the rail as well and give options to
+open them in an external tab." And: "do we still get a cell navigator to help build the streamlit app
+page?" (yes: below).
+
+### Built (web/src/rail.ts, one module mounted by each page's composition)
+
+- **The areas, top to bottom:** Grids (the home page's tabbed grids), Sandbox, Diagram, Notebooks,
+  Scripts, Apps (the Streamlit canvas), Blades, Connections, and Settings pinned at the bottom. 48px wide,
+  fixed at the left of the home page (`/workspace`, `/g/{id}`), the blades page, the Workbench and its
+  pop-out windows, the steps window and the Key Finder window. The page moves right by its width
+  (`body.has-rail`'s padding), so nothing sits under it; a window under 600px keeps it at 48px.
+- **Icons:** our own line icons in the one set (dom.ts ICONS): a grid with its tab, the Sandbox's cards,
+  two tables and their join, a blade, a plug, the cog. Notebooks, Scripts and Apps use their documents'
+  own icons (notebook, code, page) in their kind colours (blue, green, violet: the theme's tokens or the
+  colour chosen in Settings). No other text (principle 7.1): the name shows in a tip on hover **and on
+  keyboard focus**; each item has its `aria-label`. **Decision:** no `title`: the tip already shows the
+  name, and a `title` would show it a second time a moment later.
+- **A rail click is a navigation like any other (nav.ts):** an area the page shows is pushed (Back,
+  Forward and a reload work, and the mark follows them: `onAddress`); Connections and Settings open their
+  layers (`open=<key>`) on the page you are on (the blades page now has Settings too); an area another
+  window shows brings that window forward, or opens it: Grids, Sandbox and Diagram the home window
+  (`sab-home`; told by a message from this origin which area to show), Notebooks, Scripts and Apps the
+  Workbench window (code always opens in its own window, never the grid page), Blades the blades page
+  (**decision:** plan decision 18 keeps it in a tab of its own, so the rail brings that tab forward
+  rather than turning the home tab into the blades page). A window opened for an area is given it in
+  its address (`?view=sandbox`, `?open=settings`, `/workbench?kind=script`). This window is never sent
+  away from its work.
+- **Notebooks, Scripts, Apps in the Workbench:** the kind's document in front (the one in front already,
+  else the last opened of that kind), so the Workbench is in that kind's mode; none open: a menu beside
+  the rail's item with New notebook (script, Streamlit app), that kind's recent files and Open…. The
+  kind is in the address (`?kind=notebook`): a rail click pushes it, a tab click replaces it (the
+  documents themselves stay out of the address, as 0.0.6 decided), so Back after a rail move brings the
+  previous kind forward again. **Open in a new window** (the owner's "external tab"): right-click, a
+  Ctrl+click (Cmd+click) or a middle click on any of the three, from any page: a Workbench window of its
+  own for that kind, as a popped-out tab's window (`fresh`, `popped`); it opens at that kind's menu.
+  **Decision:** it does not hand the document in front over (the tab's own "Move to a new window" does
+  that); it is a new window for the kind.
+- **Apps keeps the cell navigator.** Apps opens (or unfolds) the Data panel and its Streamlit cells pane
+  beside the canvas: the rail, then the Data panel, then the canvas, side by side; the Starters switch
+  stays. **Found and fixed:** the pane listed only the open documents' cells (and a project's files), so
+  a canvas whose notebook was not open in a window showed "No cells call Streamlit" beside its own
+  linked blocks (the App mode screenshot: "app mockups.ipynb" was not open). It now also lists every
+  notebook and script an open canvas links to, read from its file as the canvas reads it, and a
+  project's data.ipynb lists its named cells (the model a page reads) beside its Streamlit cells.
+- **The current area** has a bar on its left edge (the accent; the kind colour for the code areas) and
+  its icon at full strength, with `aria-current="page"`: Grids for the grids (and the steps and Key
+  Finder windows, which are a grid's), the Sandbox and Diagram views, Settings or Connections while
+  their layer is open, Blades on the blades page, the front document's kind in the Workbench.
+- **Keys:** the rail is one Tab stop (`role="navigation"` "Areas" around a vertical toolbar): the arrows
+  move between the areas (round at the ends), Home and End, Enter goes. Alt+Home is still the grids.
+- **The mark stays** at the top-left of each page's top row and still goes home (Alt+Home).
+  **Decision:** Grids is that same place, so from another window the mark now also brings the grids to
+  the front there (closing what is over them), not only the window.
+- **Settings' Panels:** a switch, "Navigation rail" (Every page), on at every start like the others.
+  Off: the rail is gone from every window at once and the page takes its width back; the grid, Monaco
+  and the canvas measure again (a resize).
+- **The agent (the golden rule):** `app_navigate` takes every rail area from every window (`grids` and
+  `home` are the same place), and `new_window: true` for notebooks, scripts and apps. The rail's switch
+  is a panel, so `app_panels` covers it.
+- **Not built:** a document list inside the rail (the menu shows recent files only when no document of
+  the kind is open); the rail's order is fixed.

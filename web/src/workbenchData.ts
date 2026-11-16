@@ -78,6 +78,8 @@ export interface DataPanel {
   setStreamlitCells(documents: PaneDocument[], placed: Set<string>): void;
   /** Fold or open the panel (no argument: the other way); true when folded. */
   toggle(collapsed?: boolean): boolean;
+  /** The Streamlit cells pane unfolded (the rail's Apps: the cells to build a page from). */
+  openStreamlit(): void;
   collapsed(): boolean;
   /** The hosts the catalog and the blades are mounted in (catalogRail.ts). */
   bladesHost: HTMLElement;
@@ -415,6 +417,11 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
     setStreamlitCells: (documents, onPage) => {
       paneDocs = documents;
       placed = onPage;
+      drawStreamlit();
+    },
+    openStreamlit: () => {
+      streamlitFolded = false;
+      keep(STREAMLIT_KEY, false);
       drawStreamlit();
     },
     toggle,

@@ -26,7 +26,7 @@ class Navigation:
         """Send a window somewhere: {"to": "sandbox"}, {"window": "catalog", "to": "blade:x"}."""
         if not isinstance(body, dict):
             raise rules.NavigationError('Send {"to": "home"} (and "window": home, catalog or workbench).')
-        notice = rules.place(body.get("window"), body.get("to"))
+        notice = rules.place(body.get("window"), body.get("to"), body.get("new_window"))
         live = self.ws.live
         window = notice["window"]
         message = {"type": "navigate"} | notice | {"by": who}

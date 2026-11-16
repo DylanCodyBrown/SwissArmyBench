@@ -269,6 +269,41 @@ def test_opening_a_notebook_marks_the_cells_that_call_streamlit(
     assert "pages" not in opened
 
 
+def test_the_pane_lists_what_an_open_canvas_links_to_and_data_ipynbs_named_cells(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    """2026-11-16: a canvas whose notebook no window holds showed "No cells call Streamlit"; the pane
+    reads the notebooks a canvas links to from their files, as the canvas does, and a project's
+    data.ipynb lists its named cells (the model a page reads) beside its Streamlit cells."""
+    client, _ = served
+    project = tmp_path / "shop"
+    project.mkdir()
+    mockups = _notebook(project, "app mockups.ipynb")  # not opened by any window
+    page = {
+        "name": "Overview",
+        "blocks": [{"document": str(mockups), "cell": 3, "row": 1, "column": 1, "w": 6}],
+    }
+    assert _ok(client.get("/streamlit/cells", headers=AUTH))["documents"] == []
+    _canvas(client, pages=[page])
+    pane = _ok(client.get("/streamlit/cells", headers=AUTH))["documents"]
+    assert [(d["title"], d["open"]) for d in pane] == [("app mockups.ipynb", False)]
+    assert [c["cell"] for c in pane[0]["cells"]] == [3, 4, 2]  # the two that call Streamlit, then Text
+    # The project's data.ipynb: its named cells (no Streamlit in them) are listed too; unnamed ones not.
+    (project / "data.ipynb").write_text(
+        notebooks.write_notebook(
+            [
+                notebooks.Cell("code", "import pandas as pd"),
+                notebooks.Cell("code", "by_region = orders.groupby('region').sum()", name="by_region"),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    listed = _ok(client.get("/streamlit/cells", headers=AUTH, params={"folder": str(project)}))["documents"]
+    data = next(d for d in listed if d["title"] == "data.ipynb")
+    assert [(c["cell"], c["name"], c["named"]) for c in data["cells"]] == [(2, "by_region", True)]
+    assert [d["title"] for d in listed].count("app mockups.ipynb") == 1  # linked and in the project: once
+
+
 def test_the_streamlit_cells_pane_lists_every_cell_that_calls_streamlit_by_name(
     served: tuple[TestClient, FakeRunner], tmp_path: Path
 ) -> None:

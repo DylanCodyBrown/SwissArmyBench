@@ -257,7 +257,8 @@ class StreamlitApps:
             del self._apps[app.id]
             raise
         self.ws.audit.write(who, "open_streamlit_app", app.title)
-        if self._shown(app):  # its live cells, or its Markdown and HTML cells
+        # Its live cells, or its Markdown and HTML cells; a canvas: the documents it links to.
+        if app.canvas or self._shown(app):
             await self._cells_changed()
         return self._state(app)
 
@@ -678,9 +679,14 @@ class StreamlitApps:
     @staticmethod
     def _shown(app: App) -> list[int]:
         """The cells the pane lists of a document: its live cells, then its Markdown and HTML cells
-        that show something (under their own heading, Text)."""
+        that show something (under their own heading, Text). A project's data.ipynb adds its named
+        cells (the model a page reads: 2026-11-16, "a person building a page always sees the cells
+        they can place")."""
         texts = [c for c in app.order if c in app.kinds and rules.runs_something(app.codes[c])]
-        return [*app.live, *texts]
+        named: list[int] = []
+        if _name(app.document or app.title).lower() == projects.DATA_NOTEBOOK:
+            named = [c for c in app.order if c in app.names and c not in app.live and c not in app.kinds]
+        return [*app.live, *named, *texts]
 
     @classmethod
     def _pane_mark(cls, app: App) -> str:
@@ -713,8 +719,9 @@ class StreamlitApps:
     def pane(self, folder: str | None = None) -> dict[str, Any]:
         """The Streamlit cells pane: every Python cell that calls Streamlit, and every Markdown and HTML
         cell (they go on a page too), grouped by document. From each open notebook and script (as its
-        window holds it, saved or not), and, with `folder` (an open project's), from the project's
-        notebooks and scripts on disk that no window holds."""
+        window holds it, saved or not); from every notebook and script an open canvas links to, read
+        from its file when no window holds it (as the canvas reads it); and, with `folder` (an open
+        project's), from the project's notebooks and scripts on disk that no window holds."""
         documents: list[dict[str, Any]] = []
         seen: list[str] = []
         for app in self._apps.values():
@@ -730,30 +737,42 @@ class StreamlitApps:
                 for c in shown
             ]
             documents.append({"document": app.document, "title": app.title, "open": True, "cells": cells})
+        on_disk: dict[str, str] = {}  # each file to read: its path, the title it is listed by
+        for app in self._apps.values():
+            if app.canvas:
+                on_disk |= {b.document: _name(b.document) for p in app.pages for b in p.blocks}
         if folder:
             try:
                 names = self._project.names(folder)
             except (FileNotFoundError, OSError):
                 names = []
             for name in projects.project_files(names):
-                path = self._project.path(folder, name)
-                if rules.is_app(name) or any(rules.same_file(path, d) for d in seen):
-                    continue
-                try:
-                    text, full, _ = self._read(path)
-                    codes, named, kinds = file_cells(full, text)
-                except (FileNotFoundError, OSError, ValueError):
-                    continue  # a file that cannot be read has nothing to list
-                held = App("", "", name, order=[c for c, _ in codes], codes=dict(codes), kinds=kinds)
-                held.live = rules.live_cells(codes, kinds)
-                cells = [
-                    self._pane_entry(full, c, held.codes[c], named.get(c), kinds.get(c, "code"))
-                    for c in self._shown(held)
-                ]
-                if cells:
-                    seen.append(full)
-                    documents.append({"document": full, "title": name, "open": False, "cells": cells})
+                if not rules.is_app(name):
+                    on_disk.setdefault(self._project.path(folder, name), name)
+        for path, title in on_disk.items():
+            if any(rules.same_file(path, d) for d in seen):
+                continue
+            entry = self._file_entry(path, title)
+            if entry is not None:
+                seen.append(entry["document"])
+                documents.append(entry)
         return {"documents": documents}
+
+    def _file_entry(self, path: str, title: str) -> dict[str, Any] | None:
+        """A notebook's or script's pane entry read from its file (None: nothing to list, or no file)."""
+        try:
+            text, full, _ = self._read(path)
+            codes, named, kinds = file_cells(full, text)
+        except (FileNotFoundError, OSError, ValueError, notebooks.NotebookError):
+            return None  # a file that cannot be read has nothing to list
+        held = App("", "", title, document=full, order=[c for c, _ in codes], codes=dict(codes))
+        held.names, held.kinds = named, kinds
+        held.live = rules.live_cells(codes, kinds)
+        cells = [
+            self._pane_entry(full, c, held.codes[c], named.get(c), kinds.get(c, "code"))
+            for c in self._shown(held)
+        ]
+        return {"document": full, "title": title, "open": False, "cells": cells} if cells else None
 
     # ===== a canvas's pages and blocks =====
 
@@ -1121,7 +1140,7 @@ class StreamlitApps:
         if app is not None:
             await self._stop(app)
             await self._changed(app)
-            if self._shown(app):
+            if app.canvas or self._shown(app):
                 await self._cells_changed()
 
     async def kernel_stopped(self, kernel_id: str) -> None:

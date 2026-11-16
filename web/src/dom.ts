@@ -151,6 +151,13 @@ const ICONS: Record<string, string> = {
   runTo: '<path d="M5 4v16M9 5l10 7-10 7z"/>',
   reset: '<path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.7L3 8"/><path d="M3 3v5h5"/>',
   wiring: '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6c7 0 3 12 10 12"/><path d="M14 15l3 3-3 3"/>',
+  // The rail's areas (rail.ts, 2026-11-16; Settings is the cog, Notebooks, Scripts and Apps their documents'
+  // icons): the Sandbox's cards, the Diagram's two tables and their join, a blade, a plug; Grids: a grid's tabs.
+  sandbox: '<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/>',
+  diagram: '<rect x="2.5" y="3" width="9" height="7.5" rx="1.5"/><rect x="12.5" y="13.5" width="9" height="7.5" rx="1.5"/><path d="M2.5 6.2h9M12.5 16.7h9M11.5 8.3h2.5a2 2 0 012 2v3.2"/>',
+  blade: '<path d="M2.5 14.5h12a3 3 0 010 6h-12a3 3 0 010-6z"/><path d="M11 14.5L20.5 4c1.2 4.2-.6 8.3-4.4 10.5"/><circle cx="5.5" cy="17.5" r=".6"/>',
+  plug: '<path d="M9 3v4.5M15 3v4.5M6 7.5h12v3.5a6 6 0 01-12 0zM12 17v4"/>',
+  grids: '<path d="M3 8V5.5A1.5 1.5 0 014.5 4H10l1.5 4"/><rect x="3" y="8" width="18" height="12" rx="1.5"/><path d="M3 12h18M3 16h18M9 12v8M15 12v8"/>',
 };
 
 export function icon(name: string): SVGSVGElement {

@@ -8813,3 +8813,160 @@ body.panel-off-grid-status .statusbar {
     color: CanvasText;
   }
 }
+
+/* ===== THE RAIL (rail.ts): the areas down the left of every page and window, as VS Code's Activity Bar.
+   48px, fixed; the page moves right by its width (nothing under it). The current area: a bar on the
+   left edge and the icon brighter. Its name shows on hover and on keyboard focus. Settings' Panels can
+   turn it off: then it is gone and the page takes the width back. The mark stays in the top rows. ===== */
+:root {
+  --rail-w: 48px;
+}
+
+body.has-rail {
+  padding-left: var(--rail-w);
+}
+
+body.has-rail.panel-off-app-rail {
+  padding-left: 0;
+}
+
+body.panel-off-app-rail .nav-rail {
+  display: none;
+}
+
+.nav-rail {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  width: var(--rail-w);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.nav-rail-items {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 6px 0;
+  gap: 2px;
+}
+
+.nav-rail-item {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 100%;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nav-rail-item .icon-svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.6;
+}
+
+.nav-rail-item:hover,
+.nav-rail-item:focus-visible,
+.nav-rail-item.current {
+  color: var(--fg);
+}
+
+.nav-rail-item:hover {
+  background: var(--surface-2);
+}
+
+.nav-rail-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -3px;
+}
+
+.nav-rail-item.current::before {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  content: "";
+}
+
+/* Notebooks, Scripts, Apps: their kind colours (kindColours.ts) on the icon and the current bar. */
+.nav-rail-kind .icon-svg {
+  color: color-mix(in srgb, var(--kc) 78%, var(--muted));
+}
+
+.nav-rail-kind:hover .icon-svg,
+.nav-rail-kind:focus-visible .icon-svg,
+.nav-rail-kind.current .icon-svg {
+  color: var(--kc);
+}
+
+.nav-rail-kind.current::before {
+  background: var(--kc);
+}
+
+.nav-rail-bottom {
+  margin-top: auto;
+}
+
+.nav-rail-tip {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 6px);
+  z-index: 1;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.nav-rail-tip kbd {
+  color: var(--muted);
+  font: inherit;
+}
+
+.nav-rail-item:hover .nav-rail-tip,
+.nav-rail-item:focus-visible .nav-rail-tip {
+  display: flex;
+}
+
+@media (forced-colors: active) {
+  .nav-rail {
+    border-right-color: CanvasText;
+  }
+
+  .nav-rail-item.current::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
+
+@media print {
+  .nav-rail {
+    display: none;
+  }
+
+  body.has-rail {
+    padding-left: 0;
+  }
+}

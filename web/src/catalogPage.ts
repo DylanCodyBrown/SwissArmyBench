@@ -22,6 +22,8 @@ import { type CatalogInfo, type CatalogPlace, mountRail, schemaDetails, tableDet
 import { betaMark, mountBeta } from "./betaNotes";
 import { button, clear, formatCount, h, toast } from "./dom";
 import { appMark, backButton, backTo, crumbs, go, type Move, mountNav, setTitle, startNav } from "./nav";
+import { mountNavRail } from "./rail";
+import "./settingsWindow"; // the rail's Settings opens here too (open=settings)
 
 watchTheme();
 
@@ -186,6 +188,7 @@ async function showAddress(url: URL): Promise<void> {
 
 const opened = new URL(location.href);
 mountNav("catalog", { show: (url) => void showAddress(url) });
+mountNavRail("catalog"); // the grids, the Sandbox and the Diagram are the home window's
 document.querySelector(".cat-top")?.prepend(appMark());
 setTitle(PAGE);
 void rail

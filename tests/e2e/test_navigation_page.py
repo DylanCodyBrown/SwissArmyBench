@@ -300,6 +300,8 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     assert "/workbench" in workbench.url  # never the Workbench window sent away instead
     # With the home window closed, the mark opens it again.
     page.close()
+    # (Until the browser has it closed, the window that opened this one still answers: wait for that.)
+    workbench.wait_for_function("!window.opener || window.opener.closed")
     workbench.bring_to_front()
     with workbench.context.expect_page() as again:
         workbench.keyboard.press("Alt+Home")

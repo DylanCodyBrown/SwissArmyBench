@@ -64,9 +64,10 @@ import { mountDataPanel } from "./workbenchData";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, tabKinds } from "./workbenchGroups";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
-import { appMark, back, canGoBack, forward, goHome, mountNav, setTitle, startNav } from "./nav";
+import { appMark, back, canGoBack, forward, go, goHome, mountNav, setTitle, startNav, withParams } from "./nav";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
-import { kindIcon, kindOfPath, loadKindColours } from "./kindColours";
+import { mountNavRail, railItem } from "./rail";
+import { type Kind, kindIcon, kindOfPath, loadKindColours } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { updateCommands, updateMark } from "./updates";
@@ -1198,6 +1199,7 @@ function focused(doc: Doc | null): void {
   drawControls();
   drawStatus();
   setTitle("Workbench", doc?.title ?? ""); // "Workbench · sales.ipynb": the page, then the place
+  followKind(doc);
   remember();
   assignSoon(); // a table with no document yet goes to the one in front
   if (doc?.canvas) lastCanvas = doc;
@@ -1887,6 +1889,59 @@ async function restore(): Promise<boolean> {
   return opened.length > 0;
 }
 
+// ===== the rail's Notebooks, Scripts and Apps (rail.ts) =====
+
+const KIND_WORDS: Record<Kind, { name: string; ending: string }> = {
+  notebook: { name: "Notebooks", ending: ".ipynb" },
+  script: { name: "Scripts", ending: ".py" },
+  app: { name: "Apps", ending: APP_ENDING },
+};
+const codeKindOf = (word: string | null): Kind | null => (word === "notebook" || word === "script" || word === "app" ? word : null);
+const docKindOf = (doc: Doc | null): Kind | null => codeKindOf(doc?.kind ?? null);
+
+/** The focused document's kind is the address's (replaced: a tab click is no rail move), so the rail
+ *  marks Notebooks, Scripts or Apps; a blade's or a table's tab leaves it as it was. */
+function followKind(doc: Doc | null): void {
+  const k = docKindOf(doc);
+  if (k && new URLSearchParams(location.search).get("kind") !== k) void go(withParams({ kind: k }), "replace");
+}
+
+/** A kind's document in front (the one in front already, else the last opened), in its mode. None
+ *  open: New and that kind's recent files, beside the rail's item (`anchor`). Apps: the Data panel and
+ *  its Streamlit cells pane open beside the canvas, the cells to build its page from. */
+function showKind(k: Kind, anchor: HTMLElement | null): void {
+  if (k === "app") {
+    if (panelOn("workbench.data")) {
+      data.toggle(false);
+      data.showStarters(false); // the cells; the Starters switch stays
+    }
+    if (panelOn("workbench.streamlit")) data.openStreamlit();
+  }
+  const mine = docKindOf(current) === k ? current : [...docs].reverse().find((d) => docKindOf(d) === k);
+  if (mine) {
+    show(mine);
+    return;
+  }
+  if (anchor) kindStart(k, anchor);
+}
+
+function kindStart(k: Kind, anchor: HTMLElement): void {
+  const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
+  const files = recent.filter((r) => r.exists && kindOfPath(r.path) === k).slice(0, 8);
+  openMenu(
+    anchor,
+    KIND_WORDS[k].name,
+    [
+      ...(start ? [{ label: start.label, icon: "plus", mark: k, run: start.run }] : []),
+      ...(files.length ? [null, { label: "Recent", heading: true }] : []),
+      ...files.map((r) => ({ label: baseName(r.path), icon: kindIcon(k, r.path), mark: k, title: r.path, run: () => void open(r.path) })),
+      null,
+      { label: "Open…", icon: "folder", run: () => void open() },
+    ],
+    { beside: anchor.closest(".nav-rail") !== null },
+  );
+}
+
 // ===== start =====
 
 /** Nothing open: the empty state has the area (Start a notebook; Start an app once app pages exist). */
@@ -2401,7 +2456,15 @@ registerCommands(updateCommands()); // Update to X, What's new, Check for update
 // No token and no good cookie (a bookmark after a restart): the page says how to open the app.
 void requireSession();
 // Getting around: Back closes a dialog and moves inside Connections; a dialog the address names opens.
-mountNav("workbench");
+// The rail's Notebooks, Scripts and Apps (?kind= in the address): Back and Forward bring that kind's
+// document forward again.
+mountNav("workbench", {
+  show: (url) => {
+    const k = codeKindOf(url.searchParams.get("kind"));
+    if (k) showKind(k, null);
+  },
+});
+mountNavRail("workbench", { showKind });
 startNav();
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
@@ -2554,5 +2617,8 @@ void Promise.all([
     // A document popped out of another window: this window was opened to take it.
     const handed = openedWith.get("take");
     if (handed) void takeDocument(handed).catch((e: Error) => toast(e.message, "error"));
+    // Opened for a kind (the rail's Notebooks, Scripts, Apps; a reload of one): that kind in front.
+    const k = handed || wanted ? null : codeKindOf(new URLSearchParams(location.search).get("kind"));
+    if (k) showKind(k, railItem(k));
   });
 });
