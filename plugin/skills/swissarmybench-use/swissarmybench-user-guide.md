@@ -400,16 +400,21 @@ their own, run in an IPython kernel on this computer.
 - **One row on top:** the document in front (a dot while it has unsaved changes), **Save**, **Save
   as…**, **New** (the kind you are on: **New notebook**, **New script** or **New Streamlit app**),
   **Open…**, and **…** (New notebook, New script, Open…, Recent, Split right, Split down, Commands).
-- **Each kind of notebook has its own icon:** the project's **data.ipynb** (a notebook with a small
-  table), a notebook whose cells an app's canvas uses (a notebook with a small page), and any other
-  notebook. The cells fill the width of their pane; a wide table in an output scrolls sideways inside
-  its cell.
+- **A project has two kinds of notebook, each with its own icon and name:** its **data notebook**,
+  data.ipynb (a notebook with a small table), where the tables are loaded and shaped, and its **app
+  notebooks**, every other notebook in it (a notebook with a small page), where an app's pieces are
+  written, whether a canvas uses them yet or not. A tab's icon says which (hover it for the word), and
+  the **Notebooks** page lists them under **Data notebook** and **App notebooks**, after the
+  Transformations. In a project, **New app notebook** makes one (a project has one data notebook). A
+  notebook outside a project is a plain notebook. The cells fill the width of their pane; a wide table
+  in an output scrolls sideways inside its cell.
 - **The Data panel, on the left:** **Tables** lists the tables open in the grid, each with its rows,
   its file or connection and its steps; a click goes to its read-only cell in the notebook in front,
   and a drag puts its name in your code. **+ Table** opens a file as a table, browses a connection's
   tables, searches the catalog, or adds a connection. **Variables** lists your blades (a click opens
   one, a drag gives its `sab.blade` line); **+ Blade** shows your saved blades and connections. The
-  arrow (or Ctrl+B) folds the panel away.
+  arrow (or Ctrl+B) folds the panel away. It sits beside app notebooks, Streamlit apps and scripts;
+  beside the data notebook it is not there at all, and comes back when you switch to another tab.
 - **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
   the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the

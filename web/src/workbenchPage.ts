@@ -61,14 +61,14 @@ import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./wo
 import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
 import { mountDataPanel } from "./workbenchData";
-import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, tabKinds } from "./workbenchGroups";
+import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { appMark, back, canGoBack, forward, go, goHome, mountNav, setTitle, startNav, withParams } from "./nav";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
-import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, onKindColours, setAppNotebooks } from "./kindColours";
+import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, projectOpen, setProjectFolder } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { updateCommands, updateMark, versionMark } from "./updates";
@@ -349,7 +349,6 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
     chooseZip: () => chooseFile({ title: "Save as", mode: "save", start: folderOf(doc.path), name: `${doc.path ? baseName(doc.path).slice(0, -APP_ENDING.length) : "app"}.zip` }),
     save: () => save(doc),
     drew: () => {
-      feedAppNotebooks();
       if (doc === current) drawStatus();
       if (doc === markedCanvas()) drawPane(); // its page's blocks are the pane's marks
       doc.app?.refresh(); // Properties and State follow the canvas
@@ -407,43 +406,25 @@ interface ProjectFiles {
 }
 let project: ProjectFiles | null = null;
 
-// ----- the notebooks that feed an app: their own icon (the owner, 2026-11-16) -----
-
-/** The project's notebooks an app's canvas places cells of (its listing says, by role). */
-let listedAppNotebooks: string[] = [];
-
-/** The open canvases' linked documents with the project's: the notebooks that wear the app icon. */
-function feedAppNotebooks(): void {
-  const open = docs.flatMap((d) => (d.canvas ? d.canvas.pages().flatMap((p) => p.blocks.map((b) => b.document)) : []));
-  setAppNotebooks([...listedAppNotebooks, ...open]);
-}
-
-async function refreshAppNotebooks(): Promise<void> {
-  try {
-    const listed = await api<{ project: unknown; documents: { full: string; role?: string }[] }>("/project/documents?kind=notebook");
-    listedAppNotebooks = listed.documents.filter((d) => d.role === "app").map((d) => d.full);
-  } catch {
-    /* the server is away: the icons stay as they are */
-  }
-  feedAppNotebooks();
-}
-
-// A notebook that starts or stops feeding an app: its tab, the Data panel's files and a landing redraw.
+// A project opened or closed: the notebooks' kinds (data, app, plain) follow: their tabs, the Data
+// panel's files, the landing and the Data panel beside the data notebook.
 onKindColours(() => {
   drawTabs();
-  if (project) listProject(false);
+  if (project) listProject();
   landing.redraw();
+  followDataPanel();
+  drawTop();
 });
 
 /** The project's files in the Data panel: data.ipynb, data.py set in as its output, the app's canvas,
  *  the notebooks and scripts. */
-function listProject(again = true): void {
-  if (again) void refreshAppNotebooks();
+function listProject(): void {
+  setProjectFolder(project?.folder ?? null);
   refreshPane(); // the project's files are the pane's too
   if (!project) return void data.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
-    const file = { path: name, icon: kindIcon(kindOfPath(name), path), open: () => void open(path) };
+    const file = { path: name, icon: kindIcon(kindOfPath(name), path), word: kindOfPath(name) === "notebook" ? notebookWord(path) : undefined, open: () => void open(path) };
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
@@ -1346,6 +1327,16 @@ function focused(doc: Doc | null): void {
   assignSoon(); // a table with no document yet goes to the one in front
   if (doc?.canvas) lastCanvas = doc;
   drawPane(); // the marks are the canvas page's in front
+  followDataPanel();
+}
+
+/** The Data panel is for app notebooks, canvases and scripts: beside the data notebook it is not there
+ *  (the owner, 2026-11-16: "it should only show on app notebooks its useless in a data notebook"). */
+const dataAway = (): boolean => !landing.kind() && !!current?.notebook && notebookRole(current.path) === "data";
+
+function followDataPanel(): void {
+  if (!paneReady) return;
+  data.setAway(dataAway());
 }
 
 function close(doc: Doc, moved = false): void {
@@ -1380,21 +1371,22 @@ function docMark(doc: Doc): "app" | "notebook" | "script" | undefined {
   return doc.kind === "app" ? "app" : doc.kind === "notebook" ? "notebook" : doc.kind === "script" ? "script" : undefined;
 }
 
-/** A document's kind of tab: Data (a notebook named data.ipynb), Notebook, Script, App page (a
- *  Streamlit app's canvas), Blade, Table. */
+/** A document's kind of tab: Data notebook (a project's data.ipynb), App notebook (any other notebook
+ *  in a project), Notebook (one outside a project), Script, App page (a Streamlit app's canvas), Blade,
+ *  Table. */
 function kindOf(doc: Doc): string {
   if (doc.kind === "app") return "page";
   if (doc.kind === "notebook") {
-    if (doc.title.toLowerCase() === "data.ipynb") return "data";
-    return notebookRole(doc.path) === "app" ? "appNotebook" : "notebook";
+    const role = notebookRole(doc.path);
+    return role === "data" ? "dataNotebook" : role === "app" ? "appNotebook" : "notebook";
   }
   return doc.kind === "table" ? "explorer" : doc.kind;
 }
 
-// Kind colours (kindColours.ts): app pages violet, notebooks blue (data.ipynb and the notebooks an app's
-// canvas places too, each with its own icon: the owner, 2026-11-16), scripts green; a blade or a catalog
-// table wears none.
-registerTabKind({ id: "data", label: "Data notebook", icon: "dataNotebook", mark: "notebook" });
+// Kind colours (kindColours.ts): app pages violet, notebooks blue (the data notebook and the app
+// notebooks too, each with its own icon and word: the owner, 2026-11-16), scripts green; a blade or a
+// catalog table wears none.
+registerTabKind({ id: "dataNotebook", label: "Data notebook", icon: "dataNotebook", mark: "notebook" });
 registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
 registerTabKind({ id: "appNotebook", label: "App notebook", icon: "appNotebook", mark: "notebook" });
 registerTabKind({ id: "script", label: "Script", icon: "code", mark: "script", start: { label: "New script", run: () => void openScript(null, "", null) } });
@@ -1458,6 +1450,7 @@ function showLanding(k: Kind): void {
   empty.hidden = true;
   setTitle("Workbench", KIND_WORDS[k].name);
   drawTop();
+  followDataPanel();
 }
 
 function hideLanding(): void {
@@ -1466,8 +1459,14 @@ function hideLanding(): void {
   drawEmpty();
   drawTop();
   setTitle("Workbench", current?.title ?? "");
+  followDataPanel();
   // The groups are back: Monaco and the canvas measure again.
   window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+}
+
+/** A kind's New: in a project a new notebook is an app notebook (the project has one data notebook). */
+function startLabel(kind: TabKind): string {
+  return kind.id === "notebook" && projectOpen() ? "New app notebook" : (kind.start?.label ?? "");
 }
 
 /** What a group's "+" and the top bar's "…" make: each kind that starts from there, then Open and Recent. */
@@ -1475,7 +1474,7 @@ function newEntries(anchor: HTMLElement): MenuEntry[] {
   return [
     ...tabKinds()
       .filter((k) => k.start)
-      .map((k) => ({ label: k.start!.label, icon: k.icon, run: k.start!.run })),
+      .map((k) => ({ label: startLabel(k), icon: k.id === "notebook" ? kindIcon("notebook", null) : k.icon, run: k.start!.run })),
     null,
     ...projectEntries(),
     null,
@@ -1694,11 +1693,12 @@ function topStart(): void {
 
 function drawTop(): void {
   const doc = current;
-  const making = tabKinds().find((t) => t.mark === topKind() && t.start)?.start;
+  const makes = tabKinds().find((t) => t.mark === topKind() && t.start);
+  const making = makes ? startLabel(makes) : "";
   const newLabel = topNew.querySelector(".btn-label");
-  if (newLabel && making) newLabel.textContent = making.label;
-  topNew.title = making?.label ?? "";
-  topNew.setAttribute("aria-label", making?.label ?? "New");
+  if (newLabel && making) newLabel.textContent = making;
+  topNew.title = making;
+  topNew.setAttribute("aria-label", making || "New");
   topNew.dataset.kind = topKind();
   clear(topName, h("span", { class: "wb-name-text" }, doc?.title ?? "Workbench"), doc?.dirty ? h("span", { class: "wb-name-dot", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes" }) : null);
   topName.title = doc?.path ?? doc?.title ?? "";
@@ -1723,7 +1723,7 @@ function topEntries(): MenuEntry[] {
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
     { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
     null,
-    ...(panelOn("workbench.data") ? [{ label: folded ? "Expand the Data panel" : "Collapse the Data panel", icon: folded ? "expand" : "collapse", keys: "Ctrl+B", run: () => void data.toggle() }] : []),
+    ...(panelOn("workbench.data") && !data.away() ? [{ label: folded ? "Expand the Data panel" : "Collapse the Data panel", icon: folded ? "expand" : "collapse", keys: "Ctrl+B", run: () => void data.toggle() }] : []),
     { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
     { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
     null,
@@ -2358,6 +2358,8 @@ function documents(): unknown {
     documents: docs.map((d, index) => ({
       index,
       kind: d.kind,
+      // A notebook's kind: data (the project's data.ipynb), app (any other in a project), "" (plain).
+      ...(d.notebook ? { role: notebookRole(d.path) } : {}),
       title: d.title,
       path: d.path,
       unsaved_changes: d.dirty,
@@ -2369,7 +2371,7 @@ function documents(): unknown {
     })),
     // The tab groups in reading order: each one's documents (by index), the one in front, the focused one.
     groups: groups.list().map((g, index) => ({ index, documents: g.tabs.map((d) => docs.indexOf(d)), in_front: g.active ? docs.indexOf(g.active) : null, focused: g.focused })),
-    panes: { ...layout.state(), data_panel: data.collapsed() ? "collapsed" : "open" },
+    panes: { ...layout.state(), data_panel: data.away() ? "away" : data.collapsed() ? "collapsed" : "open" },
     cursor: current?.script || current?.notebook ? cursor : null,
   };
 }
@@ -2681,7 +2683,7 @@ const COMMANDS: Command[] = [
   { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
-  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", when: () => panelOn("workbench.data"), whyNot: turnedOff("The Data panel"), run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
+  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", when: () => panelOn("workbench.data") && !data.away(), whyNot: panelOn("workbench.data") ? "the Data panel is not beside the data notebook" : turnedOff("The Data panel"), run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
   { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();

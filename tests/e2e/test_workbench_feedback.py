@@ -173,7 +173,7 @@ def test_a_cell_is_as_wide_as_its_pane(browser: Browser, server: dict[str, Any])
     assert narrow < wide and room - narrow < 80, (narrow, room)
 
 
-def test_the_data_notebook_and_an_apps_notebook_have_icons_of_their_own(
+def test_the_data_notebook_and_the_app_notebooks_have_icons_of_their_own(
     browser: Browser, server: dict[str, Any], orchard: dict[str, Any]
 ) -> None:
     folder: Path = orchard["folder"]
@@ -227,12 +227,13 @@ def test_the_data_notebook_and_an_apps_notebook_have_icons_of_their_own(
         return page.locator(".wb-tab", has_text=title).locator(".wb-tab-icon")
 
     expect(icon("data.ipynb")).to_have_attribute("data-icon", "dataNotebook", timeout=30000)
-    expect(icon("scratch.ipynb")).to_have_attribute("data-icon", "notebook")
+    # In a project every other notebook is an app notebook, used by a canvas or not (2026-11-16).
+    expect(icon("scratch.ipynb")).to_have_attribute("data-icon", "appNotebook")
     expect(icon("views.ipynb")).to_have_attribute("data-icon", "appNotebook", timeout=20000)
     # The Data panel's files and the landing's cards wear them too.
     for title, name in (
         ("data.ipynb", "dataNotebook"),
-        ("scratch.ipynb", "notebook"),
+        ("scratch.ipynb", "appNotebook"),
         ("views.ipynb", "appNotebook"),
     ):
         expect(page.locator(".wb-file-open", has_text=title).locator("svg")).to_have_attribute(

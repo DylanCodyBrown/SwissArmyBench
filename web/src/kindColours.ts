@@ -37,29 +37,48 @@ export function kindOfPath(path: string | null | undefined): Kind | null {
   return null;
 }
 
-/** The notebooks an app's canvas places cells of, by whole path (the project's listing and the open
- *  canvases say; workbenchPage.ts keeps it current). */
-let appNotebooks = new Set<string>();
-const pathKey = (path: string): string => path.replace(/\\/g, "/").toLowerCase();
+/** The open project's folder (null: none open). In a project, data.ipynb at its top is THE data notebook
+ *  and every other notebook an app notebook (the owner, 2026-11-16: "data notebooks and app notebooks");
+ *  outside one a notebook is plain. workbenchPage.ts keeps it current. */
+let projectFolder: string | null = null;
+const slashes = (path: string): string => path.replace(/\\/g, "/");
 
-/** The notebooks that feed an app now (a change tells onKindColours' listeners, which redraw). */
-export function setAppNotebooks(paths: Iterable<string>): void {
-  const next = new Set([...paths].filter(Boolean).map(pathKey));
-  if (next.size === appNotebooks.size && [...next].every((p) => appNotebooks.has(p))) return;
-  appNotebooks = next;
+/** A project opened or closed: the notebooks' kinds follow (onKindColours' listeners redraw). */
+export function setProjectFolder(folder: string | null): void {
+  const next = folder ? slashes(folder).replace(/\/+$/, "") : null;
+  if (next === projectFolder) return;
+  projectFolder = next;
   for (const listener of listeners) listener();
 }
 
-/** A notebook's role, by its path: the project's data notebook, one an app's canvas places, or plain. */
+export const projectOpen = (): boolean => projectFolder !== null;
+
+/** A notebook's role by its whole path (the same rule as domain/project_scope.py notebook_kind): "data"
+ *  for data.ipynb (at the project's top; with no project open, anywhere: its Data mode is its own), "app"
+ *  for any other notebook in the project, "" (plain) for one outside it. An untitled notebook (no path)
+ *  made while a project is open is an app notebook. */
 export function notebookRole(path: string | null | undefined): "data" | "app" | "" {
-  if (/(^|[\\/])data\.ipynb$/i.test(path ?? "")) return "data";
-  return path && appNotebooks.has(pathKey(path)) ? "app" : "";
+  if (!path) return projectFolder ? "app" : "";
+  const whole = slashes(path);
+  const data = /(^|\/)data\.ipynb$/i.test(whole);
+  if (!projectFolder) return data ? "data" : "";
+  // A canvas's link, relative to its app's file: the app is the project's, so its notebook is too.
+  if (!/^(\/|[a-z]:\/)/i.test(whole)) return data ? "data" : "app";
+  if (!whole.toLowerCase().startsWith(`${projectFolder.toLowerCase()}/`)) return "";
+  return whole.slice(projectFolder.length + 1).toLowerCase() === "data.ipynb" ? "data" : "app";
 }
 
-/** The icon a document of this kind shows: data.ipynb and the notebooks that feed an app have their
- *  own (the owner, 2026-11-16), each a notebook with its corner marked. */
+/** A notebook's word by its role: Data notebook, App notebook, Notebook. */
+export function notebookWord(path: string | null | undefined): string {
+  const role = notebookRole(path);
+  return role === "data" ? "Data notebook" : role === "app" ? "App notebook" : "Notebook";
+}
+
+/** The icon a document of this kind shows: the data notebook and the app notebooks have their own (the
+ *  owner, 2026-11-16), each a notebook with its corner marked. Without a path: the kind's own icon. */
 export function kindIcon(kind: Kind | null, path?: string | null): string {
   if (kind === "notebook") {
+    if (path === undefined) return "notebook";
     const role = notebookRole(path);
     return role === "data" ? "dataNotebook" : role === "app" ? "appNotebook" : "notebook";
   }

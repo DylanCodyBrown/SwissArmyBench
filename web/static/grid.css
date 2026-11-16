@@ -4853,6 +4853,10 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   font-size: calc(14px * var(--ui-zoom, 1));
 }
 
+.wb-data[hidden] {
+  display: none;
+}
+
 .wb-data-head {
   display: flex;
   align-items: center;
@@ -9916,6 +9920,12 @@ body.has-rail .area-page {
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+/* The Notebooks page's groups (Data notebook, App notebooks): a gap above each after the first. */
+.wb-landing-cards + .wb-landing-section,
+.wb-landing-main .empty-note + .wb-landing-section {
+  margin-top: 20px;
 }
 
 .wb-landing-cards.wb-landing-tables-list {

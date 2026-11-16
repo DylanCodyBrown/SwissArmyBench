@@ -1959,3 +1959,22 @@ drags; code of more than one line is pasted, one typed value):
   test_workbench_feedback, test_beta_notes_page, test_workbench_groups rerun, all pass).
 - **Not checked:** a very large table's output (pandas' own truncation applies); Windows paths for the
   app-notebook role (the rule handles backslashes; not run on Windows).
+
+## Data notebooks and app notebooks (2026-11-16, branch notebook-kinds)
+
+- **Rules** (tests/test_project_scope.py): in a project data.ipynb (any case, at the top) is data, every
+  other notebook app (a data.ipynb in a subfolder too), scripts and apps have no role;
+  `notebook_kind` by whole path: inside the project data or app, outside it plain, with no project
+  data.ipynb data and others plain, Windows paths, a sibling folder whose name starts the same is outside,
+  a non-notebook None; `/project/documents` lists a .sab's analysis.ipynb as app.
+- **In the browser** (Chromium, tests/e2e/test_notebook_kinds.py): a project's data.ipynb, an unused
+  notebook and a canvas's notebook wear dataNotebook, appNotebook, appNotebook on their tabs (data-kind,
+  icon, the icon's word) and in the Data panel's files (the word); the agent's "documents" roles; the
+  Notebooks page's two headings in order with one data card and two app cards; New app notebook in the
+  top bar makes an untitled app notebook; the Data panel hidden beside data.ipynb, back beside an app
+  notebook (Tables shown) and the canvas, "documents" says away, `view.toggleSidebar` refused with its
+  reason, the "…" menu has no Data panel entry; outside a project New notebook makes a plain notebook
+  with the Data panel beside it. tests/e2e/test_workbench_feedback.py updated (an unused notebook in a
+  project is an app notebook).
+- **Screenshots** (2x, made-up orchard project): the Notebooks page's two groups, data.ipynb with no Data
+  panel, an app notebook with it, a new app notebook; looked at.

@@ -94,16 +94,8 @@ class ProjectScope:
             return {"project": None, "documents": []}
         files = self._files.files(current.folder)
         listed = rules.documents(files, kind or None)
-        # Each notebook's role (its icon): the data notebook, one an app's canvas places, or plain.
-        roles: dict[str, str] = {}
-        if kind in (None, "", "notebook"):
-            apps: dict[str, str] = {}
-            for app in rules.documents(files, "app"):
-                try:
-                    apps[app["path"]] = self._files.read_file(current.folder, app["path"]).decode("utf-8")
-                except (OSError, UnicodeDecodeError):
-                    continue  # unreadable: it links nothing
-            roles = rules.notebook_roles(current.folder, listed, apps)
+        # Each notebook's role (its icon and word): THE data notebook (data.ipynb), or an app notebook.
+        roles = rules.notebook_roles(listed)
         return {
             "project": current.name,
             "folder": current.folder,

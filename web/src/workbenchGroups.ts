@@ -255,12 +255,14 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
     el.dataset.kind = kind?.id ?? host.kindOf(tab);
     el.setAttribute("aria-selected", String(on));
     el.tabIndex = on ? 0 : -1;
-    el.title = tab.path ?? tab.title;
     const iconHost = el.querySelector(".wb-tab-icon")!;
     if (iconHost.getAttribute("data-icon") !== (kind?.icon ?? "")) {
       iconHost.setAttribute("data-icon", kind?.icon ?? "");
       iconHost.replaceChildren(icon(kind?.icon ?? "code"));
     }
+    // The kind's word on its icon (Data notebook, App notebook): the tab's tooltip says it too.
+    iconHost.setAttribute("title", kind?.label ?? "");
+    el.title = kind?.label ? `${kind.label}: ${tab.path ?? tab.title}` : (tab.path ?? tab.title);
     // The unsaved dot: a character, so the tab's text says it too ("● analysis.ipynb").
     el.querySelector(".wb-tab-dirty")!.textContent = tab.dirty ? "●" : "";
     el.classList.toggle("dirty", tab.dirty);

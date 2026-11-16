@@ -187,7 +187,7 @@ src/swissarmybench/
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
     project_scope.py     what is the open project's own: its documents (by kind; data.py and pages/*.py
-                         marked made), its .sab/blades and .sab/dashboards, an import's free names and
+                         marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/blades and .sab/dashboards, an import's free names and
                          picks, a connection's passwords with no source on this computer and the fix
     sab_files.py         a project as one .sab file (a zip): project.json (each table's source and grids'
                          steps, the tabs, the windows' layout, autosave; unknown fields kept, a newer format read-only),
@@ -400,7 +400,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (Settings, Connections: open=settings, open=connections); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls);
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
-                         its documents as cards, Scripts' and Notebooks' Transformations cards first; New and Open… in the top bar);
+                         its documents as cards, Scripts' and Notebooks' Transformations cards first, Notebooks'
+                         under Data notebook and App notebooks; New and Open… in the top bar);
                          aiPanel.ts is Visualizations (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Visualizations,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
@@ -461,7 +462,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          12-column grid, Play showing the page live in place, Edit, Export, Save as;
                          Test this page, a default said quietly, a thin-cell hint and Move to data.ipynb);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
-                         kindColours.ts the kind colours (Settings' section, the tokens on <html>);
+                         kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
+                         notebook's kind (in a project data.ipynb the data notebook, any other an app notebook;
+                         outside one plain: notebookRole, kindIcon; the Data panel is not beside the data notebook);
                          projectFile.ts a project as one .sab, shared by the home page and the Workbench
                          (open, new: saved first, then Autosave; save with Keep its rows in the file, close,
                          a table's fix, the ● mark); projectImport.ts the import dialog (documents,

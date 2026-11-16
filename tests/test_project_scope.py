@@ -165,36 +165,40 @@ def test_autosave_saves_after_a_change_and_not_when_off(tmp_path: Path) -> None:
         )
 
 
-def test_each_notebook_has_a_role_the_data_one_an_apps_or_plain() -> None:
-    """data.ipynb is the data notebook; a notebook an app's canvas places a cell of is an app's; any
-    other is plain (each has an icon of its own: the owner, 2026-11-16)."""
-    from swissarmybench.domain import streamlit_cells as apps
-
-    def app(*links: str) -> str:
-        blocks = [
-            apps.Block(id=f"b{i}", document=d, cell=1, row=i + 1, column=1) for i, d in enumerate(links)
-        ]
-        return apps.write_app([apps.Page(id="p1", name="Page 1", blocks=blocks)])
-
+def test_a_projects_notebooks_are_its_data_notebook_and_app_notebooks() -> None:
+    """In a project, data.ipynb (at its top) is THE data notebook and every other notebook is an app
+    notebook, used by a canvas or not yet (the owner, 2026-11-16: "data notebooks and app notebooks")."""
     listed = [
         {"path": "data.ipynb", "kind": "notebook"},
         {"path": "views/sales.ipynb", "kind": "notebook"},
         {"path": "scratch.ipynb", "kind": "notebook"},
+        {"path": "Data.IPYNB", "kind": "notebook"},
+        {"path": "more/data.ipynb", "kind": "notebook"},
         {"path": "tidy.py", "kind": "script"},
+        {"path": "shop.stapp.json", "kind": "app"},
     ]
-    roles = rules.notebook_roles(
-        "/work/orchard",
-        listed,
-        {
-            "apps/shop.stapp.json": app("../views/sales.ipynb", "../data.ipynb"),
-            "broken.stapp.json": "not an app",
-        },
-    )
-    assert roles == {"data.ipynb": "data", "views/sales.ipynb": "app", "scratch.ipynb": ""}
-    # A link by its whole path counts too.
-    assert rules.notebook_roles(
-        "/work/orchard", listed[2:3], {"a.stapp.json": app("/work/orchard/scratch.ipynb")}
-    ) == {"scratch.ipynb": "app"}
+    assert rules.notebook_roles(listed) == {
+        "data.ipynb": "data",
+        "views/sales.ipynb": "app",
+        "scratch.ipynb": "app",
+        "Data.IPYNB": "data",
+        "more/data.ipynb": "app",  # one data notebook: the project's own, at its top
+    }
+
+
+def test_a_notebooks_kind_inside_a_project_and_outside_one() -> None:
+    """A notebook's kind by its whole path and the open project's folder: outside a project a notebook
+    is plain (data.ipynb stays the data notebook: its Data mode is its own)."""
+    folder = "/work/orchard"
+    assert rules.notebook_kind("/work/orchard/data.ipynb", folder) == "data"
+    assert rules.notebook_kind("/work/orchard/views/sales.ipynb", folder) == "app"
+    assert rules.notebook_kind("/work/orchard/views/data.ipynb", folder) == "app"
+    assert rules.notebook_kind("/elsewhere/scratch.ipynb", folder) == ""
+    assert rules.notebook_kind("/elsewhere/scratch.ipynb", None) == ""
+    assert rules.notebook_kind("/elsewhere/data.ipynb", None) == "data"
+    assert rules.notebook_kind("C:\\work\\orchard\\one.ipynb", "C:\\work\\orchard") == "app"
+    assert rules.notebook_kind("/work/orchardist/one.ipynb", folder) == ""
+    assert rules.notebook_kind("/work/orchard/tidy.py", folder) is None  # not a notebook
 
 
 # ===== scope =====
@@ -216,7 +220,7 @@ def test_a_second_project_sees_none_of_the_firsts_own(tmp_path: Path) -> None:
         ok(client.post("/dashboards", json={"name": "Quarter"}, headers=AUTH))
         documents = ok(client.get("/project/documents?kind=notebook", headers=AUTH))
         assert [d["path"] for d in documents["documents"]] == ["analysis.ipynb", "data.ipynb"]
-        assert [d["role"] for d in documents["documents"]] == ["", "data"]
+        assert [d["role"] for d in documents["documents"]] == ["app", "data"]
         assert documents["documents"][0]["full"] == str(Path(made["folder"]) / "analysis.ipynb")
         assert client.get("/project/documents?kind=sheet", headers=AUTH).status_code == 400
         ok(client.post("/project/save", json={}, headers=AUTH))

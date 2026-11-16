@@ -18,6 +18,9 @@
  *   [STARTERS]   App mode (2026-11-15): with a Streamlit app's canvas in front, the head's Data |
  *                Starters switch shows the starter gallery instead (workbenchStarters.ts)
  *   [COLLAPSE]   the arrow (or Ctrl+B) folds the panel to a narrow bar; remembered in this browser
+ *   [AWAY]       beside a project's data notebook the panel is not there at all (the owner, 2026-11-16:
+ *                "the data panel is nice but it should only show on app notebooks its useless in a data
+ *                notebook"): setAway, from the document in front
  */
 import { type Kind, kindIcon, kindOfPath } from "./kindColours";
 import type { BladeSummary } from "./bladeEditor";
@@ -42,6 +45,8 @@ export interface DataTable {
 export interface ProjectFile {
   path: string;
   icon?: string;
+  /** Its kind's word (Data notebook, App notebook): the tooltip. */
+  word?: string;
   /** Made from another file (data.py from data.ipynb): muted, set in. */
   derived?: boolean;
   /** A short word beside it ("Out of date"), shown only when it needs action. */
@@ -76,6 +81,9 @@ export interface DataPanel {
   /** The Streamlit cells pane: its documents and cells, and the links on the canvas page in front
    *  ("path#cell"), which get a mark. */
   setStreamlitCells(documents: PaneDocument[], placed: Set<string>): void;
+  /** Not there at all (the data notebook is in front), or back; its fold is kept. */
+  setAway(away: boolean): void;
+  away(): boolean;
   /** Fold or open the panel (no argument: the other way); true when folded. */
   toggle(collapsed?: boolean): boolean;
   /** The Streamlit cells pane unfolded (the rail's Apps: the cells to build a page from). */
@@ -373,7 +381,7 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
           "li",
           { class: `wb-file${f.derived ? " derived" : ""}${kindOfPath(f.path) ? ` km-${kindOfPath(f.path)}` : ""}` },
           f.open
-            ? h("button", { type: "button", class: "link wb-file-open", onclick: () => f.open?.() }, f.icon ? icon(f.icon) : null, h("span", {}, f.path))
+            ? h("button", { type: "button", class: "link wb-file-open", title: f.word ?? "", "data-icon": f.icon ?? "", onclick: () => f.open?.() }, f.icon ? icon(f.icon) : null, h("span", {}, f.path))
             : h("span", { class: "wb-file-name" }, f.icon ? icon(f.icon) : null, h("span", {}, f.path)),
           f.note ? h("span", { class: "wb-file-note" }, f.note) : null,
         ),
@@ -435,6 +443,12 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
       keep(STREAMLIT_KEY, false);
       drawStreamlit();
     },
+    setAway: (on) => {
+      if (on) flyout(null);
+      element.classList.toggle("away", on);
+      element.hidden = on;
+    },
+    away: () => element.classList.contains("away"),
     toggle,
     collapsed: () => folded,
     bladesHost,

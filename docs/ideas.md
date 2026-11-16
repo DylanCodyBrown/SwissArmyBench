@@ -3293,3 +3293,42 @@ the transformations."
 - No maximum width: code and tables both use the room; a reader who wants narrower splits the group.
 - A landing in the address keeps its kind while documents come back under it after a reload (the old
   code let a restored notebook turn the Scripts page into the Notebooks page).
+
+## Data notebooks and app notebooks (the owner, 2026-11-16; built, branch notebook-kinds)
+
+"also I didnt see that data notebooks and app notebooks had been seperated in the app yet. the data panel
+is nice but it should only show on app notebooks its useless in a data notebook"
+
+### Built
+- **Two kinds in a project:** data.ipynb at the project's top is THE data notebook; every other notebook
+  in the project is an **app notebook**, whether a canvas uses it yet or not. Outside a project a notebook
+  is plain. The rule: domain/project_scope.py `notebook_roles` (the documents list's `role`) and
+  `notebook_kind` (a whole path and the open project's folder); the page's mirror is kindColours.ts
+  `notebookRole` (setProjectFolder, from the Workbench's open project, folder or .sab), with
+  `notebookWord` for the word.
+- **Each kind its icon and word:** the tab kinds `dataNotebook` (was `data`), `appNotebook`, `notebook`;
+  a tab's icon carries the word as its tooltip and the tab's tooltip starts with it ("App notebook:
+  /…/views.ipynb"); the landing cards' and the Data panel's files' icons too.
+- **The Notebooks page** groups its cards under **Data notebook** and **App notebooks** (and
+  **Notebooks** for one open from outside the project), after the Transformations. In a project the
+  top bar's New is **New app notebook** (the "…" and "+" menus too); an untitled notebook made while a
+  project is open is an app notebook (its tab says so before it is saved).
+- **The Data panel** is not there beside the data notebook (hidden, its flyout closed, its fold kept);
+  it is beside app notebooks, canvases, scripts, plain notebooks and the landing pages. Beside the data
+  notebook the "…" menu does not offer Collapse/Expand the Data panel and `view.toggleSidebar` (Ctrl+B)
+  is refused with "the Data panel is not beside the data notebook". The agent: "documents" gives each
+  notebook's `role` and `panes.data_panel` "away".
+
+### Decisions
+- **Kind colours stay three** (app violet, notebook blue, script green): both notebook kinds are
+  notebooks; the icon and the word tell them apart, and a fourth colour would crowd the tabs.
+- **data.ipynb outside a project stays the data notebook:** its Data mode (Cells | Lineage | Dictionary)
+  goes by the name already, so its icon and panel follow the same rule. A data.ipynb in a subfolder of a
+  project is an app notebook (one data notebook per project).
+- **A canvas's link (relative to its app's file) in a project** is an app notebook (or the data notebook
+  by its name): the app is the project's. Outside a project a canvas no longer makes a notebook an app
+  notebook (the 0.0.11 rule); the brief's "outside a project, plain".
+- **Scripts keep the Data panel:** their Tables region uses the tables, and a script feeds an app too.
+- The documents list no longer reads the project's apps to find roles (the rule needs only the path).
+- Not changed: the Connections page's references (it does not know the open project: a data.ipynb shows
+  the data icon, any other notebook the plain one).

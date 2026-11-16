@@ -20,8 +20,12 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
 ## The window (it must be open; the "front document" is the one in front)
 - Its top bar: Save, Save as…, New (the kind on show: notebook, script or Streamlit app; "file.newNotebook",
   "file.newScript", "file.newApp") and Open… ("file.open"). The rail's Notebooks, Scripts and Apps land
-  on a page of cards. Notebook tabs: data.ipynb and the notebooks an app's canvas uses have icons of
-  their own (`project_documents` gives each notebook's `role`: data, app or "").
+  on a page of cards. In a project data.ipynb is THE data notebook and every other notebook an app
+  notebook (tab kinds `dataNotebook`, `appNotebook`; outside a project a plain `notebook`):
+  `project_documents` and "documents" give each notebook's `role` (data, app or ""). The Notebooks page
+  groups them under Data notebook and App notebooks; in a project "file.newNotebook" makes an app notebook.
+  The Data panel is not beside the data notebook ("documents" panes.data_panel "away"; Ctrl+B's
+  "view.toggleSidebar" is refused there).
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data panel).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;

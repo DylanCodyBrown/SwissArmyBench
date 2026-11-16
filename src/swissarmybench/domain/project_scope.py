@@ -26,7 +26,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
-from swissarmybench.domain import connections, notebooks, streamlit_cells
+from swissarmybench.domain import connections, notebooks
 
 APP_FOLDER: str = ".sab"
 BLADES: str = f"{APP_FOLDER}/blades"
@@ -97,41 +97,34 @@ DATA_ROLE: str = "data"
 APP_ROLE: str = "app"
 
 
-def notebook_roles(
-    folder: str, documents: Iterable[Mapping[str, Any]], apps: Mapping[str, str]
-) -> dict[str, str]:
-    """Each notebook's role by its path inside the project: "data" for the project's data.ipynb, "app"
-    for one whose cells an app's canvas places (`apps`: each app's path inside the project and its file's
-    text; a file that is not an app's is passed over), "" for any other. The data notebook stays "data"
-    when a canvas links it too."""
-    linked: set[str] = set()
-    for app, text in apps.items():
-        try:
-            pages = streamlit_cells.read_app(text)
-        except streamlit_cells.StreamlitError:
-            continue
-        for page in pages:
-            for block in page.blocks:
-                link = block.document
-                if streamlit_cells.is_absolute(link):
-                    linked.add(link.replace("\\", "/").casefold())
-                else:
-                    joined = posixpath.normpath(
-                        posixpath.join(posixpath.dirname(app), link.replace("\\", "/"))
-                    )
-                    linked.add(inside(folder, joined).replace("\\", "/").casefold())
+def notebook_roles(documents: Iterable[Mapping[str, Any]]) -> dict[str, str]:
+    """Each notebook's role by its path inside the project (the owner, 2026-11-16: "data notebooks and
+    app notebooks"): "data" for THE data notebook, data.ipynb at the project's top; "app" for every
+    other notebook, whether a canvas uses it yet or not. Other documents have none."""
     roles: dict[str, str] = {}
     for document in documents:
         if document.get("kind") != "notebook":
             continue
         path = str(document["path"])
-        if path.casefold() == DATA_NOTEBOOK:
-            roles[path] = DATA_ROLE
-        elif inside(folder, path).replace("\\", "/").casefold() in linked:
-            roles[path] = APP_ROLE
-        else:
-            roles[path] = ""
+        roles[path] = DATA_ROLE if path.replace("\\", "/").casefold() == DATA_NOTEBOOK else APP_ROLE
     return roles
+
+
+def notebook_kind(path: str, project: str | None) -> str | None:
+    """A notebook's kind by its whole path and the open project's folder (None: no project open):
+    "data" for data.ipynb (at the project's top, or anywhere with no project: its Data mode is its
+    own), "app" for any other notebook in the project, "" (plain) for one outside it. None: not a
+    notebook."""
+    whole = path.replace("\\", "/")
+    if not whole.casefold().endswith(".ipynb"):
+        return None
+    name = posixpath.basename(whole)
+    if project is None:
+        return DATA_ROLE if name.casefold() == DATA_NOTEBOOK else ""
+    top = project.replace("\\", "/").rstrip("/")
+    if not whole.casefold().startswith(top.casefold() + "/"):
+        return ""
+    return notebook_roles([{"path": whole[len(top) + 1 :], "kind": "notebook"}])[whole[len(top) + 1 :]]
 
 
 def inside(folder: str, relative: str) -> str:
