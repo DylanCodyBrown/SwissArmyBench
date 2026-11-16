@@ -35,6 +35,16 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 - **Update to X** asks first only if a notebook has unsaved changes or a kernel is running (nothing is saved for you). The app closes, installs the new version and opens again. If that fails, the old version opens again and the status bar says **Update failed**, with the reason.
 - **Settings, Updates, Check for updates** turns the check off. The check asks PyPI (then GitHub) which version is the latest; it is the only thing that leaves your computer, and it sends nothing about you or your data.
 
+## Launch Claude
+
+**Launch Claude** (the sparkle at the right of the status bar, on the grids' page and in the Workbench; also in the command palette) starts Claude with what it needs to know about Swiss Army Bench.
+
+- **Claude Code** opens in your own terminal (Windows Terminal or a new console, Terminal on a Mac, your Linux terminal), in a folder of its own (`~/.swissarmybench/claude/<your project>`). Its CLAUDE.md says what Swiss Army Bench is, how to work it through its tools, and what is open: the project, each table's rows, columns and steps, your connections and documents. No row or value from your tables is written there. Your project's working folder is added, so Claude can read its notebooks and scripts.
+- **Claude Desktop** takes no folder, so Swiss Army Bench adds itself to Desktop's MCP settings (asked once; everything else in that file stays, and a copy is kept first), then starts it. If Desktop was already open, quit it and start it again.
+- **Both installed:** a small menu asks which. **Neither:** the install commands to copy and the download page; **Choose its file…** if yours is somewhere the search did not look.
+- **Settings, Claude:** which Claude Code and which Claude Desktop (the ones found, or **Other…**), where that Desktop keeps its settings, and **Start Claude Code with bypass permissions** (off unless you turn it on: Claude then runs its tools without asking you each time).
+- Your agent can see which Claude is installed, but never launches one or changes these settings.
+
 ## The workspace
 
 ![The workspace: the tab bar (with +, the folder and the ≡ Tables list), the title with its steps strip, the Application, Table and Column rows, the grid and the status bar.](images/01-workspace.png)

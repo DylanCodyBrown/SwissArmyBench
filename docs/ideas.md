@@ -3293,3 +3293,78 @@ the transformations."
 - No maximum width: code and tables both use the room; a reader who wants narrower splits the group.
 - A landing in the address keeps its kind while documents come back under it after a reload (the old
   code let a restored notebook turn the Scripts page into the Notebooks page).
+
+## Launch Claude: Claude Code or Claude Desktop, with the context (the owner, 2026-11-16; built, branch launch-claude)
+
+The owner: "can you put a launch claude command on the home page in the bottom footer use a claude icon,
+when its clicked it should start a claude code cli session in the proper folder so the claude agent
+inherits the context it needs to understand SAB"; then "with a setting in the settings go launch it with
+bypass permissions"; then "write a launcher that checks the machine for the installed claude desktop app
+and launch it the same way. alot of the users will have a 3p claude install so dynamically finding it
+will be th ekey".
+
+Not the in-page terminal (Plans/agent-terminal-and-context.plan.md's T1, removed 2026-11-01, stays
+removed): a button that opens the user's OWN terminal application, or Claude Desktop.
+
+- **The button** (web/src/claudeLaunch.ts): "Launch Claude" with our own sparkle line icon (dom.ts
+  `claude`: eight rays round an open centre; never Anthropic's logo, principle 7.11) in the home page's
+  status bar and the Workbench's; Launch Claude, Launch Claude Code in a terminal and Launch Claude
+  Desktop in both palettes. One Claude found: straight to it. Both: a small menu (Claude Code in a
+  terminal, Claude Desktop). None: "Claude is not installed", each kind's official install commands
+  with Copy (`curl -fsSL https://claude.ai/install.sh | bash`, on Windows `irm https://claude.ai/install.ps1
+  | iex`, and `npm install -g @anthropic-ai/claude-code`), the download page for Desktop, "Choose its
+  file…" and "Look again": never a dead end (8.11).
+- **Finding Claude** (domain/claude.py's rules, server/claude_finder.py's probes): loosely, by name (any
+  app whose name, bundle id or target says Claude; never its uninstaller, updater or helpers), both kinds
+  apart by where they live (a `claude` in a bin folder, npm's shim, the native installer's folder is
+  Claude Code; an app's own folder is Desktop). Windows: App Paths and Uninstall keys (HKCU and HKLM,
+  64- and 32-bit views), Store packages and Start menu shortcuts' targets (one PowerShell call),
+  %LOCALAPPDATA%\AnthropicClaude and Programs folders, PATH, ~/.local/bin, npm's global bin, WinGet's
+  links. macOS: /Applications and ~/Applications (each Info.plist), Spotlight (mdfind by name and bundle
+  id), PATH, ~/.claude/local/claude, Homebrew. Linux: .desktop files (the user's, the system's,
+  Flatpak's, Snap's; the Exec line as an argument list), PATH, ~/.claude/local/claude, npm. Each install
+  once; the official first (an Anthropic publisher, `com.anthropic.*`, the AnthropicClaude folder).
+  Found on the first Launch or Settings visit (not at start), kept until Look again.
+- **Claude Code's folder** (the "proper folder"): `~/.swissarmybench/claude/<project name, made safe, or
+  no-project>/`, written again at each launch: CLAUDE.md (what the app is, how to work it through its MCP
+  tools, the whole index, and what is open now: the project's name, its .sab and working folder, each
+  table's rows, columns and types and its steps in words, the connections by name and type, the documents
+  by kind), `.mcp.json` (the `swissarmybench` server, this install's own `swissarmybench-mcp`; no token)
+  and `.claude/settings.json` (the prompt hook, as plugin/hooks/hooks.json; the folder's own MCP server
+  enabled; **no permission granted**). `claude --add-dir <the project's working folder>` so it reads the
+  notebooks and scripts. **Decision:** metadata only, stricter than the prompt hook: a filter's value is
+  "equals a value", a SQL step "A SQL step" (its text could carry values), never a row (tested with a
+  made-up value).
+- **The terminal** (domain `terminal`): Windows Terminal (`wt -d <folder> claude …`, a literal `;`
+  escaped as `\;`), else **a new console of its own** (CREATE_NEW_CONSOLE; **decision:** rather than `cmd
+  /c start`, whose parsing would read `&` and `^` in a path); macOS Terminal through `osascript`, the line
+  passed as an argument (`on run argv … do script (item 1 of argv)`) with every part `shlex.quote`d, the
+  only shell line, tested to read back exactly; Linux x-terminal-emulator, gnome-terminal, konsole or
+  xterm, the first found. Always an argument list; a project name with quotes, spaces, `;`, `$()` and
+  backticks tested. Claude Code's own session markers (CLAUDECODE…) are left out of its environment, so
+  one started from a server that a Claude Code session started does not refuse as nested.
+- **Bypass permissions** (the owner's second message): Settings, Claude, "Start Claude Code with bypass
+  permissions", off unless turned on, kept in claude.json; adds `--dangerously-skip-permissions`.
+  **Decision:** off by default; the brief's "keep permissions conservative" holds until the user turns it on.
+- **Claude Desktop "the same way"**: it takes no folder, so its context comes through its MCP config. On
+  the user's click: where that install keeps claude_desktop_config.json (a Store package's own folder; a
+  folder named after the app, as Electron names it, so a company's build named differently is found; the
+  official place), the `swissarmybench` server set with every other entry untouched, a dated backup first,
+  written beside it and moved over it, no token; then the app started (its Exec line, `open -a`, a Store
+  app's `shell:AppsFolder` id). **Asked once per file** ("Add Swiss Army Bench to Claude Desktop?"), never
+  again. An unofficial build with no config file anywhere: "Where does this Claude Desktop keep its
+  settings?" with the likeliest place and Choose the file…. A file that is not JSON is never touched (the
+  reason said). Desktop reads its config on start: when it changed, the toast says to quit and start it
+  again if it was open. Its context: the index and the guide (resources already), and **the new resource
+  `swissarmybench://context`**, the same "What is open now" read fresh.
+- **Settings, Claude**: what was found for each kind (a choice; the found one's source on hover), Other…
+  (the file chooser) for an install the search missed, the chosen Desktop's settings file and Choose…,
+  the bypass switch, Look again. Kept in `~/.swissarmybench/claude.json`.
+- **Trust**: launching and choosing are the user's alone (an agent does not start another agent, nor
+  pick what gets launched): `POST /claude/launch` and `PUT /claude` refuse `X-Actor: agent` (403);
+  NOT_COMMANDS says why. The agent reads what was found and the summary (`app_claude`, `context=true`).
+  127.0.0.1, the token and Origin as every route.
+- **Not checked on real Windows or macOS** (no such machine here): the registry, PowerShell, Start
+  menu, Store, Spotlight and Terminal paths run against made-up answers only.
+- **Open:** if the swissarmybench plugin is also installed in Claude Code, its prompt hook and the
+  folder's both add the table in front (said twice); the command `claude` as a setting (the brief: later).

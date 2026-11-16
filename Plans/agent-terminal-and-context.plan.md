@@ -1,3 +1,7 @@
+> **2026-11-16:** T1's purpose (Claude beside the data) is met by **Launch Claude** in the status bar, without
+> an in-page terminal: it opens the user's own terminal running Claude Code in a folder with the context, or
+> Claude Desktop with the MCP server added (docs/ideas.md, "Launch Claude"). No xterm.js, no pty.
+>
 > **Removed 2026-11-01.** The Agent tab's terminal described here was taken out of Swiss Army Bench (the table-in-front context hook stays). This plan is kept as history.
 
 # Agent terminal and current-table context

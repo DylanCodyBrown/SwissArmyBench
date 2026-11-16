@@ -74,7 +74,7 @@ def found(server: dict[str, Any], installs: list[dict[str, Any]]) -> Path:
             }
         )
     )
-    launches = server["standin"].with_suffix(".launches.jsonl")
+    launches: Path = server["standin"].with_suffix(".launches.jsonl")
     launches.unlink(missing_ok=True)
     return launches
 

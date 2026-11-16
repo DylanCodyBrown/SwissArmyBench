@@ -45,6 +45,13 @@ password.
 - `app_beta_log_export(path)` saves the zip (yours leaves the pictures out); `app_beta_log_clear`
   empties it. Off, nothing is logged and the menu item is gone; the files stay until cleared.
 
+## Launch Claude
+- The status bar's Launch Claude starts Claude Code in the user's terminal (a folder with CLAUDE.md: the
+  app, its index, what is open; metadata only) or Claude Desktop (the `swissarmybench` server added to its
+  MCP config, asked once). The resource `swissarmybench://context` is that summary, read fresh.
+- `app_claude` reads which Claude Code and Claude Desktop were found and which is chosen;
+  `context=true` the summary. Launching, choosing the install and bypass permissions are the user's: 403.
+
 ## Updates, the tray, start at sign-in
 - The one request that leaves the computer, by the owner's call: the update check (PyPI's JSON, then
   GitHub's latest release), at start and every six hours, carrying nothing but itself.
