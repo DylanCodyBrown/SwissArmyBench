@@ -314,6 +314,7 @@ input[type="text"],
 input[type="number"],
 input[type="date"],
 input[type="password"],
+input[type="url"],
 select,
 textarea {
   min-height: 28px;
@@ -4591,6 +4592,10 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
 }
 
 /* ----- Add API (addApi.ts): the source, the sign-in, and what it would write */
+.add-api {
+  max-width: 860px; /* a wide window: the fields stay a readable length */
+}
+
 .add-api .field-row {
   display: flex;
   gap: 6px;
@@ -4602,28 +4607,133 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   min-width: 0;
 }
 
-.add-api .segmented {
-  display: flex;
-  gap: 4px;
-  margin: 10px 0 6px;
+.add-api .field-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The start: two choices, as the connection type picker's tiles; the chosen one marked. */
+.add-api-starts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 4px 0 12px;
+  --fam: var(--cat-6);
+}
+
+.add-api-start[aria-checked="true"] {
+  border-color: var(--fam);
+  background: color-mix(in srgb, var(--fam) 12%, var(--raised));
+  box-shadow: inset 0 0 0 1px var(--fam);
+}
+
+/* Each part of the form in the order you think in, calmly apart. */
+.add-api-rest {
+  display: grid;
+  gap: 14px;
+}
+
+.add-api-part {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.add-api-part > .connection-fields {
+  margin: 0;
+}
+
+.add-api-part h4 {
+  margin: 0;
+  font-size: 1em;
+}
+
+.add-api-auth {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.add-api-auth .connection-fields {
+  margin: 0;
+}
+
+/* An endpoint: a card of its own, every field labelled. */
+.add-api-endpoints {
+  display: grid;
+  gap: 10px;
 }
 
 .add-api-endpoint {
   display: grid;
-  grid-template-columns: 7.5em minmax(10em, 2fr) minmax(8em, 1.5fr) auto auto;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.add-api-endpoint-head {
+  display: flex;
   align-items: center;
-  margin-bottom: 6px;
+  gap: 6px;
+}
+
+.add-api-endpoint-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.add-api-endpoint-fields {
+  display: grid;
+  grid-template-columns: minmax(6.5em, 8em) minmax(0, 1fr);
+  gap: 8px;
 }
 
 .add-api-endpoint .field-flag {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-.add-api-auth .connection-fields {
-  margin: 6px 0 0;
+/* Each parameter's Needed tick, as a chip. */
+.add-api-needed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-api-needed-label {
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+.add-api-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+}
+
+.add-api-chip:has(input:checked) {
+  border-color: var(--cat-6);
+}
+
+.add-api-try:empty {
+  display: none;
+}
+
+.add-api-op-try {
+  margin-left: auto;
+}
+
+.add-api-values:empty {
+  display: none;
 }
 
 .add-api-operations {

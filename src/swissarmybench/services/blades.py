@@ -350,6 +350,19 @@ class BladeService:
         values = {k: v for k, v in (typed or {}).items() if v}
         return await self._run_blade(blade, "test", self._typed_values(blade, data), {"secrets": values})
 
+    async def read_draft(self, data: Any, place: Mapping[str, str], limit: int) -> dict[str, Any]:
+        """Read a table of a connection not saved yet (Add API's Try it) with the passwords typed for
+        it, in a child process as Refresh is: {"table", "total"}. Nothing is saved."""
+        blade = rules.parse_blade(data)
+        typed = data.get("secrets") if isinstance(data, dict) else None
+        if typed is not None and (
+            not isinstance(typed, dict) or not all(isinstance(v, str) for v in typed.values())
+        ):
+            raise ValueError('Send the typed passwords as {"secrets": {"name": "value"}}.')
+        values = {k: v for k, v in (typed or {}).items() if v}
+        more = {"place": dict(place), "limit": limit, "secrets": values}
+        return await self._run_blade(blade, "read", self._typed_values(blade, data), more)
+
     async def rows(
         self, blade: Blade, sql: str | None, count: str | None, body: Any, dataset: str = ""
     ) -> dict[str, Any]:

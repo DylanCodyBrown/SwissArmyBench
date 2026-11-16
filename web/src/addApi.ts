@@ -1,17 +1,23 @@
 /**
- * addApi.ts: Add API (docs/ideas.md, "Add API", the owner 2026-11-15), drawn in the Connections window.
- * [WIRE]
+ * addApi.ts: Add API (docs/ideas.md, "Add API", the owner 2026-11-15; the form redrawn 2026-11-16, "The
+ * Add API form, labelled"), drawn in the Connections window. [WIRE]
  *
- *   [PRESET]   Azure Function App, AWS Lambda, Google: the address's pattern and the sign-in choices
- *              filled in; Find its OpenAPI tries where the host keeps one (Azure's extension)
- *   [SOURCE]   an OpenAPI document (its address, a file on this computer, or pasted) or the endpoints
- *              typed in a form: a method, a path, its parameters (* needed), and whether it is a table
- *   [AUTH]     the auth type and its settings (the document's own scheme first, a preset's choices)
- *   [PREVIEW]  each operation as the method it becomes (a table marked), the variables it reads, the
- *              file, and, when it is there, what a re-import changes (written nowhere until Add)
- *   [ADD]      API_<name>.py written, the connection saved, then its form: where each variable comes from
+ *   [START]    two clear choices: "I have an OpenAPI document" / "I'll list the endpoints myself"
+ *   [SOURCE]   the document: its address, a file on this computer, or pasted
+ *   [ADDRESS]  the name, where it is hosted (a preset: Azure Function App, AWS Lambda, Google; it fills
+ *              the base address and the sign-in), the base address; Find its OpenAPI on a host that
+ *              keeps one
+ *   [AUTH]     the sign-in and its settings (the document's own scheme first, a preset's choices); a
+ *              box per variable the client reads, for Try it (a secret typed goes to the keyring on Add)
+ *   [ENDPOINTS] one card per endpoint, every field labelled: Method, Path, Parameters (each one's
+ *              Needed tick; a path's {word} always needed), Read as a table, Columns to keep, Try it
+ *   [FOLDER]   where API_<name>.py goes
+ *   [PREVIEW]  each operation as the method it becomes (a table marked, Try it on a document's tables),
+ *              the variables, the file, what a re-import changes (written nowhere until Add)
+ *   [ADD]      API_<name>.py written, the connection saved, then its form
  *
- * ROUTING: GET /apis/choices; POST /apis/preview (as the form changes); POST /apis (Add)
+ * ROUTING: GET /apis/choices; POST /apis/preview (as the form changes); POST /apis/try (Try it: an
+ *          operation's first rows, nothing written); POST /apis (Add)
  */
 import { api, errorText } from "./api";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
@@ -57,6 +63,12 @@ interface Operation {
   readable: boolean;
 }
 
+interface Variable {
+  name: string;
+  required: boolean;
+  secret: boolean;
+}
+
 interface Plan {
   connection: string;
   module: string;
@@ -65,9 +77,16 @@ interface Plan {
   exists: boolean;
   taken: string | null;
   connection_exists: boolean;
-  variables: { name: string; required: boolean; secret: boolean }[];
+  variables: Variable[];
   changes: { added: string[]; removed: string[]; changed: string[]; same: number; auth: boolean; base_url: boolean; any: boolean } | null;
   spec: { title: string; source: string; base_url: string; operations: Operation[]; tables: { table: string }[]; auth: Auth; schemes: (Auth & { name: string })[] };
+}
+
+interface Tried {
+  operation: string;
+  table: string;
+  columns: string[];
+  rows: unknown[][];
 }
 
 export interface AddApiHost {
@@ -83,6 +102,29 @@ export interface AddApiHost {
 
 let choices: Promise<Choices> | null = null;
 const count = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+const field = (label: string, control: HTMLElement, extra = ""): HTMLLabelElement => h("label", { class: `field ${extra}`.trim() }, h("span", {}, label), control);
+const shown = (value: unknown): string => (value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value));
+/** A parameter box's names: "status, id*" -> status, id (a typed * still means needed). */
+const namesOf = (text: string): { name: string; starred: boolean }[] =>
+  text
+    .split(",")
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .map((n) => ({ name: n.replace(/\*+$/, "").trim(), starred: n.endsWith("*") }))
+    .filter((n) => n.name);
+const placeholders = (path: string): string[] => [...path.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]!.trim()).filter(Boolean);
+
+/** Try it's answer: the first rows, as the other connection forms show a table's. */
+function triedTable(got: Tried): HTMLElement[] {
+  return [
+    h("p", { class: "status-ok" }, `It works: ${got.table}, the first ${count(got.rows.length, "row")}.`),
+    h(
+      "div",
+      { class: "connection-preview", tabindex: 0, role: "region", "aria-label": `${got.table}'s first rows` },
+      h("table", { class: "small" }, h("thead", {}, h("tr", {}, ...got.columns.map((c) => h("th", {}, c)))), h("tbody", {}, ...got.rows.map((row) => h("tr", {}, ...row.map((v) => h("td", { class: typeof v === "number" ? "num" : "" }, shown(v))))))),
+    ),
+  ];
+}
 
 export function showAddApi(host: AddApiHost): void {
   const { body, foot } = host;
@@ -101,34 +143,36 @@ export function showAddApi(host: AddApiHost): void {
 
   function draw(found: Choices): void {
     const types = new Map(found.auth_types.map((t) => [t.id, t]));
-    let mode: "document" | "form" = "document";
+    let mode: "document" | "form" | null = null;
     let named = false; // the name typed (not the document's title)
     let documentAuth: Auth | null = null; // what the document's security scheme asks for
     let auth: Auth = { type: "none" };
     let authTouched = false;
 
-    // ===== the preset, the name =====
-    const preset = h("select", { "aria-label": "Preset" }, h("option", { value: "" }, "None"), ...found.presets.map((p) => h("option", { value: p.id }, p.label))) as HTMLSelectElement;
-    const name = h("input", { type: "text", "aria-label": "Name", placeholder: "Orders", maxlength: 64, spellcheck: false }) as HTMLInputElement;
-    name.addEventListener("input", () => {
-      named = name.value.trim() !== "";
-      later();
-    });
-
-    // ===== the source: a document, or the form's endpoints =====
+    // ===== the start: two choices =====
+    const choice = (label: string, iconName: string, to: "document" | "form"): HTMLButtonElement => {
+      const made = button(label, () => pick(to), { class: "connection-type add-api-start", icon: iconName });
+      made.setAttribute("role", "radio");
+      made.setAttribute("aria-checked", "false");
+      return made;
+    };
+    const documentTab = choice("I have an OpenAPI document", "api-openapi", "document");
+    const formTab = choice("I'll list the endpoints myself", "api-form", "form");
     const pick = (to: "document" | "form"): void => {
       mode = to;
-      documentTab.setAttribute("aria-pressed", String(to === "document"));
-      formTab.setAttribute("aria-pressed", String(to === "form"));
+      documentTab.setAttribute("aria-checked", String(to === "document"));
+      formTab.setAttribute("aria-checked", String(to === "form"));
+      rest.hidden = false;
       documentPart.hidden = to !== "document";
       formPart.hidden = to !== "form";
+      drawAuthChoices();
       later();
     };
-    const documentTab = button("OpenAPI", () => pick("document"), { pressed: true, class: "segment", icon: "api-openapi" });
-    const formTab = button("Endpoints", () => pick("form"), { pressed: false, class: "segment", icon: "api-form" });
+
+    // ===== the document =====
     let fromFile = "";
-    const url = h("input", { type: "url", class: "mono", "aria-label": "OpenAPI document's address", placeholder: "https://…/openapi.json", spellcheck: false }) as HTMLInputElement;
-    const pasted = h("textarea", { class: "mono connection-code", rows: 6, spellcheck: false, "aria-label": "OpenAPI document" }) as HTMLTextAreaElement;
+    const url = h("input", { type: "url", class: "mono", placeholder: "https://…/openapi.json", spellcheck: false }) as HTMLInputElement;
+    const pasted = h("textarea", { class: "mono connection-code", rows: 6, spellcheck: false }) as HTMLTextAreaElement;
     const fileName = h("span", { class: "hint mono" });
     const useUrl = (): void => {
       fromFile = "";
@@ -155,41 +199,21 @@ export function showAddApi(host: AddApiHost): void {
       });
     }, { icon: "folder" });
     const documentPart = h(
-      "div",
-      { class: "add-api-document" },
-      h("label", { class: "field" }, h("span", {}, "Address"), h("span", { class: "field-row" }, url, button("Read", useUrl, { icon: "import" }), browse)),
+      "section",
+      { class: "add-api-part", hidden: true },
+      field("OpenAPI document's address", h("span", { class: "field-row" }, url, button("Read", useUrl, { icon: "import" }), browse)),
       fileName,
-      h("details", { class: "connection-code-box" }, h("summary", {}, "Paste"), pasted),
+      h("details", { class: "connection-code-box" }, h("summary", {}, "Paste it instead"), field("OpenAPI document", pasted)),
     );
 
-    const rows = h("div", { class: "add-api-endpoints" });
-    const endpoint = (method = "GET", path = "", parameters = "", table = true): void => {
-      const verb = h("select", { "aria-label": "Method" }, ...found.methods.map((m) => h("option", { value: m, selected: m === method }, m))) as HTMLSelectElement;
-      const where = h("input", { type: "text", class: "mono", "aria-label": "Path", placeholder: "/orders/{id}", value: path, spellcheck: false }) as HTMLInputElement;
-      const params = h("input", { type: "text", class: "mono", "aria-label": "Parameters", placeholder: "status, id*", value: parameters, spellcheck: false }) as HTMLInputElement;
-      const isTable = h("input", { type: "checkbox", checked: table, "aria-label": "Table" }) as HTMLInputElement;
-      const row = h("div", { class: "add-api-endpoint" }, verb, where, params, h("label", { class: "field-flag" }, isTable, h("span", {}, "Table")), button("Remove", () => {
-        row.remove();
-        later();
-      }, { icon: "trash", iconOnly: true, class: "ghost" }));
-      for (const input of [verb, where, params, isTable]) input.addEventListener(input instanceof HTMLInputElement && input.type === "text" ? "input" : "change", () => later());
-      rows.append(row);
-    };
-    endpoint();
-    const formPart = h("div", { class: "add-api-form", hidden: true }, rows, button("Endpoint", () => {
-      endpoint();
-      (rows.lastElementChild?.querySelector("input[aria-label='Path']") as HTMLInputElement | null)?.focus();
-    }, { icon: "plus" }));
-    const endpoints = (): Record<string, unknown>[] =>
-      [...rows.querySelectorAll<HTMLElement>(".add-api-endpoint")].map((row) => ({
-        method: (row.querySelector("select") as HTMLSelectElement).value,
-        path: (row.querySelector("input[aria-label='Path']") as HTMLInputElement).value.trim(),
-        parameters: (row.querySelector("input[aria-label='Parameters']") as HTMLInputElement).value,
-        table: (row.querySelector("input[aria-label='Table']") as HTMLInputElement).checked,
-      })).filter((e) => e.path);
-
-    // ===== the base URL, and a preset's OpenAPI document =====
-    const baseUrl = h("input", { type: "url", class: "mono", "aria-label": "Base URL", placeholder: "https://…", spellcheck: false }) as HTMLInputElement;
+    // ===== the name, where it is hosted, its address =====
+    const name = h("input", { type: "text", placeholder: "Orders", maxlength: 64, spellcheck: false }) as HTMLInputElement;
+    name.addEventListener("input", () => {
+      named = name.value.trim() !== "";
+      later();
+    });
+    const preset = h("select", {}, h("option", { value: "" }, "Anywhere"), ...found.presets.map((p) => h("option", { value: p.id }, p.label))) as HTMLSelectElement;
+    const baseUrl = h("input", { type: "url", class: "mono", placeholder: "https://api.example.com/v1", spellcheck: false }) as HTMLInputElement;
     baseUrl.addEventListener("input", () => {
       drawFind();
       later();
@@ -215,23 +239,42 @@ export function showAddApi(host: AddApiHost): void {
           // not there: the next place
         }
       }
-      status.replaceChildren(h("p", { class: "status-error" }, "No OpenAPI document there: add the endpoints."));
+      status.replaceChildren(h("p", { class: "status-error" }, "No OpenAPI document there: list the endpoints."));
       pick("form");
     };
 
-    // ===== the auth =====
-    const authType = h("select", { "aria-label": "Sign in" }) as HTMLSelectElement;
+    // ===== the sign-in =====
+    const authType = h("select", {}) as HTMLSelectElement;
     const settingsHost = h("div", { class: "connection-fields" });
+    const valuesHost = h("div", { class: "connection-fields add-api-values" });
+    const typed = new Map<string, HTMLInputElement>(); // a variable's value, for Try it (and the keyring on Add)
+    let secretNames = new Set<string>();
+    const drawValues = (wanted: Variable[]): void => {
+      secretNames = new Set(wanted.filter((v) => v.secret).map((v) => v.name));
+      valuesHost.replaceChildren(
+        ...wanted.map((v) => {
+          let input = typed.get(v.name);
+          if (!input || input.type !== (v.secret ? "password" : "text")) {
+            input = h("input", { type: v.secret ? "password" : "text", class: "mono", autocomplete: "off", spellcheck: false, placeholder: "This computer's environment" }) as HTMLInputElement;
+            typed.set(v.name, input);
+          }
+          return field(v.name, input);
+        }),
+      );
+    };
+    const values = (): Record<string, string> => Object.fromEntries([...typed].filter(([, i]) => i.value && valuesHost.contains(i)).map(([n, i]) => [n, i.value]));
     const drawAuthChoices = (): void => {
       const chosen = found.presets.find((p) => p.id === preset.value);
       const offered: HTMLElement[] = [];
       if (documentAuth && mode === "document") offered.push(h("optgroup", { label: "The document's" }, h("option", { value: "doc:" }, types.get(documentAuth.type)?.label ?? documentAuth.type)));
       if (chosen) offered.push(h("optgroup", { label: chosen.label }, ...chosen.auths.map((a, i) => h("option", { value: `preset:${i}` }, a.label))));
       offered.push(h("optgroup", { label: "Every type" }, ...found.auth_types.map((t) => h("option", { value: `type:${t.id}` }, t.label))));
+      const before = authType.value;
       authType.replaceChildren(...offered);
       const same = [...authType.options].find((o) => o.value === `type:${auth.type}`);
       if (!authTouched && documentAuth && mode === "document") authType.value = "doc:";
-      else if (same && authType.value !== same.value && !authType.value.startsWith("preset:")) authType.value = same.value;
+      else if ([...authType.options].some((o) => o.value === before) && before.startsWith("preset:")) authType.value = before;
+      else if (same) authType.value = same.value;
     };
     const chooseAuth = (): void => {
       const value = authType.value;
@@ -251,12 +294,12 @@ export function showAddApi(host: AddApiHost): void {
     const drawSettings = (): void => {
       const type = types.get(auth.type);
       const inputs = (type?.settings ?? []).map((s) => {
-        const shown = (): boolean => !s.when || (auth[s.when.setting] ?? types.get(auth.type)?.settings.find((o) => o.id === s.when!.setting)?.default) === s.when.is;
+        const visible = !s.when || (auth[s.when.setting] ?? types.get(auth.type)?.settings.find((o) => o.id === s.when!.setting)?.default) === s.when.is;
         let input: HTMLInputElement | HTMLSelectElement;
         if (s.choices.length) {
-          input = h("select", { "aria-label": s.label }, ...s.choices.map((c) => h("option", { value: c.value, selected: (auth[s.id] ?? s.default) === c.value }, c.label))) as HTMLSelectElement;
+          input = h("select", {}, ...s.choices.map((c) => h("option", { value: c.value, selected: (auth[s.id] ?? s.default) === c.value }, c.label))) as HTMLSelectElement;
         } else {
-          input = h("input", { type: "text", class: "mono", "aria-label": s.label, value: auth[s.id] ?? s.default, spellcheck: false }) as HTMLInputElement;
+          input = h("input", { type: "text", class: "mono", value: auth[s.id] ?? s.default, spellcheck: false }) as HTMLInputElement;
         }
         input.addEventListener(input instanceof HTMLSelectElement ? "change" : "input", () => {
           auth[s.id] = input.value;
@@ -264,7 +307,7 @@ export function showAddApi(host: AddApiHost): void {
           if (input instanceof HTMLSelectElement) drawSettings(); // a choice shows its own settings
           later();
         });
-        return shown() ? h("label", { class: "field" }, h("span", {}, s.label), input) : null;
+        return visible ? field(s.label, input) : null;
       });
       settingsHost.replaceChildren(...inputs.filter((i): i is HTMLLabelElement => i !== null));
     };
@@ -272,8 +315,8 @@ export function showAddApi(host: AddApiHost): void {
     const presetIcon = h("span", { class: "add-api-preset-icon", "aria-hidden": "true" });
     const drawPresetIcon = (): void => presetIcon.replaceChildren(icon(hasIcon(`api-${preset.value}`) ? `api-${preset.value}` : "api-openapi"));
     drawPresetIcon();
-    preset.addEventListener("change", drawPresetIcon);
     preset.addEventListener("change", () => {
+      drawPresetIcon();
       const chosen = found.presets.find((p) => p.id === preset.value);
       if (chosen) {
         if (!baseUrl.value.trim()) baseUrl.value = chosen.urls[0]?.url ?? "";
@@ -281,14 +324,134 @@ export function showAddApi(host: AddApiHost): void {
         drawAuthChoices();
         authType.value = "preset:0";
         chooseAuth();
-        if (!chosen.spec_paths.length) pick("form");
+        if (!chosen.spec_paths.length && mode !== "form") pick("form");
       } else drawAuthChoices();
       drawFind();
       later();
     });
 
+    // ===== the endpoints: one card each =====
+    const cards = h("div", { class: "add-api-endpoints" });
+    const cardsOf = (): HTMLElement[] => [...cards.querySelectorAll<HTMLElement>(".add-api-endpoint")];
+    interface Card {
+      element: HTMLElement;
+      sent: () => Record<string, unknown>;
+      path: () => string;
+    }
+    const cardData = new WeakMap<HTMLElement, Card>();
+    const renumber = (): void => cardsOf().forEach((c, i) => {
+      const title = c.querySelector(".add-api-endpoint-title");
+      if (title) title.textContent = `Endpoint ${i + 1}`;
+      c.setAttribute("aria-label", `Endpoint ${i + 1}`);
+    });
+    const endpoint = (method = "GET", path = "", parameters = "", table = true): HTMLElement => {
+      const verb = h("select", {}, ...found.methods.map((m) => h("option", { value: m, selected: m === method }, m))) as HTMLSelectElement;
+      const where = h("input", { type: "text", class: "mono", placeholder: "/orders/{id}", value: path, spellcheck: false }) as HTMLInputElement;
+      const params = h("input", { type: "text", class: "mono", placeholder: "status, limit", value: parameters, spellcheck: false }) as HTMLInputElement;
+      const isTable = h("input", { type: "checkbox", checked: table }) as HTMLInputElement;
+      const columns = h("input", { type: "text", class: "mono", placeholder: "All", spellcheck: false }) as HTMLInputElement;
+      const columnsField = field("Columns to keep", columns);
+      // Each parameter's Needed tick (a path's {word} is always needed); "id*" typed still ticks it.
+      const needed = new Set(namesOf(parameters).filter((n) => n.starred).map((n) => n.name));
+      const neededHost = h("div", { class: "add-api-needed", role: "group", "aria-label": "Needed" });
+      const drawNeeded = (): void => {
+        const inPath = placeholders(where.value);
+        const listed = namesOf(params.value);
+        for (const n of listed) if (n.starred) needed.add(n.name);
+        const all = [...new Set([...inPath, ...listed.map((n) => n.name)])];
+        neededHost.hidden = all.length === 0;
+        neededHost.replaceChildren(
+          h("span", { class: "add-api-needed-label" }, "Needed"),
+          ...all.map((p) => {
+            const always = inPath.includes(p);
+            const tick = h("input", { type: "checkbox", checked: always || needed.has(p), disabled: always }) as HTMLInputElement;
+            tick.addEventListener("change", () => {
+              if (tick.checked) needed.add(p);
+              else needed.delete(p);
+              drawTry();
+              later();
+            });
+            return h("label", { class: "add-api-chip", title: always ? `${p} is in the path` : undefined }, tick, h("span", { class: "mono" }, p));
+          }),
+        );
+      };
+      const out = h("div", { class: "add-api-try", role: "status" });
+      const tryButton = button("Try it", () => void tryCard(), { icon: "play" });
+      const drawTry = (): void => {
+        const asked = placeholders(where.value).length > 0 || namesOf(params.value).some((n) => needed.has(n.name));
+        const why = verb.value !== "GET" ? "Only a GET is tried" : !isTable.checked ? "Tick Read as a table to try it" : asked ? "It needs a value for a parameter" : !where.value.trim() ? "Give it a path" : "";
+        tryButton.disabled = Boolean(why);
+        tryButton.title = why || "Try it";
+        columnsField.hidden = !isTable.checked;
+      };
+      const card = h(
+        "section",
+        { class: "add-api-endpoint", role: "group" },
+        h("div", { class: "add-api-endpoint-head" }, h("span", { class: "add-api-endpoint-title" }), tryButton, button("Remove endpoint", () => {
+          card.remove();
+          renumber();
+          later();
+        }, { icon: "trash", iconOnly: true, class: "ghost" })),
+        h("div", { class: "add-api-endpoint-fields" }, field("Method", verb, "add-api-method-field"), field("Path", where)),
+        field("Parameters", params),
+        neededHost,
+        h("label", { class: "field-flag" }, isTable, h("span", {}, "Read as a table")),
+        columnsField,
+        out,
+      );
+      const tryCard = async (): Promise<void> => {
+        const at = cardsOf().filter((c) => cardData.get(c)!.path()).indexOf(card);
+        await tryOperation(at, out);
+      };
+      cardData.set(card, {
+        element: card,
+        path: () => where.value.trim(),
+        sent: () => ({
+          method: verb.value,
+          path: where.value.trim(),
+          parameters: namesOf(params.value)
+            .map((n) => (needed.has(n.name) ? `${n.name}*` : n.name))
+            .join(", "),
+          table: isTable.checked,
+          ...(isTable.checked && columns.value.trim() ? { columns: columns.value.trim() } : {}),
+        }),
+      });
+      where.addEventListener("input", () => {
+        drawNeeded();
+        drawTry();
+        later();
+      });
+      params.addEventListener("input", () => {
+        drawNeeded();
+        drawTry();
+        later();
+      });
+      columns.addEventListener("input", () => later());
+      for (const input of [verb, isTable]) input.addEventListener("change", () => {
+        drawTry();
+        later();
+      });
+      drawNeeded();
+      drawTry();
+      cards.append(card);
+      renumber();
+      return card;
+    };
+    endpoint();
+    const formPart = h(
+      "section",
+      { class: "add-api-part", hidden: true },
+      h("h4", {}, "Endpoints"),
+      cards,
+      button("Add an endpoint", () => {
+        const made = endpoint();
+        made.querySelector<HTMLInputElement>("input[type='text']")?.focus();
+      }, { icon: "plus" }),
+    );
+    const endpoints = (): Record<string, unknown>[] => cardsOf().map((c) => cardData.get(c)!).filter((c) => c.path()).map((c) => c.sent());
+
     // ===== where the file goes =====
-    const folder = h("input", { type: "text", class: "mono", "aria-label": "Folder", value: host.folder ?? "", placeholder: "Workbench folder", spellcheck: false }) as HTMLInputElement;
+    const folder = h("input", { type: "text", class: "mono", value: host.folder ?? "", placeholder: "The Workbench's folder", spellcheck: false }) as HTMLInputElement;
     folder.addEventListener("change", () => later(0));
     const folderBrowse = button("Browse…", () => {
       void chooseFile({ title: "Where API_<name>.py goes", mode: "folder", start: folder.value || host.folder }).then((path) => {
@@ -305,13 +468,13 @@ export function showAddApi(host: AddApiHost): void {
         const list = endpoints();
         if (!list.length || !baseUrl.value.trim()) return null;
         out.form = { title: name.value.trim() || "API", base_url: baseUrl.value.trim(), endpoints: list };
-      } else {
+      } else if (mode === "document") {
         if (fromFile) out.spec_path = fromFile;
         else if (pasted.value.trim()) out.spec = pasted.value;
         else if (url.value.trim()) out.spec_url = url.value.trim();
         else return null;
         if (baseUrl.value.trim()) out.base_url = baseUrl.value.trim();
-      }
+      } else return null;
       if (named) out.name = name.value.trim();
       if (authTouched || mode === "form") out.auth = auth;
       if (folder.value.trim()) out.folder = folder.value.trim();
@@ -324,19 +487,19 @@ export function showAddApi(host: AddApiHost): void {
       window.clearTimeout(waiting);
       waiting = window.setTimeout(() => void preview(), ms);
     };
-    const preview = async (): Promise<void> => {
+    const preview = async (): Promise<Plan | null> => {
       const mine = ++asked;
       const body = sent();
       add.disabled = true;
       if (!body) {
         plan = null;
         status.replaceChildren();
-        return;
+        return null;
       }
       status.replaceChildren(h("p", { class: "hint" }, "Reading…"));
       try {
         const got = await api<Plan>("/apis/preview", "POST", body);
-        if (mine !== asked) return;
+        if (mine !== asked) return null;
         plan = got;
         if (!named) name.value = got.connection;
         if (mode === "document") {
@@ -347,21 +510,42 @@ export function showAddApi(host: AddApiHost): void {
             drawAuthChoices();
             drawSettings();
           }
-          baseUrl.placeholder = got.spec.base_url || "https://…";
+          baseUrl.placeholder = got.spec.base_url || "https://api.example.com/v1";
         }
+        drawValues(got.variables.slice(1)); // the first is the base address's own
         drawPlan(got);
         add.disabled = Boolean(got.taken);
+        return got;
       } catch (e) {
-        if (mine !== asked) return;
+        if (mine !== asked) return null;
         plan = null;
         failed(e);
+        return null;
       }
     };
+    // Try it: an operation's first rows (by its place among the endpoints, or by its name), written nowhere.
+    const tryOperation = async (which: number | string, out: HTMLElement): Promise<void> => {
+      out.replaceChildren(h("p", { class: "hint" }, "Trying…"));
+      window.clearTimeout(waiting);
+      const fresh = await preview();
+      const body = sent();
+      const operation = typeof which === "string" ? which : fresh?.spec.operations[which]?.name;
+      if (!body || !operation) {
+        out.replaceChildren(h("p", { class: "status-error" }, mode === "form" && !baseUrl.value.trim() ? "Give the base address first." : "Fix the form first."));
+        return;
+      }
+      try {
+        out.replaceChildren(...triedTable(await api<Tried>("/apis/try", "POST", { ...body, try: operation, values: values() })));
+      } catch (e) {
+        out.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+      }
+    };
+    const documentTry = h("div", { class: "add-api-try", role: "status" });
     const drawPlan = (p: Plan): void => {
       const changed = new Set([...(p.changes?.added ?? []), ...(p.changes?.changed ?? [])]);
       const ops = h(
         "ul",
-        { class: "add-api-operations" },
+        { class: "add-api-operations", "aria-label": "What it makes" },
         ...p.spec.operations.map((o) =>
           h(
             "li",
@@ -371,6 +555,7 @@ export function showAddApi(host: AddApiHost): void {
             h("span", { class: "hint" }, `${o.name}()`),
             o.readable ? h("span", { class: "badge" }, "Table") : null,
             p.changes?.added.includes(o.name) ? h("span", { class: "badge" }, "New") : p.changes?.changed.includes(o.name) ? h("span", { class: "badge" }, "Changed") : null,
+            o.readable && mode === "document" ? button(`Try ${o.name}`, () => void tryOperation(o.name, documentTry), { icon: "play", iconOnly: true, class: "ghost add-api-op-try", title: "Try it" }) : null,
           ),
         ),
         ...(p.changes?.removed ?? []).map((n) => h("li", { class: "removed" }, h("span", { class: "hint" }, `${n}()`), h("span", { class: "badge" }, "Removed"))),
@@ -388,6 +573,7 @@ export function showAddApi(host: AddApiHost): void {
         summary ? h("p", { class: "hint" }, summary) : null,
         h("p", { class: "hint" }, `${p.spec.title} · ${p.spec.source} · ${count(p.spec.operations.length, "operation")} · ${count(p.spec.tables.length, "table")}`),
         ops,
+        mode === "document" ? documentTry : null,
         p.variables.length > 1 ? h("p", { class: "hint add-api-variables" }, ...p.variables.slice(1).map((v) => h("code", { title: v.required ? "Needed" : "Optional" }, v.name))) : null,
       );
     };
@@ -398,9 +584,17 @@ export function showAddApi(host: AddApiHost): void {
     const save = async (): Promise<void> => {
       const body = sent();
       if (!body || !plan) return;
+      // A value typed for Try it is kept as the connection's: a secret in the keyring, the rest plainly.
+      const given = values();
+      const keep = Object.keys(given).length
+        ? {
+            variables: Object.entries(given).map(([n, v]) => (secretNames.has(n) ? { name: n, from: "keyring" } : { name: n, from: "value", value: v })),
+            secrets: Object.fromEntries(Object.entries(given).filter(([n]) => secretNames.has(n))),
+          }
+        : {};
       add.disabled = true;
       try {
-        const done = await api<Plan & { saved: { name: string } }>("/apis", "POST", body);
+        const done = await api<Plan & { saved: { name: string } }>("/apis", "POST", { ...body, ...keep });
         toast(`Added ${done.connection}: ${done.file}`);
         host.added(done.saved.name);
       } catch (e) {
@@ -413,22 +607,27 @@ export function showAddApi(host: AddApiHost): void {
     authType.value = "type:none";
     drawSettings();
     drawFind();
+    const rest = h(
+      "div",
+      { class: "add-api-rest", hidden: true },
+      documentPart,
+      h(
+        "section",
+        { class: "add-api-part" },
+        h("div", { class: "connection-fields" }, field("Name", name), field("Hosted on", h("span", { class: "field-row" }, presetIcon, preset))),
+        field("Base address", h("span", { class: "field-row" }, baseUrl, find)),
+      ),
+      h("section", { class: "add-api-part add-api-auth" }, h("div", { class: "connection-fields" }, field("Sign in", authType)), settingsHost, valuesHost),
+      formPart,
+      h("section", { class: "add-api-part" }, field("Save the file in", h("span", { class: "field-row" }, folder, folderBrowse))),
+      status,
+    );
     clear(
       body,
       h("h3", {}, "Add API"),
-      h("div", { class: "add-api" },
-        h("label", { class: "field" }, h("span", {}, "Preset"), h("span", { class: "field-row" }, presetIcon, preset)),
-        h("label", { class: "field" }, h("span", {}, "Name"), name),
-        h("div", { class: "segmented", role: "group", "aria-label": "From" }, documentTab, formTab),
-        documentPart,
-        formPart,
-        h("label", { class: "field" }, h("span", {}, "Base URL"), h("span", { class: "field-row" }, baseUrl, find)),
-        h("fieldset", { class: "connection-passwords add-api-auth" }, h("legend", {}, "Sign in"), h("label", { class: "field" }, h("span", {}, "Type"), authType), settingsHost),
-        h("label", { class: "field" }, h("span", {}, "Folder"), h("span", { class: "field-row" }, folder, folderBrowse)),
-        status,
-      ),
+      h("div", { class: "add-api" }, h("div", { class: "add-api-starts", role: "radiogroup", "aria-label": "Start from" }, documentTab, formTab), rest),
     );
     foot.append(backButton(host.backTo.label, host.backTo.url), add);
-    url.focus();
+    documentTab.focus();
   }
 }

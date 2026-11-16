@@ -227,6 +227,15 @@ class ConnectionService:
             await self._blades.save(data, vault.name)
         return {"code": rules.rename_secret(code, secret, env), "secret": env, "vault": vault.name}
 
+    async def read_draft(self, body: Any, place: dict[str, str], limit: int) -> dict[str, Any]:
+        """A table's first rows from a Python connection not saved yet (Add API's Try it), with the
+        passwords typed for it: {"columns", "rows", "total"}. Nothing is saved."""
+        self._check(body)
+        answer = await self._blades.read_draft(body, place, limit)
+        read = answer["table"]
+        rows = [[_plain(v) for v in r.values()] for r in read.to_pylist()]
+        return {"columns": [str(c) for c in read.column_names], "rows": rows, "total": answer.get("total")}
+
     async def test(self, body: Any) -> dict[str, Any]:
         """Run the form's code (not saved) with the passwords typed into it. A form not named yet is
         tested all the same (the name is only needed to save)."""
@@ -510,3 +519,12 @@ class Tables(Protocol):
     async def sheets(self, path: str) -> list[str]: ...
 
     async def peek(self, path: str, sheet: str | None, rows: int) -> dict[str, Any]: ...
+
+
+def _plain(value: Any) -> Any:
+    """A cell as JSON holds it: text for what JSON has no word for, nothing for a missing number."""
+    if value is None or isinstance(value, bool | int | str):
+        return value
+    if isinstance(value, float):
+        return value if value == value and abs(value) != float("inf") else None
+    return str(value)

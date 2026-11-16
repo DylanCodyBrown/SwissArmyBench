@@ -7,6 +7,8 @@ alike (the golden rule); writing a file of code asks nothing (it holds no rows a
             file goes and, when it is there already, what changes (nothing is written)
   add       the file written (or written again, only when Add API made it) and the connection saved
             (or changed, only when it is the one that loads this file; its variables' sources kept)
+  try_it    one operation's first rows before Add: the client pasted into a draft connection, run in a
+            child process (nothing written; a typed value used for that run only)
   inline    the made clients a notebook's code imports, from beside it, as code to paste into an
             exported script or notebook (the exporter calls this: an API_<name>.py travels inline)
 
@@ -51,6 +53,8 @@ class Connections(Protocol):
     def details(self, name: str) -> dict[str, Any]: ...
 
     def save(self, body: Any, previous: str | None) -> Awaitable[dict[str, Any]]: ...
+
+    def read_draft(self, body: Any, place: dict[str, str], limit: int) -> Awaitable[dict[str, Any]]: ...
 
 
 @dataclass(frozen=True)
@@ -203,6 +207,28 @@ class Apis:
         saved = await self._connections.save(connection, previous)
         self.ws.audit.write(who, "add_api", f"{plan.names.connection}: {plan.path}")
         return answer | {"saved": saved, "written": plan.path}
+
+    async def try_it(self, body: Any) -> dict[str, Any]:
+        """Try it: one operation's first rows (`"try": "list_orders"`), before Add. The client is run
+        pasted into a draft connection (written nowhere); `"values"` are typed for this run only, any
+        other variable is read from this computer's environment. Nothing is saved, no value comes back."""
+        plan = await self._plan(body)
+        operation = body.get("try")
+        if not isinstance(operation, str) or not operation:
+            raise ApiError('Name the operation to try: {"try": "list_orders"}.')
+        schema, table = apis.tried_table(plan.spec, operation)
+        inlined = api_clients.inline(plan.names.module, plan.text)
+        draft = apis.try_connection(plan.names, inlined, plan.spec.auth, body.get("values"))
+        place = {"database": "", "schema": schema, "table": table}
+        try:
+            read = await self._connections.read_draft(draft, place, apis.TRY_ROWS)
+        except RuntimeError as error:  # the run's own refusal (no key, a 401): the API's answer, said
+            said = str(error).replace(  # Add API's form has no Environment variables: its Sign in has
+                "choose where it comes from under Environment variables.",
+                "type it under Sign in to try it (or set it on this computer).",
+            )
+            raise ApiError(said) from None
+        return {"operation": operation, "table": table, **read}
 
     def inline(self, folder: str, codes: Iterable[str]) -> list[dict[str, str]]:
         """The made API clients the code imports (import API_Orders), found beside it in `folder`, each

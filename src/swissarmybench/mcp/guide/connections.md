@@ -50,7 +50,8 @@ variable by its name.
   API_<name>.py (beside data.py: pass the project's `folder`) and a Python connection whose tables are
   the GET operations that answer rows. `connections_api_choices`: auth types, settings, presets (Azure,
   AWS, Google). `connections_api_add(preview=true)` first: operations, the variables it reads, what a
-  re-import changes. Then point each variable at a source (`variables`, as connections_python_save).
+  re-import changes; `try_it=<operation>` reads its first rows before Add (`values`: a key for that
+  try only). Then point each variable at a source (`variables`, as connections_python_save).
   A file Add API did not make, or a connection of that name that is not its own, is never replaced.
 
 ## Key vaults

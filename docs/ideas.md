@@ -2247,6 +2247,41 @@ Built (2026-11-15, branch add-api). Decisions made in building it:
   `API_` module the code imports that Add API made and that is beside the notebook, `{"module", "code"}`:
   the file without its docstring plus three lines that make `import API_Orders` find it. The wiring is the
   merge's.
+### The Add API form, labelled (the owner, 2026-11-16) — built 2026-11-16, branch add-api-form
+
+The owner's words, with a screenshot of the form: "no idea how to fill out this form to add an API this is
+really ugly and and not user friendly, those inputs are not even labelled." (One cramped row of unlabelled
+boxes per endpoint, the pink OpenAPI / Endpoints toggles, the base URL after the endpoints.)
+
+Built, inside the form only (web/src/addApi.ts and its styles; how the form is opened is unchanged):
+- **Two clear choices at the top**, as the connection type picker's tiles: **I have an OpenAPI document** /
+  **I'll list the endpoints myself** (a radio group, the chosen one marked in the theme's teal, not the
+  accent). Nothing else shows until one is chosen.
+- **The order you think in:** (the document's address, when that is the choice), **Name** and **Hosted on**
+  (the preset, renamed: "Anywhere", Azure Function App, AWS Lambda, Google; it fills the base address and
+  the sign-in), **Base address** (with Find its OpenAPI), **Sign in** (its settings in a box of their own),
+  **Endpoints**, **Save the file in** (the folder), then the preview.
+- **Every field labelled**, by a real `<label>`: Method, Path, Parameters, Read as a table, Columns to keep,
+  each sign-in setting. A test checks that no visible input, select or textarea is left without a label.
+- **The `*` replaced:** the box is Parameters (`status, limit`), and each name gets a **Needed** tick as a
+  chip under it; a path's `{word}` is shown ticked and fixed. A typed `id*` still ticks it. (The owner's
+  screenshot read the box as columns; it was the parameters. **Columns to keep** is now a box of its own,
+  shown when Read as a table is ticked: the form's `columns`, which the page had never offered.)
+- **One card per endpoint**, numbered, with its own Remove and **Try it**.
+- **Try it** (`POST /apis/try`, the agent's `connections_api_add(try_it=<operation>)`): the client is made
+  as Add would make it, pasted into a draft Python connection (`api_clients.inline`, written nowhere) and
+  its Read a table run in a child process for the first 5 rows. Offered on a GET read as a table that needs
+  no value (otherwise disabled, its tooltip says why; the server refuses the rest in plain words). A
+  document's tables each have a Try button in the preview list.
+- **A box per variable the file reads** (`ORDERS_API_KEY`, a password box for a secret) under the sign-in:
+  what is typed is used by Try it (a secret as a typed password, never kept by the try), and on **Add** it
+  is kept as the connection's (a secret in the keyring, the rest as a plain value). Empty: this computer's
+  environment. **Decision:** typed once, not twice; the connection's form after Add can still point it at a
+  vault. A vault is not offered for Try it itself (left for later).
+- **Calm spacing**, the other connection forms' field look, at most 860 px wide; light, dark and a narrow
+  window checked by screenshots. `input[type="url"]` now has the shared field look (it had the browser's).
+- A failed try (no key, the API's 401) is a 400 with the run's message, not a 500.
+
 ## Beta mode: the beta log and notes (the owner, 2026-11-15)
 
 "After the beta release I will probably have a whole host of things to fix or I don't like. So let's build

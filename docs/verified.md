@@ -67,6 +67,23 @@ A chart over 1,000,000 rows sends at most 5,000 points (`tests/test_cards.py`).
   the same); a real browser window for OAuth's authorization code; the keyring holding a refresh token on a
   real desktop.
 
+### The Add API form, labelled (2026-11-16, branch add-api-form)
+
+- **HTTP** (`tests/test_apis.py::test_try_it_...`): Try it on a form's GET table against the made-up
+  service with a key typed for that try: its first rows (`sku`, `price`), the key in no answer, nothing
+  written in the folder, no connection saved. No key: 400 naming `SHOP_API_KEY`; a wrong key: 400 with the
+  service's 401, the key not echoed. A path parameter, a POST, a non-table and an unknown operation are
+  each refused in plain words.
+- **Browser** (`tests/e2e/test_add_api_page.py`, Chromium): from an OpenAPI file (the radio, File…,
+  Save the file in; the document's sign-in; Try on `list_orders` with no key says `ORDERS_API_KEY`; Add;
+  the vault; Test) and from the form with AWS Lambda (Hosted on, Base address, Sign in, two cards by
+  label; the Needed chips: `order_id` ticked and fixed, `fields` ticked, which the made file types as
+  needed; Try it on `/products` shows its two rows; Add sends the typed key for the keyring). Every field
+  labelled, in light and dark, with one and three endpoints; at 560 px nothing runs off the side.
+- **Not checked:** Add's keyring write from the page in a browser (this sandbox has no keyring: the test
+  checks what the page sends and strips it on the way; the server's keyring path is the Add API HTTP
+  test's); Try it with an OAuth sign-in that opens a browser; Edge (Chromium only here).
+
 ## Other checks
 
 - uvicorn 0.54 on Windows serves from a socket bound and listening beforehand

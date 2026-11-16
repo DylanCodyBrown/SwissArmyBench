@@ -1158,6 +1158,14 @@ def connect_code(names: Names, path: str, auth: Auth) -> str:
         f"sys.modules[{_q(names.module)}] = {names.module}",
         f"spec.loader.exec_module({names.module})",
         "",
+        *_client_lines(names, auth),
+    ]
+    return "\n".join(lines)
+
+
+def _client_lines(names: Names, auth: Auth) -> list[str]:
+    """`conn = API_Orders.OrdersApi(...)`, each argument read from its environment variable."""
+    lines = [
         f"conn = {names.module}.{names.cls}(",
         f"    os.environ.get({_q(url_variable(names.prefix))}),",
     ]
@@ -1165,7 +1173,56 @@ def connect_code(names: Names, path: str, auth: Auth) -> str:
         read = f"os.environ[{_q(v.name)}]" if v.required else f"os.environ.get({_q(v.name)})"
         lines.append(f"    {v.argument}={read},")
     lines.append(")")
-    return "\n".join(lines)
+    return lines
+
+
+# ===== Try it: one table's first rows before Add (nothing written) =====
+
+TRY_ROWS: int = 5
+
+
+def tried_table(spec: Spec, operation: str) -> tuple[str, str]:
+    """The table an operation reads as (schema, table); an ApiError says why one cannot be tried."""
+    for table, op in spec.tables().items():
+        if op.name == operation:
+            return schema_of(op), table
+    found = next((op for op in spec.operations if op.name == operation), None)
+    if found is None:
+        raise ApiError(f"There is no {operation}: name an operation the preview lists.")
+    if found.method != "GET":
+        raise ApiError(f"{found.method} {found.path} changes data: only a GET is tried.")
+    if not found.table:
+        raise ApiError(f"{found.path} does not answer rows: tick Read as a table to try it.")
+    raise ApiError(f"{found.path} needs a value for each of its parameters: it cannot be tried alone.")
+
+
+def try_connection(names: Names, inlined: str, auth: Auth, typed: Any) -> dict[str, Any]:
+    """A draft connection for Try it: the made file pasted in (written nowhere), the client made as
+    the saved connection makes it. A value typed for a variable is used for this run only (a secret's
+    as a typed password, never kept); any other variable is read from this computer's environment."""
+    given = typed if isinstance(typed, Mapping) else {}
+    sources: list[dict[str, str]] = []
+    secrets: dict[str, str] = {}
+    for v in variables(auth, names.prefix):
+        value = given.get(v.name)
+        if not isinstance(value, str) or not value:
+            sources.append({"name": v.name, "from": "env"})
+        elif v.secret:
+            sources.append({"name": v.name, "from": "keyring"})
+            secrets[v.name] = value
+        else:
+            sources.append({"name": v.name, "from": "value", "value": value})
+    code = "\n".join([inlined.rstrip(), "", "import os", "", *_client_lines(names, auth)])
+    return {
+        "name": names.connection,
+        "kind": "other",
+        "template": "python",
+        "variable": "conn",
+        "code": code,
+        "read": {"command": READ_CODE},
+        "variables": sources,
+        "secrets": secrets,
+    }
 
 
 TABLES_CODE: str = "conn.tables()"

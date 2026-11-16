@@ -906,6 +906,65 @@ def test_with_no_project_the_file_goes_in_the_workbenchs_folder(client: TestClie
     assert plan["path"] == str((tmp_path / "home" / "SwissArmyBench" / "API_Shop.py").resolve())
 
 
+def test_try_it_reads_an_endpoints_first_rows_before_add_and_writes_nothing(
+    client: TestClient, service: Service, tmp_path: Path
+) -> None:
+    service.mode = "api_key_header"
+    service.key_name = "x-api-key"
+    form = {
+        "title": "Shop",
+        "base_url": service.url + "/v1",
+        "endpoints": [
+            {"path": "/products", "table": True},
+            {"path": "/orders/{order_id}", "table": True},
+            {"path": "/orders", "method": "POST"},
+            {"path": "/regions", "table": False},
+        ],
+    }
+    auth = {"type": "api_key", "in": "header", "name": "x-api-key"}
+    project = tmp_path / "shop"
+    project.mkdir()
+    body = {"form": form, "auth": auth, "folder": str(project)}
+    names = [
+        o["name"] for o in client.post("/apis/preview", json=body, headers=AUTH).json()["spec"]["operations"]
+    ]
+    assert names == ["get_products", "get_orders_by_order_id", "post_orders", "get_regions"]
+
+    # The key typed for this try only: the rows come back, the key does not, and nothing is written.
+    tried = client.post(
+        "/apis/try",
+        json=body | {"try": "get_products", "values": {"SHOP_API_KEY": standin.API_KEY}},
+        headers=AUTH,
+    )
+    assert tried.status_code == 200, tried.text
+    answer = tried.json()
+    assert answer["table"] == "products" and answer["columns"] == ["sku", "price"]
+    assert 0 < len(answer["rows"]) <= apis.TRY_ROWS
+    assert standin.API_KEY not in tried.text
+    assert not list(project.iterdir())
+    assert client.get("/connections", headers=AUTH).json()["connections"] == []
+
+    # No key typed, none on this computer: said by its variable's name.
+    keyless = client.post("/apis/try", json=body | {"try": "get_products"}, headers=AUTH)
+    assert keyless.status_code == 400 and "SHOP_API_KEY" in keyless.text and "under Sign in" in keyless.text
+    # A wrong key: the service's own refusal, said.
+    wrong = client.post(
+        "/apis/try",
+        json=body | {"try": "get_products", "values": {"SHOP_API_KEY": "made-up-wrong"}},
+        headers=AUTH,
+    )
+    assert wrong.status_code == 400 and "401" in wrong.text and "made-up-wrong" not in wrong.text
+    for operation, why in (
+        ("get_orders_by_order_id", "needs a value"),
+        ("post_orders", "only a GET"),
+        ("get_regions", "Read as a table"),
+        ("list_nothing", "There is no list_nothing"),
+        ("", "Name the operation"),
+    ):
+        refused = client.post("/apis/try", json=body | {"try": operation}, headers=AUTH)
+        assert refused.status_code == 400 and why in refused.text, refused.text
+
+
 # ===== in a notebook: the connection is the client; sab.read and a SQL cell =====
 
 TOKEN = "add-api-token"

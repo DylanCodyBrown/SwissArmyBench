@@ -2222,8 +2222,11 @@ _API_KEYS = ("spec_url", "spec_path", "spec", "form", "name", "base_url", "auth"
 @command(
     "connections_api_add",
     "Add API: write API_<name>.py (one method per operation) and save its Python connection; "
-    "preview=true writes nothing (operations, variables, what changes)",
+    "preview=true writes nothing (operations, variables, what changes); try_it=<operation> reads its first "
+    "rows before Add (nothing written)",
     opt("preview", "Only say what it would do.", "bool"),
+    opt("try_it", "An operation's name (list_orders): its first rows, written nowhere."),
+    opt("values", '{"NAME": "value"} for that try only (else this computer\'s environment).', "json"),
     opt("spec_url", "The OpenAPI document's address (2.0 or 3.x)."),
     opt("spec_path", "Its file."),
     opt("spec", "Its text."),
@@ -2241,6 +2244,9 @@ _API_KEYS = ("spec_url", "spec_path", "spec", "form", "name", "base_url", "auth"
     opt("row_limit", "Rows to open.", "int"),
 )
 def connections_api_add(a: dict[str, Any]) -> Any:
+    if a.get("try_it"):
+        body = {k: a[k] for k in (*_API_KEYS, "values") if a.get(k) is not None}
+        return api.call("POST", "/apis/try", body | {"try": a["try_it"]})
     keys = _API_KEYS if a.get("preview") else (*_API_KEYS, "variables", "secrets", "row_limit")
     body = {k: a[k] for k in keys if a.get(k) is not None}
     return api.call("POST", "/apis/preview" if a.get("preview") else "/apis", body)

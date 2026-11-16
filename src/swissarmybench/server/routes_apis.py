@@ -4,6 +4,8 @@ secret's value: a keyring value sent with Add goes to the keyring.
 GET  /apis/choices   the auth types with their settings, and the presets (Azure, AWS, Google)
 POST /apis/preview   {"spec" | "spec_path" | "spec_url" | "form", "name"?, "base_url"?, "auth"?, "folder"?}:
                      what Add would write (the operations, tables, variables, and what changes)
+POST /apis/try       the same and "try" (an operation's name), "values"? ({"NAME": "value"}, this run
+                     only): its first rows, before Add (nothing written, no value answered)
 POST /apis           the same, and "variables"?, "secrets"?, "row_limit"?: API_<name>.py written and
                      its connection saved
 """
@@ -36,11 +38,15 @@ def routes(apis: Apis) -> list[BaseRoute]:
     async def preview(request: Request) -> Response:
         return json_response(await apis.preview(await read_json(request)))
 
+    async def try_it(request: Request) -> Response:
+        return json_response(await apis.try_it(await read_json(request)))
+
     async def add(request: Request) -> Response:
         return json_response(await apis.add(await read_json(request), actor(request)))
 
     return [
         Route("/apis/choices", safely(choices), methods=["GET"]),
         Route("/apis/preview", safely(preview), methods=["POST"]),
+        Route("/apis/try", safely(try_it), methods=["POST"]),
         Route("/apis", safely(add), methods=["POST"]),
     ]
