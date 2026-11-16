@@ -287,26 +287,31 @@ def saved_notebook(path: Path) -> None:
     path.write_text(notebooks.write_notebook(cells, next_number=9), encoding="utf-8")
 
 
-def test_a_saved_notebook_opens_folded_runs_top_to_bottom_and_keeps_its_numbers(
+def test_a_saved_notebook_opens_unfolded_runs_top_to_bottom_and_keeps_its_numbers(
     browser: Browser, server: dict[str, Any], tmp_path: Path
 ) -> None:
     close_tables(server)
     book = tmp_path / "sales.ipynb"
     saved_notebook(book)
     workbench = open_workbench(browser, server, book)
-    # It starts folded to one line, and says its table has not run since the file opened.
+    # It opens unfolded (2026-11-16: the table is the first thing seen), and says its table has not run
+    # since the file opened: a table a cell of the user's makes never runs by itself.
     group = workbench.locator(".wb-tcell.role-tables")
     expect(group).to_have_text(re.compile(r"Tables · 1 table · 1 not run"), timeout=20000)
-    expect(workbench.locator(".wb-tcell.role-table")).to_be_hidden()
+    line = workbench.locator(".wb-tcell.role-table")
+    expect(line).to_contain_text("sales · not open in the grid · not run since opening")
+    cell = workbench.locator(".wb-tcell.role-transformations")
+    expect(cell).to_be_visible()
+    expect(workbench.locator(".wb-cell.role-maker")).to_be_visible()
+    expect(cell.locator(".wb-table-state")).to_have_text("Not run since opening")
+    # It still folds to one line, and opens again.
+    group.locator(".wb-fold").click()
+    expect(line).to_be_hidden()
     expect(workbench.locator(".wb-cells > section:visible")).to_have_count(
         2
     )  # the group's line, the user's cell
     group.locator(".wb-fold").click()
-    line = workbench.locator(".wb-tcell.role-table")
-    expect(line).to_contain_text("sales · not open in the grid · not run since opening")
-    line.locator(".wb-fold").click()
-    cell = workbench.locator(".wb-tcell.role-transformations")
-    expect(cell.locator(".wb-table-state")).to_have_text("Not run since opening")
+    expect(cell).to_be_visible()
     # Run all: the maker makes the table, its cell transforms it once.
     workbench.get_by_role("button", name="Run all").click()
     expect(workbench.locator(".wb-cell").last.locator(".wb-stream")).to_have_text("rows 3\n", timeout=60000)

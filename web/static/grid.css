@@ -6075,9 +6075,14 @@ body.wb-dragging-tab * {
   display: grid;
   align-content: start; /* a list in a grid cell of its own (a mode's panel open) keeps its rows tight */
   gap: 10px;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 14px 20px 40vh;
+  /* The cells fill the document's pane, however wide (the owner, 2026-11-16: "the cell should
+     horizontally autoscale"); a table in an output scrolls sideways inside its cell. */
+  padding: 14px 24px 40vh;
+}
+
+/* A table's read-only cell shows its table: the grid already has it open, so no Open as grid. */
+.wb-tcell.role-transformations .wb-to-grid {
+  display: none;
 }
 
 .wb-cell,
@@ -6911,6 +6916,7 @@ body.dropping-file::after {
 
 /* Two faces: the HTML while it is edited, the design when it is not. */
 .wb-cell:not(.kind-html):not(.kind-streamlit) > .wb-design,
+.wb-tcell > .wb-design,
 .wb-cell.kind-html:not(.rendered) > .wb-design,
 .wb-cell.kind-html.rendered > .wb-editor,
 .wb-cell.kind-streamlit.rendered > .wb-editor,
@@ -9875,7 +9881,8 @@ body.has-rail .area-page {
   }
 }
 
-/* ----- the Workbench's landing page for a kind (workbenchLanding.ts): its panel, its documents ----- */
+/* ----- the Workbench's landing page for a kind (workbenchLanding.ts): its cards only (New and Open…
+   are in the top bar); Scripts and Notebooks show the open tables' transformations first ----- */
 .wb-landing {
   display: flex;
   flex: 1 1 auto;
@@ -9890,22 +9897,11 @@ body.has-rail .area-page {
   display: none;
 }
 
-.wb-landing-panel {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 10px;
-  width: 220px;
-  padding: 18px 16px;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.wb-landing-panel h1 {
+.wb-landing-main h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 6px;
+  margin: 0 0 14px;
   font-size: 18px;
 }
 
@@ -9913,8 +9909,18 @@ body.has-rail .area-page {
   color: var(--kc, var(--muted));
 }
 
-.wb-landing-panel .btn {
-  justify-content: flex-start;
+.wb-landing-section {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.wb-landing-cards.wb-landing-tables-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  margin-bottom: 20px;
 }
 
 .wb-landing-main {
@@ -9949,6 +9955,32 @@ body.has-rail .area-page {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* A table's transformations: read-only, so the plain edge (not a kind's colour); its steps below. */
+.wb-landing-card.wb-landing-table {
+  align-items: start;
+  border-left-color: var(--border-strong);
+}
+
+.wb-landing-count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.wb-landing-steps {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wb-landing-steps li {
+  overflow-wrap: anywhere;
+}
+
+.wb-landing-problem {
+  color: var(--error);
 }
 
 .wb-landing-card:hover {
@@ -9988,25 +10020,6 @@ body.has-rail .area-page {
 
 .wb-landing-dirty {
   color: var(--kc, var(--fg));
-}
-
-@media (max-width: 700px) {
-  .wb-landing {
-    flex-direction: column;
-  }
-
-  .wb-landing-panel {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    width: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .wb-landing-panel h1 {
-    margin: 0 8px 0 0;
-  }
 }
 
 @media (forced-colors: active) {

@@ -30,6 +30,8 @@ export interface TableInfo {
   kernel: string | null;
   steps: number;
   step_list: unknown[];
+  /** Each step in plain words (the Scripts and Notebooks pages' cards). */
+  step_words?: string[];
   problem: string | null;
   code: string;
   loaded: string;

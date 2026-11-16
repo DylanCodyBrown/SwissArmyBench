@@ -18,6 +18,10 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
   `workbench_environment_choose` (the Python a document runs in).
 
 ## The window (it must be open; the "front document" is the one in front)
+- Its top bar: Save, Save as…, New (the kind on show: notebook, script or Streamlit app; "file.newNotebook",
+  "file.newScript", "file.newApp") and Open… ("file.open"). The rail's Notebooks, Scripts and Apps land
+  on a page of cards. Notebook tabs: data.ipynb and the notebooks an app's canvas uses have icons of
+  their own (`project_documents` gives each notebook's `role`: data, app or "").
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data panel).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;
@@ -48,8 +52,13 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
 
 ## Every table has a read-only cell
 - Each open table has a cell holding its grid steps as one DuckDB query over the table by its own name,
-  in the Tables group at the top of the document whose kernel made it. It changes only with the grid
-  (never by typing) and never runs by itself: a changed cell is out of date until run.
+  in the Tables group at the top of the document whose kernel made it (in a project: data.ipynb). It
+  changes only with the grid (never by typing). It opens unfolded; one the app wrote whole (no user's
+  cell makes the table) runs by itself once on opening and shows the table as its output (not saved).
+  A changed cell is out of date until run; a user's cell never runs by itself.
+- `workbench_window("tables.transformations", {"table": "orders"})`: brings that table's cell into
+  view (data.ipynb opened when needed), as the Scripts and Notebooks pages' Transformations cards do.
+  `workbench_table_cells` gives each table's `step_words` (its steps in plain words).
 - `workbench_table_cells` (every table's cell), `workbench_tables` (the front document's, with state),
   `workbench_table_run` (runs the out-of-date ones; a second run changes nothing),
   `workbench_tables_arrange`.

@@ -68,7 +68,7 @@ import { appMark, back, canGoBack, forward, go, goHome, mountNav, setTitle, star
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
-import { type Kind, kindIcon, kindOfPath, loadKindColours } from "./kindColours";
+import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, onKindColours, setAppNotebooks } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { updateCommands, updateMark } from "./updates";
@@ -349,6 +349,7 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
     chooseZip: () => chooseFile({ title: "Save as", mode: "save", start: folderOf(doc.path), name: `${doc.path ? baseName(doc.path).slice(0, -APP_ENDING.length) : "app"}.zip` }),
     save: () => save(doc),
     drew: () => {
+      feedAppNotebooks();
       if (doc === current) drawStatus();
       if (doc === markedCanvas()) drawPane(); // its page's blocks are the pane's marks
       doc.app?.refresh(); // Properties and State follow the canvas
@@ -406,9 +407,38 @@ interface ProjectFiles {
 }
 let project: ProjectFiles | null = null;
 
+// ----- the notebooks that feed an app: their own icon (the owner, 2026-11-16) -----
+
+/** The project's notebooks an app's canvas places cells of (its listing says, by role). */
+let listedAppNotebooks: string[] = [];
+
+/** The open canvases' linked documents with the project's: the notebooks that wear the app icon. */
+function feedAppNotebooks(): void {
+  const open = docs.flatMap((d) => (d.canvas ? d.canvas.pages().flatMap((p) => p.blocks.map((b) => b.document)) : []));
+  setAppNotebooks([...listedAppNotebooks, ...open]);
+}
+
+async function refreshAppNotebooks(): Promise<void> {
+  try {
+    const listed = await api<{ project: unknown; documents: { full: string; role?: string }[] }>("/project/documents?kind=notebook");
+    listedAppNotebooks = listed.documents.filter((d) => d.role === "app").map((d) => d.full);
+  } catch {
+    /* the server is away: the icons stay as they are */
+  }
+  feedAppNotebooks();
+}
+
+// A notebook that starts or stops feeding an app: its tab, the Data panel's files and a landing redraw.
+onKindColours(() => {
+  drawTabs();
+  if (project) listProject(false);
+  landing.redraw();
+});
+
 /** The project's files in the Data panel: data.ipynb, data.py set in as its output, the app's canvas,
  *  the notebooks and scripts. */
-function listProject(): void {
+function listProject(again = true): void {
+  if (again) void refreshAppNotebooks();
   refreshPane(); // the project's files are the pane's too
   if (!project) return void data.setFiles(null);
   const files = project.files.flatMap((path) => {
@@ -1287,7 +1317,8 @@ function useConsole(doc: Doc): void {
 function show(doc: Doc): void {
   if (landing.kind()) {
     hideLanding();
-    void go(withParams({ view: null }), "replace");
+    const k = docKindOf(doc);
+    void go(withParams(k ? { view: null, kind: k } : { view: null }), "replace");
   }
   groups.show(doc);
 }
@@ -1353,14 +1384,19 @@ function docMark(doc: Doc): "app" | "notebook" | "script" | undefined {
  *  Streamlit app's canvas), Blade, Table. */
 function kindOf(doc: Doc): string {
   if (doc.kind === "app") return "page";
-  if (doc.kind === "notebook") return doc.title.toLowerCase() === "data.ipynb" ? "data" : "notebook";
+  if (doc.kind === "notebook") {
+    if (doc.title.toLowerCase() === "data.ipynb") return "data";
+    return notebookRole(doc.path) === "app" ? "appNotebook" : "notebook";
+  }
   return doc.kind === "table" ? "explorer" : doc.kind;
 }
 
-// Kind colours (kindColours.ts): app pages violet, notebooks blue (data.ipynb too, with the data's own
-// icon), scripts green; a blade or a catalog table wears none.
-registerTabKind({ id: "data", label: "Data", icon: "sql", mark: "notebook" });
+// Kind colours (kindColours.ts): app pages violet, notebooks blue (data.ipynb and the notebooks an app's
+// canvas places too, each with its own icon: the owner, 2026-11-16), scripts green; a blade or a catalog
+// table wears none.
+registerTabKind({ id: "data", label: "Data notebook", icon: "dataNotebook", mark: "notebook" });
 registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
+registerTabKind({ id: "appNotebook", label: "App notebook", icon: "appNotebook", mark: "notebook" });
 registerTabKind({ id: "script", label: "Script", icon: "code", mark: "script", start: { label: "New script", run: () => void openScript(null, "", null) } });
 registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } });
 registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "plain" });
@@ -1397,7 +1433,7 @@ const groups = mountGroups<Doc>({
 });
 const empty = h("div", { class: "wb-welcome wb-empty", hidden: true });
 // The rail's Notebooks, Scripts and Apps land on their kind's page (workbenchLanding.ts): its documents as
-// cards, New and Open… on its panel.
+// cards (New and Open… are the top bar's); Scripts and Notebooks show the tables' transformations first.
 const sameDoc = (k: Kind, chosen: LandingDoc): Doc | undefined => docs.find((d) => docKindOf(d) === k && (chosen.path ? d.path === chosen.path : !d.path && d.title === chosen.title));
 const landing = mountLanding({
   openDocs: (k) => docs.filter((d) => docKindOf(d) === k).map((d) => ({ title: d.title, path: d.path, dirty: d.dirty, front: d === current })),
@@ -1410,17 +1446,8 @@ const landing = mountLanding({
     if (found) show(found);
     else if (chosen.path) void open(chosen.path);
   },
-  start: (k) => {
-    const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
-    if (!start) return null;
-    return () => {
-      hideLanding();
-      void go(withParams({ view: null, kind: k }), "push");
-      if (k === "app") appPanes();
-      start.run();
-    };
-  },
-  openFile: () => void open(),
+  tables: async () => (await fetchTables()).map((t) => ({ name: t.name, steps: t.step_words ?? [], problem: t.problem })),
+  showTable: (name) => void showTransformations(name).catch((e: Error) => toast(e.message, "error")),
 });
 layout.source.append(groups.element, empty, landing.element);
 
@@ -1430,12 +1457,14 @@ function showLanding(k: Kind): void {
   groups.element.hidden = true;
   empty.hidden = true;
   setTitle("Workbench", KIND_WORDS[k].name);
+  drawTop();
 }
 
 function hideLanding(): void {
   if (!landing.kind()) return;
   landing.hide();
   drawEmpty();
+  drawTop();
   setTitle("Workbench", current?.title ?? "");
   // The groups are back: Monaco and the canvas measure again.
   window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
@@ -1635,13 +1664,42 @@ function pythonPicker(doc: Doc): HTMLElement {
 const topName = h("span", { class: "wb-name" });
 const saveButton = button("Save", () => void saveFront().catch((e: Error) => toast(e.message, "error")), { icon: "save", title: "Save (Ctrl+S)" });
 const topProject = menuButton(button("Project", () => undefined, { icon: "project", class: "ghost wb-project" }), "Project", () => projectEntries());
-const saveAsButton = button("Save as…", () => void save(current, true), { icon: "folder", title: "Save as (Ctrl+Shift+S)" });
+const saveAsButton = button("Save as…", () => void save(current, true), { icon: "save", title: "Save as (Ctrl+Shift+S)" });
+// New and Open… beside them (the owner, 2026-11-16: "new script and open should be in the bar above along
+// with the save and save as"): New makes the kind on show (the landing's, else the document's in front's).
+const topNew = button("New notebook", () => topStart(), { icon: "plus", class: "wb-top-new" });
+const topOpen = button("Open…", () => void open(), { icon: "folder", title: "Open a notebook, script or Streamlit app (Ctrl+O)" });
 const topMenu = menuButton(button("Workbench menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost", title: "More" }), "Workbench menu", () => topEntries(), { align: "right" });
 // The app's mark: the window's icon, drawn small, a link home (it brings the home window forward).
-top.append(appMark(), topProject, topName, saveButton, saveAsButton, h("span", { class: "wb-grow" }), topMenu);
+top.append(appMark(), topProject, topName, saveButton, saveAsButton, topNew, topOpen, h("span", { class: "wb-grow" }), topMenu);
+
+/** The kind the top bar's New makes: the landing's on show, else the document's in front (a data or app
+ *  notebook makes a notebook), else the address's, else a notebook. */
+function topKind(): Kind {
+  return landing.kind() ?? docKindOf(current) ?? codeKindOf(new URLSearchParams(location.search).get("kind")) ?? "notebook";
+}
+
+/** The top bar's New: that kind's start. From a landing page the move is pushed, so Back returns to it. */
+function topStart(): void {
+  const k = topKind();
+  const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
+  if (!start) return;
+  if (landing.kind()) {
+    hideLanding();
+    void go(withParams({ view: null, kind: k }), "push");
+  }
+  if (k === "app") appPanes();
+  start.run();
+}
 
 function drawTop(): void {
   const doc = current;
+  const making = tabKinds().find((t) => t.mark === topKind() && t.start)?.start;
+  const newLabel = topNew.querySelector(".btn-label");
+  if (newLabel && making) newLabel.textContent = making.label;
+  topNew.title = making?.label ?? "";
+  topNew.setAttribute("aria-label", making?.label ?? "New");
+  topNew.dataset.kind = topKind();
   clear(topName, h("span", { class: "wb-name-text" }, doc?.title ?? "Workbench"), doc?.dirty ? h("span", { class: "wb-name-dot", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes" }) : null);
   topName.title = doc?.path ?? doc?.title ?? "";
   // The open .sab project's name, with its unsaved mark (●): its menu saves, saves as, closes.
@@ -1943,6 +2001,50 @@ function refreshPane(): void {
   }, 150);
 }
 
+const waitFor = async <T>(found: () => T | null | undefined, ms = 8000): Promise<T | null> => {
+  const until = Date.now() + ms;
+  for (;;) {
+    const value = found();
+    if (value) return value;
+    if (Date.now() > until) return null;
+    await new Promise((r) => window.setTimeout(r, 100));
+  }
+};
+
+/** A table's transformations, read-only (the Scripts and Notebooks pages' cards; the agent's
+ *  tables.transformations): its cell, opened and in view, in the document that holds it; in a project
+ *  data.ipynb opened when it is not. With no document for it, the grid's steps window. */
+async function showTransformations(name: string): Promise<{ table: string; document: string | null; cell: number | null }> {
+  const info = (tables.length ? tables : (tables = await fetchTables())).find((t) => t.name === name);
+  if (!info) throw new Error(`No table named ${name} is open.`);
+  const from = landing.kind();
+  assignTables();
+  let owner = tableOwner.get(name) ?? docs.find(isData);
+  if (!owner && project?.data) {
+    await open(project.data);
+    assignTables();
+    owner = tableOwner.get(name) ?? docs.find(isData);
+  }
+  const view = owner ? viewOf(owner) : undefined;
+  if (!owner || !view) {
+    // No notebook or script holds it: the grid's own steps window.
+    if (!info.grid) throw new Error(`${name} has no grid open.`);
+    const page = `/g/${encodeURIComponent(info.grid)}`;
+    if (!window.open(`${page}?panel=steps#token=${encodeURIComponent(token)}`, `steps-${page}`, "popup,width=460,height=820")) toast("The browser blocked the steps window.", "error");
+    return { table: name, document: null, cell: null };
+  }
+  if (from) {
+    hideLanding();
+    void go(withParams({ view: null, kind: docKindOf(owner) ?? from }), "push");
+  }
+  show(owner);
+  const line = await waitFor(() => view.tables().find((t) => t.name === name && t.cell));
+  if (!line?.cell) throw new Error(`${name} has no cell in ${owner.title} yet.`);
+  view.foldTables(false, name);
+  view.goTo(line.cell);
+  return { table: name, document: owner.path ?? owner.title, cell: line.cell };
+}
+
 function goToTable(name: string): void {
   const view = current ? viewOf(current) : undefined;
   const line = view?.tables().find((t) => t.name === name);
@@ -2084,14 +2186,22 @@ const KIND_WORDS: Record<Kind, { name: string; ending: string }> = {
   script: { name: "Scripts", ending: ".py" },
   app: { name: "Apps", ending: APP_ENDING },
 };
-const codeKindOf = (word: string | null): Kind | null => (word === "notebook" || word === "script" || word === "app" ? word : null);
-const docKindOf = (doc: Doc | null): Kind | null => codeKindOf(doc?.kind ?? null);
+function codeKindOf(word: string | null): Kind | null {
+  return word === "notebook" || word === "script" || word === "app" ? word : null;
+}
+function docKindOf(doc: Doc | null): Kind | null {
+  return codeKindOf(doc?.kind ?? null);
+}
 
 /** The focused document's kind is the address's (replaced: a tab click is no rail move), so the rail
  *  marks Notebooks, Scripts or Apps; a blade's or a table's tab leaves it as it was. */
 function followKind(doc: Doc | null): void {
   const k = docKindOf(doc);
-  if (k && new URLSearchParams(location.search).get("kind") !== k) void go(withParams({ kind: k }), "replace");
+  const here = new URLSearchParams(location.search);
+  // A landing page in the address is the page on show (a reload's documents come back under it): its
+  // kind stays (show() sets the document's kind as the landing makes way).
+  if (here.get("view") === "list") return;
+  if (k && here.get("kind") !== k) void go(withParams({ kind: k }), "replace");
 }
 
 /** A kind's document in front (the one in front already, else the last opened), in its mode. None
@@ -2615,6 +2725,11 @@ const COMMANDS: Command[] = [
   { id: "tab.moveRight", group: "Groups", title: "Move the tab right in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), 1) },
   // The Data panel: tables, the blades' variables
   { id: "data.list", agentOnly: true, group: "Data", title: "The Data panel's tables and variables", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), collapsed: data.collapsed() }) },
+  { id: "tables.transformations", group: "Tables", title: "Show a table's transformations (its read-only cell, wherever it lives)", args: "table: the table's name", run: (a) => {
+    const table = text(a, "table");
+    if (!table) throw new Error("Send the table's name.");
+    return showTransformations(table);
+  } },
   { id: "data.goToTable", group: "Data", title: "Go to a table's cell in the focused document", args: "table: the table's name", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
     const table = text(a, "table");
     if (!table) throw new Error("Send the table's name.");

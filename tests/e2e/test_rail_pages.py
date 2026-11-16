@@ -2,9 +2,9 @@
 """Every rail icon lands on a page (the owner, 2026-11-16: "the same for others clicking the rail should
 land on a page not open a form"; "every time I click the rail it pops out a box from the icon to create
 something get rid of that"), in a real browser: no dialog and no menu from any area; the Workbench's
-landing page for a kind (its documents as cards, New on its own panel); the Connections page's cards and
-a card's detail (a reference opens its cell in the Workbench); Settings as a page; Back and Forward
-across them; the old dialog addresses still land on the pages. Made-up data only.
+landing page for a kind (its documents as cards; New and Open… in the top bar); the Connections
+page's cards and a card's detail (a reference opens its cell in the Workbench); Settings as a page;
+Back and Forward across them; the old dialog addresses still land on the pages. Made-up data only.
 
 With SWISSARMYBENCH_RAILPAGES_SHOTS set to a folder, the tests also save screenshots there (2x)."""
 
@@ -154,8 +154,10 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     landing = page.locator(".wb-landing")
     expect(landing).to_be_visible(timeout=20000)
     no_box(page)
-    expect(landing.get_by_role("heading", name="Notebooks")).to_be_visible()
-    expect(landing.locator(".wb-landing-panel").get_by_role("button", name="New notebook")).to_be_visible()
+    expect(landing.get_by_role("heading", name="Notebooks", exact=True)).to_be_visible()
+    expect(
+        page.locator(".wb-top").get_by_role("button", name="New notebook")
+    ).to_be_visible()  # the top bar's (2026-11-16)
     expect(landing.locator(".wb-landing-card", has_text="harvest notes.ipynb")).to_be_visible()
     expect(landing.locator(".wb-landing-card", has_text="harvest totals.py")).to_have_count(0)
     shot(page, "notebooks-landing")
@@ -172,11 +174,11 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     page.go_back()
     expect(landing).to_be_visible()
     expect(landing.locator(".wb-landing-card", has_text="harvest totals.py")).to_contain_text("Open")
-    # Apps: New on the panel makes one.
+    # Apps: the top bar's New makes one.
     area(page, "apps").click()
     expect(landing).to_be_visible()
     no_box(page)
-    landing.get_by_role("button", name="New Streamlit app").click()
+    page.locator(".wb-top").get_by_role("button", name="New Streamlit app").click()
     expect(page.locator(".cv-board")).to_be_visible(timeout=20000)
     expect(landing).to_be_hidden()
     # Settings and Connections are pages in the Workbench too.

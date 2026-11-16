@@ -27,7 +27,11 @@
  *   [TABLES]   every table open in the grid has a read-only cell here (docs/ideas.md, 2026-11-14): its
  *              transformations, which follow the grid's steps. All tables sit at the top in a Tables
  *              group, each with the user's cell that makes it; a table folds to one line and so does
- *              the group. A changed cell turns yellow (Out of date · Run); nothing runs by itself
+ *              the group. A table's cell opens unfolded, and one the app wrote whole (no cell of the
+ *              user's makes its table) runs by itself once, its table as its output (the owner,
+ *              2026-11-16: "Shouldnt cell 1 have the table inside of it?"): the kernel starts for it.
+ *              The output is not saved with the file (it is drawn again on opening). A changed cell
+ *              turns yellow (Out of date · Run); a user's cell never runs by itself
  *   [USES]     one of the user's cells that names a table starts with `# uses orders @cell3`, kept by
  *              the app as they type
  *   [HTML]     an HTML cell (docs/ideas.md, 2026-11-14; workbenchHtml.ts) has two faces: its HTML in the
@@ -371,8 +375,10 @@ export function notebookView(
   const records = new Map<string, RunRecord>();
   const restored = new Set<string>();
   const cameWithFile = new Set<string>(); // the tables whose cell the file (or a reload) brought
-  let groupFolded = true; // the group starts folded when a file opens
+  let groupFolded = false; // the group opens unfolded (2026-11-16: the table is the first thing seen)
   const unfolded = new Set<string>(); // the tables opened
+  const seenTables = new Set<string>(); // each table opens unfolded once; the user's fold then stays
+  const autoRan = new Set<string>(); // the tables whose cell ran by itself (once each)
   let version = 0; // counts every change: an arrangement worked out for an older one is dropped
   let asked = 0;
   let quiet: number | null = null;
@@ -706,7 +712,7 @@ export function notebookView(
 
   /** A table's read-only cell: run so that running it again changes nothing (it starts from the table
    *  as its maker made it: client/table_cells.py). */
-  const runTransformations = async (cell: Cell): Promise<boolean> => {
+  const runTransformations = async (cell: Cell, quietly = false): Promise<boolean> => {
     const code = sourceOf(cell);
     const table = cell.table ?? "";
     const variable = infoOf(table)?.variable ?? table.replace(/\W/g, "_");
@@ -719,7 +725,8 @@ export function notebookView(
       cell.count.textContent = done.error ? "[!]" : done.execution_count ? `[${done.execution_count}]` : "[ ]";
       cell.element.classList.toggle("failed", !done.ok);
       if (done.ok) records.set(table, { code, at: new Date(), opened: false });
-      edited();
+      // Run by itself on opening: the document is as it was (no unsaved mark for it).
+      if (!quietly) edited();
       redraw();
       void checkApproval(cell);
       return done.ok;
@@ -1276,7 +1283,8 @@ export function notebookView(
     source: sourceOf(c),
     connection: hasSource(c.kind) ? c.connection : null,
     // An HTML cell keeps its last run's output: the filled design (what plain Jupyter shows) and the values.
-    outputs: c.kind === "markdown" || isLive(c) ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
+    // A table's cell: its table is drawn again on opening (it runs by itself), so no rows go in the file.
+    outputs: c.kind === "markdown" || isLive(c) || c.role === "transformations" ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
     execution_count: c.execution_count,
     number: c.number,
     role: c.role,
@@ -1679,12 +1687,17 @@ export function notebookView(
       });
       focused?.editor?.focus();
       if (moved) edited();
-      // A group made while working shows its tables (a file's group starts folded).
+      // A group made while working shows its tables.
       if (!hadGroup && !building && cells.some((c) => c.role === "tables")) groupFolded = false;
       // A cell the user was just working in is not folded away under them: its table shows open.
       if (movedIn.length && !building) for (const name of movedIn) unfolded.add(name);
     }
     for (const a of done.cells) {
+      // A table seen for the first time opens unfolded (its cell, then its output).
+      if (a.role === "transformations" && a.table && !seenTables.has(a.table)) {
+        seenTables.add(a.table);
+        unfolded.add(a.table);
+      }
       const cell = byNumber(a.number);
       if (!cell) continue;
       if (isHeading(a.role)) {
@@ -1702,6 +1715,23 @@ export function notebookView(
       } else if (cell.kind !== "markdown") applyUses(cell, a.uses);
     }
     redraw();
+    void runOwnTables();
+  };
+
+  /** The tables' cells the app wrote whole (no cell of the user's makes the table: its load and its
+   *  transformations, both the app's) run by themselves, once each, so the cell shows its table. A
+   *  table a cell of the user's makes waits for the user's Run (their code never runs by itself). */
+  const runOwnTables = async (): Promise<void> => {
+    for (const cell of cells.filter((c) => c.role === "transformations" && c.table)) {
+      const table = cell.table!;
+      if (disposed || autoRan.has(table) || !infoOf(table)) continue;
+      const line = lineOf(table);
+      const state = stateOf(cell);
+      if (!line || line.maker !== null || (state.kind !== "notRun" && state.kind !== "notRunSinceOpening")) continue;
+      autoRan.add(table);
+      if (cell.editor) cell.source = cell.editor.value();
+      await runTransformations(cell, true);
+    }
   };
 
   /** Ask the server for the notebook as it should be. `move` false while the user types: nothing is

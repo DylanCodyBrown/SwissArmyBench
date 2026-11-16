@@ -6,7 +6,9 @@ scripts or apps will have to be imported from another project"). Pure rules, no 
               blade store's own files: names, code and where each password comes from, never a value)
               and its saved Visualizations dashboards (`.sab/dashboards/<name>.json`)
   documents   the project's notebooks, scripts and apps: its files by their ending, the made ones marked
-              (data.py and pages/*.py are exports of data.ipynb and the canvas)
+              (data.py and pages/*.py are exports of data.ipynb and the canvas); a notebook's role: the
+              data notebook (data.ipynb), one an app's canvas links a cell of, or a plain one (each has an
+              icon of its own, 2026-11-16)
   import      a copy into the project: a document from another project (a .sab or a project folder) or a
               loose file, a connection or blade from another project or from this computer's saved ones.
               A name the project has already is never overwritten: a document gets the next free name
@@ -24,7 +26,7 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
-from swissarmybench.domain import connections, notebooks
+from swissarmybench.domain import connections, notebooks, streamlit_cells
 
 APP_FOLDER: str = ".sab"
 BLADES: str = f"{APP_FOLDER}/blades"
@@ -88,6 +90,48 @@ def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) 
         )
     order = {k: i for i, k in enumerate(KINDS)}
     return sorted(found, key=lambda d: (order[d["kind"]], d["made"], d["path"].casefold()))
+
+
+DATA_NOTEBOOK: str = "data.ipynb"  # the project's data notebook, at its top
+DATA_ROLE: str = "data"
+APP_ROLE: str = "app"
+
+
+def notebook_roles(
+    folder: str, documents: Iterable[Mapping[str, Any]], apps: Mapping[str, str]
+) -> dict[str, str]:
+    """Each notebook's role by its path inside the project: "data" for the project's data.ipynb, "app"
+    for one whose cells an app's canvas places (`apps`: each app's path inside the project and its file's
+    text; a file that is not an app's is passed over), "" for any other. The data notebook stays "data"
+    when a canvas links it too."""
+    linked: set[str] = set()
+    for app, text in apps.items():
+        try:
+            pages = streamlit_cells.read_app(text)
+        except streamlit_cells.StreamlitError:
+            continue
+        for page in pages:
+            for block in page.blocks:
+                link = block.document
+                if streamlit_cells.is_absolute(link):
+                    linked.add(link.replace("\\", "/").casefold())
+                else:
+                    joined = posixpath.normpath(
+                        posixpath.join(posixpath.dirname(app), link.replace("\\", "/"))
+                    )
+                    linked.add(inside(folder, joined).replace("\\", "/").casefold())
+    roles: dict[str, str] = {}
+    for document in documents:
+        if document.get("kind") != "notebook":
+            continue
+        path = str(document["path"])
+        if path.casefold() == DATA_NOTEBOOK:
+            roles[path] = DATA_ROLE
+        elif inside(folder, path).replace("\\", "/").casefold() in linked:
+            roles[path] = APP_ROLE
+        else:
+            roles[path] = ""
+    return roles
 
 
 def inside(folder: str, relative: str) -> str:

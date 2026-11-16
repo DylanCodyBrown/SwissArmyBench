@@ -6,16 +6,21 @@
  *
  *   [ADDRESS] /workbench?kind=notebook&view=list: a reload, Back and Forward come back to it; a card's
  *             click is a move (pushed), so Back returns here from the document.
- *   [PANEL]   the page's own panel: New (a notebook, a script, a Streamlit app) and Open….
- *   [CARDS]   that kind's documents: the open ones first (in front marked, unsaved marked), then the
- *             project's (today: the recent files of that kind, behind `projectDocuments`, the seam the
- *             project-scoped list replaces). A click brings an open one forward, or opens the file.
+ *   [CARDS]   the page is its cards only. New and Open… are in the Workbench's top bar beside Save and
+ *             Save as… (the owner, 2026-11-16: "new script and open should be in the bar above along with
+ *             the save and save as"): workbenchPage.ts draws them for the kind on show.
+ *   [TABLES]  Scripts and Notebooks first show each open table's transformations, read-only (the owner,
+ *             2026-11-16: "The first thing I did was go to scripts thinking that is where I could see the
+ *             transformations"): its name, its steps in plain words. A click opens its read-only cell.
+ *   [DOCS]    that kind's documents: the open ones first (in front marked, unsaved marked), then the
+ *             project's (with no project open: this computer's recent ones of that kind). A click brings
+ *             an open one forward, or opens the file.
  *
  * The groups and the empty state hide while the page shows; the rest of the Workbench (the top row,
  * the Data panel, kernels) stays as it was.
  */
 import { api } from "./api";
-import { button, h, icon } from "./dom";
+import { h, icon } from "./dom";
 import { type Kind, kindIcon } from "./kindColours";
 
 export interface LandingDoc {
@@ -25,17 +30,26 @@ export interface LandingDoc {
   front: boolean;
 }
 
+/** An open table's transformations, as its card shows them. */
+export interface LandingTable {
+  name: string;
+  /** Each step in plain words ("Keep rows where amount is greater than 5"). */
+  steps: string[];
+  problem: string | null;
+}
+
 export interface LandingHost {
   /** That kind's documents open in this window, in their order. */
   openDocs: (kind: Kind) => LandingDoc[];
   /** A card's click: the open document brought forward, or the file opened. */
   choose: (kind: Kind, doc: LandingDoc) => void;
-  /** New: that kind's start (a group's "+" makes the same). */
-  start: (kind: Kind) => (() => void) | null;
-  openFile: () => void;
+  /** The open tables' transformations (Scripts and Notebooks show them). */
+  tables: () => Promise<LandingTable[]>;
+  /** A table card's click: its transformations, read-only. */
+  showTable: (name: string) => void;
 }
 
-const WORDS: Record<Kind, { title: string; one: string }> = {
+export const KIND_TITLES: Record<Kind, { title: string; one: string }> = {
   notebook: { title: "Notebooks", one: "notebook" },
   script: { title: "Scripts", one: "script" },
   app: { title: "Apps", one: "Streamlit app" },
@@ -43,6 +57,7 @@ const WORDS: Record<Kind, { title: string; one: string }> = {
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 const folderOf = (path: string): string => path.slice(0, Math.max(0, path.length - baseName(path).length - 1));
+const plural = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
 /** SEAM (project-scope): the documents of a kind that are not open here. Today the Workbench's recent
  *  files of that kind; the open project's documents list replaces this one function. */
@@ -63,6 +78,8 @@ export interface Landing {
   kind: () => Kind | null;
   show: (kind: Kind) => void;
   hide: () => void;
+  /** Draw the page on show again (an icon or a table changed). */
+  redraw: () => void;
 }
 
 export function mountLanding(host: LandingHost): Landing {
@@ -94,31 +111,51 @@ export function mountLanding(host: LandingHost): Landing {
       ),
     );
 
+  /** A table's transformations: "query_1 · 2 steps", then each step in words. Read-only. */
+  const tableCard = (table: LandingTable): HTMLElement =>
+    h(
+      "li",
+      {},
+      h(
+        "button",
+        { type: "button", class: "wb-landing-card wb-landing-table", "data-table": table.name, title: `${table.name}'s transformations`, onclick: () => host.showTable(table.name) },
+        h("span", { class: "wb-landing-icon", "aria-hidden": "true" }, icon("steps")),
+        h(
+          "span",
+          { class: "wb-landing-text" },
+          h("strong", {}, table.name, h("span", { class: "wb-landing-count" }, ` · ${table.steps.length ? plural(table.steps.length, "step") : "no steps"}`)),
+          table.problem ? h("span", { class: "wb-landing-where wb-landing-problem" }, table.problem) : null,
+          table.steps.length ? h("ol", { class: "wb-landing-steps" }, ...table.steps.map((s) => h("li", {}, s))) : null,
+        ),
+      ),
+    );
+
   const draw = async (k: Kind): Promise<void> => {
     const mine = ++serial;
-    const words = WORDS[k];
+    const words = KIND_TITLES[k];
     const opened = host.openDocs(k);
     const list = h("ul", { class: "wb-landing-cards", "aria-label": words.title }, ...opened.map((d) => card(k, d, true)));
-    const start = host.start(k);
+    const tablesHost = h("div", { class: "wb-landing-tables" });
     element.className = `wb-landing km-${k}`;
     element.setAttribute("aria-label", words.title);
     element.replaceChildren(
       h(
-        "aside",
-        { class: "wb-landing-panel", "aria-label": `${words.title} panel` },
+        "div",
+        { class: "wb-landing-main" },
         h("h1", {}, h("span", { class: "wb-landing-title-icon", "aria-hidden": "true" }, icon(kindIcon(k))), words.title),
-        start ? button(`New ${words.one}`, start, { icon: "plus", class: "primary" }) : null,
-        button("Open…", host.openFile, { icon: "folder" }),
+        tablesHost,
+        list,
       ),
-      h("div", { class: "wb-landing-main" }, list),
     );
-    let more: string[] = [];
-    try {
-      more = await projectDocuments(k);
-    } catch {
-      /* the server will say so on the next action */
-    }
+    const [more, tables] = await Promise.all([projectDocuments(k).catch(() => [] as string[]), k === "app" ? Promise.resolve([]) : host.tables().catch(() => [] as LandingTable[])]);
     if (mine !== serial || shown !== k) return;
+    if (tables.length) {
+      tablesHost.replaceChildren(
+        h("h2", { class: "wb-landing-section" }, "Transformations"),
+        h("ul", { class: "wb-landing-cards wb-landing-tables-list", "aria-label": "Transformations" }, ...tables.map(tableCard)),
+        h("h2", { class: "wb-landing-section" }, `Your ${words.title.toLowerCase()}`),
+      );
+    }
     const openPaths = new Set(opened.map((d) => d.path).filter(Boolean));
     for (const path of more.filter((p) => !openPaths.has(p))) list.append(card(k, { title: baseName(path), path, dirty: false, front: false }, false));
     if (!list.childElementCount) list.replaceWith(h("p", { class: "empty-note" }, `No ${words.title.toLowerCase()} yet`));
@@ -136,6 +173,9 @@ export function mountLanding(host: LandingHost): Landing {
       shown = null;
       serial++;
       element.hidden = true;
+    },
+    redraw: () => {
+      if (shown) void draw(shown);
     },
   };
 }

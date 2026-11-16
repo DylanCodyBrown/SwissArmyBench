@@ -3249,3 +3249,47 @@ The owner:
   about 3,000 characters to every agent's tool list for names no new agent should use.
 - "Visualizations" reads as a page's name, singular: "Visualizations is empty", "In Visualizations: a
   note and its chart".
+
+## The Workbench, the owner's feedback (the owner, 2026-11-16; built, branch workbench-feedback)
+
+The owner, with two screenshots (the Scripts page; data.ipynb open): "new script and open should be in
+the bar above along with the save and save as. Also Shouldnt cell 1 have the table inside of it? and the
+cell should horizontally autoscale. Also I think we need to differentiate with seperate icons the data
+notebook vs the app notebooks. The first thing I did was go to scripts thinking that is where I could see
+the transformations."
+
+### Built
+- **New and Open… in the top bar**, after Save and Save as… (Save as… now wears the save icon, so the
+  folder is Open…'s). New is the kind on show: the landing page's, else the document in front's (a data
+  or app notebook makes a notebook), else the address's, else a notebook. The landing pages lost their
+  left panel: a heading and the cards only. New from a landing pushes the move (Back returns there).
+- **A table's cell shows its table.** A notebook's Tables group and each table open unfolded (each table
+  once: a fold the user makes stays). A table's cell the app wrote whole (no cell of the user's makes the
+  table: its load and its transformations, as in a project's data.ipynb) runs by itself once on opening,
+  starting the kernel, quietly (no unsaved mark); `%%sab_table` now returns the table, so the cell shows
+  it as any cell ending in a DataFrame does. Its output is never saved (it is drawn again on opening, and
+  data.ipynb keeps no rows); Open as grid is not offered on it (the grid has it). A new project's
+  data.ipynb already starts with the tables' cells and no empty cell of the user's.
+- **Cells fill the pane:** the 1,100-pixel cap went; 24 pixels each side. Table outputs scroll sideways
+  in their frame. (A table's cell also lost the empty design pane it drew below its code: the "two faces"
+  rule hid it for `.wb-cell` only.)
+- **Three notebook icons** (dom.ts): `notebook`, `dataNotebook` (its corner a small table) and
+  `appNotebook` (its corner a small app page), in the tabs, the landing cards, the Data panel's files and
+  the Connections page's references (kindColours.ts kindIcon, notebookRole). An app's notebook: one an
+  open canvas places a block of, or one a project's .stapp.json links (`/project/documents` gives each
+  notebook's `role`: data, app or ""; domain/project_scope.py notebook_roles). Kind colours unchanged.
+- **Transformations on the Scripts and Notebooks pages:** above the documents, a card per open table
+  ("orchard_q · 2 steps", each step in plain words from the server's `step_words`); a click opens the
+  table's read-only cell in the document that holds it (data.ipynb opened in a project when it is not),
+  unfolded and in view. With no document for it, the grid's steps window. The agent:
+  `workbench_window("tables.transformations", {"table": ...})`.
+
+### Decisions
+- A card opens the read-only cell, not the steps window: the user is in the Workbench looking for code,
+  and the cell is the transformations as code, with the steps in its comments; the steps window is the
+  fallback when no document holds the table.
+- Only the app's own cells run by themselves. A table made by the user's cell waits for Run: their code
+  never runs unasked (it may read a database, take minutes, or change things).
+- No maximum width: code and tables both use the room; a reader who wants narrower splits the group.
+- A landing in the address keeps its kind while documents come back under it after a reload (the old
+  code let a restored notebook turn the Scripts page into the Notebooks page).

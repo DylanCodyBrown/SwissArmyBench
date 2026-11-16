@@ -100,9 +100,11 @@ def _stop(message: str) -> Exception:
     return usage(message)
 
 
-def run(name: str, code: str, namespace: dict[str, Any] | None = None) -> None:
+def run(name: str, code: str, namespace: dict[str, Any] | None = None) -> Any:
     """Run a table's cell so that running it again gives the same table: it starts from the original
-    the user's code made, whatever an earlier run left under the name."""
+    the user's code made, whatever an earlier run left under the name. The table it leaves (None: none),
+    so the cell shows it as its output, as any cell ending in a table does (the owner, 2026-11-16:
+    "Shouldnt cell 1 have the table inside of it?")."""
     ns = _namespace() if namespace is None else namespace
     _busy.add(name)
     try:
@@ -129,6 +131,7 @@ def run(name: str, code: str, namespace: dict[str, Any] | None = None) -> None:
         if name in ns:
             _results[name] = ns[name]
         _busy.discard(name)
+    return ns.get(name)
 
 
 def open_grid(name: str, namespace: dict[str, Any] | None = None) -> str:
@@ -147,11 +150,11 @@ def open_grid(name: str, namespace: dict[str, Any] | None = None) -> str:
     return url
 
 
-def _magic(line: str, cell: str) -> None:
+def _magic(line: str, cell: str) -> Any:
     name = line.strip()
     if not name.isidentifier():
         raise _stop("%%sab_table takes the table's name: %%sab_table orders")
-    run(name, cell)
+    return run(name, cell)
 
 
 _TABLE_CELL = re.compile(r"^# ?%%(?: \[\d+\])? \[transformations\] ([A-Za-z_]\w*)\b")

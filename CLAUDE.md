@@ -400,7 +400,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (Settings, Connections: open=settings, open=connections); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls);
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
-                         its documents as cards, New and Open… on its panel);
+                         its documents as cards, Scripts' and Notebooks' Transformations cards first; New and Open… in the top bar);
                          aiPanel.ts is Visualizations (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Visualizations,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find

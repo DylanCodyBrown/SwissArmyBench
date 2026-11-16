@@ -92,11 +92,27 @@ class ProjectScope:
         if current is None:
             rules.documents([], kind or None)  # the kind checked all the same
             return {"project": None, "documents": []}
-        listed = rules.documents(self._files.files(current.folder), kind or None)
+        files = self._files.files(current.folder)
+        listed = rules.documents(files, kind or None)
+        # Each notebook's role (its icon): the data notebook, one an app's canvas places, or plain.
+        roles: dict[str, str] = {}
+        if kind in (None, "", "notebook"):
+            apps: dict[str, str] = {}
+            for app in rules.documents(files, "app"):
+                try:
+                    apps[app["path"]] = self._files.read_file(current.folder, app["path"]).decode("utf-8")
+                except (OSError, UnicodeDecodeError):
+                    continue  # unreadable: it links nothing
+            roles = rules.notebook_roles(current.folder, listed, apps)
         return {
             "project": current.name,
             "folder": current.folder,
-            "documents": [d | {"full": rules.inside(current.folder, d["path"])} for d in listed],
+            "documents": [
+                d
+                | {"full": rules.inside(current.folder, d["path"])}
+                | ({"role": roles[d["path"]]} if d["path"] in roles else {})
+                for d in listed
+            ],
         }
 
     # ===== what a place offers =====

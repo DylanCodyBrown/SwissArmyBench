@@ -237,16 +237,16 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     expect(current(page)).to_have_attribute("data-area", "notebooks")
     assert len(page.context.pages) == pages
     assert left_of(page, ".wb-top") >= right_edge(page) - 0.5
-    # The notebooks' landing page (2026-11-16: no menu beside the icon): New is on its own panel.
+    # The notebooks' landing page (2026-11-16: no menu beside the icon): New is in the top bar.
     landing = page.locator(".wb-landing")
     expect(landing).to_be_visible(timeout=20000)
     expect(page.get_by_role("menu")).to_have_count(0)
-    landing.get_by_role("button", name="New notebook").click()
+    page.locator(".wb-top").get_by_role("button", name="New notebook").click()
     expect(page.locator(".wb-tab").first).to_be_visible(timeout=20000)
     # Scripts, inside the Workbench: its page, New script; Notebooks lands on its page again, pushed.
     area(page, "scripts").click()
     expect(page).to_have_url(re.compile(r"kind=script"))
-    landing.get_by_role("button", name="New script").click()
+    page.locator(".wb-top").get_by_role("button", name="New script").click()
     expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
     area(page, "notebooks").click()
     expect(current(page)).to_have_attribute("data-area", "notebooks")
@@ -321,7 +321,7 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
     expect(workbench.locator(".wb-data.collapsed")).to_be_visible()
     area(workbench, "apps").click()
     expect(workbench.get_by_role("menu")).to_have_count(0)
-    workbench.locator(".wb-landing").get_by_role("button", name="New Streamlit app").click()
+    workbench.locator(".wb-top").get_by_role("button", name="New Streamlit app").click()
     board = workbench.locator(".cv-board")
     expect(board).to_be_visible(timeout=20000)
     expect(current(workbench)).to_have_attribute("data-area", "apps")

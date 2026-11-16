@@ -37,10 +37,33 @@ export function kindOfPath(path: string | null | undefined): Kind | null {
   return null;
 }
 
-/** The icon a document of this kind shows (data.ipynb: the data's own). */
+/** The notebooks an app's canvas places cells of, by whole path (the project's listing and the open
+ *  canvases say; workbenchPage.ts keeps it current). */
+let appNotebooks = new Set<string>();
+const pathKey = (path: string): string => path.replace(/\\/g, "/").toLowerCase();
+
+/** The notebooks that feed an app now (a change tells onKindColours' listeners, which redraw). */
+export function setAppNotebooks(paths: Iterable<string>): void {
+  const next = new Set([...paths].filter(Boolean).map(pathKey));
+  if (next.size === appNotebooks.size && [...next].every((p) => appNotebooks.has(p))) return;
+  appNotebooks = next;
+  for (const listener of listeners) listener();
+}
+
+/** A notebook's role, by its path: the project's data notebook, one an app's canvas places, or plain. */
+export function notebookRole(path: string | null | undefined): "data" | "app" | "" {
+  if (/(^|[\\/])data\.ipynb$/i.test(path ?? "")) return "data";
+  return path && appNotebooks.has(pathKey(path)) ? "app" : "";
+}
+
+/** The icon a document of this kind shows: data.ipynb and the notebooks that feed an app have their
+ *  own (the owner, 2026-11-16), each a notebook with its corner marked. */
 export function kindIcon(kind: Kind | null, path?: string | null): string {
-  if (kind === "notebook" && /(^|[\\/])data\.ipynb$/i.test(path ?? "")) return "sql";
-  return kind === "app" ? "page" : kind === "script" ? "code" : kind === "notebook" ? "notebook" : "file";
+  if (kind === "notebook") {
+    const role = notebookRole(path);
+    return role === "data" ? "dataNotebook" : role === "app" ? "appNotebook" : "notebook";
+  }
+  return kind === "app" ? "page" : kind === "script" ? "code" : "file";
 }
 
 function apply(): void {

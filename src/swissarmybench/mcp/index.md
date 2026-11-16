@@ -27,7 +27,7 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 | `connections_` | databases, files, Power BI, Dataverse, own Python, APIs, vaults | `connections_list`, `connections_usage`, `connections_api_add` |
 | `catalog_` | a source's tables and columns | `catalog_search`, `catalog_columns` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_starters` |
-| `workbench_` | notebooks, scripts, kernels, the window, run settings | `workbench_run`, `workbench_lineage`, `workbench_window`, `workbench_script_run` |
+| `workbench_` | notebooks, scripts, kernels, the window (tables.transformations) | `workbench_run`, `workbench_lineage`, `workbench_window`, `workbench_script_run` |
 | `streamlit_` | the canvas, its tests, export | `streamlit_block_place`, `streamlit_test` |
 | `project_` | projects: one .sab file | `project_new`, `project_import`, `project_documents` |
 | `files_`, `app_` | file chooser; the page, getting around; beta mode; updates | `files_list`, `app_snapshot`, `app_navigate`, `app_beta_log`, `app_update` |

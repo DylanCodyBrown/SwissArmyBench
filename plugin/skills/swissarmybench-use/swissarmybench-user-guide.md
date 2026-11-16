@@ -53,7 +53,7 @@ The page has these parts:
 ### Getting around
 
 - **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Visualizations**, **ERD**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; **New** and **Open…** on the page's own panel); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
+  - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
@@ -398,7 +398,12 @@ The grid page's **Workbench** tab opens notebooks (`.ipynb`) and Python scripts 
 their own, run in an IPython kernel on this computer.
 
 - **One row on top:** the document in front (a dot while it has unsaved changes), **Save**, **Save
-  as…**, and **…** (New notebook, New script, Open…, Recent, Split right, Split down, Commands).
+  as…**, **New** (the kind you are on: **New notebook**, **New script** or **New Streamlit app**),
+  **Open…**, and **…** (New notebook, New script, Open…, Recent, Split right, Split down, Commands).
+- **Each kind of notebook has its own icon:** the project's **data.ipynb** (a notebook with a small
+  table), a notebook whose cells an app's canvas uses (a notebook with a small page), and any other
+  notebook. The cells fill the width of their pane; a wide table in an output scrolls sideways inside
+  its cell.
 - **The Data panel, on the left:** **Tables** lists the tables open in the grid, each with its rows,
   its file or connection and its steps; a click goes to its read-only cell in the notebook in front,
   and a drag puts its name in your code. **+ Table** opens a file as a table, browses a connection's
@@ -664,7 +669,11 @@ here: its code lives there.
   DataFrame, a Polars one, an Arrow table). Your own cell that made the table stays yours.
 - **You change it in the grid, never by typing.** A step added, changed or removed in the grid
   rewrites the cell at once. A sort made by clicking a header is a way of looking and stays out.
-- **Nothing runs by itself.** A rewritten cell turns yellow: **Out of date · last run 10:42**, with
+- **It shows its table.** A table's cell opens unfolded, and one the app wrote whole (its load and
+  its transformations: no cell of yours makes the table, as in a project's data.ipynb) runs by itself
+  when the notebook opens, starting the kernel, and shows the table as its output. That output is not
+  saved in the file: it is drawn again each time. A table your own cell makes waits for your Run.
+- **Nothing else runs by itself.** A rewritten cell turns yellow: **Out of date · last run 10:42**, with
   **Run**. Run it and the variable holds the table as the grid shows it. Undo the change in the grid
   and the yellow clears by itself. Before its first run it says **Not run yet**; after a reload,
   **Not run since opening**. A cell that is current says nothing: only a state that needs you to act
@@ -678,7 +687,7 @@ here: its code lives there.
   from. A table folds to one line: its name, its steps when it has some, and its state only when it
   needs you (**orders · 3 steps**, **orders · 3 steps · out of date**, **customers**). The whole group
   folds to one (**Tables · 4 tables**; **Tables · 4 tables · 1 out of date**, yellow, when one is). A file opens with the
-  group folded. In a notebook file the group is Markdown headings, which JupyterLab folds too; in a
+  group and its tables unfolded. In a notebook file the group is Markdown headings, which JupyterLab folds too; in a
   script it is `# region Tables` to `# endregion` around `# %% [7] [table] orders` and
   `# %% [8] [transformations] orders`, and Ctrl+Enter in a table's cell runs it.
 - **A maker that cannot move stays where it is.** When your cell needs something your code defines

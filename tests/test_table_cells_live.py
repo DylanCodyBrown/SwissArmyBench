@@ -75,8 +75,11 @@ def test_a_tables_cell_is_the_grids_steps_and_running_it_twice_changes_nothing(l
     table_cells.note_original("orders", ORDERS)
     expected = [row[:3] for row in grid_rows(live, grid)]
     for _ in range(3):  # safe to repeat: it always starts from what the maker made
-        table_cells.run("orders", code, namespace)
+        shown = table_cells.run("orders", code, namespace)
         assert namespace["orders"].values.tolist() == expected
+        assert shown is namespace["orders"]  # the cell's output: the table it leaves
+    # Each transformation in plain words (the Scripts page's card).
+    assert listed["step_words"] == ["Keep rows where amount is greater than 5", "Sort by amount descending"]
     assert len(expected) == 5 and namespace["orders"] is not ORDERS and len(ORDERS) == 6
     # A sort made by clicking a header is a way of looking: the cell does not change.
     live.user("POST", f"/grids/{grid}/header-sort", {"keys": [["region", "asc"]]})

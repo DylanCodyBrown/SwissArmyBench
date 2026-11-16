@@ -1938,3 +1938,20 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** Edge and Firefox; a .sab really written by the previous release opened in this one (the
   manifest rule is tested, not a file from the old app); an MCP client calling an old name over stdio
   (the server's own `call_tool` is).
+
+## The Workbench, the owner's feedback (2026-11-16, branch workbench-feedback)
+
+- **Rules:** each notebook's role (tests/test_project_scope.py: data.ipynb data, a notebook a canvas
+  links by a relative or whole path app, others plain; `/project/documents` lists the role); a table's
+  `step_words` and `table_cells.run` returning the table (tests/test_table_cells_live.py).
+- **In the browser** (Chromium, tests/e2e/test_workbench_feedback.py): New and Open… after Save as… on
+  the Scripts, Notebooks and Apps pages and beside a document, no landing panel, New pushes so Back
+  returns; data.ipynb's table cell unfolded, numbered, run by itself (its three filtered rows in the
+  output, sorted), first before any cell of the user's, no unsaved mark, saved without outputs; a cell's
+  width follows its pane at 2,200 and 1,100 pixels; data.ipynb, a plain notebook and an app's notebook
+  wear dataNotebook, notebook and appNotebook; the Scripts page's Transformations card (2 steps, in
+  words) opens the cell, the Notebooks page shows it too, and the agent's tables.transformations.
+- **Updated:** the rail tests (New in the top bar, the page heading exact), the saved notebook test (it
+  opens unfolded; its user-made table still waits).
+- **Not checked:** a very large table's output (pandas' own truncation applies); Windows paths for the
+  app-notebook role (the rule handles backslashes; not run on Windows).

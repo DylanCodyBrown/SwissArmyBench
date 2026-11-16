@@ -20,6 +20,7 @@ from swissarmybench.domain import table_cells as rules
 from swissarmybench.domain.codegen import variable_name, view_query
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.steps import describe_step
 from swissarmybench.domain.table_cells import Origin, PlanCell, TableSpec
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.workspace import Workspace
@@ -93,6 +94,8 @@ class TableCells:
             "kernel": origin.kernel,  # the Workbench kernel that sent it (None: no kernel did)
             "steps": len(on),
             "step_list": [s.to_json() for s in steps],
+            # Each transformation in plain words (the Scripts and Notebooks pages' cards).
+            "step_words": [describe_step(s) for s in on],
             "problem": problem,
             "code": rules.cell_text([change]),
             "loaded": rules.cell_text([load, change]),

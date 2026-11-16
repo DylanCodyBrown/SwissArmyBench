@@ -165,6 +165,38 @@ def test_autosave_saves_after_a_change_and_not_when_off(tmp_path: Path) -> None:
         )
 
 
+def test_each_notebook_has_a_role_the_data_one_an_apps_or_plain() -> None:
+    """data.ipynb is the data notebook; a notebook an app's canvas places a cell of is an app's; any
+    other is plain (each has an icon of its own: the owner, 2026-11-16)."""
+    from swissarmybench.domain import streamlit_cells as apps
+
+    def app(*links: str) -> str:
+        blocks = [
+            apps.Block(id=f"b{i}", document=d, cell=1, row=i + 1, column=1) for i, d in enumerate(links)
+        ]
+        return apps.write_app([apps.Page(id="p1", name="Page 1", blocks=blocks)])
+
+    listed = [
+        {"path": "data.ipynb", "kind": "notebook"},
+        {"path": "views/sales.ipynb", "kind": "notebook"},
+        {"path": "scratch.ipynb", "kind": "notebook"},
+        {"path": "tidy.py", "kind": "script"},
+    ]
+    roles = rules.notebook_roles(
+        "/work/orchard",
+        listed,
+        {
+            "apps/shop.stapp.json": app("../views/sales.ipynb", "../data.ipynb"),
+            "broken.stapp.json": "not an app",
+        },
+    )
+    assert roles == {"data.ipynb": "data", "views/sales.ipynb": "app", "scratch.ipynb": ""}
+    # A link by its whole path counts too.
+    assert rules.notebook_roles(
+        "/work/orchard", listed[2:3], {"a.stapp.json": app("/work/orchard/scratch.ipynb")}
+    ) == {"scratch.ipynb": "app"}
+
+
 # ===== scope =====
 
 
@@ -184,6 +216,7 @@ def test_a_second_project_sees_none_of_the_firsts_own(tmp_path: Path) -> None:
         ok(client.post("/dashboards", json={"name": "Quarter"}, headers=AUTH))
         documents = ok(client.get("/project/documents?kind=notebook", headers=AUTH))
         assert [d["path"] for d in documents["documents"]] == ["analysis.ipynb", "data.ipynb"]
+        assert [d["role"] for d in documents["documents"]] == ["", "data"]
         assert documents["documents"][0]["full"] == str(Path(made["folder"]) / "analysis.ipynb")
         assert client.get("/project/documents?kind=sheet", headers=AUTH).status_code == 400
         ok(client.post("/project/save", json={}, headers=AUTH))
