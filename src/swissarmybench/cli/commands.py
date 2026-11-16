@@ -2896,6 +2896,19 @@ def app_autostart(a: dict[str, Any]) -> Any:
     return api.call("GET", "/autostart")
 
 
+@command(
+    "app_claude",
+    "Which Claude Code and Claude Desktop this computer has (Launch Claude); `context`: what is open, as markdown",
+    opt("context", "true: the summary of what is open now (names, counts, types, steps; no values).", "bool"),
+    opt("refresh", "true: look for Claude again.", "bool"),
+)
+def app_claude(a: dict[str, Any]) -> Any:
+    # Reading only: launching Claude and choosing which one is launched are the user's (403 for the agent).
+    if a.get("context"):
+        return api.call("GET", "/claude/context")
+    return api.call("GET", "/claude?refresh=1" if a.get("refresh") else "/claude")
+
+
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
 def workbench_new_app(a: dict[str, Any]) -> Any:
     return _window("file.newApp", {})

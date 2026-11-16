@@ -1,0 +1,50 @@
+"""Launch Claude (services/claude.py), for the pages and, reading only, the agent.
+
+GET    /claude            what was found (Claude Code, Claude Desktop), the choices; ?refresh=1 looks again
+                                                                                    app_claude
+GET    /claude/context    what is open now, as markdown (metadata only)    app_claude context= (and the MCP
+                                                                           resource swissarmybench://context)
+PUT    /claude            Settings, Claude: which Claude, bypass permissions mode, a Desktop's config file
+                          (the user's only: 403 for the agent)
+POST   /claude/launch     the status bar's Launch Claude (the user's only: 403 for the agent)
+"""
+
+from __future__ import annotations
+
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import BaseRoute, Route
+
+from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.services.claude import Claude
+
+
+def routes(claude: Claude) -> list[BaseRoute]:
+    async def state(request: Request) -> Response:
+        try:
+            return json_response(await claude.state(refresh=request.query_params.get("refresh") == "1"))
+        except Exception as error:
+            return error_response(error)
+
+    async def context(request: Request) -> Response:
+        return json_response(claude.summary())
+
+    async def choose(request: Request) -> Response:
+        try:
+            return json_response(await claude.choose(await read_json(request), actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def launch(request: Request) -> Response:
+        try:
+            body = await read_json(request) if await request.body() else {}
+            return json_response(await claude.launch(body, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    return [
+        Route("/claude", state),
+        Route("/claude", choose, methods=["PUT"]),
+        Route("/claude/context", context),
+        Route("/claude/launch", launch, methods=["POST"]),
+    ]

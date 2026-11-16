@@ -108,7 +108,10 @@ def test_the_resources_list_and_read_over_mcp() -> None:
     for topic in GUIDE_TOPICS:
         uri = f"swissarmybench://guide/{topic}"
         assert texts[uri] == guide_text(topic) and by_uri[uri].title == GUIDE_TOPICS[topic]
-    assert set(by_uri) == {mcp_server.INDEX_URI} | {f"swissarmybench://guide/{t}" for t in GUIDE_TOPICS}
+    guide = {f"swissarmybench://guide/{t}" for t in GUIDE_TOPICS}
+    assert set(by_uri) == {mcp_server.INDEX_URI, mcp_server.CONTEXT_URI} | guide
+    # What is open now (Launch Claude's summary, for Claude Desktop): read fresh, said plainly with no app.
+    assert texts[mcp_server.CONTEXT_URI]
     # The instructions send the agent to the index first, and keep the data note.
     assert instructions is not None and "swissarmybench://index" in instructions and "guide" in instructions
     assert "<untrusted-data>" in instructions

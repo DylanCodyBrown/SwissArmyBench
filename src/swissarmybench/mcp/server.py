@@ -77,6 +77,26 @@ for _topic, _title in GUIDE_TOPICS.items():
     )
 
 
+CONTEXT_URI = "swissarmybench://context"
+
+
+@server.resource(
+    CONTEXT_URI,
+    name="context",
+    title="What is open now in Swiss Army Bench",
+    description="The open project, its tables (rows, columns, steps), connections and documents. No values.",
+    mime_type="text/markdown",
+    annotations=Annotations(audience=["assistant"], priority=0.9),
+)
+def open_now() -> str:
+    """Launch Claude's summary (CLAUDE.md's "What is open now"), read fresh: Claude Desktop has no folder."""
+    try:
+        answer = json.loads(str(execute_result("app_claude", {"context": True})))
+    except (CommandError, ValueError) as error:
+        return f"Swiss Army Bench did not answer: {error}"
+    return str(answer.get("text", "")) if isinstance(answer, dict) else str(answer)
+
+
 class GridServerError(ToolError):
     """A command was refused or failed. A ToolError, so the MCP library passes the plain-language
     reason ("The user declined (or did not answer) this export.") to the agent; any other exception

@@ -31,6 +31,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
+  routes_claude.py         Launch Claude: Claude Code in a terminal, or Claude Desktop (the user's only)
   streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
@@ -64,6 +65,7 @@ from swissarmybench.server import (
     routes_blades,
     routes_cards,
     routes_catalog,
+    routes_claude,
     routes_connections,
     routes_controllers,
     routes_datasets,
@@ -228,6 +230,7 @@ def create_app(
             *routes_script_runs.routes(ctx.script_runs),
             *routes_beta_log.routes(ctx.beta),
             *routes_updates.routes(ctx.updates),
+            *routes_claude.routes(ctx.claude),
             *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),
