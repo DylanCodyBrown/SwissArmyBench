@@ -164,7 +164,7 @@ const ICONS: Record<string, string> = {
   // A project: a page with its corner folded, the app's cross on it (the .sab file's own icon, small).
   project: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 10v6M9 13h6"/>',
   // The rail's areas (rail.ts, 2026-11-16; Settings is the cog, Notebooks, Scripts and Apps their documents'
-  // icons): the Sandbox's cards, the Diagram's two tables and their join, a blade, a plug; Grids: a grid's tabs.
+  // icons): Visualizations' cards, the ERD's two tables and their join, a blade, a plug; Grids: a grid's tabs.
   sandbox: '<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/>',
   diagram: '<rect x="2.5" y="3" width="9" height="7.5" rx="1.5"/><rect x="12.5" y="13.5" width="9" height="7.5" rx="1.5"/><path d="M2.5 6.2h9M12.5 16.7h9M11.5 8.3h2.5a2 2 0 012 2v3.2"/>',
   blade: '<path d="M2.5 14.5h12a3 3 0 010 6h-12a3 3 0 010-6z"/><path d="M11 14.5L20.5 4c1.2 4.2-.6 8.3-4.4 10.5"/><circle cx="5.5" cy="17.5" r=".6"/>',
@@ -228,7 +228,7 @@ const ICONS: Record<string, string> = {
   formula: '<path d="M18 4H6l6.5 8L6 20h12"/>',
   html: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/>',
   markdown: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 15V9l2.5 3L11 9v6M16.5 9v6M14.5 13l2 2 2-2"/>',
-  // A Sandbox's note card (a chart is profile's bars, a table and a diagram their own, above).
+  // A Visualizations note card (a chart is profile's bars, a table and a diagram their own, above).
   note: '<path d="M5 3h10l4 4v14H5z"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4"/>',
 };
 

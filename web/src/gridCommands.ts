@@ -88,8 +88,8 @@ function commands(): Command[] {
   out.push(...buttonsOf("Steps", document, ".steps-strip button", (b) => b.classList.contains("steps-count")));
   // Tabs: where to go, what to open, and the table in front.
   out.push(
-    { id: "tabs.sandbox", group: "Tabs", title: "Go to Sandbox", run: () => showAgentView() },
-    { id: "tabs.diagram", group: "Tabs", title: "Go to Diagram", run: () => showErdView() },
+    { id: "tabs.visualizations", group: "Tabs", title: "Go to Visualizations", run: () => showAgentView() },
+    { id: "tabs.erd", group: "Tabs", title: "Go to ERD", run: () => showErdView() },
     { id: "tabs.workbench", group: "Tabs", title: "Open the Workbench", run: () => openWorkbench() },
     ...gridList().map(({ id, label }): Command => ({ id: `tabs.go.${id}`, group: "Tabs", title: `Go to ${label}`, run: () => { showGridView(); void activateGrid(id); } })),
     ...buttonsOf("Tabs", document, ".tabs-row > button"),

@@ -1,11 +1,11 @@
 /**
- * sandboxDashboards.ts: the Sandbox's saved dashboards (server: routes_cards.py, /dashboards).
+ * sandboxDashboards.ts: Visualizations' saved dashboards (server: routes_cards.py, /dashboards).
  *
  *   [SAVE]     a name (an existing one adds a version): every card as drawn now, written on this click
  *   [SAVED]    each dashboard: when it was last saved, its cards, Open, History, Delete
  *   [HISTORY]  its versions, newest first, each with its cards' titles: Open this version
  *
- * Opening replaces the Sandbox. A chart or query card draws live on an open grid on its table, else
+ * Opening replaces Visualizations. A chart or query card draws live on an open grid on its table, else
  * as it was saved until that table is pushed again.
  */
 import { api } from "./api";
@@ -32,7 +32,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
   const list = h("div", { class: "dashboards" });
 
   const open = async (dashboard: string, version?: number): Promise<void> => {
-    if (cardsNow && !window.confirm(`Replace the ${cardsNow} card${cardsNow === 1 ? "" : "s"} on the Sandbox with ${dashboard}?`)) return;
+    if (cardsNow && !window.confirm(`Replace the ${cardsNow} card${cardsNow === 1 ? "" : "s"} on Visualizations with ${dashboard}?`)) return;
     try {
       const r = await api<{ cards: number; live: number; as_saved: number }>(`/dashboards/${encodeURIComponent(dashboard)}/open`, "POST", version ? { version } : {});
       toast(`Opened ${dashboard}: ${r.cards} card${r.cards === 1 ? "" : "s"}${r.as_saved ? `, ${r.as_saved} as saved until their tables are open` : ""}.`);
@@ -99,7 +99,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
       toast((e as Error).message, "error");
     }
   };
-  const saveButton = button("Save", () => void save(), { icon: "export", class: "primary", title: cardsNow ? undefined : "The Sandbox is empty" });
+  const saveButton = button("Save", () => void save(), { icon: "export", class: "primary", title: cardsNow ? undefined : "Visualizations is empty" });
   saveButton.disabled = !cardsNow;
   name.addEventListener("keydown", (e) => { if (e.key === "Enter") void save(); });
 

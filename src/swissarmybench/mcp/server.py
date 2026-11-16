@@ -35,6 +35,7 @@ from swissarmybench.cli.api import CommandError
 from swissarmybench.cli.commands import (
     DATA_NOTE,
     GUIDE_TOPICS,
+    OLD_NAMES,
     REGISTRY,
     Command,
     ImageResult,
@@ -172,6 +173,17 @@ for _command in REGISTRY.values():
     _registered = getattr(getattr(server, "_tool_manager", None), "_tools", {}).get(_command.name)
     if _registered is not None and isinstance(getattr(_registered, "parameters", None), dict):
         _registered.parameters = _slim(_registered.parameters)
+
+# The old command names (sandbox_* is visualizations_* now, one release): a call by an old name reaches the
+# new tool, which the list does not repeat (if the library keeps its tools elsewhere, old names are refused).
+_manager = getattr(server, "_tool_manager", None)
+if _manager is not None and callable(getattr(_manager, "get_tool", None)):
+    _get_tool = _manager.get_tool
+
+    def _get_tool_by_any_name(name: str) -> Any:
+        return _get_tool(OLD_NAMES.get(name, name))
+
+    _manager.get_tool = _get_tool_by_any_name
 
 
 def main() -> None:

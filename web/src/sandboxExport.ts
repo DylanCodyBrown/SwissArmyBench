@@ -1,5 +1,5 @@
 /**
- * sandboxExport.ts: the whole Sandbox as one markdown file (Plans/sandbox-report.plan.md, S3). [SHARED]
+ * sandboxExport.ts: all of Visualizations as one markdown file (Plans/sandbox-report.plan.md, S3). [SHARED]
  *
  * Each card in its order becomes a section: its title, where it came from, then a note's own markdown
  * (its headings moved down under the section's), a table card's rows as a markdown table, and every
@@ -26,10 +26,10 @@ function demote(markdown: string): string {
 }
 
 export async function sandboxMarkdown(cards: ExportCard[], picture: (id: string) => Promise<string | null>, when: Date): Promise<string> {
-  const from = (c: ExportCard): string => (c.dataset ? `the grid \`${c.dataset}\`` : `${c.origin ?? "the Sandbox"}`);
-  const tables = [...new Set(cards.map((c) => c.dataset ?? c.origin ?? "Sandbox"))];
+  const from = (c: ExportCard): string => (c.dataset ? `the grid \`${c.dataset}\`` : `${c.origin ?? "Visualizations"}`);
+  const tables = [...new Set(cards.map((c) => c.dataset ?? c.origin ?? "Visualizations"))];
   const out = [
-    "# Sandbox",
+    "# Visualizations",
     "",
     `Exported on ${when.toLocaleString()}. ${cards.length} card${cards.length === 1 ? "" : "s"}, from ${tables.map((t) => `\`${t}\``).join(", ")}.`,
     "Each section below is one card, in the order they were arranged; charts are embedded as PNG images.",
@@ -45,7 +45,7 @@ export async function sandboxMarkdown(cards: ExportCard[], picture: (id: string)
       out.push(mdTable(card.columns, card.rows ?? []));
     } else {
       const image = await picture(card.id).catch(() => null);
-      out.push(image ? `![${title.replace(/[[\]]/g, "")}](${image})` : "> (This drawing was not on screen to capture; open the Sandbox and export again.)");
+      out.push(image ? `![${title.replace(/[[\]]/g, "")}](${image})` : "> (This drawing was not on screen to capture; open Visualizations and export again.)");
     }
   }
   return `${out.join("\n")}\n`;

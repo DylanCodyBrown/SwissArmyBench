@@ -1,6 +1,6 @@
 """Side-panel cards: charts, notes and small result tables (plan section 11).
 
-  GET    /cards                            every card of every open grid: the one Analysis Sandbox
+  GET    /cards                            every card of every open grid: the one Visualizations
   POST   /cards                            a card of no table: note, diagram, graphviz, plotly, echarts,
                                             image, or a table of its own {"columns", "rows"}; "key"
                                             replaces the card sent with that key before
@@ -13,16 +13,16 @@
   GET    /cards/{card}/code                Altair code for a chart card
 
   GET    /dashboards                       the saved dashboards: name, versions, last saved, cards
-  POST   /dashboards                       {"name"}: save the Sandbox as a new version of `name`
+  POST   /dashboards                       {"name"}: save Visualizations as a new version of `name`
   GET    /dashboards/{name}                its versions: when, and each card's kind and title
-  POST   /dashboards/{name}/open           {"version"?}: make that version the Sandbox
+  POST   /dashboards/{name}/open           {"version"?}: make that version what Visualizations shows
   DELETE /dashboards/{name}                delete it and its versions
 
-  GET    /sandbox/themes                   the themes the Sandbox can take, and its current one
-  PUT    /sandbox/theme                    {"theme": id or "app"}: the Sandbox's theme (not the grid's)
-  POST   /sandbox/themes                   a theme file {"name", "dark", "tokens"}: the user's is kept on
+  GET    /visualizations/themes            the themes Visualizations can take, and its current one
+  PUT    /visualizations/theme             {"theme": id or "app"}: Visualizations' theme (not the grid's)
+  POST   /visualizations/themes            a theme file {"name", "dark", "tokens"}: the user's is kept on
                                            disk; the agent's is proposed (in memory) until the user keeps it
-  DELETE /sandbox/themes/{id}              remove one of the user's themes
+  DELETE /visualizations/themes/{id}       remove one of the user's themes
 Saving writes to disk and opening replaces what the user is looking at: those three are the user's
 click, so they refuse the agent, which may list and read them.
 
@@ -53,7 +53,7 @@ def routes(cards: Cards) -> list[BaseRoute]:
             return error_response(error)
 
     async def all_cards(request: Request) -> Response:
-        """The Analysis Sandbox: one list for every table."""
+        """Visualizations: one list for every table."""
         try:
             return json_response(await cards.everything())
         except Exception as error:
@@ -171,10 +171,10 @@ def routes(cards: Cards) -> list[BaseRoute]:
             return error_response(error)
 
     return [
-        Route("/sandbox/themes", list_themes),
-        Route("/sandbox/theme", set_theme, methods=["PUT"]),
-        Route("/sandbox/themes", add_theme, methods=["POST"]),
-        Route("/sandbox/themes/{theme_id}", remove_theme, methods=["DELETE"]),
+        Route("/visualizations/themes", list_themes),
+        Route("/visualizations/theme", set_theme, methods=["PUT"]),
+        Route("/visualizations/themes", add_theme, methods=["POST"]),
+        Route("/visualizations/themes/{theme_id}", remove_theme, methods=["DELETE"]),
         Route("/dashboards", saved),
         Route("/dashboards", save, methods=["POST"]),
         Route("/dashboards/{name}", versions),

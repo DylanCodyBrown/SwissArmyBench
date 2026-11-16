@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""After sending a result somewhere (the usability test's decision 8): Send to Sandbox leaves the
+"""After sending a result somewhere (the usability test's decision 8): Send to Visualizations leaves the
 window open and its toast has Show, which closes the window and goes to the card; Open as grid
 closes its window and shows the new tab. Made-up orders."""
 
@@ -25,16 +25,18 @@ def test_send_to_sandbox_keeps_the_window_and_show_goes_to_the_card(
         dialog = page.locator("dialog")
         expect(dialog.locator(".odds-table tbody tr").first).to_be_visible(timeout=20000)
 
-        dialog.get_by_role("button", name="Send to Sandbox").click()
-        toast = page.locator(".toast", has_text="In the Sandbox")
+        dialog.get_by_role("button", name="Send to Visualizations").click()
+        toast = page.locator(".toast", has_text="In Visualizations")
         expect(toast).to_be_visible()
         # The window stays, with its result, so the next thing can be sent from it.
         expect(dialog).to_be_visible()
         expect(dialog.locator(".odds-table tbody tr").first).to_be_visible()
-        # One action from here: Show closes the window and the Sandbox has the card in view.
+        # One action from here: Show closes the window and Visualizations has the card in view.
         toast.get_by_role("button", name="Show").click()
         expect(page.locator("dialog[open]")).to_have_count(0)
-        expect(page.locator(".nav-rail [data-area='sandbox']")).to_have_attribute("aria-current", "page")
+        expect(page.locator(".nav-rail [data-area='visualizations']")).to_have_attribute(
+            "aria-current", "page"
+        )
         card = page.locator("#ai-panel .card.arrived")
         expect(card).to_have_count(1, timeout=10000)
         expect(card).to_be_in_viewport()

@@ -7,7 +7,7 @@
  *   [WHAT-IF]     a field per predictor -> POST /regression/predict -> the estimate and its range
  *   [STEPS]       Add predicted column, Add miss column (a SQL step with the fitted numbers);
  *                 Check the misses: the miss column, then Outliers on it (the rows the model can't explain)
- *   [ACTIONS]     Send to Sandbox (a note and an effects chart), Open as grid (the coefficients), Copy code
+ *   [ACTIONS]     Send to Visualizations (a note and an effects chart), Open as grid (the coefficients), Copy code
  */
 import { regressionCards, type RegressionResult } from "./analysisCards";
 import { openOutliers } from "./analysisDialog";
@@ -208,7 +208,7 @@ function whatIf(r: RegressionResult): HTMLElement {
         r.kind === "linear"
           ? `${r.target}: about ${fmt(p.estimate)} (a new row would fall between ${fmt(p.low)} and ${fmt(p.high)}, 95% of the time). `
           : `Chance of ${r.outcome}: ${pct(p.estimate)} (between ${pct(p.low)} and ${pct(p.high)}). `,
-        button("Show the math", () => void showTheMath("predict", p), { icon: "steps", class: "ghost", title: "Term by term, to the Sandbox" }),
+        button("Show the math", () => void showTheMath("predict", p), { icon: "steps", class: "ghost", title: "Term by term, to Visualizations" }),
       );
     } catch (e) {
       answer.textContent = (e as Error).message;

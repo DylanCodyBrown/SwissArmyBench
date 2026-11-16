@@ -79,7 +79,7 @@ def model_name(connection: str, dataset: str) -> str:
 
 
 def source(connection: str, dataset: str) -> str:
-    """Where a model's table came from, as the Diagram says it."""
+    """Where a model's table came from, as the ERD says it."""
     return f"{joined_name(connection, dataset)} (Power BI)"
 
 

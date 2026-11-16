@@ -86,7 +86,7 @@ def test_notes_on_a_ribbon_button_and_a_grid_cell_and_a_text_box_keeps_its_menu(
         # ----- a grid cell: its own menu keeps its entries and gets the item; the cell's text is not kept
         cell = page.locator(".ag-row[row-index='0'] .ag-cell[col-id='client']")
         cell.click(button="right")
-        expect(page.get_by_role("menuitem", name="Send value to Sandbox")).to_be_visible()
+        expect(page.get_by_role("menuitem", name="Send value to Visualizations")).to_be_visible()
         page.keyboard.press("Escape")
         leave_note(page, cell, "This value should be bold", picture=True)
         second = notes(server)[-1]

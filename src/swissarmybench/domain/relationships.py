@@ -24,7 +24,7 @@ them), so pushing the same tables again makes the model apply as-is:
 
 The grid uses it for free: primary-key columns are marked in the headers, and splitting two
 tables that have a relationship pre-ticks its columns as the compare keys. It can also draw the
-model as an ERD card (Mermaid erDiagram) in the Analysis Sandbox.
+model as an ERD card (Mermaid erDiagram) in Visualizations.
 
 Like a C# record set: Model is immutable; merge() returns a new one, the later model winning
 for any table's key and for a relationship between the same tables on the same columns.

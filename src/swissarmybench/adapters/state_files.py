@@ -2,8 +2,8 @@
 written: the audit log, saved dashboards, the connection file and the model library's files.
 
   the audit log        one JSON line per action, never a cell value
-  dashboards           a Sandbox saved on the user's click: its cards as drawn, the last 60 versions
-  themes               Sandbox themes the user imported (colours only), one small file each
+  dashboards           Visualizations saved on the user's click: its cards as drawn, the last 60 versions
+  themes               Visualizations themes the user imported (colours only), one small file each
   the connection file  where the running server is, and its token (owner-only)
   the model library    relationship models: the shipped ones, the user's, and SWISSARMYBENCH_MODELS
   preferences          small JSON files the user's own choices are kept in: the kind colours
@@ -94,7 +94,7 @@ class AuditLog:
 
 
 # ===== saved dashboards =====
-# A dashboard is the Sandbox frozen on the user's Save: every card's text, size and place, and what a
+# A dashboard is Visualizations frozen on the user's Save: every card's text, size and place, and what a
 # chart or a query table showed (its points or rows), so it opens even when its tables are gone. It
 # is written only on that click; each Save under the same name adds a version.
 
@@ -153,11 +153,11 @@ class DashboardFiles:
         return False
 
 
-# ===== the user's Sandbox themes =====
+# ===== the user's Visualizations themes =====
 
 
 class ThemeFiles:
-    """Imported Sandbox themes in one folder: what the service layer's `ThemeShelf` port is here."""
+    """Imported Visualizations themes in one folder: what the service layer's `ThemeShelf` port is here."""
 
     def __init__(self, folder: Path) -> None:
         self.folder = folder

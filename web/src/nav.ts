@@ -141,7 +141,7 @@ function write(target: string, push: boolean, fromLabel: string): void {
   // (Kept on a replace too: a reload's page writes its own view first, then the layer's words again.)
   const layer = !key ? undefined : now.layer?.key === key && (key === was || !push) ? now.layer : { key, n: now.n, back: push && key !== was };
   // A dialog closed a moment ago (its close event not yet heard: "Show" closes it and goes to the
-  // Sandbox at once) is not carried into the new entry, so its close takes nothing away from it.
+  // Visualizations at once) is not carried into the new entry, so its close takes nothing away from it.
   const dialogs = now.dialogs.filter((id) => openDialogs.get(id)?.open);
   const next: Entry = push ? { n: now.n + 1, from: here(), fromLabel, dialogs, layer } : { ...now, dialogs, layer };
   if (push) history.pushState({ sab: next }, "", target);
@@ -559,7 +559,7 @@ function agentUrl(n: NavNotice): string {
   // A connection's detail on the Connections page: where it is used, its configuration, its calls.
   if (n.to === "connection" && n.name) return withParams({ open: "connections", at: "detail", type: null, name: n.name });
   const home = { open: null, at: null, type: null, name: null };
-  if (n.to === "sandbox" || n.to === "diagram" || n.to === "query") return withParams({ ...home, view: n.to }, HOME_URL);
+  if (n.to === "visualizations" || n.to === "erd" || n.to === "query") return withParams({ ...home, view: n.to }, HOME_URL);
   if (n.to === "grid" && n.grid) return `/g/${encodeURIComponent(n.grid)}`;
   if (n.to === "catalog") return withParams({ catalog: n.catalog ?? null, database: null, schema: n.schema ?? null, table: n.table ?? null, blade: null }, "/catalog");
   if (n.to === "blade") return withParams({ blade: n.name ?? "" }, "/catalog");

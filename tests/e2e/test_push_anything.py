@@ -1,6 +1,6 @@
 # ruff: noqa: F811
-"""Anything that shows details goes to the Sandbox: right-click a cell (its value, its row, Keep these),
-right-click a header (its profile, its distinct values), and the Send to Sandbox buttons of the column
+"""Anything that shows details goes to Visualizations: right-click a cell (its value, its row, Keep these),
+right-click a header (its profile, its distinct values), and the Send to Visualizations buttons of the column
 profile, the whole-table profile and the value viewer. On the made-up orders."""
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def test_right_click_and_send_buttons_put_details_in_the_sandbox(
     toast = page.locator(".toast").last
 
     def sandbox_has(*titles: str) -> None:
-        page.locator(".nav-rail [data-area='sandbox']").click()
+        page.locator(".nav-rail [data-area='visualizations']").click()
         for title in titles:
             expect(page.locator("#ai-panel .card-header h3", has_text=title).first).to_be_visible(
                 timeout=20000
@@ -33,11 +33,11 @@ def test_right_click_and_send_buttons_put_details_in_the_sandbox(
         cell = page.locator(".ag-row[row-index='0'] .ag-cell[col-id='region']")
         cell.click(button="right")
         menu = page.get_by_role("menu", name="region, row 1")
-        menu.get_by_role("menuitem", name="Send value to Sandbox").click()
-        expect(toast).to_contain_text("In the Sandbox")
+        menu.get_by_role("menuitem", name="Send value to Visualizations").click()
+        expect(toast).to_contain_text("In Visualizations")
         cell.click(button="right")
-        page.get_by_role("menuitem", name="Send the row to Sandbox").click()
-        expect(toast).to_contain_text("In the Sandbox")
+        page.get_by_role("menuitem", name="Send the row to Visualizations").click()
+        expect(toast).to_contain_text("In Visualizations")
         sandbox_has("region, row 1", "Row 1 of push_orders")
         expect(
             page.locator("#ai-panel .card", has_text="Row 1 of push_orders").locator(".md-table tr")
@@ -45,26 +45,28 @@ def test_right_click_and_send_buttons_put_details_in_the_sandbox(
 
         header = page.locator(".ag-header-cell[col-id='units'] .sab-header-name")
         header.click(button="right")
-        page.get_by_role("menu", name="units").get_by_role("menuitem", name="Profile to Sandbox").click()
+        page.get_by_role("menu", name="units").get_by_role(
+            "menuitem", name="Profile to Visualizations"
+        ).click()
         expect(toast).to_contain_text("a note and its chart")
         page.locator(".ag-header-cell[col-id='size'] .sab-header-name").click(button="right")
-        page.get_by_role("menuitem", name="Distinct values to Sandbox").click()
-        expect(toast).to_contain_text("In the Sandbox")
+        page.get_by_role("menuitem", name="Distinct values to Visualizations").click()
+        expect(toast).to_contain_text("In Visualizations")
         sandbox_has("Profile of units", "Profile of units (chart)", "Distinct values of size")
 
         page.locator(".ag-header-cell[col-id='price'] .sab-header-name").click(button="right")
         page.get_by_role("menuitem", name="Profile…").click()
-        page.locator("dialog").get_by_role("button", name="Send to Sandbox").click()
+        page.locator("dialog").get_by_role("button", name="Send to Visualizations").click()
         expect(toast).to_contain_text("a note and its chart")
         page.locator("dialog").get_by_role("button", name="Close").last.click()
         page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Profile").click()
         expect(page.locator("dialog .stat-grid")).to_be_visible(timeout=20000)
-        page.locator("dialog").get_by_role("button", name="Send to Sandbox").click()
-        expect(toast).to_contain_text("In the Sandbox")
+        page.locator("dialog").get_by_role("button", name="Send to Visualizations").click()
+        expect(toast).to_contain_text("In Visualizations")
         page.locator("dialog").get_by_role("button", name="Close").last.click()
         page.locator(".ag-row[row-index='2'] .ag-cell[col-id='office']").dblclick()
-        page.locator("dialog").get_by_role("button", name="Send to Sandbox").click()
-        expect(toast).to_contain_text("In the Sandbox")
+        page.locator("dialog").get_by_role("button", name="Send to Visualizations").click()
+        expect(toast).to_contain_text("In Visualizations")
         page.locator("dialog").get_by_role("button", name="Close").last.click()
         sandbox_has("Profile of price", "Profile of push_orders")
 

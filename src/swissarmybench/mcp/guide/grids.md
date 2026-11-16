@@ -1,6 +1,6 @@
 # Grids and steps
 
-The grid page: one tab per open grid (the Sandbox, Diagram and Workbench are the rail's, left); + makes a
+The grid page: one tab per open grid (Visualizations, ERD and Workbench are the rail's, left); + makes a
 table from a query. Over the grid, the Application row (Settings, Connections, Blades and catalog), then
 the ribbon's Table and Column rows. A cell's tools are on its right-click menu. Under the title, the
 steps strip counts the grid's steps; Edit steps opens them in a tab of their own.
@@ -40,11 +40,11 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
   Workbench (topic workbench).
 
 ## The page
-- `app_snapshot(area)`: a PNG of what the user sees (app, ribbon, grid, steps or sandbox); the page's
+- `app_snapshot(area)`: a PNG of what the user sees (app, ribbon, grid, steps or visualizations); the page's
   tab must be visible. It shows real values and is audited.
 - `app_panels`: Settings' panel switches (all on at each start). `files_list`: a folder's files.
 - `app_navigate(to, window, new_window)`: move a window as the user does. `home` (the mark), `back`,
-  `forward`; the rail's areas from any window: `grids` (= home), `sandbox`, `diagram`, `notebooks`,
+  `forward`; the rail's areas from any window: `grids` (= home), `visualizations`, `erd`, `notebooks`,
   `scripts`, `apps` (the Workbench in that kind's mode; `new_window=true`: a Workbench window of its
   own; each lands on its kind's page of documents), `blades`, `connections` (the Connections page),
   `settings` (the Settings page); `connection:<name>` (a connection's detail: where it is used, its

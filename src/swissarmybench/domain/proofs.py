@@ -596,7 +596,7 @@ PROOFS: dict[str, tuple[str, Callable[[dict[str, Any]], list[str]]]] = {
 
 
 def proof(analysis: str, result: Any, dataset: str = "") -> dict[str, str]:
-    """{"title", "markdown"}: the proof of one result, ready for a Sandbox note."""
+    """{"title", "markdown"}: the proof of one result, ready for a Visualizations note."""
     if analysis not in PROOFS:
         raise ProofError(f"Show the math covers {', '.join(PROOFS)}.")
     if not isinstance(result, dict):

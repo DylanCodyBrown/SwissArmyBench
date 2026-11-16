@@ -21,8 +21,8 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 | `cell_`, `row_` | a cell's menu; rows | `cell_exclude`, `row_read`, `row_count` |
 | `steps_` | a grid's steps, SQL, code | `steps_add`, `steps_kinds`, `steps_python` |
 | `analyze_` | Analyze menu | `analyze_odds`, `analyze_regression`, `analyze_forecast` |
-| `sandbox_` | Sandbox: cards, dashboards | `sandbox_add`, `sandbox_formats` |
-| `key_finder_`, `relationships_`, `erd_` | keys, joins, the Diagram | `key_finder_run`, `relationships_find`, `erd_draw` |
+| `visualizations_` | cards, dashboards | `visualizations_add`, `visualizations_formats` |
+| `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
 | `compare_` | two grids side by side, tie-out | `compare_create`, `compare_tie_out` |
 | `connections_` | databases, files, Power BI, Dataverse, own Python, APIs, vaults | `connections_list`, `connections_usage`, `connections_api_add` |
 | `catalog_` | a source's tables and columns | `catalog_search`, `catalog_columns` |

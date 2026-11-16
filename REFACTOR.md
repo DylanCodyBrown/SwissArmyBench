@@ -182,7 +182,7 @@ Considered for the live-update broadcasts and the agent approvals, and left out:
   through `bootstrap.py`; no layer file over 1,500 lines; a door per service).
 
 - [x] 8. `tests/test_service_layer.py`: five use cases on fakes of their ports. Merged the main line
-  again (the Sandbox page, the Application row, the new themes: page and docs only, no Python source).
+  again (Visualizations page, the Application row, the new themes: page and docs only, no Python source).
 
 The refactor is complete. To keep it so: a new feature gets `domain/<feature>.py` only if it has rules
 of its own, a service class in `services/<feature>.py` built in `bootstrap.py`, and a

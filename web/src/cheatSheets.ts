@@ -2,7 +2,7 @@
  * cheatSheets.ts: each analysis's "Data shape" panel (Plans/sandbox-report.plan.md, S5): a tiny mock
  * table in the shape that works, one in a shape that does not and why, a few tips, and a check of the
  * grid in front (POST /grids/{id}/shape-check: its columns' types and counts). The rows are made up.
- * The cheat sheet can go to the Sandbox like any result.
+ * The cheat sheet can go to Visualizations like any result.
  */
 import { mdTable, type SandboxCard } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
@@ -137,13 +137,13 @@ export function cheatSheet(sheet: Sheet, columns: () => string[]): { element: HT
       h("div", { class: "cheat-pair" }, h("div", { class: "cheat-good" }, h("strong", {}, "Works"), mockTable(content.good)), h("div", { class: "cheat-bad" }, h("strong", {}, "Does not work"), mockTable(content.bad), h("p", {}, content.bad.why))),
       h("ul", { class: "cheat-tips" }, ...content.tips.map((t) => h("li", {}, t))),
       h("div", { class: "cheat-yours" }, h("strong", {}, "Your grid"), checks),
-      button("Send to Sandbox", () => void sendCards(cheatCards(sheet)), { icon: "image", class: "small" }),
+      button("Send to Visualizations", () => void sendCards(cheatCards(sheet)), { icon: "image", class: "small" }),
     ),
   );
   return { element, refresh };
 }
 
-/** The cheat sheet as a Sandbox note. */
+/** The cheat sheet as a Visualizations note. */
 export function cheatCards(sheet: Sheet): SandboxCard[] {
   const s = SHEETS[sheet];
   const markdown = [

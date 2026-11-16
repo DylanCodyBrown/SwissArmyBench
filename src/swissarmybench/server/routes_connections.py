@@ -17,7 +17,7 @@ answer holds a password's value:
                                       (?live=1, or no catalog yet) from Power BI itself, with their ids;
                                       ?live=0 never asks Power BI (none until the catalog is loaded)
   POST   /connections/{name}/relationships   {dataset}: one of a Power BI workspace's datasets' own
-                                      relationships, merged into the current model (the Diagram, the
+                                      relationships, merged into the current model (the ERD, the
                                       Key Finder's known joins)
   POST   /connections/variables       your own Python: the environment variables its three boxes read
                                       {code, tables, read} (names only; nothing runs)

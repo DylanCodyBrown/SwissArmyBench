@@ -11,7 +11,7 @@
  * dragging a tab down onto the grid (its left or right half says which side it goes). Click into
  * a pane to make it active; "Close this side" leaves the other grid alone.
  *
- * The Sandbox tab comes first, always, and can't be closed: it shows the Sandbox full
+ * Visualizations tab comes first, always, and can't be closed: it shows Visualizations full
  * width (with a table picker) in place of the grids. Any grid tab goes back to the grids.
  *
  * The "+" after the last tab opens a draft tab: a new table from a query over the open tables
@@ -58,7 +58,7 @@ const agentViewListeners: (() => void)[] = [];
 let draft: { serial: number; name: string } | null = null;
 let draftSerial = 0;
 
-/** The Sandbox tab: the Sandbox full width, in place of the grids. */
+/** Visualizations tab: Visualizations full width, in place of the grids. */
 export function showAgentView(how: Move = "auto"): void {
   setView("agent", how);
 }
@@ -99,10 +99,10 @@ export function setEmptyView(choose: () => "start" | "grids"): void {
 }
 
 // ===== the address (nav.ts): the tab in front is in it, so Back and Forward move between tabs and a
-// reload keeps the one in front. /g/<id> for a table, /workspace?view=sandbox | diagram | query for the
-// others; a dialog's own words (open=connections&at=types) stay after them.
+// reload keeps the one in front. /g/<id> for a table, /workspace?view=visualizations | erd | query for the
+// others (the old sandbox and diagram still land, and the address takes the new word); a dialog's own words (open=connections&at=types) stay after them.
 
-const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "sandbox", erd: "diagram", query: "query", start: "start", grids: "grids" };
+const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "visualizations", erd: "erd", query: "query", start: "start", grids: "grids" };
 let activating = 0;
 let syncing: Move | null = null;
 
@@ -123,10 +123,10 @@ function addressOf(): string {
   return `${path}${query ? `?${query}` : ""}`;
 }
 
-/** The window's title: the place in front (the table's name, Sandbox, Diagram, New query). */
+/** The window's title: the place in front (the table's name, Visualizations, ERD, New query). */
 export function placeName(): string {
-  if (view === "agent") return "Sandbox";
-  if (view === "erd") return "Diagram";
+  if (view === "agent") return "Visualizations";
+  if (view === "erd") return "ERD";
   if (view === "start") return "Start";
   if (view === "grids") return "Grids";
   if (view === "query") return draft?.name || "New query";
@@ -155,8 +155,8 @@ function syncSoon(how: Move): void {
 /** Show what `url` names (Back, Forward, a reload, the agent): the history is not written again. */
 export async function showPlace(url: URL): Promise<void> {
   const named = url.searchParams.get("view");
-  if (named === "sandbox") setView("agent", "replace");
-  else if (named === "diagram") setView("erd", "replace");
+  if (named === "visualizations" || named === "sandbox") setView("agent", "replace");
+  else if (named === "erd" || named === "diagram") setView("erd", "replace");
   else if (named === "query") await newQueryTab("replace");
   else if (named === "start") setView("start", "replace");
   else if (named === "grids" || (!order.length && url.pathname === "/workspace")) setView(order.length ? "grid" : emptyView(), "replace");
@@ -599,7 +599,7 @@ function render(): void {
   remember("workspace.order", JSON.stringify(order));
   clear(
     tabRow,
-    // Sandbox, Diagram and the Workbench are the rail's (rail.ts, the owner, 2026-11-16): only grids here.
+    // Visualizations, the ERD and the Workbench are the rail's (rail.ts, the owner, 2026-11-16): only grids here.
     ...order.map((id) => {
       const selected = id === activeId && view === "grid";
       const inSplit = split?.includes(id) ?? false;

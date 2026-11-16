@@ -27,8 +27,28 @@ from swissarmybench.client import push_client
 from tests.e2e.test_table_cells_page import window
 from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
-AREAS = ["grids", "sandbox", "diagram", "notebooks", "scripts", "apps", "blades", "connections", "settings"]
-NAMES = ["Grids", "Sandbox", "Diagram", "Notebooks", "Scripts", "Apps", "Blades", "Connections", "Settings"]
+AREAS = [
+    "grids",
+    "visualizations",
+    "erd",
+    "notebooks",
+    "scripts",
+    "apps",
+    "blades",
+    "connections",
+    "settings",
+]
+NAMES = [
+    "Grids",
+    "Visualizations",
+    "ERD",
+    "Notebooks",
+    "Scripts",
+    "Apps",
+    "Blades",
+    "Connections",
+    "Settings",
+]
 SHOTS = os.environ.get("SWISSARMYBENCH_RAIL_SHOTS")
 FILTER = '# Region filter\nregion = st.selectbox("Region", ["North", "South"], key="rail_region")'
 TOTAL = '# Apples\nst.metric("Apples", 49)'
@@ -119,21 +139,21 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     shot(page, "rail-home")
 
     # A click is a move like any other: pushed, so Back and Forward walk the areas, and a reload keeps one.
-    area(page, "sandbox").click()
+    area(page, "visualizations").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(page).to_have_url(f"{base}/workspace?view=sandbox")
-    expect(current(page)).to_have_attribute("data-area", "sandbox")
-    area(page, "diagram").click()
+    expect(page).to_have_url(f"{base}/workspace?view=visualizations")
+    expect(current(page)).to_have_attribute("data-area", "visualizations")
+    area(page, "erd").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
-    expect(current(page)).to_have_attribute("data-area", "diagram")
+    expect(current(page)).to_have_attribute("data-area", "erd")
     page.go_back()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(current(page)).to_have_attribute("data-area", "sandbox")
+    expect(current(page)).to_have_attribute("data-area", "visualizations")
     page.go_forward()
-    expect(current(page)).to_have_attribute("data-area", "diagram")
+    expect(current(page)).to_have_attribute("data-area", "erd")
     page.reload()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
-    expect(current(page)).to_have_attribute("data-area", "diagram")
+    expect(current(page)).to_have_attribute("data-area", "erd")
     # The tab bar's own tabs move the mark too.
     page.locator(f".tab-item[data-grid='{grid_of(orchard)}']").click()
     expect(current(page)).to_have_attribute("data-area", "grids")
@@ -155,8 +175,8 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     expect(page.locator(".area-page")).to_have_count(0)
     expect(current(page)).to_have_attribute("data-area", "grids")
 
-    # Grids from the Sandbox: the grids, as the mark goes.
-    area(page, "sandbox").click()
+    # Grids from Visualizations: the grids, as the mark goes.
+    area(page, "visualizations").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     area(page, "grids").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
@@ -175,14 +195,14 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     expect(tip).to_be_visible()  # the name shows on keyboard focus, not only on hover
     expect(tip).to_contain_text("Grids")
     page.keyboard.press("ArrowDown")
-    expect(area(page, "sandbox")).to_be_focused()
-    expect(area(page, "sandbox").locator(".nav-rail-tip")).to_be_visible()
+    expect(area(page, "visualizations")).to_be_focused()
+    expect(area(page, "visualizations").locator(".nav-rail-tip")).to_be_visible()
     page.keyboard.press("Enter")
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(current(page)).to_have_attribute("data-area", "sandbox")
-    area(page, "sandbox").focus()
+    expect(current(page)).to_have_attribute("data-area", "visualizations")
+    area(page, "visualizations").focus()
     page.keyboard.press("ArrowDown")
-    expect(area(page, "diagram")).to_be_focused()
+    expect(area(page, "erd")).to_be_focused()
     page.keyboard.press("ArrowUp")
     page.keyboard.press("ArrowUp")
     page.keyboard.press("ArrowUp")  # past the first: round to Settings
@@ -240,11 +260,11 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     page.go_back()
     expect(current(page)).to_have_attribute("data-area", "scripts")
 
-    # The Sandbox, from the Workbench: this tab goes home, at the Sandbox.
-    area(page, "sandbox").click()
+    # Visualizations, from the Workbench: this tab goes home, at Visualizations.
+    area(page, "visualizations").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
-    expect(current(page)).to_have_attribute("data-area", "sandbox")
-    # Blades: this tab goes to the blades page, Blades marked; Settings opens there; Diagram comes home.
+    expect(current(page)).to_have_attribute("data-area", "visualizations")
+    # Blades: this tab goes to the blades page, Blades marked; Settings opens there; ERD comes home.
     area(page, "blades").click()
     expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
     expect(current(page)).to_have_attribute("data-area", "blades")
@@ -254,7 +274,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
     page.go_back()
     expect(current(page)).to_have_attribute("data-area", "blades")
-    area(page, "diagram").click()
+    area(page, "erd").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
     # Back walks the same tab back through the pages.
     page.go_back()
@@ -267,7 +287,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     other = clicked.value
     expect(other).to_have_url(re.compile(r"/workbench\?kind=script"), timeout=20000)
     other.close()
-    area(page, "sandbox").click(button="right")
+    area(page, "visualizations").click(button="right")
     with page.context.expect_page() as popped:
         page.get_by_role("menuitem", name="Open in a new window").click()
     sandbox = popped.value
@@ -346,7 +366,7 @@ def test_the_steps_window_has_the_rail_and_grids_brings_the_home_window_forward(
     pages = len(page.context.pages)
     # A rail click moves this tab (2026-11-16: "the open in new tab is optional"): the steps window
     # itself goes to the grids; the home window stays where it was.
-    page.locator(".nav-rail [data-area='sandbox']").click()
+    page.locator(".nav-rail [data-area='visualizations']").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     area(steps, "grids").click()
     expect(steps.locator(".workspace")).to_have_attribute("data-view", "grid", timeout=20000)

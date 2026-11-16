@@ -342,19 +342,19 @@ SENSIBLE: dict[str, Factory] = {
         "right": s.grids["customers"],
         "keys": [["customer_id", "cust_key"]],
     },
-    "sandbox_add": lambda s: {
+    "visualizations_add": lambda s: {
         "grid": s.scratch_grid(),
         "kind": "chart",
         "spec": {"mark": "bar", "x": {"field": "status_code"}, "y": {"aggregate": "count"}},
     },
-    "sandbox_update": lambda s: {
+    "visualizations_update": lambda s: {
         "card": s.card(s.scratch_grid(), chart=False),
         "title": "renamed",
         "pinned": True,
     },
-    "sandbox_delete": lambda s: {"card": s.card(s.scratch_grid())},
-    "sandbox_select": lambda s: {"card": s.card(s.scratch_grid()), "value": "3"},
-    "sandbox_code": lambda s: {"card": s.card(s.scratch_grid())},
+    "visualizations_delete": lambda s: {"card": s.card(s.scratch_grid())},
+    "visualizations_select": lambda s: {"card": s.card(s.scratch_grid()), "value": "3"},
+    "visualizations_code": lambda s: {"card": s.card(s.scratch_grid())},
     "app_snapshot": lambda s: {"area": "ribbon", "out": str(s.tmp / "snap.png")},
     "agent_events": lambda s: {"seconds": 1, "limit": 1},
     # Projects (.sab): never the sweep's own tables closed. A scratch grid is an unsaved change, so

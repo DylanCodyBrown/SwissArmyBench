@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.cli.api import CommandError
-from swissarmybench.cli.commands import REGISTRY, ImageResult, catalog, execute_result
+from swissarmybench.cli.commands import REGISTRY, ImageResult, catalog, current_name, execute_result
 
 
 def parse(argv: list[str]) -> tuple[str, dict[str, Any]]:
@@ -31,7 +31,7 @@ def parse(argv: list[str]) -> tuple[str, dict[str, Any]]:
     if not argv:
         raise CommandError("Give a command. `sab commands` lists them.")
     name, rest = argv[0], argv[1:]
-    cmd = REGISTRY.get(name)
+    cmd = REGISTRY.get(current_name(name))
     required = [a.name for a in cmd.args if a.required] if cmd else []
     values: dict[str, Any] = {}
     positional: list[str] = []

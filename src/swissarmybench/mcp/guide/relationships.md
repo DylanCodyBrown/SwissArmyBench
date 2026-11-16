@@ -1,7 +1,7 @@
 # Keys and relationships
 
 One relationship model: each table's primary key and the joins between tables. Known joins line up a
-compare by themselves; the Diagram draws the model of the open tables.
+compare by themselves; the ERD draws the model of the open tables.
 
 - Tangs are saved, shared sets of relationships (`.tang` files). `relationships_library` lists them
   (the user's and the team's) and `relationships_apply_library` applies one. Check here first.
@@ -16,7 +16,7 @@ compare by themselves; the Diagram draws the model of the open tables.
 - `relationships_get`, `relationships_save_tang`, `relationships_export_tang`,
   `relationships_import_tang` (without apply: what it would change).
 - A Power BI dataset's own relationships: `connections_import_relationships` (topic connections).
-- `erd_text`: the model as Mermaid. `erd_draw`: a diagram card in the Sandbox.
+- `erd_text`: the model as Mermaid. `erd_draw`: a diagram card in Visualizations.
 
 ## Compare (two grids side by side)
 - `compare_grids`: matched, left-only and right-only counts, without touching the page.

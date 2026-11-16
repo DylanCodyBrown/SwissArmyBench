@@ -1,6 +1,6 @@
 """A project as one .sab file on the running server (services/sab_projects.py): save, close and open
 again with everything back (a CSV table with two steps, a SQLite connection's table, a pasted table
-ticked and not, a notebook, a canvas, a Sandbox card, the relationships); a missing connection or file
+ticked and not, a notebook, a canvas, a Visualizations card, the relationships); a missing connection or file
 says how to fix it; no secret is ever in the file; the agent's save asks only when it writes rows.
 Made-up data only."""
 
@@ -79,7 +79,7 @@ def made_up_files(tmp_path: Path) -> tuple[Path, Path]:
 
 def build_project(client: TestClient, tmp_path: Path) -> dict[str, Any]:
     """A project with a CSV table and two steps, a connection's table, two pasted tables, a notebook, a
-    canvas, a Sandbox card and a relationship; returns the grids."""
+    canvas, a Visualizations card and a relationship; returns the grids."""
     csv, database = made_up_files(tmp_path)
     orders = ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))["grid"]
     ok(client.post(f"/grids/{orders}/steps", json={"steps": STEPS}, headers=AUTH))
@@ -150,7 +150,7 @@ def test_a_project_saves_closes_and_opens_with_everything_back(tmp_path: Path) -
             "analysis.ipynb",
             "sales.stapp.json",
             "model.tang",
-            "sandbox/sandbox.json",
+            "visualizations/visualizations.json",
             "data/kept_paste.parquet",
         } <= set(inside)
         assert "extra.csv" not in inside and "data/lost_paste.parquet" not in inside
@@ -175,7 +175,7 @@ def test_a_project_saves_closes_and_opens_with_everything_back(tmp_path: Path) -
         assert not folder.exists() and ok(client.get("/datasets", headers=AUTH))["datasets"] == []
         assert ok(client.get("/cards", headers=AUTH))["cards"] == []
 
-        # Open: the tables read again (the steps applied), the Sandbox, the model, the files.
+        # Open: the tables read again (the steps applied), Visualizations, the model, the files.
         opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
         assert opened["dirty"] is False and opened["path"] == str(target)
         names = {d["name"]: d for d in ok(client.get("/datasets", headers=AUTH))["datasets"]}

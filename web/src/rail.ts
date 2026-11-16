@@ -3,12 +3,12 @@
  * to say it, this app needs a navigation pane somehow."; a slim icon rail, as VS Code's Activity Bar).
  * [SHARED]
  *
- *   [AREAS]   Grids (the home page's tabbed grids; the mark goes Home, the Start view), Sandbox, Diagram, Notebooks,
+ *   [AREAS]   Grids (the home page's tabbed grids; the mark goes Home, the Start view), Visualizations, ERD, Notebooks,
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, and Settings pinned at the
  *             bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
  *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
- *             rail should land on a page not open a form"): the grids, the Sandbox, the Diagram, a kind's
+ *             rail should land on a page not open a form"): the grids, Visualizations, the ERD, a kind's
  *             landing page in the Workbench (workbenchLanding.ts), the blades page, the Connections page
  *             and the Settings page (areaPage.ts, over the page you are on: open=connections,
  *             open=settings).
@@ -16,7 +16,7 @@
  *             Back, Forward and a reload work. Connections and Settings show their pages where the page
  *             has them. An area another page shows takes this tab there (the owner, 2026-11-16: "the
  *             rail icons is opening a new tab every time instead of navigating the current page"): the
- *             home page for the grids, Sandbox and Diagram; the Workbench for notebooks, scripts and apps
+ *             home page for the grids, Visualizations and the ERD; the Workbench for notebooks, scripts and apps
  *             (code still never sits in the grid page); the blades page.
  *   [KINDS]   Notebooks, Scripts and Apps land on that kind's page in the Workbench (?kind=notebook&
  *             view=list): its documents as cards, open ones first; New is on that page's panel, never in
@@ -32,7 +32,9 @@
  *   [AGENT]   app_navigate's areas run here (setAreaRunner), as a click would (new_window too).
  *
  * Another window's area reaches the window that shows it as a message from this origin ({sab: "area"});
- * a window opened for it is given the area in its address (?view=sandbox, ?open=settings, ?kind=script).
+ * a window opened for it is given the area in its address (?view=visualizations, ?open=settings, ?kind=script).
+ * The Sandbox is Visualizations and the Diagram the ERD (the owner, 2026-11-16): the old ?view=sandbox
+ * and ?view=diagram still land there (panes.ts), and the address is replaced with the new word.
  */
 import { token } from "./api";
 import { h, icon, toast } from "./dom";
@@ -41,14 +43,14 @@ import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type Page
 import { loadPanels, onPanels } from "./panels";
 import { openMenu } from "./workbenchMenu";
 
-export type Area = "grids" | "sandbox" | "diagram" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "settings";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "settings";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
 const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
   { area: "grids", name: "Grids", icon: "grids" },
-  { area: "sandbox", name: "Sandbox", icon: "sandbox" },
-  { area: "diagram", name: "Diagram", icon: "diagram" },
+  { area: "visualizations", name: "Visualizations", icon: "sandbox" },
+  { area: "erd", name: "ERD", icon: "diagram" },
   { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   { area: "apps", name: "Apps", icon: "page", kind: "app" },
@@ -72,14 +74,15 @@ function currentArea(url: URL): Area | null {
   if (kind === "catalog") return "blades";
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
   const view = kind === "home" ? url.searchParams.get("view") : null;
-  if (view === "sandbox" || view === "diagram") return view;
+  if (view === "visualizations" || view === "sandbox") return "visualizations";
+  if (view === "erd" || view === "diagram") return "erd"; // the old words, one release
   if (view === "start") return null; // Home (startView.ts): no area of the rail's
   return "grids"; // the grids (and the steps and Key Finder windows, which are a grid's)
 }
 
 /** A home window opened for `area`: the area in its address. */
 function arrivalUrl(area: Area): string {
-  if (area === "sandbox" || area === "diagram") return `${HOME_URL}?view=${area}`;
+  if (area === "visualizations" || area === "erd") return `${HOME_URL}?view=${area}`;
   if (area === "settings" || area === "connections") return `${HOME_URL}?open=${area}`;
   return HOME_URL;
 }
@@ -121,7 +124,7 @@ export function goArea(area: Area, newWindow = false): void {
     visit(withParams({ ...LAYER_OFF, kind: k, view: "list" }));
     return;
   }
-  if (kind === "home" && (area === "grids" || area === "sandbox" || area === "diagram")) {
+  if (kind === "home" && (area === "grids" || area === "visualizations" || area === "erd")) {
     visit(withParams({ ...LAYER_OFF, view: area === "grids" ? null : area }, HOME_URL));
     return;
   }

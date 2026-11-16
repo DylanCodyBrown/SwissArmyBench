@@ -565,13 +565,13 @@ def _tested(value: Any) -> dict[str, Any]:
 
 
 def _analysis(function: Any, job: dict[str, Any]) -> dict[str, Any]:
-    """Call the user's analysis on the grid's rows and turn what it returns into Sandbox cards."""
+    """Call the user's analysis on the grid's rows and turn what it returns into Visualizations cards."""
     import inspect
 
     import pyarrow as pa
 
     from swissarmybench.adapters.blade_run import BladeRunError
-    from swissarmybench.client.sandbox_client import card_for
+    from swissarmybench.client.visualizations_client import card_for
 
     if not callable(function):
         raise BladeRunError(f"{job['label']}'s {job['variable']!r} is not a function.")
@@ -596,7 +596,7 @@ def _analysis(function: Any, job: dict[str, Any]) -> dict[str, Any]:
         try:
             cards.append(card_for(part))
         except (TypeError, ValueError) as error:
-            message = f"{job['label']} returned something the Sandbox can't show: {error}"
+            message = f"{job['label']} returned something Visualizations can't show: {error}"
             raise BladeRunError(message) from None
     if not cards:
         raise BladeRunError(f"{job['label']} returned nothing to show: return markdown, a table or a figure.")

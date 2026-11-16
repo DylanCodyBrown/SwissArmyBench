@@ -817,9 +817,9 @@ def test_6_a_csv_folder_workbook_sheets_and_a_database_table_are_combined_and_th
     act.click(workbench.get_by_role("button", name="Run all"))
     act.click(workbench.locator(".wb-to-grid").last)
     expect(tabs.filter(has_text="daily")).to_have_count(1, timeout=LONG)
-    # The joins: Find relationships in the Diagram, the likely ones ticked, accepted.
+    # The joins: Find relationships in the ERD, the likely ones ticked, accepted.
     page.bring_to_front()
-    act.click(page.locator(".nav-rail [data-area='diagram']"))
+    act.click(page.locator(".nav-rail [data-area='erd']"))
     act.click(page.locator("#erd-view").get_by_role("button", name="Find relationships"))
     found = page.locator("dialog[open] .suggestion-list")
     expect(found).to_be_visible(timeout=LONG)
@@ -925,7 +925,7 @@ def test_7_a_power_bi_datasets_tables_and_relationships_are_read_in(
     )
     # Its diagram is there before any table opens (it once said "No relationships yet").
     page.bring_to_front()
-    act.click(page.locator(".nav-rail [data-area='diagram']"))
+    act.click(page.locator(".nav-rail [data-area='erd']"))
     drawn = page.locator("#erd-view .erd-diagram svg")
     expect(drawn).to_be_visible(timeout=LONG)
     for table in ("Customers", "Order_Lines", "Invoices"):
@@ -993,7 +993,7 @@ def test_8_power_bi_ties_out_against_its_postgresql_source(
     act.done(ceiling=22)
 
 
-# ===== 9. a forecast as a Sandbox report, printed to PDF =====
+# ===== 9. a forecast as a Visualizations report, printed to PDF =====
 
 # window.print noted with the page's classes then (and each change of them, to say what went wrong if
 # the print view was not on: once seen in a full run, not again).
@@ -1011,7 +1011,7 @@ PRINT_STUB = """() => {
 def test_9_a_forecast_becomes_a_sandbox_report_printed_to_pdf(
     browser: Browser, bench: dict[str, Any], tmp_path: Path
 ) -> None:
-    act = Actions("9. a forecast as a Sandbox report, printed to PDF")
+    act = Actions("9. a forecast as a Visualizations report, printed to PDF")
     ensure_shop(bench)
     close_tables(bench)
     for card in call(bench, "GET", "/cards")["cards"]:
@@ -1034,10 +1034,10 @@ def test_9_a_forecast_becomes_a_sandbox_report_printed_to_pdf(
     # November has one day of invoices: left out, and said so (it once counted as a month: a 99% fall).
     expect(words).to_contain_text("Left out 2026-11-01: its rows stop on 2026-11-01", timeout=LONG)
     expect(words).not_to_contain_text("e+0")  # 73,771, never 7.377e+04
-    act.click(dialog.get_by_role("button", name="Send to Sandbox"))
+    act.click(dialog.get_by_role("button", name="Send to Visualizations"))
     expect(page.locator(".toast").last).to_contain_text("a note and its chart")
     act.click(dialog.get_by_role("button", name="Close").last)
-    act.click(page.locator(".nav-rail [data-area='sandbox']"))
+    act.click(page.locator(".nav-rail [data-area='visualizations']"))
     cards = page.locator("#ai-panel .card")
     expect(cards).to_have_count(2, timeout=LONG)  # the note and its chart (once only the note came)
     expect(page.locator("#ai-panel .figure .main-svg").first).to_be_visible(timeout=LONG)

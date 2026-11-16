@@ -1,6 +1,6 @@
 # ruff: noqa: F811
 """The Table row's Analyze menu in a real browser, on the made-up orders: odds with an outcome handed
-to the fit test, find predictors opened as a grid, a result sent to the Sandbox, outliers excluded."""
+to the fit test, find predictors opened as a grid, a result sent to Visualizations, outliers excluded."""
 
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ def test_the_analyze_menu_chains_odds_fit_predictors_and_outliers(
         dialog.get_by_role("button", name="Count").click()
         expect(dialog.locator(".analysis-headline")).to_contain_text("West: late 4", timeout=20000)
         expect(dialog.locator("tr.odds-up")).to_have_count(1)
-        dialog.get_by_role("button", name="Send to Sandbox").click()
-        expect(page.locator(".toast")).to_contain_text("In the Sandbox")
+        dialog.get_by_role("button", name="Send to Visualizations").click()
+        expect(page.locator(".toast")).to_contain_text("In Visualizations")
         dialog.get_by_role("button", name="Test together").click()
         dialog = page.locator("dialog")
         expect(dialog.get_by_label("Expected spread")).to_have_value("together")
@@ -80,7 +80,7 @@ def test_the_analyze_menu_chains_odds_fit_predictors_and_outliers(
         expect(dialog).to_have_count(0)
         expect(page.locator(".steps-strip")).to_contain_text("1 step")
 
-        page.locator(".nav-rail [data-area='sandbox']").click()
+        page.locator(".nav-rail [data-area='visualizations']").click()
         expect(page.locator("#ai-panel")).to_contain_text("Odds of late by region")
     finally:
         page.close()

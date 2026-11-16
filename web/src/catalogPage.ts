@@ -188,7 +188,7 @@ async function showAddress(url: URL): Promise<void> {
 
 const opened = new URL(location.href);
 mountNav("catalog", { show: (url) => void showAddress(url) });
-mountNavRail("catalog"); // the grids, the Sandbox and the Diagram are the home window's
+mountNavRail("catalog"); // the grids, Visualizations and the ERD are the home window's
 document.querySelector(".cat-top")?.prepend(appMark());
 setTitle(PAGE);
 void rail

@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""The Sandbox as pages in a real browser: moving cards (the menu and a drop), Page view on letter and
+"""Visualizations as pages in a real browser: moving cards (the menu and a drop), Page view on letter and
 landscape paper, a card that starts a page, and printing (the print dialog is stubbed: headless
 browsers have none)."""
 
@@ -34,7 +34,7 @@ def test_cards_move_lay_out_on_pages_and_print(browser: Browser, server: dict[st
     page.add_init_script("window.print = () => { window.__printed = document.body.className; };")
     page.reload()
     try:
-        page.locator(".nav-rail [data-area='sandbox']").click()
+        page.locator(".nav-rail [data-area='visualizations']").click()
         expect(page.locator("#ai-panel .card")).to_have_count(3)
         assert titles(page) == ["First", "Second", "Third"]
         expect(page.locator("#ai-panel .md-table").first).to_contain_text("46%")  # markdown tables draw
@@ -103,12 +103,14 @@ def test_the_sandbox_exports_as_one_markdown_file_with_pictures(
     )
     page = open_grid(browser, url, width=1400, height=1000)
     try:
-        page.locator(".nav-rail [data-area='sandbox']").click()
+        page.locator(".nav-rail [data-area='visualizations']").click()
         expect(page.locator("#ai-panel .figure .main-svg").first).to_be_visible(timeout=20000)
         with page.expect_download() as download:
             page.get_by_role("button", name="Export markdown").click()
         text = download.value.path().read_text(encoding="utf-8")
-        assert text.startswith("# Sandbox") and "`export_demo`" in text.splitlines()[2]  # the tables it holds
+        assert (
+            text.startswith("# Visualizations") and "`export_demo`" in text.splitlines()[2]
+        )  # the tables it holds
         sections = [line for line in text.splitlines() if line.startswith("## ")]
         assert sections[-3:] == ["## Findings", "## Late by region", "## Flow"]
         assert "### Late orders" in text and "| West | 46% |" in text  # the note's heading moved down

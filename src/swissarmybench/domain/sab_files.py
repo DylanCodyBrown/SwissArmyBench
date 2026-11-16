@@ -9,7 +9,9 @@ A .sab is a zip, like .docx or .pbix:
                             the open tabs; the Workbench's documents, modes and layout; the diagram
     data.ipynb, *.ipynb,    the project's own files at their paths (code and text only: never a data
     *.py, pages/*.py, ...   file, which would carry rows)
-    sandbox/sandbox.json    the Sandbox: its cards (what a chart showed is not kept: it redraws)
+    visualizations/visualizations.json
+                            Visualizations: its cards (what a chart showed is not kept: it redraws);
+                            sandbox/sandbox.json in a file saved before the Sandbox was renamed
     model.tang              the relationships
     data/<table>.parquet    only the tables ticked "Keep its rows in the file"
 
@@ -49,7 +51,10 @@ MARK: str = "project"
 SUFFIX: str = ".sab"
 MANIFEST: str = "project.json"
 MODEL: str = "model.tang"
-SANDBOX: str = "sandbox/sandbox.json"
+VISUALIZATIONS: str = "visualizations/visualizations.json"
+# The Sandbox's entry and manifest key before it became Visualizations (the owner, 2026-11-16): read for
+# one release, never written.
+OLD_SANDBOX: str = "sandbox/sandbox.json"
 ROWS_FOLDER: str = "data"
 MAX_NAME: int = 100
 MAX_ENTRY_NAME: int = 400
@@ -304,7 +309,7 @@ class Manifest:
     tabs: Mapping[str, Any] = field(default_factory=dict)  # the home page: the tabs' order, the front one
     workbench: Mapping[str, Any] = field(default_factory=dict)  # the Workbench: documents, modes, layout
     diagram: Mapping[str, Any] = field(default_factory=dict)
-    sandbox: str | None = None
+    visualizations: str | None = None
     model: str | None = None
     autosave: bool = False  # saved quietly a short while after each change (the user's switch)
     extra: Mapping[str, Any] = field(default_factory=dict)
@@ -313,12 +318,23 @@ class Manifest:
         return next((t for t in self.tables if t.name == name), None)
 
     def special(self) -> set[str]:
-        """The entries that are not the project's own files: the manifest, the Sandbox, the model, rows."""
+        """The entries that are not the project's own files: the manifest, Visualizations, the model, rows."""
         named = {MANIFEST, *(t.rows_file for t in self.tables if t.rows_file)}
-        return named | {n for n in (self.sandbox, self.model) if n}
+        return named | {n for n in (self.visualizations, self.model) if n}
 
 
-_KNOWN = {"format", "app_version", "name", "saved", "tables", "tabs", "workbench", "diagram", "sandbox"}
+_KNOWN = {
+    "format",
+    "app_version",
+    "name",
+    "saved",
+    "tables",
+    "tabs",
+    "workbench",
+    "diagram",
+    "visualizations",
+}
+_KNOWN |= {"sandbox"}  # the old key: read as visualizations, not carried
 _KNOWN |= {"model", "autosave", MARK_KEY}
 
 
@@ -410,7 +426,7 @@ def read_manifest(text: str) -> tuple[Manifest, str | None]:
         tabs=_mapping(raw.get("tabs")),
         workbench=_mapping(raw.get("workbench")),
         diagram=_mapping(raw.get("diagram")),
-        sandbox=entry("sandbox"),
+        visualizations=entry("visualizations") or entry("sandbox"),
         model=entry("model"),
         autosave=raw.get("autosave") is True,
         extra={k: v for k, v in raw.items() if k not in _KNOWN},
@@ -430,7 +446,7 @@ def write_manifest(manifest: Manifest) -> str:
         "tabs": dict(manifest.tabs),
         "workbench": dict(manifest.workbench),
         "diagram": dict(manifest.diagram),
-        "sandbox": manifest.sandbox,
+        "visualizations": manifest.visualizations,
         "model": manifest.model,
         "autosave": manifest.autosave,
     }

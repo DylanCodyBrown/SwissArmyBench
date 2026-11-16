@@ -41,7 +41,7 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 
 The page has these parts:
 
-- **Tab bar.** Each open grid has its own tab (the Sandbox, Diagram and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
+- **Tab bar.** Each open grid has its own tab (Visualizations, ERD and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
 - **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: the project's group (its name, Save, Save as…, Close, **Autosave**) and **Zoom**. The **Tour** (a one-minute tour of every word Swiss Army Bench uses, each shown on the page, then a quick game) is on the Start page; on your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
@@ -52,20 +52,20 @@ The page has these parts:
 
 ### Getting around
 
-- **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Sandbox**, **Diagram**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - **Every icon lands on a page**, in the tab you are in: Grids, Sandbox and Diagram on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; **New** and **Open…** on the page's own panel); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
+- **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Visualizations**, **ERD**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+  - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; **New** and **Open…** on the page's own panel); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
-  - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Sandbox, Diagram, the Workbench, Settings, Connections and Blades are the rail's.
+  - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the Settings and Connections pages, a connection's detail and its forms, a kind's page of documents, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
-- **Reload** (F5 on the grid page) keeps what you were looking at, the Sandbox, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
+- **Reload** (F5 on the grid page) keeps what you were looking at, Visualizations, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**, **Catalog › Warehouse › sales › orders**.
-- **The browser tab** names the place: the table's name, "Sandbox", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
+- **The browser tab** names the place: the table's name, "Visualizations", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
 
 ### Projects (.sab)
 
 A project is one file, **name.sab**: its notebooks, scripts and Streamlit canvases, the open tables
-with their steps, the Sandbox, the relationships and where your windows were. Email it, put it on
+with their steps, Visualizations, the relationships and where your windows were. Email it, put it on
 OneDrive; a double-click opens it (the installer registers .sab files for you; or run
 `swissarmybench open sales.sab`, which starts the app when it is not running).
 
@@ -79,7 +79,7 @@ OneDrive; a double-click opens it (the installer registers .sab files for you; o
   Then you are in the project's **Grids**: with no table yet, **Open a file…**, **Paste**, **Query**,
   your project's connections (each opens its catalog), **Catalog** and **Add connection**.
 - **Everything is the project's own:** its notebooks, scripts and apps; its connections and blades;
-  its saved Sandbox dashboards. Another project sees none of them. In the Workbench, **In this
+  its saved Visualizations dashboards. Another project sees none of them. In the Workbench, **In this
   project…** lists its documents, and **Import…** copies notebooks, scripts or apps in from another
   project (a .sab or a project folder) or a single file; opening a file from outside the project copies
   it in too. **Import…** in Connections, and **Import from a project** on the blades page, copy a
@@ -123,7 +123,7 @@ Open **Settings** with the cog at the bottom of the rail (or the Workbench's **�
 
 ![The Settings window: the theme, the setup prompt with its copy button.](images/02-preferences.png)
 
-Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, the Sandbox included.
+Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, Visualizations included.
 
 The "Connect an agent" box holds a prompt you can copy into Claude Code or another agent that has a shell. It tells that agent how to add the Swiss Army Bench MCP server.
 
@@ -222,11 +222,11 @@ Select one column, then **Outliers** in the Column row:
 - **Time series:** a date column, a metric and how to total it per period (sum, average, or a count of rows; day, week, month, quarter or year), optionally one line per value of a category. In words: the trend ("went from about 1,076 to 1,976 a month"), the season ("December runs 31% above a typical month"), the periods that stand out (a spike or a dip against their neighbours, with **Show these rows**), where the level stepped and stayed, and how much one period carries into the next. The chart marks each. **Forecast…** carries the same choices over.
 - **Forecast:** how many periods ahead, and optional predictors (their average per period), each with its future: its last value, its own trend, or a value you give. The trend, the season and any step in the level go forward, with an 80% and a 95% range. It first holds back the last periods and forecasts them from the rest, and says how far off it was: the miss it earns, not one it fits. A last period that is not over yet (its rows stop early in it, as a table read in the middle of a month) is left out of both, and the words say so. A forecast is a range: it assumes the past pattern goes on.
 
-Each form has a **Data shape** panel: a made-up table in the shape the analysis needs (long: one row per order, the category and the outcome as columns), one that does not work and why (already counted, wide with one column per month, numbers stored as text), tips, and a check of your grid ("region: 4 values: fine", "this table looks wide"). It can go to the Sandbox too.
+Each form has a **Data shape** panel: a made-up table in the shape the analysis needs (long: one row per order, the category and the outcome as columns), one that does not work and why (already counted, wide with one column per month, numbers stored as text), tips, and a check of your grid ("region: 4 values: fine", "this table looks wide"). It can go to Visualizations too.
 
 The forms never start on an identifier column (one whose name ends in id or key, or where every row holds a different whole number or text): Odds, Fit test, Find predictors, Outliers and Regression start on the first number column that is not one, Time series and Forecast start on the row count, and a regression starts with every column but its target and the identifiers ticked. A column you selected first is used as it is.
 
-Every result has four buttons: **Send to Sandbox** (the result in words, as a note; the window stays open, and the toast's **Show** closes it and goes to the card), **Open as grid** (the result's table as a new grid: the window closes and the new tab is in front), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in the Sandbox; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmybench.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
+Every result has four buttons: **Send to Visualizations** (the result in words, as a note; the window stays open, and the toast's **Show** closes it and goes to the card), **Open as grid** (the result's table as a new grid: the window closes and the new tab is in front), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in Visualizations; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmybench.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
 
 ### Auto width
 
@@ -246,7 +246,7 @@ Double-click a cell that holds a long text or a JSON value, or press Enter or F2
 
 Export in the Table row writes the grid as CSV, text, Excel or Parquet. The file is built from the grid's steps, so it matches what you see. Choose a download or the export folder.
 
-The zoom control in the Application row changes the text and row size of the whole page: the grid, the ribbon and the Sandbox. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
+The zoom control in the Application row changes the text and row size of the whole page: the grid, the ribbon and Visualizations. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
 
 ## Comparing two tables
 
@@ -285,65 +285,65 @@ The Compare row in the ribbon switches the mode.
 - **Anti join** shows only the keys with no match on the other side. Choose both sides, only the left table or only the right table.
 - **Cross compare** keeps each grid on its own rows. Click a row on one side to filter the other side to that key.
 - **Diff** lines the two grids up as Outer join does and keeps only the rows that differ: a changed cell in a column both tables have (names matched ignoring letter case, the keys left out), or a key on one side only. Changed cells are marked on both sides. The Compare row says how many matched rows differ and has a button per changed column with its count ("price 280"): click one to see only the rows where that column changed, and again to go back. **How values compare…** sets a tolerance for numbers (an amount, or a percentage of the left value), whether text ignores spaces at either end (on) and letter case (off), and which columns are compared; a blank equals a blank, and an empty text is a blank. **Every row** goes back to Outer join.
-- **Tie-out…** answers "do these two tables add up the same?". Tick the columns to group by (a shared text column with few values, such as region, starts ticked) and the totals (every shared number column), and how far apart still counts as equal (an amount, or a percentage of the left total). The report has one row per group: rows on each side, each total on each side, the difference and its percentage, and **ties** or **off**. Groups that are off come first, the largest first, and a grand total ends it; a group on one side only is off by its whole total. Columns match by name ignoring letter case, and values meet the way compare keys do (" North" meets "North", 42 meets 42.0). Each side is read as its grid shows it, after its steps. **Click a group** to filter both grids to its rows. **Send to Sandbox** keeps it as a note and a table; **Download CSV** saves it. A grand total that ties can still hide groups whose differences cancel out: the words say so.
+- **Tie-out…** answers "do these two tables add up the same?". Tick the columns to group by (a shared text column with few values, such as region, starts ticked) and the totals (every shared number column), and how far apart still counts as equal (an amount, or a percentage of the left total). The report has one row per group: rows on each side, each total on each side, the difference and its percentage, and **ties** or **off**. Groups that are off come first, the largest first, and a grand total ends it; a group on one side only is off by its whole total. Columns match by name ignoring letter case, and values meet the way compare keys do (" North" meets "North", 42 meets 42.0). Each side is read as its grid shows it, after its steps. **Click a group** to filter both grids to its rows. **Send to Visualizations** keeps it as a note and a table; **Download CSV** saves it. A grand total that ties can still hide groups whose differences cancel out: the words say so.
 - The ribbon's counts (matched, only on one side) follow each grid's steps.
 - In **Diff**, each side shows only its key and the columns that differ, so the changes are in front of you; **Only differing columns** in the Compare row (on to start) switches every column back on. Both halves scroll sideways together and start at the first column that differs; a column's own button takes both halves to it.
 - A compare survives a reload of the page: the two grids come back side by side, in the same mode.
 - **Stop compare** returns to two independent grids. The side-by-side view stays, with no keys.
 
-## The Sandbox
+## Visualizations
 
-The Sandbox (the rail's second icon) is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
+Visualizations (the rail's second icon) is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
 To add a chart, press Add chart. Choose the table, the chart type, the column for the X axis, the aggregate (such as sum) and the column for the Y axis. To add a note, press Add note, give it a title and write its text in Markdown.
 
-![The Sandbox with a bar chart of summed quantity by product and a note with a title and a short list.](images/16-analysis-sandbox.png)
+![Visualizations with a bar chart of summed quantity by product and a note with a title and a short list.](images/16-analysis-sandbox.png)
 
 Clicking a bar in a chart filters the grid to that value. Each card has a pin, a zoom button for a larger view, and a remove button.
 
-### The Sandbox as a report
+### Visualizations as a report
 
 - **Move a card** by dragging its title bar onto another card (the left half puts it before, the right half after), or with Move earlier and Move later in its **⋯** menu.
 - **Notes** are markdown: headings, **tables** (`| Region | Late |` rows under a `|---|---:|` rule; numbers line up right), lists, `code`, and `>` cautions. Double-click a note (or Edit note in its menu) to change it, an analysis's note too: add your own reading of the result.
-- **Page view** shows the Sandbox as **letter** or **letter landscape** pages, edges drawn, cards in their order; a card never splits across pages, and **Start a new page here** (in a card's menu) begins a page with it. Notes grow on paper so no text is cut.
+- **Page view** shows Visualizations as **letter** or **letter landscape** pages, edges drawn, cards in their order; a card never splits across pages, and **Start a new page here** (in a card's menu) begins a page with it. Notes grow on paper so no text is cut.
 - **Print to PDF** prints exactly those pages: choose Save as PDF in the print dialog. A dark theme prints on light paper.
-- **Export markdown** saves the whole Sandbox as one `.md` file: every note as its markdown, tables as markdown tables, every chart and diagram as a picture inside the file. Ready to keep, or to hand to an AI model to help read it.
+- **Export markdown** saves all of Visualizations as one `.md` file: every note as its markdown, tables as markdown tables, every chart and diagram as a picture inside the file. Ready to keep, or to hand to an AI model to help read it.
 
-### The Sandbox's theme
+### Visualizations' theme
 
-The Sandbox can wear a theme of its own, apart from the grid's: pick one from the theme menu in its toolbar. Its cards, charts, Page view, the PDF and the markdown export's pictures all take it; the grid keeps the app's theme. There are twenty: **high contrast light and dark** and **colourblind-safe light and dark** (Okabe and Ito's eight colours) first, then Steel light and dark (the app's own), Paper (made to print), Ink, Arctic, Sand, Meadow, Rose, Mint, Sunrise, Graphite, Midnight, Forest, Slate, Plum and Carbon. **Theme: follow the app** goes back to the app's theme (and prints on light paper as before).
+Visualizations can wear a theme of its own, apart from the grid's: pick one from the theme menu in its toolbar. Its cards, charts, Page view, the PDF and the markdown export's pictures all take it; the grid keeps the app's theme. There are twenty: **high contrast light and dark** and **colourblind-safe light and dark** (Okabe and Ito's eight colours) first, then Steel light and dark (the app's own), Paper (made to print), Ink, Arctic, Sand, Meadow, Rose, Mint, Sunrise, Graphite, Midnight, Forest, Slate, Plum and Carbon. **Theme: follow the app** goes back to the app's theme (and prints on light paper as before).
 
 Every theme is readable: text stands at least 7:1 against its background, quieter text 4.5:1, and chart colours and lines 3:1. **Import theme** takes a theme file of your own (`{"name": "Harbour", "dark": false, "tokens": {"bg": "#f4f8fb", "fg": "#14202b", "accent": "#0b6e99", "cat": ["#0b6e99", "#c2410c"]}}`): colours left out come from the light or dark base, and any colour too faint for its place is darkened (or lightened) just enough. Imported themes are kept until you remove one (**Remove this theme**, beside the picker while an imported theme is chosen; the 20 built-in themes stay); **Export theme** saves the one in use as a file to share or start from. An agent can propose a theme too: it shows marked as proposed, and **Keep this theme** keeps it. A saved dashboard remembers its theme.
 
 ### Saved dashboards
 
-**Dashboards…** in the Sandbox's toolbar saves the Sandbox under a name: every card as it is drawn now, its size and place, a chart's points and a query table's rows included, so the dashboard opens even when its tables are gone. Saving again under the same name adds a version (the last 60 are kept); **History** lists them, newest first, with their cards, and **Open this version** brings one back. Opening replaces the cards on the Sandbox (it asks first). A chart or query whose table is open draws live on it; one whose table isn't shows what it showed when saved ("As saved") and turns live by itself once that table is pushed again. Nothing is saved unless you press Save; dashboards live in your Swiss Army Bench folder (`~/.swissarmybench/dashboards`). An agent can list a dashboard's versions, never save, open or delete one.
+**Dashboards…** in Visualizations' toolbar saves Visualizations under a name: every card as it is drawn now, its size and place, a chart's points and a query table's rows included, so the dashboard opens even when its tables are gone. Saving again under the same name adds a version (the last 60 are kept); **History** lists them, newest first, with their cards, and **Open this version** brings one back. Opening replaces the cards on Visualizations (it asks first). A chart or query whose table is open draws live on it; one whose table isn't shows what it showed when saved ("As saved") and turns live by itself once that table is pushed again. Nothing is saved unless you press Save; dashboards live in your Swiss Army Bench folder (`~/.swissarmybench/dashboards`). An agent can list a dashboard's versions, never save, open or delete one.
 
-### Sending things to the Sandbox
+### Sending things to Visualizations
 
-Anything that shows details can go to the Sandbox, as a readable note and, where there is one, a chart beside it:
+Anything that shows details can go to Visualizations, as a readable note and, where there is one, a chart beside it:
 
-- **Every Analyze result** (odds, fit test, find predictors, outliers, regression): **Send to Sandbox**.
-- **Right-click a cell**: Send value to Sandbox, Send the row to Sandbox (each column and its value), Keep these, Exclude these, View value, Copy.
-- **Right-click a column header**: Profile to Sandbox (its numbers, most common values and a histogram), Distinct values to Sandbox, Profile, and the Analyze entries for that column.
-- **Send to Sandbox** also sits on the column profile, the whole-table profile, the value viewer and the Key Finder.
+- **Every Analyze result** (odds, fit test, find predictors, outliers, regression): **Send to Visualizations**.
+- **Right-click a cell**: Send value to Visualizations, Send the row to Visualizations (each column and its value), Keep these, Exclude these, View value, Copy.
+- **Right-click a column header**: Profile to Visualizations (its numbers, most common values and a histogram), Distinct values to Visualizations, Profile, and the Analyze entries for that column.
+- **Send to Visualizations** also sits on the column profile, the whole-table profile, the value viewer and the Key Finder.
 
-### From Python: sab.sandbox
+### From Python: sab.visualizations
 
-`sab.sandbox(thing, "Title")` puts anything visual from your own Python in the Sandbox:
+`sab.visualizations(thing, "Title")` puts anything visual from your own Python in Visualizations:
 
 ```python
-sab.sandbox(fig)  # matplotlib or seaborn: a picture
-sab.sandbox(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
-sab.sandbox(chart)  # Altair: drawn as Vega-Lite
-sab.sandbox(dot)  # a graphviz Digraph
-sab.sandbox(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
-sab.sandbox("## Findings\n- North leads")  # Markdown: a note
-sab.sandbox("chart.png")  # a file: a picture, .md, .mmd, .dot
-sab.sandbox(text, kind="mermaid")  # Mermaid, DOT or ECharts text
-sab.sandbox(fig, key="monthly", size=(8, 10))
+sab.visualizations(fig)  # matplotlib or seaborn: a picture
+sab.visualizations(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
+sab.visualizations(chart)  # Altair: drawn as Vega-Lite
+sab.visualizations(dot)  # a graphviz Digraph
+sab.visualizations(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
+sab.visualizations("## Findings\n- North leads")  # Markdown: a note
+sab.visualizations("chart.png")  # a file: a picture, .md, .mmd, .dot
+sab.visualizations(text, kind="mermaid")  # Mermaid, DOT or ECharts text
+sab.visualizations(fig, key="monthly", size=(8, 10))
 ```
 
 `key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing.
@@ -375,13 +375,13 @@ The list at the top shows every tang found, searchable by name, description, tag
 
 Tangs also come in packs (see Blades and the catalog): an installed pack's tangs are listed marked **Pack**, and **Add to pack** shares yours through the team's repository.
 
-Draw ERD adds a copy of the diagram to the Sandbox; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the tang uses. An agent can find, run and explain joins for you; saving and sharing tangs is yours.
+Draw ERD adds a copy of the diagram to Visualizations; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the tang uses. An agent can find, run and explain joins for you; saving and sharing tangs is yours.
 
 ## The ERD tab
 
-The Diagram (on the rail, after the Sandbox) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
+The ERD (on the rail, after Visualizations) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
 
-![The Diagram tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)
+![The ERD tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)
 
 With no relationships for the open tables it says so and offers these ways in:
 
@@ -420,8 +420,8 @@ their own, run in an IPython kernel on this computer.
 - **The status bar** is for the document in front: its kernel (click for Interrupt and Restart; it
   says its state only while it is not ready), its environment, the cursor, and **Console** and
   **Variables**, which open the console under the groups and Variables on the right. Both start
-  closed; running a script opens the console. A picture or chart a run draws has **Send to Sandbox**:
-  the Sandbox is where they gather. Splitters can be dragged, or focused and moved with the arrow keys.
+  closed; running a script opens the console. A picture or chart a run draws has **Send to Visualizations**:
+  Visualizations is where they gather. Splitters can be dragged, or focused and moved with the arrow keys.
 - **Running a script:** F5 runs the file as Python would (`__name__ == "__main__"`, `sys.argv`,
   multiprocessing), saving it first. Ctrl+Enter (or Shift+Enter, F9) runs the whole statement at the
   cursor, a `for` block or a function, then moves to the next one. Run to here and Run from here are in
@@ -485,7 +485,7 @@ Click a card for its **detail**:
   - **Test connection** signs in and lists the workspace's datasets: "It works: signed in and found 3 datasets."
   - Its catalog shows the workspace's datasets, and under each one its tables, with their columns and, marked **measure**, their measures. Datasets are read one after another: the first 25, for at most 200 seconds. A dataset that could not be read has a circled **!** on it (point at it, or click the dataset, for the reason); the others are not affected.
   - **Open as grid** opens a table's first rows (Rows to open) from its own dataset and says how many the table holds; **Copy the EVALUATE** gives the DAX. The grid is named after the table. When two datasets have a table of the same name, the grid is named after the dataset too: `Sales_model_Date`.
-  - **Import its relationships** is on a dataset: on its page (click the dataset in the catalog), in its right-click menu, and offered in the message when one of its tables opens. It brings that dataset's own relationships into the Diagram and the Key Finder's known joins. An inactive relationship stays inactive (a dashed line).
+  - **Import its relationships** is on a dataset: on its page (click the dataset in the catalog), in its right-click menu, and offered in the message when one of its tables opens. It brings that dataset's own relationships into the ERD and the Key Finder's known joins. An inactive relationship stays inactive (a dashed line).
   - **DAX goes in a DAX cell** (the Workbench, below): `EVALUATE TOPN(10, 'Sales')` on the dataset picked in the cell's head. In Python: `sab.dax("Finance/Sales model", "EVALUATE ...")`. A dataset is named after its connection: the connection, a slash, the dataset.
   - In Python the connection is the workspace: `conn = sab.connection("Finance")`, then `conn.datasets()` (each dataset's name and id) and `conn.dataset("Sales model").cursor()` (one dataset, used as a database's cursor is; a dataset is found by its name or its id).
   - A connection saved before this, for one dataset, still works: it shows as one dataset called **Model**, and a DAX cell names the connection alone.
@@ -579,7 +579,7 @@ columns appear as `table#1`, `col#3`.
 
 - **A blade** is any Python that reaches outside Python to load something: a database connection, a CSV file, an Excel workbook, an API, a vault. Press **New blade**, pick a template (21 databases, 5 file patterns, 8 vaults) or paste your own code, and save it (or copy one of the **Starters**, below). Then in any Python: `conn = sab.blade("Warehouse")`.
 - **Passwords** go in the code as `secret("password")`. Type the value on the save screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
-- **Analysis blades** are your own analyses. Pick **Analysis** as the kind (or a starter: a summary of every column, a Pareto of the selected column, correlations): the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Sandbox**.
+- **Analysis blades** are your own analyses. Pick **Analysis** as the kind (or a starter: a summary of every column, a Pareto of the selected column, correlations): the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Visualizations**.
 - **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable. **Secret blades** keep only variable names: you type the values once per session.
 - **Packages:** the save screen lists the packages the code needs. **Install** adds missing ones to the grid server's Python; the copy button gives the command for your own Python.
 - **The catalog:** tick **Add to the catalog** and give a query that lists the source's columns (the starters have one). **Save and refresh the catalog** on the save screen loads it, and **Refresh** (the play button beside the catalog picker) loads it again: every schema, table and column with its type, as a tree you can search (`sales.orders` finds schema and table). Click a table for its columns and a first SELECT. Drag a blade into a script or a cell for its `sab.blade` line (on a line of its own, after the line you drop it on), or a table or column for its quoted name (where you drop it). **Open as grid** names the grid after the table, or after the connection and the table (`Warehouse_customers`) when a table of that name is already open from somewhere else.

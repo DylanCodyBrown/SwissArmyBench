@@ -142,7 +142,7 @@ export function openColumnProfile(column: string): void {
   const slot = h("div");
   body.append(h("div", { class: "code-toolbar", style: { marginBottom: "10px" } }, picker), slot);
   foot.append(
-    button("Send to Sandbox", () => void profileToSandbox(picker.value), { icon: "image" }),
+    button("Send to Visualizations", () => void profileToSandbox(picker.value), { icon: "image" }),
     button("Close", close, { class: "primary" }),
   );
   const show = async (name: string): Promise<void> => {
@@ -153,7 +153,7 @@ export function openColumnProfile(column: string): void {
   void show(column);
 }
 
-/** A column's profile in the Sandbox: its numbers and most common values, and its histogram. */
+/** A column's profile in Visualizations: its numbers and most common values, and its histogram. */
 export async function profileToSandbox(column: string): Promise<void> {
   try {
     const p = await api<Profile>(`${grid}/profile${query({ column, upto: state.previewUpto })}`);
@@ -206,7 +206,7 @@ export async function openTableProfile(): Promise<void> {
     clear(body, h("p", { class: "status-error" }, (e as Error).message));
   }
   foot.append(
-    button("Send to Sandbox", () => void (profiled ? sendCards(tableProfileCards(profiled, state.info?.dataset ?? "")) : undefined), { icon: "image" }),
+    button("Send to Visualizations", () => void (profiled ? sendCards(tableProfileCards(profiled, state.info?.dataset ?? "")) : undefined), { icon: "image" }),
     button(
       "Export profile (CSV)",
       () =>

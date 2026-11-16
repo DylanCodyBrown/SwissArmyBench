@@ -98,7 +98,7 @@ async function render(): Promise<void> {
       h(
         "div",
         { class: "erd-empty" },
-        h("h1", { class: "sandbox-title" }, "Relationship diagram"),
+        h("h1", { class: "sandbox-title" }, "ERD"),
         h("strong", {}, "No relationships yet."),
         button("Find relationships", () => openRelationships(true), { icon: "zoom", class: "primary" }),
         actions,
@@ -110,7 +110,7 @@ async function render(): Promise<void> {
   const slot = h("div", { class: "diagram erd-diagram", role: "img", "aria-label": `Relationships of ${covered.join(", ")}` });
   clear(
     host,
-    h("h1", { class: "sandbox-title" }, "Relationship diagram"),
+    h("h1", { class: "sandbox-title" }, "ERD"),
     actions,
     // ===== DIAGRAM =====
     slot,

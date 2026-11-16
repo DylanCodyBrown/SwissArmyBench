@@ -7,7 +7,7 @@
  * list the next time this window opens.
  *
  *   TANGS     every tang found (the person's own and the shared ones): search, apply, run; Import
- *             relationships (one name everywhere, the Diagram tab too: a .tang, reviewed first for
+ *             relationships (one name everywhere, the ERD tab too: a .tang, reviewed first for
  *             what it would change, or a model as JSON), export the current joins, save them as a
  *             tang (into the person's own tangs or a shared folder)
  *   FIND      the relationship finder: how the open tables join, worked out from the data, each
@@ -19,7 +19,7 @@
  *          [EXPORT]              -> GET /relationships/tang (a .tang download)
  *          [SAVE AS TANG]        -> POST /relationships/tangs
  *          [FIND]                -> POST /relationships/find; [ACCEPT] -> POST /relationships; [REJECT] -> /reject
- *          [DRAW ERD]            -> a diagram card in the Sandbox
+ *          [DRAW ERD]            -> a diagram card in Visualizations
  */
 import { api, download, grid } from "./api";
 import { append, button, clear, h, icon, openDialog, toast } from "./dom";
@@ -84,7 +84,7 @@ function when(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Import relationships (one name, wherever it is offered: this window's footer and the Diagram
+/** Import relationships (one name, wherever it is offered: this window's footer and the ERD
  * tab). The file is a tang (a .tang: reviewed first, what it would change, then applied, kept or
  * shared) or a relationship model as JSON (applied as it is). `after`: once something was applied. */
 export async function importRelationships(picked: File, after: () => Promise<void> = async () => {}): Promise<void> {
@@ -161,7 +161,7 @@ export function openRelationships(startFinding = false): void {
     button("Import relationships", () => file.click(), { icon: "import", title: "A .tang file (reviewed before it is applied) or a model as JSON" }),
     button("Export", () => void exportTang(), { icon: "export", title: "Download as .tang" }),
     button("Save as tang", () => saveDialog(), { icon: "save" }),
-    button("Draw diagram", () => void drawErd(close), { icon: "link", title: "To the Sandbox" }),
+    button("Draw diagram", () => void drawErd(close), { icon: "link", title: "To Visualizations" }),
     button("Close", close, { class: "primary" }),
   );
 
@@ -466,7 +466,7 @@ async function drawErd(close: () => void): Promise<void> {
     await api(`${grid}/cards`, "POST", { kind: "diagram", title: "Relationships", body: erd.mermaid });
     close();
     showAgentView();
-    toast("Diagram sent to the Sandbox.");
+    toast("Diagram sent to Visualizations.");
   } catch (e) {
     toast((e as Error).message, "error");
   }

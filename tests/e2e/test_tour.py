@@ -12,7 +12,7 @@ from playwright.sync_api import Browser, expect
 from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 
-STOPS = 20  # tour.ts STOPS: the welcome card and nineteen words
+STOPS = 21  # tour.ts STOPS: the welcome card and twenty words (ERD joined, 2026-11-16)
 
 
 def test_the_tour_lights_up_each_word_and_ends_with_a_game(browser: Browser, server: dict[str, Any]) -> None:

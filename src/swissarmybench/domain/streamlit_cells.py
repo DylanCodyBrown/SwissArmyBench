@@ -62,7 +62,7 @@ MAX_APP_CHARS: int = 2_000_000
 _ANY_MARKER = re.compile(r"^# ?%%")
 
 COLUMNS: int = 12
-ROW_HEIGHT: int = 40  # pixels a unit of a block's height stands for (the Sandbox board's row)
+ROW_HEIGHT: int = 40  # pixels a unit of a block's height stands for (Visualizations board's row)
 DEFAULT_WIDTH: int = 6
 MIN_WIDTH: int = 2
 MAX_HEIGHT: int = 30

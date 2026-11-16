@@ -221,7 +221,7 @@ class Dashboards(Protocol):
 
 
 class ThemeShelf(Protocol):
-    """The user's imported Sandbox themes, one file each (as themes.read_theme reads them)."""
+    """The user's imported Visualizations themes, one file each (as themes.read_theme reads them)."""
 
     def all(self) -> list[dict[str, Any]]: ...
 

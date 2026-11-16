@@ -41,7 +41,7 @@ build the client wheel and a plain Python with `uv` (pandas, psycopg, nbconvert,
 | 6 | the daily CSV folder (Files combine CSVs), both workbook sheets and MariaDB's customers; the joins found | 35 |
 | 7 | the Power BI workspace added (its app registration from the vault); a dataset's relationships and 5 tables read in | 26 |
 | 8 | Power BI's Invoices tied out against PostgreSQL's: the regions of the day the refresh missed are off | 10 |
-| 9 | a forecast of invoiced amounts sent to the Sandbox, Page view, Print to PDF | 14 |
+| 9 | a forecast of invoiced amounts sent to Visualizations, Page view, Print to PDF | 14 |
 | 10 | a story notebook: figures, a Markdown cell with live values, a table and a Mermaid diagram, an HTML cell | 20 |
 | 11 | a project: data.ipynb from PostgreSQL, a pages notebook, three Streamlit starters on a canvas, Play, a zip; the zip's page run by AppTest elsewhere | 40 |
 

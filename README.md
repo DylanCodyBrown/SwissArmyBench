@@ -88,8 +88,8 @@ What a grid page does:
   how often each value shows up, and with an outcome, each value's odds of it against the rest ("West:
   late 46% of the time, against 15% elsewhere: 4.85 times the odds"). **Find predictors**: every column
   tested against a target by chi-square, ranked by strength, with the pairs that say the same thing.
-  **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof in the Sandbox:
-  each formula with the result's own numbers, worked to the values shown. Every result can go to the Sandbox, open as a grid, or go to
+  **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof in Visualizations:
+  each formula with the result's own numbers, worked to the values shown. Every result can go to Visualizations, open as a grid, or go to
   the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
   logistic (odds ratios), effects in words with ranges, what-if predictions, predicted and miss columns,
   and Check the misses (outliers of what the model cannot explain). Each form has a **Data shape**
@@ -98,11 +98,11 @@ What a grid page does:
   runs 31% above a typical month"), the periods that stand out (Show these rows), steps in the level and
   how much one period predicts the next. **Forecast**: trend, season and steps carried forward with 80%
   and 95% ranges, predictors each with their own future, and the miss it earns on held-back periods.
-- **The Sandbox as a report:** results arrive as a readable note (with real tables) and a chart side by
+- **Visualizations as a report:** results arrive as a readable note (with real tables) and a chart side by
   side; drag cards to arrange them, edit any note, see it as letter or landscape pages, **Print to PDF**,
   or **Export markdown** (one file, charts embedded as pictures, ready for an AI model). Right-click a
   cell or a header to send a value, a row, a profile or distinct values; every details window has
-  Send to Sandbox.
+  Send to Visualizations.
 - **Fit test and outliers:** select columns and ask whether their values spread as expected (chi-square
   against even shares, Benford's law on the first one or two digits, another grid's spread, or two
   columns together), with the verdict in words and an effect size; or find the outliers in a column, by
@@ -121,7 +121,7 @@ What a grid page does:
   sides ticked, and compare keeps both grids aligned row by row (outer, anti, cross, or diff: only
   the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
   lists every table: open, closed (each with Open) and in your Python sessions.
-- **The Sandbox** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
+- **Visualizations** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
   result tables, Mermaid and Graphviz diagrams, Plotly and ECharts figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
   wheel zoom, and clicking a bar filters the grid. The page loads nothing from the internet: figures
@@ -145,7 +145,7 @@ What a grid page does:
 - **Jupyter and Python in the terminal** are where code goes: drag a blade, table or column from the
   blades page into a cell or an editor for its line, query or name.
 - **Themes:** light, dark, high contrast light and high contrast dark, following the system by
-  default; Windows forced colors are supported. One zoom for the whole page, the Sandbox
+  default; Windows forced colors are supported. One zoom for the whole page, Visualizations
   included: Ctrl+= and Ctrl+-.
 
 The design is [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md); what has
@@ -178,7 +178,7 @@ The old names still work for this release, and go in the next one:
   existing `~/SwissArmyGrid` Workbench folder stays your folder while there is no `~/SwissArmyBench`.
 - `SWISSARMYBENCH_*` variables are read first, then the old `SWISSARMYGRID_*` ones.
 - Passwords saved in the system keyring under the old name are found, and copied to the new name on their
-  first read. The page's remembered settings (theme, zoom, the Sandbox's card sizes) are read from their
+  first read. The page's remembered settings (theme, zoom, Visualizations' card sizes) are read from their
   old keys when the new ones are empty.
 
 The installers remove the old `swissarmygrid` uv tool before installing the new one, which brings the old
@@ -295,7 +295,7 @@ from its tray or with `swissarmybench open`.
 ## Projects: one .sab file
 
 A project is one file, `name.sab` (a zip inside): its notebooks, scripts and app canvases, the open tables
-with where each came from and its steps, the Sandbox, the relationships and the windows' layout. Open
+with where each came from and its steps, Visualizations, the relationships and the windows' layout. Open
 it on any computer: each table is read again from its source (a connection by name, never a password;
 a file beside the .sab first), and one that cannot come back offers its fix (Add connection, Find
 orders.csv). A pasted or pushed table's rows go in only when you tick **Keep its rows in the file**.
@@ -408,7 +408,7 @@ marker.
 
 **Import its relationships** (on a dataset in the catalog: its page and its right-click; and offered
 when one of its tables opens) reads that dataset's own relationships into the current model, so the
-Diagram and the Key Finder's known joins show them: an inactive one stays inactive and is drawn
+ERD and the Key Finder's known joins show them: an inactive one stays inactive and is drawn
 dashed. Power BI gives at most 100,000 rows or 1,000,000
 values (rows times columns) for one query; an answer that reaches that is refused with a message, never
 passed off as whole. The tenant must allow the Execute Queries request (the admin setting **Dataset
@@ -512,12 +512,12 @@ sab.blades(search="orders-function-app")  # by name, description or tag
 sab.blades(tag="sales")
 ```
 
-The Sandbox can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
+Visualizations can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
-`sab.sandbox(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
-figure, a picture, a DataFrame's first rows, Markdown text or a file in the Sandbox; the same `key`
+`sab.visualizations(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
+figure, a picture, a DataFrame's first rows, Markdown text or a file in Visualizations; the same `key`
 replaces the card in place when the cell runs again.
 
 - **Kinds:** SQL connection (with its dialect), other (any code), vault (Azure Key Vault, AWS,
@@ -525,7 +525,7 @@ replaces the card in place when the cell runs again.
   environment variable), secret (variable names only; the values are typed each session) and
   **analysis**: your own analysis, `def analyze(df, columns): ...` over the grid's rows as a pandas
   DataFrame, returning markdown, a table or a figure. It shows under **Your analyses** in the Analyze
-  menu, runs in a child process like Refresh, and its result can go to the Sandbox. Three starters.
+  menu, runs in a child process like Refresh, and its result can go to Visualizations. Three starters.
 - **Secrets:** `secret("password")` in a blade's code. Its value is kept in the operating system's
   vault (Windows Credential Manager, macOS Keychain), never in the blade's file; an environment
   variable of the same name works too.
@@ -674,7 +674,7 @@ It asks the running server and never starts one (`SWISSARMYBENCH_COMPLETE=0` tur
 ## The agent commands: `sab` and the MCP server
 
 **The golden rule: everything you can do, the agent can do too** (215 commands, each an MCP tool):
-grids and steps, analyses, the Sandbox and dashboards, connections and blades (made, changed, tested,
+grids and steps, analyses, Visualizations and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
 with two exceptions: its exports still wait for your Allow (and it cannot answer an approval), and no
@@ -685,7 +685,7 @@ Every action the page has is a named command in one registry (`swissarmybench/cl
 them. A command is named for the part of the app it works on, then the action, so a flat list sorts
 into the app's layout: `tabs_new_query` (the + tab), `table_filter` and `table_group_by` (the ribbon's
 Table row), `column_keep` and `column_bucket` (the Column row), `cell_exclude` (a cell's right-click menu),
-`steps_add` and `steps_apply_sql` (Table Transformations), `compare_create`, `sandbox_add`,
+`steps_add` and `steps_apply_sql` (Table Transformations), `compare_create`, `visualizations_add`,
 `relationships_set`, `erd_draw`, and `agent_context` / `agent_events` for what only an agent has. The
 registry is ordered the same way, and `commands` returns the catalog grouped by area. Two front ends
 run it:

@@ -1,6 +1,6 @@
 # ruff: noqa: F811
-"""Saved dashboards on the page: save the Sandbox, change it, save a second version, open the first from
-History (it replaces the Sandbox, after asking), and a chart that reopens live on its open table."""
+"""Saved dashboards on the page: save Visualizations, change it, save a second version, open the first from
+History (it replaces Visualizations, after asking), and a chart that reopens live on its open table."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 import pyarrow as pa
 from playwright.sync_api import Browser, expect
 
-from swissarmybench.client import push_client, sandbox_client
+from swissarmybench.client import push_client, visualizations_client
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 
 
@@ -20,8 +20,10 @@ def test_save_change_and_open_an_earlier_version(browser: Browser, server: dict[
     page.on("dialog", lambda dialog: dialog.accept())
     toast = page.locator(".toast").last
     try:
-        sandbox_client.sandbox("## First reading\n\nNorth leads.", "First reading", key="dash-reading")
-        page.locator(".nav-rail [data-area='sandbox']").click()
+        visualizations_client.visualizations(
+            "## First reading\n\nNorth leads.", "First reading", key="dash-reading"
+        )
+        page.locator(".nav-rail [data-area='visualizations']").click()
         panel = page.locator("#ai-panel")
         expect(panel.locator(".card-header h3", has_text="First reading")).to_be_visible(timeout=20000)
 
@@ -36,7 +38,9 @@ def test_save_change_and_open_an_earlier_version(browser: Browser, server: dict[
         expect(window.locator(".dashboard-row", has_text="dash_weekly")).to_contain_text("1 card")
         window.get_by_role("button", name="Close").last.click()
 
-        sandbox_client.sandbox("## Second reading\n\nSouth caught up.", "Second reading", key="dash-reading")
+        visualizations_client.visualizations(
+            "## Second reading\n\nSouth caught up.", "Second reading", key="dash-reading"
+        )
         expect(panel.locator(".card-header h3", has_text="Second reading")).to_be_visible(timeout=20000)
         window = dashboards()
         window.get_by_label("Dashboard name").fill("dash_weekly")

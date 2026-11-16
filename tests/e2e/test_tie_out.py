@@ -1,6 +1,6 @@
 # ruff: noqa: F811
 """The tie-out report on a compare: made-up books on both sides, the report in a window (off groups
-first), a click on a group filters both grids to it, and the report goes to the Sandbox."""
+first), a click on a group filters both grids to it, and the report goes to Visualizations."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def test_the_tie_out_report_and_a_click_on_a_group(browser: Browser, server: dic
         expect(window.locator("tbody .tie-row", has_text="North").locator(".badge")).to_have_text("ties")
         expect(window.locator("tfoot")).to_contain_text("Total")
 
-        window.get_by_role("button", name="Send to Sandbox").click()
+        window.get_by_role("button", name="Send to Visualizations").click()
         expect(page.locator(".toast").last).to_contain_text("a note and the table")
         first.click()
         expect(page.locator(".toast").last).to_contain_text("Both grids show East")

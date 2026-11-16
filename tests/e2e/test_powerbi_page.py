@@ -3,7 +3,7 @@
 no real tenant, made-up data). The connection is per workspace (the owner, 2026-11-15): its form asks
 for the workspace and the sign-in, never a dataset; the catalog shows the workspace's datasets, each
 with its tables (one that cannot be read is marked on itself); a table of the second dataset opens as a
-grid; one dataset's relationships are imported and drawn in the Diagram; and a DAX cell in the
+grid; one dataset's relationships are imported and drawn in the ERD; and a DAX cell in the
 Workbench picks a dataset, completes DAX and the dataset's names, and runs."""
 
 from __future__ import annotations
@@ -175,8 +175,8 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     expect(pane.locator(".ag-row[row-index='0'] [col-id='Month']")).to_have_text("2026-02-01")
     expect(pane.locator(".ag-row[row-index='0'] [col-id='Planned']")).to_have_text("1250")
 
-    # The Diagram draws that one dataset's joins, its Date under the name its grid has.
-    page.locator(".nav-rail [data-area='diagram']").click()
+    # The ERD draws that one dataset's joins, its Date under the name its grid has.
+    page.locator(".nav-rail [data-area='erd']").click()
     erd = page.locator("#erd-view")
     expect(erd.locator(".erd-diagram svg")).to_be_visible(timeout=60000)
     drawn = erd.locator(".erd-diagram svg")

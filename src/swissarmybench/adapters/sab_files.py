@@ -151,7 +151,7 @@ class SabArchive:
 
     def unpack(self, path: str, special: set[str], name: str) -> tuple[str, str, dict[str, str]]:
         """Every entry into a working folder of its own: the project's files into its `work` folder, the
-        special ones (the Sandbox, the model, rows) beside it. The root (removed on close), the working
+        special ones (Visualizations, the model, rows) beside it. The root (removed on close), the working
         folder, and each special entry's file."""
         root, folder = self.new_folder(name)
         meta = Path(root) / ".meta"  # (a project's own folder name never starts with a dot)

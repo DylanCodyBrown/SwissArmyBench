@@ -19,7 +19,10 @@ HOST = {"Host": f"127.0.0.1:{PORT}"}
 def test_each_window_names_the_places_it_has() -> None:
     assert rules.place(None, "home") == {"window": "home", "to": "home"}
     assert rules.place("home", "back") == {"window": "home", "to": "back"}
-    assert rules.place("home", " sandbox ") == {"window": "home", "to": "sandbox"}
+    assert rules.place("home", " visualizations ") == {"window": "home", "to": "visualizations"}
+    # The old names, one release (2026-11-16: the Sandbox is Visualizations, the Diagram the ERD).
+    assert rules.place("home", " sandbox ") == {"window": "home", "to": "visualizations"}
+    assert rules.place("catalog", "diagram") == {"window": "catalog", "to": "erd"}
     assert rules.place("home", "grid:g1") == {"window": "home", "to": "grid", "grid": "g1"}
     assert rules.place("home", "add_api") == {"window": "home", "to": "add_api"}
     assert rules.place("catalog", "catalog") == {"window": "catalog", "to": "catalog"}
@@ -55,8 +58,8 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     """The rail (2026-11-16): each area, in the rail's order, from each window, as a rail click goes."""
     assert rules.AREAS == (
         "grids",
-        "sandbox",
-        "diagram",
+        "visualizations",
+        "erd",
         "notebooks",
         "scripts",
         "apps",
@@ -77,7 +80,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
             assert rules.place(window, code, False) == {"window": window, "to": code}
     assert rules.said(rules.place("home", "apps", True)) == "home window to apps, in a new window"
     with pytest.raises(rules.NavigationError, match="Only notebooks, scripts, apps open in a new window"):
-        rules.place("home", "sandbox", True)
+        rules.place("home", "visualizations", True)
     with pytest.raises(rules.NavigationError, match="new_window is true or false"):
         rules.place("home", "apps", "yes")
 
@@ -86,7 +89,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     ("window", "to", "words"),
     [
         ("tray", "home", "window is one of home, catalog, workbench"),
-        ("home", "", "to is where to go: home, grids, sandbox"),
+        ("home", "", "to is where to go: home, grids, visualizations, erd"),
         ("home", None, "to is where to go"),
         ("home", "kitchen", "The home window cannot go to 'kitchen'. It can go to: home, grids"),
         ("workbench", "query", "The workbench window cannot go to 'query'"),

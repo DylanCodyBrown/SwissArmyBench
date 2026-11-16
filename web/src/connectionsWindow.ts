@@ -402,7 +402,7 @@ async function openConnection(name: string): Promise<void> {
 }
 
 /** One Power BI dataset's own relationships (`dataset`: the one of the workspace `connection`),
- * merged into the current model (the Diagram and the Key Finder's known joins then show them). It is
+ * merged into the current model (the ERD and the Key Finder's known joins then show them). It is
  * offered on a dataset in the catalog (its right-click menu and its page) and when one of its tables
  * opens as a grid. */
 export async function importRelationships(connection: string, dataset = ""): Promise<void> {

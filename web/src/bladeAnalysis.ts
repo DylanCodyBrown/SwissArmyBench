@@ -1,7 +1,7 @@
 /**
  * bladeAnalysis.ts: your own analyses (analysis blades) in the Analyze menu. The server runs the blade
  * on the grid's rows as it shows them, in a child process (POST /grids/{id}/blade-analysis), and sends
- * back Sandbox cards: notes, tables, pictures, figures. Here they show in a window, with Send to Sandbox.
+ * back Visualizations cards: notes, tables, pictures, figures. Here they show in a window, with Send to Visualizations.
  */
 import { ApiError, api, grid, token } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
@@ -80,7 +80,7 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
       clear(results, ...answer.cards.map(drawCard));
       clear(
         actions,
-        button("Send to Sandbox", () => {
+        button("Send to Visualizations", () => {
           void (async () => {
             let first: unknown;
             for (const [i, card] of answer.cards.entries()) {
@@ -88,7 +88,7 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
               first ??= made; // each card sent (??= alone skipped every card after the first)
             }
             return first;
-          })().then((first) => sentToast(`In the Sandbox: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`, first), (e: Error) => toast(e.message, "error"));
+          })().then((first) => sentToast(`In Visualizations: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`, first), (e: Error) => toast(e.message, "error"));
         }, { icon: "image" }),
         button("Run again", () => void run(), { icon: "play" }),
         button("Edit on the blades page", openBladesPage, { icon: "edit", class: "ghost" }),

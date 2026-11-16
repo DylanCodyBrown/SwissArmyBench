@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""Show the math in the browser: a fit test's and an odds result's proofs land in the Sandbox as notes
+"""Show the math in the browser: a fit test's and an odds result's proofs land in Visualizations as notes
 with their working (a table, the sums, the formulas), and the what-if's estimate is proven term by term."""
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def test_show_the_math_puts_each_proof_in_the_sandbox(browser: Browser, server: 
         expect(toast).to_contain_text("the math, step by step")
         dialog.get_by_role("button", name="Close").last.click()
 
-        page.locator(".nav-rail [data-area='sandbox']").click()
+        page.locator(".nav-rail [data-area='visualizations']").click()
         panel = page.locator("#ai-panel")
         odds = panel.locator(".card", has_text="The math: Odds on math_orders")
         expect(odds.locator("table").first).to_be_visible(timeout=20000)

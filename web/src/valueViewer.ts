@@ -79,7 +79,7 @@ export function openValueViewer(title: string, value: unknown): void {
   };
 
   foot.append(
-    button("Send to Sandbox", () => void sendCards(valueCards(current().value, layers.map((l) => l.label).join(" › "), state.info?.dataset ?? "")), { icon: "image" }),
+    button("Send to Visualizations", () => void sendCards(valueCards(current().value, layers.map((l) => l.label).join(" › "), state.info?.dataset ?? "")), { icon: "image" }),
     button("Copy", () => {
       const v = current().value;
       const text = typeof v === "string" ? v : JSON.stringify(v, null, 2);

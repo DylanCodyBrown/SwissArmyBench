@@ -13,15 +13,15 @@
  */
 import embed, { type Result } from "vega-embed";
 
-// The element a chart draws in: its colours come from there, so a chart in the Sandbox takes the
-// Sandbox's theme (set on its element) and one anywhere else the app's. Set at the start of each draw.
+// The element a chart draws in: its colours come from there, so a chart in Visualizations takes the
+// Visualizations' theme (set on its element) and one anywhere else the app's. Set at the start of each draw.
 let source: Element = document.documentElement;
 
 function token(name: string): string {
   return getComputedStyle(source).getPropertyValue(name).trim() || "#888888";
 }
 
-/** The theme the chart draws in: the Sandbox's (its id) when it has one, else "app". */
+/** The theme the chart draws in: Visualizations' (its id) when it has one, else "app". */
 function themeKey(): string {
   return (source.closest("[data-sandbox-theme]") as HTMLElement | null)?.dataset.sandboxTheme ?? "app";
 }
@@ -57,7 +57,7 @@ export function patternDefs(): string {
 }
 
 export function installPatterns(): void {
-  // One set of pattern fills per theme in use (the app's, and the Sandbox's own when it differs).
+  // One set of pattern fills per theme in use (the app's, and Visualizations' own when it differs).
   const id = `sab-patterns-${themeKey()}`;
   let host = document.getElementById(id);
   if (!host) {

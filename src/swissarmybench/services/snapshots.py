@@ -21,7 +21,9 @@ import secrets
 from swissarmybench.services.workspace import Conflict, Workspace
 
 # The page areas an agent may ask for: what the page's own elements are called.
-AREAS: tuple[str, ...] = ("app", "ribbon", "grid", "steps", "sandbox")
+AREAS: tuple[str, ...] = ("app", "ribbon", "grid", "steps", "visualizations")
+# The old name, one release (the Sandbox is Visualizations, the owner, 2026-11-16).
+OLD_AREAS: dict[str, str] = {"sandbox": "visualizations"}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 Answer = asyncio.Future[tuple[bytes, dict[str, str]]]
@@ -44,6 +46,7 @@ class Snapshots:
         """Ask the open page to draw `area` and wait for its PNG: the bytes, and its width and height."""
         ws = self.ws
         timeout = ws.settings.snapshot_timeout_seconds
+        area = OLD_AREAS.get(area, area) if isinstance(area, str) else area
         if area not in AREAS:
             raise ValueError(f"area must be one of {', '.join(AREAS)}.")
         if scale not in (1, 2) or isinstance(scale, bool):

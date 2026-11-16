@@ -1,4 +1,4 @@
-# Analyze and the Sandbox
+# Analyze and Visualizations
 
 ## The Analyze menu (each on a grid's view, after its steps)
 - `analyze_defaults` first: which columns are identifiers (never a measure) and the first number.
@@ -22,16 +22,19 @@
 - Say what you found in words: what goes together, not what causes what. An outlier is a question,
   not proof. Leave decisions to the user.
 
-## The Sandbox (the first tab: one dashboard of cards for every table)
-- `sandbox_formats` lists every card kind with an example: read it before drawing.
-- `sandbox_add(kind, ...)`: `chart` (a spec on a grid; the server aggregates), `note` (markdown),
+## Visualizations (the rail's second area: one dashboard of cards for every table)
+- Called the Sandbox until 2026-11-16: a `sandbox_*` name still runs its `visualizations_*` tool for one
+  release (not listed), `sab.sandbox` is `sab.visualizations` with a warning.
+- `visualizations_formats` lists every card kind with an example: read it before drawing.
+- `visualizations_add(kind, ...)`: `chart` (a spec on a grid; the server aggregates), `note` (markdown),
   `table` (sql over a grid, or rows of its own), `diagram` (Mermaid), `graphviz`, `plotly`, `echarts`,
   `image`, or a saved `file`. A plotly or echarts card with `grid` and `sql` follows the grid's steps.
   `key` names a card: the same key replaces it in place. `size` is {"w": 2-12, "h": 3-30}.
-- `sandbox_update`, `sandbox_delete`, `sandbox_list`, `sandbox_all`, `sandbox_select` (a click on a
-  chart's mark: adds the filter step), `sandbox_code` (a chart's Altair Python).
-- `sandbox_dashboards` lists saved dashboards and their versions; `sandbox_dashboard` saves, opens or
-  deletes one.
-- `sandbox_theme` lists, sets or proposes a theme (kept only if the user keeps it);
-  `sandbox_theme_remove` removes an imported one. The grid keeps its own theme.
-- A short note card on what you changed and why: the user reads the Sandbox, not your transcript.
+- `visualizations_update`, `visualizations_delete`, `visualizations_list`, `visualizations_all`,
+  `visualizations_select` (a click on a chart's mark: adds the filter step), `visualizations_code` (a
+  chart's Altair Python).
+- `visualizations_dashboards` lists saved dashboards and their versions; `visualizations_dashboard`
+  saves, opens or deletes one.
+- `visualizations_theme` lists, sets or proposes a theme (kept only if the user keeps it);
+  `visualizations_theme_remove` removes an imported one. The grid keeps its own theme.
+- A short note card on what you changed and why: the user reads Visualizations, not your transcript.

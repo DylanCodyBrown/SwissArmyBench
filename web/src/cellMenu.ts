@@ -2,8 +2,8 @@
  * cellMenu.ts: the grid's right-click menus (Plans/sandbox-report.plan.md, S4). gridView.ts says where
  * the click was; this says what can be done there.
  *
- *   [CELL]    Send value to Sandbox, Send the row to Sandbox, Keep these, Exclude these, View value, Copy
- *   [HEADER]  Profile to Sandbox, Distinct values to Sandbox, Profile, and the Analyze entries for it
+ *   [CELL]    Send value to Visualizations, Send the row to Visualizations, Keep these, Exclude these, View value, Copy
+ *   [HEADER]  Profile to Visualizations, Distinct values to Visualizations, Profile, and the Analyze entries for it
  */
 import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisCards";
 import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
@@ -47,7 +47,7 @@ export function cellCommands(): [string, () => void][] {
     ["Copy", () => void copySelection()],
     ["Keep these", () => void filterByCells(true)],
     ["Exclude these", () => void filterByCells(false)],
-    ["Send value to Sandbox", sendValue],
+    ["Send value to Visualizations", sendValue],
   ];
 }
 
@@ -55,8 +55,8 @@ export function mountContextMenus(): void {
   onCellMenu((click) => {
     const where = `${click.column}, row ${(click.row + 1).toLocaleString()}`;
     showMenu(click.x, click.y, where, [
-      ["image", "Send value to Sandbox", () => void cellValue(click.row, click.column).then((value) => sendCards(valueCards(value, where, dataset())))],
-      ["rows", "Send the row to Sandbox", () => void sendCards(rowCards(rowValues(click), click.row, dataset()))],
+      ["image", "Send value to Visualizations", () => void cellValue(click.row, click.column).then((value) => sendCards(valueCards(value, where, dataset())))],
+      ["rows", "Send the row to Visualizations", () => void sendCards(rowCards(rowValues(click), click.row, dataset()))],
       "-",
       ["filter", "Keep these", () => void filterByCells(true)],
       ["exclude", "Exclude these", () => void filterByCells(false)],
@@ -80,8 +80,8 @@ export function mountContextMenus(): void {
       ["columns", "Keep only", () => void keepColumns(cols)],
       ["group", "Group by…", () => editStep("group_by", undefined, { keys: cols })],
       "-",
-      ["image", "Profile to Sandbox", () => void profileToSandbox(column)],
-      ["tag", "Distinct values to Sandbox", () => void distinctToSandbox(column)],
+      ["image", "Profile to Visualizations", () => void profileToSandbox(column)],
+      ["tag", "Distinct values to Visualizations", () => void distinctToSandbox(column)],
       ["profile", "Profile…", () => openColumnProfile(column)],
       "-",
       ["tag", "Odds…", () => void openOdds(column)],

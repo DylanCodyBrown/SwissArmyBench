@@ -3,7 +3,7 @@
 The grid page has buttons; this has commands. Each command is named for the part of the app it
 works on, then the action: `tabs_new_query` (the + tab), `table_filter` (the ribbon's Table row),
 `column_keep` (the Column row), `cell_exclude` (a cell's right-click menu), `steps_add` (the Table
-Transformations panel), `compare_create`, `sandbox_add`. The prefix is the area, so a flat tool
+Transformations panel), `compare_create`, `visualizations_add`. The prefix is the area, so a flat tool
 list sorts itself into the app's layout; AREAS below lists them in the order the app shows them.
 Some commands are composites of several server handlers that match one button on the page
 (`steps_apply_sql`, `steps_delete`, `table_matching`).
@@ -133,8 +133,8 @@ def _row_count(grid: str) -> int | None:
 # The MCP server also serves each as a resource: swissarmybench://index, swissarmybench://guide/<topic>.
 GUIDE_TOPICS: dict[str, str] = {
     "grids": "Grids and steps: data in, reading, the ribbon, steps, SQL, the page",
-    "analyze": "Analyze and the Sandbox: the analyses, cards, dashboards, themes",
-    "relationships": "Keys and relationships: the finder, tangs, the Diagram, compare and tie-out",
+    "analyze": "Analyze and Visualizations: the analyses, cards, dashboards, themes",
+    "relationships": "Keys and relationships: the finder, tangs, the ERD, compare and tie-out",
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python, key vaults",
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
@@ -807,18 +807,18 @@ def save_result(a: dict[str, Any]) -> Any:
     return {"dataset": result.get("pinned"), "grid": result.get("grid")}
 
 
-# ===== the Analysis Sandbox (cards) =====
+# ===== Visualizations (cards) =====
 
 
 @command(
-    "sandbox_all",
-    "Every chart, note, table and diagram card in the sandbox.",
+    "visualizations_all",
+    "Every chart, note, table and diagram card in Visualizations.",
 )
 def all_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", "/cards")
 
 
-@command("sandbox_list", "The cards drawn on one grid.", req("grid", "Grid id."))
+@command("visualizations_list", "The cards drawn on one grid.", req("grid", "Grid id."))
 def list_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/grids/{_q(a['grid'])}/cards")
 
@@ -839,9 +839,9 @@ _CARD_FIELDS = (
     opt("size", '{"w": 2-12 columns, "h": 3-30 rows of 40px}.', "json"),
 )
 
-# What each card kind takes (sandbox_formats): the agent's whole drawing vocabulary in one answer.
+# What each card kind takes (visualizations_formats): the agent's whole drawing vocabulary in one answer.
 _FORMATS: dict[str, Any] = {
-    "board": "12 columns wide, rows of 40px; size {w: 2-12, h: 3-30}. Cards go in order; sandbox_update "
+    "board": "12 columns wide, rows of 40px; size {w: 2-12, h: 3-30}. Cards go in order; visualizations_update "
     "moves (before) and resizes them. Page view prints them as letter or landscape pages.",
     "kinds": {
         "chart": {
@@ -855,7 +855,7 @@ _FORMATS: dict[str, Any] = {
             "or": "columns and rows of its own (no grid), first 100 rows",
         },
         "note": {
-            "body": "Markdown: headings, lists, tables, code, quotes. A Sandbox note is resizable like a text box."
+            "body": "Markdown: headings, lists, tables, code, quotes. A Visualizations note is resizable like a text box."
         },
         "diagram": {"body": "Mermaid text: flowchart LR\n  A --> B"},
         "graphviz": {"body": "DOT text: digraph { a -> b }"},
@@ -879,14 +879,17 @@ _FORMATS: dict[str, Any] = {
 }
 
 
-@command("sandbox_formats", "What each Sandbox card kind takes, with an example, and how sizing works.")
+@command(
+    "visualizations_formats",
+    "What each Visualizations card kind takes, with an example, and how sizing works.",
+)
 def card_formats(a: dict[str, Any]) -> Any:
     return _FORMATS
 
 
 @command(
-    "sandbox_add",
-    "Add a Sandbox card (sandbox_formats lists the kinds). Without grid it belongs to no table.",
+    "visualizations_add",
+    "Add a Visualizations card (visualizations_formats lists the kinds). Without grid it belongs to no table.",
     opt("grid", "Grid id: needed for chart and for table sql."),
     opt("kind", "chart, note, table, diagram, graphviz, plotly, echarts or image."),
     *_CARD_FIELDS,
@@ -902,7 +905,7 @@ def add_card(a: dict[str, Any]) -> Any:
         if a.get(k) is not None
     }
     if a.get("file"):
-        from swissarmybench.client.sandbox_client import card_for
+        from swissarmybench.client.visualizations_client import card_for
 
         try:
             made = card_for(Path(a["file"]).expanduser(), a.get("kind"))
@@ -917,7 +920,7 @@ def add_card(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "sandbox_update",
+    "visualizations_update",
     "Change a card's title, body, spec, sql or size, pin it, move it (before a card) or start a page.",
     req("card", "Card id."),
     *_CARD_FIELDS,
@@ -937,7 +940,7 @@ def update_card(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "sandbox_dashboards",
+    "visualizations_dashboards",
     "Saved dashboards; with name, its versions and cards. Saving and opening are the user's.",
     opt("name", "A dashboard's name."),
 )
@@ -946,17 +949,17 @@ def dashboards(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "sandbox_theme",
-    "The Sandbox's themes; set one (theme), or propose your own (file). The grid keeps its own theme.",
+    "visualizations_theme",
+    "Visualizations' themes; set one (theme), or propose your own (file). The grid keeps its own theme.",
     opt("theme", "A theme's id, or app to follow the app."),
     opt("file", '{"name", "dark", "tokens": {"bg": "#rrggbb", ..., "cat": [8 colours]}}', "json"),
 )
-def sandbox_theme(a: dict[str, Any]) -> Any:
+def visualizations_theme(a: dict[str, Any]) -> Any:
     if a.get("file") is not None:
-        return api.call("POST", "/sandbox/themes", a["file"])
+        return api.call("POST", "/visualizations/themes", a["file"])
     if a.get("theme"):
-        return api.call("PUT", "/sandbox/theme", {"theme": a["theme"]})
-    listed = api.call("GET", "/sandbox/themes")
+        return api.call("PUT", "/visualizations/theme", {"theme": a["theme"]})
+    listed = api.call("GET", "/visualizations/themes")
     # Names and notes only: the agent picks by id, and needs no colour values to do it.
     return {
         "current": listed["current"],
@@ -964,13 +967,13 @@ def sandbox_theme(a: dict[str, Any]) -> Any:
     }
 
 
-@command("sandbox_delete", "Remove a card.", req("card", "Card id."))
+@command("visualizations_delete", "Remove a card.", req("card", "Card id."))
 def delete_card(a: dict[str, Any]) -> Any:
     return api.call("DELETE", f"/cards/{_q(a['card'])}")
 
 
 @command(
-    "sandbox_select",
+    "visualizations_select",
     "Click a chart's bar or point: adds the matching filter step to its grid (cross-filtering).",
     req("card", "Chart card id."),
     opt("value", "The x value clicked; omit for the blank bar."),
@@ -979,7 +982,7 @@ def card_select(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/cards/{_q(a['card'])}/select", {"value": a.get("value")})
 
 
-@command("sandbox_code", "The Altair Python for a chart card.", req("card", "Chart card id."))
+@command("visualizations_code", "The Altair Python for a chart card.", req("card", "Chart card id."))
 def card_code(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/cards/{_q(a['card'])}/code")
 
@@ -1096,8 +1099,8 @@ def erd(a: dict[str, Any]) -> Any:
 
 @command(
     "erd_draw",
-    "Draw the relationship model as a diagram card in the sandbox.",
-    req("grid", "Grid whose sandbox gets the card."),
+    "Draw the relationship model as a diagram card in Visualizations.",
+    req("grid", "Grid the card is filed with."),
     opt("tables", "Comma-separated dataset names."),
     opt("title", "Card title (default Relationships)."),
 )
@@ -1349,7 +1352,7 @@ def blades_analyses(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_run_analysis",
-    "Run an analysis blade on a grid's rows as shown; its result as Sandbox cards",
+    "Run an analysis blade on a grid's rows as shown; its result as Visualizations cards",
     req("grid", "The grid's id."),
     req("name", "The analysis blade."),
     opt("columns", "The selected columns it gets.", "list"),
@@ -1988,7 +1991,7 @@ def cell_exclude(a: dict[str, Any]) -> Any:
     "app_snapshot",
     "A PNG of the app as the user sees it (your scroll, selection, splits and panels). Shows real cell "
     "values, and the user's browser tab must be visible.",
-    opt("area", "app (the whole window, default), ribbon, grid, steps or sandbox."),
+    opt("area", "app (the whole window, default), ribbon, grid, steps or visualizations."),
     opt("scale", "1 (default) or 2 for a sharper picture.", "int"),
     opt("out", "Also save the PNG to this file path."),
     image=True,
@@ -2011,7 +2014,7 @@ def app_snapshot(a: dict[str, Any]) -> Any:
 #
 # The name's prefix is the area, in the order the app shows them: the tab bar, the datasets, the
 # ribbon's Table and Column rows, a cell's right-click menu, the Table Transformations panel, the Key Finder, the
-# Relationships dialog and ERD tab, compare, the Agent tab's sandbox, then what only an agent sees.
+# Relationships dialog and ERD tab, compare, Visualizations, then what only an agent sees.
 # The catalog groups by area, and so does the MCP's tool list.
 
 
@@ -3118,7 +3121,7 @@ def project_import(a: dict[str, Any]) -> Any:
 
 @command(
     "project_open",
-    "Open a project: a .sab (its tables read again with their steps, the Sandbox, relationships, documents) "
+    "Open a project: a .sab (its tables read again with their steps, Visualizations, relationships, documents) "
     "or a project folder. Refused while unsaved changes are open, unless discard",
     req("path", "The .sab file, or a project's folder."),
     opt("discard", "true: let the open project's unsaved changes go.", "bool"),
@@ -3163,7 +3166,7 @@ def project_recent(a: dict[str, Any]) -> Any:
 
 @command(
     "project_close",
-    "Close the project: its tables, Sandbox and relationships. Refused with unsaved changes, unless discard",
+    "Close the project: its tables, Visualizations and relationships. Refused with unsaved changes, unless discard",
     opt("discard", "true: let its unsaved changes go.", "bool"),
 )
 def project_close(a: dict[str, Any]) -> Any:
@@ -3676,7 +3679,7 @@ def app_audit(a: dict[str, Any]) -> Any:
     "Move a window as the user does: home (the mark: the Start view), back, forward, or a view",
     req(
         "to",
-        "the rail: grids, sandbox, diagram, notebooks, scripts, apps, blades, connections, "
+        "the rail: grids, visualizations, erd, notebooks, scripts, apps, blades, connections, "
         "settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
         "catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
     ),
@@ -3825,13 +3828,13 @@ def relationships_reject(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "sandbox_dashboard",
-    "Save the Sandbox as a dashboard (a new version), open one, or delete one",
+    "visualizations_dashboard",
+    "Save Visualizations as a dashboard (a new version), open one, or delete one",
     req("action", "save, open or delete."),
     req("name", "The dashboard's name."),
     opt("version", "open: which version (default: the newest).", "int"),
 )
-def sandbox_dashboard(a: dict[str, Any]) -> Any:
+def visualizations_dashboard(a: dict[str, Any]) -> Any:
     name, action = _q(a["name"]), a["action"]
     if action == "save":
         return api.call("POST", "/dashboards", {"name": a["name"]})
@@ -3845,10 +3848,12 @@ def sandbox_dashboard(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "sandbox_theme_remove", "Remove one of the user's imported Sandbox themes", req("id", "The theme's id.")
+    "visualizations_theme_remove",
+    "Remove one of the user's imported Visualizations themes",
+    req("id", "The theme's id."),
 )
-def sandbox_theme_remove(a: dict[str, Any]) -> Any:
-    return api.call("DELETE", f"/sandbox/themes/{_q(a['id'])}")
+def visualizations_theme_remove(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/visualizations/themes/{_q(a['id'])}")
 
 
 @command(
@@ -3882,11 +3887,14 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
-    ("project", "Projects: one .sab file (tables, steps, documents, Sandbox), or a folder with data.ipynb"),
+    (
+        "project",
+        "Projects: one .sab file (tables, steps, documents, Visualizations), or a folder with data.ipynb",
+    ),
     ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("compare", "Compare (two grids side by side)"),
-    ("sandbox", "Agent tab: Analysis Sandbox"),
+    ("visualizations", "Visualizations: cards, dashboards, themes"),
     ("app", "The page itself: snapshots"),
     ("agent", "What only the agent has: the table in front, the inbox, approvals, live events"),
 )
@@ -3912,6 +3920,20 @@ def _arrange() -> None:
 
 
 _arrange()
+
+# The old names, one release (as renamed.py keeps SwissArmyGrid's): the Sandbox became Visualizations (the
+# owner, 2026-11-16), so each sandbox_* command is its visualizations_* one. Accepted by the dispatcher (the
+# `sab` command and an MCP call by name) but not listed: the tool list carries the new names only.
+OLD_NAMES: dict[str, str] = {
+    "sandbox" + name.removeprefix("visualizations"): name
+    for name in REGISTRY
+    if name.startswith("visualizations_")
+}
+
+
+def current_name(name: str) -> str:
+    """A command's name as it is now: an old one (sandbox_add) is its new one (visualizations_add)."""
+    return OLD_NAMES.get(name, name)
 
 
 # ===== the catalog and the dispatcher =====
@@ -3985,6 +4007,7 @@ def execute_result(name: str, raw: dict[str, Any] | None = None) -> str | ImageR
     """Run one command from the registry. The result is text, or an ImageResult for a picture. Anything not in the
     registry, and any unknown or missing argument, is refused here with the reason, before the server
     is touched."""
+    name = current_name(name)
     cmd = REGISTRY.get(name)
     if cmd is None:
         import difflib  # only a mistyped name needs it
@@ -4021,4 +4044,14 @@ def execute(name: str, raw: dict[str, Any] | None = None) -> str:
     return result
 
 
-__all__ = ["REGISTRY", "Command", "CommandError", "ImageResult", "catalog", "execute", "execute_result"]
+__all__ = [
+    "OLD_NAMES",
+    "REGISTRY",
+    "Command",
+    "CommandError",
+    "ImageResult",
+    "catalog",
+    "current_name",
+    "execute",
+    "execute_result",
+]

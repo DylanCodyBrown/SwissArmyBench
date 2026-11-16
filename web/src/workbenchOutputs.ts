@@ -11,7 +11,7 @@
  *   error      the traceback in its colours; a long one folds its middle frames
  *   data       a picture, Plotly, Markdown, HTML (a DataFrame) in a frame that runs no script and loads
  *              nothing, else the plain text; after 100 the rest are counted, not drawn. A picture or
- *              chart has Send to Sandbox (the Sandbox is where they gather: POST /cards)
+ *              chart has Send to Visualizations (Visualizations is where they gather: POST /cards)
  *   input      the kernel asking for a line (input(), getpass, pdb): a box in place, answered with Enter
  *   notice     the page's own word (the kernel stopped, restarted, the run was cancelled): never saved
  *   error_detail  the error panel (workbenchErrors.ts) in place of the plain traceback: never saved (the
@@ -169,7 +169,7 @@ th{font-weight:600}thead th{border-bottom-width:2px}tbody tr:hover{background:${
   return frame;
 }
 
-/** A picture or chart as a Sandbox card: an image (PNG, JPEG, SVG) or a live Plotly figure. */
+/** A picture or chart as a Visualizations card: an image (PNG, JPEG, SVG) or a live Plotly figure. */
 function sandboxCard(data: Record<string, unknown>): { kind: string; body: string } | null {
   const figure = data["application/vnd.plotly.v1+json"];
   if (figure) return { kind: "plotly", body: JSON.stringify(figure) };
@@ -185,9 +185,9 @@ function sandboxCard(data: Record<string, unknown>): { kind: string; body: strin
 function withSandbox(drawn: HTMLElement, data: Record<string, unknown>): HTMLElement {
   const card = sandboxCard(data);
   if (!card) return drawn;
-  const send = button("Send to Sandbox", () => {
+  const send = button("Send to Visualizations", () => {
     void api("/cards", "POST", { ...card, title: `From ${currentDocument()}` }).then(
-      () => toast("Sent to the Sandbox"),
+      () => toast("Sent to Visualizations"),
       (e: Error) => toast(e.message, "error"),
     );
   }, { icon: "export", class: "ghost wb-to-sandbox" });

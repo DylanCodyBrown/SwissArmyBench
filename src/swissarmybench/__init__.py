@@ -34,8 +34,9 @@ if TYPE_CHECKING:
     from swissarmybench.client.blades_client import blade as connection
     from swissarmybench.client.completion import complete
     from swissarmybench.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
-    from swissarmybench.client.sandbox_client import sandbox
     from swissarmybench.client.sql_cell import dax, sql
+    from swissarmybench.client.visualizations_client import sandbox as sandbox  # the old name, one release
+    from swissarmybench.client.visualizations_client import visualizations
     from swissarmybench.client.watcher import start as watch
     from swissarmybench.client.watcher import stop as unwatch
 
@@ -52,9 +53,9 @@ __all__ = [
     "load",
     "push",
     "read",
-    "sandbox",
     "sql",
     "unwatch",
+    "visualizations",
     "watch",
 ]
 
@@ -71,7 +72,10 @@ _LAZY: dict[str, tuple[str, str]] = {
     "sql": ("swissarmybench.client.sql_cell", "sql"),
     # DAX on one dataset of a Power BI workspace connection: sab.dax("Finance/Sales model", ...).
     "dax": ("swissarmybench.client.sql_cell", "dax"),
-    "sandbox": ("swissarmybench.client.sandbox_client", "sandbox"),
+    # Anything visual from Python as a Visualizations card: sab.visualizations(fig).
+    "visualizations": ("swissarmybench.client.visualizations_client", "visualizations"),
+    # The old name, one release (renamed.py): a DeprecationWarning, then the same call.
+    "sandbox": ("swissarmybench.client.visualizations_client", "sandbox"),
     "complete": ("swissarmybench.client.completion", "complete"),
     "DatasetTooLargeError": ("swissarmybench.client.push_client", "DatasetTooLargeError"),
     "ServerNotRunningError": ("swissarmybench.client.push_client", "ServerNotRunningError"),

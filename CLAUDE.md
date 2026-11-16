@@ -51,7 +51,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), named
   cells, the Data panel's Streamlit cells pane, tabs that pop out into windows of their own (and move
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
-  Analyze menu, the Sandbox, compare's diff and tie-out,
+  Analyze menu, Visualizations, compare's diff and tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
   your own HTML and JavaScript as Streamlit pieces, four of them two-way; Controllers; Text and layout,
@@ -137,7 +137,7 @@ src/swissarmybench/
                          memory, growth; the forecast (trend, steps, season, predictors, held-back check)
     tieout.py            the tie-out report: shared columns, the two GROUP BYs joined, ties or off
     proofs.py            Show the math: each analysis result as a step-by-step proof (markdown)
-    themes.py            the Sandbox's 20 themes and imported ones, every colour made readable (WCAG)
+    themes.py            Visualizations' 20 themes and imported ones, every colour made readable (WCAG)
     diff.py              compare's diff mode: which cells differ (tolerance, trim, case), as SQL and Python
     python_connections.py a connection from the user's own Python (three boxes: Connect, List the tables,
                          Read a table): the environment variables its code reads (found with ast), where
@@ -275,7 +275,7 @@ src/swissarmybench/
                          block records its error, AppTest in the app's Python), a thin cell's move plan
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
     sab_projects.py      a project as one .sab: new (saved first, where the user named), open (each table read
-                         again with its steps; the Sandbox, model, layout), save (rows only on a tick; the
+                         again with its steps; Visualizations, model, layout), save (rows only on a tick; the
                          agent's with them on the user's Allow), autosave (a quiet save once a change
                          settles), close, the recent list, a table's fix; unsaved changes worked out, not
                          tracked; each open, new and close points the stores at the project (scope)
@@ -359,7 +359,7 @@ src/swissarmybench/
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
                          <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
-  client/sandbox_client.py sab.sandbox: a figure, picture, table or text as a Sandbox card (duck-typed)
+  client/visualizations_client.py sab.sandbox: a figure, picture, table or text as a Visualizations card (duck-typed)
   client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
   client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the
@@ -386,7 +386,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window (Grids,
-                         Sandbox, Diagram, Notebooks, Scripts, Apps, Blades, Connections, Settings at the
+                         Visualizations, ERD, Notebooks, Scripts, Apps, Blades, Connections, Settings at the
                          bottom): a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
@@ -395,15 +395,15 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Connections page (cards, a card's detail: references, configuration, calls);
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
                          its documents as cards, New and Open… on its panel);
-                         aiPanel.ts is the Sandbox (a 12-column dashboard of resizable cards);
-                         analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
+                         aiPanel.ts is Visualizations (a 12-column dashboard of resizable cards);
+                         analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Visualizations,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
                          predictors, outliers; Fit test and Outliers are also on a column header's right-click menu);
                          modelDialog.ts the regression and what-if; timeSeriesDialog.ts time series and
                          forecast (Plotly charts in the window); cheatSheets.ts each form's Data shape;
-                         analysisCards.ts every result as Sandbox cards (a report-style note and a chart);
-                         sandboxDashboards.ts saving and opening the Sandbox as named dashboards;
-                         sandboxThemes.ts the Sandbox's own theme (tokens on its element only);
+                         analysisCards.ts every result as Visualizations cards (a report-style note and a chart);
+                         sandboxDashboards.ts saving and opening Visualizations as named dashboards;
+                         sandboxThemes.ts Visualizations' own theme (tokens on its element only);
                          tieOutDialog.ts the compare's tie-out report (Tie-out… in the Compare row);
                          bladeAnalysis.ts analysis blades (your own analyses) in the Analyze menu;
                          sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
@@ -423,7 +423,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
                          status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a
-                         card; pictures go to the Sandbox), workbenchGroups.ts (tab groups as VS Code's
+                         card; pictures go to Visualizations), workbenchGroups.ts (tab groups as VS Code's
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
                          layout as data for the session restore; the tab kind registry, registerTabKind,
                          where app pages are added), workbenchData.ts (the Data panel: the open tables,

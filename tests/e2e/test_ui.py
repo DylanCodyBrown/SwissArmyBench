@@ -125,8 +125,8 @@ def open_steps(browser: Browser, grid_url: str) -> Page:
 
 
 def open_agent(page: Page) -> Locator:
-    """The Sandbox tab (the first tab): the Sandbox lives only there."""
-    page.locator(".nav-rail [data-area='sandbox']").click()
+    """Visualizations tab (the first tab): Visualizations lives only there."""
+    page.locator(".nav-rail [data-area='visualizations']").click()
     return page.locator("#ai-panel")
 
 
@@ -603,7 +603,7 @@ def test_chart_card_draws_zooms_and_cross_filters(browser: Browser, orders_url: 
     expect(page.locator("dialog .expanded-chart svg")).to_be_visible(timeout=15000)
     page.locator("dialog").get_by_role("button", name="Close", exact=True).last.click()
     page.locator(".card .chart svg path.mark-rect, .card .chart svg .mark-rect path").first.click()
-    # On the Sandbox tab the status bar names the tab, then the grid the click filtered.
+    # On the Visualizations tab the status bar names the tab, then the grid the click filtered.
     expect(page.locator("#status")).to_contain_text("orders: 1,250 of", timeout=15000)
 
 
@@ -790,7 +790,7 @@ def test_agent_panel_lives_only_in_the_agent_tab(browser: Browser, orders_url: s
     expect(page.locator("#ai-panel")).to_be_hidden()  # the grid gets the full width
     panel = open_agent(page)
     expect(panel).to_be_visible()
-    # One zoom for the page, the Sandbox included: it has no zoom of its own, and follows the
+    # One zoom for the page, Visualizations included: it has no zoom of its own, and follows the
     # Application row's (which stays on every tab).
     expect(panel.locator(".zoom-control")).to_have_count(0)
     size = "getComputedStyle(document.querySelector('#ai-panel-body')).fontSize"
@@ -1259,8 +1259,8 @@ def test_the_cells_right_click_keeps_rows_with_the_selected_value(browser: Brows
     menu = page.get_by_role("menu")
     expect(menu.get_by_role("menuitem")).to_have_text(
         [
-            "Send value to Sandbox",
-            "Send the row to Sandbox",
+            "Send value to Visualizations",
+            "Send the row to Visualizations",
             "Keep these",
             "Exclude these",
             "View value",
@@ -1637,13 +1637,13 @@ def test_the_agent_tab_comes_first_and_holds_the_panel(browser: Browser, server:
     push_client.push(second_tab, new_grid=True)
     url = push_client.push(first_tab, new_grid=True)
     page = open_grid(browser, url)
-    # The Sandbox is the rail's (2026-11-16): no tab of its own, so the grids come first.
+    # Visualizations is the rail's (2026-11-16): no tab of its own, so the grids come first.
     expect(page.locator(".tabs-row .tab-agent")).to_have_count(0)
     expect(page.locator(".tabs-row .tab-item:visible").first).to_have_attribute("data-grid", re.compile(".+"))
-    # the rail's Sandbox: an icon, so it's easy to find
-    expect(page.locator(".nav-rail [data-area='sandbox'] svg")).to_be_visible()
+    # the rail's Visualizations: an icon, so it's easy to find
+    expect(page.locator(".nav-rail [data-area='visualizations'] svg")).to_be_visible()
     open_agent(page)
-    expect(page.locator("#ai-panel-title")).to_have_text("Sandbox")
+    expect(page.locator("#ai-panel-title")).to_have_text("Visualizations")
     expect(page.locator("#ai-panel .tabs")).to_have_count(0)  # one panel, no inner tabs
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     # One sandbox for every table: no table picker.
@@ -1728,7 +1728,7 @@ def test_the_erd_tab_shows_keys_or_says_none_are_defined(browser: Browser, serve
     push_client.push(erd_customers, new_grid=True)
     page = open_grid(browser, push_client.push(erd_orders, new_grid=True))
     call(server, "POST", "/relationships", {"model": {"name": "empty"}, "replace": True})
-    page.locator(".nav-rail [data-area='diagram']").click()  # the rail's (2026-11-16)
+    page.locator(".nav-rail [data-area='erd']").click()  # the rail's (2026-11-16)
     erd = page.locator("#erd-view")
     expect(erd).to_contain_text("No relationships yet")
     expect(erd.get_by_role("button", name="Import relationships")).to_be_visible()
@@ -2265,8 +2265,8 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     table_row = page.locator(".ribbon .ribbon-group").first
     assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
-    # On the Sandbox tab the ribbon goes, the Application row stays.
-    page.locator(".nav-rail [data-area='sandbox']").click()
+    # On the Visualizations tab the ribbon goes, the Application row stays.
+    page.locator(".nav-rail [data-area='visualizations']").click()
     expect(page.locator(".ribbon")).to_be_hidden()
     expect(app.get_by_role("button", name="Zoom out", exact=True)).to_be_visible()
     page.close()

@@ -19,13 +19,13 @@ import { toBlob } from "html-to-image";
 import { onNotice, token, type Notice } from "./api";
 
 /** The areas an agent may ask for, and the element each one is. Keep in step with AREAS in
- * server/routes_snapshots.py. */
+ * services/snapshots.py. */
 const AREAS: Record<string, string> = {
   app: "body",
   ribbon: ".ribbon",
   grid: ".panes",
   steps: ".steps-strip", // the panel opens in its own window; the grid page shows the strip
-  sandbox: "#ai-panel",
+  visualizations: "#ai-panel",
 };
 
 /** Register the listener. Called once per page, beside the other live-notice handlers. */

@@ -448,7 +448,7 @@ class ConnectionService:
 
     async def import_relationships(self, name: str, body: Any, who: str) -> dict[str, Any]:
         """Read one dataset's relationships (DAX's INFO functions, on the connection) and merge them
-        into the current model, the tables named as they open as grids: the Diagram and the Key
+        into the current model, the tables named as they open as grids: the ERD and the Key
         Finder's known joins then show them. `{"dataset"}` names it; a workspace with one dataset
         needs none. Answers the model, what the merge changed, and what came."""
         if self._models is None:

@@ -63,12 +63,12 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     expect(page).to_have_url(f"{base}/g/{grid_of(first)}")
     expect(page).to_have_title("nav_visits")
 
-    page.locator(".nav-rail [data-area='sandbox']").click()
-    expect(page).to_have_url(f"{base}/workspace?view=sandbox")
-    expect(page).to_have_title("Sandbox")
-    page.locator(".nav-rail [data-area='diagram']").click()
-    expect(page).to_have_url(f"{base}/workspace?view=diagram")
-    expect(page).to_have_title("Diagram")
+    page.locator(".nav-rail [data-area='visualizations']").click()
+    expect(page).to_have_url(f"{base}/workspace?view=visualizations")
+    expect(page).to_have_title("Visualizations")
+    page.locator(".nav-rail [data-area='erd']").click()
+    expect(page).to_have_url(f"{base}/workspace?view=erd")
+    expect(page).to_have_title("ERD")
     page.locator(f".tab-item[data-grid='{grid_of(second)}']").click()
     expect(page).to_have_url(f"{base}/g/{grid_of(second)}")
     expect(page).to_have_title("nav_crates")
@@ -76,7 +76,7 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     # The browser's Back and Forward: one view at a time, never out of the app.
     page.go_back()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
-    expect(page).to_have_title("Diagram")
+    expect(page).to_have_title("ERD")
     page.go_back()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     page.go_back()
@@ -90,15 +90,25 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     # A reload keeps the view (the cookie keeps the session; the token is never in the address).
     page.reload()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
-    expect(page).to_have_title("Diagram")
+    expect(page).to_have_title("ERD")
     assert "token" not in page.url
+    # The old addresses (the Sandbox is Visualizations, the Diagram the ERD, 2026-11-16) still land, and the
+    # address takes the new word.
+    page.goto(f"{base}/workspace?view=sandbox")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
+    expect(page).to_have_url(f"{base}/workspace?view=visualizations")
+    expect(page.locator(".nav-rail [data-area='visualizations']")).to_have_attribute("aria-current", "page")
+    page.goto(f"{base}/workspace?view=diagram")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
+    expect(page).to_have_url(f"{base}/workspace?view=erd")
+    expect(page).to_have_title("ERD")
 
-    # The mark goes home: the Start view (projects, 2026-11-16); and Alt+Home from the Sandbox.
+    # The mark goes home: the Start view (projects, 2026-11-16); and Alt+Home from Visualizations.
     mark.click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
     expect(page).to_have_url(re.compile(r"/workspace\?view=start$"))
     expect(page).to_have_title("Start")
-    page.locator(".nav-rail [data-area='sandbox']").click()
+    page.locator(".nav-rail [data-area='visualizations']").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     page.keyboard.press("Alt+Home")
     expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
@@ -319,9 +329,17 @@ def test_the_agent_moves_the_home_window(
     browser: Browser, server: dict[str, Any], two_tables: tuple[str, str]
 ) -> None:
     page = home_page(browser, two_tables[0])
+    # The old names (sandbox, diagram) still move it, to the new places (2026-11-16).
+    call(server, "POST", "/navigate", {"to": "diagram"}, agent=True)
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
+    expect(page).to_have_url(re.compile(r"view=erd"))
     call(server, "POST", "/navigate", {"to": "sandbox"}, agent=True)
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(page).to_have_url(re.compile(r"view=sandbox"))
+    expect(page).to_have_url(re.compile(r"view=visualizations"))
+    call(server, "POST", "/navigate", {"to": "erd"}, agent=True)
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
+    call(server, "POST", "/navigate", {"to": "visualizations"}, agent=True)
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     call(server, "POST", "/navigate", {"to": "add_connection"}, agent=True)
     expect(page.locator(".area-page .connection-type").first).to_be_visible()
     call(server, "POST", "/navigate", {"to": "back"}, agent=True)

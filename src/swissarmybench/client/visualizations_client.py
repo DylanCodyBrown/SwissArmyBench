@@ -1,18 +1,21 @@
-"""`sab.sandbox(thing)`: put anything visual from Python into the Sandbox, as a card of no table.
+"""`sab.visualizations(thing)`: put anything visual from Python into Visualizations, as a card of no table.
 
-    sab.sandbox(fig)                          # matplotlib or seaborn: a PNG picture
-    sab.sandbox(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
-    sab.sandbox(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
-    sab.sandbox(digraph)                      # graphviz: drawn from its DOT text
-    sab.sandbox(frame)                        # a DataFrame or Arrow table: its first 100 rows
-    sab.sandbox("## Findings\\n...")           # Markdown text: a note
-    sab.sandbox("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
-    sab.sandbox(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
+    sab.visualizations(fig)                          # matplotlib or seaborn: a PNG picture
+    sab.visualizations(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
+    sab.visualizations(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
+    sab.visualizations(digraph)                      # graphviz: drawn from its DOT text
+    sab.visualizations(frame)                        # a DataFrame or Arrow table: its first 100 rows
+    sab.visualizations("## Findings\\n...")           # Markdown text: a note
+    sab.visualizations("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
+    sab.visualizations(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
 
 `key="..."` names the card, so running the cell again replaces it in place (its size and position
 stay) instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Returns the card's
 id. It duck-types what it is given, so nothing here imports matplotlib, Plotly or pandas: standard
 library only, like the rest of the client.
+
+`sab.sandbox` is the old name (the Sandbox became Visualizations, the owner, 2026-11-16): it works for
+one release, with a DeprecationWarning, and goes with renamed.py.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ import io
 import json
 import math
 import os
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +68,7 @@ _TEXT_FILES: dict[str, str] = {
 }
 
 
-def sandbox(
+def visualizations(
     thing: object,
     title: str | None = None,
     *,
@@ -72,7 +76,7 @@ def sandbox(
     size: tuple[int, int] | None = None,
     kind: str | None = None,
 ) -> str:
-    """Add `thing` to the Sandbox (or replace the card named `key`). Returns the card's id."""
+    """Add `thing` to Visualizations (or replace the card named `key`). Returns the card's id."""
     card = card_for(thing, kind)
     if title is not None:
         card["title"] = title
@@ -85,6 +89,24 @@ def sandbox(
     card["origin"] = "python"
     answer = _call("POST", "/cards", json.dumps(card).encode("utf-8"))
     return str(answer["card"])
+
+
+def sandbox(
+    thing: object,
+    title: str | None = None,
+    *,
+    key: str | None = None,
+    size: tuple[int, int] | None = None,
+    kind: str | None = None,
+) -> str:
+    """The old name of `visualizations`, for one release (the Sandbox is Visualizations now)."""
+    warnings.warn(
+        "sab.sandbox is now sab.visualizations: the Sandbox is called Visualizations. "
+        "The old name goes in the next release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return visualizations(thing, title, key=key, size=size, kind=kind)
 
 
 def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
@@ -118,7 +140,7 @@ def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
     if table is not None:
         return table
     raise TypeError(
-        f"Can't put a {type(thing).__name__} in the Sandbox. It takes a matplotlib, seaborn, Plotly, "
+        f"Can't put a {type(thing).__name__} in Visualizations. It takes a matplotlib, seaborn, Plotly, "
         "Altair or graphviz figure, a PIL image, picture bytes, a DataFrame or Arrow table, Markdown "
         "text, a file path, or Mermaid, DOT or ECharts text with kind=."
     )

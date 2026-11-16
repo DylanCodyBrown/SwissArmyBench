@@ -1,4 +1,4 @@
-"""Cards of no table: what sab.sandbox makes of each kind of thing (stand-ins of the right shape, since
+"""Cards of no table: what sab.visualizations makes of each kind of thing (stand-ins of the right shape, since
 duck typing is all it uses), keys that replace a card in place, and what the agent may not send."""
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.client import sandbox_client
-from swissarmybench.client.sandbox_client import card_for
+from swissarmybench.client import visualizations_client
+from swissarmybench.client.visualizations_client import card_for
 from tests.conftest import AGENT, AUTH, grid_id, make_client, push
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"made-up picture"
@@ -82,7 +82,7 @@ def cards(client: TestClient) -> list[dict[str, Any]]:
     return shown
 
 
-def test_sab_sandbox_adds_a_card_of_no_table_and_a_key_replaces_it(
+def test_sab_visualizations_adds_a_card_of_no_table_and_a_key_replaces_it(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def call(method: str, path: str, body: bytes | None = None, content_type: str = "") -> Any:
@@ -92,10 +92,10 @@ def test_sab_sandbox_adds_a_card_of_no_table_and_a_key_replaces_it(
         assert response.status_code == 200, response.text
         return response.json()
 
-    monkeypatch.setattr(sandbox_client, "_call", call)
-    first = sandbox_client.sandbox(FakeFigure(), "Sales", key="sales-chart", size=(8, 12))
-    note = sandbox_client.sandbox("A note")
-    again = sandbox_client.sandbox(FakePlotly(), "Sales again", key="sales-chart")
+    monkeypatch.setattr(visualizations_client, "_call", call)
+    first = visualizations_client.visualizations(FakeFigure(), "Sales", key="sales-chart", size=(8, 12))
+    note = visualizations_client.visualizations("A note")
+    again = visualizations_client.visualizations(FakePlotly(), "Sales again", key="sales-chart")
     assert again == first
     shown = {c["id"]: c for c in cards(client)}
     assert len(shown) == 2 and shown[note]["origin"] == "Python" and shown[note]["grid"] is None
@@ -103,6 +103,26 @@ def test_sab_sandbox_adds_a_card_of_no_table_and_a_key_replaces_it(
     assert replaced["kind"] == "plotly" and replaced["title"] == "Sales again" and "body" in replaced
     assert replaced["size"] == {"w": 8, "h": 12}  # the size it was given first stays
     assert [c["id"] for c in cards(client)] == [first, note]  # and so does its place
+
+
+def test_the_old_name_sab_sandbox_still_adds_a_card_with_a_warning(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Sandbox became Visualizations (the owner, 2026-11-16): sab.sandbox works for one release."""
+    import swissarmybench as sab
+
+    def call(method: str, path: str, body: bytes | None = None, content_type: str = "") -> Any:
+        response = client.request(
+            method, path, content=body, headers=AUTH | {"Content-Type": "application/json"}
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    monkeypatch.setattr(visualizations_client, "_call", call)
+    with pytest.warns(DeprecationWarning, match="sab.visualizations"):
+        card = sab.sandbox("An old note", key="old-name")
+    assert [c["id"] for c in cards(client)] == [card]
+    assert "sandbox" not in sab.__all__ and "visualizations" in sab.__all__
 
 
 def test_cards_of_no_table_stay_when_grids_close_and_refuse_what_needs_a_grid(client: TestClient) -> None:
@@ -142,7 +162,7 @@ def test_a_vega_lite_card_is_inline_data_from_the_users_python_never_the_agents(
 def test_the_agent_adds_a_file_and_reads_the_formats(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from swissarmybench.cli import api, commands
 
-    assert "plotly" in commands.REGISTRY["sandbox_formats"].run({})["kinds"]
+    assert "plotly" in commands.REGISTRY["visualizations_formats"].run({})["kinds"]
     (tmp_path / "plan.md").write_text("# Plan\n- one")
     sent: list[tuple[str, str, Any]] = []
 
@@ -151,7 +171,7 @@ def test_the_agent_adds_a_file_and_reads_the_formats(tmp_path: Path, monkeypatch
         return {"card": "x"}
 
     monkeypatch.setattr(api, "call", call)
-    commands.REGISTRY["sandbox_add"].run({"file": str(tmp_path / "plan.md"), "key": "plan"})
+    commands.REGISTRY["visualizations_add"].run({"file": str(tmp_path / "plan.md"), "key": "plan"})
     assert sent == [("POST", "/cards", {"kind": "note", "body": "# Plan\n- one", "key": "plan", "title": ""})]
 
 

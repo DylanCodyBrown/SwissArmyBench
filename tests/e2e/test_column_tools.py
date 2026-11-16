@@ -17,7 +17,15 @@ def test_a_columns_tools_are_beside_it(browser: Browser, orders_url: str) -> Non
     menu = page.get_by_role("menu", name="region")
     items = menu.get_by_role("menuitem")
     expect(items.nth(0)).to_have_text("Sort A→Z")
-    for label in ("Sort Z→A", "Filter…", "Rename…", "Remove", "Keep only", "Group by…", "Profile to Sandbox"):
+    for label in (
+        "Sort Z→A",
+        "Filter…",
+        "Rename…",
+        "Remove",
+        "Keep only",
+        "Group by…",
+        "Profile to Visualizations",
+    ):
         expect(menu.get_by_role("menuitem", name=label)).to_be_visible()
     menu.get_by_role("menuitem", name="Sort Z→A").click()
     expect(page.locator(".steps-count")).to_have_text("1 step")

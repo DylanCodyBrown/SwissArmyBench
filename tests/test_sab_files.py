@@ -44,7 +44,7 @@ def _manifest() -> Manifest:
         ),
         tabs={"order": ["orders", "customers"], "front": "orders"},
         workbench={"documents": ["data.ipynb"]},
-        sandbox=rules.SANDBOX,
+        visualizations=rules.VISUALIZATIONS,
         model=rules.MODEL,
     )
 
@@ -58,7 +58,7 @@ def test_project_json_round_trips() -> None:
     again, read_only = rules.read_manifest(text)
     assert read_only is None
     assert again == manifest
-    assert again.special() == {"project.json", "data/pasted_1.parquet", rules.SANDBOX, rules.MODEL}
+    assert again.special() == {"project.json", "data/pasted_1.parquet", rules.VISUALIZATIONS, rules.MODEL}
     assert [t.source.label() for t in again.tables] == [
         "orders.csv",
         "Warehouse · customers",
@@ -85,6 +85,18 @@ def test_fields_this_version_does_not_know_are_kept_when_saved_again() -> None:
     # A grid's own unknown fields survive a read and a write of the same entry.
     again, _ = rules.read_manifest(json.dumps(raw))
     assert again.tables[0].grids[0].to_json()["frozen_columns"] == 2
+
+
+def test_a_file_saved_before_the_sandbox_was_renamed_reads_its_cards() -> None:
+    """The Sandbox became Visualizations (2026-11-16): an older .sab's "sandbox" entry is read for one
+    release, and written again under the new name."""
+    raw = json.loads(rules.write_manifest(_manifest()))
+    del raw["visualizations"]
+    raw["sandbox"] = rules.OLD_SANDBOX
+    read, _ = rules.read_manifest(json.dumps(raw))
+    assert read.visualizations == rules.OLD_SANDBOX and rules.OLD_SANDBOX in read.special()
+    written = json.loads(rules.write_manifest(read))
+    assert "sandbox" not in written and written["visualizations"] == rules.OLD_SANDBOX
 
 
 def test_a_newer_format_opens_read_only_with_a_plain_message() -> None:

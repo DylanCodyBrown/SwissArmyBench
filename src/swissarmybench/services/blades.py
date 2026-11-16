@@ -444,7 +444,7 @@ class BladeService:
         self, name: str, grid: Grid, info: DatasetInfo, body: dict[str, Any], who: str
     ) -> dict[str, Any]:
         """Run the analysis blade `name` on the grid's rows as it shows them (its steps), in a child
-        process: {"title", "cards"}, ready for the Sandbox."""
+        process: {"title", "cards"}, ready for Visualizations."""
         blade = self._blades.get(name)
         if blade.kind != "analysis":
             raise BladeError(f"{blade.name} is not an analysis blade.")

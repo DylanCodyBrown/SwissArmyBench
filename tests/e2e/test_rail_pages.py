@@ -114,10 +114,10 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
 ) -> None:
     page = home(browser, plums)
     base = f"http://127.0.0.1:{server['port']}"
-    area(page, "sandbox").click()
+    area(page, "visualizations").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     no_box(page)
-    area(page, "diagram").click()
+    area(page, "erd").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
     no_box(page)
     # Connections: a page over the grids, a card each.
@@ -135,7 +135,7 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     expect(settings.locator("fieldset", has_text="Theme")).to_be_visible()
     expect(settings.get_by_role("button", name="Close")).to_have_count(0)
     no_box(page)
-    # Back: Connections again; Back: the Diagram, the page gone; Forward: Connections.
+    # Back: Connections again; Back: the ERD, the page gone; Forward: Connections.
     page.go_back()
     expect(connections).to_be_visible()
     expect(current(page)).to_have_attribute("data-area", "connections")

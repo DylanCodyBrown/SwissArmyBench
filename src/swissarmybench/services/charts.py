@@ -10,11 +10,11 @@ because charts are computed on request from the grid's current steps. Agent-made
 so the page can mark them.
 
 A card may also belong to no table (`add_free`): a note, a figure, a picture or a table of rows sent
-from Python (`sab.sandbox`), the agent or the Sandbox's own Add note. It stays when grids close. A
+from Python (`sab.visualizations`), the agent or Visualizations' own Add note. It stays when grids close. A
 `key` names a card, so sending the same key again replaces that card's content in its place.
 
 Saved dashboards (the `Dashboards` port): Save freezes every card as drawn, a chart's points and a
-query table's rows included; Open replaces the Sandbox with a version. A chart or query card relinks to
+query table's rows included; Open replaces Visualizations with a version. A chart or query card relinks to
 an open grid on its table (any time one is open again); until then it shows what it showed when saved.
 """
 
@@ -40,7 +40,9 @@ from swissarmybench.services.workspace import NotFound, Refused, Workspace
 _TABLE_CARD_ROWS: int = 100
 _TABLE_CARD_COLUMNS: int = 50
 _CELL_CHARACTERS: int = 1_000
-_ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Sandbox"}
+_ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Visualizations"}
+# A card saved before the Sandbox became Visualizations (2026-11-16) is badged with the new name.
+_ORIGIN_NOW: dict[str, str] = {"Sandbox": "Visualizations"}
 # A diagram is Mermaid text (an ERD from GET /relationships/erd, or any flowchart), drawn by the page.
 # Graphviz is DOT text; Plotly and ECharts are a figure as JSON text; an image is a data: URL. The page
 # draws each (web/src/lazy/), so the server only checks that the text is there and not too big.
@@ -308,7 +310,7 @@ class Cards:
         # Charts' points by view key and spec (see _points), least recently used first.
         self._drawn: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._drawn_lock = threading.Lock()
-        # The Sandbox's theme: "app" (follow the app's), a built-in's id, or one of the user's own.
+        # Visualizations' theme: "app" (follow the app's), a built-in's id, or one of the user's own.
         self._shelf_themes = theme_shelf
         self._theme: str = themes.APP
         self._custom: dict[str, themes.Theme] = {}
@@ -319,13 +321,13 @@ class Cards:
                 continue  # edited by hand into something else
             self._custom[kept.id] = kept
 
-    # ===== the Sandbox's theme =====
+    # ===== Visualizations' theme =====
 
     def _theme_by_id(self, theme_id: str) -> themes.Theme | None:
         return themes.BY_ID.get(theme_id) or self._custom.get(theme_id)
 
     def themes(self) -> dict[str, Any]:
-        """Every theme the Sandbox can take, and the one it has."""
+        """Every theme Visualizations can take, and the one it has."""
         listed = [*themes.BUILT_IN, *self._custom.values()]
         current = self._theme_by_id(self._theme)
         return {
@@ -336,10 +338,10 @@ class Cards:
 
     async def set_theme(self, theme_id: Any, who: str) -> dict[str, Any]:
         if theme_id != themes.APP and (not isinstance(theme_id, str) or self._theme_by_id(theme_id) is None):
-            raise NotFound(f"No Sandbox theme {theme_id!r}: GET /sandbox/themes lists them.")
+            raise NotFound(f"No Visualizations theme {theme_id!r}: GET /visualizations/themes lists them.")
         self._theme = str(theme_id)
         await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
-        self.ws.audit.write(who, "sandbox_theme", self._theme)
+        self.ws.audit.write(who, "visualizations_theme", self._theme)
         return {"current": self._theme}
 
     async def add_theme(self, raw: Any, who: str) -> dict[str, Any]:
@@ -428,7 +430,7 @@ class Cards:
         return shown
 
     def _points(self, cur: SqlSession, grid: Grid, info: DatasetInfo, spec: dict[str, Any]) -> dict[str, Any]:
-        """The chart's points on the grid's view, kept by view key and spec: the Sandbox asks for
+        """The chart's points on the grid's view, kept by view key and spec: Visualizations asks for
         every card again on each change to any card, and only a changed view needs computing.
 
         Computed on the view cache (adapters/views.reading), not on every step run again. A scatter
@@ -464,7 +466,7 @@ class Cards:
         return {"cards": await self.ws.grid_query(grid, None, BACKGROUND, compute)}
 
     async def everything(self) -> dict[str, Any]:
-        """The Analysis Sandbox: one list for every table. Each card is still drawn on its own
+        """Visualizations: one list for every table. Each card is still drawn on its own
         grid's view; a card whose grid was closed drops out."""
         for card in self._cards.values():
             self._relink(card)
@@ -484,7 +486,7 @@ class Cards:
 
     def _relink(self, card: Card) -> None:
         """A chart or query card opened from a saved dashboard draws on an open grid on its table (now or
-        once one opens). Any other card whose grid closes leaves the Sandbox, as it always has."""
+        once one opens). Any other card whose grid closes leaves Visualizations, as it always has."""
         if "frozen" not in card or not _on_a_grid(card):
             return
         if card["grid"] is not None and self.ws.grids.get(card["grid"]):
@@ -542,12 +544,12 @@ class Cards:
         }
 
     async def save(self, name: Any, who: str) -> dict[str, Any]:
-        """Save the Sandbox as `name`: a new version, every card as it is drawn now."""
+        """Save Visualizations as `name`: a new version, every card as it is drawn now."""
         if not isinstance(name, str):
             raise ValueError('Send {"name": ...}: 1 to 64 letters, digits, _ or -.')
         shown = (await self.everything())["cards"]
         if not shown:
-            raise ValueError("The Sandbox is empty: nothing to save.")
+            raise ValueError("Visualizations is empty: nothing to save.")
         kept = [{k: c[k] for k in _KEPT if k in c} | {"frozen": _frozen(c)} for c in shown]
         saved = datetime.now(UTC).isoformat(timespec="seconds")
         theme = self._theme_by_id(self._theme)
@@ -558,7 +560,7 @@ class Cards:
         return {"name": name, "version": version, "cards": len(kept), "saved": saved}
 
     async def open(self, name: str, version: Any, who: str) -> dict[str, Any]:
-        """Make a saved version (the last one unless `version` names another) the Sandbox."""
+        """Make a saved version (the last one unless `version` names another) Visualizations."""
         body = self._shelf().read(name)
         if body is None or not body["versions"]:
             raise NotFound(f"No dashboard named {name!r}.")
@@ -572,10 +574,10 @@ class Cards:
         frozen = sum(1 for c in self._cards.values() if _on_a_grid(c) and c["grid"] is None)
         return {"name": name, "version": number, "cards": len(self._cards), "live": live, "as_saved": frozen}
 
-    # ===== the Sandbox in a .sab project (services/sab_projects.py) =====
+    # ===== Visualizations in a .sab project (services/sab_projects.py) =====
 
     def snapshot(self) -> tuple[list[Card], bool]:
-        """The Sandbox as a project file keeps it: each card's text, size and place, and its theme. What a
+        """Visualizations as a project file keeps it: each card's text, size and place, and its theme. What a
         chart or a query table showed is not kept (it redraws on its table): rows go into a project only
         on a tick. True when a card holds rows of its own (a table card sent with its rows)."""
         kept: list[Card] = []
@@ -598,7 +600,7 @@ class Cards:
         return bool(self._cards)
 
     def state_key(self) -> str:
-        """What the Sandbox holds, as text that changes when a card is added, changed, moved or removed."""
+        """What Visualizations holds, as text that changes when a card is added, changed, moved or removed."""
         fields = (*_KEPT, "id", "order")
         cards = sorted(self._cards.values(), key=lambda c: str(c["id"]))
         return json.dumps([[c.get(k) for k in fields] for c in cards] + [self._theme], default=str)
@@ -609,7 +611,7 @@ class Cards:
         await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
 
     async def restore(self, cards: Any, who: str) -> int:
-        """Make these saved cards the Sandbox (a dashboard's version, a project's Sandbox)."""
+        """Make these saved cards Visualizations (a dashboard's version, a project's Visualizations)."""
         self._cards = {}
         self._theme = themes.APP
         for order, saved in enumerate(cards if isinstance(cards, list) else [], start=1):
@@ -631,7 +633,7 @@ class Cards:
                 "grid": None,
                 "dataset": saved.get("dataset"),
                 "frozen": saved.get("frozen") or {},
-                "origin": saved.get("origin") or "Sandbox",
+                "origin": _ORIGIN_NOW.get(saved.get("origin") or "", saved.get("origin")) or "Visualizations",
                 "pinned": bool(saved.get("pinned")),
                 "new_page": bool(saved.get("new_page")),
                 "created_by": saved.get("created_by") or who,
@@ -677,7 +679,7 @@ class Cards:
 
     async def add_free(self, body: Any, who: str) -> dict[str, Any]:
         """A card that belongs to no table: any kind but a chart or a table's query, which need a
-        grid's view. `"origin": "python"` marks one sent by sab.sandbox."""
+        grid's view. `"origin": "python"` marks one sent by sab.visualizations."""
         card = check_card(body)
         _not_the_agents(card, who)
         if card["kind"] == "chart" or "sql" in card:
@@ -702,7 +704,7 @@ class Cards:
                 "key": key,
                 "grid": grid,
                 "dataset": dataset,
-                "origin": _ORIGINS.get(origin, "Sandbox"),
+                "origin": _ORIGINS.get(origin, "Visualizations"),
                 "pinned": False,
                 "new_page": False,
                 "created_by": who,
@@ -825,7 +827,7 @@ def _click_filter(field: str, family: str, value: Any, time_unit: str | None) ->
 
 
 def _as_family(value: Any, family: str) -> Any:
-    """A value an agent gave as text (`sab sandbox_select --value 3`) as its column's type; any
+    """A value an agent gave as text (`sab visualizations_select --value 3`) as its column's type; any
     other value as it came (the filter step says what is wrong with it)."""
     if not isinstance(value, str):
         return value

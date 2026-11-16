@@ -2,12 +2,12 @@
  * main.ts: the grid page, put together. [EXPORT: bootstrap, composition only]
  *
  * One page holds every open grid: the tab bar and the grid panes (two side by side when split)
- * are panes.ts; everything else here (toolbar, ribbon, steps, the Analysis Sandbox in the Agent
+ * are panes.ts; everything else here (toolbar, ribbon, steps, Visualizations in the Agent
  * tab, SQL box, status bar) is shared and shows the active grid. /g/<id> opens the page on that grid, /workspace on
  * the last one used.
  *
  * COMPOSES: panes (tabs, panes, split) · gridView + selection (one per grid) · ribbon (Table / Column tools) ·
- *           stepsPanel + stepForms (applied steps) · aiPanel (the Analysis Sandbox) ·
+ *           stepsPanel + stepForms (applied steps) · aiPanel (Visualizations) ·
  *           agentAccess (approval popups) · stepsStrip · exportDialog ·
  *           erdView (the ERD tab) · queryTab (the "+" tab: a new table from a query) ·
  *           openMenu (the Open dialog: tables in running Python sessions) ·
@@ -224,7 +224,7 @@ async function start(): Promise<void> {
   state.on("info", () => {
     if (!state.info) return;
     title();
-    // The browser tab names the place in front (the table, Sandbox, Diagram); the tab bar names them all.
+    // The browser tab names the place in front (the table, Visualizations, the ERD); the tab bar names them all.
     drawTitle();
   });
   // The Application row: app-wide commands, with their words, above the ribbon's Table row.
@@ -289,7 +289,7 @@ async function start(): Promise<void> {
   // A compare this page was showing before a reload comes back with its split.
   await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();
-  // The view the address named (the Sandbox, the Diagram, a table), then the dialog over it.
+  // The view the address named (Visualizations, the ERD, a table), then the dialog over it.
   await showPlace(opened);
   startNav(opened);
 

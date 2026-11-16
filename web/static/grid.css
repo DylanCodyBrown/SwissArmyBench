@@ -627,11 +627,11 @@ body.popout .steps-panel {
   overflow: auto;
   padding: 10px;
   background: var(--bg);
-  /* The Sandbox may carry a theme of its own (sandboxThemes.ts): its text takes that theme's colour. */
+  /* Visualizations may carry a theme of its own (sandboxThemes.ts): its text takes that theme's colour. */
   color: var(--fg);
 }
 
-/* Print a Sandbox theme as it looks on screen: backgrounds included. */
+/* Print a Visualizations theme as it looks on screen: backgrounds included. */
 .panel-body[data-sandbox-theme] {
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
@@ -2640,7 +2640,7 @@ button.link {
   border-left: 0;
 }
 
-/* The Analysis Sandbox lives in the Agent tab, so a grid tab gives the grid every row and
+/* Visualizations lives in the Agent tab, so a grid tab gives the grid every row and
    column. The layout is pinned here, not left to --panel-size: setSize() writes a saved size
    inline, which would beat a stylesheet value and leave a blank band below the grid. */
 .workspace[data-panel="detached"] {
@@ -2654,7 +2654,7 @@ button.link {
   display: none;
 }
 
-/* The Agent tab: the Analysis Sandbox full width, in place of the grids. */
+/* The Agent tab: Visualizations full width, in place of the grids. */
 .workspace[data-view="agent"] {
   grid-template-columns: 0 0 0 minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
@@ -2671,7 +2671,7 @@ button.link {
   display: flex !important;
 }
 
-/* The Analysis Sandbox uses the whole screen width. auto-fit (not the panel's auto-fill) drops the empty tracks, so a
+/* Visualizations uses the whole screen width. auto-fit (not the panel's auto-fill) drops the empty tracks, so a
    lone card spans the row and two sit side by side on a wide screen; the content then scales to its card. */
 .workspace[data-view="agent"][data-panel][data-layout] .cards {
   grid-auto-flow: row;
@@ -2721,7 +2721,7 @@ body.agent-view .titlebar {
   color: var(--accent);
 }
 
-/* Each Analysis Sandbox card names the table it is drawn on: one sandbox for every table. */
+/* Each Visualizations card names the table it is drawn on: one sandbox for every table. */
 .card-table {
   margin-left: 6px;
   color: var(--muted);
@@ -2786,7 +2786,7 @@ body.agent-view .titlebar {
   white-space: pre-wrap;
 }
 
-/* The Analysis Sandbox's title: centered and large, in the accent color, like a table's name. */
+/* Visualizations' title: centered and large, in the accent color, like a table's name. */
 .sandbox-title {
   margin: 4px 0 14px;
   color: var(--accent);
@@ -3126,7 +3126,7 @@ body.agent-view .titlebar {
   min-height: 24px;
 }
 
-/* ===== The Sandbox: a dashboard of resizable cards (aiPanel.ts) =====
+/* ===== Visualizations: a dashboard of resizable cards (aiPanel.ts) =====
    Widths in twelfths of the row and heights in 40px steps, set from each card's corner grip; a card
    not resized grows to fill its row. What a card draws fills it. */
 .cards,
@@ -3797,7 +3797,7 @@ body.agent-view .titlebar {
   font-size: 12px;
 }
 
-/* ===== The Sandbox as pages (sandboxPages.ts) ===== */
+/* ===== Visualizations as pages (sandboxPages.ts) ===== */
 .toolbar-gap {
   flex: 1;
 }
@@ -4066,7 +4066,7 @@ body.agent-view .titlebar {
   display: none;
 }
 
-/* The Sandbox's saved dashboards (sandboxDashboards.ts) */
+/* Visualizations' saved dashboards (sandboxDashboards.ts) */
 .dashboards { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .dashboard-row { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
 .dashboard-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -5731,7 +5731,7 @@ body.wb-dragging-tab * {
   box-shadow: -8px 0 24px rgb(0 0 0 / 0.18);
 }
 
-/* The right column holds Variables alone (pictures go to the Sandbox), under a band level with the
+/* The right column holds Variables alone (pictures go to Visualizations), under a band level with the
    groups' rows. */
 .wb-col-right {
   grid-template-rows: calc(48px * var(--ui-zoom, 1)) minmax(0, 1fr);
@@ -5784,7 +5784,7 @@ body.wb-dragging-tab * {
   font-size: 12px;
 }
 
-/* A picture or chart in a run's output, with Send to Sandbox. */
+/* A picture or chart in a run's output, with Send to Visualizations. */
 .wb-figure {
   position: relative;
   margin: 4px 0;

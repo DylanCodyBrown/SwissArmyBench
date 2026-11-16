@@ -71,7 +71,7 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
             ("Analyze", "Odds…"),
             ("Analyze", "Regression…"),
             ("Analyze", "Forecast…"),
-            ("Tabs", "Go to Sandbox"),
+            ("Tabs", "Go to Visualizations"),
             ("Tabs", "Go to palette_other"),
             ("Tabs", "Compare palette_orders with…"),
             ("Tabs", "Rename palette_orders"),
@@ -103,8 +103,10 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
         palette(page, "cell keep")
         expect(page.locator("#status")).to_contain_text("of 100")
         # Tabs and analyses.
-        palette(page, "go to sandbox")
-        expect(page.locator(".nav-rail [data-area='sandbox']")).to_have_attribute("aria-current", "page")
+        palette(page, "go to visualizations")
+        expect(page.locator(".nav-rail [data-area='visualizations']")).to_have_attribute(
+            "aria-current", "page"
+        )
         palette(page, "go to palette_orders")
         expect(page.locator(".tab-item.active .tab-label")).to_have_text("palette_orders")
         palette(page, "analyze outliers")

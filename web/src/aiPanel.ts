@@ -1,7 +1,7 @@
 /**
- * aiPanel.ts: the Sandbox: a dashboard of charts, notes, result tables, diagrams and images. [WIRE]
+ * aiPanel.ts: Visualizations: a dashboard of charts, notes, result tables, diagrams and images. [WIRE]
  *
- * It lives in the Sandbox tab: the first tab of the tab bar, always there, which shows this panel
+ * It lives in the Visualizations tab: the first tab of the tab bar, always there, which shows this panel
  * full width (panes.ts). It is one sandbox for every table: each card names the table it is drawn on
  * (GET /cards), and Add chart picks the table. The grid tabs give the grids the full width.
  *
@@ -16,7 +16,7 @@
  * Split-panel styles: the panel sits to the right of the grid or below it, its size drags
  * (or moves with the arrow keys on the splitter), it collapses to a slim rail or maximizes
  * over the grid. Zooming: the page has one zoom (the Application row's, Ctrl+= and Ctrl+-), which
- * the Sandbox follows (the owner's decision 19: it had one of its own); any chart opens large with
+ * Visualizations follows (the owner's decision 19: it had one of its own); any chart opens large with
  * wheel zoom and drag-to-pan. Layout, size and zoom are remembered per viewer.
  *
  * ROUTING: [SPLITTER]        drag / arrows / double-click -> setSize()
@@ -60,7 +60,7 @@ interface Card {
   created_by: string;
   grid: string | null; // the grid the card is drawn on; null for a card of no table (Python, a note)
   dataset: string | null;
-  origin?: string; // a card of no table: "Python", "Agent" or "Sandbox"
+  origin?: string; // a card of no table: "Python", "Agent" or "Visualizations"
   size?: { w: number; h: number }; // columns of 12, rows of ROW_HEIGHT; else the kind's default
   new_page?: boolean; // in Page view (and the PDF), this card starts a new page
 }
@@ -356,15 +356,15 @@ async function render(): Promise<void> {
           iconOnly: true,
           class: "ghost",
         }),
-        mode === "collapsed" ? h("span", { class: "rail-label" }, "Sandbox") : null,
+        mode === "collapsed" ? h("span", { class: "rail-label" }, "Visualizations") : null,
       ),
     ),
     body,
   );
   if (mode === "collapsed") return;
   // The panel's title, centered and large like a table's name, above what it holds.
-  body.append(h("h1", { id: "ai-panel-title", class: "sandbox-title" }, "Sandbox"));
-  // The Sandbox's own theme, on its body only: the grid keeps the app's.
+  body.append(h("h1", { id: "ai-panel-title", class: "sandbox-title" }, "Visualizations"));
+  // Visualizations' own theme, on its body only: the grid keeps the app's.
   const themes = await loadThemes().catch(() => null);
   applySandboxTheme(body, themes?.theme ?? null);
   themeBar = themes ? themeControls(themes, () => void render()) : null;
@@ -373,9 +373,9 @@ async function render(): Promise<void> {
 
 // ===== cards =====
 
-let themeBar: HTMLElement | null = null; // the theme picker, for the Sandbox's toolbar
+let themeBar: HTMLElement | null = null; // the theme picker, for Visualizations' toolbar
 
-let onBoard = 0; // how many cards the Sandbox shows (the Dashboards window warns before replacing them)
+let onBoard = 0; // how many cards Visualizations shows (the Dashboards window warns before replacing them)
 
 async function renderCards(body: HTMLElement): Promise<void> {
   body.append(
@@ -416,7 +416,7 @@ async function renderCards(body: HTMLElement): Promise<void> {
         "div",
         { class: "empty-state" },
         icon("agent"),
-        h("strong", {}, "Sandbox is empty"),
+        h("strong", {}, "Visualizations is empty"),
       ),
     );
     return;
@@ -438,7 +438,7 @@ async function renderCards(body: HTMLElement): Promise<void> {
   arrive();
 }
 
-// A toast's Show (sandboxShow.ts): the card to bring into view once the Sandbox has drawn it.
+// A toast's Show (sandboxShow.ts): the card to bring into view once Visualizations has drawn it.
 let arriving: string | null = null;
 onShowCard((card) => {
   arriving = card;
@@ -473,10 +473,10 @@ function setPaper(next: Paper): void {
 /** How each drawn card makes a picture of itself (for the markdown export), filled as cards draw. */
 const pictures = new Map<string, () => Promise<string | null>>();
 
-/** The whole Sandbox as one markdown file, every drawing a PNG; drawn on light paper like the PDF. */
+/** All of Visualizations as one markdown file, every drawing a PNG; drawn on light paper like the PDF. */
 async function exportMarkdown(): Promise<void> {
   const theme = themeChoice();
-  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // a Sandbox theme exports as it is
+  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // a Visualizations theme exports as it is
   try {
     if (dark) setTheme("light");
     await render();
@@ -499,7 +499,7 @@ async function exportMarkdown(): Promise<void> {
 async function printSandbox(): Promise<void> {
   const wasPages = pageView();
   const theme = themeChoice();
-  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // a Sandbox theme prints as it is
+  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // a Visualizations theme prints as it is
   await printPages(
     paper(),
     async () => {
@@ -544,7 +544,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     ]), { icon: "more", iconOnly: true, class: "ghost" }),
     h("span", { class: "danger-gap" }, button("Remove", () => void api(`/cards/${card.id}`, "DELETE").then(() => render()), { icon: "trash", iconOnly: true, class: "ghost" })),
   );
-  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind])), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "the Sandbox"}` }, card.dataset ?? card.origin ?? "Sandbox"), actions);
+  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind])), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Visualizations"}` }, card.dataset ?? card.origin ?? "Visualizations"), actions);
   const element = h(
     "article",
     { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "data-card": card.id, "aria-label": card.title || KIND_NAMES[card.kind] },
@@ -554,7 +554,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
   );
   element.append(resizeGrip(card, element));
   makeMovable(element, header, card.id, order[index + 1] ?? null, () => void render());
-  const dark = sandboxDark(); // the Sandbox's theme, or the app's when it follows it
+  const dark = sandboxDark(); // Visualizations' theme, or the app's when it follows it
   const failed = (slot: HTMLElement, e: unknown): void => {
     slot.textContent = `Could not draw: ${(e as Error).message}`;
     slot.classList.add("error-text");

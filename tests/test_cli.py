@@ -339,33 +339,51 @@ def test_grids_datasets_and_files(live: Live, clients: str, tmp_path: Path) -> N
     assert code["verified"] is True and "code" in code
 
 
-# ===== the Analysis Sandbox, Key Finder, relationships, compare =====
+# ===== Visualizations, Key Finder, relationships, compare =====
 
 
 def test_cards_including_a_saved_query(live: Live, clients: str) -> None:
     table = run(
-        "sandbox_add",
+        "visualizations_add",
         grid=clients,
         kind="table",
         title="Top",
         sql="SELECT client FROM grid ORDER BY balance DESC LIMIT 2",
     )
     chart = run(
-        "sandbox_add",
+        "visualizations_add",
         grid=clients,
         kind="chart",
         spec={"mark": "bar", "x": {"field": "region"}, "y": {"aggregate": "count"}},
     )
-    note = run("sandbox_add", grid=clients, kind="note", title="n", body="**hi**")
-    cards = run("sandbox_list", grid=clients)["cards"]
+    note = run("visualizations_add", grid=clients, kind="note", title="n", body="**hi**")
+    cards = run("visualizations_list", grid=clients)["cards"]
     assert {c["id"] for c in cards} == {table["card"], chart["card"], note["card"]}
     assert next(c for c in cards if c["id"] == table["card"])["rows"] == [["Globex"], ["Acme"]]
-    assert len(run("sandbox_all")["cards"]) == 3
-    assert run("sandbox_update", card=note["card"], pinned=True, body="edited")["card"] == note["card"]
-    assert "alt" in run("sandbox_code", card=chart["card"])["code"].lower()
-    assert run("sandbox_select", card=chart["card"], value="east")["steps"] == 1
+    assert len(run("visualizations_all")["cards"]) == 3
+    assert run("visualizations_update", card=note["card"], pinned=True, body="edited")["card"] == note["card"]
+    assert "alt" in run("visualizations_code", card=chart["card"])["code"].lower()
+    assert run("visualizations_select", card=chart["card"], value="east")["steps"] == 1
     assert run("tabs_get", grid=clients)["steps"][0]["params"]["value"] == "east"
-    assert run("sandbox_delete", card=note["card"])["removed"] == note["card"]
+    assert run("visualizations_delete", card=note["card"])["removed"] == note["card"]
+
+
+def test_the_old_sandbox_names_still_run_their_visualizations_commands(live: Live, clients: str) -> None:
+    """The Sandbox became Visualizations (the owner, 2026-11-16): every sandbox_* name runs its
+    visualizations_* command for one release, by `sab` and by an MCP call, but is never listed."""
+    from swissarmybench.cli import main as cli_main
+    from swissarmybench.cli.commands import OLD_NAMES
+
+    assert set(OLD_NAMES.values()) == {n for n in REGISTRY if n.startswith("visualizations_")}
+    assert len(OLD_NAMES) == 12 and not any(n.startswith("sandbox_") for n in REGISTRY)
+    note = run("sandbox_add", grid=clients, kind="note", title="old name", body="still here")
+    assert note["card"] in {c["id"] for c in run("visualizations_list", grid=clients)["cards"]}
+    assert cli_main.parse(["sandbox_delete", note["card"]]) == ("sandbox_delete", {"card": note["card"]})
+    assert cli_main.main(["sandbox_delete", note["card"]]) == 0
+    tools = {t.name for t in asyncio.run(mcp_server.server.list_tools())}
+    assert "visualizations_formats" in tools and "sandbox_formats" not in tools
+    result = asyncio.run(mcp_server.server.call_tool("sandbox_formats", {}))
+    assert "kinds" in "".join(getattr(part, "text", "") for part in getattr(result, "content", result))
 
 
 def test_key_finder_relationships_and_compare(live: Live, clients: str) -> None:
@@ -539,8 +557,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
         len(json.dumps(t.input_schema)) + len(t.description or "") + len(t.name) for t in tools.values()
     )
     # 24,000 until the Analyze menu (2026-11): its odds, fit test, outliers, predictors, regression,
-    # what-if, data shape, time series and forecast tools are each one short schema; then the Sandbox's
-    # formats and saved dashboards, sandbox_add's own rows, file and key, and Compare's tie-out.
+    # what-if, data shape, time series and forecast tools are each one short schema; then Visualizations'
+    # formats and saved dashboards, visualizations_add's own rows, file and key, and Compare's tie-out.
     # 26,500 leaves room for Compare's diff.
     # The golden rule (2026-11-14) gave the agent every user action: about 170 tools (45,000).
     # Every table's read-only cell (2026-11-14) added five: the tables' cells, arranging a document,

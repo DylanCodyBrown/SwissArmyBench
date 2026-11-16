@@ -6,21 +6,21 @@ the Workbench window and the agent alike.
             temporary folder, starting with data.ipynb (services/projects.py makes it, with the tables
             open now, and their connections copied in from this computer's)
   open      a .sab unpacked into a working folder; each table read again from where it came from, as a
-            grid with its steps; the Sandbox, the relationships and the windows' layout as they were. A
+            grid with its steps; Visualizations, the relationships and the windows' layout as they were. A
             table that cannot come back (a connection this computer does not have, a file that moved,
             a notebook not run yet, rows not kept) says so, with the click that fixes it (fix). A folder
             (today's projects) opens too: it is its own working folder
-  save      the .sab written again (atomically) from the working folder, the open tables, the Sandbox
+  save      the .sab written again (atomically) from the working folder, the open tables, Visualizations
             and the model. A pasted or pushed table's rows go in only when ticked (keep_rows); the
             agent's save waits for the user's Allow when it would write rows. Never a password
-  close     the tables, the Sandbox and the model closed, the temporary working folder removed
+  close     the tables, Visualizations and the model closed, the temporary working folder removed
   autosave  the user's switch, kept in project.json: on, a save a short while after each change, quietly
   scope     the open project's connections, blades and saved dashboards are its own (its working folder's
             .sab folder, domain/project_scope.py): each open, new and close tells the stores (scope)
   recent    the projects opened and saved, with their files' state (recent_projects.json)
 
 Whether there are unsaved changes is worked out, not tracked: what a save would write (the tables, their
-sources and steps, the Sandbox, the model, the working folder's files) against what the last save or
+sources and steps, Visualizations, the model, the working folder's files) against what the last save or
 open wrote, and the Workbench's own unsaved documents. Opening another project when that would lose work
 asks first (Conflict), and only then. One project is open at a time (memory only).
 """
@@ -310,7 +310,7 @@ class SabProjects:
     # ===== clearing the workspace =====
 
     async def _clear(self, who: str) -> None:
-        """Every table closed, the Sandbox and the model emptied, the temporary working folder removed."""
+        """Every table closed, Visualizations and the model emptied, the temporary working folder removed."""
         for info in list(self.ws.store.all()):
             await self._datasets.close(info.name, who)
         await self._cards.clear()
@@ -443,10 +443,10 @@ class SabProjects:
             )  # queries read the others
             for table in ordered:
                 await self._load(table, sab_folder, found, who)
-            if manifest.sandbox and manifest.sandbox in found:
+            if manifest.visualizations and manifest.visualizations in found:
                 try:
                     saved = json.loads(
-                        await asyncio.to_thread(self._archive.read_text, found[manifest.sandbox])
+                        await asyncio.to_thread(self._archive.read_text, found[manifest.visualizations])
                     )
                     cards = saved["versions"][-1]["cards"] if isinstance(saved, dict) else []
                 except (ValueError, KeyError, IndexError, TypeError):
@@ -644,19 +644,19 @@ class SabProjects:
         async with self._busy:
             tables = self._tables()
             rows_tables = [t.name for t in tables if t.source.needs_rows and current.keep_rows.get(t.name)]
-            sandbox, card_rows = self._cards.snapshot()
+            cards, card_rows = self._cards.snapshot()
             if who == "agent" and (rows_tables or card_rows):
                 detail = "\n".join(
                     [
                         "Save the project, with these rows kept in the file:",
                         f"  {target}",
                         *(f"  {name} ({self._rows(name):,} rows)" for name in rows_tables),
-                        *(["  the Sandbox's table cards"] if card_rows else []),
+                        *(["  Visualizations' table cards"] if card_rows else []),
                     ]
                 )
                 if not await self._approvals.ask(current.name, "save the project with rows", detail):
                     raise Refused("The user declined (or did not answer): the project was not saved.")
-            written = await self._write(current, target, rows_tables, sandbox)
+            written = await self._write(current, target, rows_tables, cards)
             current.path = written
             current.name = rules.name_of_file(written)
             current.saved_key = self._key()
@@ -670,8 +670,8 @@ class SabProjects:
         info = self.ws.store.get(name)
         return info.row_count if info else 0
 
-    async def _write(self, current: Current, target: str, rows_tables: list[str], sandbox: list[Any]) -> str:
-        """The .sab at `target`: the manifest, the project's files, the Sandbox, the model, ticked rows."""
+    async def _write(self, current: Current, target: str, rows_tables: list[str], cards: list[Any]) -> str:
+        """The .sab at `target`: the manifest, the project's files, Visualizations, the model, ticked rows."""
         before = current.path
         current.path = target  # the sources are written relative to where the file goes
         try:
@@ -702,13 +702,13 @@ class SabProjects:
                     entries.append((entry, await asyncio.to_thread(self._archive.write_rows, scratch, rows)))
                     table = replace(table, rows_file=entry, source=replace(table.source, rows=True))
                 written.append(table)
-            sandbox_entry = rules.SANDBOX if [c for c in sandbox if c.get("kind") != "theme"] else None
-            if sandbox_entry:
+            cards_entry = rules.VISUALIZATIONS if [c for c in cards if c.get("kind") != "theme"] else None
+            if cards_entry:
                 body = {
                     "name": current.name,
-                    "versions": [{"saved": _now_text(self._now()), "cards": sandbox}],
+                    "versions": [{"saved": _now_text(self._now()), "cards": cards}],
                 }
-                entries.append((sandbox_entry, json.dumps(body, default=str).encode("utf-8")))
+                entries.append((cards_entry, json.dumps(body, default=str).encode("utf-8")))
             model = self._models.model
             model_entry = rules.MODEL if model.tables() or model.relationships else None
             if model_entry:
@@ -723,7 +723,7 @@ class SabProjects:
                 tabs=layout.get("home") or {},
                 workbench=layout.get("workbench") or {},
                 diagram=layout.get("diagram") or {},
-                sandbox=sandbox_entry,
+                visualizations=cards_entry,
                 model=model_entry,
                 autosave=current.autosave,
                 extra=dict(earlier.extra) if earlier else {},

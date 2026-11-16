@@ -1,5 +1,5 @@
-"""The Sandbox's themes: every built-in readable by construction, a theme file checked and made
-readable, the Sandbox's own theme kept apart from the grid's, kept on disk when the user imports one,
+"""Visualizations' themes: every built-in readable by construction, a theme file checked and made
+readable, Visualizations' own theme kept apart from the grid's, kept on disk when the user imports one,
 remembered by a saved dashboard."""
 
 from __future__ import annotations
@@ -57,25 +57,27 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
 def test_the_sandbox_theme_is_set_imported_proposed_and_saved_with_a_dashboard(
     client: TestClient, tmp_path: Path
 ) -> None:
-    listed = client.get("/sandbox/themes", headers=AUTH).json()
+    listed = client.get("/visualizations/themes", headers=AUTH).json()
     assert listed["current"] == "app" and len(listed["themes"]) == 20
-    assert client.put("/sandbox/theme", json={"theme": "colorblind-dark"}, headers=AGENT).json() == {
+    assert client.put("/visualizations/theme", json={"theme": "colorblind-dark"}, headers=AGENT).json() == {
         "current": "colorblind-dark"
     }
-    assert client.put("/sandbox/theme", json={"theme": "nope"}, headers=AUTH).status_code == 404
+    assert client.put("/visualizations/theme", json={"theme": "nope"}, headers=AUTH).status_code == 404
     mine = {"name": "Harbour", "dark": False, "tokens": {"accent": "#0b6e99"}}
-    assert client.post("/sandbox/themes", json=mine, headers=AUTH).json()["id"] == "custom-harbour"
+    assert client.post("/visualizations/themes", json=mine, headers=AUTH).json()["id"] == "custom-harbour"
     assert (tmp_path / "state" / "themes" / "custom-harbour.json").exists()  # the user's import is kept
-    proposed = client.post("/sandbox/themes", json={"name": "Agent pick", "dark": True}, headers=AGENT).json()
+    proposed = client.post(
+        "/visualizations/themes", json={"name": "Agent pick", "dark": True}, headers=AGENT
+    ).json()
     assert proposed["by_agent"] and not (tmp_path / "state" / "themes" / "custom-agent-pick.json").exists()
-    client.put("/sandbox/theme", json={"theme": "custom-harbour"}, headers=AUTH)
+    client.put("/visualizations/theme", json={"theme": "custom-harbour"}, headers=AUTH)
     push(client, "sales", pa.table({"n": [1]}))
     client.post("/cards", json={"kind": "note", "title": "n", "body": "hi"}, headers=AUTH)
     client.post("/dashboards", json={"name": "harbour_view"}, headers=AUTH)
-    client.put("/sandbox/theme", json={"theme": "app"}, headers=AUTH)
-    client.delete("/sandbox/themes/custom-harbour", headers=AUTH)
+    client.put("/visualizations/theme", json={"theme": "app"}, headers=AUTH)
+    client.delete("/visualizations/themes/custom-harbour", headers=AUTH)
     client.post("/dashboards/harbour_view/open", json={}, headers=AUTH)
-    back = client.get("/sandbox/themes", headers=AUTH).json()
+    back = client.get("/visualizations/themes", headers=AUTH).json()
     assert back["current"] == "custom-harbour" and back["theme"]["tokens"]["accent"] == "#0b6e99"
     history = client.get("/dashboards/harbour_view", headers=AUTH).json()["versions"][0]["cards"]
     assert [c["kind"] for c in history] == ["note"]  # the theme rides along, not as a card
@@ -89,6 +91,6 @@ def test_the_agent_tool_lists_names_only(client: TestClient, monkeypatch: pytest
         "call",
         lambda method, path, body=None: client.request(method, path, json=body, headers=AGENT).json(),
     )
-    listed = commands.REGISTRY["sandbox_theme"].run({})
+    listed = commands.REGISTRY["visualizations_theme"].run({})
     assert listed["current"] == "app" and set(listed["themes"][0]) == {"id", "label", "dark", "group", "note"}
-    assert commands.REGISTRY["sandbox_theme"].run({"theme": "carbon"}) == {"current": "carbon"}
+    assert commands.REGISTRY["visualizations_theme"].run({"theme": "carbon"}) == {"current": "carbon"}

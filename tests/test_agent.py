@@ -241,7 +241,7 @@ def test_refusals_reach_the_agent_with_their_reason(
     with pytest.raises(Exception) as bad_chart:
         asyncio.run(
             mcp_server.server.call_tool(
-                "sandbox_add", {"grid": "nope", "kind": "chart", "spec": {"mark": "pie"}}
+                "visualizations_add", {"grid": "nope", "kind": "chart", "spec": {"mark": "pie"}}
             )
         )
     assert "No such grid" in str(bad_chart.value)

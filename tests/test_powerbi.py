@@ -1048,7 +1048,7 @@ def test_import_its_relationships_merges_into_the_current_model(
         "EVALUATE INFO.RELATIONSHIPS()", "EVALUATE INFO.TABLES()", "EVALUATE INFO.COLUMNS()",
     ]  # fmt: skip
     assert len(client.get("/relationships", headers=AUTH).json()["relationships"]) == 5
-    # The Diagram draws them once the tables are open.
+    # The ERD draws them once the tables are open.
     for table in TABLES:
         where = {"schema": SALES, "table": table}
         assert client.post("/connections/Finance/open", json=where, headers=AUTH).status_code == 200

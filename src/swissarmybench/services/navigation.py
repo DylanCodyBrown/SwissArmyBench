@@ -23,7 +23,7 @@ class Navigation:
         self.ws = ws
 
     async def go(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """Send a window somewhere: {"to": "sandbox"}, {"window": "catalog", "to": "blade:x"}."""
+        """Send a window somewhere: {"to": "visualizations"}, {"window": "catalog", "to": "blade:x"}."""
         if not isinstance(body, dict):
             raise rules.NavigationError('Send {"to": "home"} (and "window": home, catalog or workbench).')
         notice = rules.place(body.get("window"), body.get("to"), body.get("new_window"))

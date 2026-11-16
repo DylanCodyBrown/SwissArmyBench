@@ -1,7 +1,7 @@
-"""The Sandbox's themes: twenty built in (high contrast and colourblind-safe first), and the user's own,
+"""Visualizations' themes: twenty built in (high contrast and colourblind-safe first), and the user's own,
 imported as a small JSON file (by the user, or proposed by the agent).
 
-A theme is a set of colour tokens, the same names the page's own themes use (grid.css): the Sandbox sets
+A theme is a set of colour tokens, the same names the page's own themes use (grid.css): Visualizations sets
 them on its own element, so its cards, charts, Page view, PDF and markdown pictures take the theme while
 the grid keeps the app's. Every theme here is readable by construction: `accessible()` moves each colour
 just far enough from the background to meet its contrast (WCAG: text 7:1, quieter text 4.5:1, chart
@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-# The tokens a Sandbox theme sets (grid.css names, without the leading --).
+# The tokens a Visualizations theme sets (grid.css names, without the leading --).
 TOKENS: tuple[str, ...] = (
     "bg",
     "surface",

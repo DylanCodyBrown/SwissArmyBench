@@ -24,7 +24,7 @@ export interface ResultActions {
   /** The analysis's name for the server (odds, predictors, outliers, fit_test) and the request it ran. */
   analysis: string;
   body: Record<string, unknown>;
-  /** The result as Sandbox cards: a report-style note and its chart (analysisCards.ts). */
+  /** The result as Visualizations cards: a report-style note and its chart (analysisCards.ts). */
   cards: () => SandboxCard[];
   /** The result as rows, for a new grid (and the name to give it). */
   rows?: () => { name: string; rows: Record<string, unknown>[] };
@@ -102,32 +102,32 @@ export function tableName(...parts: string[]): string {
   return parts.map((p) => p.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")).filter(Boolean).join("_") || "result";
 }
 
-/** The buttons under a result: Send to Sandbox, Open as grid (when it has rows), Copy code. */
+/** The buttons under a result: Send to Visualizations, Open as grid (when it has rows), Copy code. */
 export function resultButtons(actions: ResultActions): HTMLButtonElement[] {
   const out = [
-    button("Send to Sandbox", () => void toSandbox(actions), { icon: "image" }),
+    button("Send to Visualizations", () => void toSandbox(actions), { icon: "image" }),
   ];
   if (actions.rows) out.push(button("Open as grid", () => void toGrid(actions), { icon: "rows" }));
   if (actions.result) {
     const result = actions.result;
-    out.push(button("Show the math", () => void showTheMath(actions.analysis, result()), { icon: "steps", title: "Step by step, to the Sandbox" }));
+    out.push(button("Show the math", () => void showTheMath(actions.analysis, result()), { icon: "steps", title: "Step by step, to Visualizations" }));
   }
   out.push(button("Copy code", () => void copyCode(actions), { icon: "copy", title: "This analysis as Python, for a notebook" }));
   return out;
 }
 
-/** The proof of a result (domain/proofs.py), as a note in the Sandbox beside the result's cards. */
+/** The proof of a result (domain/proofs.py), as a note in Visualizations beside the result's cards. */
 export async function showTheMath(analysis: string, result: unknown): Promise<void> {
   try {
     const proof = await api<{ title: string; markdown: string }>("/analysis-proof", "POST", { analysis, result, dataset: datasetName() });
     const made = await api(`${grid}/cards`, "POST", { kind: "note", title: proof.title, body: proof.markdown, size: { w: 8, h: 14 } });
-    sentToast("In the Sandbox: the math, step by step.", made);
+    sentToast("In Visualizations: the math, step by step.", made);
   } catch (e) {
     toast((e as Error).message, "error");
   }
 }
 
-/** Add cards to the Sandbox, filed with the grid in front; says what arrived, with Show (the
+/** Add cards to Visualizations, filed with the grid in front; says what arrived, with Show (the
  * window it was sent from stays open). */
 export async function sendCards(cards: SandboxCard[]): Promise<void> {
   try {
@@ -138,7 +138,7 @@ export async function sendCards(cards: SandboxCard[]): Promise<void> {
       const made = await api(`${grid}/cards`, "POST", card);
       first ??= made;
     }
-    sentToast(`In the Sandbox: ${cards.length === 1 ? "a note" : "a note and its chart"}.`, first);
+    sentToast(`In Visualizations: ${cards.length === 1 ? "a note" : "a note and its chart"}.`, first);
   } catch (e) {
     toast((e as Error).message, "error");
   }

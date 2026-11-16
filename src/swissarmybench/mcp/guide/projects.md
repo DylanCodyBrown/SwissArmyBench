@@ -1,7 +1,7 @@
 # Projects: one .sab file
 
 A project is one file, `<name>.sab` (a zip inside, like .docx): its notebooks, scripts and app
-canvases, the open tables with their steps, the Sandbox, the relationships and the windows' layout.
+canvases, the open tables with their steps, Visualizations, the relationships and the windows' layout.
 It can be emailed or shared; a double-click opens it. While it is open the app works in a folder of
 its own (in the system's temporary folder); Save writes the .sab again.
 
@@ -10,7 +10,7 @@ its own (in the system's temporary folder); Save writes the .sab again.
   quietly after each change; `project_autosave(on)` later). The user's page then shows its Grids.
 - Its notebooks, scripts and apps: `project_documents(kind?)`. There are no recent files: a document
   from elsewhere is copied in with `project_import(source=<file>)`.
-- Its connections and blades (`connections_list`, `blades_list`) and its saved Sandbox dashboards go
+- Its connections and blades (`connections_list`, `blades_list`) and its saved Visualizations dashboards go
   with its file; another project sees none of them. With no project open they are this computer's
   saved ones.
 - `project_import(source, list=true)`: what another .sab, a project folder or `"computer"` (this
@@ -43,6 +43,6 @@ its own (in the system's temporary folder); Save writes the .sab again.
 - `project_save(keep_rows?, path?)`: with no project open, `path` makes the open work one. The Workbench's
   unsaved documents of the project are saved first. `project_save_as(path)`; with `folder`, a
   folder project becomes one file.
-- `project_close(discard?)`: its tables, Sandbox and relationships close; its working folder goes.
+- `project_close(discard?)`: its tables, Visualizations and relationships close; its working folder goes.
 - Nothing runs code on open: a table made by a notebook comes back when that notebook runs.
 - A file from a newer version opens read-only: say so; it cannot be saved here.
