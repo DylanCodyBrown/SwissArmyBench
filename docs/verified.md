@@ -1664,3 +1664,52 @@ drags; code of more than one line is pasted, one typed value):
   windows are in both); a mouse's back button and Alt+Left by hand (the browser's own Back, which the
   tests drive); the Windows taskbar's titles; bringing a window forward is the browser's choice (the
   tests see no second window and no reload, not the focus itself).
+
+## The rail, and the icon glow-up (2026-11-16, branch nav-rail)
+
+- **The places (tests/test_navigation.py):** every rail area (grids, sandbox, diagram, notebooks,
+  scripts, apps, blades, connections, settings) is a place from every window, in the rail's order;
+  `grids` is the same notice as `home`; `new_window: true` only for notebooks, scripts and apps (else
+  said), and the audit log says "home window to apps, in a new window". Panels: `app.rail` (Every page,
+  Navigation rail) is the last switch, on at each start (tests/test_panels.py).
+- **In Chromium (tests/e2e/test_rail_page.py):** the home page's rail: nine areas in order, each named,
+  48px, Grids marked; the mark, the tab row and the grid's first column start right of it; Settings at
+  the bottom; the code areas in their kind colours. Sandbox and Diagram pushed (`?view=`), Back and
+  Forward and a reload move the mark with them, a grid tab moves it back to Grids; Connections and
+  Settings open their layers (marked while open, Back and Escape mark Grids again). Keys: one Tab stop
+  (the current area), the tip on focus, arrows round both ends, Home, Enter goes, Alt+Home still the
+  grids; the tip on hover. Other windows: Notebooks from the home page opens the Workbench at
+  `?kind=notebook` with its menu (New notebook); a second click (Scripts) brings that window forward (no
+  second window) with Scripts' menu; inside it Notebooks brings the notebook forward and Back the script;
+  Sandbox and Grids from the Workbench move the home window (not reopened, not reloaded) and never send
+  the Workbench away; Settings opens in the Workbench; the agent's `diagram` (from the Workbench window),
+  `grids` and `notebooks` too. Open in a new window from the right-click menu (Apps) and a Ctrl+click
+  (Scripts): a Workbench window of its own at that kind, its rail marking it. The blades page: rail,
+  Blades marked, Settings opens there (it has the layer now), Diagram moves the home window. The steps
+  window: the rail, Grids marked, Grids brings the home window's grids forward. Apps (the owner's "cell
+  navigator"): with the Data panel folded, Apps then New Streamlit app: the Data panel open, the
+  Streamlit cells pane listing the notebook's two cells, side by side (rail, panel, canvas), the Starters
+  switch kept; a cell dragged onto the page links `rail mockups.ipynb @cell2` and is marked placed;
+  folded again, Notebooks then Apps unfolds it with no menu. The Panels switch: off, the rail is gone,
+  the body's padding 0, the grid's first column moves left by the rail's width, the mark still there;
+  on again from the agent, back.
+- **The Streamlit cells pane (tests/test_streamlit_apps.py):** a canvas linking a notebook no window
+  holds lists that notebook's cells (read from its file; before, "No cells call Streamlit" in the App
+  mode screenshot beside its own three linked blocks); a project's data.ipynb lists its named cells; a
+  file both linked and in the project is listed once.
+- **Icons (tests/test_icons.py):** the 36 connection types the server offers each have their own icon,
+  all different; the Add API presets have theirs; every icon name web/src asks for exists. Looked at:
+  the Add connection picker (light and dark), the saved list, the catalog tree with column kinds, the
+  starter families, the Data panel, App mode's Starters.
+- **Existing tests changed:** the Settings button is found in the Application row (the rail has one
+  too) in test_ui.py and test_panels_page.py; the keyboard test's first Tab stop is the rail's Grids,
+  then the mark; the Panels count is 17; the navigation test waits for a closed home window before
+  Alt+Home (it raced the browser's close).
+- **Found and fixed:** a narrow window (420px) scrolled sideways once the rail took 48px: the tour's
+  bubble in the Application row did not wrap (it now goes under its button).
+- **Not checked:** Edge (Chromium here); Windows' and macOS' pop-up rules for a rail click from another
+  window (a click is a user's gesture, so it is allowed; the agent's from a window with no gesture can be
+  blocked, and then it says so); forced-colors mode for the rail's bar (styled, not looked at).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,029 passed, 33 skipped, 0 failed,
+  18 minutes. (A first run on the rail alone: 5 failed, all fixed above; tests/test_agent_index.py's
+  MCP resources test failed once under load and passes alone.)

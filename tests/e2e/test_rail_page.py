@@ -191,6 +191,7 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     page.keyboard.press("Alt+Home")
     expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
     # The tip on hover.
+    page.evaluate("document.activeElement.blur()")
     area(page, "apps").hover()
     expect(area(page, "apps").locator(".nav-rail-tip")).to_be_visible()
     shot(page, "rail-tip")
@@ -237,6 +238,7 @@ def test_other_windows_have_the_rail_and_bring_the_right_window_forward(
     expect(current(workbench)).to_have_attribute("data-area", "notebooks")
     workbench.go_back()
     expect(current(workbench)).to_have_attribute("data-area", "scripts")
+    workbench.mouse.move(900, 500)
     shot(workbench, "rail-workbench")
 
     # From the Workbench: Grids and the Sandbox are the home window's, brought forward (not reopened).

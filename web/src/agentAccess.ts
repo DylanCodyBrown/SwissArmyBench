@@ -43,7 +43,7 @@ async function activityFieldset(): Promise<HTMLElement> {
   return h(
     "fieldset",
     { class: "fieldset" },
-    h("legend", {}, "Agent activity"),
+    h("legend", {}, icon("history"), "Agent activity"),
     entries.length
       ? h(
           "ul",

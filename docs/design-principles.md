@@ -331,6 +331,13 @@ of date). Counts that describe content stay ("orders · 3 steps"); a count of ze
 **7.10 Numbers read well.** Identifiers get no thousands separators; chart ticks do; results are rounded
 to four significant figures; plurals are right ("1 blade").
 
+**7.11 Icons: one set, our own, beside a name.** Every icon is a line icon from the one set (dom.ts
+`ICONS`, 24x24, stroke), drawn by us: never a product's or a company's logo (a database is a cylinder
+with a mark of its own; a file its sheet, grid, columns or braces). An icon sits beside its name rather
+than replacing it (`aria-hidden` there); an icon-only button has a label and a tooltip. A list or a menu
+has icons on all its entries or on none. Colour is a theme token (a group's category tint, a kind
+colour), never a hardcoded value. The owner (2026-11-16): "it needs a glow up with icons."
+
 ## 8. Interaction patterns
 
 **8.1 Keyboard first.** Everything works without a mouse: the toolbar and the table are reachable by

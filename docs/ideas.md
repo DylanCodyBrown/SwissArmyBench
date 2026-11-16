@@ -2836,3 +2836,36 @@ page?" (yes: below).
   is a panel, so `app_panels` covers it.
 - **Not built:** a document list inside the rail (the menu shows recent files only when no document of
   the kind is open); the rail's order is fixed.
+
+## Icons: a glow-up (the owner, 2026-11-16; built, branch nav-rail)
+
+The owner: "And it needs a glow up with icons. For example our connection panel has no icons on the
+connection types."
+
+### Built
+
+- **One set** (web/src/dom.ts `ICONS`), our own line icons, now about 140. **Decision:** the set stays
+  in dom.ts (a `web/src/icons.ts` would only move it); shared parts (a database's cylinder, a file's
+  sheet, a lock, a cloud) are named constants above it.
+- **Connections:** every type the server offers has an icon of its own, named by the type's id
+  (`postgres`, `excel`, `azure_key_vault`, ...; `connectionIcon` in connectionsWindow.ts, falling back
+  to the group's): each database the cylinder with its own mark (a server rack for SQL Server, a cloud
+  for Azure SQL, a snowflake, a magnifier for BigQuery, a feather for SQLite, a duck for DuckDB, bars for
+  ClickHouse, ...; no two alike), Power BI its bars, files their sheet, grid, columns, braces or folder,
+  Python a prompt, each vault its lock, shield, cloud or triangle. **No brand logos** (trademarks, and
+  nothing loads from the network). The type tiles are a picker: the icon beside the name, tinted by the
+  group (the theme's category tokens: databases blue, files green, vaults magenta, Python violet; never amber),
+  a hover that takes the group's colour, a clear focus ring. The saved connections list: each row its
+  type's icon in a soft square. Add API: OpenAPI and Endpoints have theirs, and the preset its own
+  beside its box (Azure Function App, AWS Lambda, Google).
+- **The sweep:** the catalog tree's nodes (a schema, a table, a view; a column by its kind of value:
+  number, text, date, true/false), the blades list (a connection its type's icon, a blade its kind's),
+  the starter pack's families (Power BI, Excel, Files, DAX, HTML, Markdown, Streamlit, Controllers, Text
+  and layout, Components) and a snippet's language, the Data panel's tables by their file's kind, the
+  Sandbox's card kinds beside each title, Settings' sections (every legend), and the home page's
+  Sandbox and Diagram tabs now wear the rail's icons for them. Menus already had icons on every entry
+  (Analyze, the right-click menus); empty states kept their words.
+- **Checked by tests/test_icons.py:** every type the server offers and every Add API preset has its own
+  icon in the set, no two alike; every icon name the page asks for by name exists (none drawn blank).
+- **Merge note:** the `dataverse` branch adds one type with the icon name `dataverse` to the same set;
+  `connectionIcon` picks it up by the type's id.

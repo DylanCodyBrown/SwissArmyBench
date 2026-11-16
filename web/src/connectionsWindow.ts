@@ -41,7 +41,7 @@
  */
 import { showAddApi } from "./addApi";
 import { api, errorText, onNotice } from "./api";
-import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
+import { button, clear, closeDialogs, h, hasIcon, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { pickSheets } from "./openFile";
 import { backButton, crumbs, dismissDialog, go, layerOpened, registerLayer, setOverTitle, watchLayerDialog, withParams } from "./nav";
@@ -229,6 +229,13 @@ export async function importRelationships(connection: string, dataset = ""): Pro
   }
 }
 
+/** A connection type's icon (2026-11-16): its own, by its id (dom.ts ICONS: postgres, excel,
+ *  azure_key_vault, ...), else its group's. */
+const GROUP_ICONS = { database: "sql", file: "folder", vault: "key", python: "code" } as const;
+export function connectionIcon(type: string | null | undefined, group: keyof typeof GROUP_ICONS): string {
+  return type && hasIcon(type) ? type : GROUP_ICONS[group];
+}
+
 /** The Application row's button. */
 export function connectionsButton(): HTMLButtonElement {
   return button("Connections", () => void openConnections(), { icon: "link", class: "ribbon-btn" });
@@ -327,7 +334,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       const tested = h("div", { class: "connection-result connection-tested", role: "status" });
       return h(
         "li",
-        { class: "connection-row" },
+        { class: `connection-row fam-${c.connection}` },
+        h("span", { class: "connection-row-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
         h(
           "div",
           { class: "connection-text" },
@@ -432,9 +440,13 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       failedView(e);
       return;
     }
-    const icons = { database: "sql", file: "folder", vault: "key", python: "code" } as const;
     const open = (t: Form): void => (then ? void showForm({ type: t, then }) : move({ at: "form", type: t.id, name: null }, () => void showForm({ type: t })));
-    const tile = (t: Form): HTMLElement => button(plain(t.label), () => open(t), { class: "connection-type", icon: icons[t.connection] });
+    // A picker: each type's own icon over its name, tinted by its group (connectionIcon).
+    const tile = (t: Form): HTMLElement => {
+      const made = button(plain(t.label), () => open(t), { class: `connection-type fam-${t.connection}`, icon: connectionIcon(t.id, t.connection) });
+      made.dataset.type = t.id;
+      return made;
+    };
     const group = (title: string, kind: Form["connection"]): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter((t) => t.connection === kind).map(tile))];
     // From a password's New vault: only vaults, and Back returns to that connection.
     clear(body, ...(then ? [] : [...group("Databases", "database"), ...group("Files", "file"), ...group("Your own code", "python")]), ...group("Key vaults", "vault"));

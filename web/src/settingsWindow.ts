@@ -60,7 +60,7 @@ function panelsSection(): HTMLElement {
     );
   };
   void loadPanels().then(draw);
-  return h("fieldset", { class: "fieldset panels-fieldset" }, h("legend", {}, "Panels"), grid);
+  return h("fieldset", { class: "fieldset panels-fieldset" }, h("legend", {}, icon("panel"), "Panels"), grid);
 }
 
 /** The colour of each kind of Workbench document: app pages, notebooks, scripts. The server's (every
@@ -90,7 +90,7 @@ function kindColoursSection(): HTMLElement {
     );
   };
   void loadKindColours().then(draw);
-  return h("fieldset", { class: "fieldset kind-colours-fieldset" }, h("legend", {}, "Kind colours"), grid);
+  return h("fieldset", { class: "fieldset kind-colours-fieldset" }, h("legend", {}, icon("tag"), "Kind colours"), grid);
 }
 
 export function settingsButton(): HTMLButtonElement {
@@ -156,7 +156,7 @@ function drawSettings(): void {
     h(
       "fieldset",
       { class: "fieldset" },
-      h("legend", {}, "Theme"),
+      h("legend", {}, icon("sun"), "Theme"),
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     panelsSection(),
@@ -166,7 +166,7 @@ function drawSettings(): void {
     h(
       "fieldset",
       { class: "fieldset" },
-      h("legend", {}, "Connect an agent"),
+      h("legend", {}, icon("agent"), "Connect an agent"),
       h("pre", { class: "mono mcp-prompt" }, MCP_PROMPT),
       button("Copy the setup prompt", () => void copyMcpPrompt(), { icon: "copy" }),
     ),

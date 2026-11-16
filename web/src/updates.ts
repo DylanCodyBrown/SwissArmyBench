@@ -15,7 +15,7 @@
  * ROUTING: GET/PUT /updates, POST /updates/install; the `update_changed` and `app_updating` notices
  */
 import { api, onNotice } from "./api";
-import { button, h, openDialog, showMenu, toast } from "./dom";
+import { button, h, icon, openDialog, showMenu, toast } from "./dom";
 import type { Command } from "./workbenchCommands";
 
 export interface UpdateState {
@@ -163,7 +163,7 @@ export function updatesSection(): HTMLElement {
   box.addEventListener("change", () => void setCheck(box.checked));
   onUpdates(draw);
   void loadUpdates().then(draw);
-  return h("fieldset", { class: "fieldset updates-fieldset" }, h("legend", {}, "Updates"), h("label", { class: "check" }, box, "Check for updates"));
+  return h("fieldset", { class: "fieldset updates-fieldset" }, h("legend", {}, icon("import"), "Updates"), h("label", { class: "check" }, box, "Check for updates"));
 }
 
 export async function setCheck(on: boolean): Promise<void> {

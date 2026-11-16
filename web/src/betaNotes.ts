@@ -24,7 +24,7 @@
  */
 import { toPng } from "html-to-image";
 import { api, onNotice } from "./api";
-import { button, h, openDialog, setMenuExtras, showMenu, toast } from "./dom";
+import { button, h, icon, openDialog, setMenuExtras, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { panelList } from "./panels";
 import type { Command } from "./workbenchCommands";
@@ -400,7 +400,7 @@ export function betaSection(): HTMLElement {
   return h(
     "fieldset",
     { class: "fieldset beta-fieldset" },
-    h("legend", {}, "Beta"),
+    h("legend", {}, icon("edit"), "Beta"),
     h("label", { class: "check" }, box, "Beta mode"),
     h("div", { class: "beta-actions" }, button("Export beta log…", () => void exportBetaLog(), { icon: "export" }), button("Clear the log", () => clearBetaLog(), { icon: "trash", class: "danger" })),
   );

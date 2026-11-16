@@ -10,7 +10,7 @@
  */
 import { api, errorText, query } from "./api";
 import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor";
-import { importRelationships, openConnections } from "./connectionsWindow";
+import { connectionIcon, importRelationships, openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
 import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
 import type { Move } from "./nav";
@@ -342,7 +342,7 @@ export function mountRail(host: RailHost): Rail {
           ]);
         },
       },
-      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit" }[language] : "Python"),
+      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit" }[language] : "Python"),
       h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );
@@ -369,6 +369,7 @@ export function mountRail(host: RailHost): Rail {
           },
         },
         icon(open ? "down" : "forward"),
+        h("span", { class: "starter-family-icon" }, icon(FAMILY_ICONS[family] ?? "bolt")),
         h("span", {}, family),
         h("span", { class: "hint" }, String(shown.length)),
       );
@@ -459,8 +460,8 @@ export function mountRail(host: RailHost): Rail {
           pressed: blade.pinned,
         }),
         blade.connection
-          ? h("span", { class: `blade-kind ${blade.connection === "database" ? "sql" : "other"}` }, { database: "Database", file: "File", vault: "Key vault", python: "Python" }[blade.connection] ?? "File")
-          : h("span", { class: `blade-kind ${blade.kind}` }, kindLabel(blade.kind)),
+          ? h("span", { class: `blade-kind ${blade.connection === "database" ? "sql" : "other"}` }, icon(connectionIcon(blade.template, blade.connection)), { database: "Database", file: "File", vault: "Key vault", python: "Python" }[blade.connection] ?? "File")
+          : h("span", { class: `blade-kind ${blade.kind}` }, icon(BLADE_ICONS[blade.kind] ?? "bolt"), kindLabel(blade.kind)),
         h(
           "span",
           { class: "blade-text" },
@@ -622,6 +623,17 @@ export function mountRail(host: RailHost): Rail {
 
   const nodes = new WeakMap<HTMLElement, NodeData>();
 
+  /** A node's icon: a schema (a Power BI dataset its bars), a table or view, a column by its kind of value. */
+  function nodeIcon(data: NodeData): string {
+    if (data.kind === "schema") return current?.dialect === "dax" ? "powerbi" : "schema";
+    if (data.kind === "table") return data.tableKind === "view" ? "view" : "table";
+    const type = (data.type ?? "").toLowerCase();
+    if (/int|dec|num|float|double|real|money|serial/.test(type)) return "number";
+    if (/date|time/.test(type)) return "calendar";
+    if (/bool|bit\b|^bit/.test(type)) return "toggle";
+    return "case";
+  }
+
   function treeItem(data: NodeData, depth: number, label: string, meta: string, expandable: boolean): HTMLElement {
     const item = h("li", { role: "treeitem", "aria-level": String(depth + 1), "aria-selected": "false", tabindex: "-1" });
     if (expandable) item.setAttribute("aria-expanded", "false");
@@ -629,6 +641,7 @@ export function mountRail(host: RailHost): Rail {
       "div",
       { class: `node ${data.kind === "more" ? "more" : ""}` },
       h("span", { class: "twisty", "aria-hidden": "true" }, expandable ? "▸" : ""),
+      data.kind === "more" ? null : h("span", { class: `node-icon node-${data.kind}` }, icon(nodeIcon(data))),
       h("span", { class: "node-label" }, label),
       data.kind === "table" && data.tableKind === "view" ? h("span", { class: "node-kind" }, "view") : null,
       // A dataset that could not be read: marked on itself only, the reason on hover and on its page.
@@ -1092,3 +1105,19 @@ export function mountRail(host: RailHost): Rail {
     goTo,
   };
 }
+
+/** Each blade kind's icon, each starter family's, each snippet language's (dom.ts ICONS). */
+const BLADE_ICONS: Record<string, string> = { sql: "sql", other: "bolt", vault: "key", secret: "key", analysis: "fit", snippet: "copy" };
+const LANGUAGE_ICONS: Record<string, string> = { dax: "formula", html: "html", markdown: "markdown", streamlit: "page" };
+const FAMILY_ICONS: Record<string, string> = {
+  "Power BI": "powerbi",
+  Excel: "excel",
+  Files: "folder",
+  DAX: "formula",
+  HTML: "html",
+  Markdown: "markdown",
+  Streamlit: "page",
+  Controllers: "sliders",
+  "Text and layout": "align",
+  Components: "group",
+};
