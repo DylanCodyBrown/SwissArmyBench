@@ -135,10 +135,11 @@ def back_to_grid(page: Page, url: str) -> None:
 
 
 def set_theme(page: Page, theme: str) -> None:
-    """Pick a theme in the Settings window, then close it."""
+    """Pick a theme on the Settings page, then go Back to what was under it."""
     page.locator(".nav-rail [data-area='settings']").click()
-    page.locator(f"dialog input[name='theme'][value='{theme}']").check()
-    page.keyboard.press("Escape")
+    page.locator(f".area-page input[name='theme'][value='{theme}']").check()
+    page.go_back()
+    expect(page.locator(".area-page")).to_have_count(0)
 
 
 def cell(page: Page, row: int, column: str) -> str:
@@ -204,11 +205,10 @@ def test_grid_renders_with_title_rows_and_header_stats(browser: Browser, orders_
     )
     page.keyboard.press("Escape")
     page.locator(".nav-rail [data-area='settings']").click()
-    expect(page.locator("dialog").get_by_role("radio").first).to_be_visible()  # the theme stays there
-    expect(page.locator("dialog").get_by_role("checkbox", name=re.compile("column profiles"))).to_have_count(
-        0
-    )
-    page.keyboard.press("Escape")
+    settings = page.locator(".area-page[data-page='settings']")
+    expect(settings.get_by_role("radio").first).to_be_visible()  # the theme stays there
+    expect(settings.get_by_role("checkbox", name=re.compile("column profiles"))).to_have_count(0)
+    page.go_back()
     expect(page.locator("#live")).to_be_hidden()  # live says nothing; only "not live" is words
     wait_for_cell(page, 0, "note", "(blank)")  # blanks carry text, not just color
 
@@ -869,7 +869,7 @@ def test_settings_has_no_agent_activity_list(
     sql = "SELECT count(*) AS activity_check FROM grid"
     call(server, "POST", f"/grids/{grid_of(orders_url)}/sql", {"sql": sql}, agent=True)
     page.locator(".nav-rail [data-area='settings']").click()
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='settings']")
     expect(dialog.get_by_text("Connect an agent")).to_be_visible()
     # The owner (2026-11-16): the Agent activity list is gone from Settings; the audit log still has it.
     expect(dialog.get_by_text("Agent activity")).to_have_count(0)

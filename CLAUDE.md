@@ -219,6 +219,9 @@ src/swissarmybench/
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
+    connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
+                         canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
+                         this session by kind, a card's status word, the settings it may show (no password)
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -242,6 +245,9 @@ src/swissarmybench/
                          browser-window sign-in), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
+    connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
+                         documents: recent, open, the project's: one seam), configuration (never a value),
+                         and its calls this session (the app's runs, a Workbench kernel's report; memory only)
     apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
@@ -346,6 +352,8 @@ src/swissarmybench/
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
+  client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,
+                         a connect) for the Connections page (nothing outside a Workbench kernel)
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sab.complete)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
@@ -367,7 +375,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (259 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (267 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -379,9 +387,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window (Grids,
                          Sandbox, Diagram, Notebooks, Scripts, Apps, Blades, Connections, Settings at the
-                         bottom): a click is a nav.ts move, or brings another window forward; the current
-                         area marked; Open in a new window for the code areas; always there (no switch), and the
-                         top tabs and the Application row no longer repeat its areas (the owner, 2026-11-16);
+                         bottom): a click is a nav.ts move in this tab, and every icon lands on a page (no
+                         dialog, no menu); the current area marked; Open in a new window on request; always
+                         there (no switch), and the top tabs and the Application row no longer repeat its
+                         areas (the owner, 2026-11-16); areaPage.ts is a page of the rail's over any page
+                         (Settings, Connections: open=settings, open=connections); connectionsWindow.ts the
+                         Connections page (cards, a card's detail: references, configuration, calls);
+                         workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
+                         its documents as cards, New and Open… on its panel);
                          aiPanel.ts is the Sandbox (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
@@ -400,7 +413,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          catalogRail.ts (blades + catalog navigation) is the blades page's
                          (catalogPage.ts, static/catalog.html); bladeEditor.ts is the save screen;
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
-                         connectionsWindow.ts is the Application row's Connections (a form per type);
+                         connectionsWindow.ts's forms (a form per type) open in the Connections page;
                          addApi.ts is its Add API (an OpenAPI document or endpoints, the sign-in, the preview);
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;

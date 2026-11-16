@@ -53,6 +53,7 @@ from swissarmybench.adapters.streamlit_files import AppFiles
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
+from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.grids import GridRegistry
@@ -75,6 +76,7 @@ from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.codegen import CodeService
+from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.controllers import Controllers
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
@@ -133,6 +135,7 @@ class Services:
     catalogs: CatalogService
     blades: BladeService
     connections: ConnectionService
+    connection_usage: ConnectionUsage
     apis: Apis
     catalog_loading: CatalogLoading
     folders: Folders
@@ -161,6 +164,29 @@ class Services:
     updates: Updates
     live: LiveUpdates
     workers: PriorityWorkers
+
+
+def usage_documents(
+    documents: Documents, streamlit: StreamlitApps, sab_projects: SabProjects, project_files: ProjectFiles
+) -> list[str]:
+    """Where the Connections page looks for a connection's references: with a project open, its own
+    notebooks, scripts and apps (everything is the project's, 2026-11-16) and the documents open in a
+    Workbench window; with none, the Workbench's recent files and the open documents. Each file once,
+    by its real path (one notebook reached by two spellings was listed twice)."""
+    paths = list(streamlit.documents())
+    folder = (sab_projects.state().get("project") or {}).get("folder")
+    if folder:
+        try:
+            names = project_files.names(folder)
+        except OSError:
+            names = []
+        paths += [project_files.path(folder, n) for n in project_rules.project_files(names)]
+    else:
+        paths += [str(r["path"]) for r in documents.recent() if r.get("exists")]
+    seen: dict[str, str] = {}
+    for path in paths:
+        seen.setdefault(os.path.realpath(path), path)
+    return list(seen.values())
 
 
 def bootstrap(
@@ -208,9 +234,17 @@ def bootstrap(
     ) -> dict[str, Any]:
         job = blade_runner.payload(blade_store, blade, mode, typed, extra)
         kind = "catalog" if mode == "catalog" else "blade"
-        return await blade_runner.run(
-            job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
-        )
+        # A connection's run through the app (a catalog load, a table read, a query, a test) is a call
+        # the Connections page counts (services/connection_usage.py; memory only).
+        try:
+            answer = await blade_runner.run(
+                job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
+            )
+        except Exception:
+            connection_usage.record(blade.name, mode, ok=False)
+            raise
+        connection_usage.record(blade.name, mode, ok=True)
+        return answer
 
     async def vault_values(wanted: dict[str, dict[str, str]]) -> tuple[dict[str, str], list[str]]:
         """A scheduled script's variables from key vaults (vault -> variable -> secret), and what failed."""
@@ -386,6 +420,17 @@ def bootstrap(
         models=models,
         catalogs=catalogs,
     )
+    # The Connections page: each connection's references, configuration and calls this session.
+    connection_usage = ConnectionUsage(
+        ws,
+        blades,
+        connections,
+        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        read=documents.read,
+        origin_of=datasets.origins.get,
+        environ=os.environ,
+        now=time.time,
+    )
     # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
     apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
     workbench_window = WorkbenchWindow(ws)
@@ -533,6 +578,7 @@ def bootstrap(
         catalogs=catalogs,
         blades=blades,
         connections=connections,
+        connection_usage=connection_usage,
         apis=apis,
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),

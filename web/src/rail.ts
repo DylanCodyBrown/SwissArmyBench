@@ -7,15 +7,22 @@
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, and Settings pinned at the
  *             bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
+ *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
+ *             rail should land on a page not open a form"): the grids, the Sandbox, the Diagram, a kind's
+ *             landing page in the Workbench (workbenchLanding.ts), the blades page, the Connections page
+ *             and the Settings page (areaPage.ts, over the page you are on: open=connections,
+ *             open=settings).
  *   [GO]      A click is a navigation like any other (nav.ts): an area this page shows is pushed, so
- *             Back, Forward and a reload work. Connections and Settings open their layers (open=<key>)
- *             where the page has them. An area another page shows takes this tab there (the owner,
- *             2026-11-16): the home page for the grids, Sandbox and Diagram; the Workbench for notebooks,
- *             scripts and apps (code still never sits in the grid page); the blades page.
- *   [KINDS]   In the Workbench, Notebooks, Scripts and Apps bring that kind's document forward (its
- *             mode: ?kind=notebook in the address), or offer New and that kind's recent files. On every
- *             area, right-click, Ctrl+click or a middle click: Open in a new window (for a code area, a
- *             Workbench window of its own, as a popped-out tab's).
+ *             Back, Forward and a reload work. Connections and Settings show their pages where the page
+ *             has them. An area another page shows takes this tab there (the owner, 2026-11-16: "the
+ *             rail icons is opening a new tab every time instead of navigating the current page"): the
+ *             home page for the grids, Sandbox and Diagram; the Workbench for notebooks, scripts and apps
+ *             (code still never sits in the grid page); the blades page.
+ *   [KINDS]   Notebooks, Scripts and Apps land on that kind's page in the Workbench (?kind=notebook&
+ *             view=list): its documents as cards, open ones first; New is on that page's panel, never in
+ *             a menu beside the icon (the owner: "get rid of that its duplicated behavior we should only
+ *             create things from the panel"). On every area, right-click, Ctrl+click or a middle click:
+ *             Open in a new window (for a code area, a Workbench window of its own).
  *   [CURRENT] the area the address names is marked (a bar on the left edge, the icon brighter) with
  *             aria-current="page"; it follows every move (onAddress), Back and Forward too.
  *   [KEYS]    one stop in the Tab order (a toolbar): the arrows move between the areas, Enter goes;
@@ -30,7 +37,7 @@
 import { token } from "./api";
 import { h, icon, toast } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
-import { go, goHome, hasLayer, HOME_URL, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
+import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
 import { openMenu } from "./workbenchMenu";
 
@@ -55,14 +62,7 @@ const areaOfKind = (kind: string | null): Area | null => AREAS.find((a) => a.kin
 
 const LAYER_OFF = { open: null, at: null, type: null, name: null };
 
-export interface RailOptions {
-  /** The Workbench: bring a document of `kind` forward, or (from the rail: `anchor`) offer New and its
-   *  recent files. */
-  showKind?: (kind: Kind, anchor: HTMLElement | null) => void;
-}
-
 let kind: PageKind = "home";
-let options: RailOptions = {};
 let items: HTMLButtonElement[] = [];
 
 /** The area the address names on this page (null: none, a Workbench with no document of a kind). */
@@ -96,12 +96,11 @@ function newKindWindow(k: Kind): void {
   else toast("The browser blocked the new window: allow pop-ups for this address.", "error");
 }
 
-const itemOf = (area: Area): HTMLButtonElement | null => items.find((i) => i.dataset.area === area && i.offsetParent !== null) ?? null;
 
 /** The page that shows `area`, at the area's address. */
 function pageUrl(area: Area): string {
   const k = kindOfArea(area);
-  if (k) return `/workbench?kind=${k}`;
+  if (k) return `/workbench?kind=${k}&view=list`; // that kind's landing page
   if (area === "blades") return "/catalog";
   return arrivalUrl(area);
 }
@@ -117,9 +116,9 @@ export function goArea(area: Area, newWindow = false): void {
     else if (!window.open(withToken(pageUrl(area)), "_blank")) toast("The browser blocked the new window: allow pop-ups for this address.", "error");
     return;
   }
-  if (k && kind === "workbench" && options.showKind) {
-    void go(withParams({ kind: k }), "push");
-    options.showKind(k, itemOf(area));
+  if (k && kind === "workbench") {
+    // That kind's landing page, here (the page over it, if one is, makes way).
+    visit(withParams({ ...LAYER_OFF, kind: k, view: "list" }));
     return;
   }
   if (kind === "home" && (area === "grids" || area === "sandbox" || area === "diagram")) {
@@ -130,7 +129,10 @@ export function goArea(area: Area, newWindow = false): void {
     openLayer(area);
     return;
   }
-  if (area === "blades" && kind === "catalog") return;
+  if (area === "blades" && kind === "catalog") {
+    if (layerShown() || new URLSearchParams(location.search).get("open")) visit(withParams(LAYER_OFF)); // the page makes way
+    return;
+  }
   // Another page shows it: this tab goes there (the Workbench asks first when an edit is unsaved).
   location.assign(withToken(pageUrl(area)));
 }
@@ -169,7 +171,6 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
       "data-area": area.area,
       "aria-label": area.name,
       "aria-keyshortcuts": undefined,
-      "aria-haspopup": area.area === "settings" || area.area === "connections" ? "dialog" : area.kind ? "menu" : undefined,
       // Ctrl+click (Cmd+click): a new window, as a link's new tab.
       onclick: (e: MouseEvent) => goArea(area.area, e.ctrlKey || e.metaKey),
     },
@@ -196,9 +197,8 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
 }
 
 /** Each page's composition mounts the rail once (mountNavRail), right after mountNav. */
-export function mountNavRail(page: PageKind, given: RailOptions = {}): void {
+export function mountNavRail(page: PageKind): void {
   kind = page;
-  options = given;
   items = AREAS.map(item);
   const toolbar = h("div", { class: "nav-rail-items", role: "toolbar", "aria-label": "Areas", "aria-orientation": "vertical", onkeydown: onKey }, ...items);
   document.body.prepend(h("nav", { class: "nav-rail", "aria-label": "Areas" }, toolbar));
@@ -221,10 +221,4 @@ export function mountNavRail(page: PageKind, given: RailOptions = {}): void {
     if (said.area === "home") goHome(); // another window's mark: Home (the Start view)
     else if (isArea(said.area)) goArea(said.area);
   });
-}
-
-/** The Workbench's code area's item, when the rail shows (a kind's menu opens beside it). */
-export function railItem(k: Kind): HTMLElement | null {
-  const area = areaOfKind(k);
-  return area ? itemOf(area) : null;
 }

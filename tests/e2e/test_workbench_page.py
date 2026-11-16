@@ -74,7 +74,7 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     folder.fill(str(orders_csv.parent))
     folder.press("Enter")
     page.locator(".file-chooser .file-row.file", has_text="orders.csv").click()
-    name = page.locator("dialog").get_by_role("textbox", name="Name", exact=True)
+    name = page.locator(".area-page").get_by_role("textbox", name="Name", exact=True)
     expect(name).to_have_value("orders")  # named after the file
     page.get_by_role("button", name="Test connection").click()
     expect(page.locator(".connection-result")).to_contain_text("It works: a file of", timeout=30000)
@@ -84,16 +84,18 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     expect(preview.locator("tbody tr")).to_have_count(3)
     expect(preview.locator("tbody tr").first.locator("td")).to_have_text(["1", "North", "10.5"])
     expect(page.locator(".connection-result")).to_contain_text("3 columns, the first 3 rows")
-    page.locator("dialog .dialog-foot").get_by_role("button", name="Save").click()
-    expect(page.locator(".connection-list")).to_contain_text("orders")
-    expect(page.locator(".connection-list")).to_contain_text('sab.connection("orders")')
-    # Its catalog loads itself in the background (no Refresh pressed) and the list says so when it lands.
-    row = page.locator(".connection-row", has_text="orders")
+    page.locator(".area-page-foot").get_by_role("button", name="Save").click()
+    # Saved: its detail (the Connections page, 2026-11-16), the name it has in code.
+    expect(page.locator(".area-page-title")).to_contain_text("orders")
+    expect(page.locator(".connection-config")).to_contain_text('sab.connection("orders")')
+    # Its catalog loads itself in the background (no Refresh pressed); the cards are drawn again as it
+    # lands, once: one card, one set of buttons.
     wait_until(lambda: call(server, "GET", "/connections")["connections"][0]["catalog_loaded"])
-    expect(row.locator(".pack-title .hint, .pack-title .status-error")).to_have_count(0)  # loaded: no words
-    # Drawn again as it landed, once: one list, one set of buttons.
-    expect(page.locator("dialog .dialog-foot").get_by_role("button", name="Close")).to_have_count(1)
-    expect(page.locator(".connection-row")).to_have_count(1)
+    page.locator(".nav-rail [data-area='connections']").click()
+    card = page.locator(".connection-card", has_text="orders")
+    expect(card).not_to_have_class(re.compile(r"st-failing"))
+    expect(page.locator(".area-page-actions").get_by_role("button", name="Add connection")).to_have_count(1)
+    expect(page.locator(".connection-card")).to_have_count(1)
     listed = call(server, "GET", "/connections")["connections"]
     assert [(c["name"], c["connection"]) for c in listed] == [("orders", "file")]
 
@@ -102,7 +104,7 @@ def test_a_file_connection_is_named_after_a_typed_path_and_tested_before_it_is_n
     browser: Browser, orders_url: str, server: dict[str, Any], orders_csv: Path
 ) -> None:
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="CSV file").click()
@@ -133,7 +135,7 @@ def test_a_missing_driver_is_installed_from_the_form_and_the_command_stays_in_vi
     """Decision 12. The install itself is answered by the test (nothing is downloaded here): the form
     asks for it, says it is running, and reads the code's packages again when it is done."""
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")
     asked: list[Any] = []
     installed = {"done": False}
 
@@ -172,13 +174,13 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     """Decision 14: server, port, catalog or database; then the user and the password; then the
     certificate file and Trust server certificate together."""
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
 
     def labels() -> list[str]:
         """The form's visible field labels, top to bottom then left to right."""
-        found = dialog.locator(".dialog-body .field > span:not(.field-row)").evaluate_all(
+        found = dialog.locator(".area-page-body .field > span:not(.field-row)").evaluate_all(
             """spans => spans.filter(s => s.offsetParent).map(s => ({ text: s.firstChild.textContent.trim(),
                  box: s.getBoundingClientRect() }))
                  .sort((a, b) => Math.round(a.box.top) - Math.round(b.box.top) || a.box.left - b.box.left)
@@ -220,13 +222,13 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     box = dialog.locator(".password-box")
     expect(box.locator("> span").first).to_have_text("Password")
     expect(box.get_by_label("Password", exact=True)).to_have_attribute("type", "password")
-    dialog.locator(".dialog-foot").get_by_role("button", name="Back to Add connection").click()
+    dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
 
     page.locator(".connection-type", has_text="PostgreSQL").click()
     drawn()
     found = labels()
     assert found[2:7] == ["Server", "Port", "Database", "User", "Password comes from"], found
-    dialog.locator(".dialog-foot").get_by_role("button", name="Back to Add connection").click()
+    dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
 
     # SQL Server: the user arrives with another way to sign in, and lands in the same place.
     page.locator(".connection-type", has_text="SQL Server").first.click()
@@ -254,7 +256,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
     browser: Browser, orders_url: str, server: dict[str, Any]
 ) -> None:
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")
     try:
         page.locator(".nav-rail [data-area='connections']").click()
         page.get_by_role("button", name="Add connection").click()
@@ -280,7 +282,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         # Every secret is the default: nothing to tick; a box renames one.
         expect(dialog.get_by_role("checkbox", name="Every secret in the vault")).to_be_checked()
         dialog.get_by_role("textbox", name="api-key: the variable's name").fill("CRM_KEY")
-        dialog.locator(".dialog-foot").get_by_role("button", name="Save").click()
+        dialog.locator(".area-page-foot").get_by_role("button", name="Save").click()
         # Back on the PostgreSQL form: its password is a secret in the new vault, under its own name.
         expect(dialog.locator("h3")).to_have_text("New PostgreSQL connection")
         expect(dialog.get_by_role("combobox", name="Vault", exact=True)).to_have_value("Azure Key Vault")
@@ -313,19 +315,23 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         dialog.get_by_role("button", name="Use it").click()
         expect(code_box(dialog)).to_have_value(re.compile(r'secret\("reporting_password"\)'))
         # The vault is a connection: in the list under Key vaults, with what it sets.
-        dialog.locator(".dialog-foot").get_by_role("button", name="Back to Add connection").click()
-        dialog.locator(".dialog-foot").get_by_role("button", name="Back to Connections").click()
+        dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
+        dialog.locator(".area-page-foot").get_by_role("button", name="Back to Connections").click()
         expect(dialog.get_by_role("heading", name="Key vaults")).to_be_visible()
-        expect(page.locator(".connection-list")).to_contain_text("Every secret")
-        expect(page.locator(".connection-list")).to_contain_text("CRM_KEY ← api-key")
+        # Its card's detail: what it sets (the Connections page, 2026-11-16).
+        dialog.locator(".connection-card", has_text="Azure Key Vault").click()
+        config = dialog.locator(".connection-config")
+        expect(config).to_contain_text("Every secret")
+        expect(config).to_contain_text("CRM_KEY")
+        expect(config).to_contain_text("api-key")
         # Opened to edit, it is read at once: the mapped one shows its name, the rest are left as is.
-        page.locator(".connection-row", has_text="Azure Key Vault").get_by_role("button", name="Edit").click()
+        dialog.locator(".connection-detail-tools").get_by_role("button", name="Edit").click()
         expect(dialog.locator(".vault-map tbody tr:not(.vault-new)")).to_have_count(3)
         expect(dialog.get_by_role("textbox", name="api-key: the variable's name")).to_have_value("CRM_KEY")
         expect(dialog.get_by_role("textbox", name="warehouse-password: the variable's name")).to_have_value(
             ""
         )
-        dialog.locator(".dialog-foot").get_by_role("button", name="Back to Connections").click()
+        dialog.locator(".area-page-foot").get_by_role("button", name="Back to Azure Key Vault").click()
         listed = call(server, "GET", "/connections")["connections"]
         assert [(c["name"], c["connection"], c["every"]) for c in listed] == [
             ("Azure Key Vault", "vault", True)
@@ -341,7 +347,7 @@ def test_sql_server_signs_in_three_ways_and_trusts_a_certificate_on_a_tick(
     browser: Browser, orders_url: str
 ) -> None:
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="SQL Server").first.click()

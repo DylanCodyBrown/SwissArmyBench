@@ -1,8 +1,21 @@
 # Connections and catalogs
 
 A connection is a saved way to reach data: a database, a file, a Power BI workspace, Dataverse, the user's own
-Python, or a key vault (Connections in the Application row). Every Workbench kernel has each one as a
-variable by its name.
+Python, or a key vault (the rail's Connections page: a card each). Every Workbench kernel has each one as
+a variable by its name.
+
+## The Connections page
+- `connections_overview`: each card: its type, its status (`works`: its last call worked; `ready`: not
+  used yet; `needs`: a password is in none of its places, `missing` names it; `failing`: its last call or
+  its catalog failed), its calls this session. A cheap check: nothing runs.
+- `connections_usage(name)`: a card's detail. `references`: every notebook or script cell (`%%sql`,
+  `%%dax`, `sab.sql`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection`; marked as a table's
+  read-only cell), every canvas block on such a cell, every open grid read from it; `configuration`:
+  type, settings, sign-in, each password's source (keyring, vault, environment, missing) by name, never
+  a value; `calls`: by kind (catalog, query, read, test, connect), the last one. Calls count what runs
+  through the app and Workbench kernels, not the user's own Jupyter.
+- `app_navigate(to="connection:<name>")` shows that detail to the user; `workbench_window
+  file.openCell` opens a reference's cell.
 
 ## Making one
 - `connections_list`: every connection, its type, its name in code, its catalog's state.

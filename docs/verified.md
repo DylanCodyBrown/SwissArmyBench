@@ -1869,3 +1869,48 @@ drags; code of more than one line is pasted, one typed value):
   elsewhere); a connection's catalog reloading on a project switch with catalogs loading themselves (off in
   tests); a project switched while a Workbench kernel holds the old project's vault values (they stay in
   that kernel until it restarts); Edge and Firefox.
+## Every rail icon lands on a page; the Connections page (2026-11-16, branch rail-pages)
+
+- **Unit (tests/test_connection_usage.py):** a connection's uses in Python by ast (`sab.sql`,
+  `sab.connection(name=...)`, `sab.read`, `sab.dax` by its workspace, a module alias and a function
+  imported by name; a comment, a name inside another string, another connection whose name starts the
+  same and `frame.read(...)` are not uses; IPython's `%` and `!` lines do not break the parse, a syntax
+  error finds nothing); a notebook's SQL and DAX cells by their first line (a Markdown cell that says
+  `%%sql Warehouse` is no use); a script's cells, a table's cell told apart, a cell's name; a canvas block
+  on a referencing cell (its link relative to the app's file); the calls by kind and the status word;
+  the configuration leaves out a setting named like a password, key or token and a connection string
+  that carries one; the sign-in by its mark; a Workbench kernel reports a call, another Python does not
+  (SWISSARMYBENCH_KERNEL), a Power BI dataset counts for its workspace.
+- **HTTP (tests/test_connection_usage_routes.py):** four connections whose passwords are in the keyring,
+  a vault's entry, an environment variable and nowhere: the cards' words (ready, needs) and each
+  password's source by kind and name; neither the keyring's value, the vault code's value nor the
+  variable's value appears in any answer (the agent's too). References from a saved notebook (a SQL cell
+  and a sab.sql cell; a comment and a string are not), a script (sab.read), an app's canvas block, and
+  the grid opened from the connection; a table read through the app and a kernel's report counted, the
+  status "works"; a bad kind 400, an unknown connection 404.
+- **Navigation (tests/test_navigation.py):** `connection:<name>` from every window; `connection:` alone
+  refused. The CLI's every-route check: POST /connections/{name}/used is the kernel's (stated).
+- **In the browser (tests/e2e/test_rail_pages.py, Chromium):** each rail icon from the home page, the
+  Workbench and the blades page lands on a page with no `dialog[open]` and no menu; Connections and
+  Settings as pages over the grids, the Workbench and the blades page, one at a time; Back and Forward walk
+  Settings → Connections → the Diagram and back; the Notebooks and Scripts landing pages (their cards,
+  the other kind's file not among them; New on the panel), a card opens the document and Back returns
+  to the cards; New Streamlit app from the Apps page; the Connections page's card (Works, its calls), its
+  detail (two notebook references and the grid, the SQL cell's @cell2, configuration, calls, Edit, Test,
+  Remove), Back/Forward/reload on the detail, a reference opening the Workbench window at its cell, Edit
+  and Back to the detail; the old addresses `?open=settings`, `?open=connections&at=types` and the blades
+  page's `?open=settings` land on the pages.
+- **Updated to pages:** tests/e2e/test_rail_page.py (the landing pages instead of the kind menus; the
+  steps window's Grids now moves the steps window itself, the rule c18b411 made), test_navigation_page.py,
+  test_catalog_page.py (the blades page in this tab), test_panels_page.py, test_beta_export_page.py,
+  test_workbench_page.py, test_python_connection_page.py, test_powerbi_page.py, test_dataverse_page.py,
+  test_add_api_page.py, test_ui.py (Settings), test_real_world.py (the counted Close is now the rail's
+  Grids: the same count).
+- **Not checked:** calls made from the user's own Jupyter or terminal are not counted (by design: no
+  Workbench kernel there); references in unsaved edits (the saved file is read); a sign-in that opens a
+  browser window reads "Ready" until its first call; Edge and Firefox (Chromium here); test_real_world.py
+  runs only with the test bed up (not up here).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,134 passed, 33 skipped, 1 failed in
+  17 minutes: tests/e2e/test_streamlit_page.py::test_the_agents_export_in_the_window_waits_for_the_users_allow
+  failed once under the full run (the approval prompt's words not there in 5 s) and passed four times on
+  its own. ruff, ruff format, mypy, and the page's typecheck and build.

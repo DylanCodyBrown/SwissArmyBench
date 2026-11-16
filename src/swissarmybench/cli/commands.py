@@ -2042,6 +2042,22 @@ def connections_get(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/connections/{_q(a['name'])}")
 
 
+@command(
+    "connections_overview", "The Connections page's cards: each connection's status and calls this session"
+)
+def connections_overview(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/connections/usage")
+
+
+@command(
+    "connections_usage",
+    "One connection's detail: cells and blocks that use it, its configuration (no values), its calls",
+    req("name", "The connection."),
+)
+def connections_usage(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/connections/{_q(a['name'])}/usage")
+
+
 _CONNECTION_ARGS = (
     req(
         "kind",

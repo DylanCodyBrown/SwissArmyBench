@@ -1,9 +1,11 @@
 /**
- * settingsWindow.ts: the Settings window (the cog at the far left of the tab bar). [WIRE + EXPORT]
+ * settingsWindow.ts: the Settings page (the rail's cog, pinned at its bottom). [WIRE + EXPORT]
  *
- * The theme, remembered per viewer and never sent anywhere;. How a
+ * A page, not a dialog (the owner, 2026-11-16: "clicking the rail should land on a page not open a
+ * form"): areaPage.ts, over the page you are on, at the same address as the dialog it was (open=settings),
+ * so old addresses still land here. The theme, remembered per viewer and never sent anywhere. How a
  * table compares text is a table setting, so it lives on the ribbon's Table row (textMatching.ts).
- * Everything here applies as you change it, so the window only has Close.
+ * Everything here applies as you change it, so the page has no Save and no Close: the rail or Back leaves.
  *
  * ROUTING: [SETTINGS BUTTON]      -> openSettings()
  *          [THEME CHOICE]         -> setTheme(choice)  (every open tab and window follows)
@@ -17,11 +19,11 @@
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
- *          [CLOSE]                -> close()
- */
+ * */
 import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
-import { button, h, icon, openDialog, toast } from "./dom";
+import { openAreaPage, type PageElement } from "./areaPage";
+import { button, h, icon, toast } from "./dom";
 import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { loadPanels, panelList, setPanel } from "./panels";
@@ -111,7 +113,7 @@ async function copyMcpPrompt(): Promise<void> {
 }
 
 // Settings is in the address (open=settings, nav.ts): Back closes it, a reload and Forward bring it back.
-let shown: HTMLDialogElement | null = null;
+let shown: PageElement | null = null;
 registerLayer("settings", {
   isOpen: () => Boolean(shown?.open),
   open: () => drawSettings(),
@@ -121,7 +123,7 @@ registerLayer("settings", {
   },
 });
 
-/** The Application row's Settings (the Workbench's "…" too), opened by the user. */
+/** The Settings page, opened by the user (the rail's cog, the Workbench's "…"). */
 export function openSettings(): void {
   if (shown?.open) return;
   layerOpened("settings");
@@ -129,11 +131,12 @@ export function openSettings(): void {
 }
 
 function drawSettings(): void {
-  const { dialog, body, foot, close } = openDialog("Settings", true, { history: false });
-  shown = dialog;
+  const { element, body } = openAreaPage("settings", "Settings");
+  shown = element;
+  body.classList.add("settings-page");
   setOverTitle("Settings");
-  watchLayerDialog(dialog, "settings", [], () => {
-    if (shown === dialog) shown = null;
+  watchLayerDialog(element, "settings", [], () => {
+    if (shown === element) shown = null;
   });
   const themes = Object.entries(THEME_LABELS).map(([value, label]) =>
     h(
@@ -162,6 +165,5 @@ function drawSettings(): void {
       button("Copy the setup prompt", () => void copyMcpPrompt(), { icon: "copy" }),
     ),
   );
-  foot.append(button("Close", close, { class: "primary" }));
   (body.querySelector("input:checked") as HTMLInputElement | null)?.focus();
 }

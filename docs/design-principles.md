@@ -404,10 +404,14 @@ in one module, so no screen invents its own.
   Diagram, Notebooks, Scripts, Apps, Blades, Connections, and Settings pinned at the bottom; 48px of
   icons down the left, each named in a tip on hover and focus, the code areas in their kind colours.
   The current area is marked (a bar on its left edge, `aria-current`). A rail click is a navigation
-  like any other: pushed, so Back, Forward and a reload follow it; an area another window shows brings
-  that window forward rather than sending this one away (code always in its own window). A new area
-  gets its place on the rail and in `app_navigate` in the same change; Settings' Panels can turn the
-  rail off.
+  like any other: pushed, so Back, Forward and a reload follow it, and it moves this tab (a new window
+  only on request: Ctrl+click, a middle click, the right-click's Open in a new window). A new area gets
+  its place on the rail and in `app_navigate` in the same change.
+- **A rail icon is a page** (the owner, 2026-11-16: "clicking the rail should land on a page not open a
+  form"): never a dialog, never a menu beside the icon. Making things happens on the page (its own panel
+  or heading row: New notebook, Add connection), not from the rail. Settings and Connections are pages
+  over the page you are on (web/src/areaPage.ts), Notebooks, Scripts and Apps a landing page of that
+  kind's documents in the Workbench.
 - The owner (2026-11-16): "I've noticed there is no navigation in the app to get back to the home page or
   go back anywhere. No back buttons." And: "this app needs a navigation pane somehow" (a slim icon rail).
 
@@ -635,4 +639,5 @@ Run this against every new screen or feature.
 19. Can the user get home and back (8.11)? Is the new view in the address, so Back, Forward and a reload
     keep it? Does a view entered from another have a Back named for where it goes, a view two levels deep
     a trail, the window a title that names the place, and an empty or error state a way out? Is a new
-    area on the rail (and in `app_navigate`), and does the rail mark it current?
+    area on the rail (and in `app_navigate`), does the rail mark it current, and does its icon land on a
+    page (no dialog, no menu)?

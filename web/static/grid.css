@@ -9486,6 +9486,543 @@ body.has-rail {
   }
 }
 
+/* ===== THE RAIL'S PAGES (areaPage.ts): Settings and Connections are pages, not dialogs (the owner,
+   2026-11-16: "clicking the rail should land on a page not open a form"). The whole width right of the
+   rail, over the page under it (kept as it was); leaving is the rail or Back. ===== */
+.area-page {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body.has-rail .area-page {
+  left: var(--rail-w);
+}
+
+.area-page:focus {
+  outline: none;
+}
+
+.area-page-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 24px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.area-page-title {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.area-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.area-page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 24px 24px;
+}
+
+.area-page-foot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.area-page-foot:empty {
+  display: none;
+}
+
+.settings-page {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  align-content: start;
+  gap: 16px;
+}
+
+.settings-page > .fieldset {
+  margin: 0;
+}
+
+/* ----- the Connections page: a card each ----- */
+.connection-group-title {
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.connection-groups > .connection-group-title:first-child {
+  margin-top: 0;
+}
+
+.connection-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.connection-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "icon text"
+    "status calls";
+  align-items: center;
+  gap: 10px 12px;
+  height: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--fam, var(--border-strong));
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.connection-card:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--fam, var(--border-strong));
+  background: var(--row-hover);
+}
+
+.connection-card:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.connection-card-icon {
+  display: grid;
+  grid-area: icon;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fam, var(--muted));
+}
+
+.connection-card-icon .icon-svg {
+  width: 22px;
+  height: 22px;
+}
+
+.connection-card-text {
+  display: flex;
+  grid-area: text;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.connection-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-card-type,
+.connection-card-calls {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-card-calls {
+  grid-area: calls;
+  justify-self: end;
+}
+
+.connection-status {
+  display: inline-flex;
+  grid-area: status;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.connection-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.connection-status.st-works .connection-status-dot {
+  background: var(--ok);
+}
+
+.connection-status.st-needs {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.connection-status.st-needs .connection-status-dot {
+  background: var(--warn);
+}
+
+.connection-status.st-failing {
+  border-color: var(--error);
+  background: var(--error-soft);
+}
+
+.connection-status.st-failing .connection-status-dot {
+  background: var(--error);
+}
+
+.area-page-title .connection-status {
+  font-size: 13px;
+}
+
+/* ----- a connection's detail ----- */
+.connection-detail-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+
+.connection-detail-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.connection-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.connection-detail-side {
+  display: grid;
+  gap: 16px;
+}
+
+.connection-section {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.connection-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.connection-section > h2 .icon-svg {
+  color: var(--muted);
+}
+
+.connection-section > h2 .count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.connection-refs {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.km-plain {
+  --kc: var(--muted);
+}
+
+.connection-ref {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon where how"
+    "icon line line";
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--kc, var(--border-strong));
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.connection-ref:hover {
+  background: var(--row-hover);
+}
+
+.connection-ref:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+
+.connection-ref-icon {
+  grid-area: icon;
+  color: var(--kc, var(--muted));
+}
+
+.connection-ref-where {
+  display: flex;
+  flex-wrap: wrap;
+  grid-area: where;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.connection-ref-cell {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-ref-how {
+  grid-area: how;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-ref-line {
+  grid-area: line;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-config,
+.connection-calls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+}
+
+.connection-config dt,
+.connection-calls dt {
+  color: var(--muted);
+}
+
+.connection-config dd,
+.connection-calls dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .area-page-head,
+  .area-page-body,
+  .area-page-foot {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .connection-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ----- the Workbench's landing page for a kind (workbenchLanding.ts): its panel, its documents ----- */
+.wb-landing {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.wb-landing[hidden] {
+  display: none;
+}
+
+.wb-landing-panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 10px;
+  width: 220px;
+  padding: 18px 16px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.wb-landing-panel h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.wb-landing-title-icon {
+  color: var(--kc, var(--muted));
+}
+
+.wb-landing-panel .btn {
+  justify-content: flex-start;
+}
+
+.wb-landing-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.wb-landing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wb-landing-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--kc, var(--border-strong));
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-landing-card:hover {
+  background: var(--row-hover);
+}
+
+.wb-landing-card:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.wb-landing-card.front {
+  border-color: var(--kc, var(--border-strong));
+}
+
+.wb-landing-icon {
+  color: var(--kc, var(--muted));
+}
+
+.wb-landing-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wb-landing-text strong,
+.wb-landing-where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-landing-where {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wb-landing-dirty {
+  color: var(--kc, var(--fg));
+}
+
+@media (max-width: 700px) {
+  .wb-landing {
+    flex-direction: column;
+  }
+
+  .wb-landing-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .wb-landing-panel h1 {
+    margin: 0 8px 0 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .connection-card,
+  .connection-ref,
+  .wb-landing-card {
+    border-color: CanvasText;
+  }
+}
+
+@media print {
+  .area-page {
+    position: static;
+  }
+}
+
 /* ===== ICONS beside names (2026-11-16, the owner: "it needs a glow up with icons"): one set (dom.ts),
    our own line icons, beside a name rather than instead of it; muted, so the page stays calm. ===== */
 .fieldset > legend .icon-svg {

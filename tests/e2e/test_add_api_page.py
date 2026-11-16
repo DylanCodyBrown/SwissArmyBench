@@ -51,7 +51,7 @@ def january_url(server: dict[str, Any]) -> Iterator[str]:
 
 def shot(page: Page, name: str) -> None:
     SHOTS.mkdir(parents=True, exist_ok=True)
-    page.locator("dialog").screenshot(path=str(SHOTS / name))
+    page.locator(".area-page").screenshot(path=str(SHOTS / name))
 
 
 def choose(page: Page, folder: Path, file: str | None = None) -> None:
@@ -76,10 +76,10 @@ def key_from_the_vault(dialog: Locator, variable: str) -> None:
 
 
 def open_add_api(page: Page) -> Locator:
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")  # the Connections page (2026-11-16)
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add API").click()
-    expect(dialog.locator("h3")).to_have_text("Add API")
+    expect(dialog.get_by_role("heading", name="Add API")).to_be_visible()
     return dialog
 
 
@@ -139,9 +139,11 @@ def test_add_api_from_a_file_and_from_the_form(
     expect(result.locator(".connection-preview th")).to_have_text(["order_id", "amount", "status"])
     shot(page, "add-api-its-connection.png")
     dialog.get_by_role("button", name="Save").click()
-    row = dialog.locator(".connection-row", has_text="Orders")
-    expect(row.locator(".badge")).to_have_text("Python (your own code)")
+    expect(dialog.locator(".area-page-title")).to_contain_text("Orders")  # its detail
     assert standin.API_KEY not in dialog.inner_text()
+    page.locator(".nav-rail [data-area='connections']").click()  # the cards
+    row = dialog.locator(".connection-card[data-connection='Orders']")
+    expect(row.locator(".connection-card-type")).to_have_text("Python (your own code)")
 
     # ===== from the form, with the AWS Lambda preset: every field labelled, Try it, the key kept =====
     service.key_name = "x-api-key"
@@ -203,7 +205,7 @@ def test_add_api_from_a_file_and_from_the_form(
     dialog.get_by_role("button", name="Test connection").click()
     expect(result.locator(".status-ok")).to_have_text("It works: 1 table, 2 columns.", timeout=60000)
     dialog.get_by_role("button", name="Save").click()
-    expect(dialog.locator(".connection-row", has_text="Shop")).to_have_count(1)
+    expect(dialog.locator(".area-page-title")).to_contain_text("Shop")
     opened = call(
         server, "POST", "/connections/Shop/open", {"schema": "api", "table": "products"}, agent=True
     )

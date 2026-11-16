@@ -114,7 +114,8 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     browser: Browser, server: dict[str, Any], two_tables: tuple[str, str]
 ) -> None:
     page = home_page(browser, two_tables[0])
-    dialog = page.locator("dialog")
+    # The Connections page (2026-11-16: a page over the grids, not a dialog), at the dialog's addresses.
+    dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
     expect(page).to_have_url(re.compile(r"open=connections"))
     expect(page).to_have_title("Connections")
@@ -151,12 +152,12 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     page.go_back()
     expect(dialog.get_by_role("button", name="Add connection")).to_be_visible()  # the list
     page.go_back()
-    expect(dialog).to_have_count(0)  # Back past the list closes the window, and stays on the page
+    expect(dialog).to_have_count(0)  # Back past the list takes the page away, and stays on the grids
     expect(page).to_have_url(re.compile(r"/g/"))
     page.go_forward()
     expect(dialog.get_by_role("button", name="Add connection")).to_be_visible()
-    # Closed with Escape: its entries go, and Back is the page's again.
-    page.keyboard.press("Escape")
+    # Grids on the rail: the page makes way, the table in front again.
+    page.locator(".nav-rail [data-area='grids']").click()
     expect(dialog).to_have_count(0)
     expect(page).not_to_have_url(re.compile(r"open="))
     expect(page).to_have_title("nav_visits")
@@ -165,8 +166,9 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     page.locator(".nav-rail [data-area='settings']").click()
     expect(page).to_have_url(re.compile(r"open=settings"))
     expect(page).to_have_title("Settings")
+    expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
     page.go_back()
-    expect(dialog).to_have_count(0)
+    expect(page.locator(".area-page")).to_have_count(0)
     expect(page).to_have_title("nav_visits")
     page.context.close()
 
@@ -321,9 +323,9 @@ def test_the_agent_moves_the_home_window(
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     expect(page).to_have_url(re.compile(r"view=sandbox"))
     call(server, "POST", "/navigate", {"to": "add_connection"}, agent=True)
-    expect(page.locator("dialog .connection-type").first).to_be_visible()
+    expect(page.locator(".area-page .connection-type").first).to_be_visible()
     call(server, "POST", "/navigate", {"to": "back"}, agent=True)
-    expect(page.locator("dialog")).to_have_count(0)
+    expect(page.locator(".area-page")).to_have_count(0)
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     call(server, "POST", "/navigate", {"to": f"grid:{grid_of(two_tables[1])}"}, agent=True)
     expect(page.locator(f".tab-item.active[data-grid='{grid_of(two_tables[1])}']")).to_be_visible()

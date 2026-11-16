@@ -50,7 +50,7 @@ import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession,
 import type { FilledSnippet } from "./starters";
 import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
-import { openConnections } from "./connectionsWindow";
+import { openConnections, setCellOpener } from "./connectionsWindow";
 import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
@@ -66,7 +66,8 @@ import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { appMark, back, canGoBack, forward, go, goHome, mountNav, setTitle, startNav, withParams } from "./nav";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
-import { mountNavRail, railItem } from "./rail";
+import { mountNavRail } from "./rail";
+import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { type Kind, kindIcon, kindOfPath, loadKindColours } from "./kindColours";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
@@ -1281,8 +1282,13 @@ function useConsole(doc: Doc): void {
   drawStatus();
 }
 
-/** Show a document: in front of its group, that group focused (a new one opens in the focused group). */
+/** Show a document: in front of its group, that group focused (a new one opens in the focused group).
+ *  The landing page on show makes way (its address replaced: the document is what is here now). */
 function show(doc: Doc): void {
+  if (landing.kind()) {
+    hideLanding();
+    void go(withParams({ view: null }), "replace");
+  }
   groups.show(doc);
 }
 
@@ -1390,7 +1396,50 @@ const groups = mountGroups<Doc>({
   },
 });
 const empty = h("div", { class: "wb-welcome wb-empty", hidden: true });
-layout.source.append(groups.element, empty);
+// The rail's Notebooks, Scripts and Apps land on their kind's page (workbenchLanding.ts): its documents as
+// cards, New and Open… on its panel.
+const sameDoc = (k: Kind, chosen: LandingDoc): Doc | undefined => docs.find((d) => docKindOf(d) === k && (chosen.path ? d.path === chosen.path : !d.path && d.title === chosen.title));
+const landing = mountLanding({
+  openDocs: (k) => docs.filter((d) => docKindOf(d) === k).map((d) => ({ title: d.title, path: d.path, dirty: d.dirty, front: d === current })),
+  choose: (k, chosen) => {
+    // A move of the user's: pushed, so Back comes back to this page.
+    hideLanding();
+    void go(withParams({ view: null, kind: k }), "push");
+    if (k === "app") appPanes();
+    const found = sameDoc(k, chosen);
+    if (found) show(found);
+    else if (chosen.path) void open(chosen.path);
+  },
+  start: (k) => {
+    const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
+    if (!start) return null;
+    return () => {
+      hideLanding();
+      void go(withParams({ view: null, kind: k }), "push");
+      if (k === "app") appPanes();
+      start.run();
+    };
+  },
+  openFile: () => void open(),
+});
+layout.source.append(groups.element, empty, landing.element);
+
+/** The landing page for `k` in place of the groups (the address says ?kind=k&view=list). */
+function showLanding(k: Kind): void {
+  landing.show(k);
+  groups.element.hidden = true;
+  empty.hidden = true;
+  setTitle("Workbench", KIND_WORDS[k].name);
+}
+
+function hideLanding(): void {
+  if (!landing.kind()) return;
+  landing.hide();
+  drawEmpty();
+  setTitle("Workbench", current?.title ?? "");
+  // The groups are back: Monaco and the canvas measure again.
+  window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+}
 
 /** What a group's "+" and the top bar's "…" make: each kind that starts from there, then Open and Recent. */
 function newEntries(anchor: HTMLElement): MenuEntry[] {
@@ -2046,40 +2095,36 @@ function followKind(doc: Doc | null): void {
 }
 
 /** A kind's document in front (the one in front already, else the last opened), in its mode. None
- *  open: New and that kind's recent files, beside the rail's item (`anchor`). Apps: the Data panel and
- *  its Streamlit cells pane open beside the canvas, the cells to build its page from. */
-function showKind(k: Kind, anchor: HTMLElement | null): void {
-  if (k === "app") {
-    if (panelOn("workbench.data")) {
-      data.toggle(false);
-      data.showStarters(false); // the cells; the Starters switch stays
-    }
-    if (panelOn("workbench.streamlit")) data.openStreamlit();
-  }
+ *  open: that kind's landing page (its address: view=list). Apps: the Data panel and its Streamlit cells
+ *  pane open beside the canvas, the cells to build its page from. */
+function showKind(k: Kind): void {
+  if (k === "app") appPanes();
+
   const mine = docKindOf(current) === k ? current : [...docs].reverse().find((d) => docKindOf(d) === k);
   if (mine) {
     show(mine);
     return;
   }
-  if (anchor) kindStart(k, anchor);
+  void go(withParams({ kind: k, view: "list" }), "replace");
+  showLanding(k);
 }
 
-function kindStart(k: Kind, anchor: HTMLElement): void {
-  const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
-  const files = recent.filter((r) => r.exists && kindOfPath(r.path) === k).slice(0, 8);
-  openMenu(
-    anchor,
-    KIND_WORDS[k].name,
-    [
-      ...(start ? [{ label: start.label, icon: "plus", mark: k, run: start.run }] : []),
-      ...(files.length ? [null, { label: "In this project", heading: true }] : []),
-      ...files.map((r) => ({ label: baseName(r.path), icon: kindIcon(k, r.path), mark: k, title: r.path, run: () => void open(r.path) })),
-      null,
-      { label: "Open…", icon: "folder", run: () => void open() },
-    ],
-    { beside: anchor.closest(".nav-rail") !== null },
-  );
+/** An app comes forward from the rail's Apps: the Data panel and its Streamlit cells pane beside the
+ *  canvas, the cells to build its page from (the owner: "do we still get a cell navigator"). */
+function appPanes(): void {
+  if (panelOn("workbench.data")) {
+    data.toggle(false);
+    data.showStarters(false); // the cells; the Starters switch stays
+  }
+  if (panelOn("workbench.streamlit")) data.openStreamlit();
 }
+
+/** A reference's click on the Connections page (connectionsWindow.ts): its document here, at its cell. */
+async function openCell(path: string, cell: number | null): Promise<void> {
+  if (cell) await goToCell(path, baseName(path), cell);
+  else await open(path);
+}
+setCellOpener(openCell);
 
 // ===== start =====
 
@@ -2228,6 +2273,11 @@ const COMMANDS: Command[] = [
     return { document: doc.title };
   } },
   { id: "file.open", group: "File", title: "Open a notebook, script or Streamlit app…", keys: "Ctrl+O", args: "path: the file (without it, the file chooser opens)", run: (a) => open(text(a, "path")) },
+  { id: "file.openCell", agentOnly: true, group: "File", title: "Open a document at a cell (a connection's reference)", args: "path: the file; cell: the cell's own number (none: the document)", run: (a) => {
+    const path = text(a, "path");
+    if (!path) throw new Error("Name the file: path.");
+    return openCell(path, num(a, "cell") ?? null);
+  } },
   { id: "file.save", group: "File", title: "Save (the open project, when it is in front)", keys: "Ctrl+S", when: () => saves() || sabOpen(), whyNot: "nothing that saves is in front", run: () => saveFront() },
   { id: "project.save", group: "Project", title: "Save the project (.sab)", when: sabOpen, whyNot: "no project file is open", run: () => saveProject() },
   { id: "project.saveAs", group: "Project", title: "Save the project as… (.sab)", when: sabOpen, whyNot: "no project file is open", run: () => saveProject(true) },
@@ -2605,10 +2655,14 @@ void requireSession();
 mountNav("workbench", {
   show: (url) => {
     const k = codeKindOf(url.searchParams.get("kind"));
-    if (k) showKind(k, null);
+    if (k && url.searchParams.get("view") === "list") showLanding(k);
+    else {
+      hideLanding();
+      if (k) showKind(k);
+    }
   },
 });
-mountNavRail("workbench", { showKind });
+mountNavRail("workbench");
 startNav();
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
@@ -2759,14 +2813,19 @@ void Promise.all([
   if (fresh) sessionStorage.removeItem(SESSION_KEY);
   void (fresh ? Promise.resolve(false) : restore()).then(() => {
     const wanted = openedWith.get("open"); // the address as opened (the page clears it once the token is read)
-    if (wanted) void open(wanted);
+    // At a reference's cell too (the Connections page, with no Workbench window yet).
+    const cell = Number(openedWith.get("cell"));
+    if (wanted && cell > 0) void openCell(wanted, cell).catch((e: Error) => toast(e.message, "error"));
+    else if (wanted) void open(wanted);
     // A document popped out of another window: this window was opened to take it.
     const handed = openedWith.get("take");
     if (handed) void takeDocument(handed).catch((e: Error) => toast(e.message, "error"));
-    // Opened for a kind (the rail's Notebooks, Scripts, Apps) with none of it open: New and its recent
-    // files. (A reload's documents came back as they were, the one in front too.)
-    const k = handed || wanted ? null : codeKindOf(new URLSearchParams(location.search).get("kind"));
-    if (k && !docs.some((d) => docKindOf(d) === k)) showKind(k, railItem(k));
+    // Opened for a kind (the rail's Notebooks, Scripts, Apps): its landing page, or with none of it open
+    // that page too. (A reload's documents came back as they were, the one in front too.)
+    const here = new URLSearchParams(location.search);
+    const k = handed || wanted ? null : codeKindOf(here.get("kind"));
+    if (k && here.get("view") === "list") showLanding(k);
+    else if (k && !docs.some((d) => docKindOf(d) === k)) showKind(k);
     // The open .sab project: its documents here (once), its name and unsaved mark in the top row.
     onProject((state) => void followProject(state).catch((e: Error) => toast(e.message, "error")));
     onBeforeSave(reportSab);

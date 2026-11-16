@@ -54,7 +54,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     vault |= {"variable": "get", "code": VAULT_CODE, "vault_all": True, "vault_mapping": []}
     call(server, "POST", "/connections", vault)
     page = open_grid(browser, orders_url)
-    dialog = page.locator("dialog")
+    dialog = page.locator(".area-page[data-page='connections']")  # the Connections page (2026-11-16)
 
     # The form: the environment's address and the sign-in; As you comes first.
     page.locator(".nav-rail [data-area='connections']").click()
@@ -105,9 +105,9 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     assert token["form"]["client_secret"] == made_up.SECRET and token["tenant"] == made_up.TENANT
     assert made_up.SECRET not in dialog.inner_text() and made_up.SECRET not in code.input_value()
     dialog.get_by_role("button", name="Save").click()
-    saved = dialog.locator(".connection-row", has_text="Sales CRM")
-    expect(saved.locator(".badge")).to_have_text("Dataverse")
-    expect(saved.locator("code")).to_contain_text('sab.read("Sales CRM", table)')
+    saved = dialog.locator(".connection-config")  # its detail
+    expect(saved).to_contain_text("Dataverse")
+    expect(saved.locator(".connection-in-code")).to_contain_text('sab.read("Sales CRM", table)')
     wait_until(lambda: any(c["name"] == "Sales CRM" for c in call(server, "GET", "/catalogs")["catalogs"]))
 
     # The catalog: one schema, its tables; a display name shows where it says more than the name.
@@ -135,7 +135,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
 
     # The grid: every opportunity (fewer than Rows to open), its choice columns as their labels.
     page.bring_to_front()
-    dialog.get_by_role("button", name="Close").last.click()
+    page.locator(".nav-rail [data-area='grids']").click()  # the page makes way for the grids
     page.locator(".tab-item[data-grid]").filter(has_text=re.compile("^opportunity$")).click()
     pane = page.locator(".pane:not([hidden])")
     expect(pane.locator(".ag-header-cell[col-id='salesstage']")).to_be_visible(timeout=30000)

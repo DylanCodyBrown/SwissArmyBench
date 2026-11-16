@@ -1,11 +1,21 @@
 /**
- * connectionsWindow.ts: the Application row's Connections window (Plans/workbench-and-connections.plan.md):
+ * connectionsWindow.ts: the Connections page, the rail's plug (Plans/workbench-and-connections.plan.md):
  * the user's connections, each a database, a file or a key vault, and adding one with a form per type.
  * [WIRE + EXPORT]
  *
- *   [LIST]   each connection: its type, its catalog, Edit, Test, Refresh catalog, Copy for Python, Remove;
- *            a key vault shows its entries (variable <- secret in the vault) instead; a Power BI
- *            dataset has Import its relationships (into the current model: the Diagram shows them)
+ *   [PAGE]   a page, not a dialog (the owner, 2026-11-16: "connection rail icon should open a connections
+ *            page where all the active connections are presented as cards and I can click one to see all
+ *            the references in the workbench that use that connection and an overview of its
+ *            configuration and how many times it has been called this session"): areaPage.ts, at the
+ *            address the dialog had (open=connections), over whichever page you are on
+ *   [CARDS]  a card each, grouped (databases, files, your own code, key vaults): its type's icon, its
+ *            name, its type, its status (works, ready, needs a password, failing: a cheap check, never a
+ *            run) and its calls this session. Add connection and Add API in the heading row
+ *   [DETAIL] a card's click (at=detail&name=): where it is used (each notebook or script cell, canvas
+ *            block and open grid; a click opens that cell in the Workbench, or the grid), its
+ *            configuration (type, settings, sign-in, each password's source by kind and name: never a
+ *            value), its calls this session by kind; Open as grid, Edit, Test, Refresh catalog, Copy for
+ *            Python, Remove. A Power BI dataset has Import its relationships in the catalog
  *   [POWER BI] its form signs in three ways; the first reads the app registration's tenant id, client
  *            id and client secret from a key vault (each box starts on "A key vault")
  *   [ADD]    pick a type (Databases, Files, Vaults), then its form:
@@ -31,7 +41,8 @@
  *            under the vault's own name (shown faintly); typed, under that name. Every secret (new ones
  *            too), or untick it and choose. Every Workbench kernel starts with them set
  *
- * ROUTING: [LIST]  GET /connections; Remove -> DELETE /blades/{name}; Refresh -> POST /blades/{name}/refresh
+ * ROUTING: [CARDS] GET /connections/usage      [DETAIL] GET /connections/{name}/usage, GET /connections
+ *          Remove -> DELETE /blades/{name}; Refresh -> POST /blades/{name}/refresh
  *          [TYPES] GET /connections/types        [EDIT] GET /connections/{name}
  *          [FIELD] POST /blades/fill (the value into the code)   [CODE] POST /blades/inspect (its fields again)
  *          [TEST]  POST /connections/test        [SAVE] POST /connections, PUT /connections/{name}
@@ -40,12 +51,14 @@
  *          [INSTALL] POST /blades/install {packages}, then POST /blades/inspect (is it installed now?)
  */
 import { showAddApi } from "./addApi";
-import { api, errorText, onNotice } from "./api";
-import { button, clear, closeDialogs, h, hasIcon, icon, openDialog, toast } from "./dom";
+import { api, errorText, onNotice, token } from "./api";
+import { openAreaPage, type PageElement } from "./areaPage";
+import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
-import { backButton, crumbs, dismissDialog, go, layerOpened, registerLayer, setOverTitle, watchLayerDialog, withParams } from "./nav";
+import { kindIcon } from "./kindColours";
+import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
 
 interface Field {
@@ -126,6 +139,179 @@ interface Connection {
   needs_password?: { missing: string[]; message: string } | null;
 }
 
+type Status = "works" | "ready" | "needs" | "failing";
+
+interface Calls {
+  total: number;
+  by_kind: Record<string, number>;
+  last_used: number | null;
+  last_kind: string | null;
+  last_ok: boolean | null;
+}
+
+/** A card (GET /connections/usage). */
+interface Card {
+  name: string;
+  connection: Connection["connection"];
+  type: string;
+  template: string | null;
+  status: Status;
+  missing: string[];
+  catalog_state: { state: string; error?: string } | null;
+  calls: Calls;
+}
+
+/** A cell, a canvas block or an open grid that uses a connection. */
+export interface Reference {
+  document: string;
+  title: string;
+  kind: "notebook" | "script" | "app" | "grid";
+  how: string;
+  line: string;
+  cell: number | null;
+  name?: string;
+  page?: string;
+  block?: string;
+  grid?: string;
+  table_cell?: boolean;
+}
+
+interface Usage extends Card {
+  references: Reference[];
+  unread: string[];
+  configuration: {
+    kind: Connection["connection"];
+    type: string;
+    dialect: string;
+    description: string;
+    settings: { name: string; value: string | number | boolean }[];
+    sign_in: string | null;
+    passwords: { name: string; from: "keyring" | "vault" | "environment" | "missing"; vault?: string; secret?: string }[];
+    variables: { name: string; from: string; vault?: string; secret?: string }[];
+    vault_entries: { variable: string; secret: string }[];
+    vault_all: boolean;
+    catalog: boolean;
+    row_limit: number | null;
+  };
+}
+
+const STATUS_WORDS: Record<Status, string> = { works: "Works", ready: "Ready", needs: "Needs a password", failing: "Failing" };
+const CALL_WORDS: Record<string, string> = { catalog: "Catalog loads", query: "Queries", read: "Table reads", test: "Tests", connect: "Connects" };
+
+/** A card's status, in a word (the reason on hover: the missing passwords, the catalog's failure). */
+function statusPill(c: Card): HTMLElement {
+  const why = c.status === "needs" ? c.missing.join(", ") : c.status === "failing" ? (c.catalog_state?.error ?? "") : "";
+  return h("span", { class: `connection-status st-${c.status}`, title: why || undefined }, h("span", { class: "connection-status-dot", "aria-hidden": "true" }), STATUS_WORDS[c.status]);
+}
+
+function ago(seconds: number): string {
+  const s = Math.max(0, Date.now() / 1000 - seconds);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  return `${Math.floor(s / 3600)} h ago`;
+}
+
+/** "12 calls · 3 min ago"; "No calls yet". */
+function callsWord(calls: Calls): string {
+  if (!calls.total) return "No calls yet";
+  return `${calls.total.toLocaleString()} call${calls.total === 1 ? "" : "s"}${calls.last_used ? ` · ${ago(calls.last_used)}` : ""}`;
+}
+
+/** Where a reference opens: the Workbench page's own (its documents and cells), else this one. */
+let cellOpener: ((path: string, cell: number | null) => Promise<void>) | null = null;
+
+/** The Workbench: a reference opens its cell here (workbenchPage.ts goToCell). */
+export function setCellOpener(open: (path: string, cell: number | null) => Promise<void>): void {
+  cellOpener = open;
+}
+
+const WORKBENCH_WINDOW = "swissarmybench-workbench";
+
+/** A reference's click: its cell in the Workbench (this window's, else the Workbench window, opened on
+ *  it when there is none), or its grid on the home page. */
+export async function openReference(ref: Reference): Promise<void> {
+  if (ref.kind === "grid" && ref.grid) {
+    const url = `/g/${encodeURIComponent(ref.grid)}`;
+    if (document.querySelector(".tabs-row")) {
+      visit(url);
+      return;
+    }
+    const found = homeWindow();
+    if (found) {
+      found.win.location.href = url;
+      found.win.focus();
+    }
+    return;
+  }
+  if (cellOpener) {
+    visit(withParams({ open: null, at: null, type: null, name: null })); // the page makes way
+    await cellOpener(ref.document, ref.cell);
+    return;
+  }
+  try {
+    await api("/workbench/window", "POST", { command: "file.openCell", args: { path: ref.document, ...(ref.cell ? { cell: ref.cell } : {}) } });
+    window.open("", WORKBENCH_WINDOW)?.focus();
+  } catch {
+    // No Workbench window yet: one, opened on the file at the cell.
+    const words = new URLSearchParams({ ...(token ? { token } : {}), open: ref.document, ...(ref.cell ? { cell: String(ref.cell) } : {}) });
+    window.open(`/workbench#${words.toString()}`, WORKBENCH_WINDOW)?.focus();
+  }
+}
+
+/** A reference as the detail lists it: the document's icon, its name and cell, how it names the
+ *  connection, the line. */
+function referenceItem(ref: Reference): HTMLElement {
+  const where = ref.kind === "grid" ? "an open grid" : ref.kind === "app" ? `${ref.page ?? "a page"} · ${ref.line}` : ref.cell ? `@cell${ref.cell}${ref.name ? ` ${ref.name}` : ""}` : "main code";
+  return h(
+    "li",
+    {},
+    h(
+      "button",
+      {
+        type: "button",
+        class: `connection-ref km-${ref.kind === "grid" ? "plain" : ref.kind}`,
+        "data-kind": ref.kind,
+        title: ref.document || ref.title,
+        onclick: () => void openReference(ref).catch((e: Error) => toast(e.message, "error")),
+      },
+      h("span", { class: "connection-ref-icon", "aria-hidden": "true" }, icon(ref.kind === "grid" ? "grids" : kindIcon(ref.kind, ref.document))),
+      h("span", { class: "connection-ref-where" }, h("strong", {}, ref.title), h("span", { class: "connection-ref-cell" }, where), ref.table_cell ? h("span", { class: "badge" }, "Table cell") : null),
+      h("code", { class: "connection-ref-how" }, ref.how),
+      ref.kind === "app" ? null : h("code", { class: "connection-ref-line" }, ref.line),
+    ),
+  );
+}
+
+/** A term and its description, for the configuration and the calls. */
+const term = (name: string, ...value: (Node | string | null)[]): HTMLElement[] => [h("dt", {}, name), h("dd", {}, ...value)];
+
+/** The calls this session, by kind, and the last use. */
+function callsList(calls: Calls): HTMLElement {
+  return h(
+    "dl",
+    { class: "connection-calls" },
+    ...Object.entries(CALL_WORDS).flatMap(([k, label]) => term(label, String(calls.by_kind[k] ?? 0))),
+    ...term("Last used", calls.last_used ? `${ago(calls.last_used)}${calls.last_ok === false ? " (failed)" : ""}` : "Not yet"),
+  );
+}
+
+/** How code names a connection: a Power BI workspace's DAX cells, your own Python's sab.read, a key
+ *  vault's sab.blade, a database's sab.connection and SQL cell. */
+function inCode(c: Connection): string {
+  const cell = /\s/.test(c.name) ? `"${c.name}"` : c.name;
+  if (c.dialect === "dax") return `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>`;
+  if (c.connection === "vault") return `sab.blade("${c.name}")`;
+  if (c.connection === "python" || c.dialect === "dataverse") return `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)${c.dialect === "dataverse" ? `  ·  %%sql ${cell}` : ""}`;
+  return `sab.connection("${c.name}")  ·  %%sql ${cell}`;
+}
+
+function passwordSource(p: Usage["configuration"]["passwords"][number]): string {
+  if (p.from === "keyring") return "the system keyring";
+  if (p.from === "vault") return p.secret ? `${p.vault} (${p.secret})` : `${p.vault}`;
+  if (p.from === "environment") return "an environment variable";
+  return "nowhere yet";
+}
+
 const FILE_KINDS: Record<string, string[]> = {
   csv: [".csv", ".tsv", ".txt"],
   excel: [".xlsx", ".xlsm", ".xls"],
@@ -190,10 +376,10 @@ function previewOf(preview: Preview): HTMLElement[] {
   ];
 }
 
-/** On the grid page the new table arrives as the tab in front, so this window closes to show it
- * (decision 8). In the Workbench's window the grid is in another window, and this one stays. */
+/** On the grid page the new table arrives as the tab in front, so the page makes way for the grids
+ * (decision 8). In the Workbench's window the grid is in another window, and this page stays. */
 function shownAsTab(): void {
-  if (document.querySelector(".tabs-row")) closeDialogs();
+  if (document.querySelector(".tabs-row")) visit(withParams({ open: null, at: null, type: null, name: null }));
 }
 
 /** A file connection's file as a grid: a workbook asks which sheets (the first ticked), a folder's
@@ -247,7 +433,7 @@ const TYPES = { at: "types", type: null, name: null };
 const API = { at: "api", type: null, name: null };
 const urlOf = (params: Record<string, string | null>): string => withParams({ ...params, open: "connections" });
 /** The open window: what shows the view an address names. */
-let shownWindow: { dialog: HTMLDialogElement; showAt: (url: URL) => void } | null = null;
+let shownWindow: { dialog: PageElement; showAt: (url: URL) => void } | null = null;
 
 registerLayer("connections", {
   isOpen: () => Boolean(shownWindow?.dialog.open),
@@ -258,7 +444,7 @@ registerLayer("connections", {
   },
 });
 
-/** The Application row's Connections (and Add API: `addApi`), opened by the user: its address pushed. */
+/** The Connections page (and Add API: `addApi`), opened by the user: its address pushed. */
 export async function openConnections(start: { addApi?: boolean; folder?: string } = {}): Promise<void> {
   if (shownWindow?.dialog.open) return;
   const params = start.addApi ? API : LIST;
@@ -267,7 +453,7 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
 }
 
 async function drawConnections(at: URL, folder?: string): Promise<void> {
-  const { dialog, body, foot, close } = openDialog("Connections", true, { history: false });
+  const { element: dialog, body, foot, actions, setHeading } = openAreaPage("connections", "Connections");
   const start = { folder };
   // The view drawn now (its address' words), so an address that names it again draws nothing.
   let drawn = "";
@@ -290,6 +476,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       if (keyOf(url) === drawn) return;
       const at = url.searchParams.get("at");
       if (at === "types") void showTypes();
+      else if (at === "detail" && url.searchParams.get("name")) void showDetail(url.searchParams.get("name")!);
       else if (at === "api") showApi();
       else if (at === "edit" && url.searchParams.get("name")) void showForm({ edit: url.searchParams.get("name")! });
       else if (at === "form" && url.searchParams.get("type")) void showFormOf(url.searchParams.get("type")!);
@@ -302,93 +489,181 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     if (shownWindow?.dialog === dialog) shownWindow = null;
   });
   let drawing = 0;
+  /** The heading row's actions: Add connection and Add API, on the cards only. */
+  const listActions = (on: boolean): void => {
+    actions.replaceChildren(
+      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts)
+    );
+  };
+  const detailUrl = (name: string): string => urlOf({ at: "detail", type: null, name });
   const showList = async (): Promise<void> => {
     leave("||");
     setOverTitle("Connections");
+    setHeading("Connections");
+    listActions(true);
     listShowing = () => (body.isConnected ? void showList() : (listShowing = null));
-    // Drawn again as catalogs load: only the newest draw paints (never twice, never over a form opened
+    // Drawn again as catalogs load: only the newest draw paints (never twice, never over a view opened
     // meanwhile), and "Loading…" shows only the first time (no flicker).
     const mine = ++drawing;
-    if (!body.querySelector(".connection-list, .empty-note")) {
+    if (!body.querySelector(".connection-cards, .empty-note")) {
       clear(foot);
       clear(body, h("p", { class: "hint" }, "Loading…"));
     }
-    let found: Connection[];
+    let found: Card[];
     try {
-      found = (await api<{ connections: Connection[] }>("/connections")).connections;
+      found = (await api<{ connections: Card[] }>("/connections/usage")).connections;
     } catch (e) {
       if (mine !== drawing) return;
       clear(foot);
       clear(body, h("p", { class: "status-error" }, (e as Error).message));
-      foot.append(button("Close", close));
       return;
     }
     if (mine !== drawing) return;
     clear(foot);
-    const row = (c: Connection): HTMLElement => {
-      const path = encodeURIComponent(c.name);
-      const readOnly = c.source === "pack";
-      // A Python connection's Test: the first table's first rows, under its row.
-      const tested = h("div", { class: "connection-result connection-tested", role: "status" });
-      return h(
+    const card = (c: Card): HTMLElement =>
+      h(
         "li",
-        { class: `connection-row fam-${c.connection}` },
-        h("span", { class: "connection-row-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
+        {},
         h(
-          "div",
-          { class: "connection-text" },
-          h("div", { class: "pack-title" }, h("strong", {}, c.name), h("span", { class: "badge" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection]), catalogWord(c)),
-          c.description ? h("div", { class: "hint" }, c.description) : null,
-          c.needs_password
-            ? h("div", {}, h("span", { class: "needs-password", title: c.needs_password.missing.join(", ") }, icon("key"), "Needs a password"), button("Set the password", () => move({ at: "edit", type: null, name: c.name }, () => void showForm({ edit: c.name })), { class: "ghost" }))
-            : null,
-          c.entries
-            ? h("div", { class: "vault-entries" }, c.every ? h("span", { class: "badge" }, "Every secret") : null, ...c.entries.map((e) => h("code", { class: "hint", title: `${e.secret} in the vault` }, `${e.env} ← ${e.secret}`)))
-            : // A Power BI workspace's cells are DAX cells, each on one of its datasets; your own Python's reads with sab.read.
-              h("code", { class: "hint" }, c.dialect === "dax" ? `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>` : c.connection === "python" || c.dialect === "dataverse" ? `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)${c.dialect === "dataverse" ? `  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}` : ""}` : `sab.connection("${c.name}")  ·  %%sql ${/\s/.test(c.name) ? `"${c.name}"` : c.name}`),
+          "a",
+          {
+            class: `connection-card fam-${c.connection} st-${c.status}`,
+            href: detailUrl(c.name),
+            "data-connection": c.name,
+            onclick: (e: MouseEvent) => {
+              if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return; // a new tab, as links do
+              e.preventDefault();
+              move({ at: "detail", type: null, name: c.name }, () => void showDetail(c.name));
+            },
+          },
+          h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
+          h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection])),
+          statusPill(c),
+          h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
         ),
-        h(
-          "span",
-          { class: "connection-actions" },
-          c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(c.name), { icon: "rows", class: "primary" }) : null,
-          readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name: c.name }, () => void showForm({ edit: c.name })), { icon: "edit" }),
-          button("Test", () => void testSaved(c.name, c.connection === "python" || c.dialect === "dataverse" ? tested : undefined), { icon: "play" }),
-          c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
-          c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
-          readOnly
-            ? null
-            : button("Remove", () => {
-                if (!confirm(c.entries ? `Remove the key vault ${c.name}? Its variables stop being set.` : `Remove the connection ${c.name}?`)) return;
-                void api(`/blades/${path}`, "DELETE").then(() => showList(), (e: Error) => toast(e.message, "error"));
-              }, { icon: "trash", iconOnly: true }),
-        ),
-        c.connection === "python" ? tested : null,
       );
-    };
-    const databases = found.filter((c) => c.connection === "database");
-    const files = found.filter((c) => c.connection === "file");
-    const own = found.filter((c) => c.connection === "python");
-    const vaultList = found.filter((c) => c.connection === "vault");
+    const groups: [string, Card["connection"]][] = [
+      ["Databases", "database"],
+      ["Files", "file"],
+      ["Your own code", "python"],
+      ["Key vaults", "vault"],
+    ];
     clear(
       body,
       found.length
         ? h(
             "div",
-            {},
-            databases.length ? h("h3", {}, "Databases") : null,
-            databases.length ? h("ul", { class: "connection-list" }, ...databases.map(row)) : null,
-            files.length ? h("h3", {}, "Files") : null,
-            files.length ? h("ul", { class: "connection-list" }, ...files.map(row)) : null,
-            own.length ? h("h3", {}, "Your own code") : null,
-            own.length ? h("ul", { class: "connection-list" }, ...own.map(row)) : null,
-            vaultList.length ? h("h3", {}, "Key vaults") : null,
-            vaultList.length ? h("ul", { class: "connection-list" }, ...vaultList.map(row)) : null,
+            { class: "connection-groups" },
+            ...groups.flatMap(([title, kind]) => {
+              const these = found.filter((c) => c.connection === kind);
+              return these.length ? [h("h2", { class: "connection-group-title" }, title), h("ul", { class: "connection-cards", "aria-label": title }, ...these.map(card))] : [];
+            }),
           )
         : h("p", { class: "empty-note" }, "No connections"),
     );
-    // Import: a connection from another project, or this computer's saved ones (projectImport.ts).
-    const importing = button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" });
-    foot.append(button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), importing, button("Close", close));
+  };
+
+  // ===== DETAIL: where it is used, its configuration, its calls =====
+  const showDetail = async (name: string): Promise<void> => {
+    leave(`detail||${name}`);
+    listShowing = null;
+    const mine = ++drawing;
+    setOverTitle(`Connections › ${name}`);
+    setHeading(name);
+    listActions(false);
+    clear(foot);
+    clear(body, h("p", { class: "hint" }, "Loading…"));
+    let usage: Usage;
+    let listed: Connection | undefined;
+    try {
+      [usage, listed] = await Promise.all([
+        api<Usage>(`/connections/${encodeURIComponent(name)}/usage`),
+        api<{ connections: Connection[] }>("/connections").then((r) => r.connections.find((c) => c.name === name)),
+      ]);
+    } catch (e) {
+      if (mine === drawing) failedView(e);
+      return;
+    }
+    if (mine !== drawing) return;
+    const c = listed;
+    const config = usage.configuration;
+    const readOnly = c?.source === "pack";
+    const path = encodeURIComponent(name);
+    setHeading(name, " ", statusPill(usage));
+    const tested = h("div", { class: "connection-result connection-tested", role: "status" });
+    const tools = h(
+      "div",
+      { class: "connection-detail-tools", role: "toolbar", "aria-label": "Connection" },
+      c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(name), { icon: "rows", class: "primary" }) : null,
+      readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
+      button("Test", () => void testSaved(name, c && (c.connection === "python" || c.dialect === "dataverse") ? tested : undefined).then(refreshCalls), { icon: "play" }),
+      c?.has_catalog ? button("Refresh catalog", () => void refresh(name).then(() => void showDetail(name)), { icon: "import" }) : null,
+      config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
+      readOnly
+        ? null
+        : button("Remove", () => {
+            if (!confirm(config.kind === "vault" ? `Remove the key vault ${name}? Its variables stop being set.` : `Remove the connection ${name}? Its saved passwords go too.`)) return;
+            void api(`/blades/${path}`, "DELETE").then(() => {
+              void go(urlOf(LIST), "replace");
+              void showList();
+            }, (e: Error) => toast(e.message, "error"));
+          }, { icon: "trash" }),
+    );
+    // Where it is used: the documents' cells, the canvases' blocks, the open grids.
+    const refs = usage.references;
+    const used = h(
+      "section",
+      { class: "connection-section connection-used", "aria-label": "Used in" },
+      h("h2", {}, icon("link"), "Used in", h("span", { class: "count" }, String(refs.length))),
+      refs.length ? h("ul", { class: "connection-refs" }, ...refs.map(referenceItem)) : h("p", { class: "empty-note" }, "No references"),
+    );
+    // Its configuration: never a password's value.
+    const configuration = h(
+      "dl",
+      { class: "connection-config" },
+      ...term("Type", c?.type ? plain(c.type) : config.type || config.dialect),
+      ...(config.description ? term("Description", config.description) : []),
+      ...(config.sign_in ? term("Sign in", config.sign_in) : []),
+      ...config.settings.flatMap((f) => term(words(f.name), typeof f.value === "boolean" ? (f.value ? "Yes" : "No") : String(f.value))),
+      ...config.passwords.flatMap((p) => term(words(p.name), h("span", { class: p.from === "missing" ? "status-error" : "" }, passwordSource(p)))),
+      ...config.variables.flatMap((v) => term(v.name, v.from === "vault" ? `${v.vault ?? ""} (${v.secret ?? ""})` : v.from)),
+      ...(config.vault_all ? term("Secrets", "Every secret, each under its own name") : []),
+      ...config.vault_entries.flatMap((e) => term(e.variable, h("code", {}, e.secret))),
+      ...(config.row_limit ? term("Rows to open", config.row_limit.toLocaleString()) : []),
+      ...(c ? term("In code", h("code", { class: "connection-in-code" }, inCode(c))) : []),
+    );
+    const calls = usage.calls;
+    /** After a Test: the status and the calls again, the rest (a Test's rows under it) as it is. */
+    const refreshCalls = async (): Promise<void> => {
+      try {
+        const now = await api<Usage>(`/connections/${encodeURIComponent(name)}/usage`);
+        if (mine !== drawing) return;
+        setHeading(name, " ", statusPill(now));
+        body.querySelector(".connection-calls")?.replaceWith(callsList(now.calls));
+        const count = body.querySelector(".connection-calls-count");
+        if (count) count.textContent = String(now.calls.total);
+      } catch {
+        /* the next draw says it */
+      }
+    };
+    const counted = callsList(calls);
+    clear(
+      body,
+      h("div", { class: "connection-detail-top" }, backButton("Connections", urlOf(LIST)), crumbs([{ label: "Connections", url: urlOf(LIST) }, { label: name }])),
+      tools,
+      tested,
+      h(
+        "div",
+        { class: "connection-detail" },
+        used,
+        h(
+          "div",
+          { class: "connection-detail-side" },
+          h("section", { class: "connection-section", "aria-label": "Configuration" }, h("h2", {}, icon("cog"), "Configuration"), configuration),
+          h("section", { class: "connection-section", "aria-label": "Calls this session" }, h("h2", {}, icon("clock"), "Calls this session", h("span", { class: "count connection-calls-count" }, String(calls.total))), counted),
+        ),
+      ),
+    );
   };
 
   const testSaved = async (name: string, under?: HTMLElement): Promise<void> => {
@@ -418,7 +693,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
    *  the way back to the list. */
   const failedView = (e: unknown): void => {
     clear(body, h("p", { class: "status-error", role: "alert" }, errorText(e)));
-    clear(foot, backButton("Connections", urlOf(LIST)), button("Close", close));
+    clear(foot, backButton("Connections", urlOf(LIST)));
   };
   let typesAsked: Promise<Form[]> | null = null;
   const types = (): Promise<Form[]> => (typesAsked ??= api<{ types: Form[] }>("/connections/types").then((r) => r.types, (e: unknown) => {
@@ -427,6 +702,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
   }));
 
   const showTypes = async (then?: Then): Promise<void> => {
+    listActions(false);
+    setHeading("Connections");
     // A vault made from a password's form waits outside the address: Back returns to that form.
     if (!then) {
       leave("types||");
@@ -453,7 +730,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const group = (title: string, kind: Form["connection"]): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter((t) => t.connection === kind).map(tile))];
     // From a password's New vault: only vaults, and Back returns to that connection.
     clear(body, ...(then ? [] : [...group("Databases", "database"), ...group("Files", "file"), ...group("Your own code", "python")]), ...group("Key vaults", "vault"));
-    foot.append(then ? button("Back", () => void then(null), { icon: "back" }) : backButton("Connections", urlOf(LIST)), button("Close", close));
+    foot.append(then ? button("Back", () => void then(null), { icon: "back" }) : backButton("Connections", urlOf(LIST)));
   };
 
   /** A new connection's form by its type's id (an address: a reload, Forward, a breadcrumb). */
@@ -474,6 +751,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
   const showForm = async (what: { type?: Form; edit?: string; then?: Then }): Promise<void> => {
     listShowing = null;
     drawing++;
+    listActions(false);
+    setHeading("Connections");
     if (!what.then) leave(what.edit ? `edit||${what.edit}` : `form|${what.type!.id}|`);
     clear(foot);
     let form: Form;
@@ -487,13 +766,20 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     } else form = structuredClone(what.type!);
     const editing = what.edit ?? null;
     // Where its Back goes, its trail and the window's title (a vault from a password's form has none).
-    const backTo = editing ? { label: "Connections", url: urlOf(LIST) } : { label: "Add connection", url: urlOf(TYPES) };
+    const backTo = editing ? { label: editing, url: detailUrl(editing) } : { label: "Add connection", url: urlOf(TYPES) };
     const trail = what.then || editing ? null : crumbs([{ label: "Connections", url: urlOf(LIST) }, { label: "Add connection", url: urlOf(TYPES) }, { label: plain(form.label) }]);
     if (!what.then) setOverTitle(editing ? `Connections › Edit ${editing}` : `Connections › Add connection › ${plain(form.label)}`);
-    /** Saved: the list, in this entry's place (Back then goes to where the form was opened from). */
-    const savedNow = (): void => {
-      void go(urlOf(LIST), "replace");
-      void showList();
+    /** Saved: its detail (a new one's, or the one edited, renamed or not), in this entry's place (Back
+     *  then goes to where the form was opened from). */
+    const savedNow = (saved?: string): void => {
+      const now = saved || editing;
+      if (!now) {
+        void go(urlOf(LIST), "replace");
+        void showList();
+        return;
+      }
+      void go(detailUrl(now), "replace");
+      void showDetail(now);
     };
     if (form.connection === "python") {
       // Your own Python: three code boxes and the variables they read (pythonConnectionForm.ts).
@@ -505,7 +791,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         backTo,
         trail,
         leaving: (dispose) => (leaving = dispose),
-        saved: () => savedNow(),
+        saved: (saved) => savedNow(saved),
         newVault: (then) => {
           // A vault made from here: this form waits (kept as it is) and comes back to it.
           const kept = [...body.childNodes];
@@ -901,7 +1187,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         await (editing ? api(`/connections/${encodeURIComponent(editing)}`, "PUT", body) : api("/connections", "POST", body));
         toast(`Saved ${name.value.trim()}.`);
         if (what.then) what.then(name.value.trim());
-        else savedNow();
+        else savedNow(name.value.trim());
       } catch (e) {
         failed(e);
       }
@@ -1012,6 +1298,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
 
   // ===== Add API (addApi.ts): an OpenAPI document or a form; then the connection's own form =====
   const showApi = (): void => {
+    listActions(false);
+    setHeading("Connections");
     leave("api||");
     setOverTitle("Connections › Add API");
     listShowing = null;
