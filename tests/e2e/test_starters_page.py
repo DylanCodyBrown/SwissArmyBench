@@ -125,6 +125,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
     expect(listed.locator(".starter-family")).to_have_text(
         [
             "Power BI13",
+            "Dataverse2",
             "Excel12",
             "Files3",
             "DAX11",
