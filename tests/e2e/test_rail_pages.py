@@ -228,6 +228,14 @@ def test_the_connections_page_cards_a_cards_detail_and_a_reference_opening_its_c
         expect(detail.locator(".connection-detail-tools").get_by_role("button", name=label)).to_be_visible()
     no_box(page)
     shot(page, "connection-detail")
+    if SHOTS:
+        page.emulate_media(color_scheme="dark")
+        shot(page, "connection-detail-dark")
+        page.locator(".nav-rail [data-area='connections']").click()
+        expect(card).to_be_visible()
+        shot(page, "connections-cards-dark")
+        page.go_back()
+        page.emulate_media(color_scheme="light")
     # Back to the cards, Forward to the detail; a reload keeps it.
     page.go_back()
     expect(card).to_be_visible()
@@ -265,7 +273,7 @@ def test_the_old_dialog_addresses_land_on_the_pages(
         timeout=20000
     )
     no_box(page)
-    # The agent's place for a connection's detail.
+    shot(page, "settings-page")
     page.goto(f"{base}/catalog?open=settings")
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible(timeout=20000)
     expect(current(page)).to_have_attribute("data-area", "settings")

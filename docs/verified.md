@@ -1854,3 +1854,7 @@ drags; code of more than one line is pasted, one typed value):
   Workbench kernel there); references in unsaved edits (the saved file is read); a sign-in that opens a
   browser window reads "Ready" until its first call; Edge and Firefox (Chromium here); test_real_world.py
   runs only with the test bed up (not up here).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,134 passed, 33 skipped, 1 failed in
+  17 minutes: tests/e2e/test_streamlit_page.py::test_the_agents_export_in_the_window_waits_for_the_users_allow
+  failed once under the full run (the approval prompt's words not there in 5 s) and passed four times on
+  its own. ruff, ruff format, mypy, and the page's typecheck and build.
