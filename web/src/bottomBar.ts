@@ -6,9 +6,11 @@
  *          [MEMORY METER]   -> shown only past 80% of the budget; a click opens the Tables list (the ≡ button
  *                             beside "+": openMenu.ts), which has the numbers and where tables are removed
  *          [LIVE]           -> setLive(): words only while the page is not live
+ *          [LAUNCH CLAUDE]  -> claudeLaunch.ts: Claude Code in a terminal or Claude Desktop, with the context
  */
 import { api, type Budget } from "./api";
 import { betaMark } from "./betaNotes";
+import { launchButton } from "./claudeLaunch";
 import { updateMark, versionMark } from "./updates";
 import { clear, formatCount, h } from "./dom";
 import { showTables } from "./openMenu";
@@ -26,7 +28,7 @@ export function mountBottomBar(host: HTMLElement): void {
   selection = h("span", { "aria-live": "polite" });
   meter = h("button", { type: "button", class: "meter", onclick: () => showTables() });
   live = h("span", { id: "live" });
-  clear(host, versionMark(), rows, selection, h("span", { class: "grow" }), meter, live, updateMark(), betaMark(), h("span", { class: "credit" }, "Created by Dylan Brown"));
+  clear(host, versionMark(), rows, selection, h("span", { class: "grow" }), meter, live, updateMark(), betaMark(), launchButton(), h("span", { class: "credit" }, "Created by Dylan Brown"));
   state.on("selection", render);
   state.on("info", render);
   onAgentView(render);

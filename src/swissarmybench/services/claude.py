@@ -158,7 +158,8 @@ class Claude:
             if path is None:
                 chosen.pop(kind, None)
                 continue
-            if not isinstance(path, str) or not self._files.runnable(path):
+            known = any(i.path == path and i.kind == kind for i in self._found or [])
+            if not isinstance(path, str) or not (known or self._files.runnable(path)):
                 raise ValueError(f"{path!r} is not a file that can be started.")
             chosen[kind] = path
         if "bypass" in body:

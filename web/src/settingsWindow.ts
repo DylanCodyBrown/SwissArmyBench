@@ -22,6 +22,7 @@
  * */
 import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
+import { claudeSection } from "./claudeLaunch";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, toast } from "./dom";
 import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
@@ -156,6 +157,7 @@ function drawSettings(): void {
     panelsSection(),
     kindColoursSection(),
     updatesSection(),
+    claudeSection(),
     betaSection(),
     h(
       "fieldset",

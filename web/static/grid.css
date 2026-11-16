@@ -10136,3 +10136,85 @@ body.sql-window dialog[open] textarea.code-input {
   gap: 16px;
   flex-wrap: wrap;
 }
+
+/* ===== Launch Claude (claudeLaunch.ts): the status bars' button, its dialogs, Settings' Claude ===== */
+
+.claude-launch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: max(0.85em, 11.5px);
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.claude-launch:hover,
+.claude-launch:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.claude-launch .icon-svg {
+  width: 13px;
+  height: 13px;
+}
+
+.claude-help + .claude-help {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.claude-help h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
+.claude-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.claude-command code,
+.claude-config-path {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.claude-config-path {
+  display: block;
+}
+
+.claude-installs {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.claude-side {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.claude-side select {
+  min-width: 0;
+}
