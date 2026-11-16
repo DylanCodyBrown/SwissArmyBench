@@ -901,7 +901,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const switchSignIn = async (way: { code: string }): Promise<void> => {
       const typedSoFar = new Map(fields.filter((f) => !f.placeholder).map((f) => [f.name, f.value]));
       try {
-        const next = await api<{ settings: Field[]; secrets: string[] }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
+        const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
         const keep = Object.fromEntries(next.settings.filter((s) => typedSoFar.has(s.name) && s.name !== "driver").map((s) => [s.id, typedSoFar.get(s.name)]));
         const answer = Object.keys(keep).length
           ? await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code: way.code, values: keep, template: form.id || null, name: editing })
@@ -913,6 +913,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         labels.clear();
         for (const secret of next.secrets) labels.set(secret, secret);
         passwordsSlot.replaceChildren(drawPasswords() ?? "");
+        // The packages are this way's own (Dataverse's As you needs azure-identity; its others do not).
+        form.install_here = next.install_here;
+        form.packages = next.packages;
+        drawInstall();
         result.replaceChildren();
       } catch (e) {
         failed(e);
