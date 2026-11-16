@@ -146,6 +146,8 @@ def test_a_compare_started_elsewhere_is_shown_on_the_page_when_asked(client: Tes
         quiet = client.post("/compares", json=body, headers=AUTH).json()
         shown = client.post("/compares", json=body | {"show": True}, headers=AGENT).json()
         notice = ws.receive_json()  # the first thing said is about the second compare
+        while notice["type"] == "session_entry":  # the Session page's log of each compare (2026-11-16)
+            notice = ws.receive_json()
     assert notice == {"type": "compare_shown", "compare": shown["compare"], "left": left, "right": right}
     assert quiet["compare"] != shown["compare"]
     bad = client.post("/compares", json=body | {"show": "yes"}, headers=AUTH)

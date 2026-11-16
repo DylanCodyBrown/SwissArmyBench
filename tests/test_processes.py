@@ -237,9 +237,11 @@ def test_a_follow_refreshes_the_open_tab_in_place_without_taking_the_front(
     monkeypatch.setattr(live, "broadcast", record)
     again = push(client, "SOD", pa.table({"a": [1, 2, 3]}), "?follow=1", headers=AUTH | SESSION)
     assert again.json()["grid"] == gid
+    sent = [m for m in sent if m["type"] != "session_entry"]  # the Session page's log (2026-11-16)
     assert [m["type"] for m in sent] == ["dataset_updated"]  # no grid_shown, so no jump to the front
     push(client, "SOD", pa.table({"a": [1, 2, 3, 4]}), headers=AUTH | SESSION)
-    assert [m["type"] for m in sent][-2:] == ["dataset_updated", "grid_shown"]  # a plain push still shows it
+    shown = [m["type"] for m in sent if m["type"] != "session_entry"]
+    assert shown[-2:] == ["dataset_updated", "grid_shown"]  # a plain push still shows it
 
 
 def test_a_follow_for_a_table_that_is_not_open_is_refused_so_a_closed_table_stays_closed(

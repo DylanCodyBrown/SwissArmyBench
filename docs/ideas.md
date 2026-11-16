@@ -3407,3 +3407,46 @@ removed): a button that opens the user's OWN terminal application, or Claude Des
   menu, Store, Spotlight and Terminal paths run against made-up answers only.
 - **Open:** if the swissarmybench plugin is also installed in Claude Code, its prompt hook and the
   folder's both add the table in front (said twice); the command `claude` as a setting (the brief: later).
+
+## The Session page and Follow the agent (the owner, 2026-11-16; built, branch session-page)
+
+The owner: "when the agent is driving the app and adding things, I want to see objects that were created
+in a log make that a new page called Session on the rail. and while you are at it, lets make it so the AI
+agent can activate things on the page, so when it working on a diagram I can what it in realtime".
+
+- **The Session page** (web/src/sessionPage.ts, a page of the rail's like Settings and Connections:
+  open=session over any page; the icon after Connections, dom.ts `session`): this session's log, newest
+  first, live (`session_entry` notices): when, what in plain words, the area, and a link to the object
+  (a grid, a table, a card, a relationship on the ERD, a connection's detail, a blade, a notebook or
+  script at its cell). A link to the home page's own objects closes the page with no history move of
+  its own, so Back brings the Session page again. The agent / Me / Both, remembered per viewer (the
+  agent's by default).
+- **Built on the audit log, not beside it**: the composition root hands every service an audit that
+  writes the file as before and then tells the session log (services/session_log.py `Heard`). The rules
+  (domain/session_log.py) keep only actions that make or change something (reads, navigation, snapshots
+  and settings make no entry) and write each one's words field by field, so a detail nobody named never
+  reaches the page: never a query's text, a step's values, a cell value or a secret (a test feeds every
+  rule a made-up value, query and password and finds none). What was missing so each entry names its
+  object was added to the audit writes: a step's grid, op and kind; a card's id; the relationships a
+  change added and removed (orders.customer_id -> customers.id); a blade's kind (connection or blade)
+  and the real actor (blades and connections wrote "user" for the agent's saves); a Workbench command's
+  document and selected cell (the window's answer carries `place`); a canvas page's app and file.
+  Memory only, 1,000 entries: a new start begins with none (the audit log is the record on disk).
+- **Follow the agent: default ON** (the owner's ask is to watch it work; OFF would make the feature
+  invisible until found). A switch on the Session page and in Settings, the server's (every window
+  follows), kept across restarts in follow.json. ON: the home window brings the area to the front (the
+  address replaced: a move of the app's, not the user's) and pulses the object: the ERD with the new
+  relationship's line (and its tables) highlighted as Mermaid draws it, Visualizations scrolled to the
+  card, a grid with its steps count pulsing; the Workbench window scrolls to the cell the agent changed
+  and pulses it. Other areas (connections, blades, the project) only log: moving the home window to the
+  blades page would lose its place, and a page over the grids would block the next follow.
+- **Never steals focus**: a text box with the focus (inputs, text areas, Monaco), an open dialog, the
+  command palette or a page of the rail's on screen (the user is reading it): the latest move waits (up
+  to a minute) until they leave it, and the rail's Session icon counts it. OFF: nothing moves; the
+  icon counts the agent's entries until the Session page is opened.
+- **The agent**: `app_session` (who, limit) reads the log and the switch; the switch is the user's (PUT
+  /session-log/follow: 403 for X-Actor agent; NOT_COMMANDS says why: an agent that could turn it off
+  could work unseen). app_navigate's areas include `session`.
+- **Found on the way**: the ERD's draw raced itself (a draw started before the model loaded finished
+  after the one with the model and painted "No relationships yet" over it); each draw now has a number
+  and only the newest paints.

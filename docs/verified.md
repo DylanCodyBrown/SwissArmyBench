@@ -2023,3 +2023,34 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** real Windows (registry, PowerShell's Store and Start menu answers, Windows Terminal,
   the new console), real macOS (Spotlight, Info.plist, Terminal through osascript), a real Linux terminal
   opening, a real Claude Code or Claude Desktop starting and reading the folder or the config.
+
+## The Session page and Follow the agent (2026-11-16, branch session-page)
+
+- **Rules** (tests/test_session_log.py, made-up data only): each kind of action names its object (a step's
+  grid with its op and kind, a grid opened, a card by id, a relationship by its tables and columns, a
+  connection or a blade, a notebook's cell by path and number, a canvas page, an export, a project
+  saved with its rows); reads, navigation, snapshots and settings make no entry; every rule fed a
+  made-up value, query literal and password returns none of them; the filter (newest first, agent / user
+  / both), the switch's words, follow.json read back.
+- **HTTP**: the agent's grid, step, card, relationship and connection arrive naming their objects; the
+  user's step delete shows under Me only; no pasted cell value or filter value anywhere in the log; the
+  switch read by the agent and refused to it (403), kept across a restart; a new start's log is empty.
+  `app_session` runs against a live server.
+- **In the browser** (Chromium, tests/e2e/test_session_page.py): with Follow on, the agent's relationship
+  brings the ERD (address view=erd) and its line is highlighted (data-followed, the pulse); its card brings
+  Visualizations with the card in view and pulsed; its step brings the grid back; nothing counted on the
+  rail. Follow off from Settings: nothing moves, the Session icon counts 2, the Session page lists both
+  (the agent's only by default, Both adds the user's), its links go to the ERD (the line highlighted)
+  and, after Back to the page, to the card. Typing in a text box: nothing moves and the box keeps its
+  focus and words; leaving it, the waiting move happens. The rail tests (an area more) and the navigation
+  tests pass.
+- **Found and fixed**: the ERD's draw raced itself (a draw from before the model loaded painted "No
+  relationships yet" over the diagram); two tests counted every live notice and now leave out
+  `session_entry`.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,220 passed, 33 skipped, 4 failed
+  in 20 minutes: two counted the new notice (fixed, pass), and test_open_file's catalog preview and
+  test_ui's "+" tab (both pass alone: load).
+- **Not checked:** the Workbench's follow of a cell (scroll and pulse after the agent's cell command) in a
+  browser test (built, tried by hand only through the code path's types); a Mermaid version that names
+  its relationship lines otherwise (the highlight finds `path.relationshipLine` in the text's order);
+  Edge (Chromium here).
