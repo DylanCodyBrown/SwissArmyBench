@@ -102,7 +102,9 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install with install.ps1
         if: runner.os == 'Windows'
-        shell: pwsh
+        # Windows PowerShell 5.1, what a Windows user runs by default (pwsh treats a program's error stream
+        # differently and hid the installer's "already in PATH" failure).
+        shell: powershell
         run: |
           $wheel = (Get-ChildItem dist/swissarmybench-*.whl).FullName
           ./dist/install.ps1 $wheel

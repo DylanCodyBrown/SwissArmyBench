@@ -7,6 +7,21 @@
 param([string]$Wheel = "")
 
 $ErrorActionPreference = "Stop"
+
+# Windows PowerShell 5.1 turns anything a program writes to its error stream into an error, and with
+# "Stop" above that ends the script, even for a harmless note such as uv's "already in PATH". Quiet runs a
+# program with that turned off and its output thrown away; its exit code is still in $LASTEXITCODE.
+function Quiet([scriptblock]$Command) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { & $Command *> $null } finally { $ErrorActionPreference = $previous }
+}
+
+function ListTools {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { return (uv tool list 2>$null) } finally { $ErrorActionPreference = $previous }
+}
 $Version = "__VERSION__"
 $Repo = "DylanCodyBrown/SwissArmyBench"
 $WheelName = "swissarmybench-$Version-py3-none-any.whl"
@@ -47,16 +62,16 @@ if ($Wheel) {
 }
 
 # 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes (this one keeps the old commands working).
-if ((uv tool list 2>$null) -match '^swissarmygrid ') {
+if ((ListTools) -match '^swissarmygrid ') {
     Write-Host "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it; its old commands still work)..."
-    uv tool uninstall swissarmygrid *> $null
+    Quiet { uv tool uninstall swissarmygrid }
 }
 
 # 4. The server, as a uv tool in its own environment.
 Write-Host "Installing the Swiss Army Bench server $Version..."
 uv tool install --force --python 3.12 "$WheelPath[server]"
 if ($LASTEXITCODE -ne 0) { Fail "uv could not install the server." }
-uv tool update-shell *> $null
+Quiet { uv tool update-shell }
 if ($Temp) { Remove-Item -Recurse -Force $Temp -ErrorAction SilentlyContinue }
 
 Write-Host ""
