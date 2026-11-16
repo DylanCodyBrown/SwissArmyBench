@@ -22,6 +22,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_controllers.py    a canvas page's controllers: the check, Test this page, a thin cell's move
   routes_projects.py       projects: a new one, its files, Export data.py
+  routes_sab_projects.py   a project as one .sab file: new, open, save, close, the recent ones, a fix
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
@@ -76,6 +77,7 @@ from swissarmybench.server import (
     routes_projects,
     routes_regression,
     routes_relationships,
+    routes_sab_projects,
     routes_script_export,
     routes_script_runs,
     routes_snapshots,
@@ -187,6 +189,7 @@ def create_app(
         checker.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
+        await ctx.sab_projects.stop()  # nor an open .sab's working folder
         workers.close()
         ctx.beta.stopped()
 
@@ -210,6 +213,7 @@ def create_app(
             *routes_streamlit.routes(ctx.streamlit),
             *routes_controllers.routes(ctx.controllers),
             *routes_projects.routes(ctx.projects),
+            *routes_sab_projects.routes(ctx.sab_projects),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
             *routes_navigation.routes(ctx.navigation),

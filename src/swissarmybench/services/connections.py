@@ -291,7 +291,10 @@ class ConnectionService:
             )
             again = python_connections.read_call(blade.name, place["schema"], place["table"])
             dataset = self._grid_name(rules.dataset_name(place["table"]), blade.name)
-            stored = await self._tables.store(dataset, table, who, opened, blade.name, code=again)
+            where = (place["database"], place["schema"], place["table"])
+            stored = await self._tables.store(
+                dataset, table, who, opened, blade.name, code=again, place=where
+            )
             return stored | {"shown": shown, "total": total}
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
         count = (
@@ -322,7 +325,9 @@ class ConnectionService:
         # as the grid shows it.
         whole = limit is not None and isinstance(total, int) and total <= shown
         again = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], None)
-        stored = await self._tables.store(dataset, table, who, opened, origin, again if whole else sql, dax)
+        where = (place["database"], place["schema"], place["table"])
+        query = again if whole else sql
+        stored = await self._tables.store(dataset, table, who, opened, origin, query, dax, place=where)
         return stored | {"shown": shown, "total": total}
 
     def _grid_name(self, name: str, connection: str) -> str:
@@ -474,6 +479,7 @@ class Tables(Protocol):
         sql: str = "",
         dax: bool = False,
         code: str = "",
+        place: tuple[str, str, str] | None = None,
     ) -> dict[str, Any]: ...
 
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]: ...

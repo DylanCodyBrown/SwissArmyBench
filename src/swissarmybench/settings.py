@@ -157,6 +157,13 @@ class Settings:
     beta_slow_seconds: float = 2.0
     beta_log_days: int = 7
     beta_log_bytes: int = 20 * MIB
+    # A .sab project file (domain/sab_files.py): the largest file opened, how many entries it may hold,
+    # and how much it may unpack to (its rows' Parquet included). Each entry is counted as it is read.
+    max_project_file_bytes: int = 4 * GIB
+    max_project_entries: int = 5_000
+    max_project_unpacked_bytes: int = 8 * GIB
+    # Where a .sab's working folder goes while it is open (None: the system's temporary folder).
+    project_temp_dir: Path | None = None
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4

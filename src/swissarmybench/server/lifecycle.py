@@ -275,6 +275,22 @@ def on_exit(cleanup: Callable[[], None]) -> None:
         ctypes.windll.kernel32.SetConsoleCtrlHandler(callback, True)
 
 
+def post_json(info: dict[str, Any], route: str, body: dict[str, Any], timeout: float = 120.0) -> Any:
+    """POST `body` to the running server (`info`, from its connection file) as the user; its JSON answer.
+    Raises OSError with the server's words when it refuses."""
+    request = urllib.request.Request(
+        f"http://{_LOCALHOST}:{info['port']}{route}",
+        data=json.dumps(body).encode("utf-8"),
+        method="POST",
+        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as answer:  # noqa: S310 (http://127.0.0.1)
+            return json.loads(answer.read() or b"null")
+    except urllib.error.HTTPError as error:
+        raise OSError(error.read().decode("utf-8", "replace")[:500] or str(error)) from None
+
+
 def request_stop(path: Path, timeout: float = 5.0) -> bool:
     """Ask the running server to shut down. True when one was running."""
     info = running_server(path)

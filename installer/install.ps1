@@ -6,8 +6,8 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1 .\swissarmybench-__VERSION__-py3-none-any.whl
 #   ... -NoAutostart -NoStart        install only: no start at sign-in, and not started now
 #
-# At the end it turns on start at sign-in (the tray, which starts the server), starts the app in the
-# background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
+# At the end it registers .sab project files for this user (a double-click opens one), turns on start at
+# sign-in (the tray, which starts the server), starts the app in the background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
 param([string]$Wheel = "", [switch]$NoStart, [switch]$NoAutostart)
 
 $ErrorActionPreference = "Stop"
@@ -128,6 +128,36 @@ $Exe = $null
 $Bin = (ToolBin) | Select-Object -First 1
 if ($Bin) { $Exe = Join-Path $Bin "swissarmybench.exe" }
 if (-not $Exe -or -not (Test-Path $Exe)) { $Exe = Join-Path $LocalBin "swissarmybench.exe" }
+
+# 6. .sab project files open with Swiss Army Bench: a double-click runs `swissarmybench open "<file>"`. For this
+#    user only (HKCU\Software\Classes: no administrator), with the project file's icon from the installed copy.
+function SetKey([string]$Key, [string]$Value) {
+    if (-not (Test-Path $Key)) { New-Item -Path $Key -Force | Out-Null }
+    Set-Item -Path $Key -Value $Value
+}
+function RegisterProjectFiles([string]$Program) {
+    $Classes = "HKCU:\Software\Classes"
+    $ProgId = "SwissArmyBench.Project"
+    $Icon = $Program
+    $tools = ToolDir
+    if ($tools) {
+        $found = Join-Path $tools "swissarmybench\Lib\site-packages\swissarmybench\server\sab-file.ico"
+        if (Test-Path $found) { $Icon = $found }
+    }
+    SetKey "$Classes\.sab" $ProgId
+    SetKey "$Classes\$ProgId" "Swiss Army Bench project"
+    SetKey "$Classes\$ProgId\DefaultIcon" "`"$Icon`",0"
+    SetKey "$Classes\$ProgId\shell\open\command" "`"$Program`" open `"%1`""
+    # Explorer redraws the files' icons now rather than at the next sign-in.
+    try {
+        Add-Type -Namespace SwissArmyBench -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int e, int f, System.IntPtr a, System.IntPtr b);'
+        [SwissArmyBench.Shell]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+    } catch { }
+}
+if (Test-Path $Exe) {
+    try { RegisterProjectFiles $Exe; Write-Host "Project files (.sab) open with Swiss Army Bench." }
+    catch { Write-Host "Project files (.sab) could not be registered: open them with swissarmybench open <file>." }
+}
 if (Test-Path $Exe) {
     if (-not $NoAutostart -and -not $BuildMachine -and $env:SWISSARMYBENCH_NO_AUTOSTART -ne "1") {
         Quiet { & $Exe autostart on }

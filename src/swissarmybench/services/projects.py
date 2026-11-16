@@ -82,7 +82,9 @@ class Projects:
             "files": [self._files.path(folder, name) for name in rules.project_files(names)],
         }
 
-    async def create(self, body: Any, who: str = "user") -> dict[str, Any]:
+    async def create(
+        self, body: Any, who: str = "user", remember: bool = True, rows: bool = True
+    ) -> dict[str, Any]:
         """New project: {"folder": where, "name": its folder's name, "app"?: false for a project
         without a Streamlit app, "notebooks"?: ["analysis", "mockups"], "tables"?: the open tables
         data.ipynb starts with (default: every one)}."""
@@ -101,6 +103,12 @@ class Projects:
         ):
             raise ProjectError("tables is a list of open tables' names.")
         cells, following = await self._table_cells(tables)
+        if not rows:
+            # A .sab's working copy (services/sab_projects.py): a pasted table's rows stay in its grid
+            # (and go into the file only on a tick), never written out in its read-only cell.
+            plain = rules.without_rows([DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells])
+            for cell, kept in zip(cells, plain, strict=True):
+                cell.source = kept.source
         approved: str | None = None
         pasted = rules.tables_with_rows(
             [DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells]
@@ -150,11 +158,13 @@ class Projects:
         except PermissionError as error:
             raise Conflict(str(error)) from None
         self.ws.audit.write(who, "new_project", folder)
-        return self._opened(folder)
+        return self._opened(folder, remember)
 
-    def _opened(self, folder: str) -> dict[str, Any]:
+    def _opened(self, folder: str, remember: bool = True) -> dict[str, Any]:
+        """The project's files; each among the Workbench's recent ones (not a .sab's working copy's:
+        the .sab is the recent one, services/sab_projects.py)."""
         listed = self._listing(folder)
-        for path in listed["files"]:
+        for path in listed["files"] if remember else []:
             self._remember(path)
         return listed
 

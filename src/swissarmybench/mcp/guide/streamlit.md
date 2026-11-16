@@ -30,7 +30,7 @@ drives the cells on the same page that read it.
   so it waits for the user's Allow.
 - `streamlit_save_as`: the project as one zip (data.py, pages/*.py, sources; no rows, no secrets).
 
-## Projects (a folder that starts with the data)
+## Project folders (a folder that starts with the data; one .sab file: guide projects)
 - data.ipynb: each table's cell (its load and its grid steps as DuckDB SQL) and the user's own cells.
   data.py is its export, never edited by hand; pages and other notebooks start `from data import ...`.
 - `project_new(folder, name)`: data.ipynb, data.py, a canvas, notebooks. `project_files`,

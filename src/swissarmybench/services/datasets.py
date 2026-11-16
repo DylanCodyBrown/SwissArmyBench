@@ -65,6 +65,8 @@ class DatasetService:
         self.renamed: list[Callable[[str, str], Awaitable[None]]] = []
         # Where each table came from, for the load its Workbench cell starts with (table_cells.py).
         self.origins = Origins()
+        # Who wants to know a table arrived (its name and grid): a .sab project's steps waiting for it.
+        self.stored: list[Callable[[str, str], Awaitable[None]]] = []
 
     # ===== the server itself =====
 
@@ -207,6 +209,8 @@ class DatasetService:
             watched = ws.live.shown_or_opening(grid.id) or await ws.live.ask_opener(
                 ws.addresses.workspace(grid)
             )
+        for told in self.stored:
+            await told(name, grid.id)
         return {
             "grid_url": ws.addresses.grid(grid, with_token=who != "agent"),
             "workspace_url": ws.addresses.workspace(grid, with_token=who != "agent"),
@@ -383,9 +387,16 @@ class ConnectionTables:
         sql: str = "",
         dax: bool = False,
         code: str = "",
+        place: tuple[str, str, str] | None = None,
     ) -> dict[str, Any]:
         origin = Origin(
-            "connection", connection=connection or None, sql=sql or None, dax=dax, code=code or None
+            "connection",
+            connection=connection or None,
+            sql=sql or None,
+            dax=dax,
+            code=code or None,
+            place=place,
+            whole=opened is None,
         )
         result = await self._datasets.store_table(
             name, table, "connection", True, who, opened=opened, origin=origin

@@ -859,6 +859,11 @@ class Models:
         await self.ws.live.broadcast({"type": "relationships_updated"})
         return self.model.to_json()
 
+    async def replace(self, model: Model) -> None:
+        """The current model is `model` (a .sab project opened or closed): every page redraws."""
+        self.model = model
+        await self.ws.live.broadcast({"type": "relationships_updated"})
+
     async def rename_table(self, old: str, new: str) -> None:
         """A table was renamed: the model names it by its new name (DatasetService.renamed)."""
         model = rename_table(self.model, old, new)

@@ -566,9 +566,55 @@ class Cards:
         number = len(versions) if version is None else version
         if not isinstance(number, int) or not 1 <= number <= len(versions):
             raise ValueError(f"version is 1 to {len(versions)}.")
+        await self.restore(versions[number - 1].get("cards", []), who)
+        self.ws.audit.write(who, "open_dashboard", name, version=number, cards=len(self._cards))
+        live = sum(1 for c in self._cards.values() if _on_a_grid(c) and c["grid"] is not None)
+        frozen = sum(1 for c in self._cards.values() if _on_a_grid(c) and c["grid"] is None)
+        return {"name": name, "version": number, "cards": len(self._cards), "live": live, "as_saved": frozen}
+
+    # ===== the Sandbox in a .sab project (services/sab_projects.py) =====
+
+    def snapshot(self) -> tuple[list[Card], bool]:
+        """The Sandbox as a project file keeps it: each card's text, size and place, and its theme. What a
+        chart or a query table showed is not kept (it redraws on its table): rows go into a project only
+        on a tick. True when a card holds rows of its own (a table card sent with its rows)."""
+        kept: list[Card] = []
+        rows = False
+        for card in sorted(self._cards.values(), key=_place):
+            saved = {k: card[k] for k in _KEPT if k in card} | {"frozen": {}}
+            if _on_a_grid(card):
+                saved.pop("rows", None)
+                saved.pop("columns", None)
+            elif card["kind"] == "table" and card.get("rows"):
+                rows = True
+            kept.append(saved)
+        theme = self._theme_by_id(self._theme)
+        if theme is not None:
+            kept.append({"kind": "theme", "theme": theme.file() | {"id": theme.id}})
+        return kept, rows
+
+    @property
+    def holds_cards(self) -> bool:
+        return bool(self._cards)
+
+    def state_key(self) -> str:
+        """What the Sandbox holds, as text that changes when a card is added, changed, moved or removed."""
+        fields = (*_KEPT, "id", "order")
+        cards = sorted(self._cards.values(), key=lambda c: str(c["id"]))
+        return json.dumps([[c.get(k) for k in fields] for c in cards] + [self._theme], default=str)
+
+    async def clear(self) -> None:
         self._cards = {}
         self._theme = themes.APP
-        for order, saved in enumerate(versions[number - 1].get("cards", []), start=1):
+        await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
+
+    async def restore(self, cards: Any, who: str) -> int:
+        """Make these saved cards the Sandbox (a dashboard's version, a project's Sandbox)."""
+        self._cards = {}
+        self._theme = themes.APP
+        for order, saved in enumerate(cards if isinstance(cards, list) else [], start=1):
+            if not isinstance(saved, dict):
+                continue
             if saved.get("kind") == "theme":
                 self._restore_theme(saved.get("theme"))
                 continue
@@ -595,10 +641,7 @@ class Cards:
             self._relink(card)
             self._cards[card["id"]] = card
         await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
-        self.ws.audit.write(who, "open_dashboard", name, version=number, cards=len(self._cards))
-        live = sum(1 for c in self._cards.values() if _on_a_grid(c) and c["grid"] is not None)
-        frozen = sum(1 for c in self._cards.values() if _on_a_grid(c) and c["grid"] is None)
-        return {"name": name, "version": number, "cards": len(self._cards), "live": live, "as_saved": frozen}
+        return len(self._cards)
 
     def _restore_theme(self, file: Any) -> None:
         if not isinstance(file, dict):

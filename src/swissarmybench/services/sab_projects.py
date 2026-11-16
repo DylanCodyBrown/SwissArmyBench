@@ -1,0 +1,728 @@
+"""Projects as one file: the .sab (the owner, 2026-11-16; rules in domain/sab_files.py). For the home page,
+the Workbench window and the agent alike.
+
+  new       a project of its own: a working folder in the system's temporary folder, starting with
+            data.ipynb (services/projects.py makes it, with the tables open now); the first Save asks
+            where the .sab goes
+  open      a .sab unpacked into a working folder; each table read again from where it came from, as a
+            grid with its steps; the Sandbox, the relationships and the windows' layout as they were. A
+            table that cannot come back (a connection this computer does not have, a file that moved,
+            a notebook not run yet, rows not kept) says so, with the click that fixes it (fix). A folder
+            (today's projects) opens too: it is its own working folder
+  save      the .sab written again (atomically) from the working folder, the open tables, the Sandbox
+            and the model. A pasted or pushed table's rows go in only when ticked (keep_rows); the
+            agent's save waits for the user's Allow when it would write rows. Never a password
+  close     the tables, the Sandbox and the model closed, the temporary working folder removed
+  recent    the projects opened and saved, with their files' state (recent_projects.json)
+
+Whether there are unsaved changes is worked out, not tracked: what a save would write (the tables, their
+sources and steps, the Sandbox, the model, the working folder's files) against what the last save or
+open wrote, and the Workbench's own unsaved documents. Opening another project when that would lose work
+asks first (Conflict), and only then. One project is open at a time (memory only).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
+from typing import Any, Protocol
+
+from swissarmybench.domain import sab_files as rules
+from swissarmybench.domain.relationships import Model, TangError, read_tang, write_tang
+from swissarmybench.domain.sab_files import GridEntry, Manifest, Source, TableEntry
+from swissarmybench.domain.steps import ViewSettings, steps_from_json
+from swissarmybench.domain.table_cells import Origin
+from swissarmybench.services.agent import Approvals
+from swissarmybench.services.charts import Cards
+from swissarmybench.services.connections import ConnectionService
+from swissarmybench.services.datasets import DatasetService
+from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.projects import Projects
+from swissarmybench.services.relationships import Models
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+
+MAX_LAYOUT_CHARS: int = 400_000
+WORKBENCH_SAVE_SECONDS: float = 60.0
+
+
+class Archive(Protocol):
+    """The .sab on disk and the working folders (adapters/sab_files.py)."""
+
+    def full(self, path: str) -> str: ...
+
+    def exists(self, path: str) -> bool: ...
+
+    def folder_of(self, path: str) -> str: ...
+
+    def is_folder(self, path: str) -> bool: ...
+
+    def manifest(self, path: str) -> str: ...
+
+    def unpack(self, path: str, special: set[str], name: str) -> tuple[str, str, dict[str, str]]: ...
+
+    def new_folder(self, name: str) -> tuple[str, str]: ...
+
+    def remove(self, root: str | None) -> None: ...
+
+    def files(self, folder: str) -> list[tuple[str, int, float]]: ...
+
+    def read_file(self, folder: str, relative: str) -> bytes: ...
+
+    def read_text(self, path: str) -> str: ...
+
+    def write_rows(self, folder: str, table: Any) -> str: ...
+
+    def read_rows(self, path: str) -> Any: ...
+
+    def scratch(self) -> str: ...
+
+    def write(self, target: str, entries: list[tuple[str, bytes | str]]) -> str: ...
+
+
+class Recent(Protocol):
+    def all(self) -> list[dict[str, Any]]: ...
+
+    def add(self, path: str, when: float) -> None: ...
+
+    def remove(self, path: str) -> bool: ...
+
+
+@dataclass
+class Current:
+    """The open project."""
+
+    name: str
+    folder: str  # its working folder (a folder project's own folder)
+    path: str | None = None  # the .sab (None: not saved yet, or a folder project not saved as one)
+    root: str | None = None  # the temporary folder to remove when it closes (None: a folder project)
+    read_only: str | None = None  # why it cannot be saved here (a newer format)
+    manifest: Manifest | None = None  # as last read or written: what this version does not know is kept
+    keep_rows: dict[str, bool] = field(default_factory=dict)
+    saved_key: str | None = None
+    layout: dict[str, Any] = field(default_factory=dict)  # each window's: workbench, home, diagram
+    unsaved: list[str] = field(default_factory=list)  # the Workbench's documents with unsaved changes
+    problems: dict[str, dict[str, Any]] = field(default_factory=dict)  # tables not back, and their fix
+    waiting: dict[str, TableEntry] = field(default_factory=dict)  # their steps, for when they arrive
+    serial: int = 0
+
+
+def _now_text(now: float) -> str:
+    return datetime.fromtimestamp(now, UTC).isoformat(timespec="seconds")
+
+
+def _keep_rows(raw: Any) -> dict[str, bool]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not all(
+        isinstance(k, str) and isinstance(v, bool) for k, v in raw.items()
+    ):
+        raise ValueError('keep_rows is {"table": true or false}: keep its rows in the file.')
+    return dict(raw)
+
+
+class SabProjects:
+    def __init__(
+        self,
+        ws: Workspace,
+        archive: Archive,
+        recent: Recent,
+        datasets: DatasetService,
+        connections: ConnectionService,
+        cards: Cards,
+        models: Models,
+        projects: Projects,
+        reader: Any,  # query_table(cursor, sql): a table's rows (adapters/datasets.py)
+        approvals: Approvals,
+        version: str,
+        now: Callable[[], float],
+        kernel_document: Callable[[str | None], str | None] = lambda kernel: None,
+        ask_workbench: Callable[[str, dict[str, Any]], Awaitable[Any]] | None = None,
+    ) -> None:
+        self.ws = ws
+        self._archive = archive
+        self._recent = recent
+        self._datasets = datasets
+        self._connections = connections
+        self._cards = cards
+        self._models = models
+        self._projects = projects
+        self._reader = reader
+        self._approvals = approvals
+        self._version = version
+        self._now = now
+        self._kernel_document = kernel_document
+        self._ask_workbench = ask_workbench
+        self.current: Current | None = None
+        self._serial = 0
+        self._asked: str | None = None  # a .sab another program asked to open (the page asks the user)
+        self._busy = asyncio.Lock()
+        datasets.stored.append(self._arrived)
+
+    # ===== what is open, and whether a save would change anything =====
+
+    def _source(self, name: str, keep: bool) -> Source:
+        current = self.current
+        origin = self._datasets.origins.get(name)
+        sab_folder = self._archive.folder_of(current.path) if current and current.path else None
+        return rules.source_of(
+            origin,
+            sab_folder or (current.folder if current else None),
+            current.folder if current else None,
+            self._kernel_document(origin.kernel),
+            origin.place,
+            origin.whole,
+            keep,
+        )
+
+    def _tables(self) -> list[TableEntry]:
+        """The open tables as the file says them (and the ones waiting to come back, as they were)."""
+        current = self.current
+        keep = current.keep_rows if current else {}
+        found: list[TableEntry] = []
+        for info in self.ws.store.all():
+            grids = tuple(
+                GridEntry(tuple(s.to_json() for s in g.steps), g.settings.to_json())
+                for g in self.ws.grids.for_dataset(info.name)
+            )
+            found.append(
+                TableEntry(
+                    info.name, self._source(info.name, keep.get(info.name, False)), grids or (GridEntry(),)
+                )
+            )
+        open_names = {t.name for t in found}
+        if current is not None:
+            found += [t for name, t in current.waiting.items() if name not in open_names]
+        return found
+
+    def _key(self) -> str:
+        """What a save would write now, as text (the Workbench's layout aside: moving a tab is no change)."""
+        current = self.current
+        tables = [t.to_json() for t in self._tables()]
+        files = self._archive.files(current.folder) if current else []
+        model = self._models.model.to_json() if self._models.model.tables() else None
+        return json.dumps([tables, self._cards.state_key(), model, files], default=str, sort_keys=True)
+
+    def _has_work(self) -> bool:
+        return bool(self.ws.store.all()) or self._cards.holds_cards or bool(self._models.model.tables())
+
+    def dirty(self) -> bool:
+        """Would something be lost if the project (or the loose work, with none open) closed now?"""
+        current = self.current
+        if current is None:
+            return self._has_work()
+        if current.unsaved:
+            return True
+        if current.path is None and current.saved_key is None:
+            return self._has_work()
+        return self._key() != current.saved_key
+
+    def state(self) -> dict[str, Any]:
+        """The open project (None), whether it has unsaved changes, its tables that need a fix, and the
+        recent projects."""
+        current = self.current
+        project: dict[str, Any] | None = None
+        if current is not None:
+            keep = current.keep_rows
+            project = {
+                "name": current.name,
+                "path": current.path,
+                "folder": current.folder,
+                "temporary": current.root is not None,
+                "dirty": self.dirty(),
+                "read_only": current.read_only,
+                "serial": current.serial,
+                "tables": [
+                    {
+                        "name": t.name,
+                        "kind": t.source.kind,
+                        "from": t.source.label(),
+                        "needs_rows": t.source.needs_rows,
+                        "keep_rows": keep.get(t.name, False),
+                    }
+                    for t in self._tables()
+                ],
+                "problems": list(current.problems.values()),
+                "layout": current.layout,
+                "unsaved_documents": current.unsaved,
+            }
+        return {
+            "project": project,
+            "loose": current is None and self._has_work(),
+            "recent": self._recent.all(),
+            "asked": self._asked,
+        }
+
+    async def _changed(self) -> None:
+        await self.ws.live.broadcast({"type": "project_changed", "serial": self._serial})
+
+    def _need(self) -> Current:
+        if self.current is None:
+            raise NotFound("No project is open.")
+        return self.current
+
+    def _unsaved_words(self) -> str:
+        current = self.current
+        if current is None:
+            return "The open tables are not saved in a project"
+        return f"{current.name} has unsaved changes"
+
+    def _check_discard(self, body: dict[str, Any]) -> None:
+        if body.get("discard") is not True and self.dirty():
+            raise Conflict(f"{self._unsaved_words()}: save it first, or send discard: true to let them go.")
+
+    # ===== clearing the workspace =====
+
+    async def _clear(self, who: str) -> None:
+        """Every table closed, the Sandbox and the model emptied, the temporary working folder removed."""
+        for info in list(self.ws.store.all()):
+            await self._datasets.close(info.name, who)
+        await self._cards.clear()
+        if self._models.model.tables() or self._models.model.relationships:
+            await self._models.replace(Model())
+        if self.current is not None:
+            await asyncio.to_thread(self._archive.remove, self.current.root)
+        self.current = None
+
+    # ===== new =====
+
+    async def new(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """New project: {"name"?, "discard"?}. With a project open that has unsaved changes, asks first
+        (Conflict). The tables open now (with no project) go into it: its data.ipynb starts with them."""
+        body = body if isinstance(body, dict) else {}
+        name = rules.check_name(body.get("name") or "New project")
+        async with self._busy:
+            if self.current is not None:
+                self._check_discard(body)
+                await self._clear(who)
+            root, folder = await asyncio.to_thread(self._archive.new_folder, name)
+            parent = self._archive.folder_of(folder)
+            try:
+                named = folder[len(parent) :].strip("\\/")
+                made = await self._projects.create(
+                    {"folder": parent, "name": named, "app": body.get("app") is True},
+                    who,
+                    remember=False,
+                    rows=False,
+                )
+            except BaseException:
+                await asyncio.to_thread(self._archive.remove, root)
+                raise
+            self._serial += 1
+            self.current = Current(name=name, folder=made["folder"], root=root, serial=self._serial)
+            self.ws.audit.write(who, "new_sab_project", None, name=name)
+        await self._changed()
+        return self.state()
+
+    # ===== open =====
+
+    async def open(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Open a project: {"path": a .sab (or a project's folder), "discard"?, "ask"?}. With unsaved
+        work open it asks first: Conflict, or (ask: another program asked, a double-click) the page asks
+        the user. {"cancel": true}: that question goes."""
+        body = body if isinstance(body, dict) else {}
+        if body.get("cancel") is True:
+            self._asked = None
+            await self._changed()
+            return self.state()
+        path = body.get("path")
+        if not isinstance(path, str) or not path.strip():
+            raise ValueError('Send {"path": "the project\'s .sab file"}.')
+        try:
+            full = self._archive.full(path.strip())
+        except FileNotFoundError as error:
+            raise NotFound(str(error)) from None
+        if body.get("ask") is True and body.get("discard") is not True and self.dirty():
+            self._asked = full
+            await self._changed()
+            return self.state() | {"asked": full, "page": self.ws.live.page_open()}
+        async with self._busy:
+            self._check_discard(body)
+            if self._archive.is_folder(full):
+                return await self._adopt(full, who, clear=True)
+            try:
+                text = await asyncio.to_thread(self._archive.manifest, full)
+            except FileNotFoundError as error:
+                raise NotFound(str(error)) from None
+            manifest, read_only = rules.read_manifest(text)
+            await self._clear(who)
+            self._asked = None
+            root, folder, found = await asyncio.to_thread(
+                self._archive.unpack, full, manifest.special(), manifest.name
+            )
+            self._serial += 1
+            self.current = Current(
+                name=rules.name_of_file(full),
+                folder=folder,
+                path=full,
+                root=root,
+                read_only=read_only,
+                manifest=manifest,
+                keep_rows={t.name: True for t in manifest.tables if t.source.needs_rows and t.source.rows},
+                layout={
+                    "workbench": dict(manifest.workbench),
+                    "home": dict(manifest.tabs),
+                    "diagram": dict(manifest.diagram),
+                },
+                serial=self._serial,
+            )
+            sab_folder = self._archive.folder_of(full)
+            ordered = sorted(
+                manifest.tables, key=lambda t: t.source.kind == "query"
+            )  # queries read the others
+            for table in ordered:
+                await self._load(table, sab_folder, found, who)
+            if manifest.sandbox and manifest.sandbox in found:
+                try:
+                    saved = json.loads(
+                        await asyncio.to_thread(self._archive.read_text, found[manifest.sandbox])
+                    )
+                    cards = saved["versions"][-1]["cards"] if isinstance(saved, dict) else []
+                except (ValueError, KeyError, IndexError, TypeError):
+                    cards = []
+                await self._cards.restore(cards, who)
+            if manifest.model and manifest.model in found:
+                try:
+                    await self._models.replace(
+                        read_tang(await asyncio.to_thread(self._archive.read_text, found[manifest.model]))
+                    )
+                except TangError:
+                    pass  # a model edited into something else: the project opens without it
+            self._recent.add(full, self._now())
+            self.current.saved_key = self._key()
+            self.ws.audit.write(who, "open_sab_project", None, tables=len(manifest.tables))
+        await self._changed()
+        return self.state() | {"page": self.ws.live.page_open()}
+
+    async def _adopt(self, folder: str, who: str, clear: bool) -> dict[str, Any]:
+        """A folder project (today's: a folder with data.ipynb) as the open project: its own working
+        folder. Saved as a .sab with Save as."""
+        if clear:
+            await self._clear(who)
+        listed = self._projects.open({"folder": folder}, who)
+        self._serial += 1
+        self.current = Current(name=str(listed["name"]), folder=str(listed["folder"]), serial=self._serial)
+        self.current.saved_key = self._key()
+        await self._changed()
+        return self.state()
+
+    async def _load(self, table: TableEntry, sab_folder: str | None, found: dict[str, str], who: str) -> None:
+        """Read one table again from where it came from, as grids with its steps; or say why not."""
+        current = self._need()
+        current.waiting.pop(table.name, None)
+        current.problems.pop(table.name, None)
+        source = table.source
+        problem: str | None = None
+        try:
+            if source.kind == "connection":
+                problem = await self._from_connection(table, who)
+            elif source.kind == "file":
+                there = next(
+                    (p for p in rules.candidates(source, sab_folder) if self._archive.exists(p)), None
+                )
+                if there is None:
+                    problem = "no_file"
+                else:
+                    await self._datasets.load_file(table.name, there, source.sheet, True, who)
+            elif source.kind == "query" and source.sql:
+                await self._datasets.build_from_query(table.name, source.sql, False, who)
+            elif source.kind == "cell":
+                problem = "not_run"  # nothing runs code on open: the user runs the notebook
+            elif table.rows_file and table.rows_file in found:
+                rows = await asyncio.to_thread(self._archive.read_rows, found[table.rows_file])
+                origin = Origin("paste")
+                await self._datasets.store_table(table.name, rows, "arrow", True, who, origin=origin)
+            else:
+                problem = "no_rows"
+        except (Conflict, NotFound, Refused, ValueError, OSError, KeyError) as error:
+            problem = str(error).strip("'\"") or type(error).__name__
+        except Exception as error:  # a connection's own code failing: its words, never a dead end
+            problem = str(error)[:300] or type(error).__name__
+        if problem is not None:
+            current.waiting[table.name] = table
+            current.problems[table.name] = rules.fix_for(table.name, source, problem)
+            return
+        await self._apply(table)
+
+    async def _from_connection(self, table: TableEntry, who: str) -> str | None:
+        source = table.source
+        name = source.connection or ""
+        listed = {
+            str(c["name"]).casefold(): str(c["name"]) for c in self._connections.listing()["connections"]
+        }
+        if name.casefold() not in listed:
+            return "no_connection"
+        place = {"database": source.database, "schema": source.schema, "table": source.table}
+        answer = await self._connections.open_table(
+            listed[name.casefold()], place | {"all": source.whole}, who
+        )
+        if "sheets" in answer:
+            return f"{source.table or name} has several sheets: open it from the connection."
+        dataset = str(answer.get("dataset") or "")
+        if dataset and dataset != table.name and self.ws.store.get(table.name) is None:
+            await self._datasets.rename(dataset, table.name, who)
+        return None
+
+    async def _apply(self, table: TableEntry) -> None:
+        """A table that came back: its grids' steps as they were (no undo entry: this is where it starts)."""
+        grids = self.ws.grids.for_dataset(table.name)
+        for index, entry in enumerate(table.grids):
+            made = index >= len(grids)
+            grid = self.ws.grids.create(table.name) if made else grids[index]
+            try:
+                grid.steps = steps_from_json(list(entry.steps))
+                grid.settings = ViewSettings.from_json(dict(entry.settings) or None)
+            except ValueError:
+                pass  # a step this version does not know: the grid opens without its steps
+            if made:
+                await self.ws.live.broadcast({"type": "grid_shown", "grid": grid.id, "dataset": table.name})
+            else:
+                await self.ws.live.broadcast(
+                    {"type": "grid_updated", "grid": grid.id, "by": "user", "gen": grid.gen}
+                )
+
+    async def _arrived(self, name: str, grid_id: str) -> None:
+        """A table arrived by any way (its notebook ran, a paste): its steps waiting in the project apply."""
+        current = self.current
+        if current is None or name not in current.waiting or self._busy.locked():
+            return
+        table = current.waiting.pop(name)
+        current.problems.pop(name, None)
+        grid = self.ws.grids.get(grid_id)
+        if grid is not None and not grid.steps:
+            await self._apply(table)
+        await self._changed()
+
+    async def fix(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """A table that did not come back: {"table", "path"?: where its file is now, "remove"?: true}.
+        Without either, it is tried again (a connection added since, its notebook run)."""
+        current = self._need()
+        if not isinstance(body, dict) or not isinstance(body.get("table"), str):
+            raise ValueError('Send {"table": its name, "path"?: its file now, "remove"?: true}.')
+        name = body["table"]
+        table = current.waiting.get(name)
+        if table is None:
+            raise NotFound(f"{name} is not waiting to come back.")
+        if body.get("remove") is True:
+            current.waiting.pop(name)
+            current.problems.pop(name, None)
+            await self._changed()
+            return self.state()
+        path = body.get("path")
+        if isinstance(path, str) and path.strip():
+            if table.source.kind != "file":
+                raise ValueError(f"{name} does not come from a file.")
+            full = self._archive.full(path.strip())
+            table = replace(table, source=replace(table.source, path=full, absolute=full))
+        async with self._busy:
+            sab_folder = self._archive.folder_of(current.path) if current.path else None
+            await self._load(table, sab_folder, {}, who)
+        await self._changed()
+        return self.state()
+
+    # ===== save =====
+
+    async def save(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Save: {"keep_rows"?: {"pasted_1": true}, "path"?}. The first save of a project made here
+        names where it goes (path); without a project open, the open work becomes one there."""
+        body = body if isinstance(body, dict) else {}
+        keep = _keep_rows(body.get("keep_rows"))
+        path = body.get("path")
+        if path is not None and (not isinstance(path, str) or not path.strip()):
+            raise ValueError("path is where the .sab goes.")
+        folder = body.get("folder")
+        if (
+            isinstance(folder, str)
+            and folder.strip()
+            and (self.current is None or self.current.folder != folder)
+        ):
+            await self._adopt(self._archive.full(folder.strip()), who, clear=False)
+        if self.current is None:
+            if not path:
+                raise NotFound(
+                    'No project is open: send {"path": where its .sab goes} to save the open work as one.'
+                )
+            await self.new({"name": rules.name_of_file(path), "app": False}, who)
+        current = self._need()
+        if current.read_only:
+            raise Refused(current.read_only)
+        target = rules.with_suffix(path.strip()) if isinstance(path, str) and path.strip() else current.path
+        if target is None:
+            raise Conflict('This project has not been saved yet: send {"path": where its .sab goes}.')
+        try:
+            target = self._archive.full(target)
+        except FileNotFoundError as error:
+            raise NotFound(str(error)) from None
+        current.keep_rows |= keep
+        notes: list[str] = []
+        if self._ask_workbench is not None and self.ws.live.workbench_open():
+            # The Workbench's unsaved documents of this project are saved first, as they stand there.
+            try:
+                await asyncio.wait_for(
+                    self._ask_workbench("project.saveDocuments", {"folder": current.folder}),
+                    WORKBENCH_SAVE_SECONDS,
+                )
+            except Exception:  # a window that does not answer: the files as they are
+                if current.unsaved:
+                    notes.append(f"Saved as on disk: {', '.join(current.unsaved)} had unsaved changes there.")
+        async with self._busy:
+            tables = self._tables()
+            rows_tables = [t.name for t in tables if t.source.needs_rows and current.keep_rows.get(t.name)]
+            sandbox, card_rows = self._cards.snapshot()
+            if who == "agent" and (rows_tables or card_rows):
+                detail = "\n".join(
+                    [
+                        "Save the project, with these rows kept in the file:",
+                        f"  {target}",
+                        *(f"  {name} ({self._rows(name):,} rows)" for name in rows_tables),
+                        *(["  the Sandbox's table cards"] if card_rows else []),
+                    ]
+                )
+                if not await self._approvals.ask(current.name, "save the project with rows", detail):
+                    raise Refused("The user declined (or did not answer): the project was not saved.")
+            written = await self._write(current, target, rows_tables, sandbox)
+            current.path = written
+            current.name = rules.name_of_file(written)
+            current.saved_key = self._key()
+            current.unsaved = []
+            self._recent.add(written, self._now())
+            self.ws.audit.write(who, "save_sab_project", None, tables=len(tables), rows=len(rows_tables))
+        await self._changed()
+        return self.state() | {"saved": written, "rows": rows_tables, "notes": notes}
+
+    def _rows(self, name: str) -> int:
+        info = self.ws.store.get(name)
+        return info.row_count if info else 0
+
+    async def _write(self, current: Current, target: str, rows_tables: list[str], sandbox: list[Any]) -> str:
+        """The .sab at `target`: the manifest, the project's files, the Sandbox, the model, ticked rows."""
+        before = current.path
+        current.path = target  # the sources are written relative to where the file goes
+        try:
+            tables = self._tables()
+        finally:
+            current.path = before
+        files = await asyncio.to_thread(self._archive.files, current.folder)
+        entries: list[tuple[str, bytes | str]] = []
+        for relative, _, _ in files:
+            raw = await asyncio.to_thread(self._archive.read_file, current.folder, relative)
+            if relative.lower().endswith((".ipynb", ".py")):
+                try:
+                    raw = rules.for_the_file(relative, raw.decode("utf-8-sig")).encode("utf-8")
+                except (UnicodeDecodeError, ValueError):
+                    pass  # not one this version reads: as it is
+            entries.append((relative, raw))
+        taken = [relative for relative, _, _ in files]
+        scratch = await asyncio.to_thread(self._archive.scratch)
+        try:
+            written: list[TableEntry] = []
+            for table in tables:
+                table = rules.carried(current.manifest, table.name, table)
+                if table.name in rows_tables and self.ws.store.get(table.name) is not None:
+                    entry = rules.rows_entry(table.name, taken)
+                    taken.append(entry)
+                    rows = await self._rows_of(table.name)
+                    entries.append((entry, await asyncio.to_thread(self._archive.write_rows, scratch, rows)))
+                    table = replace(table, rows_file=entry, source=replace(table.source, rows=True))
+                written.append(table)
+            sandbox_entry = rules.SANDBOX if [c for c in sandbox if c.get("kind") != "theme"] else None
+            if sandbox_entry:
+                body = {
+                    "name": current.name,
+                    "versions": [{"saved": _now_text(self._now()), "cards": sandbox}],
+                }
+                entries.append((sandbox_entry, json.dumps(body, default=str).encode("utf-8")))
+            model = self._models.model
+            model_entry = rules.MODEL if model.tables() or model.relationships else None
+            if model_entry:
+                entries.append((model_entry, write_tang(model).encode("utf-8")))
+            layout = current.layout
+            earlier = current.manifest
+            manifest = Manifest(
+                name=current.name if before == target else rules.name_of_file(target),
+                tables=tuple(written),
+                app_version=self._version,
+                saved=_now_text(self._now()),
+                tabs=layout.get("home") or {},
+                workbench=layout.get("workbench") or {},
+                diagram=layout.get("diagram") or {},
+                sandbox=sandbox_entry,
+                model=model_entry,
+                extra=dict(earlier.extra) if earlier else {},
+            )
+            entries.insert(0, (rules.MANIFEST, rules.write_manifest(manifest).encode("utf-8")))
+            try:
+                done = await asyncio.to_thread(self._archive.write, target, entries)
+            except FileNotFoundError as error:
+                raise NotFound(str(error)) from None
+            except PermissionError as error:
+                raise Conflict(str(error)) from None
+            current.manifest = manifest
+            return done
+        finally:
+            await asyncio.to_thread(self._archive.remove, scratch)
+
+    async def _rows_of(self, name: str) -> Any:
+        info = self.ws.store.get(name)
+        if info is None:
+            raise NotFound(f"{name} is not open.")
+        return await self.ws.workers.run(
+            BACKGROUND,
+            self._reader.query_table,
+            self.ws.store.cursor(),
+            f"SELECT * FROM {info.table}",  # noqa: S608 (a quoted dataset name)
+        )
+
+    # ===== close, the layout, the recent list =====
+
+    async def close(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Close the project: {"discard"?}. Asks first (Conflict) when it has unsaved changes."""
+        body = body if isinstance(body, dict) else {}
+        self._need()
+        async with self._busy:
+            self._check_discard(body)
+            await self._clear(who)
+            self._serial += 1
+            self.ws.audit.write(who, "close_sab_project", None)
+        await self._changed()
+        return self.state()
+
+    async def layout(self, body: Any) -> dict[str, Any]:
+        """A window's layout, kept for the next save: {"window": "workbench" | "home" | "diagram",
+        "layout": {...}, "unsaved"?: the Workbench's documents with unsaved changes}."""
+        if not isinstance(body, dict) or body.get("window") not in ("workbench", "home", "diagram"):
+            raise ValueError('Send {"window": "workbench", "home" or "diagram", "layout": {...}}.')
+        current = self.current
+        if current is None:
+            return {"kept": False}
+        layout = body.get("layout")
+        if isinstance(layout, dict):
+            if len(json.dumps(layout, default=str)) > MAX_LAYOUT_CHARS:
+                raise ValueError("That layout is too large to keep.")
+            current.layout[str(body["window"])] = layout
+        unsaved = body.get("unsaved")
+        if body["window"] == "workbench" and isinstance(unsaved, list):
+            now = [str(u)[:200] for u in unsaved[:200] if isinstance(u, str)]
+            if now != current.unsaved:
+                current.unsaved = now
+                await self._changed()
+        return {"kept": True}
+
+    def recent(self) -> dict[str, Any]:
+        return {"recent": self._recent.all()}
+
+    async def forget(self, body: Any) -> dict[str, Any]:
+        """Remove from the list: {"path"}."""
+        if not isinstance(body, dict) or not isinstance(body.get("path"), str):
+            raise ValueError('Send {"path": the project\'s file}.')
+        if not self._recent.remove(body["path"]):
+            raise NotFound("That project is not in the list.")
+        await self._changed()
+        return self.recent()
+
+    async def stop(self) -> None:
+        """The server stops: the temporary working folder goes."""
+        if self.current is not None:
+            self._archive.remove(self.current.root)

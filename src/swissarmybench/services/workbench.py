@@ -132,6 +132,9 @@ class Workbench:
         # The Workbench window that started each kernel, and since when that window has been gone.
         self._owner: dict[str, str] = {}
         self._gone_since: dict[str, float] = {}
+        # The document each kernel was started for (a table it sends was made there: a .sab project
+        # says so, services/sab_projects.py).
+        self._documents_of: dict[str, str] = {}
         # Documents moving between Workbench windows, by their one-time id (memory only).
         self._handoffs: dict[str, dict[str, Any]] = {}
 
@@ -315,6 +318,8 @@ class Workbench:
         environ = dict(self._environ) | from_vaults | {"SWISSARMYBENCH_KERNEL": kernel_id}
         kernel = await self._kernels.start(str(python), folder, environ)
         self._running[kernel_id] = kernel
+        if isinstance(path, str) and path:
+            self._documents_of[kernel_id] = path  # a table it sends comes from this document
         window = body.get("window")
         if isinstance(window, str) and 0 < len(window) <= 64:
             self._owner[kernel_id] = window  # the agent's kernels have none: they stop when it says
@@ -325,6 +330,10 @@ class Workbench:
         # Names only: which variables the vaults set, and why a vault could not.
         vaults = {"set": sorted(from_vaults), "problems": problems}
         return {"kernel": kernel_id, "python": kernel.python, "vaults": vaults}
+
+    def document_of(self, kernel_id: str | None) -> str | None:
+        """The document a kernel was started for (None: not known, or no kernel)."""
+        return self._documents_of.get(kernel_id) if kernel_id else None
 
     def kernel_count(self) -> int:
         """How many kernels are running (the question before an update)."""

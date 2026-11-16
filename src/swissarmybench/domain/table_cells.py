@@ -948,6 +948,10 @@ class Origin:
     dax: bool = False  # the query is DAX, on a Power BI workspace's dataset (`connection` names both)
     # The Python that reads it again from a connection that has no SQL: sab.read('Orders API', 'orders')
     code: str | None = None
+    # A connection's table: its database, schema and table, and whether every row came (a .sab project
+    # reads it again by these: domain/sab_files.py).
+    place: tuple[str, str, str] | None = None
+    whole: bool = True
 
     def to_json(self) -> dict[str, Any]:
         return {"kind": self.kind, "kernel": self.kernel}

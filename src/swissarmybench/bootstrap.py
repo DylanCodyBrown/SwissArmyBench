@@ -39,6 +39,7 @@ from swissarmybench.adapters.folders import listing as folder_listing
 from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.projects import ProjectFiles
+from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
@@ -90,6 +91,7 @@ from swissarmybench.services.profile import Profiles
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
+from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.snapshots import Snapshots
@@ -146,6 +148,7 @@ class Services:
     controllers: Controllers
     lineage: Lineage
     projects: Projects
+    sab_projects: SabProjects
     script_exports: ScriptExports
     panels: Panels
     navigation: Navigation
@@ -383,6 +386,37 @@ def bootstrap(
     # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
     apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
     workbench_window = WorkbenchWindow(ws)
+    cards = Cards(ws, DashboardFiles(state_dir / "dashboards"), ThemeFiles(state_dir / "themes"))
+    projects = Projects(
+        ws,
+        project_files,
+        table_cells.group_cells,
+        export_data=streamlit.export_data,
+        remember=lambda path: documents.remember(path, time.time()),
+        approvals=approvals,
+    )
+    # A project as one .sab file: unpacked into a working folder while open, written back on Save.
+    sab_projects = SabProjects(
+        ws,
+        SabArchive(
+            settings.max_project_file_bytes,
+            settings.max_project_entries,
+            settings.max_project_unpacked_bytes,
+            settings.project_temp_dir,
+        ),
+        RecentProjects(state_dir / "recent_projects.json" if audit_log else None),
+        datasets,
+        connections,
+        cards,
+        models,
+        projects,
+        table_reader,
+        approvals,
+        version=__version__,
+        now=time.time,
+        kernel_document=workbench.document_of,
+        ask_workbench=lambda command, args: workbench_window.ask(command, args, "app"),
+    )
 
     async def open_work() -> dict[str, Any]:
         """What is open (the tray's menu) and what an update would lose: the tables, the Workbench
@@ -448,7 +482,7 @@ def bootstrap(
         sql=SqlBox(ws, datasets, table_reader),
         exports=Exports(ws, export_writer, tickets, now=lambda: datetime.now(UTC)),
         codes=CodeService(ws, verifier),
-        cards=Cards(ws, DashboardFiles(state_dir / "dashboards"), ThemeFiles(state_dir / "themes")),
+        cards=cards,
         inbox=Inbox(ws),
         agent=AgentService(ws, approvals, tickets),
         sessions=Sessions(processes, store, live),
@@ -487,14 +521,8 @@ def bootstrap(
             workbench.lineage_values,
             app_files.read_trace,
         ),
-        projects=Projects(
-            ws,
-            project_files,
-            table_cells.group_cells,
-            export_data=streamlit.export_data,
-            remember=lambda path: documents.remember(path, time.time()),
-            approvals=approvals,
-        ),
+        projects=projects,
+        sab_projects=sab_projects,
         # Export as one Python script: the document's cells, its connections' own code, ruff's check.
         script_exports=ScriptExports(
             ws,

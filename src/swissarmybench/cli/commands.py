@@ -138,7 +138,8 @@ GUIDE_TOPICS: dict[str, str] = {
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python, key vaults",
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
-    "streamlit": "Streamlit: live cells, the canvas, export, Save as, projects",
+    "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
+    "projects": "Projects as one .sab file: open, save, the recent ones, tables that need a fix",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
 }
 
@@ -3038,17 +3039,89 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
 
 @command(
     "project_new",
-    "A new project folder: data.ipynb (a cell an open table), data.py, a canvas, notebooks. When data.ipynb "
-    "would hold a pasted table's rows, waits for the user's approval click",
-    req("folder", "Where the project's folder goes."),
-    req("name", "The project's (and its folder's) name."),
+    "A new project: no folder, one for a .sab (the open tables go in); a folder, a project folder (data.ipynb, "
+    "data.py, a canvas, notebooks), waiting for the user's Allow when data.ipynb would hold pasted rows",
+    opt("name", "The project's name (and its folder's)."),
+    opt("folder", "A folder project: where its folder goes."),
     opt("app", "false: no Streamlit app (data and notebooks only).", "bool"),
     opt("notebooks", 'Notebooks to make, by name: ["analysis", "mockups"].', "json"),
     opt("tables", "Open tables for data.ipynb (default: all).", "json"),
+    opt("discard", "true: let the open project's unsaved changes go.", "bool"),
 )
 def project_new(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("folder", "name", "app", "notebooks", "tables") if a.get(k) is not None}
-    return api.call("POST", "/projects", body)
+    if a.get("folder"):
+        body = {k: a[k] for k in ("folder", "name", "app", "notebooks", "tables") if a.get(k) is not None}
+        return api.call("POST", "/projects", body)
+    return api.call(
+        "POST", "/project/new", {k: a[k] for k in ("name", "app", "discard") if a.get(k) is not None}
+    )
+
+
+@command(
+    "project_open",
+    "Open a project: a .sab (its tables read again with their steps, the Sandbox, relationships, documents) "
+    "or a project folder. Refused while unsaved changes are open, unless discard",
+    req("path", "The .sab file, or a project's folder."),
+    opt("discard", "true: let the open project's unsaved changes go.", "bool"),
+)
+def project_open(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/project/open", {"path": a["path"], "discard": a.get("discard") is True})
+
+
+@command(
+    "project_save",
+    "Save the open project's .sab (the Workbench's documents first). Rows go in only for tables ticked in "
+    "keep_rows (pasted or pushed ones): then it waits for the user's Allow",
+    opt("keep_rows", '{"pasted_1": true}: keep that table\'s rows in the file.', "json"),
+    opt("path", "Where the .sab goes (needed the first time; Save as otherwise)."),
+)
+def project_save(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/project/save", {k: a[k] for k in ("keep_rows", "path") if a.get(k) is not None})
+
+
+@command(
+    "project_save_as",
+    "Save the project as another .sab (a folder project as one file too)",
+    req("path", "The new .sab."),
+    opt("keep_rows", '{"pasted_1": true}: keep that table\'s rows in the file.', "json"),
+    opt("folder", "A folder project to save as one file."),
+)
+def project_save_as(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("path", "keep_rows", "folder") if a.get(k) is not None}
+    return api.call("POST", "/project/save", body)
+
+
+@command(
+    "project_recent",
+    "The open project (unsaved changes, tables that need a fix) and the recent ones",
+    opt("remove", "A recent project's path to take off the list."),
+)
+def project_recent(a: dict[str, Any]) -> Any:
+    if a.get("remove"):
+        api.call("POST", "/project/recent/remove", {"path": a["remove"]})
+    return api.call("GET", "/project")
+
+
+@command(
+    "project_close",
+    "Close the project: its tables, Sandbox and relationships. Refused with unsaved changes, unless discard",
+    opt("discard", "true: let its unsaved changes go.", "bool"),
+)
+def project_close(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/project/close", {"discard": a.get("discard") is True})
+
+
+@command(
+    "project_table_fix",
+    "A table that did not come back on open: path (its file now), remove, or neither (try again)",
+    req("table", "The table's name."),
+    opt("path", "Where its file is now."),
+    opt("remove", "true: take it out of the project.", "bool"),
+)
+def project_table_fix(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST", "/project/fix", {k: a[k] for k in ("table", "path", "remove") if a.get(k) is not None}
+    )
 
 
 @command(
@@ -3747,7 +3820,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
-    ("project", "Projects: a folder that starts with data.ipynb and its export data.py"),
+    ("project", "Projects: one .sab file (tables, steps, documents, Sandbox), or a folder with data.ipynb"),
     ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("compare", "Compare (two grids side by side)"),

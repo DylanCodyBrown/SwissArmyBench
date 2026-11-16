@@ -4,6 +4,7 @@
     uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
     uv run swissarmybench status          is one running, and where
     uv run swissarmybench open            open the running app's page in the browser
+    uv run swissarmybench open sales.sab  open a project (starting the app when it is not running)
     uv run swissarmybench stop            ask the running one to shut down
     uv run swissarmybench tray            the tray icon (`start` starts it too, unless --no-tray)
     uv run swissarmybench autostart on    start at sign-in (the tray, which starts the server); off, status
@@ -53,6 +54,7 @@ from swissarmybench.server.lifecycle import (
     PortError,
     on_exit,
     open_listener,
+    post_json,
     remember_port,
     request_stop,
     running_server,
@@ -94,7 +96,7 @@ def main() -> None:
         choices=["start", "stop", "status", "open", "tray", "autostart"],
     )
     parser.add_argument(
-        "switch", nargs="?", choices=["on", "off", "status"], help="autostart: on, off or status."
+        "switch", nargs="?", help="autostart: on, off or status; open: a project's .sab file (or folder)."
     )
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the page when it starts.")
@@ -105,6 +107,10 @@ def main() -> None:
     args = parser.parse_args()
     path = info_file_path()
 
+    if args.command == "autostart" and args.switch not in (None, "on", "off", "status"):
+        parser.error("autostart takes on, off or status.")
+    if args.command == "open" and args.switch:
+        sys.exit(open_project(args.switch, path))
     if args.command == "open":
         if not open_page(path):
             print("Swiss Army Bench is not running. Start it with: swissarmybench start")
@@ -164,6 +170,39 @@ def open_page(path: Path | None = None) -> bool:
     print(address)
     webbrowser.open(address)
     return True
+
+
+def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
+    """`swissarmybench open sales.sab` (a double-click on a .sab runs it): the app started in the background
+    when it is not running, the project opened in it (the page asks first when unsaved work would be lost),
+    and the home window shown when none is open."""
+    file = Path(target).expanduser()
+    if not file.exists():
+        print(f"{file} is not there.", file=sys.stderr)
+        return 1
+    info = running_server(path)
+    if info is None:
+        start_in_background(None, browser=False)
+        deadline = time.monotonic() + wait_seconds
+        while info is None and time.monotonic() < deadline:
+            time.sleep(0.3)
+            info = running_server(path)
+        if info is None:
+            print(
+                "Swiss Army Bench did not start: run swissarmybench start, then open the project.",
+                file=sys.stderr,
+            )
+            return 1
+    try:
+        answer = post_json(info, "/project/open", {"path": str(file.resolve()), "ask": True})
+    except OSError as error:
+        print(f"{file.name} could not be opened: {error}", file=sys.stderr)
+        return 1
+    if not (isinstance(answer, dict) and answer.get("page")):
+        webbrowser.open(page_address(info))  # no home window is open: one, showing the project
+    print(f"Opened {file.name}." if not (isinstance(answer, dict) and answer.get("asked")) else
+          f"{file.name}: the app asks about the unsaved work open now.")  # fmt: skip
+    return 0
 
 
 def start_in_background(port: int | None, browser: bool = True, tray: bool = True) -> None:
