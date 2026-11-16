@@ -4331,6 +4331,11 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   min-width: 0;
 }
 
+/* A certificate or keystore file's source: its path, or an environment variable (its default the path). */
+.connection-fields .field-source {
+  margin-top: 4px;
+}
+
 /* Security: the certificate file sits beside Trust server certificate, in the order of the rule. */
 .connection-security .field.wide {
   grid-column: span 2;

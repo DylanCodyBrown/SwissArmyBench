@@ -1222,7 +1222,12 @@ def blades_inspect(a: dict[str, Any]) -> Any:
     "blades_fill",
     "Write values into code at its settings (ids from blades_inspect); the new code",
     req("code", "The Python."),
-    req("values", '{"<setting id>": "new value"}', "json"),
+    req(
+        "values",
+        '{"<setting id>": "new value"}; a certificate or keystore file also takes {"value": path, '
+        '"env": "TRINO_KEYSTORE_PATH"} (env null: a plain path)',
+        "json",
+    ),
 )
 def blades_fill(a: dict[str, Any]) -> Any:
     return api.call("POST", "/blades/fill", {"code": a["code"], "values": a["values"]})

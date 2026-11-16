@@ -14,7 +14,7 @@ to install them.
 
 from __future__ import annotations
 
-from swissarmybench.domain import dataverse
+from swissarmybench.domain import dataverse, keystores
 from swissarmybench.domain.blades import Template
 
 # ===== catalog queries =====
@@ -689,31 +689,15 @@ conn = ibm_db_dbi.connect(
 conn = teradatasql.connect(host="my-server", user="my_user", password=secret("password"))""",
         TERADATA,
     ),
+    # Two ways to sign in (domain/keystores.py): the user's password, or a client certificate from a
+    # keystore file (PKCS#12, JKS or JCEKS) whose path may come from an environment variable.
     _db(
         "trino",
         "Trino / Presto",
         "trino",
-        """import requests
-import trino
-
-user = "my_user"
-verify = r"C:\\certs\\my-company-ca.pem"
-trust_server_certificate = False
-
-session = requests.Session()
-session.verify = False if trust_server_certificate else verify
-session.trust_env = False  # this .pem, even where REQUESTS_CA_BUNDLE names another
-
-conn = trino.dbapi.connect(
-    host="my-server",
-    port=443,
-    user=user,
-    catalog="hive",
-    http_scheme="https",
-    auth=trino.auth.BasicAuthentication(user, secret("password")),
-    http_session=session,
-)""",
+        keystores.TRINO_BASIC,
         INFORMATION_SCHEMA,
+        sign_ins=keystores.SIGN_INS,
     ),
     _db(
         "clickhouse",

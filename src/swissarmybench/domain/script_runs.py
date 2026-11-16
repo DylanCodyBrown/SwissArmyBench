@@ -165,10 +165,15 @@ def _line_of(code: str, name: str) -> int | None:
     return None
 
 
-def needed(code: str, secrets_of: Callable[[str], Sequence[str] | None]) -> list[Needed]:
+def needed(
+    code: str,
+    secrets_of: Callable[[str], Sequence[str] | None],
+    files_of: Callable[[str], Sequence[str]] = lambda _: (),
+) -> list[Needed]:
     """Every environment variable the script needs: those it reads itself (with the line), then each
     named connection's and blade's passwords (`secrets_of`: the names its code asks secret() for; None:
-    no such connection here)."""
+    no such connection here) and the certificate or keystore files it maps to a variable (`files_of`:
+    those variables; domain/certificate_files.py)."""
     out: list[Needed] = []
     seen: set[str] = set()
     for named in named_connections(code):
@@ -177,6 +182,10 @@ def needed(code: str, secrets_of: Callable[[str], Sequence[str] | None]) -> list
             if variable not in seen:
                 seen.add(variable)
                 out.append(Needed(variable, named, True))
+        for variable in files_of(named):
+            if variable not in seen:
+                seen.add(variable)
+                out.append(Needed(variable, named, False))
     own = [
         Needed(
             read.name,

@@ -70,6 +70,8 @@ interface Field {
   placeholder: boolean;
   picker: "file" | "folder" | null;
   suggestions: { value: string; from: string }[];
+  /** A certificate or keystore file only: the environment variable it is read from (null: a plain path). */
+  env?: string | null;
 }
 
 interface Form {
@@ -329,6 +331,20 @@ const plain = (label: string): string => {
   return bare.charAt(0).toUpperCase() + bare.slice(1);
 };
 /** A path's file or folder name without its kind: C:\data\orders.csv -> orders. */
+/** The variable a certificate file is offered as (domain/certificate_files.py suggested_variable):
+ *  Warehouse, certificate file -> WAREHOUSE_CERTIFICATE_FILE; a keystore's is TRINO_KEYSTORE_PATH. */
+const certificateVariable = (connection: string, setting: string): string => {
+  if (setting === "keystore") return "TRINO_KEYSTORE_PATH";
+  const name = `${connection} ${setting}`.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+  return name && !/^[0-9]/.test(name) ? name : `_${name}`;
+};
+// What the file chooser offers for each kind of certificate file.
+const CERTIFICATE_KINDS: Record<string, string[]> = {
+  "certificate file": [".pem", ".crt", ".cer"],
+  "client certificate file": [".pem", ".crt", ".cer"],
+  "client key file": [".pem", ".key"],
+  keystore: [".keystore", ".jks", ".jceks", ".p12", ".pfx"],
+};
 const stem = (path: string): string => (path.split(/[\\/]/).filter(Boolean).pop() ?? "").replace(/\.[^.]+$/, "");
 /** A secret's variable, named as in the vault (domain/blades.py env_name_for_secret): SqlPassword stays,
  *  Sql--Password -> Sql__Password, warehouse-password -> warehouse_password. */
@@ -821,18 +837,37 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const result = h("div", { class: "connection-result", role: "status" });
 
     /** A changed field's value, written into the code by the server; the fields keep their boxes. */
-    const fill = async (field: Field, value: string): Promise<void> => {
+    const fill = async (field: Field, value: string, env?: string | null): Promise<void> => {
+      // A certificate file sends its source too: its variable, or null for a plain path.
+      const sent = field.env !== undefined ? { value, env: env === undefined ? field.env : env } : field.type === "number" ? Number(value) : value;
       try {
-        const answer = await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code, values: { [field.id]: field.type === "number" ? Number(value) : value }, template: form.id || null, name: editing });
+        const answer = await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code, values: { [field.id]: sent }, template: form.id || null, name: editing });
         code = answer.code;
         codeBox.value = code;
         // The ids follow the new code; the same settings in the same order keep their boxes.
         if (answer.settings.length === fields.length) fields = fields.map((f, i) => ({ ...f, ...answer.settings[i]!, picker: f.picker }));
-        else drawFields(answer.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? null })));
+        else drawFields(answer.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? (CERTIFICATE_KINDS[s.name] ? "file" : null) })));
         readWhenReady();
       } catch (e) {
         result.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
       }
+    };
+
+    const fileSource = (field: Field, i: number, input: HTMLInputElement): HTMLElement => {
+      const label = words(field.name);
+      const from = h("select", { "aria-label": `${label} from` }, h("option", { value: "path", selected: !field.env }, "Path"), h("option", { value: "env", selected: Boolean(field.env) }, "From an environment variable")) as HTMLSelectElement;
+      const variable = h("input", { type: "text", value: field.env ?? "", placeholder: certificateVariable(name.value.trim() || form.id, field.name), "aria-label": `${label} variable`, spellcheck: false, hidden: !field.env, class: "mono" }) as HTMLInputElement;
+      const path = (): string => input.value.trim() || String(fields[i]!.value);
+      from.addEventListener("change", () => {
+        const mapped = from.value === "env";
+        if (mapped && !variable.value.trim()) variable.value = variable.placeholder;
+        variable.hidden = !mapped;
+        void fill(fields[i]!, path(), mapped ? variable.value.trim() : null);
+      });
+      variable.addEventListener("change", () => {
+        if (variable.value.trim()) void fill(fields[i]!, path(), variable.value.trim());
+      });
+      return h("span", { class: "field-row field-source" }, from, variable);
     };
 
     const drawFields = (next: Field[]): void => {
@@ -852,7 +887,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         });
         const browse = field.picker
           ? button("Browse…", () => {
-              const suffixes = field.name === "certificate file" ? [".pem", ".crt", ".cer"] : FILE_KINDS[form.id];
+              const suffixes = CERTIFICATE_KINDS[field.name] ?? FILE_KINDS[form.id];
               void chooseFile({ title: field.picker === "folder" ? "Choose folder" : "Choose file", mode: field.picker!, suffixes, start: field.placeholder ? undefined : String(field.value) }).then((path) => {
                 if (!path) return;
                 input.value = path;
@@ -863,7 +898,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           : null;
         const list = field.suggestions.length ? h("datalist", { id: `conn-suggest-${i}` }, ...field.suggestions.map((s) => h("option", { value: s.value }, s.from))) : null;
         if (list) input.setAttribute("list", `conn-suggest-${i}`);
-        return h("label", { class: `field${field.picker ? " wide" : ""}` }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, input, browse), list);
+        // A certificate or keystore file: its path as it is, or from an environment variable whose
+        // default is the path on this computer (a function app sets the variable to the file there).
+        const source = field.env !== undefined ? fileSource(field, i, input) : null;
+        return h("label", { class: `field${field.picker ? " wide" : ""}` }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, input, browse), source, list);
       });
       // The same order on every form: where, who, security (a setting the rule does not name stays
       // with "where", after the ones it does, in the code's order).
@@ -1128,7 +1166,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           form.install_here = found.install_here;
           form.packages = found.packages;
           drawInstall();
-          drawFields(found.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? null })));
+          drawFields(found.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? (CERTIFICATE_KINDS[s.name] ? "file" : null) })));
           if (found.secrets.join() !== form.secrets.join()) {
             form.secrets = found.secrets;
             passwordsSlot.replaceChildren(drawPasswords() ?? "");
@@ -1209,7 +1247,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           : { code: way.code, settings: next.settings };
         code = answer.code;
         codeBox.value = code;
-        drawFields(answer.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? null })));
+        drawFields(answer.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? (CERTIFICATE_KINDS[s.name] ? "file" : null) })));
         form.secrets = next.secrets;
         labels.clear();
         for (const secret of next.secrets) labels.set(secret, secret);

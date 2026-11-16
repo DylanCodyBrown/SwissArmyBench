@@ -2023,3 +2023,24 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** real Windows (registry, PowerShell's Store and Start menu answers, Windows Terminal,
   the new console), real macOS (Spotlight, Info.plist, Terminal through osascript), a real Linux terminal
   opening, a real Claude Code or Claude Desktop starting and reading the folder or the config.
+
+## Trino by a keystore; certificate files from a variable (2026-11-16, branch trino-keystore)
+
+- **Checked** (tests/test_keystores.py, made-up keys from a made-up CA): format detection; PKCS#12 (with
+  its friendly name), JKS and JCEKS read (pyjks 20.0.0 in this branch's venv; pyjks writes JKS only, so the
+  JCEKS file is a JKS with JCEKS's magic and its SHA-1 signature made again); several keys and the alias;
+  the wrong password (PKCS#12, JKS), no private key, an unknown format, a missing file naming
+  TRINO_KEYSTORE_PATH, pyjks missing (a child Python with `jks` blocked); the PEM files' modes (0600, the
+  folder 0700) and their removal when the Python ends (a child process); the mapping's round trip for the
+  keystore, Trino's verify, psycopg's sslrootcert/sslcert and pymysql's ssl_key; another field refused;
+  the export's settings block (the path variable and the password named, never the file's bytes, nothing
+  listed unmapped) and Run settings' list. End to end: a stand-in Trino on 127.0.0.1 over HTTPS with
+  CERT_REQUIRED (tests/trino_standin.py; trino 0.340.0 client): Test (typed password), the agent's save,
+  Open as grid (5 rows, 3 columns), every request carrying the client certificate; a password sign-in
+  with no certificate refused in words. Browser (Chromium): the form's Sign in, the keystore's Browse…,
+  Path / From an environment variable (TRINO_KEYSTORE_PATH suggested, the code updated both ways), the
+  password from the keyring, Test "It works: signed in."
+- **Not checked:** a real Trino with mutual TLS; a real Azure Function App (its Application settings or a
+  Key Vault reference giving TRINO_KEYSTORE_PATH and the password); Windows' temp-folder ACL (mkstemp's
+  folder in the user's own %TEMP% is assumed private); a keystore whose key password differs from the
+  store's (said in words, not tested).

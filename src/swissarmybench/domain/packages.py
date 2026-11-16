@@ -41,6 +41,8 @@ PIP_NAMES: dict[str, str] = {
     "ibm_db_dbi": "ibm_db",
     "teradatasql": "teradatasql",
     "trino": "trino",
+    "jks": "pyjks",  # a Java keystore (JKS, JCEKS): domain/keystores.py
+    "cryptography": "cryptography",
     "prestodb": "presto-python-client",
     "clickhouse_connect": "clickhouse-connect",
     "hdbcli": "hdbcli",

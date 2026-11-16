@@ -32,7 +32,10 @@ FILE_STARTERS: dict[str, str] = {
     "folder": "Folder of files",
 }
 # A setting with one of these names holds a path the form offers a picker for.
-_FILE_SETTINGS = frozenset({"path", "file", "dbq", "database_file", "certificate file"})
+_FILE_SETTINGS = frozenset(
+    {"path", "file", "dbq", "database_file", "certificate file", "keystore"}
+    | {"client certificate file", "client key file"}
+)
 _FOLDER_SETTINGS = frozenset({"folder", "directory"})
 
 
@@ -108,9 +111,13 @@ _PLACES: dict[str, tuple[str, int]] = {
     "catalog": ("where", 2),
     "database": ("where", 3),
     "user": ("who", 0),
+    "keystore": ("who", 1),  # a client certificate's keystore (Trino), and its entry
+    "keystore_alias": ("who", 2),
     "encrypt": ("security", 0),
     "certificate file": ("security", 1),
     "trust server certificate": ("security", 2),
+    "client certificate file": ("security", 3),
+    "client key file": ("security", 4),
 }
 _OTHER = ("where", 9)  # a setting the rule does not name: after the database, in the code's order
 

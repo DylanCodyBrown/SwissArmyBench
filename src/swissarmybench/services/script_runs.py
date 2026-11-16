@@ -48,6 +48,7 @@ class ScriptRuns:
         secrets_of: Callable[[str], Sequence[str] | None],
         vault_values: VaultValues,
         now: Callable[[], float],
+        files_of: Callable[[str], Sequence[str]] = lambda _: (),
     ) -> None:
         self.ws = ws
         self._kept = kept
@@ -58,6 +59,7 @@ class ScriptRuns:
         self._secrets_of = secrets_of
         self._vault_values = vault_values
         self._now = now
+        self._files_of = files_of  # a connection's mapped certificate files
         self._history: dict[str, list[rules.Run]] = {}
 
     # ----- the script and its settings
@@ -85,7 +87,7 @@ class ScriptRuns:
         plain one's)."""
         text, full = self._script(path)
         settings = self._settings(full)
-        found = rules.needed(text, self._secrets_of)
+        found = rules.needed(text, self._secrets_of, self._files_of)
         return {"path": full, "arguments": settings.arguments, "variables": rules.rows(settings, found)}
 
     def set_settings(self, body: Any, who: str = "user") -> dict[str, Any]:
@@ -116,7 +118,7 @@ class ScriptRuns:
         python = body.get("python") if isinstance(body.get("python"), str) and body.get("python") else None
         python = python or self._documents.environment(full) or self._default_python()
         settings = self._settings(full)
-        found = rules.needed(text, self._secrets_of)
+        found = rules.needed(text, self._secrets_of, self._files_of)
         planned = rules.plan(settings, found, lambda name: name in self._environ)
         values, problems = await self._vault_values(planned.vaults) if planned.vaults else ({}, [])
         environ = dict(self._environ) | planned.values | values

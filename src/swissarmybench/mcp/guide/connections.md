@@ -26,6 +26,13 @@ a variable by its name.
   `connections_password_source` points one at the keyring, an environment variable or a vault's entry.
   `blades_secrets` saves values the user gives you; nothing reads one back.
 - A missing driver: the test says so; `blades_install` installs it into the app's own Python.
+- Ways to sign in: a type's `sign_ins` each carry their own code. Trino: a password, or a client
+  certificate from a keystore file (PKCS#12, JKS, JCEKS; `keystore`, `keystore_alias`,
+  `secret("TRINO_KEYSTORE_PASSWORD")`; JKS needs the pyjks package).
+- A certificate or keystore file setting (a setting whose `env` key is present) may come from an
+  environment variable, this computer's path its default: `blades_fill` with
+  `{"<id>": {"value": path, "env": "TRINO_KEYSTORE_PATH"}}`; `env: null` makes it a plain path again.
+  An export and a script's run settings then list the variable.
 
 ## Reading one
 - `connections_open_table(name, table)`: a table as a grid (a database's first rows, 10,000 unless

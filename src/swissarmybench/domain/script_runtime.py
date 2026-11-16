@@ -591,7 +591,8 @@ class Secret:
 
     name: str  # as the code asks for it
     variable: str  # the environment variable the script reads
-    where: str  # keyring, environment, vault, every (a vault that loads every secret), typed, value, api
+    where: str  # keyring, environment, vault, every (a vault that loads every secret), typed, value, api,
+    # file (a certificate or keystore file's path, mapped to a variable: domain/certificate_files.py)
     vault: str = ""  # the key vault's name (vault, every)
     entry: str = ""  # its entry's name (vault)
     blade: str = ""  # the secret blade that asks for it (typed)
@@ -768,6 +769,11 @@ def where_from(secret: Secret) -> str:
         return f"{owner}: a plain value in the app (no secret), its default here"
     if secret.where == "notebook":
         return f"{owner}: set with %env in the notebook; a secret, set it here"
+    if secret.where == "file":
+        return (
+            f"{owner}: a certificate or keystore file's path; set it to where the file is here (an Azure "
+            "Function app: an Application setting). Unset, the path on the computer it was exported from"
+        )
     if secret.where == "api":
         return f"{owner}: the API client reads it when no argument gives it (optional)"
     if secret.where == "code":

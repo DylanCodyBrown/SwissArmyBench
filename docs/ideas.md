@@ -3407,3 +3407,47 @@ removed): a button that opens the user's OWN terminal application, or Claude Des
   menu, Store, Spotlight and Terminal paths run against made-up answers only.
 - **Open:** if the swissarmybench plugin is also installed in Claude Code, its prompt hook and the
   folder's both add the table in front (said twice); the command `claude` as a setting (the brief: later).
+
+## Trino by a keystore; certificate files from an environment variable (2026-11-16, branch trino-keystore) — built
+
+The owner: "my trino connection uses a keystore file"; "Its saved as .keystore and the difficult part is,
+if I want to keep the parity of everything I create here can run in the function app, then I have to map
+that file from the function apps location"; it "Signs me in (client certificate)"; "I have saved it to the
+function app it is not in the vault". Then: "okay then lets just make this one setting optional to map to
+an env variable", and "or any other connections that need to map to a keystore or cert, should have the
+option to create a local Env." (A general "every setting of every connection from a variable" was asked
+and dropped the same day; nothing of it was built.)
+
+- **Trino signs in two ways** (domain/keystores.py, `sign_ins` on the starter): **Username and password**
+  (as before) or **Client certificate (keystore)**: `keystore`, `keystore_alias` (the entry when it holds
+  several), the CA `verify` and Trust server certificate as before, and the password always
+  `secret("TRINO_KEYSTORE_PASSWORD")` (keyring, environment, vault; the form offers the variable of that
+  name first, as for any upper-case secret name).
+- **The keystore is read by code inside the connection's own code** (`keystore_files`), so the app, a
+  kernel, an export and a function app run the same thing. The format by its first bytes (JKS 0xFEEDFEED,
+  JCEKS 0xCECECECE, else PKCS#12), never the name; PKCS#12 with cryptography, JKS/JCEKS with **pyjks, a
+  package of the connection** (packages.py maps `jks` to pyjks; Install offers it), never the app's. The
+  key and chain become two PEM files in a mkdtemp folder (0700, files 0600 by os.open; on Windows the
+  user's own temp folder) removed at exit; `trino.auth.CertificateAuthentication(cert, key)` (trino 0.340).
+  Errors in words: wrong password, no private key, several keys without an alias (their names), an unknown
+  format, pyjks missing (the pip line), no file at the path (the variable that set it, when one did).
+- **Test asks Trino** (server/blade_runner.py): Trino connects on its first query, so a Trino connection's
+  Test runs `SELECT 1` ("signed in"; refused: "Trino did not let it in: ..."). Both Trino ways gain this.
+- **A certificate file setting kind** (domain/certificate_files.py, one place): settings named
+  certificate file (verify, sslrootcert, ssl_ca, ca), keystore, client certificate file (sslcert,
+  ssl_cert) and client key file (sslkey, ssl_key) offer **Path** or **From an environment variable**. Mapped,
+  the code says `verify = os.environ.get("LAKE_CERTIFICATE_FILE", r"C:\certs\ca.pem")` (the variable wins;
+  this computer's path is the default; `import os` written in when missing), read back by ast, so Edit
+  shows it again. The suggestion: `<CONNECTION>_<SETTING>` (WAREHOUSE_CERTIFICATE_FILE), the keystore's
+  always TRINO_KEYSTORE_PATH. No other field is mapped (refused in words). Connection strings (ODBC
+  `Key=value;`) have no certificate file setting in any starter today, so they are not mapped.
+- **The shape a Variables page reads:** the mapping lives in the code only; `blades.env_settings(code)`
+  gives `[{"variable", "setting", "key", "default"}]`; a setting's JSON has `"env": name | null` exactly
+  when it is mappable (absent otherwise).
+- **Export as one script** lists a mapped file as `where = "file"` ("a certificate or keystore file's
+  path; set it to where the file is here (an Azure Function app: an Application setting)"), never its
+  bytes; SETTINGS holds None for it (the code keeps the local default). Not mapped: not listed.
+  **Run settings** list a named connection's mapped files (`files_of`, bootstrap) beside its passwords.
+- **Agent:** `blades_fill` takes `{"value", "env"}` for such a setting; connections_types carries the
+  sign-ins; the connections guide topic says both.
+- Add API has no certificate file setting today, so nothing changed there.

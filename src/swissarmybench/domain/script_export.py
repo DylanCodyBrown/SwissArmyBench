@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 
 from swissarmybench.domain import dataverse, python_connections, streamlit_cells, table_cells
 from swissarmybench.domain import script_runtime as runtime
-from swissarmybench.domain.blades import env_name_for_secret
+from swissarmybench.domain.blades import env_name_for_secret, env_settings
 from swissarmybench.domain.codegen import python_string, variable_name
 from swissarmybench.domain.connections import env_name_for
 from swissarmybench.domain.script_runtime import Secret
@@ -890,10 +890,13 @@ def plan(
         settings += list(piece.secrets)
         if piece.kind == "secret":
             settings += [Secret(n, n, "typed", vault=piece.name) for n in piece.env_names]
+        # A certificate or keystore file mapped to a variable (the file itself never travels).
+        files = [m["variable"] for m in env_settings(piece.code)] if piece.connection else []
+        settings += [Secret(v, v, "file", blade=piece.name, required=False) for v in files]
         settings += [
             Secret(r.name, r.name, "environment", blade=piece.name, required=False)
             for r in python_connections.env_reads(piece.code, piece.read)
-            if not r.required and r.name not in {s.variable for s in piece.secrets}
+            if not r.required and r.name not in {s.variable for s in piece.secrets} and r.name not in files
         ]
     inline = tuple((module, _FUTURE.sub("", code).strip("\n") + "\n") for module, code in clients)
     for module, code in inline:

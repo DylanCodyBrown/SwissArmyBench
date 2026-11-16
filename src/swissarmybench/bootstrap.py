@@ -56,7 +56,7 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import python_connections
-from swissarmybench.domain.blades import Blade
+from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.renamed import env
@@ -277,6 +277,13 @@ def bootstrap(
         except KeyError:
             return None
 
+    def files_of(name: str) -> list[str]:
+        """A connection's certificate and keystore files read from a variable: those variables."""
+        try:
+            return [m["variable"] for m in env_settings(blade_store.get(name).code)]
+        except KeyError:
+            return []
+
     async def vault_environment() -> tuple[dict[str, str], list[str]]:
         """Every vault's entries for a Workbench kernel about to start, and the vaults that failed."""
         job = blade_runner.load_payload(blade_store)
@@ -386,6 +393,7 @@ def bootstrap(
         secrets_of=secrets_of,
         vault_values=vault_values,
         now=time.time,
+        files_of=files_of,
     )
     table_cells = TableCells(ws, datasets.origins)
     project_files = ProjectFiles()

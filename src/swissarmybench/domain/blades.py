@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import python_connections, snippets
+from swissarmybench.domain import certificate_files, python_connections, snippets
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
@@ -633,6 +633,12 @@ KEYWORDS: dict[str, str] = {
     "ca": "certificate file",
     "sslmode": "encryption",
     "trust_server_certificate": "trust server certificate",
+    # A client certificate's files: a keystore (Trino's second way to sign in), or a certificate and key.
+    "keystore": "keystore",
+    "sslcert": "client certificate file",
+    "ssl_cert": "client certificate file",
+    "sslkey": "client key file",
+    "ssl_key": "client key file",
 }
 # The parts of a connection string (ODBC, DB2, OLE DB) that are settings, by their key ignoring case.
 CONNECTION_KEYS: dict[str, str] = {
@@ -711,9 +717,12 @@ class Setting:
     where: str  # keyword, name, argument or connection string
     placeholder: bool  # still a stand-in such as my-server: it needs the person's own value
     suggestions: list[dict[str, str]] = field(default_factory=list)  # {"value", "from"}
+    # A certificate or keystore file read from this environment variable (its value: the default).
+    env: str | None = None
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        mappable = {"env": self.env} if self.name in certificate_files.ENV_MAPPABLE else {}
+        return mappable | {
             "id": self.id,
             "name": self.name,
             "key": self.key,
@@ -737,6 +746,7 @@ class _Found:
     end: int
     raw: bool  # a raw string literal (r"..."): paths keep their backslashes as written
     inside_string: bool  # a Key=value part: the value is text inside a larger string literal
+    # (an environment variable's form: start and end span the whole os.environ.get(...) call)
 
 
 def is_placeholder(value: object) -> bool:
@@ -830,6 +840,32 @@ def _detect(code: str) -> list[_Found]:
             False,
         )
 
+    def add_env(
+        call: ast.expr, variable: str, default: ast.Constant, name: str, key: str, where: str
+    ) -> None:
+        """A certificate or keystore file read from an environment variable, its path the default."""
+        if call.end_lineno is None or call.end_col_offset is None or default.end_lineno is None:
+            return
+        start = _char(lines, starts, call.lineno, call.col_offset)
+        end = _char(lines, starts, call.end_lineno, call.end_col_offset)
+        default_source = code[
+            _char(lines, starts, default.lineno, default.col_offset) : _char(
+                lines, starts, default.end_lineno, default.end_col_offset or 0
+            )
+        ]
+        value = str(default.value)
+        if (start, end) in found or "\n" in value or not _plain_string(default_source):
+            return
+        found[(start, end)] = _Found(
+            Setting(
+                f"{start}:{end}", name, key, value, call.lineno, where, is_placeholder(value), env=variable
+            ),
+            start,
+            end,
+            default_source.lstrip("bBuU")[:1] in ("r", "R"),
+            False,
+        )
+
     def _add_pairs(node: ast.Constant, start: int, end: int) -> None:
         source = code[start:end]
         for match in _PAIR.finditer(str(node.value)):
@@ -881,6 +917,12 @@ def _detect(code: str) -> list[_Found]:
             target, value = statement.target, statement.value
         else:
             continue
+        mapped = certificate_files.env_default(value)
+        if isinstance(target, ast.Name) and mapped is not None:
+            word = KEYWORDS.get(target.id.casefold())
+            if word in certificate_files.ENV_MAPPABLE:
+                add_env(value, mapped[0], mapped[1], word, target.id, "name")
+            continue
         literal = _literal(value)
         if isinstance(target, ast.Name):
             literal = literal or _flag(value, KEYWORDS.get(target.id.casefold()))
@@ -899,6 +941,10 @@ def _detect(code: str) -> list[_Found]:
         if isinstance(node, ast.Call):
             for keyword in node.keywords:
                 word = KEYWORDS.get(keyword.arg.casefold()) if keyword.arg else None
+                mapped = certificate_files.env_default(keyword.value)
+                if keyword.arg and word in certificate_files.ENV_MAPPABLE and mapped is not None:
+                    add_env(keyword.value, mapped[0], mapped[1], word, keyword.arg, "keyword")
+                    continue
                 literal = _literal(keyword.value) or _flag(keyword.value, word)
                 if keyword.arg and literal is not None and keyword.arg.casefold() in KEYWORDS:
                     add(literal, KEYWORDS[keyword.arg.casefold()], keyword.arg, "keyword")
@@ -958,11 +1004,30 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
     Raises FillError when a value cannot go where its setting is."""
     by_id = {f.setting.id: f for f in _detect(code)}
     edits: list[tuple[int, int, str]] = []
+    needs_os = False
     for setting_id, new in values.items():
         spot = by_id.get(setting_id)
         if spot is None:
             raise FillError("The code changed since its settings were read: read them again.")
         old = spot.setting.value
+        variable = spot.setting.env
+        if isinstance(new, dict):  # {"value": path, "env": "NAME" or null}: a certificate file's source
+            if "env" in new:
+                try:
+                    variable = certificate_files.variable_choice(
+                        new.get("env"), spot.setting.name, spot.setting.key
+                    )
+                except certificate_files.MappingError as error:
+                    raise FillError(str(error)) from None
+            new = new.get("value", old)
+        if variable:
+            text = str(new)
+            if "\n" in text:
+                raise FillError(f"{spot.setting.key} is one line of text.")
+            default = _string_literal(text, spot.raw or "\\" in text)
+            edits.append((spot.start, spot.end, certificate_files.expression(variable, default)))
+            needs_os = True
+            continue
         if isinstance(old, bool):  # an on/off setting: True or False
             on = new is True or str(new).strip().casefold() in ("true", "yes", "1", "on")
             edits.append((spot.start, spot.end, "True" if on else "False"))
@@ -997,7 +1062,20 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
         parse_code(code)
     except BladeCodeError as error:
         raise FillError(f"That value would break the code: {error}") from None
-    return code
+    return certificate_files.with_import_os(code) if needs_os else code
+
+
+def env_settings(code: str) -> list[dict[str, str]]:
+    """The certificate and keystore files this code reads from an environment variable: each one's
+    variable, setting (its plain name), key (as the code writes it) and default (this computer's path).
+    The shape the export, Run settings and a Variables page read. [] for code that is not Python."""
+    try:
+        found = detect_settings(code)
+    except BladeCodeError:
+        return []
+    return [
+        {"variable": s.env, "setting": s.name, "key": s.key, "default": str(s.value)} for s in found if s.env
+    ]
 
 
 # ===== suggestions =====

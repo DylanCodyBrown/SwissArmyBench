@@ -542,6 +542,16 @@ def _tested(value: Any) -> dict[str, Any]:
         if path.is_file():
             return made | {"found": f"a file of {path.stat().st_size:,} bytes"}
         return {"error": f"{path} is not there: check the path (and that this computer can reach it)."}
+    if module.startswith("trino."):  # Trino connects on its first query: one, so Test signs in
+        from swissarmybench.adapters.blade_run import BladeRunError
+
+        try:
+            cursor = value.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchall()
+        except Exception as error:  # the driver's own: refused, unreachable, a certificate it would not take
+            raise BladeRunError(f"Trino did not let it in: {type(error).__name__}: {error}") from None
+        return made | {"found": "signed in"}
     tester = getattr(value, "tested", None)
     if module == "__blade__" and callable(tester):  # its own Test (a Dataverse environment's): rows too
         said = tester(TEST_ROWS)

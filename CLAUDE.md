@@ -133,6 +133,12 @@ src/swissarmybench/
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
                          placeholders, suggestions, written back), Blade, parse_blade, Template
+    certificate_files.py a certificate or keystore file setting (verify, sslrootcert, sslcert, sslkey, keystore)
+                         as a path or `os.environ.get("NAME", r"<this computer's path>")`: read back, written,
+                         `import os` added; blades.env_settings lists the mappings (export, Run settings)
+    keystores.py         Trino's client certificate: the keystore read inside the connection's own code
+                         (PKCS#12 by cryptography, JKS/JCEKS by pyjks, by its first bytes), its key and chain
+                         as 0600 PEM files removed at exit; the two sign-ins' code
     snippets.py          snippets (a blade kind): text for a cell with <<name>> placeholders, what each asks
                          for (read from its name), a value written safely for where it stands (DAX, Python, HTML)
     packages.py          the pip packages a blade's imports need (re-exported by blades.py)
@@ -506,7 +512,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
                          test_architecture.py (the layers, the depth, the plain client),
-                         powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
+                         trino_standin.py (a Trino over HTTPS asking for a client certificate; made-up
+                         keystores), powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
                          workspace of three made-up datasets), dataverse_standin.py (a Dataverse environment's
                          Web API, its metadata and its sign-ins: a made-up company's accounts, contacts and
                          opportunities), orders_service.py (a made-up web service
