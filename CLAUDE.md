@@ -59,7 +59,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
 - **Record verification results** in [docs/verified.md](docs/verified.md); decisions and open
   notes go in [docs/ideas.md](docs/ideas.md).
 - **Data is sensitive.** Use only made-up data in tests, examples and screenshots. Keep the
-  posture: 127.0.0.1 only, token on every data route, DuckDB locked (`adapters/database.py`),
+  posture: 127.0.0.1 only, token on every data route (or, for the pages, the `sab_<port>` cookie the
+  token buys once: HttpOnly, SameSite=Strict, a per-start secret, our own Origin on unsafe methods;
+  `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).

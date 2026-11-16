@@ -6,7 +6,7 @@
  * a table or column its quoted name.
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
-import { connect, onNotice, openedWith } from "./api";
+import { connect, onNotice, openedWith, requireSession } from "./api";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { betaMark, mountBeta } from "./betaNotes";
@@ -17,6 +17,8 @@ watchTheme();
 const detail = document.getElementById("detail") as HTMLElement;
 const liveNote = document.querySelector<HTMLElement>(".cat-live");
 let editing = false; // the save screen holds work not saved yet
+// No token and no good cookie (a bookmark after a restart): the page says how to open the app.
+void requireSession();
 
 function showWelcome(): void {
   editing = false;

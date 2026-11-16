@@ -46,7 +46,7 @@
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
-import { agentApi, api, ApiError, connect, onNotice, openedWith, tellFocus, token } from "./api";
+import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
 import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
@@ -2399,6 +2399,8 @@ const COMMANDS: Command[] = [
 registerCommands(COMMANDS);
 registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
 registerCommands(updateCommands()); // Update to X, What's new, Check for updates
+// No token and no good cookie (a bookmark after a restart): the page says how to open the app.
+void requireSession();
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
 // What is sent to the agent or the Sandbox names the document it came from.

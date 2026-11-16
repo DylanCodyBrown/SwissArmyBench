@@ -422,6 +422,14 @@ Origin; no telemetry, no outbound calls but one: the update check.
   `swissarmybench` (GitHub's latest release if PyPI cannot be read) which version is the latest. The
   request carries nothing but itself (no identifiers, no data); Settings' "Check for updates" turns it
   off, and then nothing is sent.
+- The token stays (any website could otherwise call 127.0.0.1), but the user never sees or handles it
+  (the owner's call, 2026-11-16). A page opened with `#token=` keeps it in the tab and clears the
+  address bar, and trades it once at `/session` for a cookie: `sab_<port>`, HttpOnly (no script reads
+  it), SameSite=Strict (no other site's request carries it), Path=/, a random secret of that start's
+  own kept in memory (never the token; a restart ends it, and `start`, `open` and the tray give the
+  token again). The cookie counts only with the Host and Origin checks, and on POST, PUT, PATCH and
+  DELETE only with our own Origin header. So a bookmark works; a browser with neither is told to open
+  the app from its tray or with `swissarmybench open`. Agents and the push client keep the Bearer token.
 
 **11.2 Lock the engine.** The query engine cannot read or write files, reach the network or load
 extensions, and does not spill to disk; the app's own code does file work.

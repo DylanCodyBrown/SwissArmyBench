@@ -13,6 +13,19 @@ request and either short-circuits with a status code or passes it on. Two checks
    set headers on a WebSocket, so the grid page sends the token as a WebSocket subprotocol
    instead (`new WebSocket(url, ["swissarmybench", token])`); that keeps it out of the URL and
    so out of the server's access log.
+3. Or the page's cookie (the owner's call, 2026-11-16: the user never sees or handles the token, and
+   a bookmark works). A page opened with the token posts it once to /session, which answers with a
+   cookie `sab_<port>`: HttpOnly (the page's script cannot read it), SameSite=Strict (the browser
+   sends it on no request another site starts), Path=/, no Secure (plain http on 127.0.0.1). Its
+   value is not the token but a separate random secret made at each start and kept in memory only:
+   a restart ends it, and the page then needs the token again, which `start`, `open` and the tray
+   give. The cookie counts only with the Host and Origin checks above, and on an unsafe method
+   (POST, PUT, PATCH, DELETE) only with our own Origin header present (defence in depth beside
+   SameSite). The websocket takes it too. The agent, the push client and VS Code keep the Bearer
+   token from the connection file.
+
+A page asked for in the browser (GET, Accept: text/html) with no token and no valid cookie gets a
+plain page that says how to open the app (its tray icon, `swissarmybench open`), not the 401 text.
 
 A notebook's live Streamlit pages (/streamlit/live/<app>-<secret>/..., server/streamlit_proxy.py)
 skip the token check too, for any method and for their websocket: a frame's address cannot carry a
@@ -32,7 +45,7 @@ from __future__ import annotations
 import secrets
 
 from starlette.datastructures import Headers
-from starlette.responses import PlainTextResponse
+from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
@@ -47,6 +60,22 @@ _PUBLIC_PATHS: frozenset[str] = frozenset({"/", "/workspace", "/catalog", "/work
 # A notebook's live Streamlit pages: the path's own secret is checked by the route.
 _SECRET_PATH: str = "/streamlit/live/"  # noqa: S105 (a path, not a secret)
 
+# The plain page for a browser that asks with no token and no valid cookie (a bookmark after a restart).
+SIGNED_OUT_PAGE: str = (
+    "<!doctype html><html><head><meta charset='utf-8'><title>Swiss Army Bench</title>"
+    "<style>body{font:15px system-ui,sans-serif;margin:48px;color:#1c2228;background:#eef1f4}"
+    "@media(prefers-color-scheme:dark){body{color:#e6e9ec;background:#1c2228}}code{font-size:14px}</style>"
+    "</head><body><p>Open Swiss Army Bench from its tray icon, or run <code>swissarmybench open</code>.</p>"
+    "</body></html>"
+)
+UNSAFE_METHODS: frozenset[str] = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def cookie_name(port: int) -> str:
+    """The page's cookie, named for the port: cookies are shared by every port of a host."""
+    return f"sab_{port}"
+
+
 _MESSAGES: dict[int, str] = {
     401: "Missing or wrong token. Clients read it from the server's connection file.",
     403: "Refused: only this computer's own grid pages and clients may call it.",
@@ -56,9 +85,12 @@ _MESSAGES: dict[int, str] = {
 class LocalOnlyGuard:
     """ASGI middleware enforcing the Host, Origin and token checks."""
 
-    def __init__(self, app: ASGIApp, port: int, token: str) -> None:
+    def __init__(self, app: ASGIApp, port: int, token: str, session: str | None = None) -> None:
         self._app = app
         self._token: bytes = token.encode("ascii")
+        # The page's cookie value: a secret of this start's own (None: no cookie is accepted).
+        self._session: bytes | None = session.encode("ascii") if session else None
+        self._cookie = cookie_name(port)
         self._allowed_hosts: frozenset[str] = frozenset({f"127.0.0.1:{port}", f"localhost:{port}"})
         self._allowed_origins: frozenset[str] = frozenset(f"http://{host}" for host in self._allowed_hosts)
 
@@ -74,6 +106,12 @@ class LocalOnlyGuard:
         elif scope["type"] == "websocket":
             # Closing before accepting makes the server answer the upgrade with HTTP 403.
             await WebSocket(scope, receive, send).close(code=1008)
+        elif (
+            status == 401
+            and scope["method"] == "GET"
+            and "text/html" in Headers(scope=scope).get("accept", "")
+        ):
+            await HTMLResponse(SIGNED_OUT_PAGE, status_code=401)(scope, receive, send)
         else:
             await PlainTextResponse(_MESSAGES[status], status_code=status)(scope, receive, send)
 
@@ -92,7 +130,22 @@ class LocalOnlyGuard:
         public = path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
         if scope["type"] == "http" and scope["method"] == "GET" and public:
             return None
-        return None if self._has_token(scope, headers) else 401
+        if self._has_token(scope, headers):
+            return None
+        if self._has_cookie(headers):
+            # The cookie on an unsafe method: only with our own Origin (a browser sends it on these).
+            unsafe = scope["type"] == "http" and scope["method"] in UNSAFE_METHODS
+            return 403 if unsafe and origin not in self._allowed_origins else None
+        return 401
+
+    def _has_cookie(self, headers: Headers) -> bool:
+        if self._session is None:
+            return False
+        for part in headers.get("cookie", "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == self._cookie and secrets.compare_digest(value.encode("latin-1"), self._session):
+                return True
+        return False
 
     def _has_token(self, scope: Scope, headers: Headers) -> bool:
         # Header values arrive decoded as latin-1, so re-encoding them is lossless.

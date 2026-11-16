@@ -2663,3 +2663,16 @@ for workspaces.
   menu route (`/updates/tray`) is plumbing (tests/test_cli.py NOT_COMMANDS).
 - **Not built:** a menu item per workspace and New workspace (workspaces are not built); a Windows toast
   with buttons (pystray's notification is plain text).
+- **The token out of sight, and bookmarks (the owner, 2026-11-16, "yes fold them in"):** the owner asked
+  why the app needs a token to open. It stays (any website could otherwise call 127.0.0.1), but the user
+  never sees or handles it. The pages already cleared `#token=` from the address bar (api.ts keeps it in
+  the tab's session storage); now each page trades it once at `POST /session` for the `sab_<port>`
+  cookie (HttpOnly, SameSite=Strict, Path=/, no Secure; its value a per-start secret in memory, never
+  the token). The guard takes the cookie beside the Bearer token, only with the Host and Origin checks,
+  and on POST, PUT, PATCH and DELETE only with our own Origin header; the websocket takes it too. A
+  page with neither says "Open Swiss Army Bench from its tray icon, or run `swissarmybench open`." (the
+  page's script for the page shells; the guard's plain page for any other address a browser asks for).
+  Pop-out windows still get the token in their fragment; the Streamlit proxy keeps its path secret.
+  Agents, the push client and VS Code keep the Bearer token. Found on the way: catalogPage.ts mounts
+  beta mode inside the blade editor's `closed` callback (a stray indent from an earlier merge), so the
+  blades page's Beta mark appears only after an editor closes; left as it was, reported.

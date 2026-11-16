@@ -8718,3 +8718,10 @@ body.panel-off-grid-status .statusbar {
     grid-template-columns: minmax(0, 1fr) 220px;
   }
 }
+
+/* No token and no good cookie (api.ts showSignedOut): how to open the app, nothing else. */
+.signed-out {
+  margin: 48px;
+  color: var(--fg);
+  font-size: 15px;
+}

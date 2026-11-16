@@ -27,7 +27,7 @@
  * Finder; both follow the same server state through the WebSocket, so edits show in every window.
  */
 import { mountContextMenus } from "./cellMenu";
-import { api, connect, gridId, onNotice, openedWith, token, type Notice } from "./api";
+import { api, connect, gridId, onNotice, openedWith, requireSession, token, type Notice } from "./api";
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
@@ -172,10 +172,7 @@ async function startSingle(): Promise<void> {
 }
 
 async function start(): Promise<void> {
-  if (!token) {
-    document.body.append(h("p", { class: "status-error", style: { padding: "16px" } }, "No token in the address. Open the full grid URL."));
-    return;
-  }
+  if (!(await requireSession())) return; // no token and no good cookie: how to open the app
   // Beta mode (the beta log and Leave a note…): on every window of this page; nothing while it is off.
   mountBeta("grid", {
     window: popout ? "steps" : keysWindow ? "keys" : "main",

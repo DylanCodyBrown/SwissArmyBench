@@ -132,6 +132,40 @@ export const token: string = (() => {
   if (fromUrl) history.replaceState(null, "", location.pathname + location.search);
   return found;
 })();
+/** The page's session (security.py): with the token, the server answers with its cookie (HttpOnly,
+ * SameSite=Strict, a secret of this start's own, never the token), so a bookmark or a new tab works
+ * with no token in the address. False when neither the token nor a cookie is good (a restart since):
+ * the page then says how to open the app. */
+export async function openSession(): Promise<boolean> {
+  try {
+    if (token) {
+      const minted = await fetch("/session", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (minted.ok) return true;
+    }
+    return (await fetch("/session")).ok;
+  } catch {
+    return false;
+  }
+}
+
+/** The page for a browser with no token and no good cookie: how to open the app, nothing else. */
+export function showSignedOut(): void {
+  const page = document.createElement("main");
+  page.className = "signed-out";
+  page.append("Open Swiss Army Bench from its tray icon, or run ");
+  const code = document.createElement("code");
+  code.textContent = "swissarmybench open";
+  page.append(code, ".");
+  document.body.replaceChildren(page);
+}
+
+/** Every page's start: the session, or the page that says how to open the app (false). */
+export async function requireSession(): Promise<boolean> {
+  if (await openSession()) return true;
+  showSignedOut();
+  return false;
+}
+
 /** This page's id: request generations are counted per page, so two tabs on one grid never
  * make each other's requests look stale. */
 export const clientId: string = Math.random().toString(36).slice(2, 12);
@@ -159,7 +193,8 @@ export function errorText(e: unknown): string {
 }
 
 function headers(json: boolean): Record<string, string> {
-  const out: Record<string, string> = { Authorization: `Bearer ${token}` };
+  // No token in this tab (a bookmark): the page's cookie is the credential, sent by the browser itself.
+  const out: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (json) out["Content-Type"] = "application/json";
   return out;
 }
@@ -260,7 +295,7 @@ export function connect(onState: (live: boolean, again: boolean) => void, who: R
   const open = (): void => {
     // ?grid= tells the server which grid this page shows (?workspace=1: a tab bar that shows every
     // grid), so a push knows its grid is on screen and opens no new window.
-    const socket = new WebSocket(`ws://${location.host}/ws?${new URLSearchParams(who).toString()}`, ["swissarmybench", token]);
+    const socket = new WebSocket(`ws://${location.host}/ws?${new URLSearchParams(who).toString()}`, token ? ["swissarmybench", token] : ["swissarmybench"]);
     let live = false;
     socket.addEventListener("open", () => {
       live = true;

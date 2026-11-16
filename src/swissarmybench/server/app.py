@@ -40,13 +40,14 @@ All DuckDB work runs on the priority worker pool (adapters/database.py), never o
 from __future__ import annotations
 
 import asyncio
+import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -89,6 +90,7 @@ from swissarmybench.server.security import (
     OLD_WEBSOCKET_SUBPROTOCOL,
     WEBSOCKET_SUBPROTOCOL,
     LocalOnlyGuard,
+    cookie_name,
 )
 from swissarmybench.settings import Settings
 
@@ -106,6 +108,17 @@ def create_app(
     """Build the app for a server listening on 127.0.0.1:`port` that accepts `token`."""
     ctx = bootstrap(port, token, settings, on_shutdown, audit_log)
     settings, workers = ctx.settings, ctx.workers
+    # The pages' cookie (security.py): a secret of this start's own, never the token, in memory only.
+    session_secret = secrets.token_urlsafe(32)
+
+    async def session(request: Request) -> Response:
+        # The guard let the request in (the token, or a good cookie). POST: the cookie for this start.
+        answer = JSONResponse({"ok": True})
+        if request.method == "POST":
+            answer.set_cookie(
+                cookie_name(port), session_secret, httponly=True, samesite="strict", path="/", secure=False
+            )
+        return answer
 
     async def live(websocket: WebSocket) -> None:
         # Echo our subprotocol only when the client offered it (browsers do; others may not).
@@ -209,13 +222,14 @@ def create_app(
             Route("/g/{grid_id}", grid_page),
             # The bare address goes to the app's page; the browser keeps the #token fragment across it.
             Route("/", lambda request: RedirectResponse("/workspace", status_code=307)),
+            Route("/session", session, methods=["GET", "POST"]),
             Route("/workspace", workspace_page),
             Route("/catalog", catalog_page),
             Route("/workbench", workbench_page),
             Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[
-            Middleware(LocalOnlyGuard, port=port, token=token),
+            Middleware(LocalOnlyGuard, port=port, token=token, session=session_secret),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
         ],
         lifespan=lifespan,

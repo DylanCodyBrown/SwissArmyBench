@@ -1598,3 +1598,17 @@ drags; code of more than one line is pasted, one typed value):
   window hidden; `uv tool install --force` over a running MCP server on Windows (files in use: the note
   says so, untested); an update from PyPI itself (no newer release exists yet); the installers run on
   Windows PowerShell 5.1 and macOS with the new step (the release workflow runs them).
+- **The cookie (tests/test_session_cookie.py, tests/e2e/test_session_page.py, Chromium):** only the
+  token mints it (no credential, a wrong token: 401); HttpOnly, SameSite=Strict, Path=/, no Secure, named
+  `sab_<port>`, its value not the token; it reads data like the token, another port's name or the token
+  as its value does not; an unsafe method with it needs our own Origin (none, or another site's: 403),
+  the Bearer token needs none; after a restart the old cookie gets the plain page (401, the words, no
+  data), the page shell still loads; the websocket opens with it and refuses a wrong one or another
+  site's Origin. In Chromium: the address bar shows the page with no fragment after load, the cookie is
+  HttpOnly and Strict and `document.cookie` is empty, a reload works, a new tab at the bare `/workspace`
+  (empty session storage) shows the table and takes a live push over the websocket, the bare
+  `/workbench` loads; a browser with no cookie gets the words on `/workspace`, `/workbench`, `/catalog`
+  and a data address. Pop-out windows, the Streamlit proxy and the grid page's own tests pass after the
+  change (tests/e2e/test_workbench_groups.py, test_streamlit_page.py, test_ui.py, test_steps_page.py:
+  93 passed). **Not checked:** Edge, Firefox and Safari's cookie handling on 127.0.0.1; VS Code's Simple
+  Browser (it keeps the token in the address it was given).
