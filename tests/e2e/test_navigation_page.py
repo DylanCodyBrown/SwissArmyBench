@@ -299,8 +299,10 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     page.wait_for_timeout(300)
     assert len(page.context.pages) == pages
     assert "/workbench" in workbench.url  # never the Workbench window sent away instead
-    # With the home window closed, the mark opens it again.
+    # With the home window closed, the mark opens it again (once the Workbench sees it closed: a window
+    # still closing is found by its name and brought forward, and no new one opens).
     page.close()
+    workbench.wait_for_function("() => !window.opener || window.opener.closed")
     workbench.bring_to_front()
     with workbench.context.expect_page() as again:
         workbench.keyboard.press("Alt+Home")
