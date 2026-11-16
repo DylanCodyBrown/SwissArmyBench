@@ -161,6 +161,7 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "secrets": list(inspected.get("secrets", [])),
         "packages": inspected.get("packages", []),
         "install_here": inspected.get("install_here"),
+        "missing": inspected.get("missing"),  # the one shape the missing-package prompt reads
         "vault_mapping": list(template.get("vault_mapping") or []),
         "vault_all": bool(template.get("vault_all")),
         # Ways to sign in, each its own code (SQL Server, Azure SQL): the form's Sign in.

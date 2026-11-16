@@ -397,7 +397,7 @@ class Workbench:
             usage = ""  # a SQL cell's error is IPython's usage error, written to stderr
             async for item in kernel.execute(code, stdin=stdin):
                 if "error_detail" in item:
-                    item = {"error_detail": errors.explain_detail(item["error_detail"])}
+                    item = {"error_detail": errors.explain_detail(item["error_detail"], kernel.python)}
                 elif item.get("output_type") == "stream" and item.get("name") == "stderr":
                     usage = (usage + str(item.get("text", "")))[-20_000:]
                 if "done" in item and kind in ("sql", "dax") and "UsageError" in usage:

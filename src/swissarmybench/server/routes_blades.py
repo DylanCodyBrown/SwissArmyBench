@@ -128,8 +128,8 @@ def routes(blades: BladeService) -> list[BaseRoute]:
     def _needs(error: NeedsValues) -> Response:
         return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
 
-    def _run_failed(error: RefreshError) -> Response:
-        return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+    def _run_failed(error: RefreshError, name: str | None = None) -> Response:
+        return json_response(blades.run_failure(str(error), error.missing_module, name), status_code=422)
 
     async def refresh(request: Request) -> Response:
         try:
@@ -138,7 +138,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         except NeedsValues as error:
             return _needs(error)
         except RefreshError as error:
-            return _run_failed(error)
+            return _run_failed(error, request.path_params["name"])
         except Exception as error:
             return error_response(error)
 
@@ -149,7 +149,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         except NeedsValues as error:
             return _needs(error)
         except RefreshError as error:
-            return _run_failed(error)
+            return _run_failed(error, request.path_params["name"])
         except Exception as error:
             return error_response(error)
 
@@ -167,7 +167,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         except NeedsValues as error:
             return _needs(error)
         except RefreshError as error:
-            return _run_failed(error)
+            return _run_failed(error, body.get("name") if isinstance(body, dict) else None)
         except Exception as error:
             return error_response(error)
 

@@ -898,7 +898,9 @@ export function notebookView(
           } else toast(`No cell above defines ${fix.name}`, "error");
           return;
         }
-        if (!hooks.fix?.(fix)) toast("Fix not available here", "error");
+        // Installed, the cell runs again (the missing-package prompt's retry).
+        const again = fix.kind === "install" ? { again: () => void run(running) } : {};
+        if (!hooks.fix?.({ ...fix, ...again })) toast("Fix not available here", "error");
       },
       goTo: (frame) => {
         const target = shown ? cellOf(frame, shown, running) : null;

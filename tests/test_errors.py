@@ -66,9 +66,23 @@ def test_a_missing_module_is_installed_by_its_package_name() -> None:
         }
     )
     assert told["fixes"] == [
-        {"kind": "install", "title": "Install 'scikit-learn' here", "package": "scikit-learn"}
+        {
+            "kind": "install",
+            "title": "Install 'scikit-learn' here",
+            "package": "scikit-learn",
+            "module": "sklearn",
+        }
     ]
     assert "'scikit-learn'" in told["explanation"]
+    # The kernel's Python known, the run says it in the one missing-package shape (the prompt's).
+    detail = {"chain": [{"type": "ModuleNotFoundError", "message": "x", "facts": {"module": "sklearn"}}]}
+    assert errors.explain_detail(detail, "/envs/shop/bin/python")["missing"] == {
+        "feature": "This code",
+        "packages": ["scikit-learn"],
+        "python": "/envs/shop/bin/python",
+        "command": "uv pip install --python /envs/shop/bin/python scikit-learn",
+    }
+    assert "missing" not in errors.explain_detail(detail)
 
 
 def test_a_missing_column_lists_the_columns_and_the_close_one() -> None:

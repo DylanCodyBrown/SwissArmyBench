@@ -20,8 +20,8 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import controllers, projects, thin_cells
 from swissarmybench.domain import streamlit_cells as rules
-from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
+from swissarmybench.domain.packages import missing_packages
 from swissarmybench.domain.streamlit_cells import Page
 from swissarmybench.services.streamlit import App, StreamlitApps
 from swissarmybench.services.streamlit_ports import ProjectFiles
@@ -120,12 +120,8 @@ class Controllers:
         if missing:
             return {
                 "page": page.id,
-                "problem": {
-                    "kind": "missing",
-                    "packages": missing,
-                    "python": python,
-                    "command": install_command(missing, python),
-                },
+                "problem": {"kind": "missing"}
+                | missing_packages("Test this page", missing, python, own=False),
             }
         self._testing.add((app.id, page.id))
         await self._apps.ws.live.broadcast({"type": "streamlit_changed", "app": app.id})

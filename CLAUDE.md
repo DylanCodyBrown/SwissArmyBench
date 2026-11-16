@@ -141,7 +141,9 @@ src/swissarmybench/
                          as 0600 PEM files removed at exit; the two sign-ins' code
     snippets.py          snippets (a blade kind): text for a cell with <<name>> placeholders, what each asks
                          for (read from its name), a value written safely for where it stands (DAX, Python, HTML)
-    packages.py          the pip packages a blade's imports need (re-exported by blades.py)
+    packages.py          the pip packages a blade's imports need (re-exported by blades.py); a missing package
+                         said one way everywhere: {"missing": {feature, packages, python ("app" or a path),
+                         command}}, the feature in plain words, MissingPackagesError (422 with it)
     stats.py             the shared statistics: chi-square, t, F and normal distributions, effect sizes
     analysis.py          the Analyze menu's math and query text: the fit test (Benford, Nigrini), outliers
                          (amount fences, frequency on two scales), odds (ratios, Woolf's range), buckets,
@@ -454,7 +456,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
                          its form and the Insert a snippet… picker;
-                         fileChooser.ts picks real paths. The Workbench (static/workbench.html, its own
+                         fileChooser.ts picks real paths. missingPackages.ts is the one missing-package
+                         prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
+                         Not now, no nagging this session), used by every place that finds one; The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
                          status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a

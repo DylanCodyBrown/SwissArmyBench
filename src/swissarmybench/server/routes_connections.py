@@ -34,6 +34,8 @@ The use cases are services/connections.py.
 
 from __future__ import annotations
 
+from typing import Any
+
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
@@ -107,7 +109,8 @@ def routes(
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 
@@ -126,7 +129,8 @@ def routes(
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 
@@ -137,7 +141,8 @@ def routes(
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 
@@ -149,7 +154,8 @@ def routes(
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 
@@ -162,7 +168,8 @@ def routes(
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 
@@ -179,7 +186,8 @@ def routes(
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 
@@ -190,12 +198,17 @@ def routes(
             return error_response(error)
 
     async def test(request: Request) -> Response:
+        body: Any = None
         try:
-            return json_response(await connections.test(await read_json(request)))
+            body = await read_json(request)
+            return json_response(await connections.test(body))
         except NeedsValues as error:
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
         except RefreshError as error:
-            return json_response(blades.run_failure(str(error), error.missing_module), status_code=422)
+            said = body if isinstance(body, dict) else {}
+            name = said.get("name") if isinstance(said.get("name"), str) else None
+            failed = blades.run_failure(str(error), error.missing_module, name or None, said.get("template"))
+            return json_response(failed, status_code=422)
         except Exception as error:
             return error_response(error)
 

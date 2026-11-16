@@ -372,6 +372,13 @@ def test_a_python_without_streamlit_says_so_with_install(
     expect(cell).to_have_class(re.compile("kind-streamlit"))
     cell.locator(".monaco-editor").click()
     workbench.keyboard.press("Control+Enter")
+    # The prompt in the user's face (the owner, 2026-11-16): Not now leaves the cell's Install.
+    prompt = workbench.locator("dialog.missing-packages")
+    expect(prompt.locator("h2")).to_contain_text("Streamlit apps needs streamlit", timeout=LONG)
+    sentence = prompt.locator(".missing-sentence")
+    expect(sentence).to_contain_text("Streamlit apps will not work without streamlit")
+    prompt.get_by_role("button", name="Not now").click()
+    expect(prompt).to_have_count(0)
     expect(cell.locator(".wb-design-notes")).to_contain_text("streamlit", timeout=LONG)
     expect(cell.locator(".wb-design-notes")).to_contain_text("not installed in this document's Python")
     expect(cell.get_by_role("button", name="Install")).to_be_visible()
@@ -412,6 +419,10 @@ def test_a_python_without_streamlit_says_so_with_install(
     workbench.get_by_role("button", name="Play", exact=True).click()
     expect(workbench.locator(".cv-problem")).to_contain_text("not installed", timeout=LONG)
     expect(workbench.locator(".cv-install")).to_be_visible()
+    expect(prompt).to_have_count(0)  # Not now holds for the session: no nagging
+    workbench.locator(".cv-install").click()  # asked for: the prompt again
+    expect(prompt.get_by_role("button", name="Install now")).to_be_visible()
+    prompt.get_by_role("button", name="Not now").click()
     expect(workbench.locator(".cv-board")).to_be_visible()  # nothing to show: the blocks stay
     workbench.close()
 

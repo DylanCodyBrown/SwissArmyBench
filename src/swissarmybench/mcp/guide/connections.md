@@ -25,7 +25,9 @@ a variable by its name.
 - Passwords: write `secret("WAREHOUSE_PASSWORD")` in the code and never a value.
   `connections_password_source` points one at the keyring, an environment variable or a vault's entry.
   `blades_secrets` saves values the user gives you; nothing reads one back.
-- A missing driver: the test says so; `blades_install` installs it into the app's own Python.
+- A missing package: any answer may carry `missing` {feature, packages, python, command} (a form,
+  `blades_inspect`, a failed test or refresh, a YAML API document). `python` "app": `blades_install`
+  them into the app's own Python, then do it again. The user sees the same as a prompt.
 - Ways to sign in: a type's `sign_ins` each carry their own code. Trino: a password, or a client
   certificate from a keystore file (PKCS#12, JKS, JCEKS; `keystore`, `keystore_alias`,
   `secret("TRINO_KEYSTORE_PASSWORD")`; JKS needs the pyjks package).

@@ -39,6 +39,7 @@ from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.packages import blade_feature, connection_feature, missing_packages
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.workspace import Workspace
@@ -189,12 +190,23 @@ class BladeService:
         ]
         return [s.to_json() for s in rules.suggest_settings(found, others, self._environ)]
 
+    def feature(self, template: str | None, name: str | None = None) -> str:
+        """What a connection or blade is for, in plain words, for the missing-package prompt."""
+        starter = next((t for t in self._templates if t.id == template), None) if template else None
+        if starter is not None and connection_rules.is_connection(starter.kind, starter.id):
+            return connection_feature(starter.id, starter.label)
+        return blade_feature(name)
+
     def inspect(self, code: str, template: str | None = None, name: str | None = None) -> dict[str, Any]:
         """What code makes, asks for, imports and needs (nothing saved or run)."""
         found = rules.read_code(code, "The code")
         packages = self._packages(code)
         missing = [p.pip for p in packages if not p.installed]
         return {
+            # The one shape the page's prompt and the agent read (domain/packages.py).
+            "missing": missing_packages(self.feature(template, name), missing, self._python, own=True)
+            if missing
+            else None,
             "variable": found.variable,
             "assigned": found.assigned,
             "secrets": found.secrets,
@@ -480,13 +492,34 @@ class BladeService:
             "blade": blade.name,
         }
 
-    def run_failure(self, message: str, missing_module: str | None) -> dict[str, Any]:
-        """What the page shows for a failed run: the message, and the install when a module is missing."""
+    def run_failure(
+        self, message: str, missing_module: str | None, name: str | None = None, template: Any = None
+    ) -> dict[str, Any]:
+        """What the page shows for a failed run: the message, and the install when a module is missing
+        (the one shape: the blade's or connection's feature, the package, the app's Python)."""
         content: dict[str, Any] = {"error": message}
         if missing_module:
             pip, _ = pip_name(missing_module)
-            content |= {"missing": pip, "install_here": install_command([pip], self._python)}
+            content |= {
+                "missing": missing_packages(
+                    self.feature(template, name) if isinstance(template, str) else self.feature_of(name),
+                    [pip],
+                    self._python,
+                    own=True,
+                ),
+                "install_here": install_command([pip], self._python),
+            }
         return content
+
+    def feature_of(self, name: str | None) -> str:
+        """A saved blade's feature: its connection kind's ("Trino connections"), else "The X blade"."""
+        try:
+            saved = self._blades.get(name) if name else None
+        except (LookupError, ValueError):
+            saved = None
+        if saved is not None and saved.template:
+            return self.feature(saved.template, name)
+        return blade_feature(name)
 
     def for_python(self, name: str) -> dict[str, Any]:
         """What sab.blade() runs in the caller's Python. Secret values included: only the user's own

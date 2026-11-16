@@ -458,7 +458,8 @@ their own, run in an IPython kernel on this computer.
   Each cell's More menu runs the cells above or below, duplicates, clears or hides the output.
 - **When code fails:** the error panel says what happened in plain words, where in your code (click
   to go there), and offers fixes with one click: use the close name, add the missing import, install
-  the missing package into this environment, run the cell that makes a name. It shows the values of
+  the missing package into this environment (asked for at once: Install now runs it again), run the
+  cell that makes a name. It shows the values of
   the failing expression at that moment and the function's variables; library frames are folded; the
   full traceback is behind a toggle. In the editor the failing expression is underlined, its message
   sits at the line's end, the hover shows the explanation and Ctrl+. offers the same fixes. A SQL
@@ -493,7 +494,7 @@ Click a card for its **detail**:
 
 - **Every database form reads in the same order:** the server, the port and the catalog or database; then the user and the password, each under its own label; then the certificate file and **Trust server certificate** together.
 - **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows.
-- **A driver that is not installed** is said under the form with its install command and an **Install** button beside it, which installs it into Swiss Army Bench's own Python. The note goes when the install is done.
+- **A package that is not installed** is asked for at once, in a window of its own: "Key Vault connections needs azure-identity", **Install now** or **Not now**. Install now puts it into Swiss Army Bench's own Python with uv, shows it working, says done or what went wrong, and then carries on with what you were doing. Not now leaves a small **Install azure-identity** button on the form, with the command for your own Python beside it, and does not ask again until you reopen the app. The same window comes up wherever a package is missing: a connection's form or test, a blade, an analysis blade, a YAML API document, a Streamlit app, Test this page, and a notebook cell that stops on an import.
 - **A password from a key vault:** choose the vault, and **Entry in the vault** lists the vault's secrets by name (never a value). Picking one applies it. A secret the vault does not list can be named by hand (**A secret by name…**).
 
 - **SQL Server and Azure SQL** ask how to sign in: **Windows sign-in**, **User name and password** (a SQL login; the password from any of the three places) or **MFA (Microsoft Entra)**, which opens Microsoft's sign-in window. Switching keeps the server and database you typed. **Trust server certificate** is a checkbox (off by default; tick it for a server whose certificate this computer does not know, such as a self-signed one), and so is **Encrypt**.
@@ -615,7 +616,7 @@ columns appear as `table#1`, `col#3`.
 - **Passwords** go in the code as `secret("password")`. Type the value on the save screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
 - **Analysis blades** are your own analyses. Pick **Analysis** as the kind (or a starter: a summary of every column, a Pareto of the selected column, correlations): the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Visualizations**.
 - **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable. **Secret blades** keep only variable names: you type the values once per session.
-- **Packages:** the save screen lists the packages the code needs. **Install** adds missing ones to the grid server's Python; the copy button gives the command for your own Python.
+- **Packages:** the save screen lists the packages the code needs. A missing one is asked for as the blade opens (**Install now**, **Not now**), and **Install <package>** asks again; they go into the grid server's Python. The copy button gives the command for your own Python.
 - **The catalog:** tick **Add to the catalog** and give a query that lists the source's columns (the starters have one). **Save and refresh the catalog** on the save screen loads it, and **Refresh** (the play button beside the catalog picker) loads it again: every schema, table and column with its type, as a tree you can search (`sales.orders` finds schema and table). Click a table for its columns and a first SELECT. Drag a blade into a script or a cell for its `sab.blade` line (on a line of its own, after the line you drop it on), or a table or column for its quoted name (where you drop it). **Open as grid** names the grid after the table, or after the connection and the table (`Warehouse_customers`) when a table of that name is already open from somewhere else.
 - **Find a blade:** the search box above the blades matches names, descriptions and tags, and the tag chips under it narrow the list. Give a blade a description and tags on its save screen (tag it with the app it serves, and searching for that app finds it). The star pins a favourite to the top.
 - **Share a blade:** **Export** on its save screen downloads it as one `.blade.py` file (its code under a short header; passwords never go in it). The download arrow above the blades exports them all as a zip. To bring blades in, press the up arrow or drop the files on the blades: you see each blade's code first, and choose what happens when a name is taken. Importing runs nothing.
@@ -927,8 +928,9 @@ cells. There is no Streamlit kind of cell: write Python.
   unsaved changes and its running kernel go with it. **Move to the main window** brings it back. Drag
   a cell (or a Streamlit cells entry) from one window onto a canvas in the other.
 - **Streamlit is not installed with Swiss Army Bench.** It runs in the notebook's own Python (its
-  environment). If that Python lacks it, the cell or the canvas says so and offers **Install**
-  (streamlit, pandas and pyarrow, into that Python).
+  environment). If that Python lacks it, Play asks at once: "Streamlit apps needs streamlit, pandas
+  and pyarrow", **Install now** (into that Python, then it plays) or **Not now** (the cell or the
+  canvas keeps an **Install** button).
 - **Export…** writes a folder that runs alone: `app.py`, `app_pages/`, the data as Parquet in
   `data/`, `requirements.txt`. Run it with `streamlit run app.py`. A page with a Markdown or HTML
   block that names a value comes with `sab_text.py` beside `app.py`: the rules that fill the names,

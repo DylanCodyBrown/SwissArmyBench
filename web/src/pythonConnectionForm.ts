@@ -19,6 +19,7 @@
  */
 import { api, errorText } from "./api";
 import { button, clear, h, toast } from "./dom";
+import { type Missing, promptForError, promptInstall, reminder } from "./missingPackages";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { backButton } from "./nav";
 import { effectiveTheme } from "./theme";
@@ -298,7 +299,7 @@ export function showPythonForm(host: PythonFormHost): void {
       const same = found.variables.map((v) => v.name).join() === reads.map((v) => v.name).join();
       reads = found.variables;
       if (!same) drawVariables(); // the same names keep their boxes (and what is typed in them)
-      void readPackages();
+      void readPackages(true);
     } catch {
       // the boxes are being typed: the names follow when they read again
     }
@@ -306,32 +307,23 @@ export function showPythonForm(host: PythonFormHost): void {
 
   // ===== a package the boxes import that the app's Python does not have =====
   const installSlot = h("div", {});
-  const readPackages = async (): Promise<void> => {
-    let found: { install_here: string | null; packages?: { pip: string; installed: boolean }[] };
+  // The prompt comes in the user's face as the form opens (`ask`), not while a box is typed in; the small
+  // Install reminder stays beside the boxes (missingPackages.ts).
+  const readPackages = async (ask = false): Promise<void> => {
+    let found: { missing?: Missing | null };
     try {
       found = await api("/blades/inspect", "POST", { code: [connect.value(), tables.value(), read.value()].join("\n"), template: "python", name: editing });
     } catch {
       return; // a box that is not Python yet
     }
-    if (!found.install_here) {
+    const missing = found.missing;
+    if (!missing) {
       installSlot.replaceChildren();
       return;
     }
-    const missing = (found.packages ?? []).filter((p) => !p.installed).map((p) => p.pip);
-    const state = h("span", { class: "hint", role: "status" });
-    const go = button("Install", () => {
-      go.disabled = true;
-      state.textContent = "Installing…";
-      void api("/blades/install", "POST", { packages: missing }).then(
-        () => void readPackages(),
-        (e: Error) => {
-          go.disabled = false;
-          state.textContent = "";
-          failed(e);
-        },
-      );
-    }, { icon: "export", title: "Into this app's own Python" });
-    installSlot.replaceChildren(h("p", { class: "hint install-note" }, "Not installed: ", h("code", {}, found.install_here), go, state));
+    const options = { then: () => readPackages() };
+    if (ask) void promptInstall(missing, options);
+    installSlot.replaceChildren(h("p", { class: "hint install-note" }, reminder(missing, options), h("code", {}, missing.command)));
   };
 
   // ===== test and save =====
@@ -361,6 +353,7 @@ export function showPythonForm(host: PythonFormHost): void {
       result.replaceChildren(h("p", { class: "status-ok" }, `It works: ${pythonWorked(r) ?? `made a ${r.type}`}.`), ...(r.preview ? tablePreview(r.preview) : []));
     } catch (e) {
       failed(e);
+      promptForError(e, { then: () => test() }); // stopped on a missing package: install it, then test again
     }
   };
   const save = async (): Promise<void> => {

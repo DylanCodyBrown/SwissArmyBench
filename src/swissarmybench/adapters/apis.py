@@ -11,6 +11,7 @@ services/apis.py the use case).
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.domain import apis
+from swissarmybench.domain.packages import MissingPackagesError, missing_packages
 
 MAX_SPEC_BYTES: int = apis.MAX_SPEC_CHARS
 MAX_CLIENT_BYTES: int = 20_000_000
@@ -69,8 +71,9 @@ class SpecSource:
         try:
             import yaml  # type: ignore[import-untyped]  # optional: PyYAML is not a dependency of the app
         except ImportError:
-            raise apis.ApiError(
-                "This OpenAPI document is YAML, and this Python has no PyYAML to read it: give it as JSON."
+            # The one missing-package answer: the page's prompt offers PyYAML (into the app's Python).
+            raise MissingPackagesError(
+                missing_packages("Reading YAML API documents", ["PyYAML"], sys.executable, own=True)
             ) from None
         try:
             found = yaml.safe_load(text)

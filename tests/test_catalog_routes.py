@@ -202,7 +202,13 @@ def test_a_failing_refresh_says_why_and_what_to_install(client: TestClient) -> N
     assert client.post("/blades", json=blade, headers=AUTH).status_code == 200
     failed = client.post("/blades/Snow/refresh", headers=AUTH)
     assert failed.status_code == 422
-    assert failed.json()["missing"] == "snowflake-connector-python"
+    # The one missing-package shape: what the prompt says, and what the agent installs with blades_install.
+    assert failed.json()["missing"] == {
+        "feature": "The Snow blade",
+        "packages": ["snowflake-connector-python"],
+        "python": "app",
+        "command": failed.json()["install_here"],
+    }
     assert "uv pip install --python" in failed.json()["install_here"]
 
 
