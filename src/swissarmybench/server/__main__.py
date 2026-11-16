@@ -3,7 +3,12 @@
     uv run swissarmybench                 start (reuses the last port when it is free)
     uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
     uv run swissarmybench status          is one running, and where
+    uv run swissarmybench open            open the running app's page in the browser
     uv run swissarmybench stop            ask the running one to shut down
+
+Started by hand, it opens the app's page in the default browser once it listens (--no-browser not to),
+and prints the page's full address. The token is in the address's fragment (#token=...), which a
+browser never sends over the network.
 
 Swiss Army Bench lives in VS Code: its extension runs this command when VS Code opens (with
 SWISSARMYBENCH_STARTED_BY=vscode), and a server it started stops once no VS Code window has been
@@ -24,8 +29,11 @@ import secrets
 import sys
 import threading
 import time
+import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 from types import FrameType
+from typing import Any
 
 import uvicorn
 
@@ -70,10 +78,17 @@ class _Server(uvicorn.Server):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Swiss Army Bench server on localhost.")
-    parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "status"])
+    parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "status", "open"])
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open the page when it starts.")
     args = parser.parse_args()
     path = info_file_path()
+
+    if args.command == "open":
+        if not open_page(path):
+            print("Swiss Army Bench is not running. Start it with: swissarmybench start")
+            sys.exit(1)
+        return
 
     if args.command == "status":
         info = running_server(path)
@@ -95,13 +110,36 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        start(args.port)
-    except (AlreadyRunningError, AlreadyStartingError, PortError) as error:
+        start(args.port, browser=not args.no_browser)
+    except AlreadyRunningError as error:
+        # Already running: open its page, which is what someone starting it again wants.
+        if not args.no_browser and env("SWISSARMYBENCH_NO_BROWSER", "") != "1" and open_page(path):
+            print("Swiss Army Bench is already running: its page is open in your browser.")
+            return
+        print(error, file=sys.stderr)
+        sys.exit(1)
+    except (AlreadyStartingError, PortError) as error:
         print(error, file=sys.stderr)
         sys.exit(1)
 
 
-def start(port: int | None) -> None:
+def page_address(info: dict[str, Any]) -> str:
+    """The app's page with its token in the fragment (never sent over the network)."""
+    return f"http://127.0.0.1:{info['port']}/#token={info['token']}"
+
+
+def open_page(path: Path | None = None) -> bool:
+    """Open the running app's page in the default browser. False when none is running."""
+    info = running_server(path or info_file_path())
+    if info is None:
+        return False
+    address = page_address(info)
+    print(address)
+    webbrowser.open(address)
+    return True
+
+
+def start(port: int | None, browser: bool = True) -> None:
     # Swiss Army Bench was SwissArmyGrid: its state folder moves on the first start (renamed.py).
     moved = move_state_folder(in_use=lambda old_info: running_server(old_info) is not None)
     if moved:
@@ -160,6 +198,11 @@ def start(port: int | None) -> None:
         },
     )
     print(f"Swiss Army Bench {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
+    address = page_address({"port": actual_port, "token": token})
+    print(f"Open it: {address}")
+    if browser and started_by != "vscode" and env("SWISSARMYBENCH_NO_BROWSER", "") != "1":
+        # The socket already listens: a browser that asks now waits for the server's first answer.
+        threading.Timer(0.5, webbrowser.open, args=(address,)).start()
     if started_by == "vscode":
         live: LiveUpdates = app.state.ctx.live
         threading.Thread(

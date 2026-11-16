@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,9 @@ from starlette.testclient import TestClient
 
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
+
+# A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
+os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")
 
 PORT = 8765
 TOKEN = "test-token"

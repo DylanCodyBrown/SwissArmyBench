@@ -127,7 +127,7 @@ def main() -> None:
         SWISSARMYBENCH_OPEN="0",
     )
     log = (state / "server.log").open("w")
-    server = subprocess.Popen([command, "start"], stdout=log, stderr=subprocess.STDOUT)
+    server = subprocess.Popen([command, "start", "--no-browser"], stdout=log, stderr=subprocess.STDOUT)
     try:
         info_path = state / "server.json"
         for _ in range(120):
