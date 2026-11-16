@@ -1649,7 +1649,17 @@ drags; code of more than one line is pasted, one typed value):
   Chromium counts a click just before a reload as the user's for a moment, so the reloaded page pushed
   its own address: the page's start now only replaces.
 - **Existing tests changed:** tests/e2e/test_workbench_page.py's Connections Back buttons are named for
-  where they go ("Back to Add connection", "Back to Connections").
+  where they go ("Back to Add connection", "Back to Connections"); test_ui.py's keyboard test: the first
+  Tab stop is now the mark (Home), then the tabs.
+- **The update's helper stops what else runs from the tool's folder (Windows; tests/test_updater.py with
+  the Ops stand-in):** the plan carries `stop_in` only on Windows; the helper's steps are wait, stop,
+  install, check, start; with no folder nothing is stopped; the real one does nothing off Windows. **Not
+  checked:** the PowerShell process list on Windows itself (no Windows here).
+- **The whole suite on navigation** (Chromium, Streamlit 1.67 in its own Python, before 0.0.5 merged):
+  3,016 passed, 33 skipped, 2 failed, 16 minutes. The keyboard test failed for the mark's new Tab stop
+  (changed, above); `test_chart_clicks_filter_by_date_by_heatmap_cell_and_never_by_a_whole_line` fails
+  under the full run's load and passes alone. After merging 0.0.5: the updater, updates, navigation, CLI
+  and architecture tests (263 passed).
 - **Not checked:** Edge and Firefox (the tests run Chromium here; `navigator.userActivation` and named
   windows are in both); a mouse's back button and Alt+Left by hand (the browser's own Back, which the
   tests drive); the Windows taskbar's titles; bringing a window forward is the browser's choice (the
