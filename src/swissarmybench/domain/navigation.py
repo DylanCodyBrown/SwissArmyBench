@@ -1,9 +1,11 @@
 """Getting around (the owner, 2026-11-16: "there is no navigation in the app to get back to the home page or
 go back anywhere"): the places an agent can send a window to, as `app_navigate` names them.
 
-The rail (web/src/rail.ts) names the areas, the same from every window. The pages keep their views in
-the address (web/src/nav.ts): the home page's tabs, the dialogs over it
-(Settings, Connections and its forms), the blades page's catalog and editor. The agent moves them as the
+The rail (web/src/rail.ts) names the areas, the same from every window; each is a page (the owner,
+2026-11-16: "clicking the rail should land on a page not open a form"). The pages keep their views in
+the address (web/src/nav.ts): the home page's tabs, the Settings and Connections pages over any page
+(open=settings, open=connections: a connection's detail and its forms), the blades page's catalog and
+editor, the Workbench's landing page for a kind (?kind=notebook&view=list). The agent moves them as the
 user does: Home (the mark), Back and Forward (the browser's own), or a named view where the page has one.
 Pure rules, no I/O: a request read into the notice the window acts on.
 """
@@ -35,13 +37,14 @@ AREAS: tuple[str, ...] = (
 SAME: dict[str, str] = {}
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
 CODE: tuple[str, ...] = ("notebooks", "scripts", "apps")
-# Every window: home (the mark), the rail's areas, the browser's Back and Forward, and the forms
-# inside Connections.
+# Every window: home (the mark), the rail's areas, the browser's Back and Forward, a connection's
+# detail on the Connections page, and the forms inside Connections.
 EVERYWHERE: tuple[str, ...] = (
     "home",
     *AREAS,
     "back",
     "forward",
+    "connection:<name>",
     "add_connection",
     "add_api",
 )
@@ -51,7 +54,7 @@ OWN: dict[str, tuple[str, ...]] = {
     "catalog": ("catalog", "catalog:<name>[/<schema>[/<table>]]", "blade:<name>", "new_blade"),
     "workbench": (),
 }
-NAMED: tuple[str, ...] = ("grid", "catalog", "blade")
+NAMED: tuple[str, ...] = ("grid", "catalog", "blade", "connection")
 MAX_NAME: int = 512
 
 
@@ -76,7 +79,7 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
     kind, _, name = to.partition(":")
     wanted = kind if name or kind in NAMED else to
     allowed = {p.partition(":")[0] for p in places(window)}
-    if wanted not in allowed or (kind in ("grid", "blade") and not name):
+    if wanted not in allowed or (kind in ("grid", "blade", "connection") and not name):
         raise NavigationError(
             f"The {window} window cannot go to {to!r}. It can go to: {', '.join(places(window))}."
         )
@@ -92,7 +95,7 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
         notice["new_window"] = True
     if kind == "grid":
         notice["grid"] = name
-    elif kind == "blade":
+    elif kind in ("blade", "connection"):
         notice["name"] = name
     elif kind == "catalog" and name:
         parts = name.split("/", 2)

@@ -328,6 +328,10 @@ class StreamlitApps:
         """The open documents whose windows hold changes their files do not (asked before an update)."""
         return [app.title for app in self._apps.values() if app.unsaved]
 
+    def documents(self) -> list[str]:
+        """The files the documents open in a Workbench window hold (saved ones: notebooks, scripts, apps)."""
+        return [app.document for app in self._apps.values() if app.document]
+
     def listing(self) -> dict[str, Any]:
         return {"apps": [self._summary(app) for app in self._apps.values()]}
 

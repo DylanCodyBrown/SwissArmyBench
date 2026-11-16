@@ -22,6 +22,11 @@ answer holds a password's value:
   POST   /connections/variables       your own Python: the environment variables its three boxes read
                                       {code, tables, read} (names only; nothing runs)
   POST   /connections/{name}/tables   your own Python: run List the tables now; the tables it named
+  GET    /connections/usage           the Connections page's cards: each one's type, status word (a cheap
+                                      check, never a run) and calls this session
+  GET    /connections/{name}/usage    one connection: where it is used (cells, canvas blocks, open grids),
+                                      its configuration (never a password's value), its calls this session
+  POST   /connections/{name}/used     {kind}: a Workbench kernel's call (client/connection_use.py)
 
 Removing, secrets, Refresh, favourites and export are the blade routes' (routes_blades.py).
 The use cases are services/connections.py.
@@ -38,10 +43,31 @@ from swissarmybench.server.blade_runner import RefreshError
 from swissarmybench.server.http import actor, error_response, json_response, read_json
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.catalog_loading import CatalogLoading
+from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
 
 
-def routes(connections: ConnectionService, blades: BladeService, loading: CatalogLoading) -> list[BaseRoute]:
+def routes(
+    connections: ConnectionService, blades: BladeService, loading: CatalogLoading, usage: ConnectionUsage
+) -> list[BaseRoute]:
+    async def overview(request: Request) -> Response:
+        try:
+            return json_response(usage.overview())
+        except Exception as error:
+            return error_response(error)
+
+    async def used_by(request: Request) -> Response:
+        try:
+            return json_response(usage.usage(request.path_params["name"]))
+        except Exception as error:
+            return error_response(error)
+
+    async def report(request: Request) -> Response:
+        try:
+            return json_response(usage.report(request.path_params["name"], await read_json(request)))
+        except Exception as error:
+            return error_response(error)
+
     async def listing(request: Request) -> Response:
         try:
             return json_response(connections.listing())
@@ -177,6 +203,9 @@ def routes(connections: ConnectionService, blades: BladeService, loading: Catalo
         Route("/connections", listing),
         Route("/connections", save, methods=["POST"]),
         Route("/connections/types", types),
+        Route("/connections/usage", overview),
+        Route("/connections/{name}/usage", used_by),
+        Route("/connections/{name}/used", report, methods=["POST"]),
         Route("/connections/test", test, methods=["POST"]),
         Route("/connections/vaults", vaults),
         Route("/connections/vaults/secrets", vault_names, methods=["POST"]),

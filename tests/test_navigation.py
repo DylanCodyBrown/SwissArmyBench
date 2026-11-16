@@ -41,6 +41,13 @@ def test_each_window_names_the_places_it_has() -> None:
         "name": "refresh_sales",
     }
     assert rules.place("workbench", "forward") == {"window": "workbench", "to": "forward"}
+    # A connection's detail on the Connections page (2026-11-16), from every window.
+    for window in rules.WINDOWS:
+        assert rules.place(window, "connection:Warehouse") == {
+            "window": window,
+            "to": "connection",
+            "name": "Warehouse",
+        }
     assert "grid:<id>" in rules.places("home") and "query" not in rules.places("workbench")
 
 
@@ -86,6 +93,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         ("catalog", "grid:g1", "The catalog window cannot go to 'grid:g1'"),
         ("home", "grid:", "cannot go to 'grid:'"),
         ("catalog", "blade:", "cannot go to 'blade:'"),
+        ("workbench", "connection:", "cannot go to 'connection:'"),
         ("catalog", "catalog:Warehouse//orders", "catalog:<name>/<schema>/<table>"),
         ("home", "grid:" + "g" * 600, "longer than 512"),
     ],

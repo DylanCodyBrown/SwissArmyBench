@@ -45,6 +45,7 @@ CLIENT_MODULES = (
     "swissarmybench.client",
     "swissarmybench.client.push_client",
     "swissarmybench.client.blades_client",
+    "swissarmybench.client.connection_use",
     "swissarmybench.client.standalone",
     "swissarmybench.client.sandbox_client",
     "swissarmybench.client.completion",

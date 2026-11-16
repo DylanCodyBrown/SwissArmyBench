@@ -60,7 +60,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.client import blades_client, standalone
+from swissarmybench.client import blades_client, connection_use, standalone
 from swissarmybench.client.push_client import ServerNotRunningError
 from swissarmybench.domain import dataverse
 from swissarmybench.renamed import env
@@ -519,10 +519,21 @@ def _run_database(target: Any, sql: str) -> Any:
 
 
 def run(found: Connection, sql: str) -> Any:
-    """The SQL on the connection: a DataFrame (or rows), or a line saying what changed."""
+    """The SQL on the connection: a DataFrame (or rows), or a line saying what changed. In a Workbench
+    kernel the app counts the query (client/connection_use.py)."""
     text = sql.strip()
     if not text:
         raise SqlCellError(f"The cell has no {'DAX' if found.language == 'dax' else 'SQL'} to run.")
+    try:
+        answer = _run(found, text)
+    except Exception:
+        connection_use.report(found.name, "query", ok=False)
+        raise
+    connection_use.report(found.name, "query")
+    return answer
+
+
+def _run(found: Connection, text: str) -> Any:
     if found.kind == "database":
         try:
             return _run_database(found.target, text.rstrip(";") if text.count(";") == 1 else text)

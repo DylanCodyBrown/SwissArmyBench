@@ -46,8 +46,9 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 - `app_navigate(to, window, new_window)`: move a window as the user does. `home` (the mark), `back`,
   `forward`; the rail's areas from any window: `grids` (= home), `sandbox`, `diagram`, `notebooks`,
   `scripts`, `apps` (the Workbench in that kind's mode; `new_window=true`: a Workbench window of its
-  own), `blades`, `connections`, `settings`; the home window's `query`, `grid:<id>`; `add_connection`,
-  `add_api`.
+  own; each lands on its kind's page of documents), `blades`, `connections` (the Connections page),
+  `settings` (the Settings page); `connection:<name>` (a connection's detail: where it is used, its
+  configuration, its calls); the home window's `query`, `grid:<id>`; `add_connection`, `add_api`.
   The blades page (`window="catalog"`): `catalog:<name>/<schema>/<table>`, `blade:<name>`, `new_blade`.
   Views are in the page's address, so the user's Back undoes your move too.
 - `agent_events`: wait for the user's next change instead of polling. `app_shutdown` stops the server.

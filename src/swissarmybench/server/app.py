@@ -204,7 +204,9 @@ def create_app(
             *routes_cards.routes(ctx.cards),
             *routes_catalog.routes(ctx.catalogs),
             *routes_blades.routes(ctx.blades),
-            *routes_connections.routes(ctx.connections, ctx.blades, ctx.catalog_loading),
+            *routes_connections.routes(
+                ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
+            ),
             *routes_apis.routes(ctx.apis),
             *routes_folders.routes(ctx.folders),
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),

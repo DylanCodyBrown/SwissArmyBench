@@ -31,7 +31,7 @@ from swissarmybench.adapters.blade_run import (
     run_vault,
     set_variables,
 )
-from swissarmybench.client import standalone
+from swissarmybench.client import connection_use, standalone
 from swissarmybench.client.push_client import (
     ServerNotRunningError,
     _arrow_bytes,
@@ -156,7 +156,10 @@ def blade(name: str) -> Any:
     if spec["kind"] == "secret":
         _ask(list(spec["env_names"]), str(spec["name"]))
         return list(spec["env_names"])
-    return _made(spec)[0]
+    made = _made(spec)[0]
+    if spec["kind"] != "vault":  # a connection's (the app counts only those), in a Workbench kernel only
+        connection_use.report(str(spec["name"]), "connect")
+    return made
 
 
 def _made(spec: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
@@ -208,9 +211,11 @@ def read(connection: str, table: str, schema: str = "", limit: int | None = None
     try:
         rows, _ = read_table(names, command, schema, table, limit, spec["secrets"], str(spec["name"]))
     except BladeRunError as error:
+        connection_use.report(str(spec["name"]), "read", ok=False)
         if error.missing_module:
             raise ImportError(missing_module_hint(error.missing_module)) from None
         raise
+    connection_use.report(str(spec["name"]), "read")  # counted in a Workbench kernel only
     return rows
 
 
