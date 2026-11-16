@@ -22,7 +22,7 @@ def test_right_click_and_send_buttons_put_details_in_the_sandbox(
     toast = page.locator(".toast").last
 
     def sandbox_has(*titles: str) -> None:
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         for title in titles:
             expect(page.locator("#ai-panel .card-header h3", has_text=title).first).to_be_visible(
                 timeout=20000

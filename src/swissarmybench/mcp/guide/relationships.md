@@ -1,7 +1,7 @@
 # Keys and relationships
 
 One relationship model: each table's primary key and the joins between tables. Known joins line up a
-compare by themselves; the Diagram tab draws the model of the open tables.
+compare by themselves; the Diagram draws the model of the open tables.
 
 - Tangs are saved, shared sets of relationships (`.tang` files). `relationships_library` lists them
   (the user's and the team's) and `relationships_apply_library` applies one. Check here first.

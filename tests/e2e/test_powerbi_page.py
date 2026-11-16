@@ -65,7 +65,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     dialog = page.locator("dialog")
 
     # The form: the workspace's id and the sign-in. No dataset is asked for.
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="Power BI workspace").click()
     expect(dialog.get_by_role("combobox", name="Sign in")).to_have_value("0")  # the app registration first
@@ -176,7 +176,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     expect(pane.locator(".ag-row[row-index='0'] [col-id='Planned']")).to_have_text("1250")
 
     # The Diagram draws that one dataset's joins, its Date under the name its grid has.
-    page.locator(".tab-erd").click()
+    page.locator(".nav-rail [data-area='diagram']").click()
     erd = page.locator("#erd-view")
     expect(erd.locator(".erd-diagram svg")).to_be_visible(timeout=60000)
     drawn = erd.locator(".erd-diagram svg")

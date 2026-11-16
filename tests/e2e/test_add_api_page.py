@@ -88,7 +88,7 @@ def test_add_api_from_a_file_and_from_the_form(
     dialog = page.locator("dialog")
 
     # ===== from an OpenAPI file =====
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add API").click()
     expect(dialog.locator("h3")).to_have_text("Add API")
     dialog.get_by_role("button", name="File…").click()

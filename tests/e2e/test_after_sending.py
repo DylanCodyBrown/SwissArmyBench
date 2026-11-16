@@ -35,7 +35,7 @@ def test_send_to_sandbox_keeps_the_window_and_show_goes_to_the_card(
         # One action from here: Show closes the window and the Sandbox has the card in view.
         toast.get_by_role("button", name="Show").click()
         expect(page.locator("dialog[open]")).to_have_count(0)
-        expect(page.locator(".tab-agent")).to_have_class(re.compile("active"))
+        expect(page.locator(".nav-rail [data-area='sandbox']")).to_have_attribute("aria-current", "page")
         card = page.locator("#ai-panel .card.arrived")
         expect(card).to_have_count(1, timeout=10000)
         expect(card).to_be_in_viewport()

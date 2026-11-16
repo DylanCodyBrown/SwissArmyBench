@@ -1,7 +1,7 @@
 # The Workbench
 
 Notebooks (`.ipynb`) and scripts (`.py`) on IPython kernels on this computer, in a browser window of
-their own (the grid page's Workbench tab opens it; code never opens in the grid page).
+their own (the rail's Notebooks, Scripts and Apps open it; code never opens in the grid page).
 
 ## Files and kernels (no window needed)
 - `workbench_home` (default folder, recent files), `workbench_open`, `workbench_save` (refused if the

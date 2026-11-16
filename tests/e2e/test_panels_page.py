@@ -64,7 +64,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         expect(grid.locator(".statusbar")).to_be_visible(timeout=20000)
         expect(grid.locator(".ribbon")).to_be_hidden()
         # On again, from the grid page's Settings this time.
-        grid.locator(".app-row").get_by_role("button", name="Settings").click()
+        grid.locator(".nav-rail [data-area='settings']").click()
         grid_panels = grid.locator("dialog[open] fieldset", has_text="Panels")
         expect(grid_panels.get_by_label("Console")).not_to_be_checked()
         grid_panels.get_by_label("Console").check()

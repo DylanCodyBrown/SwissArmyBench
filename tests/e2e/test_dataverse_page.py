@@ -57,7 +57,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     dialog = page.locator("dialog")
 
     # The form: the environment's address and the sign-in; As you comes first.
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     tile = page.locator(".connection-type", has_text="Dataverse")
     expect(tile.locator("svg")).to_have_count(1)  # its own icon

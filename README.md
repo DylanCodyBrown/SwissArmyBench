@@ -121,7 +121,7 @@ What a grid page does:
   sides ticked, and compare keeps both grids aligned row by row (outer, anti, cross, or diff: only
   the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
   lists every table: open, closed (each with Open) and in your Python sessions.
-- **The Sandbox tab** (always first): a dashboard of cards for any table: Vega-Lite charts, notes,
+- **The Sandbox** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
   result tables, Mermaid and Graphviz diagrams, Plotly and ECharts figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
   wheel zoom, and clicking a bar filters the grid. The page loads nothing from the internet: figures

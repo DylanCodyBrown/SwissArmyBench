@@ -134,7 +134,7 @@ def test_settings_check_for_updates_turns_it_off_and_on(
     try:
         mark = page.locator(".statusbar .update-mark")
         expect(mark).to_be_visible()
-        page.locator(".app-row").get_by_role("button", name="Settings").click()
+        page.locator(".nav-rail [data-area='settings']").click()
         switch = page.get_by_label("Check for updates")
         expect(switch).to_be_checked()
         shot(page, "update-settings.png", full_page=False)

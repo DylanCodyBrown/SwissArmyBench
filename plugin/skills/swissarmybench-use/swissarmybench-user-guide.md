@@ -41,7 +41,7 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 
 The page has these parts:
 
-- **Tab bar.** The Sandbox, Diagram and Workbench tabs come first and cannot be closed. Each open grid has its own tab after them. Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
+- **Tab bar.** Each open grid has its own tab (the Sandbox, Diagram and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
 - **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: **Settings**, **Connections**, **Blades and catalog**, **Tour** (the question mark) and **Zoom**: a one-minute tour of every word Swiss Army Bench uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
@@ -55,7 +55,7 @@ The page has these parts:
 - **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Sandbox**, **Diagram**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
   - From the Workbench or another window, Grids, Sandbox and Diagram bring the grids' window to the front; Notebooks, Scripts and Apps bring the Workbench forward with that kind of document in front (or offer New and your recent files of that kind). Apps opens the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
   - **Right-click** Notebooks, Scripts or Apps (or Ctrl+click, or middle-click) for **Open in a new window**: a Workbench window of its own, for another screen.
-  - Settings' **Panels** has a switch for the rail (Navigation rail) if you would rather have the room.
+  - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Sandbox, Diagram, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the forms inside Connections, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
 - **Reload** (F5 on the grid page) keeps what you were looking at, the Sandbox, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
@@ -275,9 +275,9 @@ The Compare row in the ribbon switches the mode.
 - A compare survives a reload of the page: the two grids come back side by side, in the same mode.
 - **Stop compare** returns to two independent grids. The side-by-side view stays, with no keys.
 
-## The Sandbox tab
+## The Sandbox
 
-The Sandbox tab is the first tab. It is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
+The Sandbox (the rail's second icon) is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
@@ -363,7 +363,7 @@ Draw ERD adds a copy of the diagram to the Sandbox; the ERD tab always shows the
 
 ## The ERD tab
 
-The ERD tab sits right after the Sandbox tab and can't be closed. It draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
+The Diagram (on the rail, after the Sandbox) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
 
 ![The Diagram tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)
 

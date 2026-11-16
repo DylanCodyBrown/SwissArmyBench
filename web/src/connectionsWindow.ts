@@ -236,11 +236,6 @@ export function connectionIcon(type: string | null | undefined, group: keyof typ
   return type && hasIcon(type) ? type : GROUP_ICONS[group];
 }
 
-/** The Application row's button. */
-export function connectionsButton(): HTMLButtonElement {
-  return button("Connections", () => void openConnections(), { icon: "link", class: "ribbon-btn" });
-}
-
 // ===== the window's views in the address (nav.ts): open=connections, then at= types | form&type= |
 // edit&name= | api. The browser's Back and Forward move between them; a reload comes back to the same one.
 const KEYS = ["at", "type", "name"];

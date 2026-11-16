@@ -21,8 +21,8 @@
  *             aria-current="page"; it follows every move (onAddress), Back and Forward too.
  *   [KEYS]    one stop in the Tab order (a toolbar): the arrows move between the areas, Enter goes;
  *             Alt+Home is Home (the Start view) everywhere (nav.ts).
- *   [PANEL]   Settings' Panels has its switch (app.rail): off, the rail is gone and the page takes its
- *             width back.
+ *   [ALWAYS]  No switch (the owner, 2026-11-16): the rail is the one way to the areas, so the top tabs and
+ *             the Application row no longer repeat them.
  *   [AGENT]   app_navigate's areas run here (setAreaRunner), as a click would (new_window too).
  *
  * Another window's area reaches the window that shows it as a message from this origin ({sab: "area"});

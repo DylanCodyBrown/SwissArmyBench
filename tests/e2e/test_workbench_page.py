@@ -65,7 +65,7 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     browser: Browser, orders_url: str, server: dict[str, Any], orders_csv: Path
 ) -> None:
     page = open_grid(browser, orders_url)
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="CSV file").click()
     # Browse… lists the folder through the server: a real path, which a browser's own picker hides.
@@ -103,7 +103,7 @@ def test_a_file_connection_is_named_after_a_typed_path_and_tested_before_it_is_n
 ) -> None:
     page = open_grid(browser, orders_url)
     dialog = page.locator("dialog")
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="CSV file").click()
     name = dialog.get_by_role("textbox", name="Name", exact=True)
@@ -153,7 +153,7 @@ def test_a_missing_driver_is_installed_from_the_form_and_the_command_stays_in_vi
 
     page.route("**/blades/install", install)
     page.route("**/blades/inspect", inspect)
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="Trino").click()
     note = dialog.locator(".install-note")
@@ -173,7 +173,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     certificate file and Trust server certificate together."""
     page = open_grid(browser, orders_url)
     dialog = page.locator("dialog")
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
 
     def labels() -> list[str]:
@@ -256,7 +256,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
     page = open_grid(browser, orders_url)
     dialog = page.locator("dialog")
     try:
-        page.locator(".app-row").get_by_role("button", name="Connections").click()
+        page.locator(".nav-rail [data-area='connections']").click()
         page.get_by_role("button", name="Add connection").click()
         page.locator(".connection-type", has_text="PostgreSQL").click()
         dialog.get_by_role("combobox", name="Where Password comes from").select_option("vault")
@@ -342,7 +342,7 @@ def test_sql_server_signs_in_three_ways_and_trusts_a_certificate_on_a_tick(
 ) -> None:
     page = open_grid(browser, orders_url)
     dialog = page.locator("dialog")
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="SQL Server").first.click()
     sign_in = dialog.get_by_role("combobox", name="Sign in")
@@ -398,7 +398,7 @@ def status(workbench: Page, toggle: str) -> None:
 
 def open_workbench(page: Page) -> Page:
     with page.context.expect_page() as opened:
-        page.locator(".tab-workbench").click()
+        page.locator(".nav-rail [data-area='notebooks']").click()
     workbench = opened.value
     expect(workbench.locator(".wb-welcome")).to_be_visible(timeout=20000)
     return workbench

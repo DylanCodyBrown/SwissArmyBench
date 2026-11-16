@@ -580,56 +580,7 @@ function render(): void {
   remember("workspace.order", JSON.stringify(order));
   clear(
     tabRow,
-    // The Agent tab: always first, never closed or moved.
-    h(
-      "div",
-      {
-        class: `tab-item tab-app tab-agent ${view === "agent" ? "active" : ""}`,
-        role: "tab",
-        tabindex: view === "agent" ? "0" : "-1",
-        "aria-selected": String(view === "agent"),
-        onclick: () => showAgentView(),
-        onkeydown: (e: KeyboardEvent) => {
-          if (e.key === "ArrowRight" && order[0]) {
-            showGridView();
-            void activateGrid(order[0]);
-          }
-        },
-      },
-      icon("sandbox"), // the rail's own (one icon per area)
-      h("span", { class: "tab-label" }, "Sandbox"),
-    ),
-    // The ERD tab: always second, never closed or moved.
-    h(
-      "div",
-      {
-        class: `tab-item tab-app tab-erd ${view === "erd" ? "active" : ""}`,
-        role: "tab",
-        tabindex: view === "erd" ? "0" : "-1",
-        "aria-selected": String(view === "erd"),
-        title: "Relationship diagram",
-        onclick: () => showErdView(),
-      },
-      icon("diagram"),
-      h("span", { class: "tab-label" }, "Diagram"),
-    ),
-    // The Workbench tab: notebooks and scripts, always in a window of their own (code never sits in
-    // the grid page, so it can go on another screen); this opens it, or brings it forward.
-    h(
-      "div",
-      {
-        class: "tab-item tab-app tab-workbench",
-        role: "tab",
-        tabindex: "-1",
-        "aria-selected": "false",
-        title: "Opens in its own window",
-        onclick: () => openWorkbench(),
-        onkeydown: (e: KeyboardEvent) => { if (e.key === "Enter") openWorkbench(); },
-      },
-      icon("code"),
-      h("span", { class: "tab-label" }, "Workbench"),
-      icon("popout"),
-    ),
+    // Sandbox, Diagram and the Workbench are the rail's (rail.ts, the owner, 2026-11-16): only grids here.
     ...order.map((id) => {
       const selected = id === activeId && view === "grid";
       const inSplit = split?.includes(id) ?? false;

@@ -36,7 +36,7 @@ def test_show_the_math_puts_each_proof_in_the_sandbox(browser: Browser, server: 
         expect(toast).to_contain_text("the math, step by step")
         dialog.get_by_role("button", name="Close").last.click()
 
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         panel = page.locator("#ai-panel")
         odds = panel.locator(".card", has_text="The math: Odds on math_orders")
         expect(odds.locator("table").first).to_be_visible(timeout=20000)

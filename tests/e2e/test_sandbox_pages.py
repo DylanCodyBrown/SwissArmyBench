@@ -34,7 +34,7 @@ def test_cards_move_lay_out_on_pages_and_print(browser: Browser, server: dict[st
     page.add_init_script("window.print = () => { window.__printed = document.body.className; };")
     page.reload()
     try:
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         expect(page.locator("#ai-panel .card")).to_have_count(3)
         assert titles(page) == ["First", "Second", "Third"]
         expect(page.locator("#ai-panel .md-table").first).to_contain_text("46%")  # markdown tables draw
@@ -103,7 +103,7 @@ def test_the_sandbox_exports_as_one_markdown_file_with_pictures(
     )
     page = open_grid(browser, url, width=1400, height=1000)
     try:
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         expect(page.locator("#ai-panel .figure .main-svg").first).to_be_visible(timeout=20000)
         with page.expect_download() as download:
             page.get_by_role("button", name="Export markdown").click()

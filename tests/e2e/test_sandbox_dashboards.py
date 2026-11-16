@@ -21,7 +21,7 @@ def test_save_change_and_open_an_earlier_version(browser: Browser, server: dict[
     toast = page.locator(".toast").last
     try:
         sandbox_client.sandbox("## First reading\n\nNorth leads.", "First reading", key="dash-reading")
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         panel = page.locator("#ai-panel")
         expect(panel.locator(".card-header h3", has_text="First reading")).to_be_visible(timeout=20000)
 

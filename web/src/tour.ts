@@ -26,14 +26,14 @@ interface Stop {
   code?: string;
 }
 
-const BLADES_BUTTON = '.app-row [aria-label="Blades and catalog"]';
+const BLADES_BUTTON = '.nav-rail [data-area="blades"]';
 
 export const STOPS: readonly Stop[] = [
   { icon: "star", word: "Hi!", line: "Your Python tables, live in the browser. A minute of words, then a game." },
   { icon: "rows", word: "Grid", line: "A table you pushed from Python. One tab each.", target: ".tabs-row .tab-item:not(.tab-app)", code: "sab.push(orders)" },
   { icon: "filter", word: "Ribbon", line: "Filter, sort, clean. Your data never changes.", target: ".ribbon" },
   { icon: "steps", word: "Steps", line: "Every click is a step. Ctrl+Z undoes the last; hover the count to remove any one.", target: ".steps-strip" },
-  { icon: "sql", word: "Table cell", line: "Your steps as one DuckDB query, in the table's own read-only cell in the Workbench.", target: ".tabs-row .tab-workbench" },
+  { icon: "sql", word: "Table cell", line: "Your steps as one DuckDB query, in the table's own read-only cell in the Workbench.", target: '.nav-rail [data-area="notebooks"]' },
   { icon: "profile", word: "Profile", line: "A column at a glance: blanks, top values, spread.", target: '.ribbon [aria-label="Profile"]' },
   { icon: "fit", word: "Analyze", line: "Odds, predictors, fit tests and outliers that hand off to each other.", target: '.ribbon [aria-label="Analyze"]' },
   { icon: "fit", word: "Fit test", line: "Do a column's values spread as expected? Chi-square says.", where: "Analyze", target: '.ribbon [aria-label="Analyze"]' },
@@ -43,12 +43,12 @@ export const STOPS: readonly Stop[] = [
   { icon: "columns", word: "Compare", line: "Drag a tab onto another, or right-click it: two tables, row by row.", target: ".tabs-row" },
   { icon: "zoom", word: "Key Finder", line: "Finds the columns two tables share.", target: '.ribbon [aria-label="Key Finder"]' },
   { icon: "crown", word: "Tang", line: "Saved joins between tables. Run one to test it.", where: "Relationships", target: '.ribbon [aria-label="Relationships"]' },
-  { icon: "image", word: "Sandbox", line: "Charts, notes and diagrams on one board.", target: ".tab-agent" },
+  { icon: "image", word: "Sandbox", line: "Charts, notes and diagrams on one board.", target: '.nav-rail [data-area="sandbox"]' },
   { icon: "key", word: "Blade", line: "Saved code that loads data: a database, a file.", where: "Blades and catalog", target: BLADES_BUTTON, code: 'conn = sab.blade("Warehouse")' },
   { icon: "folder", word: "Catalog", line: "Every table and column your blades reach. Search it.", where: "Blades and catalog", target: BLADES_BUTTON },
   { icon: "group", word: "Pack", line: "Blades and tangs your team shares on GitHub.", where: "Blades and catalog, then Packs", target: BLADES_BUTTON },
-  { icon: "code", word: "Notebook", line: "Python and SQL cells, in a window of its own.", where: "Workbench", target: ".tabs-row .tab-workbench" },
-  { icon: "agent", word: "Agent", line: "Your AI helper. Sees what you see, asks before it exports.", where: "Settings", target: '.app-row [aria-label="Settings"]' },
+  { icon: "code", word: "Notebook", line: "Python and SQL cells, in a window of its own.", where: "Notebooks", target: '.nav-rail [data-area="notebooks"]' },
+  { icon: "agent", word: "Agent", line: "Your AI helper. Sees what you see, asks before it exports.", where: "Settings", target: '.nav-rail [data-area="settings"]' },
 ];
 
 const ROUNDS = 5;

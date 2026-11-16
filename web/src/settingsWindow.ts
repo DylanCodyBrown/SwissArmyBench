@@ -93,13 +93,6 @@ function kindColoursSection(): HTMLElement {
   return h("fieldset", { class: "fieldset kind-colours-fieldset" }, h("legend", {}, icon("tag"), "Kind colours"), grid);
 }
 
-export function settingsButton(): HTMLButtonElement {
-  // First in the Application row: always there, whichever tab is open.
-  const btn = button("Settings", () => openSettings(), { icon: "cog", class: "ribbon-btn" });
-  btn.setAttribute("aria-haspopup", "dialog");
-  return btn;
-}
-
 /** What an agent needs to connect: paste it into Claude Code (or any agent that has a shell). The
  * command is the one the installers put on PATH (uv tool install of the wheel). */
 export const MCP_PROMPT = [

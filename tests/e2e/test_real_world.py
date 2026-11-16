@@ -219,7 +219,7 @@ def wait_until(done: Any, seconds: float = 90) -> None:
 def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str, Any]) -> None:
     """Connections, Add connection, a database's form filled in, Test, Save, Close."""
     dialog = page.locator("dialog")
-    act.click(page.locator(".app-row").get_by_role("button", name="Connections"))
+    act.click(page.locator(".nav-rail [data-area='connections']"))
     act.click(page.get_by_role("button", name="Add connection"))
     act.click(page.locator(".connection-type", has_text=kind))
     act.fill(dialog.get_by_label("Name", exact=True), name)
@@ -238,7 +238,7 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
 def open_catalog(act: Actions, page: Page) -> Page:
     """Blades and catalog: a window of its own."""
     with page.context.expect_page() as opened:
-        act.click(page.locator(".app-row").get_by_role("button", name="Blades and catalog"))
+        act.click(page.locator(".nav-rail [data-area='blades']"))
     catalog = opened.value
     expect(catalog.locator('[role="treeitem"]').first).to_be_visible(timeout=LONG)
     return catalog
@@ -259,7 +259,7 @@ def open_as_grid(act: Actions, catalog: Page, table: str, schema: str | None = N
 
 def open_workbench(act: Actions, page: Page) -> Page:
     with page.context.expect_page() as opened:
-        act.click(page.locator(".tab-workbench"))
+        act.click(page.locator(".nav-rail [data-area='notebooks']"))
     workbench = opened.value
     workbench.set_viewport_size({"width": 1600, "height": 950})
     expect(workbench.locator(".wb-welcome")).to_be_visible(timeout=20000)
@@ -819,7 +819,7 @@ def test_6_a_csv_folder_workbook_sheets_and_a_database_table_are_combined_and_th
     expect(tabs.filter(has_text="daily")).to_have_count(1, timeout=LONG)
     # The joins: Find relationships in the Diagram, the likely ones ticked, accepted.
     page.bring_to_front()
-    act.click(page.locator(".tab-erd"))
+    act.click(page.locator(".nav-rail [data-area='diagram']"))
     act.click(page.locator("#erd-view").get_by_role("button", name="Find relationships"))
     found = page.locator("dialog[open] .suggestion-list")
     expect(found).to_be_visible(timeout=LONG)
@@ -854,7 +854,7 @@ def add_finance(act: Actions, page: Page) -> None:
     from tests import powerbi_standin as made_up
 
     dialog = page.locator("dialog")
-    act.click(page.locator(".app-row").get_by_role("button", name="Connections"))
+    act.click(page.locator(".nav-rail [data-area='connections']"))
     act.click(page.get_by_role("button", name="Add connection"))
     act.click(page.locator(".connection-type", has_text="Power BI workspace"))
     act.fill(dialog.get_by_role("textbox", name="Name"), "Finance")
@@ -925,7 +925,7 @@ def test_7_a_power_bi_datasets_tables_and_relationships_are_read_in(
     )
     # Its diagram is there before any table opens (it once said "No relationships yet").
     page.bring_to_front()
-    act.click(page.locator(".tab-erd"))
+    act.click(page.locator(".nav-rail [data-area='diagram']"))
     drawn = page.locator("#erd-view .erd-diagram svg")
     expect(drawn).to_be_visible(timeout=LONG)
     for table in ("Customers", "Order_Lines", "Invoices"):
@@ -1037,7 +1037,7 @@ def test_9_a_forecast_becomes_a_sandbox_report_printed_to_pdf(
     act.click(dialog.get_by_role("button", name="Send to Sandbox"))
     expect(page.locator(".toast").last).to_contain_text("a note and its chart")
     act.click(dialog.get_by_role("button", name="Close").last)
-    act.click(page.locator(".tab-agent"))
+    act.click(page.locator(".nav-rail [data-area='sandbox']"))
     cards = page.locator("#ai-panel .card")
     expect(cards).to_have_count(2, timeout=LONG)  # the note and its chart (once only the note came)
     expect(page.locator("#ai-panel .figure .main-svg").first).to_be_visible(timeout=LONG)

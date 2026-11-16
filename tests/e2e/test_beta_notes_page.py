@@ -74,13 +74,13 @@ def test_notes_on_a_ribbon_button_and_a_grid_cell_and_a_text_box_keeps_its_menu(
         expect(page.locator(".statusbar .beta-mark")).to_have_text("Beta")
 
         # ----- a ribbon button: no menu of its own, so a small one with only the item
-        settings = page.locator(".app-row").get_by_role("button", name="Settings")
+        settings = page.locator(".nav-rail [data-area='settings']")
         shot = str(Path(SHOTS) / "beta-note-form.png") if SHOTS else None
         leave_note(page, settings, "Settings opens too slowly", shot=shot)
         first = notes(server)[-1]
         assert first["text"] == "Settings opens too slowly" and first["page"] == "grid"
         assert first["element"]["role"] == "button" and first["element"]["name"] == "Settings"
-        assert "app-row" in first["element"]["path"] and first["element"]["box"]["w"] > 0
+        assert "nav-rail" in first["element"]["path"] and first["element"]["box"]["w"] > 0
         assert "picture" not in first and first["window"] == "main"
 
         # ----- a grid cell: its own menu keeps its entries and gets the item; the cell's text is not kept

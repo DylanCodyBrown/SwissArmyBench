@@ -1,6 +1,6 @@
 # Grids and steps
 
-The grid page: the Sandbox, Diagram and Workbench tabs first, then one tab per open grid; + makes a
+The grid page: one tab per open grid (the Sandbox, Diagram and Workbench are the rail's, left); + makes a
 table from a query. Over the grid, the Application row (Settings, Connections, Blades and catalog), then
 the ribbon's Table and Column rows. A cell's tools are on its right-click menu. Under the title, the
 steps strip counts the grid's steps; Edit steps opens them in a tab of their own.

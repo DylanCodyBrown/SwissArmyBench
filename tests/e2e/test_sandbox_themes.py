@@ -26,7 +26,7 @@ def test_the_sandbox_takes_a_theme_of_its_own(
     )
     try:
         call(server, "POST", "/cards", {"kind": "note", "title": "Themed note", "body": "Some **words**."})
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         picker = page.get_by_label("Sandbox theme")
         picker.select_option("hc-dark")
         body = page.locator("#ai-panel-body")

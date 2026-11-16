@@ -20,8 +20,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   (`sab.create_workspace()`); code goes in the **Workbench** (our own notebooks and scripts on an
   IPython kernel, [Plans/workbench-and-connections.plan.md](Plans/workbench-and-connections.plan.md)),
   Jupyter or Python in the terminal (marimo was built in, then stripped on the owner's call, 2026-11).
-  **Rule: code always opens in its own browser window, never in the grid page** (the Workbench tab
-  opens it), so it can sit on another screen; saved workspaces; a tray icon; and a Power BI style
+  **Rule: code always opens in its own browser window, never in the grid page** (the rail's Notebooks,
+  Scripts and Apps open it), so it can sit on another screen; saved workspaces; a tray icon; and a Power BI style
   relationships view with autodetection. VS Code is optional.
 - **The golden rule (the owner, 2026-11-14): every single thing the user can do, the agent can do
   too, through the MCP, with no prompts.** A new user action gets its command in `cli/commands.py`
@@ -366,8 +366,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          rail.ts is the slim icon rail down the left of every page and window (Grids,
                          Sandbox, Diagram, Notebooks, Scripts, Apps, Blades, Connections, Settings at the
                          bottom): a click is a nav.ts move, or brings another window forward; the current
-                         area marked; Open in a new window for the code areas; its Panels switch app.rail;
-                         aiPanel.ts is the Sandbox tab (a 12-column dashboard of resizable cards);
+                         area marked; Open in a new window for the code areas; always there (no switch), and the
+                         top tabs and the Application row no longer repeat its areas (the owner, 2026-11-16);
+                         aiPanel.ts is the Sandbox (a 12-column dashboard of resizable cards);
                          analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Sandbox,
                          Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
                          predictors, outliers; Fit test and Outliers are also on a column header's right-click menu);

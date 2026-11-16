@@ -2830,7 +2830,13 @@ page?" (yes: below).
   the front there (closing what is over them), not only the window.
 - **Settings' Panels:** a switch, "Navigation rail" (Every page), on at every start like the others.
   Off: the rail is gone from every window at once and the page takes its width back; the grid, Monaco
-  and the canvas measure again (a resize).
+  and the canvas measure again (a resize). **Removed (the owner, 2026-11-16):** "Looking at the screen
+  shot, why are the sandbox diagram and workbench still at the top now that they are accessible from the
+  rail", then "okay then remove the setting to remove from the rail". Built: the rail has no switch and
+  is always there; the top tabs are only grids (the Sandbox, Diagram and Workbench tabs are gone); the
+  Application row keeps the project's group, Tour and Zoom (Settings, Connections and Blades and catalog
+  are the rail's); the tour points at the rail. The palette's "Go to Sandbox", "Go to Diagram" and "Open
+  the Workbench" and the agent's app_navigate are unchanged.
 - **The agent (the golden rule):** `app_navigate` takes every rail area from every window (`grids` and
   `home` are the same place), and `new_window: true` for notebooks, scripts and apps. The rail's switch
   is a panel, so `app_panels` covers it.

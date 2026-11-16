@@ -37,10 +37,8 @@ import { $, button, clear, closeDialogs, h, toast } from "./dom";
 import { appMark, HOME_URL, mountNav, setTitle, startNav } from "./nav";
 import { mountNavRail } from "./rail";
 import { renderKeyFinder } from "./keyFinder";
-import { settingsButton } from "./settingsWindow";
 import { mountBeta } from "./betaNotes";
 import { loadPanels } from "./panels";
-import { connectionsButton } from "./connectionsWindow";
 import { tourButton } from "./tour";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
@@ -231,7 +229,7 @@ async function start(): Promise<void> {
       "div",
       { class: "ribbon-group", role: "toolbar", "aria-label": "Application tools" },
       h("div", { class: "ribbon-caption" }, h("strong", {}, "Application")),
-      h("div", { class: "ribbon-tools" }, settingsButton(), connectionsButton(), bladesButton(), tourButton(), zoomControl()),
+      h("div", { class: "ribbon-tools" }, tourButton(), zoomControl()), // Settings, Connections, Blades: the rail's
     ),
   );
   // A project as one .sab file (startView.ts): the Start view, the project's group first in the Application
@@ -326,13 +324,4 @@ start().catch((e: unknown) => {
   );
 });
 
-/** Blades and the catalog, always in a tab of their own (plan decision 18), never in this page.
- * The window's name brings an open one forward instead of opening a second. */
-function bladesButton(): HTMLButtonElement {
-  return button(
-    "Blades and catalog",
-    () => window.open(`/catalog#token=${encodeURIComponent(token)}`, "swissarmybench-catalog")?.focus(),
-    { icon: "key", class: "ribbon-btn" },
-  );
-}
 

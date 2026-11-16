@@ -240,7 +240,7 @@ def test_a_theme_remembered_before_the_rename_is_still_followed(browser: Browser
 def test_the_grid_page_opens_the_blades_page_in_its_own_tab(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     with page.context.expect_page() as opened:
-        page.get_by_role("button", name="Blades and catalog").click()
+        page.locator(".nav-rail [data-area='blades']").click()
     blades = opened.value
     blades.wait_for_load_state()
     assert blades.url.split("#")[0].endswith("/catalog")

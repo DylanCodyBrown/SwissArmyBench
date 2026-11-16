@@ -63,10 +63,10 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     expect(page).to_have_url(f"{base}/g/{grid_of(first)}")
     expect(page).to_have_title("nav_visits")
 
-    page.locator(".tab-agent").click()
+    page.locator(".nav-rail [data-area='sandbox']").click()
     expect(page).to_have_url(f"{base}/workspace?view=sandbox")
     expect(page).to_have_title("Sandbox")
-    page.locator(".tab-erd").click()
+    page.locator(".nav-rail [data-area='diagram']").click()
     expect(page).to_have_url(f"{base}/workspace?view=diagram")
     expect(page).to_have_title("Diagram")
     page.locator(f".tab-item[data-grid='{grid_of(second)}']").click()
@@ -98,7 +98,7 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
     expect(page).to_have_url(re.compile(r"/workspace\?view=start$"))
     expect(page).to_have_title("Start")
-    page.locator(".tab-agent").click()
+    page.locator(".nav-rail [data-area='sandbox']").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     page.keyboard.press("Alt+Home")
     expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
@@ -115,7 +115,7 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
 ) -> None:
     page = home_page(browser, two_tables[0])
     dialog = page.locator("dialog")
-    page.locator(".app-row").get_by_role("button", name="Connections").click()
+    page.locator(".nav-rail [data-area='connections']").click()
     expect(page).to_have_url(re.compile(r"open=connections"))
     expect(page).to_have_title("Connections")
     page.get_by_role("button", name="Add connection").click()
@@ -162,7 +162,7 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     expect(page).to_have_title("nav_visits")
 
     # Settings is in the address too; Back closes it.
-    page.locator(".app-row").get_by_role("button", name="Settings").click()
+    page.locator(".nav-rail [data-area='settings']").click()
     expect(page).to_have_url(re.compile(r"open=settings"))
     expect(page).to_have_title("Settings")
     page.go_back()
@@ -280,7 +280,7 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     page = home_page(browser, two_tables[0])
     page.evaluate("window.__still_here = 1")  # gone if the home page were opened again
     with page.context.expect_page() as opened:
-        page.locator(".tab-workbench").click()
+        page.locator(".nav-rail [data-area='notebooks']").click()
     workbench = opened.value
     expect(workbench.locator(".wb-status, .wb-welcome").first).to_be_visible(timeout=20000)
     expect(workbench).to_have_title(re.compile(r"^Workbench"))

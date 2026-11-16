@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import urllib.error
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,6 @@ def orchard(server: dict[str, Any]) -> Iterator[str]:
         call(server, "DELETE", f"/grids/{grid_of(url)}")
     except Exception:  # noqa: S110 (closed by the test)
         pass
-    call(server, "PUT", "/panels", {"app.rail": True})
     for app in call(server, "GET", "/streamlit/apps")["apps"]:
         call(server, "DELETE", f"/streamlit/apps/{app['app']}")
 
@@ -362,7 +362,7 @@ def test_the_steps_window_has_the_rail_and_grids_brings_the_home_window_forward(
     expect(rail(steps)).to_be_visible()
     expect(current(steps)).to_have_attribute("data-area", "grids")
     assert left_of(steps, ".window-top") >= right_edge(steps) - 0.5
-    page.locator(".tab-agent").click()
+    page.locator(".nav-rail [data-area='sandbox']").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     pages = len(page.context.pages)
     area(steps, "grids").click()
@@ -371,30 +371,23 @@ def test_the_steps_window_has_the_rail_and_grids_brings_the_home_window_forward(
     page.context.close()
 
 
-def test_the_panels_switch_takes_the_rail_away_and_the_page_its_width_back(
+def test_the_rail_has_no_switch_and_nothing_repeats_it(
     browser: Browser, server: dict[str, Any], orchard: str
 ) -> None:
     page = home_page(browser, orchard, dark=True)
-    header = ".ag-header-cell:visible"  # (earlier tests' grids keep their hidden panes)
-    first = left_of(page, header)
     shot(page, "rail-dark")
-    page.locator(".app-row").get_by_role("button", name="Settings").click()
+    # The owner (2026-11-16): the rail is how you get around, so it is always there, and the top tabs and
+    # the Application row no longer repeat it.
+    for gone in (".tab-agent", ".tab-erd", ".tab-workbench"):
+        expect(page.locator(gone)).to_have_count(0)
+    for name in ("Settings", "Connections", "Blades and catalog"):
+        expect(page.locator(".app-row").get_by_role("button", name=name, exact=True)).to_have_count(0)
+    page.locator(".nav-rail [data-area='settings']").click()
     panels = page.locator("dialog[open] fieldset", has_text="Panels")
-    switch = panels.locator(".panel-page", has_text="Every page").get_by_label("Navigation rail")
-    expect(switch).to_be_checked()
-    switch.uncheck()
+    expect(panels.get_by_role("group", name="Grid page")).to_be_visible()
+    expect(panels.get_by_label("Navigation rail")).to_have_count(0)
+    with pytest.raises(urllib.error.HTTPError):
+        call(server, "PUT", "/panels", {"app.rail": False}, agent=True)
     page.keyboard.press("Escape")
-    expect(rail(page)).to_be_hidden()
-    # The width back: the grid's first column moved left by the rail's width; the mark is still there.
-    expect(page.locator(".tabbar > a.app-mark")).to_be_visible()
-    for _ in range(50):  # the grid measures again once the width is back
-        if left_of(page, header) < first - 30:
-            break
-        page.wait_for_timeout(100)
-    assert left_of(page, header) < first - 30
-    assert page.evaluate("getComputedStyle(document.body).paddingLeft") == "0px"
-    # Every window follows (the server's switch); on again, the rail is back.
-    call(server, "PUT", "/panels", {"app.rail": True}, agent=True)
     expect(rail(page)).to_be_visible()
-    assert left_of(page, ".tabs-row") >= right_edge(page) - 0.5
     page.context.close()

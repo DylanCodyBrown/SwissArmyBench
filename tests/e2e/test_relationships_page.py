@@ -81,7 +81,7 @@ def test_the_diagram_fits_the_window_when_drawn_and_fit_puts_it_back(
     call(server, "POST", "/relationships", {"model": model, "replace": True})
     page = open_grid(browser, url, width=900, height=520)  # a small window: the diagram is larger
     try:
-        page.locator(".tab-erd").click()
+        page.locator(".nav-rail [data-area='diagram']").click()
         erd = page.locator("#erd-view")
         expect(erd.locator(".erd-diagram[data-fitted='true'] svg")).to_be_visible(timeout=30000)
         fitted = boxes(page)
@@ -160,7 +160,7 @@ def test_import_relationships_is_one_name_and_takes_a_model_or_a_tang(
     page = open_grid(browser, url, width=1500, height=900)
     try:
         # The Diagram tab: a model as JSON is applied as it is.
-        page.locator(".tab-erd").click()
+        page.locator(".nav-rail [data-area='diagram']").click()
         erd = page.locator("#erd-view")
         expect(erd).to_contain_text("No relationships yet")
         with page.expect_file_chooser() as chooser:
@@ -208,7 +208,7 @@ def test_a_model_none_of_whose_tables_are_open_is_drawn_whole(
     shown = push_client.push(pd.DataFrame({"x": [1]}), name="closed_other", new_grid=True)
     page = open_grid(browser, shown, width=1400, height=900)
     try:
-        page.locator(".tab-erd").click()
+        page.locator(".nav-rail [data-area='diagram']").click()
         erd = page.locator("#erd-view")
         expect(erd.locator(".erd-diagram svg")).to_be_visible(timeout=30000)
         for name in ("pbi_orders", "pbi_customers", "pbi_lines"):

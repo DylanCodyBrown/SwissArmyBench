@@ -32,7 +32,7 @@ def test_python_cards_draw_in_the_sandbox(browser: Browser, server: dict[str, An
         sandbox_client.sandbox(json.dumps({"x": 1}), "First draft", key="notes", kind="markdown")
         sandbox_client.sandbox("## Findings\n\nNorth sells most.", "Findings", key="notes")
         sandbox_client.sandbox([{"store": "S1", "units": 3}, {"store": "S2", "units": 5}], "Stores")
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         panel = page.locator("#ai-panel")
         chart = panel.locator(".card", has_text="Sales by region")
         expect(chart.locator(".card-table")).to_have_text("Python")

@@ -43,7 +43,7 @@ def test_an_analysis_blade_runs_from_the_analyze_menu(browser: Browser, server: 
         window.get_by_role("button", name="Send to Sandbox").click()
         expect(page.locator(".toast").last).to_contain_text("2 cards from Value counts")
         window.get_by_role("button", name="Close").last.click()
-        page.locator(".tab-agent").click()
+        page.locator(".nav-rail [data-area='sandbox']").click()
         expect(page.locator("#ai-panel .card", has_text="shop: 3 values")).to_be_visible(timeout=20000)
         # The second card (the table) arrives too: once only the first of a result's cards was sent.
         expect(page.locator("#ai-panel .card", has_text="Crust").first).to_be_visible(timeout=20000)

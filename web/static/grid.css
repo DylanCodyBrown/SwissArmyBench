@@ -9103,14 +9103,6 @@ body.has-rail {
   padding-left: var(--rail-w);
 }
 
-body.has-rail.panel-off-app-rail {
-  padding-left: 0;
-}
-
-body.panel-off-app-rail .nav-rail {
-  display: none;
-}
-
 .nav-rail {
   position: fixed;
   top: 0;
