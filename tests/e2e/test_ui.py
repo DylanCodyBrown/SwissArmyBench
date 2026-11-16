@@ -862,13 +862,18 @@ def test_closing_the_approval_window_declines_the_request(
     assert answers == [403, 403]
 
 
-def test_agent_activity_in_settings(browser: Browser, orders_url: str, server: dict[str, Any]) -> None:
+def test_settings_has_no_agent_activity_list(
+    browser: Browser, orders_url: str, server: dict[str, Any]
+) -> None:
     page = open_grid(browser, orders_url)
     sql = "SELECT count(*) AS activity_check FROM grid"
     call(server, "POST", f"/grids/{grid_of(orders_url)}/sql", {"sql": sql}, agent=True)
     page.locator(".nav-rail [data-area='settings']").click()
     dialog = page.locator("dialog")
-    expect(dialog.locator(".activity li").first).to_contain_text(sql)  # newest first
+    expect(dialog.get_by_text("Connect an agent")).to_be_visible()
+    # The owner (2026-11-16): the Agent activity list is gone from Settings; the audit log still has it.
+    expect(dialog.get_by_text("Agent activity")).to_have_count(0)
+    assert any(e.get("query") == sql for e in call(server, "GET", "/audit?actor=agent&limit=30")["entries"])
     # The privacy levels and column masks are gone.
     expect(dialog.get_by_role("radio", name=re.compile("Level 3"))).to_have_count(0)
     expect(dialog.get_by_text("What the agent may see")).to_have_count(0)

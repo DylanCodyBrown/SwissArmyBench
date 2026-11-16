@@ -1,7 +1,7 @@
 /**
  * settingsWindow.ts: the Settings window (the cog at the far left of the tab bar). [WIRE + EXPORT]
  *
- * The theme, remembered per viewer and never sent anywhere; and what the agent has done (agentAccess.ts, from the server's audit log). How a
+ * The theme, remembered per viewer and never sent anywhere;. How a
  * table compares text is a table setting, so it lives on the ribbon's Table row (textMatching.ts).
  * Everything here applies as you change it, so the window only has Close.
  *
@@ -18,9 +18,7 @@
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
  *          [CLOSE]                -> close()
- *          [AGENT ACCESS]         -> agentAccess.agentAccessSection()  (agent activity)
  */
-import { agentAccessSection } from "./agentAccess";
 import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
 import { button, h, icon, openDialog, toast } from "./dom";
@@ -163,7 +161,6 @@ function drawSettings(): void {
       h("pre", { class: "mono mcp-prompt" }, MCP_PROMPT),
       button("Copy the setup prompt", () => void copyMcpPrompt(), { icon: "copy" }),
     ),
-    agentAccessSection(),
   );
   foot.append(button("Close", close, { class: "primary" }));
   (body.querySelector("input:checked") as HTMLInputElement | null)?.focus();

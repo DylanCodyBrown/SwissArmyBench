@@ -259,7 +259,7 @@ def open_as_grid(act: Actions, catalog: Page, table: str, schema: str | None = N
 
 def open_workbench(act: Actions, page: Page) -> Page:
     with page.context.expect_page() as opened:
-        act.click(page.locator(".nav-rail [data-area='notebooks']"))
+        page.evaluate("window.open('/workbench', 'swissarmybench-workbench')")
     workbench = opened.value
     workbench.set_viewport_size({"width": 1600, "height": 950})
     expect(workbench.locator(".wb-welcome")).to_be_visible(timeout=20000)

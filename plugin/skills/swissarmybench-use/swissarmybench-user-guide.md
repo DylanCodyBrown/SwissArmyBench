@@ -99,13 +99,13 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 ### Settings
 
-Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, the setup prompt for connecting an agent and the agent activity list described below.
+Open **Settings** from the Application row (or the Workbench's **…** menu). It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
 
 **Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history; and on every page, the navigation rail.
 
 **Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
 
-![The Settings window: the theme, the setup prompt with its copy button and the agent activity list.](images/02-preferences.png)
+![The Settings window: the theme, the setup prompt with its copy button.](images/02-preferences.png)
 
 Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, the Sandbox included.
 
@@ -532,7 +532,7 @@ A connection's catalog (its tables and columns, for the Workbench's catalog tree
 
 A connected agent sees everything the page shows: every table, its rows and columns (up to 1,048,576 rows per read, one Excel sheet), its steps and their values. An export by the agent always waits for your click: a window asks you to Allow or Deny it, and closing the window denies it.
 
-Settings lists the agent's activity: what it asked for, newest first. It never includes cell values.
+Everything the agent does is written to the audit log (`~/.swissarmybench`); it never includes cell values.
 
 ## Beta notes and the log
 

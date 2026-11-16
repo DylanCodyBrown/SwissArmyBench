@@ -280,7 +280,7 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     page = home_page(browser, two_tables[0])
     page.evaluate("window.__still_here = 1")  # gone if the home page were opened again
     with page.context.expect_page() as opened:
-        page.locator(".nav-rail [data-area='notebooks']").click()
+        page.evaluate("window.open('/workbench', 'swissarmybench-workbench')")
     workbench = opened.value
     expect(workbench.locator(".wb-status, .wb-welcome").first).to_be_visible(timeout=20000)
     expect(workbench).to_have_title(re.compile(r"^Workbench"))

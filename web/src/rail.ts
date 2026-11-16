@@ -9,14 +9,13 @@
  *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
  *   [GO]      A click is a navigation like any other (nav.ts): an area this page shows is pushed, so
  *             Back, Forward and a reload work. Connections and Settings open their layers (open=<key>)
- *             where the page has them. An area another window shows brings that window forward, or
- *             opens it: the home window (sab-home) for the grids, Sandbox and Diagram; the Workbench for
- *             notebooks, scripts and apps (code always opens in its own window, never the grid page);
- *             the blades page (plan decision 18: its own tab). This window is never sent away.
+ *             where the page has them. An area another page shows takes this tab there (the owner,
+ *             2026-11-16): the home page for the grids, Sandbox and Diagram; the Workbench for notebooks,
+ *             scripts and apps (code still never sits in the grid page); the blades page.
  *   [KINDS]   In the Workbench, Notebooks, Scripts and Apps bring that kind's document forward (its
- *             mode: ?kind=notebook in the address), or offer New and that kind's recent files. Right-
- *             click, Ctrl+click or a middle click: Open in a new window (a Workbench window of its own,
- *             as a popped-out tab's).
+ *             mode: ?kind=notebook in the address), or offer New and that kind's recent files. On every
+ *             area, right-click, Ctrl+click or a middle click: Open in a new window (for a code area, a
+ *             Workbench window of its own, as a popped-out tab's).
  *   [CURRENT] the area the address names is marked (a bar on the left edge, the icon brighter) with
  *             aria-current="page"; it follows every move (onAddress), Back and Forward too.
  *   [KEYS]    one stop in the Tab order (a toolbar): the arrows move between the areas, Enter goes;
@@ -31,7 +30,7 @@
 import { token } from "./api";
 import { h, icon, toast } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
-import { go, goHome, hasLayer, HOME_URL, homeWindow, namedWindow, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
+import { go, goHome, hasLayer, HOME_URL, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
 import { openMenu } from "./workbenchMenu";
 
@@ -54,8 +53,6 @@ const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === nam
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
 const areaOfKind = (kind: string | null): Area | null => AREAS.find((a) => a.kind === kind)?.area ?? null;
 
-const WORKBENCH_WINDOW = "swissarmybench-workbench";
-const CATALOG_WINDOW = "swissarmybench-catalog";
 const LAYER_OFF = { open: null, at: null, type: null, name: null };
 
 export interface RailOptions {
@@ -87,28 +84,10 @@ function arrivalUrl(area: Area): string {
   return HOME_URL;
 }
 
-/** The home window shows `area`: told by a message, or opened at the area's address. */
-function inHome(area: Area): void {
-  const found = homeWindow();
-  if (!found) return;
-  if (found.fresh || found.win === window) found.win.location.href = arrivalUrl(area);
-  else found.win.postMessage({ sab: "area", area }, location.origin);
-  found.win.focus();
-}
-
 const withToken = (path: string, more: Record<string, string> = {}): string => {
   const hash = new URLSearchParams({ ...(token ? { token } : {}), ...more }).toString();
   return hash ? `${path}#${hash}` : path;
 };
-
-/** Another page's window by its name, brought forward (told `area`), or opened at `path`. */
-function inWindow(name: string, path: string, area?: Area): void {
-  const found = namedWindow(name);
-  if (!found) return;
-  if (found.fresh) found.win.location.href = withToken(path);
-  else if (area) found.win.postMessage({ sab: "area", area }, location.origin);
-  found.win.focus();
-}
 
 /** A Workbench window of its own for `kind` (the owner's "external tab"), as a popped-out tab's. */
 function newKindWindow(k: Kind): void {
@@ -119,37 +98,41 @@ function newKindWindow(k: Kind): void {
 
 const itemOf = (area: Area): HTMLButtonElement | null => items.find((i) => i.dataset.area === area && i.offsetParent !== null) ?? null;
 
-/** Go to `area`, as its click does (`newWindow`: a code area in a Workbench window of its own). */
+/** The page that shows `area`, at the area's address. */
+function pageUrl(area: Area): string {
+  const k = kindOfArea(area);
+  if (k) return `/workbench?kind=${k}`;
+  if (area === "blades") return "/catalog";
+  return arrivalUrl(area);
+}
+
+/** Go to `area`, as its click does: in this tab (the owner, 2026-11-16: "the rail icons is opening a new
+ *  tab every time instead of navigating the current page, the open in new tab is optional"). The page
+ *  that shows the area moves here, or this tab goes to it; `newWindow` (right-click, Ctrl+click, a middle
+ *  click) opens it in a window of its own instead. */
 export function goArea(area: Area, newWindow = false): void {
   const k = kindOfArea(area);
-  if (k) {
-    if (newWindow) newKindWindow(k);
-    else if (kind === "workbench" && options.showKind) {
-      void go(withParams({ kind: k }), "push");
-      options.showKind(k, itemOf(area));
-    } else inWindow(WORKBENCH_WINDOW, `/workbench?kind=${k}`, area);
+  if (newWindow) {
+    if (k) newKindWindow(k);
+    else if (!window.open(withToken(pageUrl(area)), "_blank")) toast("The browser blocked the new window: allow pop-ups for this address.", "error");
     return;
   }
-  switch (area) {
-    case "grids":
-      // The grids (Home is the Start view, 2026-11-16): here, or in the home window brought forward.
-      if (kind === "home") visit(withParams({ ...LAYER_OFF, view: null }, HOME_URL));
-      else inHome(area);
-      return;
-    case "sandbox":
-    case "diagram":
-      if (kind === "home") visit(withParams({ ...LAYER_OFF, view: area }, HOME_URL));
-      else inHome(area);
-      return;
-    case "settings":
-    case "connections":
-      if (hasLayer(area)) openLayer(area);
-      else inHome(area);
-      return;
-    case "blades":
-      if (kind !== "catalog") inWindow(CATALOG_WINDOW, "/catalog");
-      return;
+  if (k && kind === "workbench" && options.showKind) {
+    void go(withParams({ kind: k }), "push");
+    options.showKind(k, itemOf(area));
+    return;
   }
+  if (kind === "home" && (area === "grids" || area === "sandbox" || area === "diagram")) {
+    visit(withParams({ ...LAYER_OFF, view: area === "grids" ? null : area }, HOME_URL));
+    return;
+  }
+  if ((area === "settings" || area === "connections") && hasLayer(area)) {
+    openLayer(area);
+    return;
+  }
+  if (area === "blades" && kind === "catalog") return;
+  // Another page shows it: this tab goes there (the Workbench asks first when an edit is unsaved).
+  location.assign(withToken(pageUrl(area)));
 }
 
 function draw(url: URL): void {
@@ -188,13 +171,13 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
       "aria-keyshortcuts": undefined,
       "aria-haspopup": area.area === "settings" || area.area === "connections" ? "dialog" : area.kind ? "menu" : undefined,
       // Ctrl+click (Cmd+click): a new window, as a link's new tab.
-      onclick: (e: MouseEvent) => goArea(area.area, !!area.kind && (e.ctrlKey || e.metaKey)),
+      onclick: (e: MouseEvent) => goArea(area.area, e.ctrlKey || e.metaKey),
     },
     icon(area.icon),
     // The name, on hover and on focus (a `title` would show the same words a second time).
     h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name),
   );
-  if (area.kind) {
+  {
     // A middle click: a new window too (its mousedown would start the browser's autoscroll).
     element.addEventListener("mousedown", (e) => {
       if (e.button === 1) e.preventDefault();

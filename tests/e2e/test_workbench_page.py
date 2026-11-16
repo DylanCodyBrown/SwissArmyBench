@@ -398,7 +398,7 @@ def status(workbench: Page, toggle: str) -> None:
 
 def open_workbench(page: Page) -> Page:
     with page.context.expect_page() as opened:
-        page.locator(".nav-rail [data-area='notebooks']").click()
+        page.evaluate("window.open('/workbench', 'swissarmybench-workbench')")
     workbench = opened.value
     expect(workbench.locator(".wb-welcome")).to_be_visible(timeout=20000)
     return workbench

@@ -8,7 +8,7 @@
  *
  * COMPOSES: panes (tabs, panes, split) · gridView + selection (one per grid) · ribbon (Table / Column tools) ·
  *           stepsPanel + stepForms (applied steps) · aiPanel (the Analysis Sandbox) ·
- *           agentAccess (agent activity in Settings, approval popups) · stepsStrip · exportDialog ·
+ *           agentAccess (approval popups) · stepsStrip · exportDialog ·
  *           erdView (the ERD tab) · queryTab (the "+" tab: a new table from a query) ·
  *           openMenu (the Open dialog: tables in running Python sessions) ·
  *           valueViewer · bottomBar · theme

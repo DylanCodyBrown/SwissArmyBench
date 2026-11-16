@@ -267,8 +267,8 @@ export async function exportBetaLog(): Promise<void> {
   const path = await chooseFile({ title: "Export beta log", mode: "save", name: "beta-log.zip" });
   if (!path) return;
   try {
-    await api("/beta/export", "POST", { path: path.toLowerCase().endsWith(".zip") ? path : `${path}.zip` });
-    toast("Saved");
+    const made = await api<{ path: string }>("/beta/export", "POST", { path: path.toLowerCase().endsWith(".zip") ? path : `${path}.zip` });
+    toast(`Saved to ${made.path}`); // the whole path: the chooser starts in the app's own folder, easy to lose
   } catch (e) {
     toast((e as Error).message, "error");
   }

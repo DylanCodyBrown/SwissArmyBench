@@ -1,13 +1,12 @@
 /**
- * agentAccess.ts: what the agent has done, and its requests for a click. [STATE + WIRE]
+ * agentAccess.ts: the agent's requests for a click. [STATE + WIRE]
  *
  * The agent sees what the page shows. An agent export always waits for the user's click: each
  * request opens the approval popup at once, wherever the user is, rather than waiting in a tab
- * they might not be looking at. The Settings window shows agentAccessSection(): the agent's
- * recent actions, from the audit log.
+ * they might not be looking at. (Settings' Agent activity list is gone, the owner, 2026-11-16; the audit
+ * log stays on disk and GET /audit still reads it.)
  *
- * ROUTING: [AGENT ACTIVITY]   -> read-only, from GET /audit (every table)
- *          [APPROVAL POPUP]   Allow / Deny -> resolveApproval(id, approve)
+ * ROUTING: [APPROVAL POPUP]   Allow / Deny -> resolveApproval(id, approve)
  */
 import { api, query, type Notice } from "./api";
 import { button, clear, formatCount, h, icon, openDialog, toast } from "./dom";
@@ -21,46 +20,6 @@ interface Approval {
 
 let pending: Approval[] = [];
 let popup: { body: HTMLElement; close: () => void } | null = null;
-
-// ===== the Settings section =====
-
-/** The agent's access, for the Settings window: what it sees, and what it has done. */
-export function agentAccessSection(): HTMLElement {
-  const host = h("div", { class: "agent-access" });
-  void activityFieldset().then((activity) => clear(host, activity));
-  return host;
-}
-
-async function activityFieldset(): Promise<HTMLElement> {
-  let entries: { time: string; actor: string; action: string; dataset: string | null; query?: string; rows?: number }[] = [];
-  try {
-    // The agent's own last 30: filtered from the last 200 of everyone's, they were gone once the
-    // user had done 200 things since.
-    entries = (await api<{ entries: typeof entries }>(`/audit${query({ limit: 30, actor: "agent" })}`)).entries.reverse();
-  } catch {
-    // no history
-  }
-  return h(
-    "fieldset",
-    { class: "fieldset" },
-    h("legend", {}, icon("history"), "Agent activity"),
-    entries.length
-      ? h(
-          "ul",
-          { class: "activity" },
-          ...entries.map((e) =>
-            h(
-              "li",
-              {},
-              h("span", { class: "hint" }, `${new Date(e.time).toLocaleTimeString()} `),
-              `${e.action}${e.dataset ? ` on ${e.dataset}` : ""}${e.rows !== undefined ? ` (${formatCount(e.rows)} rows)` : ""}`,
-              e.query ? h("div", { class: "mono hint" }, e.query) : null,
-            ),
-          ),
-        )
-      : h("p", { class: "hint" }, "No agent activity"),
-  );
-}
 
 // ===== approval requests =====
 

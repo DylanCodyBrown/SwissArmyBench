@@ -2828,6 +2828,8 @@ page?" (yes: below).
 - **The mark stays** at the top-left of each page's top row and still goes home (Alt+Home).
   **Decision:** Grids is that same place, so from another window the mark now also brings the grids to
   the front there (closing what is over them), not only the window.
+- **Settings' Agent activity list: removed (the owner, 2026-11-16):** "also remove the agent activity log
+  from settings". The audit log itself stays (on disk, GET /audit); only the Settings list went.
 - **Settings' Panels:** a switch, "Navigation rail" (Every page), on at every start like the others.
   Off: the rail is gone from every window at once and the page takes its width back; the grid, Monaco
   and the canvas measure again (a resize). **Removed (the owner, 2026-11-16):** "Looking at the screen

@@ -200,103 +200,80 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     page.context.close()
 
 
-def test_other_windows_have_the_rail_and_bring_the_right_window_forward(
+def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     browser: Browser, server: dict[str, Any], orchard: str
 ) -> None:
+    """The owner (2026-11-16): "the rail icons is opening a new tab every time instead of navigating the
+    current page, the open in new tab is optional"."""
     page = home_page(browser, orchard)
-    page.evaluate("window.__still_here = 1")  # gone if the home page were opened again
-    # Notebooks from the home page: the Workbench in its own window (code never sits in the grid page).
-    with page.context.expect_page() as opened:
-        area(page, "notebooks").click()
-    workbench = opened.value
-    expect(workbench.locator(".wb-status, .wb-welcome").first).to_be_visible(timeout=20000)
-    expect(rail(workbench)).to_be_visible()
-    expect(workbench).to_have_url(re.compile(r"/workbench\?kind=notebook"))
-    expect(current(workbench)).to_have_attribute("data-area", "notebooks")
-    assert left_of(workbench, ".wb-top") >= right_edge(workbench) - 0.5
-    # No notebook open: New and the recent notebooks, beside the rail.
-    menu = workbench.get_by_role("menu", name="Notebooks")
-    expect(menu).to_be_visible()
-    menu.get_by_role("menuitem", name="New notebook").click()
-    expect(workbench.locator(".wb-tab").first).to_be_visible(timeout=20000)
-    assert left_of(workbench, ".wb-tab") >= right_edge(workbench)
-    # A second click brings that window forward: no second Workbench.
+    page.on("dialog", lambda d: d.accept())  # leaving a Workbench with unsaved edits asks first
     pages = len(page.context.pages)
+    # Notebooks from the home page: this tab goes to the Workbench (code still never sits in the grid page).
+    area(page, "notebooks").click()
+    expect(page).to_have_url(re.compile(r"/workbench\?kind=notebook"), timeout=20000)
+    expect(rail(page)).to_be_visible()
+    expect(current(page)).to_have_attribute("data-area", "notebooks")
+    assert len(page.context.pages) == pages
+    assert left_of(page, ".wb-top") >= right_edge(page) - 0.5
+    # No notebook open: New and the recent notebooks, beside the rail.
+    menu = page.get_by_role("menu", name="Notebooks")
+    expect(menu).to_be_visible(timeout=20000)
+    menu.get_by_role("menuitem", name="New notebook").click()
+    expect(page.locator(".wb-tab").first).to_be_visible(timeout=20000)
+    # Scripts, inside the Workbench: its menu, New script; Notebooks brings the notebook forward, pushed.
     area(page, "scripts").click()
-    page.wait_for_timeout(400)
-    assert len(page.context.pages) == pages
-    # It went to Scripts there (none open: its menu, New script).
-    expect(workbench.get_by_role("menu", name="Scripts")).to_be_visible()
-    expect(workbench).to_have_url(re.compile(r"kind=script"))
-    workbench.get_by_role("menu", name="Scripts").get_by_role("menuitem", name="New script").click()
-    expect(workbench.locator(".wb-tab")).to_have_count(2, timeout=20000)
-    expect(current(workbench)).to_have_attribute("data-area", "scripts")
-    # Inside the Workbench: Notebooks brings the notebook forward, pushed; Back brings the script again.
-    area(workbench, "notebooks").click()
-    expect(
-        workbench.locator(".wb-tab.active.mark-notebook, .wb-tab[aria-selected='true'].mark-notebook").first
-    ).to_be_visible()
-    expect(current(workbench)).to_have_attribute("data-area", "notebooks")
-    workbench.go_back()
-    expect(current(workbench)).to_have_attribute("data-area", "scripts")
-    workbench.mouse.move(900, 500)
-    shot(workbench, "rail-workbench")
-
-    # From the Workbench: Grids and the Sandbox are the home window's, brought forward (not reopened).
-    area(workbench, "sandbox").click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(current(page)).to_have_attribute("data-area", "sandbox")
-    area(workbench, "grids").click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
-    assert len(page.context.pages) == pages
-    assert page.evaluate("window.__still_here") == 1
-    assert "/workbench" in workbench.url  # never the Workbench sent away instead
+    expect(page).to_have_url(re.compile(r"kind=script"))
+    page.get_by_role("menu", name="Scripts").get_by_role("menuitem", name="New script").click()
+    expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
+    area(page, "notebooks").click()
+    expect(current(page)).to_have_attribute("data-area", "notebooks")
+    page.go_back()
+    expect(current(page)).to_have_attribute("data-area", "scripts")
+    page.mouse.move(900, 500)
+    shot(page, "rail-workbench")
     # Settings opens in the Workbench itself (it has the layer).
-    area(workbench, "settings").click()
-    expect(workbench.locator("dialog[open]")).to_be_visible()
-    expect(current(workbench)).to_have_attribute("data-area", "settings")
-    workbench.keyboard.press("Escape")
-    expect(current(workbench)).to_have_attribute("data-area", "scripts")
+    area(page, "settings").click()
+    expect(page.locator("dialog[open]")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(current(page)).to_have_attribute("data-area", "scripts")
 
-    # The agent: the same areas, from the Workbench window.
-    call(server, "POST", "/navigate", {"window": "workbench", "to": "diagram"}, agent=True)
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
-    call(server, "POST", "/navigate", {"to": "grids"}, agent=True)
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
-    call(server, "POST", "/navigate", {"window": "workbench", "to": "notebooks"}, agent=True)
-    expect(current(workbench)).to_have_attribute("data-area", "notebooks")
+    # The Sandbox, from the Workbench: this tab goes home, at the Sandbox.
+    area(page, "sandbox").click()
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
+    expect(current(page)).to_have_attribute("data-area", "sandbox")
+    # Blades: this tab goes to the blades page, Blades marked; Settings opens there; Diagram comes home.
+    area(page, "blades").click()
+    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
+    expect(current(page)).to_have_attribute("data-area", "blades")
+    assert left_of(page, ".cat-top") >= right_edge(page) - 0.5
+    area(page, "settings").click()
+    expect(page).to_have_url(re.compile(r"open=settings"))
+    expect(page.locator("dialog[open]")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(current(page)).to_have_attribute("data-area", "blades")
+    area(page, "diagram").click()
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
+    # Back walks the same tab back through the pages.
+    page.go_back()
+    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
+    assert len(page.context.pages) == pages
 
-    # Open in a new window: the right-click's menu, and a Ctrl+click; each a Workbench of its own.
-    area(workbench, "apps").click(button="right")
-    with workbench.context.expect_page() as popped:
-        workbench.get_by_role("menuitem", name="Open in a new window").click()
-    popout = popped.value
-    expect(rail(popout)).to_be_visible(timeout=20000)
-    expect(popout).to_have_url(re.compile(r"/workbench\?kind=app"))
-    expect(current(popout)).to_have_attribute("data-area", "apps")
-    expect(popout.get_by_role("menu", name="Apps")).to_be_visible()
-    popout.close()
+    # A new window only on request: Ctrl+click, a middle click, or the right-click's menu, on every area.
     with page.context.expect_page() as clicked:
         area(page, "scripts").click(modifiers=["Control"])
     other = clicked.value
     expect(other).to_have_url(re.compile(r"/workbench\?kind=script"), timeout=20000)
-    expect(current(other)).to_have_attribute("data-area", "scripts")
     other.close()
-
-    # Blades: the blades page in its own window, the rail on it with Blades marked; Settings opens there.
-    with page.context.expect_page() as blades_opened:
-        area(page, "blades").click()
-    blades = blades_opened.value
-    expect(rail(blades)).to_be_visible(timeout=20000)
-    expect(current(blades)).to_have_attribute("data-area", "blades")
-    assert left_of(blades, ".cat-top") >= right_edge(blades) - 0.5
-    area(blades, "settings").click()
-    expect(blades).to_have_url(re.compile(r"open=settings"))
-    expect(blades.locator("dialog[open]")).to_be_visible()
-    blades.keyboard.press("Escape")
-    expect(current(blades)).to_have_attribute("data-area", "blades")
-    area(blades, "diagram").click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
+    area(page, "sandbox").click(button="right")
+    with page.context.expect_page() as popped:
+        page.get_by_role("menuitem", name="Open in a new window").click()
+    sandbox = popped.value
+    expect(sandbox.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
+    sandbox.close()
+    with page.context.expect_page() as middle:
+        area(page, "grids").click(button="middle")
+    middle.value.close()
+    expect(page).to_have_url(re.compile(r"/catalog"))  # this tab stayed where it was
     page.context.close()
 
 
