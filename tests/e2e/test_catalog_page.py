@@ -544,4 +544,4 @@ def test_a_tables_right_click_opens_it_as_a_grid_and_scripts_nothing(
     orders = item(page, "orders").locator(":scope > .node")
     orders.click(button="right")
     menu = page.get_by_role("menu", name="orders")
-    expect(menu.get_by_role("menuitem")).to_have_text(["Open as grid"])
+    expect(menu.get_by_role("menuitem")).to_have_text(["Open as grid", "Leave a note…"])

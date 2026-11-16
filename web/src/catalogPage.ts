@@ -34,8 +34,6 @@ function openEditor(name: string | null): void {
     editing = false;
     rail.editorClosed();
     showWelcome();
-mountBeta("catalog");
-document.querySelector(".cat-top")?.append(betaMark());
   };
   const saved = (savedName: string): void => {
     editing = false; // saved: nothing to lose, so a click in the tree shows what was clicked again
@@ -76,3 +74,7 @@ onNotice((notice) => {
   if (notice.type === "catalogs_changed") void rail.loadCatalogs();
   if (notice.type === "blades_changed") void rail.loadBlades();
 });
+
+// Beta mode on the blades page: the right-click notes and the Beta mark, from the start (not after an editor closes).
+mountBeta("catalog");
+document.querySelector(".cat-top")?.append(betaMark());
