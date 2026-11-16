@@ -1612,3 +1612,6 @@ drags; code of more than one line is pasted, one typed value):
   change (tests/e2e/test_workbench_groups.py, test_streamlit_page.py, test_ui.py, test_steps_page.py:
   93 passed). **Not checked:** Edge, Firefox and Safari's cookie handling on 127.0.0.1; VS Code's Simple
   Browser (it keeps the token in the address it was given).
+- **The whole suite on tray-update** (0.0.3 merged, Chromium, Streamlit 1.67 in its own Python, the test
+  bed down): 2,998 passed, 29 skipped (the test bed's use cases among them), 16 minutes. No test failed,
+  so none needed a rerun alone.

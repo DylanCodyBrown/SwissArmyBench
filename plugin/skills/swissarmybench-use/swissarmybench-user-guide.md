@@ -28,7 +28,7 @@ Without Python: the folder button beside + opens a file (CSV, Parquet, JSON, Arr
 
 Swiss Army Bench starts itself when you sign in and stays running: the installer sets that up, starts it and opens its page once. Its icon sits in the system tray (on Linux, when the desktop has a tray). `swissarmybench start` in a terminal starts it by hand and opens the page; `swissarmybench open` opens the page of the one running.
 
-- **Click** the icon to open the page.
+- **Click** the icon to open the page. The address bar then shows just the page (`http://127.0.0.1:<port>/workspace`); a bookmark of it works while the app runs. After a restart, open it from the tray once more.
 - **Right-click** it for what is open (your tables and Workbench documents; a • marks unsaved changes; choose one to go to it), **Open the Workbench**, **Open the blades page**, **Restart**, **Start with Windows** (**Open at login** on a Mac or Linux; a tick when on) and **Stop and quit**. When the app is stopped, the menu has **Start**.
 - **It stays running:** only **Stop and quit**, `swissarmybench stop` or signing out stop it. If it stops by itself, the tray starts it again; after three times in five minutes the menu says **Swiss Army Bench stopped: Restart**. `swissarmybench autostart off` (or the tray's tick) stops it starting at sign-in.
 - **An update:** when a newer version is out, the icon gets a blue dot, its tooltip says "Update available: 0.0.2", and the menu starts with **Update to 0.0.2** and **What's new**. The status bars of the grid page and the Workbench show **Update available**, which offers the same.

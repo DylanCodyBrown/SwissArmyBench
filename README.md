@@ -286,7 +286,10 @@ Or the demo data:
 
 `swissarmybench start` opens the page in your browser (`--no-browser` not to) and prints its full address,
 including the `#token=` part; `swissarmybench open` opens it again while it runs. In VS Code: Ctrl+Shift+P, then
-**Simple Browser: Show**, then paste the address.
+**Simple Browser: Show**, then paste the address. Once open, the page clears the token from the address
+bar and keeps a cookie of its own (HttpOnly, SameSite=Strict, good until the server restarts), so a reload
+or a bookmark of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to open the app
+from its tray or with `swissarmybench open`.
 
 ## The Workbench
 
