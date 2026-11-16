@@ -40,7 +40,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         dialog = workbench.locator("dialog[open]")
         panels = dialog.locator("fieldset", has_text="Panels")
         expect(panels.locator("input[type=checkbox]")).to_have_count(
-            17
+            16
         )  # the modes (2026-11-15) added six; the rail (2026-11-16) one
         panels.get_by_label("Streamlit cells").uncheck()
         panels.get_by_label("Console").uncheck()

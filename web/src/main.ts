@@ -43,6 +43,10 @@ import { tourButton } from "./tour";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
 import { openCompareDialog } from "./compareDialog";
+// Settings and Connections are layers the rail opens (open=settings, open=connections): their modules register
+// them, so they load here even with no button of theirs on the page.
+import "./settingsWindow";
+import "./connectionsWindow";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, showStartView, viewingStart } from "./panes";
 import { mountStart } from "./startView";
 import { mountRibbon, zoomControl } from "./ribbon";
