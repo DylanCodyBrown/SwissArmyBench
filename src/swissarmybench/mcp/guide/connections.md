@@ -25,7 +25,9 @@ a variable by its name.
 - Passwords: write `secret("WAREHOUSE_PASSWORD")` in the code and never a value.
   `connections_password_source` points one at the keyring, an environment variable or a vault's entry.
   `blades_secrets` saves values the user gives you; nothing reads one back.
-- A missing driver: the test says so; `blades_install` installs it into the app's own Python.
+- A missing package: any answer may carry `missing` {feature, packages, python, command} (a form,
+  `blades_inspect`, a failed test or refresh, a YAML API document). `python` "app": `blades_install`
+  them into the app's own Python, then do it again. The user sees the same as a prompt.
 
 ## Reading one
 - `connections_open_table(name, table)`: a table as a grid (a database's first rows, 10,000 unless

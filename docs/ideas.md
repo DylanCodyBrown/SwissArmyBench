@@ -3407,3 +3407,50 @@ removed): a button that opens the user's OWN terminal application, or Claude Des
   menu, Store, Spotlight and Terminal paths run against made-up answers only.
 - **Open:** if the swissarmybench plugin is also installed in Claude Code, its prompt hook and the
   folder's both add the table in front (said twice); the command `claude` as a setting (the brief: later).
+
+## A missing package, in the user's face (the owner, 2026-11-16; built, branch package-prompt)
+
+The owner: "also I created the Key valut connection and along the way it poped up the detection that I
+needed to install some things with UV, that was nice but I think we should make it more visible, and it
+should be a popup in the user face saying this <insert feature> will not work with out<insert package
+name> Install now?"
+
+### Built
+- **One shape on the server** (domain/packages.py): every place that finds a package missing answers
+  `{"missing": {"feature", "packages", "python", "command"}}`. `python` is "app" (the app's own Python,
+  where connections and blades run) or the path of the Python they go into. `MissingPackagesError` turns
+  into a 422 `{"error": "<Feature> will not work without <package>.", "missing": ...}` (server/http.py).
+- **The places:** a connection's form (`/connections/types`, `/connections/{name}`, `/blades/inspect`:
+  the starter's feature, "Key Vault connections", "Trino / Presto connections"); a blade (`/blades/inspect`:
+  "The Sales blade"); a run that stopped on an import (test, refresh, open, preview, tables, datasets,
+  relationships, vault secrets, an analysis blade: `run_failure` names the connection's kind or the
+  blade); a YAML OpenAPI document with no PyYAML ("Reading YAML API documents", once a plain refusal);
+  a Streamlit app ("Streamlit apps") and Test this page ("Test this page"), whose `problem` is the shape
+  with its kind; a Workbench run that stopped on an import ("This code", the kernel's Python: the
+  error detail's `missing`, and the agent's `workbench_run` output says it too).
+- **One prompt in the page** (web/src/missingPackages.ts): "<Feature> needs <package>", one sentence
+  "<Feature> will not work without <package>." (several: "a, b and c"), **Not now** and **Install now**
+  (primary). Install now: a spinner and "Installing…", then the toast "Installed …" and the caller's retry
+  (the form read again, the test or the run again, Play again, the page tested again, the cell run
+  again); a failure is said plainly with the install's last lines, and **Try again**. Not now (or Escape,
+  or the X): the prompt goes, and a small **Install <package>** reminder stays where the feature is used
+  (its command beside it on a form); Not now holds for that package and Python for the session
+  (sessionStorage, this tab), the reminder opens it again on a click.
+- **Installers as today:** the app's Python through `POST /blades/install` (uv, else pip); a Streamlit
+  app's through its own install; a document's in its console (`%pip install`, uv when it has no pip),
+  then the module imported there, so a failed install is said, not retried in a loop.
+- **The agent:** the same answers; `blades_install`, `streamlit_install` and `%pip install` in a kernel
+  (`workbench_run`) as before; the guides (connections, streamlit, workbench) and SKILL.md say how.
+
+### Decisions
+- **When the prompt comes:** at once where a place opens (a connection's form, a blade on its save screen,
+  the Python connection form) or a run stops (Test, Refresh, Play, Test this page, a cell). Never while
+  code is being typed (the blade editor and the Python form read their code as it is typed): there the
+  reminder says it, and the prompt waits for the next open or run.
+- **Not now is per package and per Python** (the brief's "for that package this session"): another
+  feature needing the same package does not ask again either; the reminder is always there.
+- The old quiet notes went: the form's "Driver not installed: … Install", the save screen's Install
+  button, the run-failure dialog's Install, the canvas's primary Install (now a small reminder).
+- The prompt's dialog takes no history entry (Back does not close it): it is a question, not a place.
+- **Not built here:** the Trino keystore's pyjks (branch trino-keystore): its form says the shape through
+  `/blades/inspect` like every other, so it should need nothing more than a feature name, if any.

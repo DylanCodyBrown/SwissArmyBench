@@ -129,43 +129,113 @@ def test_a_file_connection_is_named_after_a_typed_path_and_tested_before_it_is_n
     expect(name).to_have_value("Shop orders")
 
 
-def test_a_missing_driver_is_installed_from_the_form_and_the_command_stays_in_view(
-    browser: Browser, orders_url: str
-) -> None:
-    """Decision 12. The install itself is answered by the test (nothing is downloaded here): the form
-    asks for it, says it is running, and reads the code's packages again when it is done."""
-    page = open_grid(browser, orders_url)
-    dialog = page.locator(".area-page[data-page='connections']")
+MADE_UP = "made-up-trino-driver"
+
+
+def stand_in_missing(page: Page, installed: dict[str, Any]) -> list[Any]:
+    """The package check stood in for: the Trino form needs a made-up package until the stand-in
+    installer has "installed" it (nothing is downloaded). An install of a broken one fails, once.
+    Returns the installs asked for."""
     asked: list[Any] = []
-    installed = {"done": False}
+    missing = {
+        "feature": "Trino / Presto connections",
+        "packages": [MADE_UP],
+        "python": "app",
+        "command": f"uv pip install {MADE_UP}",
+    }
 
     def install(route: Any) -> None:
         asked.append(json.loads(route.request.post_data or "{}"))
+        if installed.get("fail_once"):
+            installed["fail_once"] = False
+            route.fulfill(
+                status=422,
+                content_type="application/json",
+                body='{"ok": false, "output": "error: a made-up failure"}',
+            )
+            return
         installed["done"] = True
         route.fulfill(status=200, content_type="application/json", body='{"ok": true, "output": ""}')
 
-    def inspect(route: Any) -> None:
-        # The server's own answer, with the package as installed once the install has run.
+    def types(route: Any) -> None:
         answer = route.fetch()
         found = answer.json()
-        if installed["done"]:
-            found["install_here"] = None
-            found["packages"] = [p | {"installed": True} for p in found["packages"]]
+        for form in found["types"]:
+            if form["id"] == "trino":
+                form["missing"] = None if installed.get("done") else missing
+        route.fulfill(response=answer, json=found)
+
+    def inspect(route: Any) -> None:
+        answer = route.fetch()
+        found = answer.json()
+        if (json.loads(route.request.post_data or "{}").get("template")) == "trino":
+            found["missing"] = None if installed.get("done") else missing
         route.fulfill(response=answer, json=found)
 
     page.route("**/blades/install", install)
+    page.route("**/connections/types", types)
     page.route("**/blades/inspect", inspect)
+    return asked
+
+
+def test_a_missing_package_is_asked_for_in_the_users_face_and_installed(
+    browser: Browser, orders_url: str
+) -> None:
+    """The owner, 2026-11-16: "<Feature> needs <package>" at once, Install now and Not now. Install now
+    shows its progress, says a failure plainly (Try again), and once it is in, reads the form again."""
+    page = open_grid(browser, orders_url)
+    installed: dict[str, Any] = {"fail_once": True}
+    asked = stand_in_missing(page, installed)
+    dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     page.locator(".connection-type", has_text="Trino").click()
+    prompt = page.locator("dialog.missing-packages")
+    expect(prompt.locator("h2")).to_have_text(f"Trino / Presto connections needs {MADE_UP}")
+    expect(prompt.locator(".missing-sentence")).to_have_text(
+        f"Trino / Presto connections will not work without {MADE_UP}."
+    )
+    expect(prompt.get_by_role("button", name="Not now")).to_be_visible()
+    prompt.get_by_role("button", name="Install now").click()  # one action
+    # The first install fails: said plainly, with what it printed, and it can be tried again.
+    expect(prompt.locator(".missing-state")).to_have_text("The install failed.")
+    expect(prompt.locator(".missing-error")).to_contain_text("a made-up failure")
+    prompt.get_by_role("button", name="Try again").click()
+    # In: the prompt goes, the form reads its code again, and there is nothing left to install.
+    expect(prompt).to_have_count(0, timeout=15000)
+    expect(page.locator(".toast", has_text=f"Installed {MADE_UP}.")).to_be_visible()
+    expect(dialog.locator(".install-note")).to_have_count(0)
+    assert [a["packages"] for a in asked] == [[MADE_UP], [MADE_UP]]
+
+
+def test_not_now_leaves_a_reminder_and_does_not_ask_again(browser: Browser, orders_url: str) -> None:
+    page = open_grid(browser, orders_url)
+    installed: dict[str, Any] = {}
+    asked = stand_in_missing(page, installed)
+    dialog = page.locator(".area-page[data-page='connections']")
+    page.locator(".nav-rail [data-area='connections']").click()
+    page.get_by_role("button", name="Add connection").click()
+    page.locator(".connection-type", has_text="Trino").click()
+    prompt = page.locator("dialog.missing-packages")
+    expect(prompt).to_be_visible()
+    prompt.get_by_role("button", name="Not now").click()
+    expect(prompt).to_have_count(0)
+    # The small reminder where the feature is used, the command beside it (the user's own Python too).
     note = dialog.locator(".install-note")
-    # The command stays in view, for the user's own Python; Install sits beside it.
-    expect(note).to_contain_text("Driver not installed:")
-    expect(note.locator("code")).to_contain_text("trino")
-    note.get_by_role("button", name="Install").click()  # one action
-    # Done: the form has read the code again and the note is gone, since there is nothing to do.
-    expect(note).to_have_count(0, timeout=15000)
-    assert asked and "trino" in asked[0]["packages"]
+    expect(note.get_by_role("button", name=f"Install {MADE_UP}")).to_be_visible()
+    expect(note.locator("code")).to_have_text(f"uv pip install {MADE_UP}")
+    # The same form again: no prompt this session.
+    dialog.get_by_role("button", name="Back").click()
+    page.locator(".connection-type", has_text="Trino").click()
+    expect(dialog.locator(".install-note")).to_be_visible()
+    expect(prompt).to_have_count(0)
+    assert not asked
+    # The reminder asks again, on the user's click; installed, the note goes.
+    dialog.locator(".install-note").get_by_role("button", name=f"Install {MADE_UP}").click()
+    prompt.get_by_role("button", name="Install now").click()
+    expect(prompt).to_have_count(0, timeout=15000)
+    expect(dialog.locator(".install-note")).to_have_count(0)
+    assert [a["packages"] for a in asked] == [[MADE_UP]]
 
 
 def test_every_database_form_reads_in_one_order_and_labels_its_password_box(

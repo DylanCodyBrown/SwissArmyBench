@@ -20,6 +20,7 @@
  *          operation's first rows, nothing written); POST /apis (Add)
  */
 import { api, errorText } from "./api";
+import { promptForError } from "./missingPackages";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { backButton } from "./nav";
@@ -520,6 +521,7 @@ export function showAddApi(host: AddApiHost): void {
         if (mine !== asked) return null;
         plan = null;
         failed(e);
+        promptForError(e, { then: () => void preview() }); // a YAML document and no PyYAML: install, read again
         return null;
       }
     };

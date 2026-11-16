@@ -35,6 +35,7 @@
 import { agentApi, api, ApiError } from "./api";
 import { button, clear, h, icon, showMenu, toast } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
+import { type PromptOptions, promptInstall } from "./missingPackages";
 import { effectiveTheme } from "./theme";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { menuButton } from "./workbenchMenu";
@@ -251,6 +252,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       await host.settle(); // the linked cells as they are typed, saved or not
       const ran = await call("/run", "POST");
       if (ran.problem?.kind === "failed") toast(problemText(ran.problem), "error");
+      // Streamlit missing from the app's Python: the prompt in the user's face; installed, Play again.
+      if (ran.problem?.kind === "missing") void promptInstall(ran.problem, installing(() => void play(page)));
       if (ran.running && !ran.problem) mode = "live";
       return ran;
     } catch (e) {
@@ -267,19 +270,22 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     draw();
   }
 
-  async function install(): Promise<void> {
-    if (busy || !id) return;
-    busy = true;
-    draw();
-    try {
-      const done = await api<{ ok: boolean; output: string }>(`${base()}/install`, "POST");
-      if (!done.ok) throw new Error(done.output.trim().split("\n").slice(-6).join("\n") || "The install failed.");
-    } catch (e) {
-      toast((e as Error).message, "error");
-    } finally {
-      busy = false;
-    }
-    await play();
+  /** Into the app's own Python (its document's environment), through the app's install; then `again`. */
+  function installing(again: () => void): PromptOptions {
+    return {
+      install: async () => {
+        await ensure();
+        const done = await api<{ ok: boolean; output: string }>(`${base()}/install`, "POST");
+        if (!done.ok) throw new Error(done.output.trim().split("\n").slice(-6).join("\n") || "The install failed.");
+      },
+      then: again,
+    };
+  }
+
+  /** The note's Install: the prompt again, asked for (after Not now). */
+  function install(): void {
+    const problem = state?.problem;
+    if (problem?.kind === "missing") void promptInstall(problem, { ...installing(() => void play()), force: true });
   }
 
   async function exportApp(folder?: string, agent = false): Promise<ExportResult | null> {
@@ -318,7 +324,10 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       await host.settle(); // the linked cells as they are typed, saved or not
       await ensure();
       const done = await api<TestResult>(`${base()}/pages/${encodeURIComponent(target)}/test`, "POST");
-      if ("problem" in done && done.problem && typeof done.problem === "object") toast(problemText(done.problem), "error");
+      if ("problem" in done && done.problem && typeof done.problem === "object") {
+        if (done.problem.kind === "missing") void promptInstall(done.problem, installing(() => void test(target)));
+        else toast(problemText(done.problem), "error");
+      }
       else if ("tries" in done) {
         const blocks = Object.keys(done.failures).length + (done.outside.length ? 1 : 0);
         const said = done.problem ?? (blocks ? `${blocks} ${blocks === 1 ? "block" : "blocks"} failed` : "Every block ran");
@@ -699,7 +708,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     const said = mode === "edit" ? (page?.problems ?? []).filter((p) => !page!.blocks.some((b) => b.missing && p.includes(b.missing))) : [];
     clear(
       notes,
-      problem ? h("p", { class: "cv-problem", role: "alert" }, problemText(problem), problem.kind === "missing" ? button(busy ? "Installing…" : "Install", () => void install(), { class: "primary cv-install", title: problem.command }) : null) : null,
+      problem ? h("p", { class: "cv-problem", role: "alert" }, problemText(problem), problem.kind === "missing" ? button(`Install ${problem.packages.join(", ")}`, () => install(), { class: "ghost cv-install", icon: "import", title: problem.command }) : null) : null,
       ...said.map((p) => h("p", { class: "cv-problem", role: "alert" }, p)),
       // The page's last test: an error outside every block, or the test itself not finishing.
       ...(mode === "edit" ? [...(page?.tested?.outside ?? []).map((f) => `${f.case}: ${f.error}`), ...(page?.tested?.problem ? [page.tested.problem] : [])] : []).map((p) => h("p", { class: "cv-problem cv-test-problem", role: "alert" }, p)),

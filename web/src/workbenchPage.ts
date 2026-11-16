@@ -69,6 +69,7 @@ import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, projectOpen, setProjectFolder } from "./kindColours";
+import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
 import { updateCommands, updateMark, versionMark } from "./updates";
@@ -310,17 +311,22 @@ async function runApp(doc: Doc): Promise<boolean> {
   if (!doc.streamlit) return false;
   const state = await doc.streamlit.run();
   if (state.problem?.kind === "failed") toast(problemText(state.problem), "error");
+  // Streamlit missing from the document's Python: the prompt in the user's face (it installs, then runs).
+  if (state.problem?.kind === "missing") void promptInstall(state.problem, streamlitInstall(doc));
   return state.running && !state.problem;
 }
 
+/** Into the document's own Python, through its app (which runs again once it is in). */
+const streamlitInstall = (doc: Doc): PromptOptions => ({
+  install: async () => {
+    await doc.streamlit?.install();
+  },
+});
+
+/** A live cell's Install: the prompt again, asked for (after Not now). */
 async function installStreamlit(doc: Doc): Promise<void> {
-  if (!doc.streamlit) return;
-  toast("Installing Streamlit into this document's Python…");
-  try {
-    await doc.streamlit.install();
-  } catch (e) {
-    toast((e as Error).message, "error");
-  }
+  const problem = doc.streamlit?.state?.problem;
+  if (problem?.kind === "missing") void promptInstall(problem, { ...streamlitInstall(doc), force: true });
 }
 
 const streamlitHost = (doc: Doc): StreamlitHost => ({
@@ -1074,14 +1080,29 @@ function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified
   return doc;
 }
 
-/** The fixes only the window can make: install into the document's Python (in its console). */
+/** The fixes only the window can make: install into the document's Python (in its console). A run that
+ * stopped on a missing package puts the prompt in the user's face (fix.auto); the panel's Install fix
+ * opens it again when asked. Installed, the cell runs again (fix.again). */
 const pageFix = (doc: Doc) => (fix: Fix): boolean => {
   if (fix.kind === "install" && fix.package && doc.console) {
-    if (!/^[A-Za-z0-9._\-[\],=<>!~ ]+$/.test(fix.package)) return false;
-    void doc.console.run({ code: `%pip install ${fix.package}` }, `%pip install ${fix.package}`).then(() => doc.console?.note(`Restart if ${fix.package} was already imported.`));
+    const packages = fix.missing?.packages ?? [fix.package];
+    if (!packages.every((p) => /^[A-Za-z0-9._\-[\],=<>!~]+$/.test(p))) return false;
+    const missing: Missing = fix.missing ?? { feature: "This code", packages, python: doc.kernel?.python ?? "", command: `%pip install ${packages.join(" ")}` };
+    void promptInstall(missing, { force: !fix.auto, install: kernelInstall(doc, fix.module), then: fix.again });
     return true;
   }
   return false;
+};
+
+/** Into the document's own Python, in its console (`%pip install`, uv when it has no pip; as before);
+ * then the module is imported there, so a failed install says so. */
+const kernelInstall = (doc: Doc, module?: string) => async (missing: Missing): Promise<void> => {
+  const line = `%pip install ${missing.packages.join(" ")}`;
+  if (!doc.console || !(await doc.console.run({ code: line }, line))) throw new Error("The install failed: the console says why.");
+  if (module && /^[A-Za-z_][\w.]*$/.test(module)) {
+    const check = `import importlib; importlib.invalidate_caches(); import ${module}`;
+    if (!(await doc.console.run({ code: check }, check))) throw new Error(`${module} is still not there: the console says why.`);
+  }
 };
 
 /** A cell's table result as a grid: the kernel still holds it as Out[n]. */

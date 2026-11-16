@@ -11,6 +11,7 @@ import { api, ApiError } from "./api";
 import { append, button, clear, h, openDialog, toast } from "./dom";
 import { exportBlades } from "./bladeLibrary";
 import { copyAsOwn } from "./starters";
+import { installError, type Missing, promptInstall, reminder } from "./missingPackages";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -80,6 +81,8 @@ interface Inspection {
   packages: Package[];
   install_here: string | null;
   install_yours: string | null;
+  /** What is missing from the app's Python, in the prompt's shape (missingPackages.ts). */
+  missing?: Missing | null;
   settings?: BladeSetting[];
   error?: string;
 }
@@ -241,7 +244,7 @@ function askTyped(needs: Record<string, string>, action: string): Promise<Record
 
 interface RunFailure {
   error?: string;
-  missing?: string;
+  missing?: Missing;
   install_here?: string;
   needs?: Record<string, string>;
 }
@@ -270,6 +273,13 @@ export async function runBlade<T>(name: string, action: "refresh" | "test"): Pro
         env = { ...env, ...typed };
         continue;
       }
+      if (failure?.missing) {
+        // Stopped on a missing package: the prompt in the user's face; installed, the run goes again.
+        const installed = await promptInstall(failure.missing);
+        if (installed) continue;
+        showRunError(name, failure);
+        return null;
+      }
       if (failure?.error) {
         showRunError(name, failure);
         return null;
@@ -284,18 +294,7 @@ export async function runBlade<T>(name: string, action: "refresh" | "test"): Pro
 function showRunError(name: string, failure: RunFailure): void {
   const { body, foot, close } = openDialog(`${name} did not run`, true);
   body.append(h("pre", { class: "code-box" }, failure.error ?? ""));
-  if (failure.missing) {
-    body.append(
-      h("p", {}, `Missing: ${failure.missing}`),
-      h("pre", { class: "code-box" }, failure.install_here ?? ""),
-    );
-    foot.append(
-      button(`Install ${failure.missing}`, () => {
-        close();
-        void install([failure.missing ?? ""]);
-      }, { class: "primary" }),
-    );
-  }
+  if (failure.missing) body.append(h("p", { class: "install-note" }, reminder(failure.missing, { then: () => close() })));
   foot.append(button("Close", close, { class: "ghost" }));
 }
 
@@ -307,15 +306,8 @@ export async function install(packages: string[]): Promise<boolean> {
     toast(`Installed ${packages.join(", ")}.`);
     return result.ok;
   } catch (error) {
-    let message = (error as Error).message;
-    try {
-      const parsed = JSON.parse(message) as { output?: string; command?: string };
-      message = `${parsed.output ?? ""}\n\n${parsed.command ?? ""}`;
-    } catch {
-      // plain text already
-    }
     const { body, foot, close } = openDialog("Install failed", true);
-    body.append(h("pre", { class: "code-box" }, message));
+    body.append(h("pre", { class: "code-box" }, installError(error)));
     foot.append(button("Close", close));
     return false;
   }
@@ -626,11 +618,7 @@ export async function editBlade(
         h(
           "div",
           { class: "row-actions" },
-          missing.length
-            ? button(`Install ${missing.join(", ")}`, () => {
-                void install(missing).then((ok) => ok && void inspect());
-              }, { class: "primary", icon: "plus" })
-            : null,
+          inspection?.missing ? reminder(inspection.missing, { then: () => inspect() }) : null,
           copyCommand,
         ),
       );
@@ -933,4 +921,7 @@ export async function editBlade(
   if (draft.code && !inspection) await inspect();
   else renderInspection();
   nameInput.focus();
+  // Opened with packages missing: the prompt in the user's face (not while the code is typed: then the
+  // reminder beside the packages says it).
+  if (inspection?.missing) void promptInstall(inspection.missing, { then: () => inspect() });
 }

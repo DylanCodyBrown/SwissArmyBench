@@ -541,6 +541,8 @@ def test_the_canvas_runs_in_its_first_linked_files_own_python_and_stops_with_its
     _ok(client.post(f"{base}/stop", headers=AUTH))
     missing = _ok(client.post(f"{base}/run", headers=AUTH))
     assert missing["problem"]["kind"] == "missing" and missing["problem"]["python"] == "/the/notebook/python"
+    # The one missing-package shape (domain/packages.py): the prompt's feature and the command.
+    assert missing["problem"]["feature"] == "Streamlit apps" and "streamlit" in missing["problem"]["command"]
     done = _ok(client.post(f"{base}/install", headers=AUTH))
     assert done["ok"] is True and runner.installed == [("/the/notebook/python", ["streamlit"])]
     _ok(client.post(f"{base}/run", headers=AUTH))

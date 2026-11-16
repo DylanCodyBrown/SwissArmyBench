@@ -3,7 +3,8 @@
  * on the grid's rows as it shows them, in a child process (POST /grids/{id}/blade-analysis), and sends
  * back Visualizations cards: notes, tables, pictures, figures. Here they show in a window, with Send to Visualizations.
  */
-import { ApiError, api, grid, token } from "./api";
+import { api, errorText, grid, token } from "./api";
+import { missingOf, promptInstall, reminder } from "./missingPackages";
 import { button, clear, h, openDialog, toast } from "./dom";
 import { sentToast } from "./sandboxShow";
 import { selection } from "./gridView";
@@ -94,9 +95,14 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
         button("Edit on the blades page", openBladesPage, { icon: "edit", class: "ghost" }),
       );
     } catch (e) {
-      const message = e instanceof ApiError ? e.message : (e as Error).message;
-      clear(results, h("p", { class: "status-error" }, message));
+      clear(results, h("p", { class: "status-error" }, errorText(e)));
       clear(actions, button("Edit on the blades page", openBladesPage, { icon: "edit" }));
+      // Stopped on a missing package: the prompt in the user's face; installed, it runs again.
+      const missing = missingOf(e);
+      if (missing) {
+        actions.prepend(reminder(missing, { then: run }));
+        void promptInstall(missing, { then: run });
+      }
     }
   };
   await run();

@@ -2518,6 +2518,8 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
                     "fixes": [f.get("title") for f in last.get("fixes", [])],
                     "values": frame.get("values", []),
                     "chain": [f"{e.get('type')}: {e.get('message')}" for e in detail.get("chain", [])],
+                    # A package missing from the kernel's Python: what the user's prompt says.
+                    **({"missing": detail["missing"]} if detail.get("missing") else {}),
                 }
             )
     for part in shown:

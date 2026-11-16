@@ -20,6 +20,7 @@
  */
 import { api, ApiError } from "./api";
 import { h } from "./dom";
+import type { Missing } from "./missingPackages";
 import { effectiveTheme } from "./theme";
 import type { HtmlState } from "./workbenchHtml";
 
@@ -40,7 +41,8 @@ export interface PieceState {
   preview: string | null;
 }
 
-export type AppProblem = { kind: "missing"; packages: string[]; python: string; command: string } | { kind: "failed"; message: string };
+/** A missing package is the one shape the prompt reads (missingPackages.ts), with its kind. */
+export type AppProblem = ({ kind: "missing" } & Missing) | { kind: "failed"; message: string };
 
 interface AppCommon {
   app: string;

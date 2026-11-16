@@ -21,6 +21,7 @@
  * notebook and the script from `problemsFor`.
  */
 import { button, h, toast } from "./dom";
+import type { Missing } from "./missingPackages";
 import { contextMenu, currentDocument, errorText, sendToAgent } from "./workbenchAgent";
 import type { Problem } from "./lazy/codeEditor";
 
@@ -32,7 +33,15 @@ export interface Fix {
   text?: string;
   line?: string;
   package?: string;
+  /** install: the module the code imports (checked once it is in). */
+  module?: string;
   name?: string;
+  /** install: the run's missing packages (the prompt's shape), when the server said them. */
+  missing?: Missing;
+  /** install: put in the user's face by the run itself (not the panel's button). */
+  auto?: boolean;
+  /** install: what runs once they are in (the cell, again). */
+  again?: () => void;
 }
 
 export interface Frame {
@@ -69,6 +78,8 @@ export interface Entry {
 export interface ErrorDetail {
   chain: Entry[];
   where?: string;
+  /** A package missing from the kernel's Python, in the prompt's shape (domain/packages.py). */
+  missing?: Missing;
 }
 
 export interface ErrorActions {

@@ -47,11 +47,11 @@ from swissarmybench.domain import approvals, controllers, notebooks, projects
 from swissarmybench.domain import dictionary as data_dictionary
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.app_settings import AppSettings
-from swissarmybench.domain.blades import install_command
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
+from swissarmybench.domain.packages import missing_packages
 from swissarmybench.domain.projects import DataCell
 from swissarmybench.domain.streamlit_cells import (
     Block,
@@ -1046,12 +1046,10 @@ class StreamlitApps:
                     app.problem = {"kind": "failed", "message": str(error)}
                     return self._state(app)
                 if found["missing"]:
-                    app.problem = {
-                        "kind": "missing",
-                        "packages": found["missing"],
-                        "python": python,
-                        "command": install_command(found["missing"], python),
-                    }
+                    # The one missing-package shape (domain/packages.py), the page's prompt reads it.
+                    app.problem = {"kind": "missing"} | missing_packages(
+                        "Streamlit apps", found["missing"], python, own=False
+                    )
                     return self._state(app)
             app.problem = None
             await self._write(app)

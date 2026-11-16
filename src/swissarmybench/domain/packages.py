@@ -8,6 +8,7 @@ from __future__ import annotations
 import shlex
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 # ===== the packages =====
 # The pip packages a blade needs.
@@ -132,3 +133,58 @@ def missing_module_hint(module: str) -> str:
         f"This blade needs {pip}, which is not installed in this Python. "
         f"Install it with: {install_command([pip])}"
     )
+
+
+# ===== a missing package, said the same way everywhere (the owner, 2026-11-16) =====
+#
+# Wherever the app finds a package missing (a connection's form, a blade, a run that failed on an
+# import, a Streamlit app, Test this page, a notebook's cell, a YAML API document), its answer carries
+# one shape: {"missing": {"feature", "packages", "python", "command"}}. The page puts it in the user's
+# face ("<Feature> needs <package>", Install now, Not now: web/src/missingPackages.ts); the agent reads
+# the same words and installs into the Python "python" names: blades_install for the app's own ("app"),
+# streamlit_install for a Streamlit app's, `%pip install` in a Workbench kernel for a document's.
+
+APP_PYTHON = "app"  # the app's own Python, where connections and blades run
+
+# A connection form's feature in plain words, where its starter's label is not enough.
+_FEATURES: dict[str, str] = {"azure_key_vault": "Key Vault connections"}
+
+
+def connection_feature(template: str | None, label: str) -> str:
+    """A connection form's feature: "Key Vault connections", "Trino connections"."""
+    if template and template in _FEATURES:
+        return _FEATURES[template]
+    words = label.strip() or "These"
+    return words if words.lower().endswith("connections") else f"{words} connections"
+
+
+def blade_feature(name: str | None) -> str:
+    """A blade's feature: "The Sales blade", or "This blade" while it has no name."""
+    return f"The {name} blade" if name else "This blade"
+
+
+def missing_packages(feature: str, pips: list[str], python: str, *, own: bool) -> dict[str, Any]:
+    """The one answer for packages that are not there: what needs them, which, into which Python
+    ("app" for the app's own, else that Python's path), and the command that installs them."""
+    unique = list(dict.fromkeys(p for p in pips if p))
+    return {
+        "feature": feature,
+        "packages": unique,
+        "python": APP_PYTHON if own else python,
+        "command": install_command(unique, python),
+    }
+
+
+def missing_words(missing: dict[str, Any]) -> str:
+    """The prompt's one sentence: "Key Vault connections will not work without azure-identity."."""
+    packages = [str(p) for p in missing.get("packages") or []]
+    listed = ", ".join(packages[:-1]) + f" and {packages[-1]}" if len(packages) > 1 else "".join(packages)
+    return f"{missing.get('feature')} will not work without {listed}."
+
+
+class MissingPackagesError(Exception):
+    """A feature that cannot go on without packages: answered 422 with {"error", "missing"}."""
+
+    def __init__(self, missing: dict[str, Any]) -> None:
+        super().__init__(missing_words(missing))
+        self.missing = missing

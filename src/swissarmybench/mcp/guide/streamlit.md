@@ -16,8 +16,9 @@ drives the cells on the same page that read it.
   problems), `streamlit_page_add`, `streamlit_page_change`, `streamlit_page_remove`,
   `streamlit_block_place` (a saved document's cell onto a page), `streamlit_block_change` (move,
   resize, another page), `streamlit_block_remove`, `streamlit_save`, `streamlit_close`.
-- Play: `streamlit_run`, then `streamlit_address`; `streamlit_stop`. Missing Streamlit:
-  `streamlit_install` (into the notebook's Python; it is never the app's own dependency).
+- Play: `streamlit_run`, then `streamlit_address`; `streamlit_stop`. Missing Streamlit: the problem
+  is {kind "missing", feature, packages, python, command}; `streamlit_install` (into the notebook's
+  Python; it is never the app's own dependency), then run again.
 - Controllers: a cell's header line `# Makes: region: str = "All"; by_region: table = orders` is its
   contract (types: str int float bool date list table any; a table's default is a table's name;
   `# Role: filter|action|view` optional). A block whose maker is not on the page reads the default.

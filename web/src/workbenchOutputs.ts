@@ -387,6 +387,11 @@ export function outputArea(dark: () => boolean, grew: () => void = () => undefin
       else element.append(panel);
       lastError = null;
       errors?.shown?.(detail);
+      // A package missing from the kernel's Python: the prompt in the user's face (the page installs it).
+      if (detail.missing && errors) {
+        const install = detail.chain.flatMap((e) => e.fixes).find((f) => f.kind === "install");
+        errors.fix({ kind: "install", title: "", package: detail.missing.packages.join(" "), module: install?.module, missing: detail.missing, auto: true }, detail);
+      }
       return;
     }
     if (o.output_type === "stream") {

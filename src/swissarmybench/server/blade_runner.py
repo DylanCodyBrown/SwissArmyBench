@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import importlib
 import io
 import json
 import os
@@ -219,6 +220,7 @@ async def install_packages(packages: list[str]) -> tuple[int | None, str]:
         process.kill()
         await process.wait()
         return None, ""
+    importlib.invalidate_caches()  # what was just installed is found by the next check at once
     return process.returncode, out.decode("utf-8", "replace")
 
 

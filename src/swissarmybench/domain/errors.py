@@ -17,6 +17,7 @@ import re
 from typing import Any
 
 from swissarmybench.domain import dataverse
+from swissarmybench.domain.packages import missing_packages
 
 # Names people use without importing them, and the line that brings each in.
 IMPORTS: dict[str, str] = {
@@ -156,7 +157,9 @@ def explain(entry: dict[str, Any]) -> dict[str, Any]:
         )
         if package != top:
             text += f" Its package is called {_quote(package)}."
-        fixes.append({"kind": "install", "title": f"Install {_quote(package)} here", "package": package})
+        fixes.append(
+            {"kind": "install", "title": f"Install {_quote(package)} here", "package": package, "module": top}
+        )
     elif kind in ("KeyError", "IndexError"):
         key = _bare(str(facts.get("key", message)))
         keys = list(facts.get("keys") or [])
@@ -315,12 +318,16 @@ def sql_position(message: str) -> dict[str, Any] | None:
     return found or None
 
 
-def explain_detail(detail: dict[str, Any]) -> dict[str, Any]:
+def explain_detail(detail: dict[str, Any], python: str | None = None) -> dict[str, Any]:
     """The kernel's error detail with each exception's words added; `where` names the place in your own
-    code the error went through last ("cell [3], line 2" or "report.py, line 7")."""
+    code the error went through last ("cell [3], line 2" or "report.py, line 7"). A package missing from
+    the kernel's Python (`python`) is said in the one missing-package shape too (domain/packages.py)."""
     chain = [entry | explain(entry) for entry in detail.get("chain", []) if isinstance(entry, dict)]
     out = dict(detail) | {"chain": chain}
     last = chain[-1] if chain else None
+    wanted = [f["package"] for e in chain for f in e.get("fixes", []) if f.get("kind") == "install"]
+    if wanted and python:
+        out["missing"] = missing_packages("This code", wanted, python, own=False)
     if last:
         frames = last.get("frames") or []
         yours = last.get("your_frame")

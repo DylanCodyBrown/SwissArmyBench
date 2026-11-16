@@ -29,6 +29,7 @@ from swissarmybench.domain.datasets import (
 )
 from swissarmybench.domain.export import ExportError
 from swissarmybench.domain.grids import GridLimitError, StaleRequestError
+from swissarmybench.domain.packages import MissingPackagesError
 from swissarmybench.domain.sql_guard import SqlRefused
 from swissarmybench.domain.steps import StepError
 from swissarmybench.server.beta_requests import report
@@ -102,7 +103,9 @@ def error_response(error: Exception) -> Response:
     """Map the engine's error types to HTTP status codes with plain-language messages. An error that is
     not one of a use case's outcomes goes to the beta log too (redacted: server/beta_requests.py)."""
     response = _error_response(error)
-    if not isinstance(error, Refused | NotFound | TimedOut | Conflict | StaleRequestError):
+    if not isinstance(
+        error, Refused | NotFound | TimedOut | Conflict | StaleRequestError | MissingPackagesError
+    ):
         report(error, response.status_code)
     return response
 
@@ -113,6 +116,8 @@ def _error_response(error: Exception) -> Response:
     for outcome, code in ((Refused, 403), (NotFound, 404), (TimedOut, 408), (Conflict, 409)):
         if isinstance(error, outcome):
             return Response(str(error), status_code=code)
+    if isinstance(error, MissingPackagesError):  # the page's prompt and the agent read the same shape
+        return json_response({"error": str(error), "missing": error.missing}, status_code=422)
     if isinstance(error, DatasetTooLargeError | BodyTooLargeError):
         status = 413
     elif isinstance(error, DatasetLimitError | GridLimitError | StaleRequestError):

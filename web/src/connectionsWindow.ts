@@ -57,6 +57,7 @@ import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
+import { type Missing, noticeMissing, promptForError } from "./missingPackages";
 import { kindIcon } from "./kindColours";
 import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
@@ -88,6 +89,8 @@ interface Form {
   install_here: string | null;
   /** The packages the code needs, each installed in the app's Python or not. */
   packages?: { pip: string; installed: boolean }[];
+  /** What is missing from the app's Python, in the one shape the prompt reads (missingPackages.ts). */
+  missing?: Missing | null;
   /** The rule's place for each setting it names: its part of the form and its rank there. */
   field_places?: Record<string, { part: "where" | "who" | "security"; rank: number }>;
   name?: string;
@@ -1101,7 +1104,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         for (const m of r.names) addMapping(m.secret, null, false);
         result.replaceChildren(h("p", { class: "status-ok" }, `${r.names.length} secret${r.names.length === 1 ? "" : "s"}`));
       } catch (e) {
-        if (mine === reading) failed(e);
+        if (mine === reading) failed(e, () => void readVault());
       }
     };
     /** Read the vault on its own once it can be: every setting filled in (not a starter's placeholder). */
@@ -1122,11 +1125,12 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     // The code edited by hand: read its fields and passwords again.
     codeBox.addEventListener("change", () => {
       code = codeBox.value;
-      void api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing }).then(
+      void api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"]; missing?: Missing | null }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing }).then(
         (found) => {
           // The packages the code needs now (a stale "Not installed" once stayed after the code changed).
           form.install_here = found.install_here;
           form.packages = found.packages;
+          form.missing = found.missing ?? null;
           drawInstall();
           drawFields(found.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? null })));
           if (found.secrets.join() !== form.secrets.join()) {
@@ -1162,8 +1166,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           }
         : {}),
     });
-    const failed = (e: unknown): void => {
+    const failed = (e: unknown, again?: () => void): void => {
       result.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+      // A run that stopped on a missing package: the prompt, then the run again once it is in.
+      promptForError(e, { then: again });
     };
     const test = async (): Promise<void> => {
       result.replaceChildren(h("p", { class: "hint" }, isVault ? "Reading…" : "Connecting…"));
@@ -1178,7 +1184,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           r.preview_error ? h("p", { class: "status-error" }, `Its rows could not be read: ${r.preview_error}`) : "",
         );
       } catch (e) {
-        failed(e);
+        failed(e, () => void test());
       }
     };
     const save = async (): Promise<void> => {
@@ -1202,7 +1208,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const switchSignIn = async (way: { code: string }): Promise<void> => {
       const typedSoFar = new Map(fields.filter((f) => !f.placeholder).map((f) => [f.name, f.value]));
       try {
-        const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
+        const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"]; missing?: Missing | null }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
         const keep = Object.fromEntries(next.settings.filter((s) => typedSoFar.has(s.name) && s.name !== "driver").map((s) => [s.id, typedSoFar.get(s.name)]));
         const answer = Object.keys(keep).length
           ? await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code: way.code, values: keep, template: form.id || null, name: editing })
@@ -1217,6 +1223,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         // The packages are this way's own (Dataverse's As you needs azure-identity; its others do not).
         form.install_here = next.install_here;
         form.packages = next.packages;
+        form.missing = next.missing ?? null;
         drawInstall();
         result.replaceChildren();
       } catch (e) {
@@ -1228,44 +1235,23 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const rowLimitField = form.connection === "database" ? h("label", { class: "field" }, h("span", {}, "Rows to open"), rowLimit) : null;
     const passwordsSlot = h("div", {}, drawPasswords() ?? "");
     const installSlot = h("div", {});
-    // A driver that is not installed: the command stays in view (for the user's own Python too) with
-    // Install beside it, which puts it into the app's Python; the note goes once it is there.
+    // A driver that is not installed: the prompt in the user's face (missingPackages.ts); after Not now a
+    // small Install reminder stays, with the command in view for the user's own Python too. Installed,
+    // the code is read again and the note goes.
     const drawInstall = (): void => {
-      if (!form.install_here) {
+      const missing = form.missing;
+      if (!missing) {
         installSlot.replaceChildren();
         return;
       }
-      const missing = (form.packages ?? []).filter((p) => !p.installed).map((p) => p.pip);
-      const state = h("span", { class: "hint", role: "status" });
-      const failedBox = h("pre", { class: "code-box", hidden: true });
-      const go = button("Install", () => {
-        go.disabled = true;
-        state.textContent = "Installing…";
-        failedBox.hidden = true;
-        void api<{ ok: boolean }>("/blades/install", "POST", { packages: missing })
-          .then(() => api<{ install_here: string | null; packages?: Form["packages"] }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing }))
-          .then(
-            (found) => {
-              form.install_here = found.install_here;
-              form.packages = found.packages;
-              drawInstall();
-            },
-            (e: Error) => {
-              go.disabled = false;
-              state.textContent = "";
-              let message = e.message;
-              try {
-                message = (JSON.parse(message) as { output?: string }).output || message;
-              } catch {
-                // plain words already
-              }
-              failedBox.textContent = message;
-              failedBox.hidden = false;
-            },
-          );
-      }, { icon: "export", title: "Into this app's own Python" });
-      go.disabled = !missing.length;
-      installSlot.replaceChildren(h("p", { class: "hint install-note" }, isVault ? "Not installed: " : "Driver not installed: ", h("code", {}, form.install_here), go, state), failedBox);
+      const again = async (): Promise<void> => {
+        const found = await api<{ install_here: string | null; packages?: Form["packages"]; missing?: Missing | null }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing });
+        form.install_here = found.install_here;
+        form.packages = found.packages;
+        form.missing = found.missing ?? null;
+        drawInstall();
+      };
+      installSlot.replaceChildren(h("p", { class: "hint install-note" }, noticeMissing(missing, { then: again }), h("code", {}, missing.command)));
     };
     drawInstall();
     clear(

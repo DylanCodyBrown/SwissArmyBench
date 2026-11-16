@@ -203,6 +203,7 @@ def test_test_this_page_writes_the_page_and_its_plan_and_puts_the_answer_on_the_
     tester.missing = ["streamlit"]
     missing = _ok(client.post(f"/streamlit/apps/{app}/pages/p1/test", headers=AUTH))
     assert missing["problem"]["kind"] == "missing" and missing["problem"]["packages"] == ["streamlit"]
+    assert missing["problem"]["feature"] == "Test this page"
     del runner, page
 
 
