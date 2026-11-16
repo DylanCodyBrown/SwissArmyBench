@@ -16,6 +16,7 @@
 import { api, errorText } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { backButton } from "./nav";
 
 interface Setting {
   id: string;
@@ -74,7 +75,8 @@ export interface AddApiHost {
   foot: HTMLElement;
   /** Where API_<name>.py goes: an open project's folder (none: the Workbench's own). */
   folder?: string;
-  back: () => void;
+  /** Where its Back goes (nav.backButton). */
+  backTo: { label: string; url: string };
   /** Saved: the connection's own form follows (where each variable comes from). */
   added: (name: string) => void;
 }
@@ -93,7 +95,7 @@ export function showAddApi(host: AddApiHost): void {
     (e) => {
       choices = null;
       clear(body, h("p", { class: "status-error" }, errorText(e)));
-      foot.append(button("Back", host.back, { icon: "back" }));
+      foot.append(backButton(host.backTo.label, host.backTo.url));
     },
   );
 
@@ -421,7 +423,7 @@ export function showAddApi(host: AddApiHost): void {
         status,
       ),
     );
-    foot.append(button("Back", host.back, { icon: "back" }), add);
+    foot.append(backButton(host.backTo.label, host.backTo.url), add);
     url.focus();
   }
 }

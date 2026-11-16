@@ -226,8 +226,17 @@ export interface DialogParts {
   close: () => void;
 }
 
-/** A modal dialog with a title, a body and a footer. Escape and the close button close it. */
-export function openDialog(title: string, wide = false): DialogParts {
+/** What nav.ts does with each new dialog: an entry of its own, so the browser's Back closes it. */
+let dialogHook: ((dialog: HTMLDialogElement) => void) | null = null;
+
+export function setDialogHook(hook: (dialog: HTMLDialogElement) => void): void {
+  dialogHook = hook;
+}
+
+/** A modal dialog with a title, a body and a footer. Escape and the close button close it, and so does
+ *  the browser's Back (nav.ts), unless `history` is false: a dialog whose views are in the address
+ *  (Connections, Settings), or one that waits for an answer (the agent's approval). */
+export function openDialog(title: string, wide = false, options: { history?: boolean } = {}): DialogParts {
   const body = h("div", { class: "dialog-body" });
   const foot = h("div", { class: "dialog-foot" });
   const dialog = h("dialog", { class: wide ? "wide" : "", "aria-label": title });
@@ -243,6 +252,7 @@ export function openDialog(title: string, wide = false): DialogParts {
   dialog.addEventListener("close", () => dialog.remove());
   document.body.append(dialog);
   dialog.showModal();
+  if (options.history !== false) dialogHook?.(dialog);
   return { dialog, body, foot, close };
 }
 

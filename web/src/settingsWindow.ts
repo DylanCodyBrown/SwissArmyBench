@@ -25,6 +25,7 @@ import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
+import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { loadPanels, panelList, setPanel } from "./panels";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 
@@ -118,8 +119,31 @@ async function copyMcpPrompt(): Promise<void> {
   }
 }
 
+// Settings is in the address (open=settings, nav.ts): Back closes it, a reload and Forward bring it back.
+let shown: HTMLDialogElement | null = null;
+registerLayer("settings", {
+  isOpen: () => Boolean(shown?.open),
+  open: () => drawSettings(),
+  show: () => undefined, // one view: nothing to move between
+  dismiss: () => {
+    if (shown) dismissDialog(shown);
+  },
+});
+
+/** The Application row's Settings (the Workbench's "…" too), opened by the user. */
 export function openSettings(): void {
-  const { body, foot, close } = openDialog("Settings", true);
+  if (shown?.open) return;
+  layerOpened("settings");
+  drawSettings();
+}
+
+function drawSettings(): void {
+  const { dialog, body, foot, close } = openDialog("Settings", true, { history: false });
+  shown = dialog;
+  setOverTitle("Settings");
+  watchLayerDialog(dialog, "settings", [], () => {
+    if (shown === dialog) shown = null;
+  });
   const themes = Object.entries(THEME_LABELS).map(([value, label]) =>
     h(
       "label",

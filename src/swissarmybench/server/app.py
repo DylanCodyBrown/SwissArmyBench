@@ -24,6 +24,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
+  routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
@@ -68,6 +69,7 @@ from swissarmybench.server import (
     routes_grids,
     routes_kind_colours,
     routes_lineage,
+    routes_navigation,
     routes_packs,
     routes_panels,
     routes_processes,
@@ -133,6 +135,8 @@ def create_app(
             opener=websocket.query_params.get("opener") == "1",
             # A Workbench window: the agent's workbench_window commands go to it.
             workbench=websocket.query_params.get("workbench") == "1",
+            # The blades page: the agent's app_navigate to the catalog window goes to it.
+            catalog=websocket.query_params.get("catalog") == "1",
             window=websocket.query_params.get("window"),
         )
         try:
@@ -208,6 +212,7 @@ def create_app(
             *routes_projects.routes(ctx.projects),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
+            *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
             *routes_script_runs.routes(ctx.script_runs),
             *routes_beta_log.routes(ctx.beta),

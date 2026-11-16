@@ -220,13 +220,13 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     box = dialog.locator(".password-box")
     expect(box.locator("> span").first).to_have_text("Password")
     expect(box.get_by_label("Password", exact=True)).to_have_attribute("type", "password")
-    dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
+    dialog.locator(".dialog-foot").get_by_role("button", name="Back to Add connection").click()
 
     page.locator(".connection-type", has_text="PostgreSQL").click()
     drawn()
     found = labels()
     assert found[2:7] == ["Server", "Port", "Database", "User", "Password comes from"], found
-    dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
+    dialog.locator(".dialog-foot").get_by_role("button", name="Back to Add connection").click()
 
     # SQL Server: the user arrives with another way to sign in, and lands in the same place.
     page.locator(".connection-type", has_text="SQL Server").first.click()
@@ -313,8 +313,8 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         dialog.get_by_role("button", name="Use it").click()
         expect(code_box(dialog)).to_have_value(re.compile(r'secret\("reporting_password"\)'))
         # The vault is a connection: in the list under Key vaults, with what it sets.
-        dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
-        dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
+        dialog.locator(".dialog-foot").get_by_role("button", name="Back to Add connection").click()
+        dialog.locator(".dialog-foot").get_by_role("button", name="Back to Connections").click()
         expect(dialog.get_by_role("heading", name="Key vaults")).to_be_visible()
         expect(page.locator(".connection-list")).to_contain_text("Every secret")
         expect(page.locator(".connection-list")).to_contain_text("CRM_KEY ← api-key")
@@ -325,7 +325,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         expect(dialog.get_by_role("textbox", name="warehouse-password: the variable's name")).to_have_value(
             ""
         )
-        dialog.locator(".dialog-foot").get_by_role("button", name="Back").click()
+        dialog.locator(".dialog-foot").get_by_role("button", name="Back to Connections").click()
         listed = call(server, "GET", "/connections")["connections"]
         assert [(c["name"], c["connection"], c["every"]) for c in listed] == [
             ("Azure Key Vault", "vault", True)

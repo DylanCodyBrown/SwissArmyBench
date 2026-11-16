@@ -43,6 +43,8 @@ class LiveUpdates:
         self._window_of: dict[WebSocket, str] = {}  # a Workbench window's id (its kernels carry it)
         # When a caller was last told to open a window, until that window connects.
         self._window_promised: float | None = None
+        # The blades pages (/catalog): app_navigate's catalog window.
+        self._catalogs: set[WebSocket] = set()
         # The VS Code windows, the one the user was last in at the end.
         self._openers: list[WebSocket] = []
         # When the last VS Code window left (from the start, until the first one arrives).
@@ -56,8 +58,11 @@ class LiveUpdates:
         opener: bool = False,
         workbench: bool = False,
         window: str | None = None,
+        catalog: bool = False,
     ) -> None:
         self._sockets.add(websocket)
+        if catalog and not workbench:  # the Workbench reads catalogs too, but is a window of its own
+            self._catalogs.add(websocket)
         if workbench:
             self._workbenches.append(websocket)
             if window:
@@ -75,6 +80,7 @@ class LiveUpdates:
         self._grid_of.pop(websocket, None)
         self._window_of.pop(websocket, None)
         self._workspaces.discard(websocket)
+        self._catalogs.discard(websocket)
         if websocket in self._workbenches:
             self._workbenches.remove(websocket)
         if websocket in self._openers:
@@ -122,6 +128,10 @@ class LiveUpdates:
             except Exception:
                 self.discard(websocket)  # a window closed mid-send: the one before it
         return 0
+
+    def catalog_open(self) -> bool:
+        """True when a blades page (/catalog) is connected."""
+        return any(ws in self._sockets for ws in self._catalogs)
 
     def page_open(self) -> bool:
         """True when any grid page or workspace page is connected (a snapshot needs one to draw it)."""

@@ -93,7 +93,8 @@ function showApprovals(): void {
     return;
   }
   if (!popup || !popup.body.isConnected) {
-    const { dialog, body, foot, close } = openDialog("The agent is asking", true);
+    // Not closed by the browser's Back (closing declines): it waits for Allow or Deny (nav.ts).
+    const { dialog, body, foot, close } = openDialog("The agent is asking", true, { history: false });
     foot.append(h("span", { class: "hint" }, "Closing declines. Expires in 3 minutes."));
     // Escape or the X used to hide a request that was still waiting, with nothing in the page to
     // bring it back: the agent waited out its 3 minutes. Closing now answers No.

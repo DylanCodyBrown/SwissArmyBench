@@ -44,6 +44,7 @@ import { api, errorText, onNotice } from "./api";
 import { button, clear, closeDialogs, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { pickSheets } from "./openFile";
+import { backButton, crumbs, dismissDialog, go, layerOpened, registerLayer, setOverTitle, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested } from "./pythonConnectionForm";
 
 interface Field {
@@ -233,10 +234,72 @@ export function connectionsButton(): HTMLButtonElement {
   return button("Connections", () => void openConnections(), { icon: "link", class: "ribbon-btn" });
 }
 
+// ===== the window's views in the address (nav.ts): open=connections, then at= types | form&type= |
+// edit&name= | api. The browser's Back and Forward move between them; a reload comes back to the same one.
+const KEYS = ["at", "type", "name"];
+const LIST = { at: null, type: null, name: null };
+const TYPES = { at: "types", type: null, name: null };
+const API = { at: "api", type: null, name: null };
+const urlOf = (params: Record<string, string | null>): string => withParams({ ...params, open: "connections" });
+/** The open window: what shows the view an address names. */
+let shownWindow: { dialog: HTMLDialogElement; showAt: (url: URL) => void } | null = null;
+
+registerLayer("connections", {
+  isOpen: () => Boolean(shownWindow?.dialog.open),
+  open: (url) => void drawConnections(url),
+  show: (url) => shownWindow?.showAt(url),
+  dismiss: () => {
+    if (shownWindow) dismissDialog(shownWindow.dialog);
+  },
+});
+
+/** The Application row's Connections (and Add API: `addApi`), opened by the user: its address pushed. */
 export async function openConnections(start: { addApi?: boolean; folder?: string } = {}): Promise<void> {
-  const { body, foot, close } = openDialog("Connections", true);
+  if (shownWindow?.dialog.open) return;
+  const params = start.addApi ? API : LIST;
+  layerOpened("connections", params);
+  await drawConnections(new URL(urlOf(params), location.href), start.folder);
+}
+
+async function drawConnections(at: URL, folder?: string): Promise<void> {
+  const { dialog, body, foot, close } = openDialog("Connections", true, { history: false });
+  const start = { folder };
+  // The view drawn now (its address' words), so an address that names it again draws nothing.
+  let drawn = "";
+  // What the view on screen lets go of when another replaces it (a Python form's editors).
+  let leaving: (() => void) | null = null;
+  const leave = (key: string): void => {
+    drawn = key;
+    leaving?.();
+    leaving = null;
+  };
+  const keyOf = (url: URL): string => KEYS.map((k) => url.searchParams.get(k) ?? "").join("|");
+  /** The user moved inside the window: the new view's address pushed, then the view drawn. */
+  const move = (params: Record<string, string | null>, draw: () => void): void => {
+    void go(urlOf(params), "push");
+    draw();
+  };
+  const view = {
+    dialog,
+    showAt: (url: URL): void => {
+      if (keyOf(url) === drawn) return;
+      const at = url.searchParams.get("at");
+      if (at === "types") void showTypes();
+      else if (at === "api") showApi();
+      else if (at === "edit" && url.searchParams.get("name")) void showForm({ edit: url.searchParams.get("name")! });
+      else if (at === "form" && url.searchParams.get("type")) void showFormOf(url.searchParams.get("type")!);
+      else void showList();
+    },
+  };
+  shownWindow = view;
+  watchLayerDialog(dialog, "connections", KEYS, () => {
+    leaving?.();
+    if (shownWindow?.dialog === dialog) shownWindow = null;
+  });
   let drawing = 0;
   const showList = async (): Promise<void> => {
+    leave("||");
+    setOverTitle("Connections");
     listShowing = () => (body.isConnected ? void showList() : (listShowing = null));
     // Drawn again as catalogs load: only the newest draw paints (never twice, never over a form opened
     // meanwhile), and "Loading…" shows only the first time (no flicker).
@@ -279,7 +342,7 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
           "span",
           { class: "connection-actions" },
           c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(c.name), { icon: "rows", class: "primary" }) : null,
-          readOnly ? null : button("Edit", () => void showForm({ edit: c.name }), { icon: "edit" }),
+          readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name: c.name }, () => void showForm({ edit: c.name })), { icon: "edit" }),
           button("Test", () => void testSaved(c.name, c.connection === "python" ? tested : undefined), { icon: "play" }),
           c.has_catalog ? button("Refresh catalog", () => void refresh(c.name), { icon: "import" }) : null,
           c.entries ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${c.name}")`).then(() => toast("Copied")), { icon: "copy", iconOnly: true }),
@@ -314,7 +377,7 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
           )
         : h("p", { class: "empty-note" }, "No connections"),
     );
-    foot.append(button("Add connection", () => void showTypes(), { icon: "plus", class: "primary" }), button("Add API", () => showApi(), { icon: "plus" }), button("Close", close));
+    foot.append(button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), button("Close", close));
   };
 
   const testSaved = async (name: string, under?: HTMLElement): Promise<void> => {
@@ -340,41 +403,83 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
   };
 
   // ===== ADD: the types =====
+  /** A view that could not be drawn (a connection removed since, a type no longer offered): said, with
+   *  the way back to the list. */
+  const failedView = (e: unknown): void => {
+    clear(body, h("p", { class: "status-error", role: "alert" }, errorText(e)));
+    clear(foot, backButton("Connections", urlOf(LIST)), button("Close", close));
+  };
+  let typesAsked: Promise<Form[]> | null = null;
+  const types = (): Promise<Form[]> => (typesAsked ??= api<{ types: Form[] }>("/connections/types").then((r) => r.types, (e: unknown) => {
+    typesAsked = null;
+    throw e;
+  }));
+
   const showTypes = async (then?: Then): Promise<void> => {
+    // A vault made from a password's form waits outside the address: Back returns to that form.
+    if (!then) {
+      leave("types||");
+      setOverTitle("Connections › Add connection");
+    }
     listShowing = null;
     drawing++; // a list draw still on its way paints nothing now
     clear(foot);
     clear(body, h("p", { class: "hint" }, "Loading…"));
-    let types: Form[];
+    let offered: Form[];
     try {
-      types = (await api<{ types: Form[] }>("/connections/types")).types;
+      offered = await types();
     } catch (e) {
-      clear(body, h("p", { class: "status-error" }, (e as Error).message));
+      failedView(e);
       return;
     }
     const icons = { database: "sql", file: "folder", vault: "key", python: "code" } as const;
-    const tile = (t: Form): HTMLElement => button(plain(t.label), () => void showForm({ type: t, then }), { class: "connection-type", icon: icons[t.connection] });
-    const group = (title: string, kind: Form["connection"]): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...types.filter((t) => t.connection === kind).map(tile))];
+    const open = (t: Form): void => (then ? void showForm({ type: t, then }) : move({ at: "form", type: t.id, name: null }, () => void showForm({ type: t })));
+    const tile = (t: Form): HTMLElement => button(plain(t.label), () => open(t), { class: "connection-type", icon: icons[t.connection] });
+    const group = (title: string, kind: Form["connection"]): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter((t) => t.connection === kind).map(tile))];
     // From a password's New vault: only vaults, and Back returns to that connection.
     clear(body, ...(then ? [] : [...group("Databases", "database"), ...group("Files", "file"), ...group("Your own code", "python")]), ...group("Key vaults", "vault"));
-    foot.append(button("Back", () => void (then ? then(null) : showList()), { icon: "back" }), button("Close", close));
+    foot.append(then ? button("Back", () => void then(null), { icon: "back" }) : backButton("Connections", urlOf(LIST)), button("Close", close));
+  };
+
+  /** A new connection's form by its type's id (an address: a reload, Forward, a breadcrumb). */
+  const showFormOf = async (id: string): Promise<void> => {
+    leave(`form|${id}|`);
+    clear(foot);
+    clear(body, h("p", { class: "hint" }, "Loading…"));
+    try {
+      const type = (await types()).find((t) => t.id === id);
+      if (!type) throw new Error(`There is no connection type called ${id}.`);
+      await showForm({ type });
+    } catch (e) {
+      failedView(e);
+    }
   };
 
   // ===== FORM =====
   const showForm = async (what: { type?: Form; edit?: string; then?: Then }): Promise<void> => {
     listShowing = null;
     drawing++;
+    if (!what.then) leave(what.edit ? `edit||${what.edit}` : `form|${what.type!.id}|`);
     clear(foot);
     let form: Form;
     if (what.edit) {
       try {
         form = await api<Form>(`/connections/${encodeURIComponent(what.edit)}`);
       } catch (e) {
-        toast((e as Error).message, "error");
+        failedView(e);
         return;
       }
     } else form = structuredClone(what.type!);
     const editing = what.edit ?? null;
+    // Where its Back goes, its trail and the window's title (a vault from a password's form has none).
+    const backTo = editing ? { label: "Connections", url: urlOf(LIST) } : { label: "Add connection", url: urlOf(TYPES) };
+    const trail = what.then || editing ? null : crumbs([{ label: "Connections", url: urlOf(LIST) }, { label: "Add connection", url: urlOf(TYPES) }, { label: plain(form.label) }]);
+    if (!what.then) setOverTitle(editing ? `Connections › Edit ${editing}` : `Connections › Add connection › ${plain(form.label)}`);
+    /** Saved: the list, in this entry's place (Back then goes to where the form was opened from). */
+    const savedNow = (): void => {
+      void go(urlOf(LIST), "replace");
+      void showList();
+    };
     if (form.connection === "python") {
       // Your own Python: three code boxes and the variables they read (pythonConnectionForm.ts).
       showPythonForm({
@@ -382,8 +487,10 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
         foot,
         form: form as unknown as PythonForm,
         editing,
-        back: () => void (editing ? showList() : showTypes(what.then)),
-        saved: () => void showList(),
+        backTo,
+        trail,
+        leaving: (dispose) => (leaving = dispose),
+        saved: () => savedNow(),
         newVault: (then) => {
           // A vault made from here: this form waits (kept as it is) and comes back to it.
           const kept = [...body.childNodes];
@@ -776,7 +883,7 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
         await (editing ? api(`/connections/${encodeURIComponent(editing)}`, "PUT", body) : api("/connections", "POST", body));
         toast(`Saved ${name.value.trim()}.`);
         if (what.then) what.then(name.value.trim());
-        else void showList();
+        else savedNow();
       } catch (e) {
         failed(e);
       }
@@ -855,6 +962,7 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
     drawInstall();
     clear(
       body,
+      trail,
       h("h3", {}, editing ? `Edit ${editing}` : isVault ? `New ${plain(form.label)}` : `New ${plain(form.label)} connection`),
       form.note ? h("p", { class: "hint" }, form.note) : null,
       h("label", { class: "field" }, h("span", {}, "Name"), name),
@@ -871,7 +979,7 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
       h("details", { class: "connection-code-box" }, h("summary", {}, "Python code"), codeBox),
     );
     foot.append(
-      button("Back", () => void (editing ? showList() : showTypes(what.then)), { icon: "back" }),
+      what.then ? button("Back", () => void showTypes(what.then), { icon: "back" }) : backButton(backTo.label, backTo.url),
       button(isVault ? "Test" : "Test connection", () => void test(), { icon: "play" }),
       button("Save", () => void save(), { icon: "save", class: "primary" }),
     );
@@ -882,11 +990,22 @@ export async function openConnections(start: { addApi?: boolean; folder?: string
 
   // ===== Add API (addApi.ts): an OpenAPI document or a form; then the connection's own form =====
   const showApi = (): void => {
+    leave("api||");
+    setOverTitle("Connections › Add API");
     listShowing = null;
     drawing++;
-    showAddApi({ body, foot, folder: start.folder, back: () => void showList(), added: (name) => void showForm({ edit: name }) });
+    showAddApi({
+      body,
+      foot,
+      folder: start.folder,
+      backTo: { label: "Connections", url: urlOf(LIST) },
+      // The connection it made: its own form, in Add API's place (Back goes to where Add API was opened from).
+      added: (name) => {
+        void go(urlOf({ at: "edit", type: null, name }), "replace");
+        void showForm({ edit: name });
+      },
+    });
   };
 
-  if (start.addApi) showApi();
-  else await showList();
+  view.showAt(at);
 }

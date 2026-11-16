@@ -33,7 +33,8 @@ import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
-import { $, button, clear, h, toast } from "./dom";
+import { $, button, clear, closeDialogs, h, toast } from "./dom";
+import { appMark, HOME_URL, mountNav, setTitle, startNav } from "./nav";
 import { renderKeyFinder } from "./keyFinder";
 import { settingsButton } from "./settingsWindow";
 import { mountBeta } from "./betaNotes";
@@ -43,7 +44,7 @@ import { tourButton } from "./tour";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
 import { openCompareDialog } from "./compareDialog";
-import { activateGrid, activeContext, addGrid, contextOf, contextsOf, dropGrid, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids } from "./panes";
+import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showGridView, showPlace } from "./panes";
 import { mountRibbon, zoomControl } from "./ribbon";
 import { openColumnProfile } from "./profileView";
 import { mountFileDrop } from "./openFile";
@@ -150,18 +151,21 @@ async function startSingle(): Promise<void> {
   mountSnapshots();
   mountContextMenus();
   if (keysWindow) {
-    // The Key Finder window: the finder alone, full width, titled for this grid.
-    document.title = `Key Finder · ${info.dataset}`;
+    // The Key Finder window: the finder alone, full width, titled for this grid; the mark goes home.
+    setTitle("Key Finder", info.dataset);
     clear($("#grid-title"), `Possible Join Keys for ${info.dataset}`);
+    $(".titlebar").prepend(appMark());
     for (const selector of [".tabbar", ".ribbon", ".workspace", ".statusbar"]) $(selector).remove();
     const host = h("main", { class: "keys-window" });
     document.body.append(host);
     await renderKeyFinder(host);
     return;
   }
-  document.title = `Table Transformations · ${info.dataset}`;
+  setTitle("Table Transformations", info.dataset);
   $(".tabbar").remove();
   $(".titlebar").remove();
+  // The steps window's top row: the mark (home), then whose steps these are.
+  document.body.prepend(h("header", { class: "window-top" }, appMark(), h("strong", {}, info.dataset)));
   // The steps window shows only the steps: no ribbon of its own (the grid's page has it).
   $(".app-row").remove();
   $(".ribbon").remove();
@@ -179,9 +183,21 @@ async function start(): Promise<void> {
     tabs: () => [`front:${document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid"}`, ...Array.from(document.querySelectorAll(".tabs-row [role=tab]"), () => "tab")],
   });
   if (popout || keysWindow) {
+    mountNav(popout ? "steps" : "keys");
     await startSingle();
     return;
   }
+  // The address it was opened with (a reload, a bookmark): shown once the tables are back.
+  const opened = new URL(location.href);
+  // The home page: its tabs and dialogs in the address; Home (the mark, Alt+Home) is the grids.
+  mountNav("home", {
+    show: (url) => void showPlace(url),
+    home: () => {
+      closeDialogs();
+      showGridView("push");
+    },
+  });
+  $(".tabbar").prepend(appMark());
   const workspace = $(".workspace");
   // The grid has the whole page (plan decision 13): no Table Transformations panel and no SQL box here.
   // The ribbon adds steps; the strip under the title shows them, and opens the panel in a tab of its
@@ -200,8 +216,8 @@ async function start(): Promise<void> {
   state.on("info", () => {
     if (!state.info) return;
     title();
-    // The browser tab names the grid in front; the tab bar names them all.
-    document.title = state.info.dataset;
+    // The browser tab names the place in front (the table, Sandbox, Diagram); the tab bar names them all.
+    drawTitle();
   });
   // The Application row: app-wide commands, with their words, above the ribbon's Table row.
   clear(
@@ -235,6 +251,9 @@ async function start(): Promise<void> {
   // A compare this page was showing before a reload comes back with its split.
   await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();
+  // The view the address named (the Sandbox, the Diagram, a table), then the dialog over it.
+  await showPlace(opened);
+  startNav();
 
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
@@ -258,7 +277,7 @@ async function start(): Promise<void> {
 /** No grid open yet: a quiet title until the first push arrives as a tab. */
 function toolbarEmpty(): void {
   clear($("#grid-title"), "No table yet");
-  document.title = "Grid";
+  drawTitle();
 }
 
 // A failed action nothing else caught (a button whose request the server refused, a tab closed
@@ -272,7 +291,10 @@ window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => 
 });
 
 start().catch((e: unknown) => {
-  document.body.append(h("p", { class: "status-error", style: { padding: "16px" } }, `Could not open this grid: ${(e as Error).message}`));
+  // Never a dead end: the words, and the way home.
+  document.body.append(
+    h("p", { class: "status-error", style: { padding: "16px" } }, `Could not open this grid: ${(e as Error).message} `, h("a", { href: HOME_URL }, "Home")),
+  );
 });
 
 /** Blades and the catalog, always in a tab of their own (plan decision 18), never in this page.

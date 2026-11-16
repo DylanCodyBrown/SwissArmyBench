@@ -13,6 +13,7 @@ import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor
 import { importRelationships, openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
 import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
+import type { Move } from "./nav";
 import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
@@ -105,6 +106,8 @@ export interface TableView {
   /** Where it is, as the catalog names it (for Open as grid and the preview, on its connection). */
   schema?: string;
   database?: string;
+  /** Its schema as the tree shows it ("sales", "Model", "(no schema)"): the trail's middle crumb. */
+  schemaLabel?: string;
 }
 
 /** Whether the current model already holds this dataset's relationships (its tables say where they came from). */
@@ -160,10 +163,14 @@ export interface RailHost {
   editBlade(name: string | null): void;
   /** True while the editor holds unsaved work: the tree then keeps the page as it is. */
   isEditing(): boolean;
-  showTable(view: TableView): void;
+  /** `how`: a click is a move the user made (pushed into the address, nav.ts), an arrow key's walk
+   *  through the tree is not (replaced), nor is showing an address. */
+  showTable(view: TableView, how?: Move): void;
   /** A schema's page; a Power BI workspace's (`dialect` "dax") is a dataset: `schema` its name, `note`
    *  why it could not be read. */
-  showSchema?(label: string, catalog: string, dialect: string, schema: string, note: string): void;
+  showSchema?(label: string, catalog: string, dialect: string, schema: string, note: string, database?: string, how?: Move): void;
+  /** The catalog picked in the picker (the blades page shows it). */
+  catalogPicked?(catalog: CatalogInfo): void;
   /** In the Workbench every connection is there by its name: drag and copy give the name alone. */
   connectionsByName?: boolean;
 }
@@ -176,6 +183,20 @@ export interface Rail {
   /** The editor closed: nothing is marked. */
   editorClosed(): void;
   blades(): BladeSummary[];
+  /** The loaded catalogs, and the one in the picker. */
+  catalogs(): CatalogInfo[];
+  current(): CatalogInfo | null;
+  /** Open the tree at a place an address names, and show it (false: it is not there). */
+  goTo(place: CatalogPlace, how?: Move): Promise<boolean>;
+}
+
+/** A place in the catalog, as the blades page's address names it. */
+export interface CatalogPlace {
+  catalog: string;
+  database?: string;
+  schema?: string;
+  table?: string;
+  column?: string;
 }
 
 /** Code and the imports it needs, carried beside a drag's plain text (for pages that place cells). */
@@ -567,6 +588,7 @@ export function mountRail(host: RailHost): Rail {
     if (current) remember("catalog", current.name);
     renderPicker();
     void showCatalog();
+    if (current) host.catalogPicked?.(current);
   });
 
   function renderCatalogSection(): void {
@@ -764,7 +786,7 @@ export function mountRail(host: RailHost): Rail {
     if (twisty) twisty.textContent = "▸";
   }
 
-  function select(item: HTMLElement, show = true): void {
+  function select(item: HTMLElement, show = true, how: Move = "auto"): void {
     for (const old of tree.querySelectorAll<HTMLElement>('[aria-selected="true"]')) {
       old.setAttribute("aria-selected", "false");
       old.tabIndex = -1;
@@ -772,7 +794,7 @@ export function mountRail(host: RailHost): Rail {
     item.setAttribute("aria-selected", "true");
     item.tabIndex = 0;
     item.querySelector(".node")?.scrollIntoView({ block: "nearest" });
-    if (show) void showNode(item);
+    if (show) void showNode(item, how);
   }
 
   /** Every item a person can see now (not inside a collapsed parent), in order. */
@@ -815,7 +837,7 @@ export function mountRail(host: RailHost): Rail {
     const move = (to: HTMLElement | undefined): void => {
       if (!to) return;
       event.preventDefault();
-      select(to);
+      select(to, true, "replace"); // walking the tree: one entry, the place it stops (Enter or a click pushes)
     };
     switch (event.key) {
       case "ArrowDown":
@@ -862,18 +884,18 @@ export function mountRail(host: RailHost): Rail {
 
   // ===== details: a table's columns and a first SELECT, shown by the page =====
 
-  async function showNode(item: HTMLElement): Promise<void> {
+  async function showNode(item: HTMLElement, how: Move = "auto"): Promise<void> {
     const data = nodes.get(item);
     if (!data || !current) return;
     if (host.isEditing()) {
       toast("Save or cancel the blade first.");
       return;
     }
-    if (data.kind === "table" || data.kind === "column") await showTable(data, data.column);
-    if (data.kind === "schema") host.showSchema?.(schemaLabel(data), current.name, current.dialect, data.schema, data.note ?? "");
+    if (data.kind === "table" || data.kind === "column") await showTable(data, data.column, how);
+    if (data.kind === "schema") host.showSchema?.(schemaLabel(data), current.name, current.dialect, data.schema, data.note ?? "", current.databases > 1 ? data.database : undefined, how);
   }
 
-  async function showTable(data: NodeData, focusColumn?: string): Promise<void> {
+  async function showTable(data: NodeData, focusColumn?: string, how: Move = "auto"): Promise<void> {
     if (!current || !data.table) return;
     let answer: { columns: ColumnRow[]; select: string; dialect: string };
     try {
@@ -899,8 +921,9 @@ export function mountRail(host: RailHost): Rail {
       columns: answer.columns,
       focusColumn,
       schema: data.schema,
+      schemaLabel: schemaLabel(data),
       database: current.databases > 1 ? data.database : undefined,
-    });
+    }, how);
   }
 
   // ===== search =====
@@ -986,22 +1009,25 @@ export function mountRail(host: RailHost): Rail {
     results.hidden = false;
   }
 
-  /** Open the tree at a table (and column) found by search, and show it. */
-  async function reveal(database: string, schema: string, table: string, column?: string): Promise<void> {
+  const find = (parent: ParentNode, match: (d: NodeData) => boolean): HTMLElement | undefined =>
+    [...parent.querySelectorAll<HTMLElement>(':scope > [role="treeitem"], :scope > ul > [role="treeitem"]')].find((i) => {
+      const d = nodes.get(i);
+      return d !== undefined && match(d);
+    });
+  const schemaItemOf = (database: string, schema: string): HTMLElement | undefined =>
+    find(tree, (d) => d.kind === "schema" && d.schema === schema && (!current || current.databases < 2 || d.database === database));
+
+  /** Open the tree at a table (and column) found by search, and show it (false: it is not there). */
+  async function reveal(database: string, schema: string, table: string, column?: string, how: Move = "auto"): Promise<boolean> {
     if (host.isEditing()) {
       toast("Save or cancel the blade first.");
-      return;
+      return false;
     }
     search.value = "";
     results.hidden = true;
     tree.hidden = false;
-    const find = (parent: ParentNode, match: (d: NodeData) => boolean): HTMLElement | undefined =>
-      [...parent.querySelectorAll<HTMLElement>(':scope > [role="treeitem"], :scope > ul > [role="treeitem"]')].find((i) => {
-        const d = nodes.get(i);
-        return d !== undefined && match(d);
-      });
-    const schemaItem = find(tree, (d) => d.kind === "schema" && d.schema === schema && (!current || current.databases < 2 || d.database === database));
-    if (!schemaItem) return;
+    const schemaItem = schemaItemOf(database, schema);
+    if (!schemaItem) return false;
     await expand(schemaItem);
     let tableItem = find(group(schemaItem), (d) => d.kind === "table" && d.table === table);
     // A table past the first page: keep showing more until it appears.
@@ -1011,15 +1037,38 @@ export function mountRail(host: RailHost): Rail {
       await activate(more);
       tableItem = find(group(schemaItem), (d) => d.kind === "table" && d.table === table);
     }
-    if (!tableItem) return;
+    if (!tableItem) return false;
     await expand(tableItem);
     const target = column ? (find(group(tableItem), (d) => d.kind === "column" && d.column === column) ?? tableItem) : tableItem;
     select(target, false);
     tree.focus();
     const data = nodes.get(tableItem);
-    if (data) await showTable(data, column);
+    if (!data) return false;
+    await showTable(data, column, how);
+    return true;
   }
 
+  /** The tree at the place an address names: its catalog picked, then its schema or table shown. */
+  async function goTo(place: CatalogPlace, how: Move = "replace"): Promise<boolean> {
+    if (current?.name.toLowerCase() !== place.catalog.toLowerCase()) {
+      if (!catalogs.some((c) => c.name.toLowerCase() === place.catalog.toLowerCase())) catalogs = (await api<{ catalogs: CatalogInfo[] }>("/catalogs").catch(() => ({ catalogs }))).catalogs;
+      const wanted = catalogs.find((c) => c.name.toLowerCase() === place.catalog.toLowerCase());
+      if (!wanted) return false;
+      current = wanted;
+      renderPicker();
+      await showCatalog();
+    }
+    const database = place.database ?? "";
+    const schema = place.schema ?? "";
+    if (place.table) return reveal(database, schema, place.table, place.column, how);
+    if (place.schema === undefined) return true;
+    const item = schemaItemOf(database, schema);
+    if (!item) return false;
+    select(item, false);
+    const data = nodes.get(item)!;
+    host.showSchema?.(schemaLabel(data), current!.name, current!.dialect, data.schema, data.note ?? "", current!.databases > 1 ? data.database : undefined, how);
+    return true;
+  }
 
   // ===== start =====
 
@@ -1038,5 +1087,8 @@ export function mountRail(host: RailHost): Rail {
       renderBlades();
     },
     blades: () => blades,
+    catalogs: () => catalogs,
+    current: () => current,
+    goTo,
   };
 }

@@ -36,6 +36,7 @@ import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuIte
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
 import { openMenuButton } from "./openMenu";
+import { go, LAYER_PARAMS, type Move, setTitle } from "./nav";
 import { renameInPlace } from "./renameTable";
 import { PageState, activate } from "./state";
 
@@ -58,17 +59,80 @@ let draft: { serial: number; name: string } | null = null;
 let draftSerial = 0;
 
 /** The Sandbox tab: the Sandbox full width, in place of the grids. */
-export function showAgentView(): void {
-  setView("agent");
+export function showAgentView(how: Move = "auto"): void {
+  setView("agent", how);
 }
 
 /** The ERD tab: the relationship diagram of the open tables, in place of the grids. */
-export function showErdView(): void {
-  setView("erd");
+export function showErdView(how: Move = "auto"): void {
+  setView("erd", how);
 }
 
-export function showGridView(): void {
-  setView("grid");
+export function showGridView(how: Move = "auto"): void {
+  setView("grid", how);
+}
+
+// ===== the address (nav.ts): the tab in front is in it, so Back and Forward move between tabs and a
+// reload keeps the one in front. /g/<id> for a table, /workspace?view=sandbox | diagram | query for the
+// others; a dialog's own words (open=connections&at=types) stay after them.
+
+const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "sandbox", erd: "diagram", query: "query" };
+let activating = 0;
+let syncing: Move | null = null;
+
+/** The address of what is in front now. */
+function addressOf(): string {
+  const now = new URLSearchParams(location.search);
+  const out = new URLSearchParams();
+  if (view !== "grid") out.set("view", VIEW_WORDS[view]);
+  for (const key of LAYER_PARAMS) {
+    const value = now.get(key);
+    if (value !== null) out.set(key, value);
+  }
+  const path = view === "grid" && activeId ? `/g/${encodeURIComponent(activeId)}` : "/workspace";
+  const query = out.toString();
+  return `${path}${query ? `?${query}` : ""}`;
+}
+
+/** The window's title: the place in front (the table's name, Sandbox, Diagram, New query). */
+export function placeName(): string {
+  if (view === "agent") return "Sandbox";
+  if (view === "erd") return "Diagram";
+  if (view === "query") return draft?.name || "New query";
+  return activeId && contexts.has(activeId) ? label(activeId) : "";
+}
+
+export function drawTitle(): void {
+  setTitle("", placeName());
+}
+
+/** The address and the title follow what is in front, once per change: a tab click that shows the
+ *  grids and then a table makes one entry, the table's (an activation still loading writes its own). */
+function syncSoon(how: Move): void {
+  const first = syncing === null;
+  syncing = how;
+  if (!first) return;
+  queueMicrotask(() => {
+    const next = syncing ?? "auto";
+    syncing = null;
+    if (activating) return;
+    drawTitle();
+    void go(addressOf(), next);
+  });
+}
+
+/** Show what `url` names (Back, Forward, a reload, the agent): the history is not written again. */
+export async function showPlace(url: URL): Promise<void> {
+  const named = url.searchParams.get("view");
+  if (named === "sandbox") setView("agent", "replace");
+  else if (named === "diagram") setView("erd", "replace");
+  else if (named === "query") await newQueryTab("replace");
+  else {
+    const id = url.pathname.startsWith("/g/") ? decodeURIComponent(url.pathname.slice(3)) : "";
+    setView("grid", "replace");
+    // A table closed since: the one in front stays, and the address says so.
+    if (id && contexts.has(id) && id !== activeId) await activateGrid(id, "replace");
+  }
 }
 
 export function viewingErd(): boolean {
@@ -80,8 +144,8 @@ export function viewingQuery(): boolean {
 }
 
 /** The draft tab: its query tray over a blank grid, in place of the grids. */
-export function showQueryView(): void {
-  setView("query");
+export function showQueryView(how: Move = "auto"): void {
+  setView("query", how);
 }
 
 export function currentDraft(): { serial: number; name: string } | null {
@@ -89,7 +153,7 @@ export function currentDraft(): { serial: number; name: string } | null {
 }
 
 /** The "+": open a draft named query_<n> (the first n no dataset uses), or show the open one. */
-export async function newQueryTab(): Promise<void> {
+export async function newQueryTab(how: Move = "auto"): Promise<void> {
   if (!draft) {
     const { datasets } = await api<{ datasets: { name: string }[] }>("/datasets");
     const taken = new Set(datasets.map((d) => d.name));
@@ -98,7 +162,7 @@ export async function newQueryTab(): Promise<void> {
     draftSerial += 1;
     draft = { serial: draftSerial, name: `query_${n}` };
   }
-  showQueryView();
+  showQueryView(how);
 }
 
 /** The draft's tab label follows the name typed in its tray. */
@@ -106,12 +170,13 @@ export function renameDraft(name: string): void {
   if (!draft) return;
   draft.name = name;
   render();
+  if (view === "query") drawTitle();
 }
 
-/** Discard the draft (nothing was built) and go back to the grids. */
+/** Discard the draft (nothing was built) and go back to the grids, in the draft's place in the history. */
 export function closeDraft(): void {
   draft = null;
-  if (view === "query") showGridView();
+  if (view === "query") showGridView("replace");
   else render();
 }
 
@@ -119,8 +184,8 @@ export function closeDraft(): void {
 export async function finishDraft(id: string, dataset: string): Promise<void> {
   draft = null;
   addGrid(id, dataset); // usually already added by the server's grid_shown notice
-  showGridView();
-  await activateGrid(id);
+  showGridView("replace");
+  await activateGrid(id, "replace");
 }
 
 /** Called whenever the view changes (grids, Agent or ERD). */
@@ -128,7 +193,7 @@ export function onAgentView(listener: () => void): void {
   agentViewListeners.push(listener);
 }
 
-function setView(next: AppView): void {
+function setView(next: AppView, how: Move = "auto"): void {
   const changed = view !== next;
   view = next;
   const workspace = panesHost?.closest<HTMLElement>(".workspace");
@@ -137,6 +202,7 @@ function setView(next: AppView): void {
   document.body.classList.toggle("agent-view", next !== "grid");
   render();
   if (changed) for (const listener of agentViewListeners) listener();
+  syncSoon(how);
 }
 
 /** Every open grid, in tab order, with its tab label (for the Agent tab's table picker). */
@@ -325,10 +391,21 @@ function previewBanner(ctx: Context, slot: HTMLElement): void {
 
 /** Make `id` the active grid: its pane shows (or takes the active side of the split), and every
  * panel redraws for it. */
-export async function activateGrid(id: string): Promise<void> {
+export async function activateGrid(id: string, how: Move = "auto"): Promise<void> {
   const ctx = contexts.get(id);
   if (!ctx) return;
   const mine = ++activations;
+  // Until it is in front, the address waits for it (a tab click's "show the grids" writes no entry).
+  activating += 1;
+  try {
+    await bringForward(ctx, id, mine);
+  } finally {
+    activating -= 1;
+    if (mine === activations) syncSoon(how);
+  }
+}
+
+async function bringForward(ctx: Context, id: string, mine: number): Promise<void> {
   // Tell the server which table is in front, so an agent's prompt can say so (routes_context.py).
   void api("/workspace/active", "POST", { grid: id }).catch(() => undefined);
   if (!ctx.state.info) {
@@ -463,12 +540,14 @@ export function dropGrid(id: string): void {
     activeId = null;
     const next = other ?? order[Math.min(at, order.length - 1)];
     if (next) {
-      void activateGrid(next);
+      // In the closed table's place in the history: Back never goes to a table that is gone.
+      void activateGrid(next, "replace");
       return;
     }
   }
   layout();
   render();
+  syncSoon("replace");
 }
 
 function moveTab(from: string, before: string | null): void {

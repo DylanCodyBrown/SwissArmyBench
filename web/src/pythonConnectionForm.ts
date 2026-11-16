@@ -20,6 +20,7 @@
 import { api, errorText } from "./api";
 import { button, clear, h, toast } from "./dom";
 import type { CodeEditor } from "./lazy/codeEditor";
+import { backButton } from "./nav";
 import { effectiveTheme } from "./theme";
 
 interface Source {
@@ -143,7 +144,11 @@ export interface PythonFormHost {
   form: PythonForm;
   /** The saved connection being changed, or null for a new one. */
   editing: string | null;
-  back: () => void;
+  /** Where its Back goes (nav.backButton), and the trail above it past one level. */
+  backTo: { label: string; url: string };
+  trail: HTMLElement | null;
+  /** Hands over what the form lets go of when another view replaces it (its editors). */
+  leaving: (dispose: () => void) => void;
   saved: (name: string) => void;
   /** Add a key vault from here: this form waits, kept as it is, and `then` runs when it is back. */
   newVault: (then: () => Promise<void>) => void;
@@ -375,8 +380,10 @@ export function showPythonForm(host: PythonFormHost): void {
     for (const box of [connect, tables, read]) box.dispose();
   };
 
+  host.leaving(dispose);
   clear(
     body,
+    host.trail,
     h("h3", {}, editing ? `Edit ${editing}` : "New Python connection"),
     h("label", { class: "field" }, h("span", {}, "Name"), name),
     h("label", { class: "field" }, h("span", {}, "Description"), description),
@@ -390,10 +397,7 @@ export function showPythonForm(host: PythonFormHost): void {
   );
   clear(foot);
   foot.append(
-    button("Back", () => {
-      dispose();
-      host.back();
-    }, { icon: "back" }),
+    backButton(host.backTo.label, host.backTo.url),
     button("Test connection", () => void test(), { icon: "play" }),
     button("Save", () => void save(), { icon: "save", class: "primary" }),
   );

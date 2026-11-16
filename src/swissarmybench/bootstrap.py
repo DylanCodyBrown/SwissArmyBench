@@ -82,6 +82,7 @@ from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.lineage import Lineage
+from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
@@ -147,6 +148,7 @@ class Services:
     projects: Projects
     script_exports: ScriptExports
     panels: Panels
+    navigation: Navigation
     kind_colours: KindColours
     script_runs: ScriptRuns
     beta: BetaLog
@@ -467,6 +469,7 @@ def bootstrap(
         workbench_window=workbench_window,
         table_cells=table_cells,
         panels=Panels(ws),
+        navigation=Navigation(ws),
         script_runs=script_runs,
         kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
         beta=beta,

@@ -64,6 +64,7 @@ import { mountDataPanel } from "./workbenchData";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, tabKinds } from "./workbenchGroups";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
+import { appMark, back, canGoBack, forward, goHome, mountNav, setTitle, startNav } from "./nav";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { kindIcon, kindOfPath, loadKindColours } from "./kindColours";
 import { openSettings } from "./settingsWindow";
@@ -1196,7 +1197,7 @@ function focused(doc: Doc | null): void {
   drawEmpty();
   drawControls();
   drawStatus();
-  document.title = doc ? `${doc.title} · Workbench` : "Workbench";
+  setTitle("Workbench", doc?.title ?? ""); // "Workbench · sales.ipynb": the page, then the place
   remember();
   assignSoon(); // a table with no document yet goes to the one in front
   if (doc?.canvas) lastCanvas = doc;
@@ -1457,14 +1458,8 @@ const topName = h("span", { class: "wb-name" });
 const saveButton = button("Save", () => void save(current), { icon: "save", title: "Save (Ctrl+S)" });
 const saveAsButton = button("Save as…", () => void save(current, true), { icon: "folder", title: "Save as (Ctrl+Shift+S)" });
 const topMenu = menuButton(button("Workbench menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost", title: "More" }), "Workbench menu", () => topEntries(), { align: "right" });
-{
-  // The app's mark: the window's icon, drawn small.
-  const mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  mark.setAttribute("viewBox", "0 0 100 100");
-  mark.setAttribute("aria-hidden", "true");
-  mark.innerHTML = '<path d="M42 23h16v19h19v16H58v19H42V58H23V42h19z"/>';
-  top.append(h("span", { class: "wb-mark" }, mark), topName, saveButton, saveAsButton, h("span", { class: "wb-grow" }), topMenu);
-}
+// The app's mark: the window's icon, drawn small, a link home (it brings the home window forward).
+top.append(appMark(), topName, saveButton, saveAsButton, h("span", { class: "wb-grow" }), topMenu);
 
 function drawTop(): void {
   const doc = current;
@@ -2392,6 +2387,10 @@ const COMMANDS: Command[] = [
   { id: "data.addConnection", group: "Data", title: "Add connection…", run: () => openConnections().then(() => void rail.loadBlades()) },
   { id: "data.addApi", group: "Data", title: "Add API…", run: () => addApi() },
   { id: "view.variablesRefresh", group: "View", title: "Read the variables again", when: isCode, whyNot: "no notebook or script is in front", run: () => variables.refresh().then(() => variables.snapshot()) },
+  // Getting around (nav.ts): the mark's Home, and the browser's Back and Forward inside the app
+  { id: "nav.home", group: "Go", title: "Home: the grids' window", keys: "Alt+Home", run: () => goHome() },
+  { id: "nav.back", group: "Go", title: "Back", keys: "Alt+Left", when: canGoBack, whyNot: "nothing to go back to in this window", run: () => back() },
+  { id: "nav.forward", group: "Go", title: "Forward", keys: "Alt+Right", run: () => forward() },
   // Help
   { id: "help.atCursor", group: "Help", title: "Help on the name at the cursor", keys: "F1", when: isCode, whyNot: "no notebook or script is in front", run: () => showHelp() },
   { id: "commands", agentOnly: true, group: "Help", title: "Every command and its arguments", run: () => allCommands().map((c) => ({ id: c.id, title: c.title, group: c.group, keys: c.keys ?? null, args: c.args ?? null, available: c.when ? c.when() : true })) },
@@ -2401,6 +2400,9 @@ registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Expor
 registerCommands(updateCommands()); // Update to X, What's new, Check for updates
 // No token and no good cookie (a bookmark after a restart): the page says how to open the app.
 void requireSession();
+// Getting around: Back closes a dialog and moves inside Connections; a dialog the address names opens.
+mountNav("workbench");
+startNav();
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
 // What is sent to the agent or the Sandbox names the document it came from.

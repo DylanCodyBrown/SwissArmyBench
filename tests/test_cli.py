@@ -565,7 +565,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # the Workbench's modes and kind colours eight (the kind colours, an app's page settings and its
     # live state, a script's run settings, its scheduled run and its history, a notebook's run order,
     # and data.ipynb's dictionary).
-    assert size < 61_000, f"the tool list is {size} characters"
+    # Navigation (2026-11-16) added one, app_navigate: a window sent home, back, forward or to a view.
+    assert size < 61_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

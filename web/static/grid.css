@@ -4638,24 +4638,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   font-size: calc(14px * var(--ui-zoom, 1));
 }
 
-.wb-mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  margin-right: 6px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--accent-fg);
-}
-
-.wb-mark svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-}
-
 .wb-name {
   display: flex;
   align-items: center;
@@ -8724,4 +8706,105 @@ body.panel-off-grid-status .statusbar {
   margin: 48px;
   color: var(--fg);
   font-size: 15px;
+}
+
+/* ===== NAVIGATION (nav.ts): the mark goes home, Back is named for where it goes, the trail past one level ===== */
+.app-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.app-mark svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.app-mark:hover {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 1px;
+}
+
+/* On the home page the mark starts the tab bar, level with the tabs. */
+.tabbar > .app-mark {
+  align-self: center;
+  margin: 0 4px 6px 0;
+}
+
+/* The Workbench's top row and the blades page's: the mark first. */
+.wb-top > .app-mark,
+.cat-top > .app-mark {
+  margin-right: 6px;
+}
+
+.titlebar > .app-mark {
+  flex: none;
+  margin-right: 12px;
+}
+
+/* A window of one panel (the steps window): the mark, then whose it is. */
+.window-top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.back-btn .back-arrow {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.crumbs ol {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.92em;
+  white-space: nowrap;
+}
+
+.crumbs li {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crumbs li + li::before {
+  padding: 0 6px;
+  content: "›";
+  color: var(--muted);
+}
+
+.crumbs a {
+  color: var(--accent);
+}
+
+.crumbs [aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+@media (forced-colors: active) {
+  .app-mark {
+    border: 1px solid CanvasText;
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
 }
