@@ -187,9 +187,10 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     expect(area(page, "settings")).to_be_focused()
     page.keyboard.press("Home")
     expect(area(page, "grids")).to_be_focused()
-    # Alt+Home is still the grids, wherever the focus is.
+    # Alt+Home is Home (the Start view, 2026-11-16), wherever the focus is; the rail marks no area there.
     page.keyboard.press("Alt+Home")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+    expect(current(page)).to_have_count(0)
     # The tip on hover.
     page.evaluate("document.activeElement.blur()")
     area(page, "apps").hover()

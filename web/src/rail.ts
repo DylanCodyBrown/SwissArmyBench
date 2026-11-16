@@ -3,7 +3,7 @@
  * to say it, this app needs a navigation pane somehow."; a slim icon rail, as VS Code's Activity Bar).
  * [SHARED]
  *
- *   [AREAS]   Grids (the home page's tabbed grids: where the mark goes), Sandbox, Diagram, Notebooks,
+ *   [AREAS]   Grids (the home page's tabbed grids; the mark goes Home, the Start view), Sandbox, Diagram, Notebooks,
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, and Settings pinned at the
  *             bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
@@ -20,7 +20,7 @@
  *   [CURRENT] the area the address names is marked (a bar on the left edge, the icon brighter) with
  *             aria-current="page"; it follows every move (onAddress), Back and Forward too.
  *   [KEYS]    one stop in the Tab order (a toolbar): the arrows move between the areas, Enter goes;
- *             Alt+Home is the grids everywhere (nav.ts).
+ *             Alt+Home is Home (the Start view) everywhere (nav.ts).
  *   [PANEL]   Settings' Panels has its switch (app.rail): off, the rail is gone and the page takes its
  *             width back.
  *   [AGENT]   app_navigate's areas run here (setAreaRunner), as a click would (new_window too).
@@ -76,6 +76,7 @@ function currentArea(url: URL): Area | null {
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
   const view = kind === "home" ? url.searchParams.get("view") : null;
   if (view === "sandbox" || view === "diagram") return view;
+  if (view === "start") return null; // Home (startView.ts): no area of the rail's
   return "grids"; // the grids (and the steps and Key Finder windows, which are a grid's)
 }
 
@@ -131,7 +132,9 @@ export function goArea(area: Area, newWindow = false): void {
   }
   switch (area) {
     case "grids":
-      goHome(); // the mark's move: here the grids, elsewhere the home window brought forward
+      // The grids (Home is the Start view, 2026-11-16): here, or in the home window brought forward.
+      if (kind === "home") visit(withParams({ ...LAYER_OFF, view: null }, HOME_URL));
+      else inHome(area);
       return;
     case "sandbox":
     case "diagram":
@@ -182,14 +185,14 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
       class: ["nav-rail-item", area.area === "settings" ? "nav-rail-bottom" : "", area.kind ? `nav-rail-kind km-${area.kind}` : ""].filter(Boolean).join(" "),
       "data-area": area.area,
       "aria-label": area.name,
-      "aria-keyshortcuts": grids ? "Alt+Home" : undefined,
+      "aria-keyshortcuts": undefined,
       "aria-haspopup": area.area === "settings" || area.area === "connections" ? "dialog" : area.kind ? "menu" : undefined,
       // Ctrl+click (Cmd+click): a new window, as a link's new tab.
       onclick: (e: MouseEvent) => goArea(area.area, !!area.kind && (e.ctrlKey || e.metaKey)),
     },
     icon(area.icon),
     // The name, on hover and on focus (a `title` would show the same words a second time).
-    h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name, grids ? h("kbd", {}, "Alt+Home") : null),
+    h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name),
   );
   if (area.kind) {
     // A middle click: a new window too (its mousedown would start the browser's autoscroll).
@@ -220,7 +223,7 @@ export function mountNavRail(page: PageKind, given: RailOptions = {}): void {
   draw(new URL(location.href));
   onAddress(draw);
   setAreaRunner((area, newWindow) => {
-    if (!isArea(area) || area === "grids") return false; // grids is home: nav.ts goes there itself
+    if (!isArea(area)) return false;
     goArea(area, newWindow);
     return true;
   });
@@ -231,8 +234,9 @@ export function mountNavRail(page: PageKind, given: RailOptions = {}): void {
   // Another window's rail: the area it asked this window for (a message from this origin only).
   window.addEventListener("message", (e: MessageEvent) => {
     const said = e.data as { sab?: unknown; area?: unknown } | null;
-    if (e.origin !== location.origin || said?.sab !== "area" || !isArea(said.area)) return;
-    goArea(said.area);
+    if (e.origin !== location.origin || said?.sab !== "area") return;
+    if (said.area === "home") goHome(); // another window's mark: Home (the Start view)
+    else if (isArea(said.area)) goArea(said.area);
   });
 }
 

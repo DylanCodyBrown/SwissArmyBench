@@ -3614,10 +3614,10 @@ def app_audit(a: dict[str, Any]) -> Any:
 
 @command(
     "app_navigate",
-    "Move a window as the user does: home (the mark), back, forward, or a view",
+    "Move a window as the user does: home (the mark: the Start view), back, forward, or a view",
     req(
         "to",
-        "the rail: grids (= home), sandbox, diagram, notebooks, scripts, apps, blades, connections, "
+        "the rail: grids, sandbox, diagram, notebooks, scripts, apps, blades, connections, "
         "settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
         "catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
     ),

@@ -60,10 +60,10 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     for window in rules.WINDOWS:
         for area in rules.AREAS:
             assert area in rules.places(window)
-            # Grids is the home page's tabbed grids: the same place as home (the mark).
-            to = "home" if area == "grids" else area
-            assert rules.place(window, area) == {"window": window, "to": to}
-        assert rules.place(window, "home") == rules.place(window, " grids ")
+            # Grids is the home page's tabbed grids; home (the mark) is the Start view (2026-11-16).
+            assert rules.place(window, area) == {"window": window, "to": area}
+        assert rules.place(window, " grids ") == {"window": window, "to": "grids"}
+        assert rules.place(window, "home") == {"window": window, "to": "home"}
         # Notebooks, Scripts and Apps open in a Workbench window of their own too (the "external tab").
         for code in ("notebooks", "scripts", "apps"):
             assert rules.place(window, code, True) == {"window": window, "to": code, "new_window": True}

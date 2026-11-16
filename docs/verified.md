@@ -1805,5 +1805,10 @@ drags; code of more than one line is pasted, one typed value):
   and Explorer (no Windows here), a Linux desktop's file manager; macOS is not registered.
 - **The tool sweep:** the seven project tools swept with sensible and hostile arguments; it caught that a
   relative path saved into the server's own folder: a path is now refused unless it is whole.
+- **Merged with 0.0.7 (the rail, icons, Dataverse):** Home stays the Start view; the rail's Grids shows the
+  grids (it was the same place as home) and marks no area on the Start view; tests/test_navigation.py and
+  tests/e2e/test_rail_page.py follow (Alt+Home goes to the Start view).
+- **The whole suite after the merge** (Chromium, Streamlit 1.67 in its own Python): 3,114 passed, 33
+  skipped, none failed, 18 minutes. ruff, ruff format, mypy (496 files), and the page's typecheck and build.
 - **Not checked:** a double-click on a real desktop; a very large .sab (GBs of kept rows); two
   Workbench windows following one project; Edge and Firefox (Chromium here).

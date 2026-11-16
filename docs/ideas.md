@@ -2998,6 +2998,9 @@ The owner's two choices, asked and answered:
   user's Allow only when it keeps rows.
 
 ### Decisions
+- **Home is the Start view** (the mark, Alt+Home, the agent's `app_navigate` home); the rail's **Grids**
+  (merged from nav-rail) shows the grids, an area of its own (`app_navigate` grids is no longer home).
+  On the Start view the rail marks no area.
 - One project open at a time; opening one closes the open tables, Sandbox and model (after asking when
   they hold unsaved work).
 - The Sandbox's saved dashboards stay the user's own (in the state folder); the .sab holds the Sandbox

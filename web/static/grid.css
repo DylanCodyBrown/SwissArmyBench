@@ -9089,6 +9089,8 @@ body.panel-off-grid-status .statusbar {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
 /* ===== THE RAIL (rail.ts): the areas down the left of every page and window, as VS Code's Activity Bar.
    48px, fixed; the page moves right by its width (nothing under it). The current area: a bar on the
    left edge and the icon brighter. Its name shows on hover and on keyboard focus. Settings' Panels can

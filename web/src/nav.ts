@@ -390,7 +390,7 @@ export function startNav(url: URL = new URL(location.href)): void {
   layer.open(url);
 }
 
-/** Home: the grids, on the home page; any other window brings the home window forward, or opens it. */
+/** Home: the Start view, on the home page; any other window brings the home window forward, or opens it. */
 export function goHome(): void {
   if (homeHere) {
     homeHere();
@@ -399,8 +399,8 @@ export function goHome(): void {
   const found = homeWindow();
   if (!found) return;
   if (found.fresh || found.win === window) found.win.location.href = HOME_URL;
-  // The grids in front there (the rail's Grids: what is over them closes), as its own mark does.
-  else found.win.postMessage({ sab: "area", area: "grids" }, location.origin);
+  // Home there (the Start view: what is over it closes), as its own mark does.
+  else found.win.postMessage({ sab: "area", area: "home" }, location.origin);
   found.win.focus();
 }
 
@@ -562,7 +562,7 @@ export function setAreaRunner(run: (area: string, newWindow: boolean) => boolean
 function agentMove(kind: PageKind, notice: Notice): void {
   const n = notice as NavNotice;
   if (n.type !== "navigate" || n.window !== kind) return;
-  if (n.to === "home" || n.to === "grids") goHome(); // the rail's Grids is home (the mark)
+  if (n.to === "home") goHome(); // Home: the Start view (the rail's Grids is an area of its own)
   else if (n.to === "back") back();
   else if (n.to === "forward") forward();
   else if (n.to && areaRunner?.(n.to, n.new_window === true)) return; // a rail's area, here or brought forward

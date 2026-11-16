@@ -19,8 +19,8 @@ WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench")
 # rail down the left of every page and window), in its order: each is a place from every window, as a
 # rail click goes there (web/src/rail.ts). A window that does not show the area brings forward the one
 # that does (the home window for the grids, the Sandbox and the Diagram; the Workbench for notebooks,
-# scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids: the
-# same place as home (the mark), so the same notice.
+# scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids; home
+# (the mark) is the Start view (projects as one .sab file, 2026-11-16), a place of its own.
 AREAS: tuple[str, ...] = (
     "grids",
     "sandbox",
@@ -32,7 +32,7 @@ AREAS: tuple[str, ...] = (
     "connections",
     "settings",
 )
-SAME: dict[str, str] = {"grids": "home"}
+SAME: dict[str, str] = {}
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
 CODE: tuple[str, ...] = ("notebooks", "scripts", "apps")
 # Every window: home (the mark), the rail's areas, the browser's Back and Forward, and the forms
