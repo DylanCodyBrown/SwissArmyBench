@@ -39,7 +39,7 @@ except ImportError:
 needs_jks = pytest.mark.skipif(not HAS_JKS, reason="pyjks is not installed in this Python")
 HAS_TRINO = True
 try:
-    import trino  # noqa: F401
+    import trino  # type: ignore[import-not-found, unused-ignore]  # noqa: F401
 except ImportError:
     HAS_TRINO = False
 needs_trino = pytest.mark.skipif(not HAS_TRINO, reason="the trino client is not installed in this Python")
@@ -414,7 +414,7 @@ def test_test_and_open_as_grid_sign_in_with_the_keystore(
 
 @needs_trino
 def test_without_a_client_certificate_the_standin_lets_no_one_in(trino_server: made_up.StandIn) -> None:
-    import requests
+    import requests  # type: ignore[import-untyped, import-not-found, unused-ignore]
 
     with pytest.raises(requests.exceptions.RequestException):
         requests.post(
