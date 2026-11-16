@@ -312,7 +312,8 @@ class ConnectionService:
             return await self._tables.load_file(dataset, path, sheet, who)
         if not place["table"]:
             raise ValueError("Name the table to open.")
-        limit = None if every else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
+        # Every row: asked for once (the grid's Load all rows) or always (the connection's Load all rows: 0).
+        limit = None if every or blade.row_limit == 0 else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
         reads = dataverse.is_dataverse(blade.dialect)  # Dataverse: through its Web API, not its SQL
         if kind == "python" or reads:
             # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,

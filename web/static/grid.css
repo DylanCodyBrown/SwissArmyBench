@@ -10497,3 +10497,19 @@ g.follow-pulse > path:first-of-type {
   max-width: 220px;
   margin-right: 6px;
 }
+
+/* Rows to open and Load all rows side by side (connectionsWindow.ts). */
+.row-limit-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.row-limit-field > label.field {
+  flex: 1 1 200px;
+}
+
+.row-limit-field > label.check {
+  padding-bottom: 8px;
+}

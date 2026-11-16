@@ -116,8 +116,9 @@ class Settings:
     # thousand columns.
     max_catalogs: int = 20
     max_catalog_rows: int = 2_000_000
-    # How long a blade's Refresh or Test may run in its child process before it is stopped.
-    blade_timeout_seconds: float = 300.0
+    # How long a connection's or blade's run (Test, Refresh, a table opened) may take before it is stopped:
+    # 10 minutes (the owner, 2026-11-16: "timouts should default to 10 minutes").
+    blade_timeout_seconds: float = 600.0
     # Catalogs load themselves in the background (a child process each): when a connection is saved, at
     # start-up (but not one that signs in with a browser window: that one on first use), and on first use;
     # so many at once.
@@ -151,14 +152,14 @@ class Settings:
     max_sql_response_bytes: int = 1 * GIB
     # Warn in the status bar at this share of any limit.
     warn_fraction: float = 0.8
-    # Seconds a SQL box or agent query may run before it is interrupted.
-    query_timeout_seconds: float = 30.0
+    # Seconds a SQL box, a SQL step or an agent query may run before it is interrupted: 10 minutes.
+    query_timeout_seconds: float = 600.0
     # How long an agent's snapshot request waits for the open page to draw and upload its PNG, and the
     # largest picture the server accepts back (a 4K screen at 2x is a few megabytes).
     snapshot_timeout_seconds: float = 30.0
     max_snapshot_bytes: int = 16 * MIB
     # The Key Finder joins every column of two tables, so it gets longer before it is stopped.
-    key_finder_timeout_seconds: float = 120.0
+    key_finder_timeout_seconds: float = 600.0
     # The Key Finder's search for the most distinct column combination reads the grid's first
     # rows only, so a large table answers in seconds.
     key_finder_unique_rows: int = 400_000

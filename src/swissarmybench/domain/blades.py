@@ -338,7 +338,8 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         return lines
     if kind == "sql":
         lines.append(f"dialect = {_toml_string(str(blade.get('dialect') or 'other'))}")
-    if blade.get("row_limit") and (kind == "sql" or blade.get("template") == python_connections.TEMPLATE):
+    connection = kind == "sql" or blade.get("template") == python_connections.TEMPLATE
+    if blade.get("row_limit") is not None and connection:
         lines.append(f"row_limit = {int(blade['row_limit'])}")
     if kind == "vault" and blade.get("vault_all"):
         lines.append("vault_all = true  # every secret in the vault, each under its own name")
@@ -1429,15 +1430,19 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
     return blade
 
 
+EVERY_ROW = 0  # Rows to open: every row (Load all rows)
+
+
 def _row_limit(data: dict[str, Any]) -> int | None:
-    """Rows to open: how many rows a connection's table opens with as a grid (None: the app's default)."""
+    """Rows to open: how many rows a connection's table opens with as a grid (None: the app's default;
+    0: every row, the form's Load all rows, the owner 2026-11-16)."""
     limit = data.get("row_limit")
     if limit in (None, ""):
         return None
     if isinstance(limit, bool) or not isinstance(limit, int | str) or not str(limit).strip().isdigit():
         raise BladeError("Rows to open is a whole number of rows.")
-    if not 1 <= int(limit) <= 50_000_000:
-        raise BladeError("Rows to open is between 1 and 50,000,000.")
+    if int(limit) != EVERY_ROW and not 1 <= int(limit) <= 50_000_000:
+        raise BladeError("Rows to open is between 1 and 50,000,000, or 0 for every row.")
     return int(limit)
 
 
