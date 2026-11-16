@@ -274,7 +274,9 @@ def test_the_relationship_model_merges_and_announces_itself(tmp_path: Any) -> No
     current = asyncio.run(models.apply_library("bakery", "agent"))
     assert len(current["relationships"]) == 1
     assert told(ws) == [{"type": "relationships_updated"}]
-    assert audit_of(ws) == [("agent", "relationships", None, {"model": "bakery"})]
+    # The Session page names the relationship it added (2026-11-16).
+    added = {"model": "bakery", "added": ["orders.customer_id -> customers.id"], "removed": []}
+    assert audit_of(ws) == [("agent", "relationships", None, added)]
     assert "orders" in models.erd(set())["mermaid"]
 
 

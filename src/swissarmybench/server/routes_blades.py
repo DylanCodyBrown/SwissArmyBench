@@ -68,7 +68,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
     async def save_blade(request: Request) -> Response:
         try:
             previous = request.path_params.get("name")
-            return json_response(await blades.save(await read_json(request), previous))
+            return json_response(await blades.save(await read_json(request), previous, actor(request)))
         except VaultUnavailableError as error:
             return Response(str(error), status_code=409)
         except Exception as error:
@@ -76,7 +76,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
 
     async def remove_blade(request: Request) -> Response:
         try:
-            return json_response(await blades.remove(request.path_params["name"]))
+            return json_response(await blades.remove(request.path_params["name"], actor(request)))
         except Exception as error:
             return error_response(error)
 

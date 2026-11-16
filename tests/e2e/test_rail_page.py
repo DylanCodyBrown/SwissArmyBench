@@ -36,6 +36,7 @@ AREAS = [
     "apps",
     "blades",
     "connections",
+    "session",
     "settings",
 ]
 NAMES = [
@@ -47,6 +48,7 @@ NAMES = [
     "Apps",
     "Blades",
     "Connections",
+    "Session",
     "Settings",
 ]
 SHOTS = os.environ.get("SWISSARMYBENCH_RAIL_SHOTS")

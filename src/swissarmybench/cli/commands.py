@@ -2805,6 +2805,17 @@ def app_panels(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "app_session",
+    "The Session page's log: what you (and the user) made or changed this session, newest first, each "
+    "with its area and its object; and whether the user follows you (their switch, read-only to you)",
+    opt("who", "agent (default), user or both."),
+    opt("limit", "Default 200.", "int"),
+)
+def app_session(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/session-log", params={k: a.get(k) for k in ("who", "limit")})
+
+
+@command(
     "app_kind_colours",
     "Kind colours (app, notebook, script; kept across restarts); with set, choose (null: default)",
     opt("set", '{"app": "#7b3fc4", "script": null}', "json"),

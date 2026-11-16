@@ -714,7 +714,12 @@ class Cards:
             self._cards[card["id"]] = card
         await ws.live.broadcast({"type": "cards_updated", "grid": grid})
         ws.audit.write(
-            who, "add_card", dataset or card["origin"], kind=card["kind"], replaced=same is not None
+            who,
+            "add_card",
+            dataset or card["origin"],
+            kind=card["kind"],
+            replaced=same is not None,
+            card=card["id"],
         )
         return {"card": card["id"], "replaced": same is not None}
 
@@ -745,7 +750,7 @@ class Cards:
         if "before" in body:
             self._move(card, body["before"])
         await ws.live.broadcast({"type": "cards_updated", "grid": card["grid"]})
-        ws.audit.write(who, "update_card", card["dataset"] or card.get("origin"))
+        ws.audit.write(who, "update_card", card["dataset"] or card.get("origin"), card=card["id"])
         return {"card": card["id"]}
 
     def _move(self, card: Card, before: Any) -> None:

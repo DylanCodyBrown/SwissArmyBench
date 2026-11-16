@@ -64,7 +64,7 @@ class WorkbenchWindow:
             await self.ws.live.tell_workbench(
                 {"type": "workbench_command", "id": request_id, "command": command, "args": args}
             )
-            result = await asyncio.wait_for(waiting, self.answer_seconds)
+            answered = await asyncio.wait_for(waiting, self.answer_seconds)
         except TimeoutError:
             raise WindowUnanswered(
                 f"The Workbench window did not answer within {self.answer_seconds:.0f} seconds. A run "
@@ -72,7 +72,17 @@ class WorkbenchWindow:
             ) from None
         finally:
             self._pending.pop(request_id, None)
-        self.ws.audit.write(who, "workbench_window", None, command=command)
+        result = answered.get("result") if isinstance(answered, dict) else None
+        # Where it happened (the window says: the front document and its selected cell), for the Session
+        # page's link. A path and a number, never the cell's text.
+        place = answered.get("place") if isinstance(answered, dict) else None
+        place = place if isinstance(place, dict) else {}
+        where = {
+            k: place[k]
+            for k, typed in (("path", str), ("title", str), ("cell", int))
+            if isinstance(place.get(k), typed) and not isinstance(place.get(k), bool)
+        }
+        self.ws.audit.write(who, "workbench_window", None, command=command, **where)
         return result
 
     def waiting(self, request_id: str) -> Answer | None:
@@ -82,12 +92,13 @@ class WorkbenchWindow:
 
     @staticmethod
     def answer(waiting: Answer, body: object) -> bool:
-        """The window's answer: {"result": ...} or {"error": "why"}. False when the request ended
+        """The window's answer: {"result": ..., "place": {"path", "title", "cell"}} or {"error": "why"}.
+        False when the request ended
         (timed out, or another window answered first)."""
         if waiting.done():
             return False
         if isinstance(body, dict) and isinstance(body.get("error"), str):
             waiting.set_exception(WindowRefused(body["error"]))
         else:
-            waiting.set_result(body.get("result") if isinstance(body, dict) else None)
+            waiting.set_result(body if isinstance(body, dict) else None)
         return True

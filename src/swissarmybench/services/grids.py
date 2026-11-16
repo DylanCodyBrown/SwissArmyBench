@@ -247,9 +247,11 @@ class GridService:
         gen: Any = None,
         client: str = "",
         extra: dict[str, Any] | None = None,
+        change: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Make `new_steps` the grid's steps: the one path for the whole list and for one change.
-        Returns the grid described for the caller."""
+        """Make `new_steps` the grid's steps: the one path for the whole list and for one change
+        (`change`: which, for the audit log and the Session page: the op and the step's kind, never
+        its values). Returns the grid described for the caller."""
         ws = self.ws
         if isinstance(gen, int):  # newer gen from this page: interrupt its older queries
             grid.release(grid.admit(gen, ws.store.cursor(), client))
@@ -257,7 +259,7 @@ class GridService:
         grid.settings = new_settings
         described = await self.describe(grid, info)
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
-        ws.audit.write(who, "steps", info.name, steps=len(new_steps))
+        ws.audit.write(who, "steps", info.name, steps=len(new_steps), grid=grid.id, **(change or {}))
         return described | (extra or {})
 
     async def put_steps(self, grid: Grid, info: DatasetInfo, body: Any, who: str) -> dict[str, Any]:
@@ -306,6 +308,7 @@ class GridService:
             return index
 
         op = body.get("op")
+        kind: str | None = None
         if op in ("undo", "redo"):
             return await self._undo(grid, info, op, who, body.get("gen"), str(body.get("client", ""))[:40])
         if op == "add":
@@ -319,14 +322,17 @@ class GridService:
             else:
                 at = max(0, min(index, len(steps)))
             steps.insert(at, new)
+            kind = new.kind
         elif op == "edit":
             at = position()
             params = body.get("params")
             if not isinstance(params, dict):
                 raise ValueError('edit needs "params": the step\'s full new params, an object.')
             steps[at] = replace(steps[at], params=params)
+            kind = steps[at].kind
         elif op == "delete":
             at = position()
+            kind = steps[at].kind
             del steps[at]
         elif op == "toggle":
             at = position()
@@ -344,7 +350,9 @@ class GridService:
             steps.insert(at, moved)
         else:
             raise ValueError("op must be add, edit, delete, toggle, move, undo or redo.")
-        return await self.commit_steps(grid, info, steps, grid.settings, who, extra={"index": at})
+        return await self.commit_steps(
+            grid, info, steps, grid.settings, who, extra={"index": at}, change={"op": op, "kind": kind}
+        )
 
     async def _undo(
         self, grid: Grid, info: DatasetInfo, op: str, who: str, gen: Any, client: str
@@ -358,7 +366,7 @@ class GridService:
             raise ValueError(f"Nothing to {op}.")
         described = await self.describe(grid, info)
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
-        ws.audit.write(who, op, info.name, steps=len(grid.steps))
+        ws.audit.write(who, op, info.name, steps=len(grid.steps), grid=grid.id)
         return described
 
     async def header_sort(self, grid: Grid, info: DatasetInfo, body: Any, who: str) -> dict[str, Any]:
@@ -416,7 +424,7 @@ class GridService:
         await ws.workers.run(AGENT, lambda: check(ws.store.cursor()))
         grid.highlights = rules
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
-        ws.audit.write(who, "highlights", info.name, count=len(rules))
+        ws.audit.write(who, "highlights", info.name, count=len(rules), grid=grid.id)
         return {"grid": grid.id, "highlights": len(rules)}
 
     def set_selection(self, grid: Grid, body: Any) -> dict[str, Any]:

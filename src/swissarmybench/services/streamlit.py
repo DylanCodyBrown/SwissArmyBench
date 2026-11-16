@@ -788,7 +788,9 @@ class StreamlitApps:
 
     async def _laid_out(self, app: App, who: str, what: str, detail: str) -> dict[str, Any]:
         """A page changed. Nothing runs: a page that is showing live is out of date until Play."""
-        self.ws.audit.write(who, what, f"{app.title}: {detail}")
+        self.ws.audit.write(
+            who, what, f"{app.title}: {detail}", app=app.id, title=app.title, detail=detail, path=app.document
+        )
         await self._changed(app)
         return self._state(app)
 

@@ -281,17 +281,22 @@ class BladeService:
 
     # ===== saving =====
 
-    async def save(self, body: Any, previous: str | None) -> dict[str, Any]:
+    async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         blade = self._blades.save(body, previous)
         if isinstance(body, dict) and isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(blade.name, body["secrets"])
-        self.ws.audit.write("user", "save_blade", blade.name)
+        self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
         await self.ws.live.broadcast({"type": "blades_changed"})
         return self.summary(blade)
 
-    async def remove(self, name: str) -> dict[str, Any]:
+    async def remove(self, name: str, who: str = "user") -> dict[str, Any]:
+        try:
+            gone = self._blades.get(name)
+            word = _kind_word(gone.kind, gone.template)
+        except Exception:
+            word = "blade"
         self._blades.remove(name)
-        self.ws.audit.write("user", "remove_blade", name)
+        self.ws.audit.write(who, "remove_blade", name, kind=word)
         await self.ws.live.broadcast({"type": "blades_changed"})
         return {"removed": name}
 
@@ -791,3 +796,8 @@ class BladeService:
         self.ws.audit.write("user", "import_blades", ", ".join(str(r.get("name", "")) for r in results))
         await self.ws.live.broadcast({"type": "blades_changed"})
         return {"results": results}
+
+
+def _kind_word(kind: str, template: str | None) -> str:
+    """A blade's kind for the audit log and the Session page: a connection, or a blade."""
+    return "connection" if connection_rules.is_connection(kind, template) else "blade"
