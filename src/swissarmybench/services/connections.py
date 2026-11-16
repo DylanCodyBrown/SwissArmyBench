@@ -162,9 +162,9 @@ class ConnectionService:
                 "never typed here: point it at the vault's entry (connections_password_source)."
             )
 
-    async def save(self, body: Any, previous: str | None) -> dict[str, Any]:
+    async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         self._check(body)
-        saved = await self._blades.save(body, previous)
+        saved = await self._blades.save(body, previous, who)
         self._on_saved(str(saved["name"]))  # its catalog loads itself, in the background
         return saved
 

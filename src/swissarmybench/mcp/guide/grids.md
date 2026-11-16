@@ -47,8 +47,13 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
   `forward`; the rail's areas from any window: `grids` (= home), `visualizations`, `erd`, `notebooks`,
   `scripts`, `apps` (the Workbench in that kind's mode; `new_window=true`: a Workbench window of its
   own; each lands on its kind's page of documents), `blades`, `connections` (the Connections page),
-  `settings` (the Settings page); `connection:<name>` (a connection's detail: where it is used, its
+  `session` (the Session page), `settings` (the Settings page); `connection:<name>` (a connection's detail: where it is used, its
   configuration, its calls); the home window's `query`, `grid:<id>`; `add_connection`, `add_api`.
   The blades page (`window="catalog"`): `catalog:<name>/<schema>/<table>`, `blade:<name>`, `new_blade`.
   Views are in the page's address, so the user's Back undoes your move too.
+- `app_session(who, limit)`: the Session page's log, newest first: what you made or changed this session
+  (who=agent, the default; user; both), each entry's words, area and object (a grid, a card, a
+  relationship, a connection, a cell), names and counts only. `follow`: whether the user follows you (each
+  of your actions brings its area to the front, the object highlighted). It is the user's switch: you
+  read it, never set it. Work so it reads well: one change per call, the object named.
 - `agent_events`: wait for the user's next change instead of polling. `app_shutdown` stops the server.

@@ -61,13 +61,33 @@ export async function runCommand(id: string, args: Record<string, unknown> = {},
   return command.run(args, { agent });
 }
 
+/** Where the agent's command happened: the front document and its selected cell (the Session page's link). */
+export interface Place {
+  path?: string | null;
+  title?: string | null;
+  cell?: number | null;
+}
+let placeOf: () => Place = () => ({});
+let ranForAgent: (command: string, wasBusy: boolean) => void = () => undefined;
+let busyNow: () => boolean = () => false;
+
+/** The Workbench page: where the front document is, and what follows an agent's command (Follow the
+ *  agent: the changed cell scrolled to and pulsed, unless the user was typing). */
+export function setAgentHooks(hooks: { place: () => Place; ran: (command: string, wasBusy: boolean) => void; busy: () => boolean }): void {
+  placeOf = hooks.place;
+  ranForAgent = hooks.ran;
+  busyNow = hooks.busy;
+}
+
 /** The agent's request (a `workbench_command` notice): run it here, answer the server. */
 export async function answerAgent(notice: { id?: string; command?: string; args?: Record<string, unknown> }): Promise<void> {
   if (!notice.id || !notice.command) return;
-  let body: { result?: unknown; error?: string };
+  let body: { result?: unknown; error?: string; place?: Place };
+  const wasBusy = busyNow();
   try {
     const result = await runCommand(notice.command, notice.args ?? {}, true);
-    body = { result: result === undefined ? null : result };
+    body = { result: result === undefined ? null : result, place: placeOf() };
+    ranForAgent(notice.command, wasBusy);
   } catch (e) {
     body = { error: (e as Error).message };
   }

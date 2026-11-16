@@ -89,7 +89,7 @@ def routes(
     async def save(request: Request) -> Response:
         try:
             previous = request.path_params.get("name")
-            return json_response(await connections.save(await read_json(request), previous))
+            return json_response(await connections.save(await read_json(request), previous, actor(request)))
         except VaultUnavailableError as error:
             return Response(str(error), status_code=409)
         except Exception as error:

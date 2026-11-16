@@ -32,6 +32,7 @@ AREAS: tuple[str, ...] = (
     "apps",
     "blades",
     "connections",
+    "session",
     "settings",
 )
 # The old names, one release (the owner, 2026-11-16: the Sandbox is Visualizations, the Diagram the ERD).

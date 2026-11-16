@@ -32,6 +32,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from swissarmybench.domain import diff
+from swissarmybench.domain import session_log as session_rules
 from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.relationships import (
@@ -845,6 +846,8 @@ class Models:
         self.ws = ws
         self._library = library
         self.model = Model()
+        # The relationships last told to the Session page: each change names the ones it added.
+        self._seen: list[str] = []
 
     @property
     def library_files(self) -> ModelLibrary:
@@ -854,14 +857,27 @@ class Models:
     def current(self) -> dict[str, Any]:
         return self.model.to_json()
 
+    def _told(self) -> tuple[list[str], list[str]]:
+        """The relationships added and removed since the last change told (names only)."""
+        now = [
+            session_rules.relationship_key(r.from_table, r.from_columns, r.to_table, r.to_columns)
+            for r in self.model.relationships
+        ]
+        added = [k for k in now if k not in self._seen]
+        removed = [k for k in self._seen if k not in now]
+        self._seen = now
+        return added, removed
+
     async def _changed(self, who: str, name: str) -> dict[str, Any]:
-        self.ws.audit.write(who, "relationships", None, model=name)
+        added, removed = self._told()
+        self.ws.audit.write(who, "relationships", None, model=name, added=added, removed=removed)
         await self.ws.live.broadcast({"type": "relationships_updated"})
         return self.model.to_json()
 
     async def replace(self, model: Model) -> None:
         """The current model is `model` (a .sab project opened or closed): every page redraws."""
         self.model = model
+        self._told()
         await self.ws.live.broadcast({"type": "relationships_updated"})
 
     async def rename_table(self, old: str, new: str) -> None:
@@ -869,6 +885,7 @@ class Models:
         model = rename_table(self.model, old, new)
         if model is not self.model:
             self.model = model
+            self._told()
             await self.ws.live.broadcast({"type": "relationships_updated"})
 
     async def set_current(self, body: Any, who: str) -> dict[str, Any]:
@@ -975,6 +992,7 @@ class Models:
             tang.name, tang.description, tang.keys, tang.sources, tang.relationships, tang.tags,
             tang.columns, tang.saved_at, tang.author,
         )  # fmt: skip
+        self._told()
         self.ws.audit.write(who, "save_tang", None, tang=tang.name, shared=bool(folder))
         await self.ws.live.broadcast({"type": "relationships_updated"})
         return {"saved": tang.name, "file": path, "where": self._library.where(path)}

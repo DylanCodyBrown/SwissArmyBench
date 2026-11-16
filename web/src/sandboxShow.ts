@@ -10,6 +10,7 @@
  * In a window with no Visualizations tab (the Key Finder's own window) the toast has no button.
  */
 import { closeDialogs, toast } from "./dom";
+import type { Move } from "./nav";
 import { showAgentView } from "./panes";
 
 let reveal: (card: string | null) => void = () => {};
@@ -19,11 +20,11 @@ export function onShowCard(handler: (card: string | null) => void): void {
   reveal = handler;
 }
 
-/** Go to Visualizations and bring `card` into view. */
-export function showInSandbox(card: string | null): void {
+/** Go to Visualizations and bring `card` into view (`how`: Follow the agent's move replaces). */
+export function showInSandbox(card: string | null, how: Move = "auto"): void {
   closeDialogs();
   reveal(card);
-  showAgentView();
+  showAgentView(how);
 }
 
 /** Say what arrived in Visualizations, with Show. `made`: the server's answer for the first card sent ({card: its id}). */

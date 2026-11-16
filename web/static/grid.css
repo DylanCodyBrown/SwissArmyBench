@@ -10244,3 +10244,195 @@ body.sql-window dialog[open] textarea.code-input {
     display: none;
   }
 }
+
+/* ===== the Session page (sessionPage.ts): this session's log, Follow the agent ===== */
+
+/* The rail's Session icon: what the agent made that the user has not seen. */
+.nav-rail-count {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.nav-rail-count[hidden] {
+  display: none;
+}
+
+.area-page-actions .session-filter {
+  display: inline-flex;
+  gap: 0;
+}
+
+.session-filter .btn {
+  border-radius: 0;
+}
+
+.session-filter .btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.session-filter .btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.session-filter .btn + .btn {
+  margin-left: -1px;
+}
+
+.follow-switch {
+  margin-left: 12px;
+}
+
+.session-list {
+  display: grid;
+  max-width: 980px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-entry {
+  display: grid;
+  grid-template-columns: 7.5em 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.session-entry:hover {
+  background: var(--row-hover);
+}
+
+.session-time {
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.session-area .icon-svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.session-link {
+  justify-self: start;
+  max-width: 100%;
+  padding: 2px 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.session-link:hover {
+  text-decoration: underline;
+}
+
+.session-link:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.session-who {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.session-who.agent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .session-entry {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+  }
+
+  .session-area {
+    display: none;
+  }
+}
+
+/* Follow the agent: what it just made pulses softly in the theme's accent. */
+@keyframes follow-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes follow-stroke {
+  0%,
+  100% {
+    stroke-width: 2px;
+  }
+
+  50% {
+    stroke-width: 5px;
+  }
+}
+
+.follow-pulse:not(path, g) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  animation: follow-pulse 0.8s ease-out 3;
+}
+
+path.follow-pulse {
+  stroke: var(--accent) !important;
+  animation: follow-stroke 0.8s ease-in-out 3;
+}
+
+g.follow-pulse > rect:first-of-type,
+g.follow-pulse > path:first-of-type {
+  stroke: var(--accent) !important;
+  stroke-width: 2.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .follow-pulse:not(path, g),
+  path.follow-pulse {
+    animation: none;
+  }
+
+  path.follow-pulse {
+    stroke-width: 4px;
+  }
+}

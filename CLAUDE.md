@@ -74,7 +74,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
-  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone).
+  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off).
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
   row, value or secret), `claude.json` keeps the chosen installs and the bypass switch, and a Claude
@@ -239,6 +239,8 @@ src/swissarmybench/
                          bundles, .desktop files, PATH answers read), the official first; CLAUDE.md (what is
                          open: names, counts, types, steps in words, never a value), .mcp.json, the prompt
                          hook; the user's terminal as an argument list; Desktop's config merged; install help
+    session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
+                         relationship, a connection, a cell), names and counts only; the filter; Follow
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
                          this session by kind, a card's status word, the settings it may show (no password)
@@ -265,6 +267,8 @@ src/swissarmybench/
                          browser-window sign-in), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
+    session_log.py       the Session page: the audit heard (Heard), this session's entries in memory, the
+                         `session_entry` notice; Follow the agent (follow.json; 403 for the agent)
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
                          documents: recent, open, the project's: one seam), configuration (never a value),
                          and its calls this session (the app's runs, a Workbench kernel's report; memory only)
@@ -344,7 +348,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
-                         projects, project_scope, panels, navigation, controllers, kind_colours, script_runs). Every route serves
+                         projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -413,12 +417,15 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window (Grids,
-                         Visualizations, ERD, Notebooks, Scripts, Apps, Blades, Connections, Settings at the
+                         Visualizations, ERD, Notebooks, Scripts, Apps, Blades, Connections, Session, Settings at the
                          bottom): a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
                          areas (the owner, 2026-11-16); areaPage.ts is a page of the rail's over any page
-                         (Settings, Connections: open=settings, open=connections); connectionsWindow.ts the
+                         (Settings, Connections, Session: open=settings, open=connections, open=session); sessionPage.ts the Session page
+                         (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
+                         the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
+                         types; the rail's count); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls);
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
                          its documents as cards, Scripts' and Notebooks' Transformations cards first, Notebooks'

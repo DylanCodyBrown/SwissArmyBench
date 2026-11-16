@@ -30,7 +30,7 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 | `workbench_` | notebooks, scripts, kernels, the window (tables.transformations) | `workbench_run`, `workbench_lineage`, `workbench_window`, `workbench_script_run` |
 | `streamlit_` | the canvas, its tests, export | `streamlit_block_place`, `streamlit_test` |
 | `project_` | projects: one .sab file | `project_new`, `project_import`, `project_documents` |
-| `files_`, `app_` | file chooser; the page, getting around; beta mode; updates | `files_list`, `app_snapshot`, `app_navigate`, `app_beta_log`, `app_update` |
+| `files_`, `app_` | files; the page, getting around; session log; beta; updates | `files_list`, `app_snapshot`, `app_navigate`, `app_session`, `app_beta_log` |
 | `agent_` | yours only | `agent_context`, `agent_events`, `agent_approvals` |
 
 No prefix: `guide`, `commands`, `health`.

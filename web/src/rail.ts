@@ -4,7 +4,8 @@
  * [SHARED]
  *
  *   [AREAS]   Grids (the home page's tabbed grids; the mark goes Home, the Start view), Visualizations, ERD, Notebooks,
- *             Scripts, Apps (the Streamlit canvas), Blades, Connections, and Settings pinned at the
+ *             Scripts, Apps (the Streamlit canvas), Blades, Connections, Session (what the agent made this
+ *             session, a count of what is new on its icon: sessionPage.ts), and Settings pinned at the
  *             bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
  *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
@@ -41,9 +42,10 @@ import { h, icon, toast } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
+import { onUnseen } from "./sessionPage";
 import { openMenu } from "./workbenchMenu";
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "settings";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "settings";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -56,6 +58,7 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
   { area: "apps", name: "Apps", icon: "page", kind: "app" },
   { area: "blades", name: "Blades", icon: "blade" },
   { area: "connections", name: "Connections", icon: "plug" },
+  { area: "session", name: "Session", icon: "session" }, // what the agent made this session (sessionPage.ts)
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
@@ -70,7 +73,7 @@ let items: HTMLButtonElement[] = [];
 /** The area the address names on this page (null: none, a Workbench with no document of a kind). */
 function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
-  if (open === "settings" || open === "connections") return open;
+  if (open === "settings" || open === "connections" || open === "session") return open;
   if (kind === "catalog") return "blades";
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
   const view = kind === "home" ? url.searchParams.get("view") : null;
@@ -83,7 +86,7 @@ function currentArea(url: URL): Area | null {
 /** A home window opened for `area`: the area in its address. */
 function arrivalUrl(area: Area): string {
   if (area === "visualizations" || area === "erd") return `${HOME_URL}?view=${area}`;
-  if (area === "settings" || area === "connections") return `${HOME_URL}?open=${area}`;
+  if (area === "settings" || area === "connections" || area === "session") return `${HOME_URL}?open=${area}`;
   return HOME_URL;
 }
 
@@ -128,7 +131,7 @@ export function goArea(area: Area, newWindow = false): void {
     visit(withParams({ ...LAYER_OFF, view: area === "grids" ? null : area }, HOME_URL));
     return;
   }
-  if ((area === "settings" || area === "connections") && hasLayer(area)) {
+  if ((area === "settings" || area === "connections" || area === "session") && hasLayer(area)) {
     openLayer(area);
     return;
   }
@@ -178,6 +181,8 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
       onclick: (e: MouseEvent) => goArea(area.area, e.ctrlKey || e.metaKey),
     },
     icon(area.icon),
+    // The Session icon: what the agent made that the user has not seen yet (sessionPage.ts).
+    area.area === "session" ? h("span", { class: "nav-rail-count", "aria-hidden": "true", hidden: true }) : null,
     // The name, on hover and on focus (a `title` would show the same words a second time).
     h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name),
   );
@@ -208,6 +213,15 @@ export function mountNavRail(page: PageKind): void {
   document.body.classList.add("has-rail");
   draw(new URL(location.href));
   onAddress(draw);
+  // The Session icon's count, and its name with the count for a screen reader.
+  const session = items.find((i) => i.dataset.area === "session");
+  onUnseen((n) => {
+    const count = session?.querySelector<HTMLElement>(".nav-rail-count");
+    if (!session || !count) return;
+    count.hidden = n === 0;
+    count.textContent = n > 99 ? "99+" : String(n);
+    session.setAttribute("aria-label", n ? `Session, ${n} new` : "Session");
+  });
   setAreaRunner((area, newWindow) => {
     if (!isArea(area)) return false;
     goArea(area, newWindow);

@@ -55,7 +55,8 @@ import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
 import { effectiveTheme } from "./theme";
-import { allCommands, answerAgent, type Command, openPalette, registerCommands, runCommand } from "./workbenchCommands";
+import { allCommands, answerAgent, type Command, openPalette, registerCommands, runCommand, setAgentHooks } from "./workbenchCommands";
+import { following, pulse, userBusy } from "./sessionPage";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
 import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./workbenchCompletion";
 import { newEnvironment } from "./workbenchEnvironment";
@@ -2858,6 +2859,20 @@ connect((live) => {
   void loadApprovals(); // an agent's request (an export, say) asks here too
   if (document.hasFocus()) tellFocus();
 }, { catalog: "1", workbench: "1", window: WINDOW_ID });
+// The Session page's link to the agent's change, and Follow the agent: the cell it changed, scrolled to.
+setAgentHooks({
+  place: () => ({ path: current?.path ?? null, title: current?.title ?? null, cell: current?.notebook?.selectedNumber() ?? null }),
+  busy: userBusy,
+  ran: (command, wasBusy) => {
+    if (wasBusy || !following() || !/^(cell\.|html\.(add|resize)|snippet\.)/.test(command)) return;
+    window.requestAnimationFrame(() => {
+      const cell = [...document.querySelectorAll<HTMLElement>(".wb-cell.selected, .wb-tcell.selected")].find((c) => c.offsetParent !== null);
+      if (!cell) return;
+      cell.scrollIntoView({ block: "nearest" });
+      pulse(cell);
+    });
+  },
+});
 // The agent's workbench_window goes to the Workbench window the user was last in.
 window.addEventListener("focus", tellFocus);
 onNotice((notice) => {

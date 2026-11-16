@@ -52,7 +52,7 @@ class Connections(Protocol):
 
     def details(self, name: str) -> dict[str, Any]: ...
 
-    def save(self, body: Any, previous: str | None) -> Awaitable[dict[str, Any]]: ...
+    def save(self, body: Any, previous: str | None, who: str = ...) -> Awaitable[dict[str, Any]]: ...
 
     def read_draft(self, body: Any, place: dict[str, str], limit: int) -> Awaitable[dict[str, Any]]: ...
 
@@ -204,8 +204,10 @@ class Apis:
             row_limit=body.get("row_limit"),
         )
         previous = plan.names.connection if plan.existing is not None else None
-        saved = await self._connections.save(connection, previous)
-        self.ws.audit.write(who, "add_api", f"{plan.names.connection}: {plan.path}")
+        saved = await self._connections.save(connection, previous, who)
+        self.ws.audit.write(
+            who, "add_api", f"{plan.names.connection}: {plan.path}", connection=plan.names.connection
+        )
         return answer | {"saved": saved, "written": plan.path}
 
     async def try_it(self, body: Any) -> dict[str, Any]:

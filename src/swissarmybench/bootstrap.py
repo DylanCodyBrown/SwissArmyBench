@@ -103,6 +103,7 @@ from swissarmybench.services.relationships import Compares, Finder, KeyFinder, M
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_runs import ScriptRuns
+from swissarmybench.services.session_log import Heard, SessionLog
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.streamlit import StreamlitApps
@@ -162,6 +163,7 @@ class Services:
     project_scope: ProjectScope
     script_exports: ScriptExports
     panels: Panels
+    session_log: SessionLog
     navigation: Navigation
     kind_colours: KindColours
     script_runs: ScriptRuns
@@ -301,6 +303,7 @@ def bootstrap(
         return values, [str(p) for p in answer.get("problems") or []]
 
     # ===== the workspace: the ports every use case shares =====
+    session_log = SessionLog(live, JsonFile(state_dir / "follow.json" if audit_log else None))
     ws = Workspace(
         settings=settings,
         addresses=Addresses(port, token),
@@ -310,7 +313,8 @@ def bootstrap(
         grids=GridRegistry(settings.max_grids),
         live=live,
         workers=workers,
-        audit=AuditLog(state_dir / "audit.log" if audit_log else None),
+        # The audit log, heard by the Session page's log (this session's entries, each naming its object).
+        audit=Heard(AuditLog(state_dir / "audit.log" if audit_log else None), session_log),
         grammar=duckdb_grammar(),
         interrupted=duckdb.InterruptException,
         engine_error=duckdb.Error,
@@ -622,6 +626,7 @@ def bootstrap(
         workbench_window=workbench_window,
         table_cells=table_cells,
         panels=Panels(ws),
+        session_log=session_log,
         navigation=Navigation(ws),
         script_runs=script_runs,
         kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
