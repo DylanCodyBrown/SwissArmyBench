@@ -300,7 +300,11 @@ it on any computer: each table is read again from its source (a connection by na
 a file beside the .sab first), and one that cannot come back offers its fix (Add connection, Find
 orders.csv). A pasted or pushed table's rows go in only when you tick **Keep its rows in the file**.
 The home page's **Start** view lists your recent projects (`recent_projects.json` in the state folder:
-paths and times only) and has **New project** and **Open project…**.
+paths and times only) and has **New project** (saved first, where you say, then Autosave on or off, then
+the project's Grids), **Open project…** and the tour. Everything is the project's own: its notebooks,
+scripts and apps, its connections and blades (by name and where each password comes from, never the
+password: each computer keeps its own) and its saved dashboards. **Import** copies them in from another
+project, or a connection or blade from the ones saved on this computer.
 
 ```powershell
 swissarmybench open "C:\Users\me\Documents\sales.sab"   # starts the app when it is not running

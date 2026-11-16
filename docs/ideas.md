@@ -3012,9 +3012,85 @@ The owner's two choices, asked and answered:
 - One project open at a time; opening one closes the open tables, Sandbox and model (after asking when
   they hold unsaved work).
 - The Sandbox's saved dashboards stay the user's own (in the state folder); the .sab holds the Sandbox
-  as it is.
+  as it is. (Superseded the same day by Project scope, below: the saved dashboards are the project's.)
 - The project's name is its file's name (Power BI's way); Save as renames it.
 - Data files beside a project (CSV, Excel, Parquet, JSON) are never packed: their tables keep the path.
 - The diagram is drawn from the model (no positions to keep yet): `diagram` is an empty object for now.
 - A double-click shows a console window for a moment on Windows (uv's launcher is a console program).
 - `swissarmybench uninstall` does not exist, so nothing removes the association yet.
+
+## Project scope: everything is the project's own (the owner, 2026-11-16; built, branch project-scope)
+
+The owner, in order:
+1. "start a new project opened the workbench. The first thing it should do is have the user save a
+   project file to the machine and ask about autosave with a button to turn it on and off. When the
+   project is created the first step is to get data into the app, so we start in grids"
+2. "new here take a tour should be on the project page and no where else"
+3. "now objects are project scoped any notebooks scripts of apps will have to be imported from another
+   project"
+4. On connections and blades in a project (the reading given to the owner, who said "go ahead and build
+   it all"): each project holds its own connection and blade definitions in the .sab, so a project
+   opened on another computer brings them; passwords stay with each computer (environment, keyring or
+   vault) and a .sab never holds one; on a new computer the user is asked once for the password or where
+   it comes from. Import copies a connection or blade from another project, or from the connections
+   already saved on this computer.
+5. "Grids" with no table open lands on a Grids page: the ways to bring data in and the project's tables.
+
+### Built
+- **New project is saved first** (services/sab_projects.py `new`): the file chooser in save mode (name
+  and folder), `POST /project/new {"path"}` writes the .sab at once (refused without a path, or when its
+  folder is not there: a project is never without its file), then **Autosave**, a switch, then the
+  project's **Grids**. The open loose tables go into it with their connections, copied in from this
+  computer's (and the vaults their passwords come from).
+- **Autosave** (`POST /project/autosave {"on"}`, `project_autosave`): kept in project.json at once (only
+  project.json is rewritten: the switch saves nothing else); on, the server looks every couple of seconds
+  (`Settings.autosave_seconds`) and saves quietly once what a save would write has stayed the same for
+  one look; the ● clears by itself. A failed quiet save is said in the project's state (`autosave_error`,
+  the switch's tip). The switch sits in the project's group of the Application row.
+- **The Grids landing** (startView.ts, `/workspace?view=grids`): with a project open and no table, Open
+  a file…, Paste, Query, the project's connections (each opens its catalog), Catalog, Add connection, and
+  the project's tables that did not come back, each with its fix. No project: the Start page. Closing the
+  last table brings the landing (or the Start page with no project).
+- **The tour** is on the Start page only: the Application row lost its Tour button; the Workbench and the
+  blades page never had one.
+- **Notebooks, scripts and apps are the project's** (services/project_scope.py): `GET
+  /project/documents?kind=` (`project_documents`) lists them; the Workbench's Recent… is **In this
+  project…**, its Open… copies a file from outside the project in (an import) and opens the copy; its
+  **Import…** takes notebooks, scripts and apps from another .sab, a project folder or a loose file. The
+  Start page's recent notebooks and scripts are gone.
+- **Connections, blades and dashboards are the project's**: kept in its working folder's `.sab/blades`
+  (the blade store's own JSON: code, names, where each password comes from, never a value) and
+  `.sab/dashboards`, and so inside the .sab. Each open, new and close points the blade store and the
+  dashboards at the project (`use_project` in bootstrap.py); the catalogs follow (a connection the new
+  project lacks loses its catalog, its own load as at start). A second project sees none of the first's.
+- **Passwords stay with each computer**, found by the connection's name: its keyring, an environment
+  variable, a vault (the project's own), a secret blade. None of those here: the connection's
+  `needs_password` (`GET /connections`) says which, with **Set the password** (its Edit form), and a table
+  from it waits with "Shop needs a password on this computer" · Set the password · Try again.
+- **Import** (`POST /project/import/sources`, `POST /project/import`, `project_import(source, list?)`):
+  from another .sab (its entries checked as on open), a project folder, a loose file, or **This computer**
+  (the saved connections and blades in ~/.swissarmybench/blades, as before projects held their own). A
+  document whose name the project has takes the next free one (analysis 2.ipynb); a connection or blade
+  whose name it has is skipped and said. The dialog (projectImport.ts) is the same in the Workbench, the
+  Connections layer (Import…) and the blades page (Import from a project).
+
+### Decisions
+- **The rail with no project open stays as it is.** The home page shows the Start page and nothing else
+  of a project; but `sab.push` from Python lands a table with no project open (the product's first
+  promise), so the rail's areas keep working for that loose work, on this computer's own connections and
+  blades. Saving it (Ctrl+S) makes it a project. The Workbench's Notebooks, Scripts and Apps pages (the
+  rail-pages branch) should say "Open a project" when `GET /project/documents` answers `project: null`.
+- **With no project open the stores are this computer's** (the blade store at ~/.swissarmybench/blades,
+  dashboards in the state folder), so the agent and a pushing Python session work as before; with one
+  open they are the project's. "This computer's" is also where Import's This computer reads.
+- A project's removal or rename of a connection leaves its password in the keyring: another project
+  may use the same name.
+- The tang library (shared relationships) stays shared: tangs are made to travel between projects, like
+  packs and blade folders, which also stay this computer's read-only libraries in every project. Themes
+  and the kind colours stay this computer's.
+- Opening a project lands on its Grids too (the Workbench window is no longer opened for it): its
+  documents come back when the Workbench opens.
+- Settings has no Autosave switch of its own here (the rail-pages branch redraws Settings); the
+  project's group has it, and `project_autosave` is the agent's.
+- A Streamlit canvas imported alone keeps its links as they were (relative to its file): import the
+  notebooks its blocks link to with it.

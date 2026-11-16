@@ -70,10 +70,16 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone).
-  **Projects as one .sab file (the owner, 2026-11-16):** a .sab is written only on Save (the agent's waits
-  for the user's Allow when it keeps a table's rows); an open one is unpacked into a working folder in the
-  system's temporary folder, removed when it closes or the server stops; `recent_projects.json` holds the
-  recent projects' paths and times only. Never a secret, token or password in a .sab: connections by name.
+  **Projects as one .sab file (the owner, 2026-11-16):** a .sab is written on Save, on New project (where
+  the user named, at once), by Autosave when the user turned it on, and by the Autosave switch itself
+  (project.json only); the agent's save waits for the user's Allow when it keeps a table's rows. An open
+  one is unpacked into a working folder in the system's temporary folder, removed when it closes or the
+  server stops; `recent_projects.json` holds the recent projects' paths and times only. **Everything is
+  the project's own (2026-11-16):** its connections and blades (`.sab/blades`, the blade store's JSON) and
+  saved dashboards (`.sab/dashboards`) live in its working folder and its .sab; with no project open the
+  stores are this computer's (~/.swissarmybench/blades, the state folder's dashboards). Never a secret,
+  token or password in a .sab: a connection names where its password comes from (keyring, environment,
+  vault), resolved on each computer by the connection's name.
 
 ## Layout
 
@@ -175,8 +181,11 @@ src/swissarmybench/
     projects.py          a project: data.py as the export of data.ipynb's code cells (imports in a plain
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
+    project_scope.py     what is the open project's own: its documents (by kind; data.py and pages/*.py
+                         marked made), its .sab/blades and .sab/dashboards, an import's free names and
+                         picks, a connection's passwords with no source on this computer and the fix
     sab_files.py         a project as one .sab file (a zip): project.json (each table's source and grids'
-                         steps, the tabs, the windows' layout; unknown fields kept, a newer format read-only),
+                         steps, the tabs, the windows' layout, autosave; unknown fields kept, a newer format read-only),
                          sources from origins (a file relative to the .sab), zip entries checked (no `..`,
                          no absolute path, no link, sizes), which files go in (code and text, never data),
                          notebooks without outputs, a table's fix when it cannot come back
@@ -259,9 +268,14 @@ src/swissarmybench/
     controllers.py       a canvas page's controllers: the check, Test this page (the page written so each
                          block records its error, AppTest in the app's Python), a thin cell's move plan
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
-    sab_projects.py      a project as one .sab: new, open (each table read again with its steps; the Sandbox,
-                         model, layout), save (rows only on a tick; the agent's with them on the user's
-                         Allow), close, the recent list, a table's fix; unsaved changes worked out, not tracked
+    sab_projects.py      a project as one .sab: new (saved first, where the user named), open (each table read
+                         again with its steps; the Sandbox, model, layout), save (rows only on a tick; the
+                         agent's with them on the user's Allow), autosave (a quiet save once a change
+                         settles), close, the recent list, a table's fix; unsaved changes worked out, not
+                         tracked; each open, new and close points the stores at the project (scope)
+    project_scope.py     the open project's documents, and import: documents from another .sab, a project
+                         folder or a loose file; connections and blades from another project or this
+                         computer's saved ones (a name the project has: skipped, or the next free one)
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
@@ -301,7 +315,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
-                         projects, panels, navigation, controllers, kind_colours, script_runs). Every route serves
+                         projects, project_scope, panels, navigation, controllers, kind_colours, script_runs). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -381,7 +395,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          bladeAnalysis.ts analysis blades (your own analyses) in the Analyze menu;
                          sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
                          markdown export; cellMenu.ts the right-click menus on cells and headers;
-                         tour.ts is the first-time tour (the Application row's question mark: a
+                         tour.ts is the first-time tour (on the Start page only: a
                          spotlight card per word, then a matching game);
                          catalogRail.ts (blades + catalog navigation) is the blades page's
                          (catalogPage.ts, static/catalog.html); bladeEditor.ts is the save screen;
@@ -430,10 +444,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>);
                          projectFile.ts a project as one .sab, shared by the home page and the Workbench
-                         (open, new, save with Keep its rows in the file, close, a table's fix, the ● mark);
+                         (open, new: saved first, then Autosave; save with Keep its rows in the file, close,
+                         a table's fix, the ● mark); projectImport.ts the import dialog (documents,
+                         connections, blades: from another .sab, a project folder, a file, this computer);
                          startView.ts the home page's Start view (/workspace?view=start: New project, Open
-                         project…, recent projects, recent notebooks and scripts; Home brings it), the
-                         project's group in the Application row and the strip of tables to fix;
+                         project…, recent projects, the tour: offered here only; Home brings it), the Grids
+                         landing (/workspace?view=grids: a project open, no table: Open a file, Paste,
+                         Query, its connections, its tables to fix), the project's group in the
+                         Application row (Save, Save as, Close, Autosave) and the strip of tables to fix;
                          updates.ts the status bars' "Update available" (Update to X, What's new) and
                          Settings' Check for updates;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it

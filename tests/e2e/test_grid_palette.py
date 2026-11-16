@@ -62,7 +62,7 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
               return found;
             }"""
         )
-        assert len(on_page) > 35
+        assert len(on_page) >= 35  # the tour left the Application row for the Start page (2026-11-16)
         missing = [pair for pair in on_page if (pair[0], pair[1]) not in titles]
         assert not missing, f"buttons with no command: {missing}"
         assert ("Application", "Not now") not in titles  # the tour bubble's dismiss is not a command

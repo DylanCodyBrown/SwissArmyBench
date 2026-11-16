@@ -8,6 +8,7 @@ another .sab in the Workbench. Made-up data only."""
 from __future__ import annotations
 
 import json
+import os
 import re
 import zipfile
 from collections.abc import Iterator
@@ -163,11 +164,20 @@ def test_save_as_offers_to_keep_a_pasted_tables_rows(
     page.context.close()
 
 
+def shot(page: Page, folder: Path, name: str) -> None:
+    """A picture of the page: into SAB_SHOTS when set (the docs' pictures), else the test's folder."""
+    where = Path(os.environ.get("SAB_SHOTS") or folder)
+    where.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(where / name))
+
+
 def choose_save(page: Page, folder: Path, name: str) -> None:
     chooser = page.locator("dialog.file-chooser")
     where = chooser.get_by_role("textbox", name="Folder")
     where.fill(str(folder))
     where.press("Enter")
+    expect(chooser.get_by_role("status")).to_contain_text("folder")  # this folder read (Save here needs it)
+    expect(where).to_have_value(str(folder))
     chooser.get_by_label("File name").fill(name)
     chooser.get_by_role("button", name="Save here").click()
 
@@ -182,13 +192,14 @@ def test_new_project_is_saved_first_then_autosave_then_its_grids(
     # First: where its file goes (the file chooser, saving).
     chooser = page.locator("dialog.file-chooser")
     expect(chooser).to_be_visible()
+    shot(page, fresh, "new-project-save-first.png")
     choose_save(page, fresh, "planning")
     # Then: Autosave, a switch.
     choice = page.get_by_role("dialog", name="Autosave")
     switch = choice.get_by_role("switch", name="Autosave")
     expect(switch).not_to_be_checked()
     switch.check()
-    page.screenshot(path=str(fresh / "autosave.png"))
+    shot(page, fresh, "new-project-autosave.png")
     choice.get_by_role("button", name="Done").click()
     # Then: the project's Grids, with no table yet: the ways to bring data in.
     expect(workspace).to_have_attribute("data-view", "grids", timeout=20000)
@@ -203,14 +214,22 @@ def test_new_project_is_saved_first_then_autosave_then_its_grids(
     target = fresh / "planning.sab"
     with zipfile.ZipFile(target) as read:
         assert json.loads(read.read("project.json"))["autosave"] is True
-    page.screenshot(path=str(fresh / "grids-landing.png"))
+    shot(page, fresh, "grids-landing.png")
     # A table arrives: it takes the landing's place; closing it brings the landing back.
     call(server, "POST", "/datasets/orders/load", {"path": str(fresh / "orders.csv")})
     expect(workspace).to_have_attribute("data-view", "grid", timeout=20000)
+
     # Autosave: saved quietly, the mark clears by itself.
+    def saved_tables() -> list[str]:
+        with zipfile.ZipFile(target) as read:
+            return [t["name"] for t in json.loads(read.read("project.json"))["tables"]]
+
+    for _ in range(100):
+        if saved_tables() == ["orders"]:
+            break
+        page.wait_for_timeout(200)
+    assert saved_tables() == ["orders"]
     expect(group.locator(".project-name")).to_have_text("planning", timeout=20000)
-    with zipfile.ZipFile(target) as read:
-        assert [t["name"] for t in json.loads(read.read("project.json"))["tables"]] == ["orders"]
     page.locator(".tab-item[data-grid]").first.hover()
     page.locator(".tab-item[data-grid]").first.get_by_role("button", name=re.compile("^Close")).click()
     expect(workspace).to_have_attribute("data-view", "grids", timeout=20000)
@@ -228,6 +247,7 @@ def test_the_tour_is_offered_on_the_start_page_only(
 ) -> None:
     page = home(browser, server, "?view=start")
     expect(page.locator("#start-view .tour-btn")).to_be_visible(timeout=20000)
+    shot(page, fresh, "start-with-tour.png")
     expect(page.locator(".app-row .tour-btn")).to_have_count(0)
     for path in ("/workbench", "/catalog"):
         other = page.context.new_page()
@@ -265,7 +285,7 @@ def test_a_notebook_is_imported_from_another_project(
     where.press("Enter")
     chooser.locator(".file-row.file", has_text="source.sab").click()
     dialog.get_by_label("analysis.ipynb").check()
-    workbench.screenshot(path=str(fresh / "import.png"))
+    shot(workbench, fresh, "workbench-import.png")
     dialog.get_by_role("button", name="Import", exact=True).click()
     expect(workbench.locator(".wb-tabs .tab-label", has_text="analysis.ipynb")).to_have_count(
         1, timeout=20000
