@@ -1991,6 +1991,9 @@ drags; code of more than one line is pasted, one typed value):
   names the pushed table without its values; both found: the menu, Claude Desktop, the one question, its
   config written beside a made-up server kept; none found: the dialog with the install commands and the
   download link; Settings' Claude: two found, one chosen, bypass on, and the next launch uses both.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,205 passed, 33 skipped, 2 failed in 18
+  minutes: the narrow window's sideways scroll (421 of 420 pixels: the new button; fixed, the sparkle alone
+  below 760 pixels, passes) and test_rail_page's new-window test (passes alone: load).
 - **Not checked:** real Windows (registry, PowerShell's Store and Start menu answers, Windows Terminal,
   the new console), real macOS (Spotlight, Info.plist, Terminal through osascript), a real Linux terminal
   opening, a real Claude Code or Claude Desktop starting and reading the folder or the config.
