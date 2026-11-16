@@ -47,10 +47,15 @@ const folderOf = (path: string): string => path.slice(0, Math.max(0, path.length
 /** SEAM (project-scope): the documents of a kind that are not open here. Today the Workbench's recent
  *  files of that kind; the open project's documents list replaces this one function. */
 export async function projectDocuments(kind: Kind): Promise<string[]> {
-  // The open project's documents of this kind (everything is the project's, 2026-11-16).
+  // The open project's documents of this kind (everything is the project's, 2026-11-16); with no project
+  // open, this computer's recent ones, as the connections and blades fall back to this computer's.
   const listed = await api<{ project: unknown; documents: { path: string; made?: boolean }[] }>(`/project/documents?kind=${kind}`);
-  return listed.documents.filter((d) => !d.made).map((d) => d.path);
+  if (listed.project) return listed.documents.filter((d) => !d.made).map((d) => d.path);
+  const home = await api<{ recent: { path: string; exists: boolean }[] }>("/workbench/home");
+  return home.recent.filter((r) => r.exists && kindOfPath(r.path) === kind).map((r) => r.path);
 }
+
+const kindOfPath = (path: string): Kind | null => (/\.stapp\.json$/i.test(path) ? "app" : /\.ipynb$/i.test(path) ? "notebook" : /\.py$/i.test(path) ? "script" : null);
 
 export interface Landing {
   element: HTMLElement;
