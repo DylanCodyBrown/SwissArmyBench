@@ -12,6 +12,11 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
 - **Renamed (the owner, 2026-11-15):** SwissArmyGrid is now Swiss Army Bench: `swissarmybench`, alias `sab`.
   Write only the new names; the old ones are read for one release (`renamed.py`, README "Renamed from
   SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
+- **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
+  (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
+  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (cli/commands.py OLD_NAMES: run, never
+  listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a .sab's `sandbox/`
+  entry. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
@@ -359,7 +364,8 @@ src/swissarmybench/
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
                          <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
-  client/visualizations_client.py sab.sandbox: a figure, picture, table or text as a Visualizations card (duck-typed)
+  client/visualizations_client.py sab.visualizations (sab.sandbox, the old name, one release): a figure,
+                         picture, table or text as a Visualizations card (duck-typed)
   client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
   client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the

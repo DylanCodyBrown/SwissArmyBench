@@ -1914,3 +1914,27 @@ drags; code of more than one line is pasted, one typed value):
   17 minutes: tests/e2e/test_streamlit_page.py::test_the_agents_export_in_the_window_waits_for_the_users_allow
   failed once under the full run (the approval prompt's words not there in 5 s) and passed four times on
   its own. ruff, ruff format, mypy, and the page's typecheck and build.
+
+## The Sandbox is Visualizations, the Diagram is the ERD (2026-11-16, branch renames)
+
+- **The old names, tested:** `sab.sandbox` adds a card with a DeprecationWarning and is not in `__all__`
+  (tests/test_sandbox_cards.py); every `sandbox_*` name runs its `visualizations_*` command through
+  `execute`, the `sab` command and an MCP `call_tool`, and none is in the tool list (tests/test_cli.py);
+  app_navigate `sandbox` and `diagram` (tests/test_navigation.py, and in the browser: the home window
+  moves to `?view=visualizations` and `?view=erd`); app_snapshot's area `sandbox` asks the page for
+  `visualizations` (tests/test_snapshots.py); the addresses `/workspace?view=sandbox` and `?view=diagram`
+  land on the pages, are replaced by the new words, and the rail marks the area
+  (tests/e2e/test_navigation_page.py); a .sab manifest with the old `sandbox` key reads its cards and
+  writes them back under `visualizations` (tests/test_sab_files.py).
+- **Updated:** every test that named the Sandbox or the Diagram as the user sees them (the rail's areas,
+  titles "Visualizations" and "ERD", Send to Visualizations, the toasts, the theme picker, the palette's
+  Go to Visualizations, the tour's twenty-one stops, the .sab's new entry, the theme routes).
+- **Screenshots** (light, deviceScaleFactor 2, made-up orders and customers): the rail's Visualizations
+  and ERD tips, the Visualizations page (a chart and a note), the ERD page; looked at.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,161 passed, 33 skipped, 1 failed in
+  17 minutes: tests/e2e/test_streamlit_page.py::test_the_agents_export_in_the_window_waits_for_the_users_allow
+  (the same one as before: failed under the full run, passed alone). ruff, ruff format, mypy, the page's
+  typecheck and build; the agent's index 3,986 characters.
+- **Not checked:** Edge and Firefox; a .sab really written by the previous release opened in this one (the
+  manifest rule is tested, not a file from the old app); an MCP client calling an old name over stdio
+  (the server's own `call_tool` is).

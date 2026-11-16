@@ -3204,3 +3204,48 @@ The owner, the same day as the rail:
   project's documents list.
 - **Not built:** references in unsaved edits of an open document (its saved file is read); a count of
   the calls each reference made.
+
+## The Sandbox is Visualizations, the Diagram is the ERD (the owner, 2026-11-16; built, branch renames)
+
+The owner:
+1. "the Sandbox page title should be Visualizations now. rename all Sandbox refs to Visualizations"
+2. "Relationship should jsut be ERD": the rail's Diagram and its page title ("Relationship diagram")
+   are "ERD", with the tour and the help. "Relationships" stays for the things on that page (Find
+   relationships, Import relationships, Manage relationships): they are the joins themselves.
+
+(Earlier sections of this file keep the old words: they are the history as it was decided.)
+
+### Built
+- **Every Sandbox the user sees is Visualizations:** the rail's item and tip, the page's heading and
+  title ("Analysis Sandbox" too), the status bar, the palette's Go to Visualizations, every Send to
+  Visualizations (results, a cell's and a header's right-click, profiles, the value viewer, the Key
+  Finder, cheat sheets, the Workbench's pictures), the toasts ("In Visualizations: …", "Sent to
+  Visualizations"), the theme picker (Visualizations theme), the dashboards' confirm, the markdown export's
+  heading, the tour, the user guide, SKILL.md, README, CLAUDE.md, design principles, the agent's index and
+  guide. A card from before badged "Sandbox" is badged Visualizations.
+- **The Diagram is the ERD:** the rail's item and tip, the page's heading and title (was "Relationship
+  diagram"), the status bar, the palette's Go to ERD, a new tour stop (ERD, after Visualizations: twenty
+  words now), the help. Design principle 7.4's example changed: ERD is a name the owner asked for.
+- **Under the hood:** the agent's `sandbox_*` commands are `visualizations_*` (twelve); the area is
+  `visualizations`; `sab.visualizations(...)` (client/visualizations_client.py, was sandbox_client.py);
+  `?view=visualizations` and `?view=erd`; app_navigate's `visualizations` and `erd`; app_snapshot's area
+  `visualizations`; the theme routes `/visualizations/themes` and `/visualizations/theme` (the page and
+  the server ship together, so no old route is kept); a .sab writes `visualizations/visualizations.json`
+  under the manifest key `visualizations`.
+- **The old names, one release** (as SwissArmyGrid's): `sab.sandbox` (a DeprecationWarning, not in
+  `__all__`); every `sandbox_*` command (cli/commands.py OLD_NAMES, `current_name`): run by `sab` and by
+  an MCP call by name (the tool manager's lookup resolves it), never listed, so the tool list is the same
+  size; app_navigate `sandbox` and `diagram` (domain/navigation.py SAME); app_snapshot `sandbox`; the
+  addresses `?view=sandbox` and `?view=diagram` (land, then the address is replaced with the new word, and
+  the rail marks the area); a .sab's `sandbox` key and `sandbox/sandbox.json` entry (read; the next save
+  writes the new ones). Dashboards had no Sandbox name in their files: nothing to read twice.
+
+### Decisions
+- Internal names stayed where renaming buys nothing: aiPanel.ts, sandboxThemes.ts, sandboxDashboards.ts,
+  sandboxPages.ts, sandboxExport.ts, sandboxShow.ts, the `agent` view key, CSS classes (`.sandbox-title`),
+  the rail icon's id, test file names (test_sandbox*.py), the .sab layout's `diagram` window key. The TS
+  identifiers (SandboxCard, profileToSandbox) too: only words a user or an agent reads changed.
+- The old command names are aliases at the dispatcher, not listed tools: twelve more tools would add
+  about 3,000 characters to every agent's tool list for names no new agent should use.
+- "Visualizations" reads as a page's name, singular: "Visualizations is empty", "In Visualizations: a
+  note and its chart".

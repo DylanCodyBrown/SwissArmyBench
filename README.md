@@ -89,8 +89,8 @@ What a grid page does:
   late 46% of the time, against 15% elsewhere: 4.85 times the odds"). **Find predictors**: every column
   tested against a target by chi-square, ranked by strength, with the pairs that say the same thing.
   **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof in Visualizations:
-  each formula with the result's own numbers, worked to the values shown. Every result can go to Visualizations, open as a grid, or go to
-  the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
+  each formula with the result's own numbers, worked to the values shown. Every result can go to
+  Visualizations, open as a grid, or go to the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
   logistic (odds ratios), effects in words with ranges, what-if predictions, predicted and miss columns,
   and Check the misses (outliers of what the model cannot explain). Each form has a **Data shape**
   cheat sheet: a made-up table in the shape it needs, one that does not work, and a check of your grid.
@@ -185,6 +185,13 @@ The installers remove the old `swissarmygrid` uv tool before installing the new 
 commands with it; by hand, that is `uv tool uninstall swissarmygrid`, then the install below. Update the
 VS Code extension too: the new one finds the new install (and still finds an old one). The GitHub
 repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
+
+**The Sandbox is now Visualizations, and the Diagram is the ERD** (the owner, 2026-11-16): the rail, the
+pages' titles, the menus (Send to Visualizations) and the help. The old names work for one release too:
+`sab.sandbox(...)` (a DeprecationWarning; write `sab.visualizations(...)`), the agent's `sandbox_*` commands
+(each runs its `visualizations_*` one, by `sab` and by an MCP call; only the new names are listed),
+`app_navigate` to `sandbox` or `diagram`, `app_snapshot` of `sandbox`, the addresses `?view=sandbox` and
+`?view=diagram` (each replaced by the new word), and a .sab saved with a `sandbox/` entry.
 
 ## Install it: one package, two installs
 
@@ -707,7 +714,7 @@ run it:
 opened, an export approval asked for), so an agent can work alongside the user instead of polling.
 
 `app_snapshot` returns a PNG of the page as the user sees it (the whole window, or the ribbon, grid,
-steps strip or sandbox). The server draws nothing: it asks the open page, which draws itself with
+steps strip or Visualizations). The server draws nothing: it asks the open page, which draws itself with
 html-to-image and uploads the picture, and the server hands it to the agent without writing it to disk.
 The MCP returns it as image content; `sab app_snapshot` saves it and prints the path. It shows real
 cell values, and each one is written to the audit log.

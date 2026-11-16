@@ -293,7 +293,7 @@ The Compare row in the ribbon switches the mode.
 
 ## Visualizations
 
-Visualizations (the rail's second icon) is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
+Visualizations (the rail's second icon; it was called the Sandbox) is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
@@ -346,7 +346,7 @@ sab.visualizations(text, kind="mermaid")  # Mermaid, DOT or ECharts text
 sab.visualizations(fig, key="monthly", size=(8, 10))
 ```
 
-`key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing.
+`key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing. `sab.sandbox(...)`, its old name, still works for this release (with a warning).
 
 ### How an agent sees the grids
 
@@ -379,7 +379,7 @@ Draw ERD adds a copy of the diagram to Visualizations; the ERD tab always shows 
 
 ## The ERD tab
 
-The ERD (on the rail, after Visualizations) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
+The ERD (on the rail, after Visualizations; it was called the Diagram) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
 
 ![The ERD tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)
 
