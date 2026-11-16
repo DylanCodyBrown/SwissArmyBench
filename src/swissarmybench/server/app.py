@@ -46,7 +46,7 @@ from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, Response
+from starlette.responses import FileResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -207,6 +207,8 @@ def create_app(
             *routes_snapshots.routes(ctx.snapshots),
             WebSocketRoute("/ws", live),
             Route("/g/{grid_id}", grid_page),
+            # The bare address goes to the app's page; the browser keeps the #token fragment across it.
+            Route("/", lambda request: RedirectResponse("/workspace", status_code=307)),
             Route("/workspace", workspace_page),
             Route("/catalog", catalog_page),
             Route("/workbench", workbench_page),

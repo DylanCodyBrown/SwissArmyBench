@@ -329,3 +329,16 @@ def test_the_opened_address_is_a_page_the_server_serves_without_the_token(tmp_pa
         page = client.get(address.path)
         assert page.status_code == 200 and "<html" in page.text.lower()
     assert address.fragment == "token=test-token"
+
+
+def test_the_bare_address_goes_to_the_apps_page_without_a_token() -> None:
+    """0.0.2 opened http://127.0.0.1:<port>/#token=...; the bare address had no page and answered 401.
+    It now sends the browser on to /workspace (which keeps the fragment), and holds no data itself."""
+    from starlette.testclient import TestClient
+
+    from swissarmybench.server.app import create_app
+    from swissarmybench.settings import Settings
+
+    client = TestClient(create_app(8000, "t", Settings()), base_url="http://127.0.0.1:8000")
+    answer = client.get("/", follow_redirects=False)
+    assert answer.status_code == 307 and answer.headers["location"] == "/workspace"
