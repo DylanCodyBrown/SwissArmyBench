@@ -173,7 +173,23 @@ function askFirst(version: string, risk: AtRisk): void {
   );
 }
 
-/** Settings' switch: Check for updates (the server's, kept across restarts). */
+/** Check for updates now, and update when there is one (the owner, 2026-11-16: "check for updates should be a
+ *  button that launches the update"). Update to X still asks first when work would be lost. */
+export async function checkNow(): Promise<void> {
+  try {
+    take(await api<UpdateState>("/updates/check", "POST", { asked: true }));
+  } catch (e) {
+    toast((e as Error).message, "error");
+    return;
+  }
+  const s = state;
+  if (s?.available && s.version) await startUpdate();
+  else if ((s as { error?: string } | null)?.error) toast(String((s as { error?: string }).error), "error");
+  else toast(`${s?.current ?? "This"} is the newest version.`);
+}
+
+/** Settings' Updates: the Check for updates button, and the switch for the check every six hours (the server's,
+ *  kept across restarts). */
 export function updatesSection(): HTMLElement {
   const box = h("input", { type: "checkbox", class: "update-switch", checked: true }) as HTMLInputElement;
   const draw = (): void => {
@@ -182,7 +198,18 @@ export function updatesSection(): HTMLElement {
   box.addEventListener("change", () => void setCheck(box.checked));
   onUpdates(draw);
   void loadUpdates().then(draw);
-  return h("fieldset", { class: "fieldset updates-fieldset" }, h("legend", {}, icon("import"), "Updates"), h("label", { class: "check" }, box, "Check for updates"));
+  const checking = button("Check for updates", () => {
+    checking.disabled = true;
+    void checkNow().finally(() => {
+      checking.disabled = false;
+    });
+  }, { icon: "import", class: "primary update-check-now" });
+  return h(
+    "fieldset",
+    { class: "fieldset updates-fieldset" },
+    h("legend", {}, icon("import"), "Updates"),
+    h("div", { class: "updates-row" }, checking, h("label", { class: "check" }, box, "Check every six hours")),
+  );
 }
 
 export async function setCheck(on: boolean): Promise<void> {
@@ -199,7 +226,8 @@ export function updateCommands(): Command[] {
   return [
     { id: "app.update", group: "Application", title: `Update to ${state?.version ?? "the new version"}`, when: available, whyNot: "no update is available", run: () => startUpdate() },
     { id: "app.whatsNew", group: "Application", title: "What's new", when: available, whyNot: "no update is available", run: () => whatsNew() },
-    { id: "app.checkForUpdatesOn", group: "Application", title: "Check for updates", when: () => state?.check === false, whyNot: "it is on", run: () => setCheck(true) },
-    { id: "app.checkForUpdatesOff", group: "Application", title: "Stop checking for updates", when: () => state?.check !== false, whyNot: "it is off", run: () => setCheck(false) },
+    { id: "app.checkForUpdatesNow", group: "Application", title: "Check for updates", run: () => checkNow() },
+    { id: "app.checkForUpdatesOn", group: "Application", title: "Check for updates every six hours", when: () => state?.check === false, whyNot: "it is on", run: () => setCheck(true) },
+    { id: "app.checkForUpdatesOff", group: "Application", title: "Stop checking for updates every six hours", when: () => state?.check !== false, whyNot: "it is off", run: () => setCheck(false) },
   ];
 }

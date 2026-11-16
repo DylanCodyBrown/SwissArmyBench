@@ -10129,3 +10129,10 @@ body.sql-window dialog[open] textarea.code-input {
   white-space: nowrap;
   padding: 0 12px 0 4px;
 }
+
+.updates-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}

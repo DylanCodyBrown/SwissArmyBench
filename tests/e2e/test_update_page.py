@@ -135,7 +135,7 @@ def test_settings_check_for_updates_turns_it_off_and_on(
         mark = page.locator(".statusbar .update-mark")
         expect(mark).to_be_visible()
         page.locator(".nav-rail [data-area='settings']").click()
-        switch = page.get_by_label("Check for updates")
+        switch = page.get_by_label("Check every six hours")
         expect(switch).to_be_checked()
         shot(page, "update-settings.png", full_page=False)
         release_list.requests.clear()
@@ -146,6 +146,29 @@ def test_settings_check_for_updates_turns_it_off_and_on(
         assert release_list.requests == []  # off: nothing is sent
         switch.check()
         expect(mark).to_be_visible()
+    finally:
+        call(server, "PUT", "/updates", {"check": True})
+        page.context.close()
+
+
+def test_settings_check_for_updates_checks_and_starts_the_update(
+    browser: Browser, server: dict[str, Any], release_list: StandIn
+) -> None:
+    """The owner (2026-11-16): "check for updates should be a button that launches the update"."""
+    release_list.answer = pypi(__version__)
+    call(server, "PUT", "/updates", {"check": False})  # the six-hourly check off: the button still asks
+    page = grid_page(browser, server)
+    try:
+        page.locator(".nav-rail [data-area='settings']").click()
+        check = page.get_by_role("button", name="Check for updates")
+        release_list.requests.clear()
+        check.click()
+        expect(page.locator(".toast", has_text="is the newest version")).to_be_visible()
+        assert release_list.requests  # asked, though the switch is off
+        # A newer one: the same click starts the update (this copy runs from source, so it says so).
+        release_list.answer = pypi(__version__, "9.9.9")
+        check.click()
+        expect(page.locator(".toast", has_text="not installed with uv")).to_be_visible()
     finally:
         call(server, "PUT", "/updates", {"check": True})
         page.context.close()

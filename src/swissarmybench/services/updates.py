@@ -151,9 +151,10 @@ class Updates:
             await self.check()
         return self.state()
 
-    async def check(self) -> dict[str, Any]:
-        """Ask the release lists now (nothing is sent with the switch off, or with no feeds)."""
-        if not self.on or not self.feeds:
+    async def check(self, asked: bool = False) -> dict[str, Any]:
+        """Ask the release lists now. The six-hourly check sends nothing with the switch off; `asked`
+        (Settings' Check for updates button, the agent's now) asks all the same: the user asked for it."""
+        if (not self.on and not asked) or not self.feeds:
             return self.state()
         before = self._offer
         releases: list[Release] | None = None

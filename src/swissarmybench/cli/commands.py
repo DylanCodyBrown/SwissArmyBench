@@ -2872,7 +2872,7 @@ def app_update_check(a: dict[str, Any]) -> Any:
     if a.get("on") is not None:
         api.call("PUT", "/updates", {"check": a["on"]})
     if a.get("now"):
-        return api.call("POST", "/updates/check")
+        return api.call("POST", "/updates/check", {"asked": True})
     return api.call("GET", "/updates")
 
 

@@ -38,7 +38,10 @@ def routes(updates: Updates) -> list[BaseRoute]:
             return error_response(error)
 
     async def check(request: Request) -> Response:
-        return json_response(await updates.check())
+        # {"asked": true}: the user's button (or the agent's now) checks even with the switch off.
+        body = await read_json(request) if await request.body() else {}
+        asked = isinstance(body, dict) and body.get("asked") is True
+        return json_response(await updates.check(asked=asked) | {"edition": edition()})
 
     async def install(request: Request) -> Response:
         try:
