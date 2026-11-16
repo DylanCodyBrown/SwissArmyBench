@@ -258,6 +258,13 @@ class SabProjects:
     async def _changed(self) -> None:
         await self.ws.live.broadcast({"type": "project_changed", "serial": self._serial})
 
+    def _full(self, path: str) -> str:
+        """A path the user or the agent gave, whole (refused in words when it is not one)."""
+        try:
+            return self._archive.full(path.strip())
+        except FileNotFoundError as error:
+            raise NotFound(str(error)) from None
+
     def _need(self) -> Current:
         if self.current is None:
             raise NotFound("No project is open.")
@@ -514,7 +521,7 @@ class SabProjects:
         if isinstance(path, str) and path.strip():
             if table.source.kind != "file":
                 raise ValueError(f"{name} does not come from a file.")
-            full = self._archive.full(path.strip())
+            full = self._full(path)
             table = replace(table, source=replace(table.source, path=full, absolute=full))
         async with self._busy:
             sab_folder = self._archive.folder_of(current.path) if current.path else None
@@ -538,7 +545,7 @@ class SabProjects:
             and folder.strip()
             and (self.current is None or self.current.folder != folder)
         ):
-            await self._adopt(self._archive.full(folder.strip()), who, clear=False)
+            await self._adopt(self._full(folder), who, clear=False)
         if self.current is None:
             if not path:
                 raise NotFound(

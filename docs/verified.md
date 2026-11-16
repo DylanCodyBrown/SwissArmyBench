@@ -1664,3 +1664,44 @@ drags; code of more than one line is pasted, one typed value):
   windows are in both); a mouse's back button and Alt+Left by hand (the browser's own Back, which the
   tests drive); the Windows taskbar's titles; bringing a window forward is the browser's choice (the
   tests see no second window and no reload, not the focus itself).
+
+## Projects as one .sab file (2026-11-16, branch sab-projects)
+
+- **The format (tests/test_sab_files.py, 24 tests):** project.json round trips; fields this version does
+  not know are kept at every level (the manifest, a table, its source, a grid) when the file is saved
+  again; a newer format opens read-only with the writer's version in the words; a file that is not a
+  project is refused. Zip safety: `..`, absolute paths, drives, backslashes, empty parts and control
+  characters refused; a link, too many entries, an entry or a whole over its cap, a name twice, no
+  project.json; an entry whose headers say 10 bytes but holds 4,000 stops while it is read; nothing is
+  left behind when an open is refused. Only code and text go in (never CSV, Excel, Parquet or JSON data,
+  environments, caches, checkpoints); a notebook goes in without its outputs. A file source is kept
+  relative to the .sab when beside it (POSIX and Windows paths), and found beside a moved .sab first. The
+  save is atomic: a refused entry half way leaves the old file whole and no temporary file. Rows round
+  trip through Parquet. recent_projects.json holds paths and times only.
+- **On the server (tests/test_sab_projects.py, 8 tests):** a project with a CSV table and two steps, a
+  SQLite connection's table (its password in the keyring), a pasted table ticked and one not, a
+  notebook, a canvas, a Sandbox note and a relationship: saved, closed (its working folder gone), opened
+  again: the tables read again, the steps applied (3 of 4 rows), the ticked paste's rows back, the
+  unticked one listed with Remove; the Sandbox, the model and the files back. No secret in the file:
+  the keyring's password, a vault's value, a password typed into a form and the server's token are in no
+  entry and not in the raw bytes. A missing connection says "Add connection Shop" and comes back on Try
+  again once added; a moved file says "Find orders.csv" and comes back from where it is now, with its
+  steps. Unsaved changes: refused (409) only when work would be lost; another program's open is asked
+  through the page. The agent's save asks nothing without rows, and waits for Allow (Deny: 403, nothing
+  written) with them. A folder project saves as one file and opens as a folder. `swissarmybench open
+  sales.sab` asks the running app and opens the page only when none is open.
+- **In the browser (tests/e2e/test_sab_projects.py, Chromium):** the Start view with two recent
+  projects, one missing (marked, removed from the list); a reload keeps the view; a recent project opens
+  (its table, its name in the Application row); Home brings the Start view, Back the table. Open
+  project… through the file chooser. Save clears the ● and writes the new steps. Save as lists the
+  pasted table (not the CSV one) with "Keep its rows in the file"; ticked, the file holds its Parquet.
+  tests/e2e/test_navigation_page.py: the mark (and Alt+Home, and the agent's nav home) now goes to the
+  Start view.
+- **The installers' association (tests/test_autostart.py):** install.ps1's registry commands as text
+  (HKCU\Software\Classes only, the ProgId, the icon from the package, `"...swissarmybench.exe" open "%1"`,
+  registered before the start); install.sh's XDG MIME type and desktop entry. **Not run:** Windows' registry
+  and Explorer (no Windows here), a Linux desktop's file manager; macOS is not registered.
+- **The tool sweep:** the seven project tools swept with sensible and hostile arguments; it caught that a
+  relative path saved into the server's own folder: a path is now refused unless it is whole.
+- **Not checked:** a double-click on a real desktop; a very large .sab (GBs of kept rows); two
+  Workbench windows following one project; Edge and Firefox (Chromium here).

@@ -56,8 +56,14 @@ class SabArchive:
 
     @staticmethod
     def full(path: str) -> str:
+        """A whole path (a relative one would mean the server's own folder: refused)."""
+        given = Path(path).expanduser()
+        if not given.is_absolute():
+            raise FileNotFoundError(
+                f"{path[:200]} is not a full path: give the whole path, from the drive or /."
+            )
         try:
-            return str(Path(path).expanduser().resolve())
+            return str(given.resolve())
         except OSError as error:
             raise FileNotFoundError(f"{path[:200]} is not a place this computer can use ({error}).") from None
 
