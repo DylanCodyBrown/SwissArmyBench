@@ -2,7 +2,7 @@
   "name": "swissarmybench",
   "displayName": "Swiss Army Bench",
   "description": "Swiss Army Bench's tools for VS Code's agent mode, and a button that opens Swiss Army Bench. Install Swiss Army Bench itself with uv first.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "dylancodybrown",
   "license": "(MIT OR Apache-2.0)",
   "repository": {
