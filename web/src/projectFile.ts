@@ -6,9 +6,12 @@
  *                     write (a step, a table, a card, a relationship)
  *          [OPEN]     Open project… -> the file chooser (.sab) -> POST /project/open; unsaved work open:
  *                     asked first, and only then
- *          [NEW]      New project -> POST /project/new (the same question)
- *          [SAVE]     Save (Ctrl+S) -> POST /project/save; the first save, and Save as…, ask where
- *                     (the file chooser) after the per-table "Keep its rows in the file" ticks
+ *          [NEW]      New project -> the file chooser (save: its name and folder) -> POST /project/new
+ *                     (saved there at once; the same question) -> Autosave, a switch -> POST
+ *                     /project/autosave
+ *          [SAVE]     Save (Ctrl+S) -> POST /project/save; Save as…, and the open work with no project,
+ *                     ask where (the file chooser) after the per-table "Keep its rows in the file" ticks
+ *          [AUTOSAVE] the project group's switch -> POST /project/autosave
  *          [CLOSE]    Close project -> POST /project/close
  *          [FIX]      a table that did not come back -> its one click: Add connection, Find <file>,
  *                     Open <notebook>, Remove, Try again -> POST /project/fix
@@ -27,7 +30,7 @@ export interface ProjectTable {
 }
 
 export interface Fix {
-  kind: "add_connection" | "find_file" | "open_notebook" | "remove" | "retry";
+  kind: "add_connection" | "password" | "find_file" | "open_notebook" | "remove" | "retry";
   label: string;
   connection?: string;
   file?: string;
@@ -54,6 +57,8 @@ export interface OpenProject {
   problems: Problem[];
   layout: Record<string, unknown>;
   unsaved_documents: string[];
+  autosave: boolean;
+  autosave_error: string | null;
 }
 
 export interface RecentProject {
@@ -65,11 +70,12 @@ export interface RecentProject {
 export interface ProjectState {
   project: OpenProject | null;
   loose: boolean;
+  loose_tables: ProjectTable[];
   recent: RecentProject[];
   asked: string | null;
 }
 
-let state: ProjectState = { project: null, loose: false, recent: [], asked: null };
+let state: ProjectState = { project: null, loose: false, loose_tables: [], recent: [], asked: null };
 const listeners: ((state: ProjectState) => void)[] = [];
 let timer: number | null = null;
 let loading: Promise<ProjectState> | null = null;
@@ -162,10 +168,49 @@ export async function openProject(path?: string): Promise<ProjectState | null> {
   return loadProject(); // a table that did not come back shows in the strip under the tabs, with its fix
 }
 
-/** New project: the tables open now go into it (with no project open). */
+/** New project: saved first, where the user says (its name is the file's), then Autosave on or off. The
+ *  tables open now go into it (with no project open). */
 export async function newProject(): Promise<ProjectState | null> {
-  const made = await withQuestion("/project/new", {}, "Let them go and start a new project?");
+  const picked = await chooseFile({ title: "New project", mode: "save", suffixes: [".sab"], start: state.recent[0]?.path, name: "project.sab" });
+  if (!picked) return null;
+  const path = picked.toLowerCase().endsWith(".sab") ? picked : `${picked}.sab`;
+  const made = await withQuestion("/project/new", { path }, "Let them go and start a new project?");
   if (!made) return null;
+  const on = await chooseAutosave(false);
+  if (on) await setAutosave(true);
+  return loadProject();
+}
+
+/** The Autosave choice, a switch: resolves to on or off once Done (or closed). */
+function chooseAutosave(now: boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    const { dialog, body, foot, close } = openDialog("Autosave");
+    dialog.classList.add("autosave-choice");
+    const box = autosaveSwitch(now);
+    body.append(box.element);
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      close();
+      resolve(box.input.checked);
+    };
+    dialog.addEventListener("close", finish);
+    foot.append(button("Done", finish, { class: "primary" }));
+  });
+}
+
+/** An Autosave switch (a checkbox in the switch role). */
+export function autosaveSwitch(on: boolean, changed?: (on: boolean) => void): { element: HTMLElement; input: HTMLInputElement } {
+  const input = h("input", { type: "checkbox", role: "switch", class: "switch-input", "aria-label": "Autosave" });
+  input.checked = on;
+  if (changed) input.addEventListener("change", () => changed(input.checked));
+  return { element: h("label", { class: "autosave-switch" }, input, h("span", {}, "Autosave")), input };
+}
+
+/** Autosave on or off for the open project (kept in its file). */
+export async function setAutosave(on: boolean): Promise<ProjectState> {
+  await api("/project/autosave", "POST", { on });
   return loadProject();
 }
 
@@ -216,11 +261,7 @@ function chooseRows(project: OpenProject): Promise<Record<string, boolean> | nul
  *  open work is saved as one. */
 export async function saveProject(as = false): Promise<ProjectState | null> {
   await loadProject();
-  if (!state.project) {
-    // No project yet: the open work becomes one (its tables go into its data.ipynb), saved where asked.
-    await api("/project/new", "POST", {});
-    await loadProject();
-  }
+  // No project yet: the open work becomes one (its tables go into its data.ipynb), saved where asked.
   const project = state.project;
   if (project?.read_only) {
     toast(project.read_only, "error");
@@ -229,7 +270,7 @@ export async function saveProject(as = false): Promise<ProjectState | null> {
   let path: string | undefined;
   let keep: Record<string, boolean> | undefined;
   if (as || !project?.path) {
-    const fake: OpenProject = project ?? { name: "project", path: null, folder: "", temporary: true, dirty: true, read_only: null, serial: 0, tables: [], problems: [], layout: {}, unsaved_documents: [] };
+    const fake: OpenProject = project ?? { name: "project", path: null, folder: "", temporary: true, dirty: true, read_only: null, serial: 0, tables: state.loose_tables, problems: [], layout: {}, unsaved_documents: [], autosave: false, autosave_error: null };
     const chosen = await chooseRows(fake);
     if (chosen === null) return null;
     keep = chosen;
@@ -258,7 +299,7 @@ export async function saveFolderAsFile(folder: string): Promise<ProjectState | n
 }
 
 /** A table that did not come back: its one click. `addConnection` and `openNotebook` are the page's. */
-export async function fixTable(problem: Problem, how: { addConnection: (name: string) => void; openNotebook: (path: string) => void; retry?: boolean }): Promise<void> {
+export async function fixTable(problem: Problem, how: { addConnection: (name: string) => void; setPassword: (name: string) => void; openNotebook: (path: string) => void; retry?: boolean }): Promise<void> {
   const fix = problem.fix;
   if (how.retry || fix.kind === "retry") {
     await api("/project/fix", "POST", { table: problem.table });
@@ -270,6 +311,9 @@ export async function fixTable(problem: Problem, how: { addConnection: (name: st
     await api("/project/fix", "POST", { table: problem.table, path: picked });
   } else if (fix.kind === "add_connection") {
     how.addConnection(fix.connection ?? "");
+    return;
+  } else if (fix.kind === "password") {
+    how.setPassword(fix.connection ?? "");
     return;
   } else if (fix.kind === "open_notebook" && fix.notebook && state.project) {
     const sep = state.project.folder.includes("\\") && !state.project.folder.includes("/") ? "\\" : "/";

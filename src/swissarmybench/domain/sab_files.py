@@ -306,6 +306,7 @@ class Manifest:
     diagram: Mapping[str, Any] = field(default_factory=dict)
     sandbox: str | None = None
     model: str | None = None
+    autosave: bool = False  # saved quietly a short while after each change (the user's switch)
     extra: Mapping[str, Any] = field(default_factory=dict)
 
     def table(self, name: str) -> TableEntry | None:
@@ -318,7 +319,7 @@ class Manifest:
 
 
 _KNOWN = {"format", "app_version", "name", "saved", "tables", "tabs", "workbench", "diagram", "sandbox"}
-_KNOWN |= {"model", MARK_KEY}
+_KNOWN |= {"model", "autosave", MARK_KEY}
 
 
 def check_name(name: Any) -> str:
@@ -411,6 +412,7 @@ def read_manifest(text: str) -> tuple[Manifest, str | None]:
         diagram=_mapping(raw.get("diagram")),
         sandbox=entry("sandbox"),
         model=entry("model"),
+        autosave=raw.get("autosave") is True,
         extra={k: v for k, v in raw.items() if k not in _KNOWN},
     )
     return manifest, read_only
@@ -430,6 +432,7 @@ def write_manifest(manifest: Manifest) -> str:
         "diagram": dict(manifest.diagram),
         "sandbox": manifest.sandbox,
         "model": manifest.model,
+        "autosave": manifest.autosave,
     }
     return json.dumps(body, indent=1, ensure_ascii=False, default=str) + "\n"
 
@@ -555,6 +558,10 @@ def fix_for(table: str, source: Source, problem: str) -> dict[str, Any]:
         name = source.connection or ""
         message = f"No connection {name} on this computer"
         return _fix(table, problem, message, "add_connection", f"Add connection {name}", connection=name)
+    if problem == "needs_password":
+        name = source.connection or ""
+        message = f"{name} needs a password on this computer"
+        return _fix(table, problem, message, "password", "Set the password", connection=name)
     if problem == "no_file":
         name = source.label() or table
         suffix = posixpath.splitext(name.lower())[1]

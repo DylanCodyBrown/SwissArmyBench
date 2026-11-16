@@ -23,6 +23,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_controllers.py    a canvas page's controllers: the check, Test this page, a thin cell's move
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_sab_projects.py   a project as one .sab file: new, open, save, close, the recent ones, a fix
+  routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
@@ -74,6 +75,7 @@ from swissarmybench.server import (
     routes_packs,
     routes_panels,
     routes_processes,
+    routes_project_scope,
     routes_projects,
     routes_regression,
     routes_relationships,
@@ -184,7 +186,9 @@ def create_app(
         checker = asyncio.create_task(ctx.updates.run_forever())
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
+        autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         yield
+        autosave.cancel()
         pruner.cancel()
         checker.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
@@ -214,6 +218,7 @@ def create_app(
             *routes_controllers.routes(ctx.controllers),
             *routes_projects.routes(ctx.projects),
             *routes_sab_projects.routes(ctx.sab_projects),
+            *routes_project_scope.routes(ctx.project_scope),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
             *routes_navigation.routes(ctx.navigation),

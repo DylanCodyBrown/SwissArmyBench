@@ -30,11 +30,22 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from swissarmybench.domain.project_scope import APP_FOLDER, app_entry
 from swissarmybench.domain.sab_files import EntryInfo, SabError, check_entries, check_entry, packed
 
 CHUNK: int = 1024 * 1024
 MAX_RECENT: int = 20
 WORKING_PREFIX: str = "sab-project-"
+
+
+class _Sink:
+    """An entry read into memory (an import's few small files)."""
+
+    def __init__(self) -> None:
+        self.data = bytearray()
+
+    def write(self, chunk: bytes) -> None:
+        self.data += chunk
 
 
 def _is_link(info: zipfile.ZipInfo) -> bool:
@@ -210,6 +221,70 @@ class SabArchive:
                     return found
         return found
 
+    def app_files(self, folder: str) -> list[tuple[str, int, float]]:
+        """The project's own definitions in its working folder (domain/project_scope.py): .sab/blades and
+        .sab/dashboards' JSON files, path inside the folder, size, last change."""
+        root = Path(folder)
+        found: list[tuple[str, int, float]] = []
+        app = root / APP_FOLDER
+        if not app.is_dir() or app.is_symlink():
+            return found
+        for file in sorted(app.glob("*/*.json")):
+            relative = file.relative_to(root).as_posix()
+            if file.is_symlink() or not app_entry(relative):
+                continue
+            try:
+                facts = file.stat()
+            except OSError:
+                continue
+            found.append((relative, facts.st_size, facts.st_mtime))
+            if len(found) >= self.max_entries:
+                break
+        return found
+
+    # ===== another project's entries, for an import =====
+
+    def entry_names(self, path: str) -> list[str]:
+        """Every file entry of a .sab (each one checked first)."""
+        with self._zip(path) as archive:
+            return [check_entry(i.filename) for i in self._checked(archive)]
+
+    def read_entries(self, path: str, names: Sequence[str]) -> dict[str, bytes]:
+        """Some entries of a .sab, each counted as it is read (a zip that lies about its sizes stops)."""
+        wanted = set(names)
+        found: dict[str, bytes] = {}
+        with self._zip(path) as archive:
+            budget = [self.max_total]
+            for info in self._checked(archive):
+                entry = check_entry(info.filename)
+                if entry in wanted:
+                    sink = _Sink()
+                    self._read(archive, info, sink, budget)
+                    found[entry] = bytes(sink.data)
+        return found
+
+    def read_loose(self, path: str) -> bytes:
+        """A file outside the project (a notebook to import), at most the largest entry a .sab takes."""
+        file = Path(path).expanduser()
+        if not file.is_file():
+            raise FileNotFoundError(f"{file} is not there.")
+        if file.stat().st_size > self.max_total:
+            raise SabError(f"{file.name} is too large to import.")
+        return file.read_bytes()
+
+    @staticmethod
+    def write_into(folder: str, relative: str, body: bytes) -> str:
+        """A file copied into the project's working folder (never outside it); its whole path."""
+        root = Path(folder).resolve()
+        target = (root / check_entry(relative)).resolve()
+        if not target.is_relative_to(root):
+            raise SabError(f"{relative[:80]} is outside the project.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(f".{target.name}.{secrets.token_hex(4)}.saving")
+        partial.write_bytes(body)
+        os.replace(partial, target)
+        return str(target)
+
     @staticmethod
     def read_file(folder: str, relative: str) -> bytes:
         return (Path(folder) / relative).read_bytes()
@@ -263,6 +338,26 @@ class SabArchive:
             partial.unlink(missing_ok=True)
             raise
         return str(file)
+
+    def replace_manifest(self, target: str, text: str) -> None:
+        """The .sab's project.json replaced, every other entry as it was (a switch kept in the file without
+        saving anything else): a temporary file beside it, then one replace."""
+        file = Path(target).expanduser().resolve()
+        partial = file.with_name(f".{file.name}.{secrets.token_hex(4)}.saving")
+        try:
+            with self._zip(str(file)) as source, zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as out:
+                budget = [self.max_total]
+                for info in self._checked(source):
+                    entry = check_entry(info.filename)
+                    if entry == "project.json":
+                        out.writestr(entry, text.encode("utf-8"))
+                        continue
+                    with out.open(entry, "w") as sink:
+                        self._read(source, info, sink, budget)
+            os.replace(partial, file)
+        except BaseException:
+            partial.unlink(missing_ok=True)
+            raise
 
 
 class RecentProjects:

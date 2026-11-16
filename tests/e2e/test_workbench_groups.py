@@ -346,7 +346,16 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
     workbench = open_workbench(browser, server)
     workbench.get_by_role("button", name="Workbench menu").click()
     items = workbench.get_by_role("menu", name="Workbench menu").get_by_role("menuitem")
-    for name in ("New notebook", "New script", "Open…", "Recent…", "Split right", "Split down", "Commands…"):
+    names = [
+        "New notebook",
+        "New script",
+        "Open…",
+        "In this project…",
+        "Split right",
+        "Split down",
+        "Commands…",
+    ]
+    for name in names:
         expect(items.filter(has_text=name)).to_have_count(1)
     workbench.get_by_role("menuitem", name="New notebook").click()
     for name in ("Save", "Save as…"):
@@ -362,7 +371,7 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
     for name in (
         "Clear every output",
         "Open…",
-        "Recent…",
+        "In this project…",
         "Save as…",
         "Interrupt",
         "Restart",

@@ -164,6 +164,8 @@ class Settings:
     max_project_unpacked_bytes: int = 8 * GIB
     # Where a .sab's working folder goes while it is open (None: the system's temporary folder).
     project_temp_dir: Path | None = None
+    # Autosave (the project's switch): how often it looks; a change saves once it has settled for a look.
+    autosave_seconds: float = 2.0
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4

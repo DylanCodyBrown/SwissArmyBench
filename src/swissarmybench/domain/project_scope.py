@@ -1,0 +1,193 @@
+"""What belongs to the open project (the owner, 2026-11-16: "now objects are project scoped any notebooks
+scripts or apps will have to be imported from another project"). Pure rules, no I/O.
+
+  app data    the project's own definitions beside its files, in its working folder's `.sab/` folder (and
+              the same entries in the .sab): its connections and blades (`.sab/blades/<name>.json`, the
+              blade store's own files: names, code and where each password comes from, never a value)
+              and its saved Visualizations dashboards (`.sab/dashboards/<name>.json`)
+  documents   the project's notebooks, scripts and apps: its files by their ending, the made ones marked
+              (data.py and pages/*.py are exports of data.ipynb and the canvas)
+  import      a copy into the project: a document from another project (a .sab or a project folder) or a
+              loose file, a connection or blade from another project or from this computer's saved ones.
+              A name the project has already is never overwritten: a document gets the next free name
+              ("analysis 2.ipynb"), a connection or blade is skipped and said
+  passwords   a connection is resolved on each computer: a password it asks for comes from this
+              computer's keyring, an environment variable or a vault; none of those here is "needs a
+              password", with the fix (never a dead end)
+"""
+
+from __future__ import annotations
+
+import json
+import posixpath
+import re
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any
+
+from swissarmybench.domain import connections, notebooks
+
+APP_FOLDER: str = ".sab"
+BLADES: str = f"{APP_FOLDER}/blades"
+DASHBOARDS: str = f"{APP_FOLDER}/dashboards"
+KINDS: tuple[str, ...] = ("notebook", "script", "app")
+MAX_IMPORT: int = 200  # documents, connections or blades in one import
+# The project's own files the app writes from others: shown, marked, never imported on their own.
+_MADE = re.compile(r"^(data\.py|pages/[^/]+\.py)$")
+_FILE_NAME = re.compile(r"[^/]+\.json")
+
+
+class ScopeError(ValueError):
+    """A request about the project's scope that cannot be done (why, in words)."""
+
+
+def kind_of(path: str) -> str:
+    """notebook, script or app by the file's ending; "" for any other file."""
+    try:
+        return notebooks.kind_of(path)
+    except notebooks.NotebookError:
+        return ""
+
+
+# ===== the project's app data: .sab/blades and .sab/dashboards =====
+
+
+def app_entry(name: str) -> bool:
+    """An entry of the project's own definitions: one JSON file directly in .sab/blades or .sab/dashboards."""
+    folder, _, file = name.rpartition("/")
+    return folder in (BLADES, DASHBOARDS) and bool(_FILE_NAME.fullmatch(file))
+
+
+def blade_entry(name: str) -> bool:
+    return app_entry(name) and name.startswith(BLADES + "/")
+
+
+# ===== documents =====
+
+
+def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) -> list[dict[str, Any]]:
+    """The project's notebooks, scripts and apps from its files (path inside it, size, last change), by
+    kind then name; `made`: an export the app writes (data.py, pages/*.py)."""
+    if kind is not None and kind not in KINDS:
+        raise ScopeError("kind is notebook, script or app.")
+    found = []
+    for relative, size, modified in files:
+        if relative.startswith(APP_FOLDER + "/"):
+            continue
+        found_kind = kind_of(relative)
+        if not found_kind or (kind and found_kind != kind):
+            continue
+        found.append(
+            {
+                "path": relative,
+                "name": posixpath.basename(relative),
+                "kind": found_kind,
+                "size": size,
+                "modified": modified,
+                "made": bool(_MADE.match(relative)),
+            }
+        )
+    order = {k: i for i, k in enumerate(KINDS)}
+    return sorted(found, key=lambda d: (order[d["kind"]], d["made"], d["path"].casefold()))
+
+
+def inside(folder: str, relative: str) -> str:
+    """A file's whole path from the project's folder and its path inside it (the folder's own slashes)."""
+    sep = "\\" if "\\" in folder and "/" not in folder else "/"
+    return folder.rstrip("\\/") + sep + relative.replace("/", sep)
+
+
+def free_name(relative: str, taken: Iterable[str]) -> str:
+    """`relative`, or the next name the project does not have: analysis 2.ipynb, sales 2.stapp.json."""
+    used = {t.casefold() for t in taken}
+    if relative.casefold() not in used:
+        return relative
+    folder, _, file = relative.rpartition("/")
+    lowered = file.lower()
+    ending = notebooks.APP_SUFFIX if lowered.endswith(notebooks.APP_SUFFIX) else posixpath.splitext(file)[1]
+    stem = file[: len(file) - len(ending)] if ending else file
+    n = 2
+    while True:
+        name = f"{stem} {n}{ending}"
+        candidate = f"{folder}/{name}" if folder else name
+        if candidate.casefold() not in used:
+            return candidate
+        n += 1
+
+
+def chosen(raw: Any, field: str) -> list[str] | None:
+    """A list of names or paths an import names (None: not sent)."""
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or not all(isinstance(r, str) and r.strip() for r in raw):
+        raise ScopeError(f"{field} is a list of names.")
+    if len(raw) > MAX_IMPORT:
+        raise ScopeError(f"At most {MAX_IMPORT} {field} in one import.")
+    return [r.strip() for r in raw]
+
+
+def pick(available: Sequence[str], wanted: list[str] | None, what: str) -> list[str]:
+    """The ones asked for, each one of `available` (names compared without case); all when None."""
+    if wanted is None:
+        return list(available)
+    by_key = {a.casefold(): a for a in available}
+    missing = [w for w in wanted if w.casefold() not in by_key]
+    if missing:
+        raise ScopeError(f"No {what} {', '.join(missing[:5])} there.")
+    return [by_key[w.casefold()] for w in wanted]
+
+
+# ===== a connection's passwords on this computer =====
+
+
+def needs_passwords(
+    secrets: Mapping[str, bool],
+    variables: Mapping[str, Mapping[str, str]],
+    present: Callable[[str], bool],
+    vault_covers: Callable[[str], bool],
+    typed: Iterable[str],
+) -> list[str]:
+    """The passwords a connection asks for that nothing on this computer gives: not saved in its keyring
+    (`secrets`: name -> saved), not an environment variable, no vault mapping it, no secret blade asking
+    for it; and a variable of its own Python set to come from an environment variable that is not set."""
+    asked = set(typed)
+    missing = [
+        name
+        for name, saved in secrets.items()
+        if not saved and not present(name) and not vault_covers(name) and name not in asked
+    ]
+    for name, source in variables.items():
+        if source.get("from") == "env":
+            env = source.get("env") or name
+            if not present(env) and env not in missing:
+                missing.append(env)
+    return missing
+
+
+def blade_record(file: str, raw: bytes) -> dict[str, Any] | None:
+    """A saved blade's file (the blade store's JSON) as an import lists it: its name, what it is, and
+    whether it is a connection. None: not a blade's file."""
+    try:
+        data = json.loads(raw.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("name"), str) or not data["name"].strip():
+        return None
+    kind = str(data.get("kind") or "other")
+    template = data.get("template") if isinstance(data.get("template"), str) else None
+    return {
+        "name": data["name"],
+        "file": file,
+        "kind": kind,
+        "template": template,
+        "connection": connections.connection_kind(kind, template),
+        "description": str(data.get("description") or "")[:300],
+    }
+
+
+def password_fix(connection: str, missing: list[str]) -> dict[str, Any]:
+    """What the page shows for a connection with no password source here, and the click that fixes it."""
+    return {
+        "missing": missing,
+        "message": "Needs a password on this computer",
+        "fix": {"kind": "password", "label": "Set the password", "connection": connection},
+    }

@@ -2,7 +2,8 @@
 (the golden rule).
 
 GET  /project               the open project (its unsaved mark, tables that need a fix), the recent ones
-POST /project/new           {"name"?, "discard"?}: a new project
+POST /project/new           {"path", "autosave"?, "discard"?}: a new project, saved there at once
+POST /project/autosave      {"on"}: autosave on or off (kept in the project's file)
 POST /project/open          {"path", "discard"?, "ask"?} | {"cancel": true}: a .sab (or a project folder)
 POST /project/save          {"keep_rows"?, "path"?, "folder"?}: Save (path: Save as; folder: a folder
                             project saved as one .sab)
@@ -49,6 +50,9 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
     async def close(request: Request) -> Response:
         return json_response(await projects.close(await read_json(request), actor(request)))
 
+    async def autosave(request: Request) -> Response:
+        return json_response(await projects.set_autosave(await read_json(request), actor(request)))
+
     async def fix(request: Request) -> Response:
         return json_response(await projects.fix(await read_json(request), actor(request)))
 
@@ -65,6 +69,7 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
         Route("/project/save", safely(save), methods=["POST"]),
         Route("/project/close", safely(close), methods=["POST"]),
         Route("/project/fix", safely(fix), methods=["POST"]),
+        Route("/project/autosave", safely(autosave), methods=["POST"]),
         Route("/project/layout", safely(layout), methods=["POST"]),
         Route("/project/recent/remove", safely(forget), methods=["POST"]),
     ]

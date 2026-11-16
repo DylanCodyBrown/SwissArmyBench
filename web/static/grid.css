@@ -8878,7 +8878,8 @@ body.panel-off-grid-status .statusbar {
   background: var(--bg);
 }
 
-.workspace[data-view="start"] {
+.workspace[data-view="start"],
+.workspace[data-view="grids"] {
   grid-template-columns: 0 0 0 0 minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
   grid-template-areas: "steps center splitter panel start" !important;
@@ -8889,12 +8890,158 @@ body.panel-off-grid-status .statusbar {
 .workspace[data-view="start"] .splitter,
 .workspace[data-view="start"] .ai-panel,
 .workspace[data-view="start"] .erd-view,
-.workspace[data-view="start"] .query-view {
+.workspace[data-view="start"] .query-view,
+.workspace[data-view="grids"] .steps-panel,
+.workspace[data-view="grids"] .center,
+.workspace[data-view="grids"] .splitter,
+.workspace[data-view="grids"] .ai-panel,
+.workspace[data-view="grids"] .erd-view,
+.workspace[data-view="grids"] .query-view {
   display: none !important;
 }
 
-.workspace[data-view="start"] .start-view {
+.workspace[data-view="start"] .start-view,
+.workspace[data-view="grids"] .start-view {
   display: block;
+}
+
+/* The Start view's top: its heading, and the tour offered here only. */
+.start-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.start-head h2 {
+  margin: 0;
+}
+
+.start-head > .tour-btn,
+.start-head > .tour-slot {
+  margin-left: auto;
+}
+
+/* The Grids landing: the ways to bring data in, the project's connections, the tables to fix. */
+.landing-connections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.landing-connections .btn {
+  max-width: 260px;
+}
+
+.landing-connections .btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-fixes .project-fix {
+  padding: 6px 0;
+}
+
+/* Autosave: a switch (the New project choice, the project group). */
+.autosave-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch-input {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  appearance: none;
+  cursor: pointer;
+}
+
+.switch-input::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  content: "";
+  transition: left 0.12s ease;
+}
+
+.switch-input:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.switch-input:checked::after {
+  left: 16px;
+  background: var(--bg);
+}
+
+.switch-input:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.autosave-choice .dialog-body {
+  padding: 18px 20px;
+}
+
+.project-group .autosave-switch {
+  padding: 0 6px;
+  font-size: 0.92em;
+}
+
+/* An import's choices (projectImport.ts): where from, then what, each a tick. */
+.import-dialog .import-from {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-dialog .import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.import-dialog .import-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-dialog h3 {
+  margin: 10px 0 6px;
+  color: var(--muted);
+  font-size: 0.92em;
+  font-weight: 600;
+}
+
+/* A connection with no password source on this computer (a project opened elsewhere). */
+.needs-password {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.88em;
 }
 
 .start-page {

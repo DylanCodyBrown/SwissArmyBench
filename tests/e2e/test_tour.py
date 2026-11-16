@@ -1,5 +1,6 @@
 # ruff: noqa: F811
-"""The tour: the question mark in the Application row, every word lit up on the page, then the game."""
+"""The tour: offered on the Start page only (the owner, 2026-11-16: "new here take a tour should be on the
+project page and no where else"), every word lit up on the page, then the game."""
 
 from __future__ import annotations
 
@@ -19,7 +20,11 @@ def test_the_tour_lights_up_each_word_and_ends_with_a_game(browser: Browser, ser
     url = push_client.push(frame, name="tour_orders", new_grid=True)
     page = open_grid(browser, url, width=1440)
     try:
-        row = page.locator(".app-row")
+        # Not in the Application row: Home (the Start page) has it.
+        expect(page.locator(".app-row .tour-btn")).to_have_count(0)
+        page.locator(".tabbar > a.app-mark").click()
+        expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+        row = page.locator("#start-view")
         bubble = row.locator(".tour-bubble")
         expect(bubble).to_contain_text("New here?")  # a first visit
         row.get_by_role("button", name="Tour", exact=True).click()
@@ -49,8 +54,9 @@ def test_the_tour_lights_up_each_word_and_ends_with_a_game(browser: Browser, ser
         tour.get_by_role("button", name="Start").click()
         expect(tour).to_have_count(0)
         page.reload()
-        expect(page.locator(".app-row .tour-bubble")).to_have_count(0)  # remembered in this browser
-        page.locator(".app-row").get_by_role("button", name="Tour", exact=True).click()
+        expect(page.locator("#start-view .tour-btn")).to_be_visible()
+        expect(page.locator("#start-view .tour-bubble")).to_have_count(0)  # remembered in this browser
+        page.locator("#start-view").get_by_role("button", name="Tour", exact=True).click()
         page.keyboard.press("Escape")
         expect(page.get_by_role("dialog", name="Tour")).to_have_count(0)
     finally:

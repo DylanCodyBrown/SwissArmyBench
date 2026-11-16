@@ -569,7 +569,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # Navigation (2026-11-16) added one, app_navigate: a window sent home, back, forward or to a view.
     # Projects as one .sab file (2026-11-16) added six: open, save, save as, the recent ones, close, and a
     # table's fix; project_new makes either kind.
-    assert size < 62_800, f"the tool list is {size} characters"
+    # Project scope (2026-11-16) added three: autosave on or off, the project's documents, and import
+    # (documents, connections and blades from another project or this computer's saved ones).
+    assert size < 63_600, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

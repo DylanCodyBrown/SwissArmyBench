@@ -84,6 +84,16 @@ class CatalogLoading:
             started.append(blade.name)
         return started
 
+    async def rescope(self) -> list[str]:
+        """Another project's connections are in use (or this computer's): the catalogs of connections it
+        does not have go, and its own load as at start. The names started."""
+        names = {str(b["name"]).casefold() for b in self._blades.listing()["blades"]}
+        for loaded in self._catalogs.listing()["catalogs"]:
+            if loaded.get("source") == "blade" and str(loaded["name"]).casefold() not in names:
+                await self._catalogs.remove(str(loaded["name"]), "app")
+        self._state.clear()
+        return self.at_start()
+
     async def _load(self, name: str, who: str) -> None:
         async with self._gate:
             await self.ws.live.broadcast({"type": "catalog_loading", "name": name, "state": "loading"})

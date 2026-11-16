@@ -1,9 +1,10 @@
 /**
  * The tour: what every word in Swiss Army Bench means, for a first-time user, in as few words as
- * possible. The question mark in the Application row opens it; until it has been opened once, a
- * small "New here?" bubble sits beside it in the row (inline, so it never covers anything).
+ * possible. Its button sits on the Start page only (the owner, 2026-11-16: "new here take a tour should
+ * be on the project page and no where else"); until it has been opened once, a small "New here?" bubble
+ * sits beside it (inline, so it never covers anything).
  *
- *   [TOUR]            Application row -> openTour()
+ *   [TOUR]            the Start page -> openTour()
  *   a card per word   lights up the real control (a spotlight), or sits in the middle when that
  *                     control isn't on screen (no grid open, another tab showing)
  *   the game          five "which word is this?" rounds, then a score drawn as opened blades
@@ -54,7 +55,7 @@ export const STOPS: readonly Stop[] = [
 const ROUNDS = 5;
 const SEEN = "tour.seen";
 
-/** The Application row's question mark, with the "New here?" bubble until the tour is opened once. */
+/** The Start page's Tour button, with the "New here?" bubble until the tour is opened once. */
 export function tourButton(): HTMLElement {
   const btn = button("Tour", () => openTour(), {
     icon: "help",

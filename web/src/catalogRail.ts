@@ -12,6 +12,7 @@ import { api, errorText, query } from "./api";
 import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor";
 import { connectionIcon, importRelationships, openConnections } from "./connectionsWindow";
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
+import { openImport } from "./projectImport";
 import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
 import type { Move } from "./nav";
 import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
@@ -492,6 +493,8 @@ export function mountRail(host: RailHost): Rail {
         { class: "rail-head" },
         h("h2", { id: "blades-title" }, "Connections and blades"),
         button("Import blades", () => chooseBladeFiles(() => void loadBlades()), { icon: "import", iconOnly: true, class: "ghost", title: "Import .blade.py or zip" }),
+        // From another project, or this computer's saved blades (projectImport.ts).
+        button("Import from a project", () => void openImport("blades").then((done) => done && loadBlades()), { icon: "project", iconOnly: true, class: "ghost", title: "From another project, or this computer's" }),
         button("Export every blade", () => void exportBlades(), { icon: "export", iconOnly: true, class: "ghost" }),
         button("Blade folders", () => void editBladeFolders(() => void loadBlades()), { icon: "folder", iconOnly: true, class: "ghost" }),
         button("Packs", () => void openPacks(() => void loadBlades()), { icon: "group", iconOnly: true, class: "ghost" }),

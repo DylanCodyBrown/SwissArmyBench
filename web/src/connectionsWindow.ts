@@ -43,6 +43,7 @@ import { showAddApi } from "./addApi";
 import { api, errorText, onNotice } from "./api";
 import { button, clear, closeDialogs, h, hasIcon, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
 import { backButton, crumbs, dismissDialog, go, layerOpened, registerLayer, setOverTitle, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
@@ -121,6 +122,8 @@ interface Connection {
   description: string;
   source: string;
   pack: string | null;
+  /** A project opened on another computer: a password with no source here, and its fix (Edit). */
+  needs_password?: { missing: string[]; message: string } | null;
 }
 
 const FILE_KINDS: Record<string, string[]> = {
@@ -336,6 +339,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           { class: "connection-text" },
           h("div", { class: "pack-title" }, h("strong", {}, c.name), h("span", { class: "badge" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection]), catalogWord(c)),
           c.description ? h("div", { class: "hint" }, c.description) : null,
+          c.needs_password
+            ? h("div", {}, h("span", { class: "needs-password", title: c.needs_password.missing.join(", ") }, icon("key"), "Needs a password"), button("Set the password", () => move({ at: "edit", type: null, name: c.name }, () => void showForm({ edit: c.name })), { class: "ghost" }))
+            : null,
           c.entries
             ? h("div", { class: "vault-entries" }, c.every ? h("span", { class: "badge" }, "Every secret") : null, ...c.entries.map((e) => h("code", { class: "hint", title: `${e.secret} in the vault` }, `${e.env} ← ${e.secret}`)))
             : // A Power BI workspace's cells are DAX cells, each on one of its datasets; your own Python's reads with sab.read.
@@ -352,7 +358,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           readOnly
             ? null
             : button("Remove", () => {
-                if (!confirm(c.entries ? `Remove the key vault ${c.name}? Its variables stop being set.` : `Remove the connection ${c.name}? Its saved passwords go too.`)) return;
+                if (!confirm(c.entries ? `Remove the key vault ${c.name}? Its variables stop being set.` : `Remove the connection ${c.name}?`)) return;
                 void api(`/blades/${path}`, "DELETE").then(() => showList(), (e: Error) => toast(e.message, "error"));
               }, { icon: "trash", iconOnly: true }),
         ),
@@ -380,7 +386,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           )
         : h("p", { class: "empty-note" }, "No connections"),
     );
-    foot.append(button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), button("Close", close));
+    // Import: a connection from another project, or this computer's saved ones (projectImport.ts).
+    const importing = button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" });
+    foot.append(button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), importing, button("Close", close));
   };
 
   const testSaved = async (name: string, under?: HTMLElement): Promise<void> => {

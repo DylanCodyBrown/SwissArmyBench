@@ -23,6 +23,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import dataverse, python_connections, snippets
+from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
     Blade,
@@ -226,6 +227,24 @@ class BladeService:
             names.update(blade.secrets)
             names.update(read.name for read in blade.env_reads)  # a connection from the user's own Python
         return sorted(names)
+
+    def needs_passwords(self, blade: Blade | str, everything: list[Blade] | None = None) -> list[str]:
+        """The passwords a connection or blade asks for that nothing on this computer gives (its keyring,
+        an environment variable, a vault, a secret blade): a project opened on another computer says
+        "needs a password" with the fix (domain/project_scope.py). Names only."""
+        found = blade if isinstance(blade, Blade) else self._blades.get(blade)
+        if not found.secrets and not found.variables:
+            return []
+        vaults, typed = self._blades.providers(found, everything)
+        every = any(v.vault_all for v in vaults)
+        mapped = {env for v in vaults for env in v.vault_mapping}
+        return scope_rules.needs_passwords(
+            self._blades.secret_status(found),
+            found.variables,
+            lambda name: name in self._environ,
+            lambda name: every or name in mapped,
+            typed,
+        )
 
     def variables_read(self, code: Any, tables: Any, read: Any) -> dict[str, Any]:
         """The environment variables a connection's three boxes read, by a name written in them: each

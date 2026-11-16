@@ -51,7 +51,7 @@ def shop(path: Path) -> dict[str, Any]:
     """A SQLite connection whose code needs a password from the keyring (made up)."""
     code = (
         "import sqlite3\nfrom pathlib import Path\n\n"
-        f'assert secret("password") == "{KEYRING_SECRET}"\n'
+        'assert secret("password")\n'
         f'path = Path(r"{path}")\n'
         'conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)\n'
     )
@@ -123,24 +123,23 @@ def test_a_project_saves_closes_and_opens_with_everything_back(tmp_path: Path) -
     with make_client(tmp_path) as client:
         made = build_project(client, tmp_path)
         assert project(client)["loose"] is True  # open work, no project: what opening another would lose
-        state = ok(client.post("/project/new", json={"name": "sales"}, headers=AUTH))
+        # A new project is saved first: where its file goes, before anything else.
+        assert client.post("/project/new", json={"name": "sales"}, headers=AUTH).status_code == 400
+        target = tmp_path / "work" / "sales.sab"
+        state = ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
         folder = Path(state["project"]["folder"])
-        assert folder.name == "sales" and (folder / "data.ipynb").is_file()
-        assert state["project"]["dirty"] is True and state["project"]["path"] is None
+        assert folder.name == "sales" and (folder / "data.ipynb").is_file() and target.is_file()
+        assert state["project"]["dirty"] is False and state["project"]["path"] == str(target)
+        # The open tables' connections came with them: the project's own now.
+        assert "Shop" in {c["name"] for c in ok(client.get("/connections", headers=AUTH))["connections"]}
         # A notebook and a canvas of the project's own, saved into its working folder as the Workbench does.
         cell = notebooks.Cell("code", "from data import orders\nprint(len(orders))")
         cell.outputs = [{"output_type": "stream", "name": "stdout", "text": "North 3 South 5"}]
         (folder / "analysis.ipynb").write_text(notebooks.write_notebook([cell]), encoding="utf-8")
         (folder / "sales.stapp.json").write_text(streamlit_cells.write_app([]), encoding="utf-8")
         (folder / "extra.csv").write_text("a\n1\n", encoding="utf-8")  # a data file: never in the .sab
-        # The first save of a project made here needs where it goes.
-        assert client.post("/project/save", json={}, headers=AUTH).status_code == 409
-        target = tmp_path / "work" / "sales.sab"
-        saved = ok(
-            client.post(
-                "/project/save", json={"path": str(target), "keep_rows": {"kept_paste": True}}, headers=AUTH
-            )
-        )
+        assert project(client)["project"]["dirty"] is True
+        saved = ok(client.post("/project/save", json={"keep_rows": {"kept_paste": True}}, headers=AUTH))
         assert saved["saved"] == str(target) and saved["rows"] == ["kept_paste"]
         assert saved["project"]["dirty"] is False and saved["project"]["name"] == "sales"
         inside = entries(target)
@@ -232,9 +231,46 @@ def test_a_missing_connection_or_file_gives_the_table_its_fix(tmp_path: Path) ->
         made = build_project(client, tmp_path)
         ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
         assert project(client)["project"]["name"] == "moved"
-    # Another computer: no Shop connection, and the CSV moved away.
+    # Another computer: its keyring has no password for Shop (the project brings the connection, never
+    # its password), and the CSV moved away.
     moved = made["csv"].with_name("orders_moved.csv")
     made["csv"].rename(moved)
+    with memory_keyring(), make_client(tmp_path / "second") as client:
+        opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
+        problems = {p["table"]: p for p in opened["problems"]}
+        assert problems["customers"]["state"] == "needs_password"
+        assert problems["customers"]["fix"] == {
+            "kind": "password",
+            "label": "Set the password",
+            "connection": "Shop",
+        }
+        listed = {c["name"]: c for c in ok(client.get("/connections", headers=AUTH))["connections"]}
+        assert listed["Shop"]["needs_password"]["missing"] == ["password"]
+        assert listed["Shop"]["needs_password"]["fix"]["kind"] == "password"
+        assert problems["orders"]["fix"]["label"] == "Find orders.csv"
+        # Find orders.csv: read from where it is now, with its steps.
+        after = ok(client.post("/project/fix", json={"table": "orders", "path": str(moved)}, headers=AUTH))
+        assert "orders" not in {p["table"] for p in after["project"]["problems"]}
+        grids = {g["dataset"]: g["grid"] for g in ok(client.get("/grids", headers=AUTH))["grids"]}
+        assert len(ok(client.get(f"/grids/{grids['orders']}", headers=AUTH))["steps"]) == 2
+        # Set the password on this computer, then Try again: it comes back.
+        ok(client.put("/blades/Shop/secrets", json={"password": KEYRING_SECRET}, headers=AUTH))
+        assert ok(client.get("/connections", headers=AUTH))["connections"][0]["needs_password"] is None
+        again = ok(client.post("/project/fix", json={"table": "customers"}, headers=AUTH))
+        assert "customers" not in {p["table"] for p in again["project"]["problems"]}
+
+
+def test_a_project_without_its_connection_offers_to_add_it(tmp_path: Path) -> None:
+    target = tmp_path / "work" / "bare.sab"
+    with make_client(tmp_path / "first") as client:
+        build_project(client, tmp_path)
+        ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
+    # A file written by hand (or an older version): the connection is not in it.
+    inside = entries(target)
+    with zipfile.ZipFile(target, "w") as out:
+        for name, body in inside.items():
+            if not name.startswith(".sab/blades/"):
+                out.writestr(name, body)
     with make_client(tmp_path / "second") as client:
         opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
         problems = {p["table"]: p for p in opened["problems"]}
@@ -244,12 +280,6 @@ def test_a_missing_connection_or_file_gives_the_table_its_fix(tmp_path: Path) ->
             "label": "Add connection Shop",
             "connection": "Shop",
         }
-        assert problems["orders"]["fix"]["label"] == "Find orders.csv"
-        # Find orders.csv: read from where it is now, with its steps.
-        after = ok(client.post("/project/fix", json={"table": "orders", "path": str(moved)}, headers=AUTH))
-        assert "orders" not in {p["table"] for p in after["project"]["problems"]}
-        grids = {g["dataset"]: g["grid"] for g in ok(client.get("/grids", headers=AUTH))["grids"]}
-        assert len(ok(client.get(f"/grids/{grids['orders']}", headers=AUTH))["steps"]) == 2
         # Add connection Shop, then Try again: it comes back.
         ok(client.post("/connections", json=shop(tmp_path / "shop.sqlite"), headers=AUTH))
         again = ok(client.post("/project/fix", json={"table": "customers"}, headers=AUTH))
@@ -263,8 +293,7 @@ def test_unsaved_changes_ask_first_and_only_then(tmp_path: Path) -> None:
         ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
         ok(client.post("/project/save", json={"path": str(first)}, headers=AUTH))
         second = tmp_path / "second.sab"
-        ok(client.post("/project/new", json={"name": "second"}, headers=AUTH))  # clean: asks nothing
-        ok(client.post("/project/save", json={"path": str(second)}, headers=AUTH))
+        ok(client.post("/project/new", json={"path": str(second)}, headers=AUTH))  # clean: asks nothing
         ok(client.post("/project/open", json={"path": str(first)}, headers=AUTH))  # clean: asks nothing
         grid = ok(client.get("/grids", headers=AUTH))["grids"][0]["grid"]
         ok(client.post(f"/grids/{grid}/steps", json={"steps": STEPS[:1]}, headers=AUTH))

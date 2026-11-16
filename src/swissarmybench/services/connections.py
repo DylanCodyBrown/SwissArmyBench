@@ -12,6 +12,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connections as rules
 from swissarmybench.domain import dataverse, powerbi, python_connections
+from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
 from swissarmybench.domain.datasets import Opened
@@ -56,6 +57,11 @@ class ConnectionService:
                     "type": labels.get(str(b.get("template") or ""), ""),
                     "catalog_state": self._catalog_state(str(b["name"])),  # loading, waiting, failed
                 }
+                # A project opened on another computer: a password with no source here, and its fix.
+                missing = self._blades.needs_passwords(str(b["name"]))
+                more["needs_password"] = (
+                    scope_rules.password_fix(str(b["name"]), missing) if missing else None
+                )
                 if kind == "vault":
                     vault = self._blades.get(str(b["name"]))
                     entries = vault.vault_mapping.items()
@@ -64,6 +70,10 @@ class ConnectionService:
                 found.append(b | more)
         found.sort(key=lambda c: (order[c["connection"]], not c.get("pinned"), str(c["name"]).casefold()))
         return {"connections": found}  # each with its code_name (the blades list names them)
+
+    def needs_passwords(self, name: str) -> list[str]:
+        """The passwords a connection asks for that nothing on this computer gives (names only)."""
+        return self._blades.needs_passwords(name)
 
     def types(self) -> dict[str, Any]:
         """The starters a connection is made from (databases, files, key vaults), each as its form."""
