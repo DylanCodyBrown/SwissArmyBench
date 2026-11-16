@@ -5,7 +5,24 @@
 #   curl -LsSf https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.sh | sh
 #   sh install.sh                                          # download the wheel from the GitHub release
 #   sh install.sh ./swissarmybench-__VERSION__-py3-none-any.whl  # or install a wheel you downloaded
+#   sh install.sh [wheel] --no-autostart --no-start             # install only
+#
+# At the end it turns on start at sign-in (the tray, which starts the server), starts the app in the
+# background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
 set -eu
+
+wheel_arg=""
+autostart=1
+start_now=1
+for arg in "$@"; do
+  case "$arg" in
+    --no-autostart) autostart=0 ;;
+    --no-start) start_now=0 ;;
+    *) wheel_arg="$arg" ;;
+  esac
+done
+if [ -n "${CI:-}" ] || [ "${SWISSARMYBENCH_NO_AUTOSTART:-}" = "1" ]; then autostart=0; fi
+if [ -n "${CI:-}" ]; then start_now=0; fi
 
 VERSION="__VERSION__"
 REPO="DylanCodyBrown/SwissArmyBench"
@@ -27,9 +44,9 @@ fi
 command -v uv >/dev/null 2>&1 || fail "uv is installed but not on PATH; open a new terminal and run this again."
 
 # 2. The wheel: a path given on the command line, or the release's wheel.
-if [ "$#" -ge 1 ]; then
-  [ -f "$1" ] || fail "no such file: $1"
-  wheel_path="$1"
+if [ -n "$wheel_arg" ]; then
+  [ -f "$wheel_arg" ] || fail "no such file: $wheel_arg"
+  wheel_path="$wheel_arg"
 else
   dir=$(mktemp -d)
   trap 'rm -rf "$dir"' EXIT
@@ -57,3 +74,17 @@ say "  Start it:              swissarmybench start"
 say "  The Python client:     uv pip install \"$WHEEL\"   (in any project's environment)"
 say "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
 say "(Open a new terminal first if the swissarmybench command is not found.)"
+
+# 5. Start at sign-in, and start it now: the server in the background, its tray, its page opened once.
+bin_dir=$(uv tool dir --bin 2>/dev/null || true)
+exe="${bin_dir:-$HOME/.local/bin}/swissarmybench"
+[ -x "$exe" ] || exe="$HOME/.local/bin/swissarmybench"
+if [ -x "$exe" ]; then
+  if [ "$autostart" = 1 ] && "$exe" autostart on >/dev/null 2>&1; then
+    say "It starts when you log in (the tray's Open at login turns that off)."
+  fi
+  if [ "$start_now" = 1 ]; then
+    "$exe" start --background >/dev/null 2>&1 || true
+    say "Starting Swiss Army Bench: its page opens in your browser."
+  fi
+fi

@@ -16,7 +16,7 @@ import pytest
 
 from swissarmybench.domain.updates import MENU_MAX_ITEMS, TrayState, tooltip, tray_menu
 from swissarmybench.server import tray as tray_module
-from swissarmybench.server.tray import Startup, Tray, shortcut_script, state_from, tray_available
+from swissarmybench.server.tray import Tray, Watchdog, state_from, tray_available
 
 
 def lines(state: TrayState) -> list[str]:
@@ -99,6 +99,7 @@ def test_the_menus_state_comes_from_the_servers_answer() -> None:
     assert state.documents == (("0", "sales.ipynb", True),)
     assert state.failed == "Update to 0.0.2 failed: uv could not reach PyPI."
     assert state_from(None, True) == TrayState(running=False, startup=True)
+    assert state_from(None, False, "Open at login", gave_up=True).gave_up
 
 
 @pytest.fixture
@@ -142,13 +143,35 @@ class StandInServer:
     def page(self, path: str = "/workspace", extra: str = "") -> str:
         return f"http://127.0.0.1:8790{path}#token=t{extra}"
 
+    dead: int | None = None  # the process id of a server that died (its connection file left behind)
+
+    def died(self) -> int | None:
+        return self.dead
+
+    def info(self) -> dict[str, Any] | None:
+        return {"pid": self.dead} if self.dead else ({"pid": 1} if self.up else None)
+
+
+class FakeAutostart:
+    label = "Start with Windows"
+
+    def __init__(self, on: bool = True) -> None:
+        self.on = on
+
+    def status(self) -> bool:
+        return self.on
+
+    def set(self, on: bool) -> bool:
+        self.on = on
+        return on
+
 
 def make_tray(server: StandInServer, **kwargs: Any) -> tuple[Tray, list[str], list[str]]:
     opened: list[str] = []
     started: list[str] = []
     tray = Tray(
         server,  # type: ignore[arg-type]
-        Startup(None),
+        kwargs.pop("autostart", None) or FakeAutostart(),  # type: ignore[arg-type]
         open_url=opened.append,
         start_server=lambda: started.append("start"),
         **kwargs,
@@ -261,36 +284,77 @@ def test_the_icon_is_the_mark_and_an_update_adds_a_blue_dot() -> None:
     assert plain.getpixel(corner) == tray_module.MARK_RED and dotted.getpixel(corner) == tray_module.DOT_BLUE
 
 
-def test_start_with_windows_is_a_startup_shortcut(tmp_path: Path) -> None:
-    ran: list[list[str]] = []
-
-    def run(command: list[str]) -> int:
-        ran.append(command)
-        return 0
-
-    startup = Startup(tmp_path / "Startup", run=run)
-    assert startup.on() is False
-    startup.set(True)
-    [command] = ran
-    assert command[:4] == ["powershell", "-NoProfile", "-NonInteractive", "-Command"]
-    script = command[4]
-    assert (
-        "Swiss Army Bench.lnk" in script
-        and "swissarmybench.exe" in script
-        and "$s.Arguments = 'start'" in script
-    )
-    (tmp_path / "Startup" / "Swiss Army Bench.lnk").write_text("made by PowerShell")
-    assert startup.on() is True
-    startup.set(False)
-    assert startup.on() is False
-    assert Startup(None).on() is None  # not Windows: no item
+def test_the_start_at_sign_in_item_switches_it() -> None:
+    autostart = FakeAutostart(on=True)
+    tray, _, _ = make_tray(StandInServer({"available": False}), autostart=autostart)
+    item = next(i for i in tray.menu() if i.id == "startup")
+    assert item.text == "Start with Windows" and item.checked is True
+    tray.act("startup")
+    assert autostart.on is False
+    tray.refresh()
+    assert next(i for i in tray.menu() if i.id == "startup").checked is False
 
 
-def test_the_shortcuts_script_quotes_its_paths() -> None:
-    script = shortcut_script(
-        Path("C:/Users/o'neil/Startup/Swiss Army Bench.lnk"), Path("C:/tools/swissarmybench.exe")
-    )
-    assert "o''neil" in script
+def test_the_watchdog_restarts_at_most_three_times_in_five_minutes() -> None:
+    clock = [0.0]
+    dog = Watchdog(clock=lambda: clock[0])
+    assert [dog.may_restart() for _ in range(3)] == [True, True, True]
+    clock[0] = 100.0
+    assert dog.may_restart() is False and dog.gave_up
+    dog.reset()
+    assert dog.may_restart() is True
+    # Restarts more than five minutes apart never add up to giving up.
+    spaced = Watchdog(clock=lambda: clock[0])
+    for minute in range(10):
+        clock[0] = 1000.0 + minute * 120.0
+        assert spaced.may_restart() is True
+
+
+def test_a_server_that_dies_is_started_again_then_the_tray_gives_up_and_says_so(tmp_path: Path) -> None:
+    """A stand-in server whose process dies again and again: three restarts, then the menu's
+    "Swiss Army Bench stopped: Restart", and the events noted for the beta log."""
+    events = tmp_path / "server_events.json"
+    server = StandInServer(None)
+    tray, _, started = make_tray(server, events_file=events)
+    for pid in (101, 102, 103, 104):
+        server.dead = pid
+        tray.refresh()
+        tray.refresh()  # the same dead server seen twice is counted once
+    assert started == ["start", "start", "start"]
+    assert lines(tray.state)[0] == "Swiss Army Bench stopped: Restart"
+    noted = [e["event"] for e in json.loads(events.read_text())]
+    assert noted == ["crash", "restart"] * 3 + ["crash", "failed"]
+    tray.act("start")  # the user's Restart counts afresh
+    assert started == ["start"] * 4 and not tray.watchdog.gave_up
+
+
+def test_a_server_stopped_on_purpose_is_left_stopped() -> None:
+    server = StandInServer(None)  # no connection file: stopped by Stop and quit or `swissarmybench stop`
+    tray, _, started = make_tray(server)
+    tray.refresh()
+    assert started == [] and lines(tray.state)[0] == "Start"
+
+
+def test_at_sign_in_the_tray_starts_the_server_when_none_runs() -> None:
+    server = StandInServer(None)
+    tray, _, started = make_tray(server)
+    tray.ensure_server()
+    assert started == ["start"]
+    running = StandInServer({"available": False})
+    tray, _, started = make_tray(running)
+    tray.ensure_server()
+    assert started == []
+
+
+def test_the_tray_and_background_start_the_server_detached_with_no_browser() -> None:
+    assert tray_module.server_command()[-4:] == [
+        "swissarmybench.server",
+        "start",
+        "--no-browser",
+        "--no-tray",
+    ]
+    assert tray_module.server_command(8790, browser=True, tray=True)[-3:] == ["start", "--port", "8790"]
+    assert tray_module.console_python("C:/nowhere/pythonw.exe") == "C:/nowhere/pythonw.exe"  # none beside it
 
 
 def test_a_tray_shows_on_windows_and_macos_and_on_a_linux_desktop(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -342,7 +406,14 @@ def test_the_tray_file_names_the_trays_process(
         seen["file"] = json.loads((tmp_path / "tray.json").read_text())
         seen["title"] = self.title
 
+    spawned: list[list[str]] = []
     monkeypatch.setattr(pystray.Icon, "run", run)
+    monkeypatch.setattr(tray_module, "detached", spawned.append)
+    monkeypatch.setattr(tray_module, "Autostart", FakeAutostart)
     assert tray_module.run_tray(tmp_path / "server.json") == 0
     assert seen["file"] == {"pid": os.getpid()} and seen["title"] == "Swiss Army Bench: stopped"
     assert not (tmp_path / "tray.json").exists()
+    # No server was running: the tray started one (at sign-in this is how the app starts).
+    assert [command[-4:] for command in spawned] == [
+        ["swissarmybench.server", "start", "--no-browser", "--no-tray"]
+    ]

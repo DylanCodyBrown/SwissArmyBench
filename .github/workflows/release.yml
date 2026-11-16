@@ -98,8 +98,10 @@ jobs:
       - name: Install with install.sh
         if: runner.os != 'Windows'
         run: |
-          sh dist/install.sh dist/swissarmybench-*.whl
+          sh dist/install.sh dist/swissarmybench-*.whl --no-autostart --no-start
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # No sign-in entry left behind on the build machine.
+          "$HOME/.local/bin/swissarmybench" autostart status | grep -q ': off$'
       - name: Install with install.ps1
         if: runner.os == 'Windows'
         # Windows PowerShell 5.1, what a Windows user runs by default (pwsh treats a program's error stream
@@ -107,8 +109,11 @@ jobs:
         shell: powershell
         run: |
           $wheel = (Get-ChildItem dist/swissarmybench-*.whl).FullName
-          ./dist/install.ps1 $wheel
+          ./dist/install.ps1 $wheel -NoAutostart -NoStart
           Add-Content $env:GITHUB_PATH (Join-Path $env:USERPROFILE ".local\bin")
+          # No Startup shortcut left behind on the build machine.
+          $status = & (Join-Path $env:USERPROFILE ".local\bin\swissarmybench.exe") autostart status
+          if ($status -notmatch ': off$') { throw "The installer left start at sign-in on: $status" }
       - uses: astral-sh/setup-uv@v6
       - name: Smoke test the installed server
         shell: bash

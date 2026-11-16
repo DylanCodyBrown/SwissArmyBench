@@ -49,7 +49,7 @@ from swissarmybench.adapters.state_files import (
     is_own_file,
 )
 from swissarmybench.adapters.streamlit_files import AppFiles
-from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note
+from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain import python_connections
@@ -57,6 +57,7 @@ from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
+from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
@@ -409,6 +410,11 @@ def bootstrap(
             "kernels": workbench.kernel_count(),
         }
 
+    # Start at sign-in: the user's own entry, or one under a test's home folder.
+    home = settings.autostart_home
+    autostart = (
+        Autostart(home=home, environ={"APPDATA": str(home / "AppData" / "Roaming")}) if home else Autostart()
+    )
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
     failure_note = state_dir / "update_failed.json" if audit_log else None
     updates = Updates(
@@ -422,8 +428,12 @@ def bootstrap(
         audit=ws.audit,
         live=live,
         stop=on_shutdown or (lambda: None),
+        autostart=autostart,
         failed=take_failure_note(failure_note),
     )
+    # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
+    for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
+        beta.process("server", str(event["event"]), event.get("code"), None, str(event.get("reason") or ""))
     return Services(
         settings=settings,
         ws=ws,

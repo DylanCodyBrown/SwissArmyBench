@@ -3,12 +3,20 @@
     uv run swissarmybench                 start (reuses the last port when it is free)
     uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
     uv run swissarmybench status          is one running, and where
+    uv run swissarmybench open            open the running app's page in the browser
     uv run swissarmybench stop            ask the running one to shut down
     uv run swissarmybench tray            the tray icon (`start` starts it too, unless --no-tray)
+    uv run swissarmybench autostart on    start at sign-in (the tray, which starts the server); off, status
+    uv run swissarmybench start --background   detached, no console, returns at once
 
-Swiss Army Bench lives in VS Code: its extension runs this command when VS Code opens (with
-SWISSARMYBENCH_STARTED_BY=vscode), and a server it started stops once no VS Code window has been
-connected for VSCODE_GONE_SECONDS. Starting it by hand is for working on Swiss Army Bench itself.
+Started by hand, it opens the app's page in the default browser once it listens (--no-browser not to),
+and prints the page's full address. The token is in the address's fragment (#token=...), which a
+browser never sends over the network.
+
+A server started here, by the tray or at sign-in never stops on its own: only Stop and quit,
+`swissarmybench stop` or signing out stop it, and the tray starts it again if it dies. VS Code's
+extension runs this command with SWISSARMYBENCH_STARTED_BY=vscode; a server it started stops once no
+VS Code window has been connected for VSCODE_GONE_SECONDS.
 
 Start-up order matters (server/lifecycle.py): take the instance lock, refuse if a healthy server
 is already running, bind and listen, write the connection file, serve, delete the file on every
@@ -25,7 +33,9 @@ import secrets
 import sys
 import threading
 import time
+import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 from types import FrameType
 
 import uvicorn
@@ -35,6 +45,7 @@ from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.state_files import info_file_path, remove_info_file, write_info_file
 from swissarmybench.renamed import env, move_state_folder
 from swissarmybench.server.app import create_app
+from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.lifecycle import (
     AlreadyRunningError,
     AlreadyStartingError,
@@ -46,8 +57,12 @@ from swissarmybench.server.lifecycle import (
     request_stop,
     running_server,
 )
+from swissarmybench.server.lifecycle import (
+    page_address as page_address,
+)
 from swissarmybench.server.routes_processes import QuietHeartbeats
-from swissarmybench.server.tray import start_tray
+from swissarmybench.server.tray import server_command, start_tray
+from swissarmybench.server.updater import detached
 from swissarmybench.settings import Settings
 
 # Long enough to ride out a window reload (the extension reconnects within a few seconds).
@@ -72,16 +87,38 @@ class _Server(uvicorn.Server):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Swiss Army Bench server on localhost.")
-    parser.add_argument("command", nargs="?", default="start", choices=["start", "stop", "status", "tray"])
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="start",
+        choices=["start", "stop", "status", "open", "tray", "autostart"],
+    )
+    parser.add_argument(
+        "switch", nargs="?", choices=["on", "off", "status"], help="autostart: on, off or status."
+    )
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open the page when it starts.")
     parser.add_argument("--no-tray", action="store_true", help="Start without the tray icon.")
+    parser.add_argument(
+        "--background", action="store_true", help="Start detached, with no console, and return at once."
+    )
     args = parser.parse_args()
     path = info_file_path()
 
+    if args.command == "open":
+        if not open_page(path):
+            print("Swiss Army Bench is not running. Start it with: swissarmybench start")
+            sys.exit(1)
+        return
     if args.command == "tray":
         from swissarmybench.server.tray import run_tray
 
-        sys.exit(run_tray(path))
+        sys.exit(run_tray(path, Settings().state_dir / "server_events.json"))
+    if args.command == "autostart":
+        sys.exit(autostart(args.switch or "status"))
+    if args.command == "start" and args.background:
+        start_in_background(args.port, browser=not args.no_browser, tray=not args.no_tray)
+        return
 
     if args.command == "status":
         info = running_server(path)
@@ -103,19 +140,53 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        start(args.port, tray=not args.no_tray)
-    except (AlreadyRunningError, AlreadyStartingError, PortError) as error:
-        if (
-            isinstance(error, AlreadyRunningError)
-            and not args.no_tray
-            and env("SWISSARMYBENCH_TRAY", "1") != "0"
-        ):
+        start(args.port, browser=not args.no_browser, tray=not args.no_tray)
+    except AlreadyRunningError as error:
+        if not args.no_tray and env("SWISSARMYBENCH_TRAY", "1") != "0":
             start_tray()  # its tray, if it has none (a second one ends at once)
+        # Already running: open its page, which is what someone starting it again wants.
+        if not args.no_browser and env("SWISSARMYBENCH_NO_BROWSER", "") != "1" and open_page(path):
+            print("Swiss Army Bench is already running: its page is open in your browser.")
+            return
+        print(error, file=sys.stderr)
+        sys.exit(1)
+    except (AlreadyStartingError, PortError) as error:
         print(error, file=sys.stderr)
         sys.exit(1)
 
 
-def start(port: int | None, tray: bool = True) -> None:
+def open_page(path: Path | None = None) -> bool:
+    """Open the running app's page in the default browser. False when none is running."""
+    info = running_server(path or info_file_path())
+    if info is None:
+        return False
+    address = page_address(info)
+    print(address)
+    webbrowser.open(address)
+    return True
+
+
+def start_in_background(port: int | None, browser: bool = True, tray: bool = True) -> None:
+    """`swissarmybench start --background`: the server detached, with no console window, outliving this
+    command, which returns at once. The tray and the sign-in entry start the server this way."""
+    detached(server_command(port, browser, tray))
+    print("Swiss Army Bench is starting in the background.")
+
+
+def autostart(switch: str) -> int:
+    """`swissarmybench autostart on|off|status`: start at sign-in (server/autostart.py)."""
+    entry = Autostart()
+    try:
+        if switch in ("on", "off"):
+            entry.set(switch == "on")
+    except OSError as error:
+        print(error, file=sys.stderr)
+        return 1
+    print(f"{entry.label}: {'on' if entry.status() else 'off'}")
+    return 0
+
+
+def start(port: int | None, browser: bool = True, tray: bool = True) -> None:
     # Swiss Army Bench was SwissArmyGrid: its state folder moves on the first start (renamed.py).
     moved = move_state_folder(in_use=lambda old_info: running_server(old_info) is not None)
     if moved:
@@ -174,6 +245,11 @@ def start(port: int | None, tray: bool = True) -> None:
         },
     )
     print(f"Swiss Army Bench {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
+    address = page_address({"port": actual_port, "token": token})
+    print(f"Open it: {address}")
+    if browser and started_by != "vscode" and env("SWISSARMYBENCH_NO_BROWSER", "") != "1":
+        # The socket already listens: a browser that asks now waits for the server's first answer.
+        threading.Timer(0.5, webbrowser.open, args=(address,)).start()
     # The tray, as its own process (Windows and macOS; Linux on a desktop), unless --no-tray or VS Code
     # started this server (it has its own status bar item); SWISSARMYBENCH_TRAY=0 for tests.
     if tray and started_by != "vscode" and env("SWISSARMYBENCH_TRAY", "1") != "0":

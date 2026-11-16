@@ -32,7 +32,7 @@ BETA_MODE_DEFAULT: bool = True
 HIDDEN = "\u2039\u2026\u203a"  # a small "hidden" mark: single angle quotes around an ellipsis
 # The kinds of event, in the order the guide lists them.
 KINDS: tuple[str, ...] = ("start", "stop", "error", "refused", "slow", "process", "page", "note", "dropped")
-PROCESS_KINDS: tuple[str, ...] = ("kernel", "streamlit", "blade", "catalog")
+PROCESS_KINDS: tuple[str, ...] = ("kernel", "streamlit", "blade", "catalog", "server")
 PROCESS_EVENTS: tuple[str, ...] = ("start", "end", "crash", "failed", "restart", "timeout")
 
 MAX_MESSAGE_CHARS = 600

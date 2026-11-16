@@ -284,8 +284,9 @@ Or the demo data:
 .venv\Scripts\python examples\push_demo.py --rows 1000000
 ```
 
-Open the printed URL, including the `#token=` part. In VS Code: Ctrl+Shift+P, then
-**Simple Browser: Show**, then paste it.
+`swissarmybench start` opens the page in your browser (`--no-browser` not to) and prints its full address,
+including the `#token=` part; `swissarmybench open` opens it again while it runs. In VS Code: Ctrl+Shift+P, then
+**Simple Browser: Show**, then paste the address.
 
 ## The Workbench
 

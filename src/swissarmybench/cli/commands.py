@@ -2859,6 +2859,17 @@ def app_update(a: dict[str, Any]) -> Any:
     return api.call("POST", "/updates/install", {"version": a.get("version")}, timeout=200)
 
 
+@command(
+    "app_autostart",
+    "Start at sign-in (the tray, which starts the app): on or off; `on` sets it",
+    opt("on", "true or false; none: read it.", "bool"),
+)
+def app_autostart(a: dict[str, Any]) -> Any:
+    if a.get("on") is not None:
+        return api.call("PUT", "/autostart", {"on": a["on"]})
+    return api.call("GET", "/autostart")
+
+
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
 def workbench_new_app(a: dict[str, Any]) -> Any:
     return _window("file.newApp", {})

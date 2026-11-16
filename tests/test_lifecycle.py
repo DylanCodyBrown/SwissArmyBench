@@ -290,3 +290,42 @@ def _get(info: dict[str, object], path: str) -> dict:  # type: ignore[type-arg]
     )
     with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310
         return json.loads(response.read())  # type: ignore[no-any-return]
+
+
+def test_start_opens_the_page_with_its_token_and_open_finds_a_running_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The owner's first run on Windows printed an address with no token and opened nothing: the page
+    could not be reached. The address now carries the token in its fragment, and `open` reads it back."""
+    from swissarmybench.server import __main__ as command
+
+    assert (
+        command.page_address({"port": 58064, "token": "abc"}) == "http://127.0.0.1:58064/workspace#token=abc"
+    )
+    opened: list[str] = []
+
+    def browse(url: str) -> bool:
+        opened.append(url)
+        return True
+
+    monkeypatch.setattr("webbrowser.open", browse)
+    monkeypatch.setattr(command, "running_server", lambda path: None)
+    assert command.open_page(tmp_path / "server.json") is False and opened == []
+    monkeypatch.setattr(command, "running_server", lambda path: {"port": 58064, "token": "abc"})
+    assert command.open_page(tmp_path / "server.json") is True
+    assert opened == ["http://127.0.0.1:58064/workspace#token=abc"]
+
+
+def test_the_opened_address_is_a_page_the_server_serves_without_the_token(tmp_path: Path) -> None:
+    """0.0.2 opened "/", which answers 401 (only the page shells are served without the token): the page
+    the browser opens must be one of them, its token in the fragment for the page to read."""
+    from urllib.parse import urlsplit
+
+    from swissarmybench.server import __main__ as command
+    from tests.conftest import make_client
+
+    address = urlsplit(command.page_address({"port": 8765, "token": "test-token"}))
+    with make_client(tmp_path) as client:
+        page = client.get(address.path)
+        assert page.status_code == 200 and "<html" in page.text.lower()
+    assert address.fragment == "token=test-token"

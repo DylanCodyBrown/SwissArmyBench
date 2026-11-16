@@ -118,6 +118,9 @@ class Settings:
     # The update check (services/updates.py): the one request that leaves the computer, at start and every
     # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
     update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)
+    # Start at sign-in (server/autostart.py) writes its entry under this home folder instead of the user's
+    # own (tests); None: the user's.
+    autostart_home: Path | None = None
     catalogs_at_once: int = 2
     # How long reading the vaults may hold up a Workbench kernel's start (it then starts without them).
     vault_timeout_seconds: float = 60.0

@@ -54,6 +54,23 @@ class UpdateSwitchFile:
         self.path.write_text(json.dumps({"check": on}) + "\n", encoding="utf-8")
 
 
+def take_server_events(path: Path | None) -> list[dict[str, Any]]:
+    """What the tray saw while no server could log it (a crash, a restart, giving up), removed once read."""
+    if path is None or not path.is_file():
+        return []
+    try:
+        events: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        events = []
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    if not isinstance(events, list):
+        return []
+    return [e for e in events[-50:] if isinstance(e, dict) and isinstance(e.get("event"), str)]
+
+
 def take_failure_note(path: Path | None) -> dict[str, Any] | None:
     """The helper's note of an update that failed ({"version", "reason"}), removed once read."""
     if path is None or not path.is_file():

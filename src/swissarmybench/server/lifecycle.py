@@ -165,6 +165,12 @@ def healthy(info: dict[str, Any], timeout: float = 2.0) -> bool:
         return False
 
 
+def page_address(info: dict[str, Any], path: str = "/workspace") -> str:
+    """A page of the app with its token in the fragment (never sent over the network). A page shell the
+    guard serves without the token (server/security.py): "/" answers 401."""
+    return f"http://{_LOCALHOST}:{info['port']}{path}#token={info['token']}"
+
+
 def running_server(path: Path) -> dict[str, Any] | None:
     """The info of a live, healthy server, or None (no file, or a stale one)."""
     info = read_info(path)

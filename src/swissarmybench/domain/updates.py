@@ -336,7 +336,9 @@ class TrayState:
     update: str | None = None  # the version offered
     tables: tuple[tuple[str, str], ...] = ()  # (grid id, its table's name)
     documents: tuple[tuple[str, str, bool], ...] = ()  # (key, title, unsaved changes)
-    startup: bool | None = None  # Start with Windows: None where there is no such thing
+    startup: bool | None = None  # start at sign-in: None where there is no such thing
+    startup_label: str = "Start with Windows"  # "Open at login" on macOS and Linux
+    gave_up: bool = False  # the server died RESTARTS times in a row: the tray stopped starting it
     failed: str | None = None  # the last update's failure, said once
 
 
@@ -381,9 +383,11 @@ def tray_menu(state: TrayState) -> list[MenuItem]:
             MenuItem("blades", "Open the blades page"),
         ]
         items += [SEPARATOR, MenuItem("restart", "Restart")]
+    elif state.gave_up:
+        items += [MenuItem("start", "Swiss Army Bench stopped: Restart", default=True), SEPARATOR]
     else:
         items += [MenuItem("start", "Start", default=True), SEPARATOR]
     if state.startup is not None:
-        items.append(MenuItem("startup", "Start with Windows", checked=state.startup))
+        items.append(MenuItem("startup", state.startup_label, checked=state.startup))
     items.append(MenuItem("quit", "Stop and quit" if state.running else "Quit"))
     return items

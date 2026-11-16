@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,9 @@ from starlette.testclient import TestClient
 
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
+
+# A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
+os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")
 
 PORT = 8765
 TOKEN = "test-token"
@@ -52,6 +56,8 @@ def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
         export_dir=tmp_path / "exports",
         # Never this machine's own Claude Code plugins: a test lays out its own packs here.
         claude_dir=overrides.pop("claude_dir", tmp_path / "claude"),
+        # Never this computer's own sign-in entries: start at sign-in writes under a temporary home.
+        autostart_home=overrides.pop("autostart_home", tmp_path / "home"),
         # Never this machine's own SwissArmyBench folder: the app makes it the first time it is needed.
         workbench_dir=overrides.pop("workbench_dir", tmp_path / "home" / "SwissArmyBench"),
         max_total_bytes=overrides.pop("max_total_bytes", 512 * 1024 * 1024),

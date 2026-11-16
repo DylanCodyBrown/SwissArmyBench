@@ -38,6 +38,16 @@ class UpdateSwitch(Protocol):
     def write(self, on: bool) -> None: ...
 
 
+class Autostart(Protocol):
+    """Start at sign-in (server/autostart.py): the tray when the user signs in."""
+
+    def status(self) -> bool: ...
+
+    def set(self, on: bool) -> bool: ...
+
+    def to_json(self) -> dict[str, object]: ...
+
+
 class UpdateHelper(Protocol):
     """Starts the helper that installs `version` once this server has stopped (server/updater.py)."""
 
@@ -67,6 +77,7 @@ class Updates:
         audit: Audit,
         live: Notifier,
         stop: Callable[[], None],
+        autostart: Autostart | None = None,
         failed: dict[str, Any] | None = None,
         every_seconds: float = rules.CHECK_EVERY_SECONDS,
         clock: Callable[[], float] = time.time,
@@ -81,6 +92,7 @@ class Updates:
         self._audit = audit
         self._live = live
         self._stop = stop
+        self._autostart = autostart
         self._every = every_seconds
         self._clock = clock
         self._offer: Release | None = None
@@ -180,6 +192,26 @@ class Updates:
 
     async def _tell(self) -> None:
         await self._live.broadcast({"type": "update_changed", **self.state()})
+
+    # ===== start at sign-in =====
+
+    def autostart(self) -> dict[str, Any]:
+        if self._autostart is None:
+            raise Conflict("Start at sign-in is not available here.")
+        return dict(self._autostart.to_json())
+
+    def set_autostart(self, body: Any, who: str) -> dict[str, Any]:
+        on = body.get("on") if isinstance(body, dict) else None
+        if not isinstance(on, bool):
+            raise ValueError('Send {"on": true} or {"on": false}.')
+        if self._autostart is None:
+            raise Conflict("Start at sign-in is not available here.")
+        try:
+            self._autostart.set(on)
+        except OSError as error:
+            raise Conflict(str(error)) from None
+        self._audit.write(who, "autostart", None, on=on)
+        return self.autostart()
 
     # ===== Update to X =====
 

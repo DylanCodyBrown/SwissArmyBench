@@ -1,16 +1,23 @@
-"""The tray icon (`swissarmybench tray`; `swissarmybench start` starts it, unless --no-tray).
+"""The tray icon (`swissarmybench tray`; `swissarmybench start` starts it, unless --no-tray; at sign-in,
+server/autostart.py's entry starts it).
 
 A left click opens the app's page. A right click shows the menu (domain/updates.py's tray_menu): an
 update first when there is one ("Update to X", "What's new"), what is open (tables, the Workbench's
-documents; read fresh as the menu opens), the Workbench, the blades page, Restart, Start with Windows,
-Stop and quit. A newer release puts a dot on the icon and says so in its tooltip.
+documents; read fresh as the menu opens), the Workbench, the blades page, Restart, Start with Windows
+(Open at login elsewhere), Stop and quit. A newer release puts a dot on the icon and says so in its
+tooltip.
 
 It is a client of the running server, over 127.0.0.1 with the token from the connection file, like
-`sab`; it holds nothing of its own. One tray at a time (the server's instance lock, named for tray.json,
-which holds the tray's process id so an update can wait for it). The server can stop and start under it:
-the menu then offers Start. During an update the tray ends itself, and the new version starts its own.
+`sab`. One tray at a time (the server's instance lock, named for tray.json, which holds the tray's
+process id so an update can wait for it). The tray keeps the app running (the owner, 2026-11-16: "start
+itself then stay running"): it starts the server when there is none, and starts it again when it dies
+(its connection file left behind, its process gone), at most 3 times in 5 minutes; then the menu says
+"Swiss Army Bench stopped: Restart". A server stopped on purpose (Stop and quit, `swissarmybench stop`)
+removes its connection file, so it is not started again. During an update the tray ends itself, and the
+new version starts its own.
 
-pystray draws the icon and Pillow paints it (the plan's decision 6; the [server] extra only).
+pystray draws the icon and Pillow paints it (the plan's decision 6; the [server] extra only). Where no
+tray can show (Linux with no desktop), `swissarmybench tray` still starts the server, then ends.
 """
 
 from __future__ import annotations
@@ -19,7 +26,6 @@ import ctypes
 import json
 import os
 import shutil
-import subprocess
 import sys
 import threading
 import time
@@ -31,17 +37,27 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.domain.updates import MenuItem, TrayState, tooltip, tray_menu, update_question
-from swissarmybench.server.lifecycle import AlreadyStartingError, InstanceLock, read_info, running_server
+from swissarmybench.server.autostart import Autostart, run_hidden
+from swissarmybench.server.lifecycle import (
+    AlreadyStartingError,
+    InstanceLock,
+    page_address,
+    process_alive,
+    read_info,
+    running_server,
+)
 from swissarmybench.server.updater import detached
 
 POLL_SECONDS: float = 5.0
-SHORTCUT_NAME: str = "Swiss Army Bench.lnk"
+# The watchdog: at most this many restarts in this many seconds, then it gives up and says so.
+RESTARTS: int = 3
+RESTART_WINDOW_SECONDS: float = 300.0
 # The app's mark (the pages' icon): a red rounded square with a white cross; the update's dot is blue.
 MARK_RED: tuple[int, int, int, int] = (0xD5, 0x2B, 0x1E, 255)
 DOT_BLUE: tuple[int, int, int, int] = (0x25, 0x63, 0xEB, 255)
 
 
-# ===== where a tray can show =====
+# ===== where a tray can show, and how its processes start =====
 
 
 def tray_available(platform: str = sys.platform, environ: dict[str, str] | None = None) -> bool:
@@ -56,8 +72,29 @@ def tray_available(platform: str = sys.platform, environ: dict[str, str] | None 
     return bool(environ.get("DISPLAY") or environ.get("WAYLAND_DISPLAY"))
 
 
+def console_python(executable: str = sys.executable) -> str:
+    """The console Python beside a pythonw.exe (the sign-in entry's), for a process whose output goes
+    somewhere: CREATE_NO_WINDOW keeps it from showing a window, and its children inherit that."""
+    path = Path(executable)
+    if path.name.lower() == "pythonw.exe" and (path.parent / "python.exe").is_file():
+        return str(path.parent / "python.exe")
+    return executable
+
+
 def tray_command(python: str = sys.executable) -> list[str]:
     return [python, "-m", "swissarmybench.server", "tray"]
+
+
+def server_command(port: int | None = None, browser: bool = False, tray: bool = False) -> list[str]:
+    """`swissarmybench start` as a detached process runs it (`start --background` and the tray)."""
+    command = [console_python(), "-m", "swissarmybench.server", "start"]
+    if port is not None:
+        command += ["--port", str(port)]
+    if not browser:
+        command.append("--no-browser")
+    if not tray:
+        command.append("--no-tray")
+    return command
 
 
 def start_tray() -> bool:
@@ -94,69 +131,6 @@ def draw_icon(size: int = 64, dot: bool = False) -> Any:
     return image
 
 
-# ===== Start with Windows: a shortcut in the Startup folder =====
-
-
-def startup_folder(environ: dict[str, str] | None = None) -> Path | None:
-    appdata = (dict(os.environ) if environ is None else environ).get("APPDATA")
-    if not appdata:
-        return None
-    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
-
-
-def startup_target(prefix: Path | None = None) -> Path:
-    """The uv tool's own swissarmybench.exe (the same path after an update)."""
-    return (prefix or Path(sys.prefix)) / "Scripts" / "swissarmybench.exe"
-
-
-def shortcut_script(shortcut: Path, target: Path) -> str:
-    """PowerShell that writes the shortcut: `swissarmybench.exe start`, minimised."""
-
-    def quoted(text: object) -> str:
-        return "'" + str(text).replace("'", "''") + "'"
-
-    return (
-        "$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" + quoted(shortcut) + "); "
-        f"$s.TargetPath = {quoted(target)}; $s.Arguments = 'start'; $s.WindowStyle = 7; "
-        f"$s.WorkingDirectory = {quoted(Path.home())}; $s.Description = 'Swiss Army Bench'; $s.Save()"
-    )
-
-
-class Startup:
-    """Start with Windows: on when the shortcut is there. None on other systems (no menu item)."""
-
-    def __init__(self, folder: Path | None, run: Callable[[list[str]], int] | None = None) -> None:
-        self.folder = folder
-        self._run = run or _run_hidden
-
-    @property
-    def shortcut(self) -> Path | None:
-        return self.folder / SHORTCUT_NAME if self.folder else None
-
-    def on(self) -> bool | None:
-        return None if self.shortcut is None else self.shortcut.is_file()
-
-    def set(self, on: bool) -> None:
-        if self.shortcut is None:
-            return
-        if not on:
-            self.shortcut.unlink(missing_ok=True)
-            return
-        self.shortcut.parent.mkdir(parents=True, exist_ok=True)
-        script = shortcut_script(self.shortcut, startup_target())
-        self._run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script])
-
-
-def _run_hidden(command: list[str]) -> int:
-    flags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
-    try:
-        # PowerShell, osascript or zenity, with our own script.
-        done = subprocess.run(command, capture_output=True, timeout=30, creationflags=flags, check=False)  # noqa: S603
-        return done.returncode
-    except (OSError, subprocess.TimeoutExpired):
-        return 1
-
-
 # ===== a question, in the system's own box =====
 
 
@@ -170,7 +144,7 @@ def ask(title: str, text: str) -> bool:
             f"display dialog {json.dumps(text)} with title {json.dumps(title)} "
             'buttons {"Cancel", "Update"} default button "Update" with icon caution'
         )
-        return _run_hidden(["osascript", "-e", script]) == 0
+        return run_hidden(["osascript", "-e", script]) == 0
     for tool in ("zenity", "kdialog"):
         found = shutil.which(tool)
         if found:
@@ -179,7 +153,7 @@ def ask(title: str, text: str) -> bool:
                 if tool == "zenity"
                 else [found, "--title", title, "--yesno", text]
             )
-            return _run_hidden(command) == 0
+            return run_hidden(command) == 0
     return False
 
 
@@ -198,11 +172,18 @@ class Server:
     def running(self) -> bool:
         return running_server(self.info_file) is not None
 
+    def died(self) -> int | None:
+        """The process id of a server that ended without stopping (its connection file is still there,
+        its process is not); None otherwise. A server that stops on purpose removes the file."""
+        info = self.info()
+        pid = info.get("pid") if info else None
+        return pid if isinstance(pid, int) and not process_alive(pid) else None
+
     def page(self, path: str = "/workspace", extra: str = "") -> str | None:
         info = self.info()
         if info is None:
             return None
-        return f"http://127.0.0.1:{info['port']}{path}#token={info['token']}{extra}"
+        return page_address(info, path) + extra
 
     def call(self, method: str, path: str, body: Any = None, timeout: float = 5.0) -> Any:
         info = self.info()
@@ -219,10 +200,15 @@ class Server:
             return json.loads(answer.read() or b"null")
 
 
-def state_from(answer: dict[str, Any] | None, startup: bool | None) -> TrayState:
+def state_from(
+    answer: dict[str, Any] | None,
+    startup: bool | None,
+    label: str = "Start with Windows",
+    gave_up: bool = False,
+) -> TrayState:
     """The menu's state from GET /updates/tray (None: the server is not running)."""
     if answer is None:
-        return TrayState(running=False, startup=startup)
+        return TrayState(running=False, startup=startup, startup_label=label, gave_up=gave_up)
     tables = tuple(
         (str(t.get("grid")), str(t.get("name")))
         for t in answer.get("tables", [])
@@ -240,10 +226,62 @@ def state_from(answer: dict[str, Any] | None, startup: bool | None) -> TrayState
         tables=tables,
         documents=documents,
         startup=startup,
+        startup_label=label,
         failed=f"Update to {failed.get('version')} failed: {failed.get('reason')}"
         if isinstance(failed, dict)
         else None,
     )
+
+
+# ===== the watchdog =====
+
+
+class Watchdog:
+    """Restarts of a server that died: at most RESTARTS in RESTART_WINDOW_SECONDS, then none."""
+
+    def __init__(
+        self,
+        limit: int = RESTARTS,
+        window: float = RESTART_WINDOW_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self.limit = limit
+        self.window = window
+        self.clock = clock
+        self.restarts: list[float] = []
+        self.gave_up = False
+
+    def may_restart(self) -> bool:
+        """A server died: True to start it again (counted), False once the limit is reached."""
+        now = self.clock()
+        self.restarts = [t for t in self.restarts if now - t < self.window]
+        if self.gave_up or len(self.restarts) >= self.limit:
+            self.gave_up = True
+            return False
+        self.restarts.append(now)
+        return True
+
+    def reset(self) -> None:
+        """The user started it again: count afresh."""
+        self.restarts.clear()
+        self.gave_up = False
+
+
+def note_event(path: Path | None, event: str, code: int | None = None, reason: str = "") -> None:
+    """What the tray saw while no server could log it, for the next server's beta log (bootstrap.py)."""
+    if path is None:
+        return
+    try:
+        events = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+    except (OSError, ValueError):
+        events = []
+    if not isinstance(events, list):
+        events = []
+    events.append({"time": time.time(), "event": event, "code": code, "reason": reason})
+    try:
+        path.write_text(json.dumps(events[-50:]), encoding="utf-8")
+    except OSError:
+        pass
 
 
 # ===== the tray =====
@@ -255,34 +293,67 @@ class Tray:
     def __init__(
         self,
         server: Server,
-        startup: Startup,
+        startup: Autostart,
         open_url: Callable[[str], object] = webbrowser.open,
         start_server: Callable[[], object] | None = None,
         confirm: Callable[[str, str], bool] = ask,
+        watchdog: Watchdog | None = None,
+        events_file: Path | None = None,
     ) -> None:
         self.server = server
         self.startup = startup
         self.open_url = open_url
         self.start_server = start_server or (lambda: detached(server_command()))
         self.confirm = confirm
-        self.state = TrayState(running=False, startup=startup.on())
+        self.watchdog = watchdog or Watchdog()
+        self.events_file = events_file
+        self.state = TrayState(running=False, startup=startup.status(), startup_label=startup.label)
         self.stop_tray: Callable[[], None] = lambda: None
         # How the tray says something (a notification); None until the icon shows.
         self.said: Callable[[str], None] | None = None
         self._told_failure = False
+        self._dead: int | None = None  # the process id of the server last seen dead (counted once)
 
     def refresh(self) -> TrayState:
         try:
             answer = self.server.call("GET", "/updates/tray", timeout=3.0)
         except (OSError, ValueError, urllib.error.URLError):
             answer = None
-        self.state = state_from(answer if isinstance(answer, dict) else None, self.startup.on())
+        if answer is None:
+            self._watch()
+        self.state = state_from(
+            answer if isinstance(answer, dict) else None,
+            self.startup.status(),
+            self.startup.label,
+            self.watchdog.gave_up,
+        )
         if isinstance(answer, dict) and answer.get("updating"):
             self.stop_tray()  # the update replaces this tray's files: the new version starts its own
         if self.state.failed and not self._told_failure and self.said is not None:
             self._told_failure = True
             self.said(self.state.failed)
         return self.state
+
+    def _watch(self) -> None:
+        """No answer: a server that died is started again (within the watchdog's limit)."""
+        dead = self.server.died()
+        if dead is None or dead == self._dead:
+            return
+        self._dead = dead
+        note_event(self.events_file, "crash", reason="The server's process ended without stopping.")
+        if self.watchdog.may_restart():
+            note_event(self.events_file, "restart")
+            self.start_server()
+        else:
+            note_event(
+                self.events_file, "failed", reason=f"Stopped {RESTARTS} times in 5 minutes: not restarted."
+            )
+            self._say("Swiss Army Bench stopped.")
+
+    def ensure_server(self) -> None:
+        """At the tray's start (at sign-in): the server, when none is running or starting."""
+        if not self.server.running() and (self.server.info() is None or self.server.died() is not None):
+            self.start_server()
 
     def _say(self, text: str) -> None:
         if self.said is not None:
@@ -301,11 +372,16 @@ class Tray:
             self._update()
         elif kind == "restart":
             self._stop_server()
+            self.watchdog.reset()
             self.start_server()
         elif kind == "start":
+            self.watchdog.reset()
             self.start_server()
         elif kind == "startup":
-            self.startup.set(not self.startup.on())
+            try:
+                self.startup.set(not self.startup.status())
+            except OSError as error:
+                self._say(str(error))
         elif kind == "quit":
             if self.state.running:
                 self._stop_server()
@@ -368,11 +444,6 @@ class Tray:
             time.sleep(0.1)
 
 
-def server_command(python: str = sys.executable) -> list[str]:
-    """The tray's own start of the server: no second tray."""
-    return [python, "-m", "swissarmybench.server", "start", "--no-tray"]
-
-
 def menu_items(tray: Tray, pystray: Any) -> Any:
     """The pystray menu for the tray's model: one MenuItem per line, its action by id."""
 
@@ -397,20 +468,22 @@ def menu_items(tray: Tray, pystray: Any) -> Any:
     return pystray.Menu(lambda: tuple(item(entry) for entry in tray.menu()))
 
 
-def run_tray(info_file: Path) -> int:
+def run_tray(info_file: Path, events_file: Path | None = None) -> int:
     """`swissarmybench tray`: the icon until Quit (or an update). 0 also when another tray is running."""
     tray_file = info_file.with_name("tray.json")
     try:
         lock = InstanceLock(tray_file)
     except AlreadyStartingError:
         return 0  # one tray at a time: the one already there stays
+    tray = Tray(Server(info_file), Autostart(), events_file=events_file)
     try:
         import pystray
-    except Exception:  # no desktop to show it on
+    except Exception:  # no desktop to show it on: the app still starts, with no icon
+        tray.ensure_server()
         lock.release()
         return 0
     tray_file.write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
-    tray = Tray(Server(info_file), Startup(startup_folder() if sys.platform == "win32" else None))
+    tray.ensure_server()
     tray.refresh()
     plain, dotted = draw_icon(64), draw_icon(64, dot=True)
 

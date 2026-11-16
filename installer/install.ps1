@@ -4,8 +4,11 @@
 #   irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.ps1 | iex
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1 .\swissarmybench-__VERSION__-py3-none-any.whl
-#   ... -NoStart                     install only (it otherwise offers to start the app at the end)
-param([string]$Wheel = "", [switch]$NoStart)
+#   ... -NoAutostart -NoStart        install only: no start at sign-in, and not started now
+#
+# At the end it turns on start at sign-in (the tray, which starts the server), starts the app in the
+# background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
+param([string]$Wheel = "", [switch]$NoStart, [switch]$NoAutostart)
 
 $ErrorActionPreference = "Stop"
 
@@ -82,22 +85,24 @@ Write-Host "  The Python client:     uv pip install `"$WheelName`"   (in any pro
 Write-Host "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
 Write-Host "(Open a new terminal first if the swissarmybench command is not found.)"
 
-# 5. Offer to start it now: the server, its tray icon and the page. Not on a build machine (CI), and not
-# when nothing can answer (input redirected, or -NoStart).
+# 5. Start at sign-in, and start it now: the server in the background, its tray, its page opened once.
 function ToolBin {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try { return (uv tool dir --bin 2>$null) } finally { $ErrorActionPreference = $previous }
 }
-if (-not $NoStart -and -not $env:CI -and -not [Console]::IsInputRedirected) {
-    $answer = Read-Host "Start Swiss Army Bench now? [Y/n]"
-    if ($answer -eq "" -or $answer -match '^[Yy]') {
-        $Exe = Join-Path ((ToolBin) | Select-Object -First 1) "swissarmybench.exe"
-        if (-not (Test-Path $Exe)) { $Exe = Join-Path $LocalBin "swissarmybench.exe" }
-        if (Test-Path $Exe) {
-            Start-Process -FilePath $Exe -ArgumentList "start" -WindowStyle Minimized
-        } else {
-            Write-Host "Open a new terminal and run: swissarmybench start"
-        }
+$BuildMachine = [bool]$env:CI
+$Exe = $null
+$Bin = (ToolBin) | Select-Object -First 1
+if ($Bin) { $Exe = Join-Path $Bin "swissarmybench.exe" }
+if (-not $Exe -or -not (Test-Path $Exe)) { $Exe = Join-Path $LocalBin "swissarmybench.exe" }
+if (Test-Path $Exe) {
+    if (-not $NoAutostart -and -not $BuildMachine -and $env:SWISSARMYBENCH_NO_AUTOSTART -ne "1") {
+        Quiet { & $Exe autostart on }
+        if ($LASTEXITCODE -eq 0) { Write-Host "It starts when you sign in (the tray's Start with Windows turns that off)." }
+    }
+    if (-not $NoStart -and -not $BuildMachine) {
+        Quiet { & $Exe start --background }
+        Write-Host "Starting Swiss Army Bench: its page opens in your browser."
     }
 }
