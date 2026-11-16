@@ -56,6 +56,7 @@ from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.grids import GridRegistry
+from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.autostart import Autostart
@@ -88,6 +89,7 @@ from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
+from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
@@ -149,6 +151,7 @@ class Services:
     lineage: Lineage
     projects: Projects
     sab_projects: SabProjects
+    project_scope: ProjectScope
     script_exports: ScriptExports
     panels: Panels
     navigation: Navigation
@@ -386,7 +389,8 @@ def bootstrap(
     # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
     apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
     workbench_window = WorkbenchWindow(ws)
-    cards = Cards(ws, DashboardFiles(state_dir / "dashboards"), ThemeFiles(state_dir / "themes"))
+    dashboards = DashboardFiles(state_dir / "dashboards")
+    cards = Cards(ws, dashboards, ThemeFiles(state_dir / "themes"))
     projects = Projects(
         ws,
         project_files,
@@ -396,14 +400,48 @@ def bootstrap(
         approvals=approvals,
     )
     # A project as one .sab file: unpacked into a working folder while open, written back on Save.
+    archive = SabArchive(
+        settings.max_project_file_bytes,
+        settings.max_project_entries,
+        settings.max_project_unpacked_bytes,
+        settings.project_temp_dir,
+    )
+    # This computer's saved connections and blades (the ones saved before projects held their own): the
+    # blades in use while no project is open, and a place to import from.
+    computer_blades = BladeStore(settings.blades_dir)
+
+    async def use_project(folder: str | None) -> None:
+        """The stores follow the open project: its own connections, blades and saved dashboards (in its
+        working folder's .sab folder), or this computer's with none open. Catalogs follow its connections."""
+        app = Path(folder) / APP_FOLDER if folder else None
+        blade_store.use(app / "blades" if app else settings.blades_dir, keep_secrets=app is not None)
+        dashboards.folder = app / "dashboards" if app else state_dir / "dashboards"
+        await catalog_loading.rescope()
+        await live.broadcast({"type": "blades_changed"})
+
+    def carry_connections(folder: str, names: list[str]) -> None:
+        """A new project's open tables' connections, copied in from this computer's (and the vaults
+        their passwords come from)."""
+        wanted: dict[str, Blade] = {}
+        for name in names:
+            try:
+                blade = computer_blades.get(name)
+            except KeyError:
+                continue
+            if blade.path or blade.pack:
+                continue  # a blade folder's or a pack's: read-only libraries, there in every project
+            wanted[blade.name.casefold()] = blade
+            vaults, _ = computer_blades.providers(blade)
+            wanted |= {v.name.casefold(): v for v in vaults if not v.path and not v.pack}
+        files = dict(computer_blades.saved_files())
+        for blade in wanted.values():
+            file = BladeStore.file_name(blade.name)
+            if file in files:
+                archive.write_into(folder, f"{APP_FOLDER}/blades/{file}", files[file])
+
     sab_projects = SabProjects(
         ws,
-        SabArchive(
-            settings.max_project_file_bytes,
-            settings.max_project_entries,
-            settings.max_project_unpacked_bytes,
-            settings.project_temp_dir,
-        ),
+        archive,
         RecentProjects(state_dir / "recent_projects.json" if audit_log else None),
         datasets,
         connections,
@@ -416,6 +454,12 @@ def bootstrap(
         now=time.time,
         kernel_document=workbench.document_of,
         ask_workbench=lambda command, args: workbench_window.ask(command, args, "app"),
+        scope=use_project,
+        carry=carry_connections,
+        autosave_seconds=settings.autosave_seconds,
+    )
+    project_scope = ProjectScope(
+        sab_projects, archive, computer_blades, connections, on_saved=catalog_loading.saved
     )
 
     async def open_work() -> dict[str, Any]:
@@ -523,6 +567,7 @@ def bootstrap(
         ),
         projects=projects,
         sab_projects=sab_projects,
+        project_scope=project_scope,
         # Export as one Python script: the document's cells, its connections' own code, ruff's check.
         script_exports=ScriptExports(
             ws,

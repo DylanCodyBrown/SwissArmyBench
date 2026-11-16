@@ -1,9 +1,10 @@
 """Projects as one file: the .sab (the owner, 2026-11-16; rules in domain/sab_files.py). For the home page,
 the Workbench window and the agent alike.
 
-  new       a project of its own: a working folder in the system's temporary folder, starting with
-            data.ipynb (services/projects.py makes it, with the tables open now); the first Save asks
-            where the .sab goes
+  new       a project of its own, saved at once where the user named (the owner, 2026-11-16: "The first
+            thing it should do is have the user save a project file"): a working folder in the system's
+            temporary folder, starting with data.ipynb (services/projects.py makes it, with the tables
+            open now, and their connections copied in from this computer's)
   open      a .sab unpacked into a working folder; each table read again from where it came from, as a
             grid with its steps; the Sandbox, the relationships and the windows' layout as they were. A
             table that cannot come back (a connection this computer does not have, a file that moved,
@@ -13,6 +14,9 @@ the Workbench window and the agent alike.
             and the model. A pasted or pushed table's rows go in only when ticked (keep_rows); the
             agent's save waits for the user's Allow when it would write rows. Never a password
   close     the tables, the Sandbox and the model closed, the temporary working folder removed
+  autosave  the user's switch, kept in project.json: on, a save a short while after each change, quietly
+  scope     the open project's connections, blades and saved dashboards are its own (its working folder's
+            .sab folder, domain/project_scope.py): each open, new and close tells the stores (scope)
   recent    the projects opened and saved, with their files' state (recent_projects.json)
 
 Whether there are unsaved changes is worked out, not tracked: what a save would write (the tables, their
@@ -46,6 +50,7 @@ from swissarmybench.services.workspace import Conflict, NotFound, Refused, Works
 
 MAX_LAYOUT_CHARS: int = 400_000
 WORKBENCH_SAVE_SECONDS: float = 60.0
+AUTOSAVE: str = "autosave"  # who a quiet save is, in the audit log
 
 
 class Archive(Protocol):
@@ -68,6 +73,10 @@ class Archive(Protocol):
     def remove(self, root: str | None) -> None: ...
 
     def files(self, folder: str) -> list[tuple[str, int, float]]: ...
+
+    def app_files(self, folder: str) -> list[tuple[str, int, float]]: ...
+
+    def replace_manifest(self, target: str, text: str) -> None: ...
 
     def read_file(self, folder: str, relative: str) -> bytes: ...
 
@@ -105,6 +114,8 @@ class Current:
     layout: dict[str, Any] = field(default_factory=dict)  # each window's: workbench, home, diagram
     unsaved: list[str] = field(default_factory=list)  # the Workbench's documents with unsaved changes
     problems: dict[str, dict[str, Any]] = field(default_factory=dict)  # tables not back, and their fix
+    autosave: bool = False
+    autosave_error: str | None = None  # the last quiet save that failed, in words
     waiting: dict[str, TableEntry] = field(default_factory=dict)  # their steps, for when they arrive
     serial: int = 0
 
@@ -140,6 +151,9 @@ class SabProjects:
         now: Callable[[], float],
         kernel_document: Callable[[str | None], str | None] = lambda kernel: None,
         ask_workbench: Callable[[str, dict[str, Any]], Awaitable[Any]] | None = None,
+        scope: Callable[[str | None], Awaitable[None]] | None = None,
+        carry: Callable[[str, list[str]], None] = lambda folder, names: None,
+        autosave_seconds: float = 2.0,
     ) -> None:
         self.ws = ws
         self._archive = archive
@@ -155,6 +169,13 @@ class SabProjects:
         self._now = now
         self._kernel_document = kernel_document
         self._ask_workbench = ask_workbench
+        # The stores that follow the open project (its connections, blades, dashboards): its working
+        # folder, or None (this computer's own, with no project open).
+        self._scope = scope
+        # The open tables' connections copied into a new project from this computer's (folder, names).
+        self._carry = carry
+        self._autosave_seconds = autosave_seconds
+        self._settling: str | None = None  # autosave: what a save would write, as last seen
         self.current: Current | None = None
         self._serial = 0
         self._asked: str | None = None  # a .sab another program asked to open (the page asks the user)
@@ -202,6 +223,7 @@ class SabProjects:
         current = self.current
         tables = [t.to_json() for t in self._tables()]
         files = self._archive.files(current.folder) if current else []
+        files += self._archive.app_files(current.folder) if current else []
         model = self._models.model.to_json() if self._models.model.tables() else None
         return json.dumps([tables, self._cards.state_key(), model, files], default=str, sort_keys=True)
 
@@ -224,8 +246,18 @@ class SabProjects:
         recent projects."""
         current = self.current
         project: dict[str, Any] | None = None
+        keep = current.keep_rows if current is not None else {}
+        tables = [
+            {
+                "name": t.name,
+                "kind": t.source.kind,
+                "from": t.source.label(),
+                "needs_rows": t.source.needs_rows,
+                "keep_rows": keep.get(t.name, False),
+            }
+            for t in self._tables()
+        ]
         if current is not None:
-            keep = current.keep_rows
             project = {
                 "name": current.name,
                 "path": current.path,
@@ -234,23 +266,18 @@ class SabProjects:
                 "dirty": self.dirty(),
                 "read_only": current.read_only,
                 "serial": current.serial,
-                "tables": [
-                    {
-                        "name": t.name,
-                        "kind": t.source.kind,
-                        "from": t.source.label(),
-                        "needs_rows": t.source.needs_rows,
-                        "keep_rows": keep.get(t.name, False),
-                    }
-                    for t in self._tables()
-                ],
+                "tables": tables,
                 "problems": list(current.problems.values()),
                 "layout": current.layout,
                 "unsaved_documents": current.unsaved,
+                "autosave": current.autosave,
+                "autosave_error": current.autosave_error,
             }
         return {
             "project": project,
             "loose": current is None and self._has_work(),
+            # The open work with no project: what saving it as one would write (its rows' ticks).
+            "loose_tables": tables if current is None else [],
             "recent": self._recent.all(),
             "asked": self._asked,
         }
@@ -292,36 +319,69 @@ class SabProjects:
         if self.current is not None:
             await asyncio.to_thread(self._archive.remove, self.current.root)
         self.current = None
+        await self._rescope()
+
+    async def _rescope(self) -> None:
+        """The stores follow the open project (or this computer's, with none open)."""
+        if self._scope is not None:
+            await self._scope(self.current.folder if self.current else None)
 
     # ===== new =====
 
     async def new(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """New project: {"name"?, "discard"?}. With a project open that has unsaved changes, asks first
-        (Conflict). The tables open now (with no project) go into it: its data.ipynb starts with them."""
+        """New project: {"path": where its .sab goes, "autosave"?, "discard"?}. It is saved there at once:
+        a project is never without its file. With a project open that has unsaved changes, asks first
+        (Conflict). The tables open now (with no project) go into it: its data.ipynb starts with them,
+        their connections copied in from this computer's."""
         body = body if isinstance(body, dict) else {}
-        name = rules.check_name(body.get("name") or "New project")
+        path = body.get("path")
+        if not isinstance(path, str) or not path.strip():
+            raise ValueError('A new project is saved first: send {"path": where its .sab goes}.')
+        target = self._full(rules.with_suffix(path.strip()))
+        name = rules.check_name(rules.name_of_file(target))
+        if not self._archive.is_folder(self._archive.folder_of(target)):
+            raise NotFound(f"The folder {self._archive.folder_of(target)} is not there.")
+        if self.current is not None:
+            self._check_discard(body)
+        await self._make(name, body.get("app") is True, who)
+        current = self._need()
+        current.autosave = body.get("autosave") is True
+        try:
+            return await self.save({"path": target}, who)
+        except BaseException:
+            async with self._busy:
+                await self._clear(who)  # never a project without its file
+            await self._changed()
+            raise
+
+    async def _make(self, name: str, app: bool, who: str) -> None:
+        """A project of its own in a new working folder (not saved yet: new and save write it)."""
         async with self._busy:
+            loose = [self._datasets.origins.get(info.name).connection for info in self.ws.store.all()]
             if self.current is not None:
-                self._check_discard(body)
                 await self._clear(who)
             root, folder = await asyncio.to_thread(self._archive.new_folder, name)
             parent = self._archive.folder_of(folder)
             try:
                 named = folder[len(parent) :].strip("\\/")
                 made = await self._projects.create(
-                    {"folder": parent, "name": named, "app": body.get("app") is True},
+                    {"folder": parent, "name": named, "app": app},
                     who,
                     remember=False,
                     rows=False,
                 )
+                # The open tables' connections come with them: the project holds its own from now on.
+                names = sorted({c.split("/", 1)[0] for c in loose if c}, key=str.casefold)
+                if names:
+                    await asyncio.to_thread(self._carry, str(made["folder"]), names)
             except BaseException:
                 await asyncio.to_thread(self._archive.remove, root)
                 raise
             self._serial += 1
             self.current = Current(name=name, folder=made["folder"], root=root, serial=self._serial)
+            await self._rescope()
             self.ws.audit.write(who, "new_sab_project", None, name=name)
         await self._changed()
-        return self.state()
 
     # ===== open =====
 
@@ -374,7 +434,9 @@ class SabProjects:
                     "diagram": dict(manifest.diagram),
                 },
                 serial=self._serial,
+                autosave=manifest.autosave,
             )
+            await self._rescope()  # its own connections, before its tables are read from them
             sab_folder = self._archive.folder_of(full)
             ordered = sorted(
                 manifest.tables, key=lambda t: t.source.kind == "query"
@@ -411,6 +473,7 @@ class SabProjects:
         listed = self._projects.open({"folder": folder}, who)
         self._serial += 1
         self.current = Current(name=str(listed["name"]), folder=str(listed["folder"]), serial=self._serial)
+        await self._rescope()
         self.current.saved_key = self._key()
         await self._changed()
         return self.state()
@@ -461,6 +524,8 @@ class SabProjects:
         }
         if name.casefold() not in listed:
             return "no_connection"
+        if self._connections.needs_passwords(listed[name.casefold()]):
+            return "needs_password"
         place = {"database": source.database, "schema": source.schema, "table": source.table}
         answer = await self._connections.open_table(
             listed[name.casefold()], place | {"all": source.whole}, who
@@ -551,7 +616,9 @@ class SabProjects:
                 raise NotFound(
                     'No project is open: send {"path": where its .sab goes} to save the open work as one.'
                 )
-            await self.new({"name": rules.name_of_file(path), "app": False}, who)
+            await self._make(
+                rules.check_name(rules.name_of_file(rules.with_suffix(path.strip()))), False, who
+            )
         current = self._need()
         if current.read_only:
             raise Refused(current.read_only)
@@ -612,6 +679,7 @@ class SabProjects:
         finally:
             current.path = before
         files = await asyncio.to_thread(self._archive.files, current.folder)
+        files += await asyncio.to_thread(self._archive.app_files, current.folder)  # connections, blades
         entries: list[tuple[str, bytes | str]] = []
         for relative, _, _ in files:
             raw = await asyncio.to_thread(self._archive.read_file, current.folder, relative)
@@ -657,6 +725,7 @@ class SabProjects:
                 diagram=layout.get("diagram") or {},
                 sandbox=sandbox_entry,
                 model=model_entry,
+                autosave=current.autosave,
                 extra=dict(earlier.extra) if earlier else {},
             )
             entries.insert(0, (rules.MANIFEST, rules.write_manifest(manifest).encode("utf-8")))
@@ -716,6 +785,70 @@ class SabProjects:
                 current.unsaved = now
                 await self._changed()
         return {"kept": True}
+
+    # ===== autosave =====
+
+    async def set_autosave(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Autosave on or off: {"on": true}. Kept in the project's file at once (its project.json only:
+        nothing else is saved by the switch)."""
+        if not isinstance(body, dict) or not isinstance(body.get("on"), bool):
+            raise ValueError('Send {"on": true} or {"on": false}.')
+        current = self._need()
+        if current.read_only:
+            raise Refused(current.read_only)
+        current.autosave = body["on"]
+        current.autosave_error = None
+        self._settling = None
+        if current.path is not None and current.manifest is not None:
+            manifest = replace(current.manifest, autosave=current.autosave)
+            try:
+                await asyncio.to_thread(
+                    self._archive.replace_manifest, current.path, rules.write_manifest(manifest)
+                )
+            except (OSError, rules.SabError) as error:
+                raise Conflict(f"The switch could not be kept in {current.path}: {error}") from None
+            current.manifest = manifest
+        self.ws.audit.write(who, "project_autosave", None, on=current.autosave)
+        await self._changed()
+        return self.state()
+
+    async def autosave_tick(self) -> bool:
+        """One look: with autosave on and changes that have settled since the last look, a quiet save.
+        True when it saved."""
+        current = self.current
+        if (
+            current is None
+            or not current.autosave
+            or current.path is None
+            or current.read_only
+            or self._busy.locked()
+            or not self.dirty()
+        ):
+            self._settling = None
+            return False
+        seen = json.dumps([self._key(), current.unsaved])
+        if seen != self._settling:
+            self._settling = seen  # still changing: the next look saves, if it stays so
+            return False
+        self._settling = None
+        try:
+            await self.save({}, AUTOSAVE)
+        except Exception as error:  # said in the project's state; the next change tries again
+            if self.current is current:
+                current.autosave_error = str(error)[:300] or type(error).__name__
+                await self._changed()
+            return False
+        current.autosave_error = None
+        return True
+
+    async def run_autosave(self) -> None:
+        """The server's autosave: a look every couple of seconds while it runs."""
+        while True:
+            await asyncio.sleep(self._autosave_seconds)
+            try:
+                await self.autosave_tick()
+            except Exception:  # noqa: S112 (a look that failed: the next one tries again)
+                continue
 
     def recent(self) -> dict[str, Any]:
         return {"recent": self._recent.all()}

@@ -39,7 +39,6 @@ import { mountNavRail } from "./rail";
 import { renderKeyFinder } from "./keyFinder";
 import { mountBeta } from "./betaNotes";
 import { loadPanels } from "./panels";
-import { tourButton } from "./tour";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
 import { openCompareDialog } from "./compareDialog";
@@ -233,7 +232,7 @@ async function start(): Promise<void> {
       "div",
       { class: "ribbon-group", role: "toolbar", "aria-label": "Application tools" },
       h("div", { class: "ribbon-caption" }, h("strong", {}, "Application")),
-      h("div", { class: "ribbon-tools" }, tourButton(), zoomControl()), // Settings, Connections, Blades: the rail's
+      h("div", { class: "ribbon-tools" }, zoomControl()), // Settings, Connections, Blades: the rail's; the tour: Start's
     ),
   );
   // A project as one .sab file (startView.ts): the Start view, the project's group first in the Application
@@ -259,6 +258,12 @@ async function start(): Promise<void> {
         }
       }
     },
+    // The Grids landing's Paste: the clipboard's table, as Ctrl+V (the browser may ask first).
+    paste: () =>
+      void navigator.clipboard.readText().then(
+        (text) => (text.includes("\t") && text.includes("\n") ? pasteAsDataset(text) : toast("Copy a table first, then press Ctrl+V.", "error")),
+        () => toast("Press Ctrl+V to paste a table.", "error"),
+      ),
   });
   mountRibbon($(".ribbon"), openColumnProfile);
   mountPanes($(".tabs-row"), $(".panes"), () => refreshPanel());

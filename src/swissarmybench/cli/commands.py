@@ -3045,9 +3045,11 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
 
 @command(
     "project_new",
-    "A new project: no folder, one for a .sab (the open tables go in); a folder, a project folder (data.ipynb, "
-    "data.py, a canvas, notebooks), waiting for the user's Allow when data.ipynb would hold pasted rows",
-    opt("name", "The project's name (and its folder's)."),
+    "A new project: path, a .sab saved there at once (the open tables and their connections go in); folder, "
+    "a project folder (data.ipynb, data.py, a canvas, notebooks)",
+    opt("path", "Where its .sab goes (its name is the file's)."),
+    opt("autosave", "true: save quietly after each change.", "bool"),
+    opt("name", "A folder project's name."),
     opt("folder", "A folder project: where its folder goes."),
     opt("app", "false: no Streamlit app (data and notebooks only).", "bool"),
     opt("notebooks", 'Notebooks to make, by name: ["analysis", "mockups"].', "json"),
@@ -3059,8 +3061,43 @@ def project_new(a: dict[str, Any]) -> Any:
         body = {k: a[k] for k in ("folder", "name", "app", "notebooks", "tables") if a.get(k) is not None}
         return api.call("POST", "/projects", body)
     return api.call(
-        "POST", "/project/new", {k: a[k] for k in ("name", "app", "discard") if a.get(k) is not None}
+        "POST",
+        "/project/new",
+        {k: a[k] for k in ("path", "autosave", "app", "discard") if a.get(k) is not None},
     )
+
+
+@command("project_autosave", "Autosave on or off for the open project", req("on", "true or false.", "bool"))
+def project_autosave(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/project/autosave", {"on": a["on"]})
+
+
+@command(
+    "project_documents",
+    "The open project's notebooks, scripts and apps",
+    opt("kind", "notebook, script or app."),
+)
+def project_documents(a: dict[str, Any]) -> Any:
+    kind = a.get("kind")
+    return api.call("GET", "/project/documents" + (f"?kind={_q(kind)}" if kind else ""))
+
+
+@command(
+    "project_import",
+    "Copy into the open project from another .sab, a project folder, a loose file or this computer's saved "
+    'connections and blades ("computer"); list: what it offers',
+    req("source", 'A .sab, a folder, a notebook, script or app, or "computer".'),
+    opt("documents", "Paths there to copy.", "json"),
+    opt("connections", "Connection names to copy.", "json"),
+    opt("blades", "Blade names to copy.", "json"),
+    opt("list", "true: only list what it offers.", "bool"),
+)
+def project_import(a: dict[str, Any]) -> Any:
+    if a.get("list"):
+        return api.call("POST", "/project/import/sources", {"from": a["source"]})
+    keys = ("documents", "connections", "blades")
+    body = {"from": a["source"]} | {k: a[k] for k in keys if a.get(k) is not None}
+    return api.call("POST", "/project/import", body)
 
 
 @command(

@@ -487,10 +487,13 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     expect(workbench.locator(".wb-tabs .tab-label")).to_have_text(["orders.ipynb"])
     saved = json.loads((tmp_path / "orders.ipynb").read_text(encoding="utf-8"))
     assert saved["nbformat"] == 4 and saved["cells"][1]["source"][0] == "%%sql Orders\n"
-    # Closed and opened again from Recent: the cells and their outputs come back.
+    # Closed and opened again: the cells and their outputs come back.
     workbench.locator(".wb-tabs").get_by_role("button", name="Close orders.ipynb").click()
-    menu(workbench, "Workbench menu", "Recent…")
-    workbench.get_by_role("menuitem", name="orders.ipynb").click()
+    menu(workbench, "Workbench menu", "Open…")
+    folder = workbench.locator(".file-chooser input[aria-label=Folder]")
+    folder.fill(str(tmp_path))
+    folder.press("Enter")
+    workbench.locator(".file-chooser .file-row.file", has_text="orders.ipynb").click()
     expect(workbench.locator(".wb-cell")).to_have_count(2)
     expect(workbench.locator(".wb-cell").nth(1).get_by_label("Connection")).to_have_value("Orders")
     expect(workbench.locator(".wb-cell").first.locator(".wb-stream")).to_have_text("hello\n")

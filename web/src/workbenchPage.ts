@@ -84,6 +84,7 @@ import { type Descriptions, type DictionaryTable, described, drawDictionary, dra
 import { fillSnippet } from "./starters";
 import { closeProject, mountProject, onBeforeSave, onProject, openProject as openSabProject, projectLabel, projectState, type ProjectState, reportLayout, saveFolderAsFile, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
+import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
 import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 
@@ -1401,7 +1402,8 @@ function newEntries(anchor: HTMLElement): MenuEntry[] {
     ...projectEntries(),
     null,
     { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
-    { label: "Recent…", icon: "more", run: () => recentMenu(anchor) },
+    { label: "Import…", icon: "import", title: "Notebooks, scripts and apps from another project", disabled: !sabOpen(), run: () => void importDocuments() },
+    { label: "In this project…", icon: "more", run: () => recentMenu(anchor) },
   ];
 }
 
@@ -1416,8 +1418,17 @@ function splitDoc(doc: Doc | null, side: Side): void {
 // ===== files =====
 
 async function open(path?: string): Promise<void> {
-  const chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", APP_ENDING], start: current?.path ?? homeFolder }));
+  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", APP_ENDING], start: sab.folder ?? current?.path ?? homeFolder }));
   if (!chosen) return;
+  // Documents are the project's (the owner, 2026-11-16): a file from outside it is copied in, and the copy opens.
+  if (!path && sabOpen() && sab.folder && !inFolder(chosen, sab.folder)) {
+    try {
+      chosen = await importFile(chosen);
+    } catch (e) {
+      toast((e as Error).message, "error");
+      return;
+    }
+  }
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
   try {
@@ -1480,24 +1491,36 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
   }
 }
 
+// The open project's documents (no recent files: the owner, 2026-11-16, "objects are project scoped").
 let recent: { path: string; exists: boolean }[] = [];
 async function refreshHome(): Promise<void> {
   try {
-    const home = await api<{ folder: string; recent: { path: string; exists: boolean }[] }>("/workbench/home");
+    const [home, listed] = await Promise.all([
+      api<{ folder: string }>("/workbench/home"),
+      api<{ documents: { full: string; made: boolean }[] }>("/project/documents"),
+    ]);
     homeFolder = home.folder;
-    recent = home.recent;
+    recent = listed.documents.filter((d) => !d.made).map((d) => ({ path: d.full, exists: true }));
   } catch {
     /* the server will say so on the next action */
   }
 }
 
+/** Import…: notebooks, scripts and apps from another project (or a loose file), copied in and opened. */
+async function importDocuments(): Promise<void> {
+  const done = await openImport("documents");
+  if (!done) return;
+  for (const d of done.documents) await open(d.full);
+  void refreshHome();
+}
+
 function recentMenu(anchor: HTMLElement): void {
   openMenu(
     anchor,
-    "Recent files",
+    "In this project",
     recent.length
-      ? recent.map((r) => ({ label: baseName(r.path), icon: kindIcon(kindOfPath(r.path), r.path), mark: kindOfPath(r.path) ?? undefined, title: r.exists ? r.path : `${r.path} (missing)`, disabled: !r.exists, run: () => void open(r.path) }))
-      : [{ label: "No recent files", heading: true }],
+      ? recent.map((r) => ({ label: baseName(r.path), icon: kindIcon(kindOfPath(r.path), r.path), mark: kindOfPath(r.path) ?? undefined, title: r.path, run: () => void open(r.path) }))
+      : [{ label: "No documents", heading: true }],
     { align: anchor.closest(".wb-top") ? "right" : "left" },
   );
 }
@@ -1635,7 +1658,8 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
     ...(doc.notebook ? [{ label: "Clear every output", icon: "clean", run: () => doc.notebook!.clearAll() }] : []),
     null,
     { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
-    { label: "Recent…", icon: "more", run: () => recentMenu(anchor) },
+    { label: "Import…", icon: "import", title: "Notebooks, scripts and apps from another project", disabled: !sabOpen(), run: () => void importDocuments() },
+    { label: "In this project…", icon: "more", run: () => recentMenu(anchor) },
     ...(doc.notebook || doc.script ? [{ label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) }] : []),
     ...(doc.notebook || doc.script
       ? [
@@ -2048,7 +2072,7 @@ function kindStart(k: Kind, anchor: HTMLElement): void {
     KIND_WORDS[k].name,
     [
       ...(start ? [{ label: start.label, icon: "plus", mark: k, run: start.run }] : []),
-      ...(files.length ? [null, { label: "Recent", heading: true }] : []),
+      ...(files.length ? [null, { label: "In this project", heading: true }] : []),
       ...files.map((r) => ({ label: baseName(r.path), icon: kindIcon(k, r.path), mark: k, title: r.path, run: () => void open(r.path) })),
       null,
       { label: "Open…", icon: "folder", run: () => void open() },
@@ -2665,6 +2689,8 @@ connect((live) => {
 window.addEventListener("focus", tellFocus);
 onNotice((notice) => {
   handleAgentNotice(notice);
+  // The project's documents changed (opened, closed, an import): "In this project" follows.
+  if (notice.type === "project_changed" || notice.type === "project_documents_changed") void refreshHome();
   // The agent's workbench_window: a command run here, as the palette would, and answered.
   // A document moved back to this (the main) window from one it was popped out into.
   const handedTo = notice.type === "workbench_handoff" ? (notice as unknown as { to: string }).to : null;

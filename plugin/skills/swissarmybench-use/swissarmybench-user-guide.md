@@ -43,7 +43,7 @@ The page has these parts:
 
 - **Tab bar.** Each open grid has its own tab (the Sandbox, Diagram and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
 - **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
-- **Application row.** Above the ribbon, on every tab: **Settings**, **Connections**, **Blades and catalog**, **Tour** (the question mark) and **Zoom**: a one-minute tour of every word Swiss Army Bench uses, each shown on the page, then a quick game. On your first visit a **New here?** bubble sits beside it.
+- **Application row.** Above the ribbon, on every tab: the project's group (its name, Save, Save as…, Close, **Autosave**) and **Zoom**. The **Tour** (a one-minute tour of every word Swiss Army Bench uses, each shown on the page, then a quick game) is on the Start page; on your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
@@ -69,10 +69,26 @@ with their steps, the Sandbox, the relationships and where your windows were. Em
 OneDrive; a double-click opens it (the installer registers .sab files for you; or run
 `swissarmybench open sales.sab`, which starts the app when it is not running).
 
-- **The Start view** (the mark, or Alt+Home, brings it; it shows when nothing is open): **New
+- **The Start view** (the mark, or Alt+Home, brings it; it shows when no project is open): **New
   project**, **Open project…** (the file chooser, .sab files), your recent projects (name, folder,
-  when; a click opens one, a missing one says so, with Remove from the list) and your recent notebooks
-  and scripts (each opens in the Workbench).
+  when; a click opens one, a missing one says so, with Remove from the list), and **Tour** (the
+  one-minute tour of every word; this is the only place it is offered).
+- **New project** asks first where its file goes (a name and a folder) and saves it there, then offers
+  **Autosave**, a switch: on, the project saves itself a moment after each change (the ● clears by
+  itself). The switch stays in the project's group of the Application row, to turn it on or off later.
+  Then you are in the project's **Grids**: with no table yet, **Open a file…**, **Paste**, **Query**,
+  your project's connections (each opens its catalog), **Catalog** and **Add connection**.
+- **Everything is the project's own:** its notebooks, scripts and apps; its connections and blades;
+  its saved Sandbox dashboards. Another project sees none of them. In the Workbench, **In this
+  project…** lists its documents, and **Import…** copies notebooks, scripts or apps in from another
+  project (a .sab or a project folder) or a single file; opening a file from outside the project copies
+  it in too. **Import…** in Connections, and **Import from a project** on the blades page, copy a
+  connection or blade from another project or from **This computer** (the ones you saved before
+  projects held their own).
+- **Passwords stay on each computer.** A connection in the project names where its password comes
+  from (your keyring, an environment variable, a key vault), never the password itself. Opened on a
+  computer where that is not set, the connection says **Needs a password** with **Set the password**,
+  and its tables wait with the same fix, then **Try again**.
 - **The tables come back from where they came from:** a connection (by its name: your passwords stay
   in your keyring), a file (found beside the .sab first, so a folder that moved still works), the
   notebook that makes it, or a "+" tab's query. Their steps come back with them. Nothing runs code on
@@ -84,14 +100,14 @@ OneDrive; a double-click opens it (the installer registers .sab files for you; o
   each one with **Keep its rows in the file** (off unless you tick it). Notebook outputs never go into
   the file; no password, token or secret ever does.
 - **Save** (Ctrl+S, the project's group at the top of the Application row, or the Workbench's top row)
-  writes the .sab again; the first save of a new project asks where. A ● after the project's name
-  means it has unsaved changes. Opening another project asks first only then.
+  writes the .sab again; tables open with no project are saved as a new one (it asks where). A ● after
+  the project's name means it has unsaved changes. Opening another project asks first only then.
 - A project folder (data.ipynb, data.py: see The Workbench: Projects) still opens; the Workbench's
   **…** menu has **Save as .sab…** to make it one file.
 - A .sab saved by a newer version opens read-only and says so.
 - **The agent** does the same: `project_open`, `project_save` (it waits for your Allow only when it
   would keep a table's rows), `project_save_as`, `project_recent`, `project_new`, `project_close`,
-  `project_table_fix`.
+  `project_table_fix`, `project_autosave`, `project_documents`, `project_import`.
 
 ### Tables: open, closed and in Python
 

@@ -1084,14 +1084,14 @@ def test_keyboard_only_reaches_the_toolbar_and_grid(browser: Browser, orders_url
     assert page.evaluate("document.activeElement.getAttribute('role')") == "tab"
     outline = page.evaluate("getComputedStyle(document.activeElement).outlineStyle")
     assert outline != "none"
-    # Further on, the Application row (above the ribbon): the tour (Settings, Connections and the blades
-    # page are the rail's while it shows).
+    # Further on, the Application row (above the ribbon): the zoom (Settings, Connections and the blades
+    # page are the rail's while it shows; the tour is the Start page's).
     for _ in range(30):
         page.keyboard.press("Tab")
-        if page.evaluate("document.activeElement.getAttribute('aria-label')") == "Tour":
+        if page.evaluate("document.activeElement.getAttribute('aria-label')") == "Zoom out":
             break
     else:
-        raise AssertionError("Tab never reached Tour")
+        raise AssertionError("Tab never reached Zoom out")
     assert page.evaluate("document.activeElement.closest('.app-row') !== null")
 
 
@@ -2260,13 +2260,13 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     page = open_grid(browser, orders_url, width=1440)
     app = page.locator(".app-row")
     expect(app.locator(".ribbon-caption strong")).to_have_text("Application")
-    # Settings, Connections and the blades page are the rail's (rail.ts); the row keeps the tour.
-    expect(app.locator(".ribbon-btn:visible")).to_have_text(["Tour"])
+    # Settings, Connections and the blades page are the rail's (rail.ts); the tour is the Start page's.
+    expect(app.locator(".tour-btn")).to_have_count(0)
     table_row = page.locator(".ribbon .ribbon-group").first
     assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
     # On the Sandbox tab the ribbon goes, the Application row stays.
     page.locator(".nav-rail [data-area='sandbox']").click()
     expect(page.locator(".ribbon")).to_be_hidden()
-    expect(app.get_by_role("button", name="Tour", exact=True)).to_be_visible()
+    expect(app.get_by_role("button", name="Zoom out", exact=True)).to_be_visible()
     page.close()

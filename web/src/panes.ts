@@ -50,7 +50,7 @@ export interface Context {
 
 const contexts = new Map<string, Context>();
 // What the page shows: the grids, or an app-level tab (Agent, ERD, the "+" draft) in their place.
-type AppView = "grid" | "agent" | "erd" | "query" | "start";
+type AppView = "grid" | "agent" | "erd" | "query" | "start" | "grids";
 let view: AppView = "grid";
 const agentViewListeners: (() => void)[] = [];
 // The "+" tab's draft: the name of the table its query will build. `serial` tells queryTab.ts a
@@ -77,15 +77,32 @@ export function showStartView(how: Move = "auto"): void {
   setView("start", how);
 }
 
+/** Grids with no table open (startView.ts): the ways to bring data in. */
+export function showGridsLanding(how: Move = "auto"): void {
+  setView("grids", how);
+}
+
+/** The Start view or the Grids landing: a table that arrives takes their place. */
 export function viewingStart(): boolean {
-  return view === "start";
+  return view === "start" || view === "grids";
+}
+
+export function viewingLanding(): boolean {
+  return view === "grids";
+}
+
+// With no table open: the Grids landing while a project is open, else the Start view (startView.ts says).
+let emptyView: () => "start" | "grids" = () => "start";
+
+export function setEmptyView(choose: () => "start" | "grids"): void {
+  emptyView = choose;
 }
 
 // ===== the address (nav.ts): the tab in front is in it, so Back and Forward move between tabs and a
 // reload keeps the one in front. /g/<id> for a table, /workspace?view=sandbox | diagram | query for the
 // others; a dialog's own words (open=connections&at=types) stay after them.
 
-const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "sandbox", erd: "diagram", query: "query", start: "start" };
+const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "sandbox", erd: "diagram", query: "query", start: "start", grids: "grids" };
 let activating = 0;
 let syncing: Move | null = null;
 
@@ -111,6 +128,7 @@ export function placeName(): string {
   if (view === "agent") return "Sandbox";
   if (view === "erd") return "Diagram";
   if (view === "start") return "Start";
+  if (view === "grids") return "Grids";
   if (view === "query") return draft?.name || "New query";
   return activeId && contexts.has(activeId) ? label(activeId) : "";
 }
@@ -140,7 +158,8 @@ export async function showPlace(url: URL): Promise<void> {
   if (named === "sandbox") setView("agent", "replace");
   else if (named === "diagram") setView("erd", "replace");
   else if (named === "query") await newQueryTab("replace");
-  else if (named === "start" || (!order.length && url.pathname === "/workspace")) setView("start", "replace");
+  else if (named === "start") setView("start", "replace");
+  else if (named === "grids" || (!order.length && url.pathname === "/workspace")) setView(order.length ? "grid" : emptyView(), "replace");
   else {
     const id = url.pathname.startsWith("/g/") ? decodeURIComponent(url.pathname.slice(3)) : "";
     setView("grid", "replace");
@@ -560,8 +579,8 @@ export function dropGrid(id: string): void {
     }
   }
   layout();
-  // The last table closed: the Start view, in its place in the history.
-  if (!order.length && view === "grid") return setView("start", "replace");
+  // The last table closed: the Grids landing (the Start view with no project), in its place in the history.
+  if (!order.length && view === "grid") return setView(emptyView(), "replace");
   render();
   syncSoon("replace");
 }

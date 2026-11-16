@@ -1829,3 +1829,43 @@ drags; code of more than one line is pasted, one typed value):
   skipped, none failed, 18 minutes. ruff, ruff format, mypy (496 files), and the page's typecheck and build.
 - **Not checked:** a double-click on a real desktop; a very large .sab (GBs of kept rows); two
   Workbench windows following one project; Edge and Firefox (Chromium here).
+
+## Project scope: everything is the project's own (2026-11-16, branch project-scope)
+
+- **The rules (tests/test_project_scope.py):** free names (analysis 2.ipynb, pages/a 2.py, sales
+  2.stapp.json); the project's documents by kind, data.py and pages/*.py marked made, .sab/ entries never
+  a document; .sab/blades and .sab/dashboards are the only app entries; a password needs a source here
+  (keyring, environment, a vault's mapping, a secret blade; an own-Python variable from an unset
+  environment variable counts as missing).
+- **On the running server (tests/test_project_scope.py, tests/test_sab_projects.py):** New project
+  without a path is refused (400), to a folder that is not there 404 with no project left open, with a
+  path it writes the .sab at once (not dirty, in the recent list, autosave false in project.json); the
+  open tables' connection comes with them. Autosave off: a change stays unsaved; on: project.json says so
+  at once and the change is saved quietly once it settles; off again: kept in the file, the next change
+  waits; a reopened file keeps the switch. Scope: a second project sees none of the first's notebook,
+  connection, secret blade, dashboard; reopening the first brings them back from its file; with none
+  open the blades are this computer's again and the documents list is empty. Import: from another .sab
+  (a document named like one of the project's takes the next free name, the project's own untouched; a
+  connection; the same connection again is skipped and said), from This computer (case-insensitive name),
+  a loose notebook (copied, the original stays), a project folder (by the agent); saved, the imports are
+  in the .sab; from a computer with no project open, 404. No password in the file whatever its source:
+  a keyring password, a vault's value, an environment variable's value are in no entry and not in the raw
+  bytes; on another computer (an empty keyring, the variable unset) the keyring and environment
+  connections say Needs a password with Set the password, the vault one does not (its vault came with the
+  project). A table from a connection without its password waits with "needs_password" and comes back
+  after the password is set and Try again; a .sab without the connection's definition still says Add
+  connection.
+- **In the browser (tests/e2e/test_sab_projects.py, test_tour.py, Chromium):** New project: the file
+  chooser in save mode first, then the Autosave switch, then the Grids landing (`?view=grids`: Open a
+  file…, Paste, Query, Catalog, Add connection; no tour there), the switch on in the project's group and
+  in project.json; a table arriving takes the landing's place, autosave saves it, closing it brings the
+  landing back; the group's switch turns it off in the file. The tour: on the Start page, not in the
+  Application row, the Workbench or the blades page; the whole tour and game from the Start page. Ctrl+S
+  with loose tables and no project offers Keep its rows, then where. In the Workbench, Import… →
+  Another project… → the chooser → analysis.ipynb ticked → it opens as a tab and is in the project's
+  documents. test_workbench_page.py and test_workbench_groups.py follow the menu's In this project….
+- **The tool sweep** caught project_documents sending a hostile kind unquoted in the address: quoted now.
+- **Not checked:** Paste on the landing reading the clipboard (the browser asks; Ctrl+V is tested
+  elsewhere); a connection's catalog reloading on a project switch with catalogs loading themselves (off in
+  tests); a project switched while a Workbench kernel holds the old project's vault values (they stay in
+  that kernel until it restarts); Edge and Firefox.

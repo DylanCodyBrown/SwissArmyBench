@@ -87,6 +87,16 @@ class BladeStore:
         # only when they change.
         self._seen: dict[str, tuple[tuple[int, int], Blade | None, str | None]] = {}
         self.problems: list[dict[str, str]] = []  # files with a blade header that could not be read
+        # With a project open its own connections and blades are saved in its working folder (.sab/blades);
+        # their passwords stay this computer's, shared by name with its other projects: a removal or a
+        # rename there leaves them (keep_secrets).
+        self.keep_secrets = False
+
+    def use(self, folder: Path, keep_secrets: bool) -> None:
+        """Save and read the saved blades in `folder` from now on: the open project's, or this computer's."""
+        with self._lock:
+            self.folder = folder
+            self.keep_secrets = keep_secrets
 
     # ===== files =====
 
@@ -315,6 +325,22 @@ class BladeStore:
 
     # ===== the blades =====
 
+    def saved_files(self, folder: Path | None = None) -> list[tuple[str, bytes]]:
+        """The saved blades' files as they are (file name, JSON): `folder`'s, or the ones in use."""
+        root = folder or self.folder
+        found: list[tuple[str, bytes]] = []
+        for path in sorted(root.glob("*.json")) if root.is_dir() else []:
+            try:
+                found.append((path.name, path.read_bytes()))
+            except OSError:
+                continue
+        return found
+
+    @staticmethod
+    def file_name(name: str) -> str:
+        """The file a saved blade of that name is kept in."""
+        return _file_name(name)
+
     def _saved(self) -> list[Blade]:
         if not self.folder.is_dir():
             return []
@@ -371,7 +397,8 @@ class BladeStore:
                     value = self._secret(previous.name, secret)
                     if value is not None and secret in blade.secrets:
                         self._set_secret(blade.name, secret, value)
-                    self._delete_secret(previous.name, secret)
+                    if not self.keep_secrets:
+                        self._delete_secret(previous.name, secret)
                 if not previous.path:
                     self._path(previous.name).unlink(missing_ok=True)
             return blade
@@ -400,8 +427,9 @@ class BladeStore:
                     f"{blade.name} is a file in your blade folder ({blade.path}). Delete or move the file "
                     "there to remove it."
                 )
-            for secret in blade.secrets:
-                self._delete_secret(blade.name, secret)
+            if not self.keep_secrets:
+                for secret in blade.secrets:
+                    self._delete_secret(blade.name, secret)
             self._path(blade.name).unlink(missing_ok=True)
 
     # ===== secrets, in the operating system's vault =====
