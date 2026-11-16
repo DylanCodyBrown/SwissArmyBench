@@ -6,6 +6,7 @@ A fix is something the Workbench can do with one click:
     import    add `line` at the top of the cell or script ("Add import pandas as pd")
     install   install `package` into this document's Python (`%pip install`, which uses uv without pip)
     define    run the cell that makes `name` (the page finds it among the cells)
+    cell      add a code cell holding `text` below the failing one (a script: copy it)
 The research behind it: docs/ideas.md (the error panel, 2026-11-14). The explanations are our own,
 written for data work; nothing leaves the computer.
 """
@@ -14,6 +15,8 @@ from __future__ import annotations
 
 import re
 from typing import Any
+
+from swissarmybench.domain import dataverse
 
 # Names people use without importing them, and the line that brings each in.
 IMPORTS: dict[str, str] = {
@@ -237,6 +240,15 @@ def explain(entry: dict[str, Any]) -> dict[str, Any]:
     elif kind == "KeyboardInterrupt":
         title = "Interrupted"
         text = "Interrupt stopped the run. Variables made before that point are still there."
+    elif dataverse.tds_off(message):
+        text = (
+            "This Dataverse environment's SQL endpoint is off, so SQL cannot reach it. An admin turns on "
+            '"Enable TDS endpoint" in the Power Platform admin center; reading the table through the Web '
+            "API works now."
+        )
+        line = re.search(r"(\w+ = )?sab\.read\([^)]*\)", message)
+        if line:
+            fixes.append({"kind": "cell", "title": "Read the table instead", "text": line.group(0)})
     elif kind == "UsageError" or ("Error" in kind and _sql_text(message)):
         text = "The SQL did not run: the database's own message is below."
     else:

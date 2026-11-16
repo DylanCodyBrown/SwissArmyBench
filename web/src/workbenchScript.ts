@@ -834,6 +834,12 @@ export function scriptView(
           else editor.focus(); // back in the code, ready to run it again
           return;
         }
+        if (fix.kind === "cell" && fix.text) {
+          // A line to put in the script (reading a Dataverse table instead of SQL): copied.
+          const text = fix.text;
+          void navigator.clipboard.writeText(text).then(() => console.note(`Copied: ${text}`), () => console.note(text));
+          return;
+        }
         if (!hooks.fix?.(fix)) console.note(fix.kind === "define" ? `Nothing defines ${fix.name}` : "Fix not available here");
       },
       goTo: (frame) => {

@@ -69,6 +69,8 @@ const ICONS: Record<string, string> = {
   steps: '<path d="M4 6h16M4 12h10M4 18h6"/>',
   case: '<path d="M3 18l4-12 4 12M4.5 14h5M14 13.5a3 3 0 1 0 6 0v4.5M20 13.5a3 3 0 0 0-6 0"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  // A Dataverse environment: a table of rows inside a hexagon (our own drawing).
+  dataverse: '<path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M7.5 9.5h9M7.5 13h9M7.5 16.5h9M12 9.5v7"/>',
   sql: '<ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
   profile: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   code: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM10 11l-2 2 2 2M14 11l2 2-2 2"/>',

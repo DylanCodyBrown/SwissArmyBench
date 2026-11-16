@@ -45,6 +45,8 @@ interface TableRow {
   table: string;
   kind: "table" | "view";
   columns: number;
+  /** What the source calls it for people (a Dataverse table's display name). */
+  title?: string;
 }
 
 export interface ColumnRow {
@@ -98,6 +100,8 @@ export interface TableView {
   table: string;
   kind: "table" | "view";
   where: string; // "sales in Warehouse"
+  /** What the source calls it for people, when that is more than its name (a Dataverse table's). */
+  title?: string;
   name: string; // quoted for the source's dialect
   select: string; // a first SELECT, quoted for the dialect
   dialect: string;
@@ -245,7 +249,7 @@ export function tableDetails(view: TableView): HTMLElement[] {
     ),
   );
   return [
-    h("h2", {}, view.table, view.kind === "view" ? h("span", { class: "hint" }, "  view") : null),
+    h("h2", {}, view.table, view.kind === "view" ? h("span", { class: "hint" }, "  view") : null, view.title ? h("span", { class: "hint" }, `  ${view.title}`) : null),
     h("p", { class: "hint" }, `${view.where} · ${counted}`),
     h(
       "div",
@@ -283,7 +287,7 @@ export function mountRail(host: RailHost): Rail {
 
   function quoteName(name: string, dialect: string): string {
     if (dialect === "dax") return `'${name.replaceAll("'", "''")}'`; // a table: 'Order Lines'
-    if (dialect === "sqlserver") return `[${name.replaceAll("]", "]]")}]`;
+    if (dialect === "sqlserver" || dialect === "dataverse") return `[${name.replaceAll("]", "]]")}]`;
     if (dialect === "mysql") return `\`${name.replaceAll("`", "``")}\``;
     return `"${name.replaceAll('"', '""')}"`;
   }
@@ -291,6 +295,7 @@ export function mountRail(host: RailHost): Rail {
   function qualified(row: { database: string; schema: string; table: string }): string {
     const dialect = current?.dialect ?? "other";
     if (dialect === "dax") return quoteName(row.table, dialect); // the schema is the dataset the DAX is sent to
+    if (dialect === "dataverse") return quoteName(row.table, dialect); // its one schema needs no naming
     const parts = [current && current.databases > 1 ? row.database : "", row.schema, row.table].filter(Boolean);
     return parts.map((p) => quoteName(p, dialect)).join(".");
   }
@@ -614,6 +619,8 @@ export function mountRail(host: RailHost): Rail {
     note?: string;
     table?: string;
     tableKind?: "table" | "view";
+    /** A table's name for people, when it says more than its name. */
+    title?: string;
     column?: string;
     type?: string;
     offset?: number;
@@ -631,6 +638,7 @@ export function mountRail(host: RailHost): Rail {
       h("span", { class: "twisty", "aria-hidden": "true" }, expandable ? "▸" : ""),
       h("span", { class: "node-label" }, label),
       data.kind === "table" && data.tableKind === "view" ? h("span", { class: "node-kind" }, "view") : null,
+      data.kind === "table" && data.title ? h("span", { class: "node-kind" }, data.title) : null,
       // A dataset that could not be read: marked on itself only, the reason on hover and on its page.
       data.note ? h("span", { class: "node-error", role: "img", "aria-label": `Error: ${data.note}`, title: data.note }, "!") : null,
       meta ? h("span", { class: "node-meta" }, meta) : null,
@@ -686,6 +694,12 @@ export function mountRail(host: RailHost): Rail {
     return type.startsWith("measure") ? name : quoteName(table, "dax") + name;
   }
 
+  /** A table's name for people, when it says more than its own name does (Account for account: no). */
+  function titled(t: TableRow): string | undefined {
+    const bare = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return t.title && bare(t.title) !== bare(t.table) ? t.title : undefined;
+  }
+
   function schemaLabel(row: { database: string; schema: string }): string {
     // A Power BI workspace's schemas are its datasets; a connection saved for one dataset has one node, its model.
     const schema = row.schema || (current?.dialect === "dax" ? "Model" : "(no schema)");
@@ -737,7 +751,7 @@ export function mountRail(host: RailHost): Rail {
       );
       for (const t of page.tables) {
         list.append(
-          treeItem({ kind: "table", database: t.database, schema: data.schema, table: t.table, tableKind: t.kind }, 1, t.table, formatCount(t.columns), true),
+          treeItem({ kind: "table", database: t.database, schema: data.schema, table: t.table, tableKind: t.kind, title: titled(t) }, 1, t.table, formatCount(t.columns), true),
         );
       }
       const shown = offset + page.tables.length;
@@ -908,13 +922,16 @@ export function mountRail(host: RailHost): Rail {
     }
     // A connection from the user's own Python: no SELECT, the line that reads the table in a notebook.
     const text = (value: string): string => JSON.stringify(value);
-    const own = blades.find((b) => b.name.toLowerCase() === current!.name.toLowerCase())?.connection === "python";
-    const line = `sab.read(${text(current.name)}, ${text(data.table)}${data.schema ? `, schema=${text(data.schema)}` : ""})`;
+    // A Dataverse environment's is read through its Web API too, by the same line (its one schema unnamed).
+    const dataverse = current.dialect === "dataverse";
+    const own = dataverse || blades.find((b) => b.name.toLowerCase() === current!.name.toLowerCase())?.connection === "python";
+    const line = `sab.read(${text(current.name)}, ${text(data.table)}${data.schema && !dataverse ? `, schema=${text(data.schema)}` : ""})`;
     host.showTable({
       catalog: current.name,
       table: data.table,
       kind: data.tableKind ?? "table",
       where: `${schemaLabel(data)} in ${current.name}`,
+      title: data.title,
       name: qualified({ database: data.database, schema: data.schema, table: data.table }),
       select: own ? line : answer.select,
       dialect: own ? "python" : answer.dialect,

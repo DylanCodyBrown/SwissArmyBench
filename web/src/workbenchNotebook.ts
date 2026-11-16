@@ -877,6 +877,13 @@ export function notebookView(
           toast(`Added to cell ${indexOf(first) + 1}`);
           return;
         }
+        if (fix.kind === "cell" && fix.text) {
+          // A cell that does what the failing one could not (reading a Dataverse table instead of SQL).
+          const made = insertAt(indexOf(running) + 1, "code", fix.text);
+          select(made);
+          made.editor?.focus();
+          return;
+        }
         if (fix.kind === "define" && fix.name) {
           const maker = definingCell(fix.name, running);
           if (maker) {

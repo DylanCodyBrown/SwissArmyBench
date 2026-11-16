@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import python_connections, snippets
+from swissarmybench.domain import dataverse, python_connections, snippets
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
     Blade,
@@ -277,7 +277,13 @@ class BladeService:
         return {"removed": name}
 
     def set_secrets(self, name: str, body: Any) -> dict[str, Any]:
-        """Save or forget its secrets (in the operating system's vault)."""
+        """Save or forget its secrets (in the operating system's vault). A Dataverse connection's
+        client secret is a key vault's only: never saved here."""
+        typed = body if isinstance(body, dict) else {}
+        if self._blades.get(name).template == dataverse.TEMPLATE and any(v for v in typed.values() if v):
+            raise BladeError(
+                f"{name}'s secret comes from a key vault (or an environment variable), never saved here."
+            )
         return {"secrets": self._blades.set_secrets(name, body)}
 
     # ===== running =====
@@ -460,6 +466,9 @@ class BladeService:
                 "set": python_connections.plain_values(blade.variables),
                 "keyring": python_connections.keyring_names(blade.variables),
             }
+        elif dataverse.is_dataverse(blade.dialect):
+            # A Dataverse environment reads a table through its Web API, by its own read (sab.read).
+            python = {"tables": None, "read": dataverse.READ, "set": {}, "keyring": []}
         mapped = python_connections.vault_jobs(blade.variables, self._blades.get, self._blades.saved_secrets)
         return {
             "python": python,

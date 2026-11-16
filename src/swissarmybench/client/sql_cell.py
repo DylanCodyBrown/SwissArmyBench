@@ -34,6 +34,9 @@ what the connection's code makes:
     your own Python         a connection made of it (an Add API one among them): DuckDB, in this
                             Python, over the tables its List the tables names, each read by its Read a
                             table the first time a cell names it
+    a Dataverse environment its read-only SQL endpoint (T-SQL, port 5558, through pyodbc); when an
+                            environment has it off, the error says so and gives the sab.read line
+                            that reads the table through the Web API instead
     a Power BI workspace    one of its datasets, named after the connection and a slash
                             (`Finance/Sales model`; a workspace with one dataset needs no name), in a
                             `%%dax` cell, which holds DAX, not SQL: `EVALUATE TOPN(10, 'Sales')`
@@ -59,6 +62,7 @@ from typing import Any
 
 from swissarmybench.client import blades_client, standalone
 from swissarmybench.client.push_client import ServerNotRunningError
+from swissarmybench.domain import dataverse
 from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
@@ -392,6 +396,9 @@ def open_connection(name: str, fresh: bool = True) -> Connection:
         isinstance(value, dict) and value and all(_is_table(v) for v in value.values())
     ):
         found = _open_tables(label, value, str(record.get("variable") or ""))
+    elif dataverse.is_dataverse(record.get("dialect")) and _runs_sql(value):
+        made = "a Dataverse environment: SQL on its read-only SQL endpoint (T-SQL, SELECT only)"
+        found = Connection(label, "database", value, made, language="dataverse")
     elif _runs_sql(value):
         made = f"{type(value).__module__.split('.')[0]} connection"
         found = Connection(label, "database", value, made + _language(record.get("dialect")))
@@ -517,7 +524,15 @@ def run(found: Connection, sql: str) -> Any:
     if not text:
         raise SqlCellError(f"The cell has no {'DAX' if found.language == 'dax' else 'SQL'} to run.")
     if found.kind == "database":
-        return _run_database(found.target, text.rstrip(";") if text.count(";") == 1 else text)
+        try:
+            return _run_database(found.target, text.rstrip(";") if text.count(";") == 1 else text)
+        except Exception as error:
+            if found.language == "dataverse" and dataverse.tds_off(str(error)):
+                # Its SQL endpoint is off: the line that reads the table through the Web API instead.
+                raise SqlCellError(
+                    f"{error} Read it instead: {dataverse.read_instead(found.name, text)}"
+                ) from None
+            raise
     _refresh(found)
     _load_named(found, text)
     return _duck_result(found.target.sql(text))
@@ -616,6 +631,8 @@ def listing() -> list[tuple[str, str]]:
     for c in listed:
         if c.get("connection") == "database" and c.get("dialect") == "dax":
             what = f"a Power BI workspace: a DAX cell names a dataset, %%dax {c['name']}/<dataset>"
+        elif c.get("connection") == "database" and dataverse.is_dataverse(c.get("dialect")):
+            what = f"a Dataverse environment (T-SQL on its SQL endpoint; sab.read({c['name']!r}, table))"
         elif c.get("connection") == "database":
             what = "database" + _language(c.get("dialect"))
         else:
