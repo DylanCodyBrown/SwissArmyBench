@@ -69,6 +69,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone).
+  **Projects as one .sab file (the owner, 2026-11-16):** a .sab is written only on Save (the agent's waits
+  for the user's Allow when it keeps a table's rows); an open one is unpacked into a working folder in the
+  system's temporary folder, removed when it closes or the server stops; `recent_projects.json` holds the
+  recent projects' paths and times only. Never a secret, token or password in a .sab: connections by name.
 
 ## Layout
 
@@ -165,6 +169,11 @@ src/swissarmybench/
     projects.py          a project: data.py as the export of data.ipynb's code cells (imports in a plain
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
+    sab_files.py         a project as one .sab file (a zip): project.json (each table's source and grids'
+                         steps, the tabs, the windows' layout; unknown fields kept, a newer format read-only),
+                         sources from origins (a file relative to the .sab), zip entries checked (no `..`,
+                         no absolute path, no link, sizes), which files go in (code and text, never data),
+                         notebooks without outputs, a table's fix when it cannot come back
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name); where a SQL error points
@@ -244,6 +253,9 @@ src/swissarmybench/
     controllers.py       a canvas page's controllers: the check, Test this page (the page written so each
                          block records its error, AppTest in the app's Python), a thin cell's move plan
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
+    sab_projects.py      a project as one .sab: new, open (each table read again with its steps; the Sandbox,
+                         model, layout), save (rows only on a tick; the agent's with them on the user's
+                         Allow), close, the recent list, a table's fix; unsaved changes worked out, not tracked
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
@@ -268,6 +280,8 @@ src/swissarmybench/
     updates.py           the release list's one GET, update.json, the helper's and the tray's notes
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
+    sab_files.py         a .sab read (every entry checked first, counted as read) and unpacked into a working
+                         folder, written atomically (a temporary file, then a replace); recent_projects.json
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
@@ -286,7 +300,8 @@ src/swissarmybench/
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
-                         (start [--background], stop, status, open, tray, autostart on|off|status)
+                         (start [--background], stop, status, open [file.sab], tray, autostart on|off|status)
+    sab-file.ico, .svg   the .sab file's icon (the installers register .sab: `swissarmybench open <file>`)
     tray.py              the tray icon (pystray, Pillow): its menu (domain/updates.py's model), the left
                          click, the server started and watched (restarted 3 times in 5 minutes at most)
     autostart.py         start at sign-in: a Startup shortcut (Windows), a LaunchAgent (macOS), an XDG
@@ -403,6 +418,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Test this page, a default said quietly, a thin-cell hint and Move to data.ipynb);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>);
+                         projectFile.ts a project as one .sab, shared by the home page and the Workbench
+                         (open, new, save with Keep its rows in the file, close, a table's fix, the ● mark);
+                         startView.ts the home page's Start view (/workspace?view=start: New project, Open
+                         project…, recent projects, recent notebooks and scripts; Home brings it), the
+                         project's group in the Application row and the strip of tables to fix;
                          updates.ts the status bars' "Update available" (Update to X, What's new) and
                          Settings' Check for updates;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it

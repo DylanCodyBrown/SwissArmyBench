@@ -93,14 +93,15 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     expect(page).to_have_title("Diagram")
     assert "token" not in page.url
 
-    # The mark goes home: the grids, with the table in front; and Alt+Home from the Sandbox.
+    # The mark goes home: the Start view (projects, 2026-11-16); and Alt+Home from the Sandbox.
     mark.click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
-    expect(page).to_have_url(re.compile(r"/g/"))
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+    expect(page).to_have_url(re.compile(r"/workspace\?view=start$"))
+    expect(page).to_have_title("Start")
     page.locator(".tab-agent").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     page.keyboard.press("Alt+Home")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
     # A reload on a table keeps that table in front.
     page.locator(f".tab-item[data-grid='{grid_of(second)}']").click()
     expect(page).to_have_url(re.compile(grid_of(second)))
@@ -305,7 +306,7 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
         workbench.keyboard.press("Alt+Home")
     home = again.value
     expect(home.locator(".tabbar > a.app-mark")).to_be_visible(timeout=20000)
-    assert home.url.endswith("/workspace") or "/g/" in home.url
+    assert home.url.endswith("/workspace") or "view=start" in home.url or "/g/" in home.url
     workbench.context.close()
 
 
@@ -324,5 +325,5 @@ def test_the_agent_moves_the_home_window(
     call(server, "POST", "/navigate", {"to": f"grid:{grid_of(two_tables[1])}"}, agent=True)
     expect(page.locator(f".tab-item.active[data-grid='{grid_of(two_tables[1])}']")).to_be_visible()
     call(server, "POST", "/navigate", {"to": "home"}, agent=True)
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
     page.context.close()

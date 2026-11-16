@@ -44,7 +44,8 @@ import { tourButton } from "./tour";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
 import { openCompareDialog } from "./compareDialog";
-import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showGridView, showPlace } from "./panes";
+import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, showStartView, viewingStart } from "./panes";
+import { mountStart } from "./startView";
 import { mountRibbon, zoomControl } from "./ribbon";
 import { openColumnProfile } from "./profileView";
 import { mountFileDrop } from "./openFile";
@@ -91,8 +92,9 @@ async function pasteAsDataset(text: string): Promise<void> {
 /** Route a live notice to the grid(s) it is about, active or not. */
 function onLiveNotice(notice: Notice): void {
   if (notice.type === "grid_shown" && notice.grid && !popout && !keysWindow) {
-    // A push or an agent opened a grid: it arrives as a tab and comes to the front.
+    // A push or an agent opened a grid: it arrives as a tab and comes to the front (over the Start view).
     addGrid(notice.grid, notice.dataset ?? notice.grid);
+    if (viewingStart()) showGridView("replace");
     void activateGrid(notice.grid);
   }
   if (notice.type === "grid_closed" && notice.grid) dropGrid(notice.grid);
@@ -189,12 +191,12 @@ async function start(): Promise<void> {
   }
   // The address it was opened with (a reload, a bookmark): shown once the tables are back.
   const opened = new URL(location.href);
-  // The home page: its tabs and dialogs in the address; Home (the mark, Alt+Home) is the grids.
+  // The home page: its tabs and dialogs in the address; Home (the mark, Alt+Home) is the Start view.
   mountNav("home", {
     show: (url) => void showPlace(url),
     home: () => {
       closeDialogs();
-      showGridView("push");
+      showStartView("push");
     },
   });
   $(".tabbar").prepend(appMark());
@@ -229,6 +231,30 @@ async function start(): Promise<void> {
       h("div", { class: "ribbon-tools" }, settingsButton(), connectionsButton(), bladesButton(), tourButton(), zoomControl()),
     ),
   );
+  // A project as one .sab file (startView.ts): the Start view, the project's group first in the Application
+  // row, and the strip of tables that need a fix under the tabs.
+  const projectGroup = h("div", { class: "ribbon-group project-group", role: "toolbar", "aria-label": "Project", hidden: true });
+  $(".app-row").prepend(projectGroup);
+  const fixes = h("div", { class: "project-fixes", "aria-label": "Tables to fix", hidden: true });
+  $(".tabbar").after(fixes);
+  mountStart($("#start-view"), projectGroup, fixes, {
+    layout: () => ({
+      order: gridList().map((g) => contextOf(g.id)?.dataset ?? g.label),
+      front: activeContext()?.dataset ?? null,
+      view: document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid",
+    }),
+    restore: (saved) => {
+      if (saved.view === "agent") showAgentView("replace");
+      else if (saved.view === "erd") showErdView("replace");
+      else {
+        const front = gridList().find((g) => contextOf(g.id)?.dataset === saved.front);
+        if (front) {
+          showGridView("replace");
+          void activateGrid(front.id, "replace");
+        }
+      }
+    },
+  });
   mountRibbon($(".ribbon"), openColumnProfile);
   mountPanes($(".tabs-row"), $(".panes"), () => refreshPanel());
   // A new split opens the key picker with the Key Finder already run; Close keeps it key-less.

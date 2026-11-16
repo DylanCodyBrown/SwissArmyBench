@@ -356,3 +356,31 @@ def test_a_folder_project_opens_and_saves_as_one_file(tmp_path: Path) -> None:
         assert folder.is_dir()  # a folder project's folder is the user's own: it stays
         listed = ok(client.post("/project/open", json={"path": str(folder)}, headers=AUTH))["project"]
         assert listed["folder"] == str(folder) and listed["path"] is None
+
+
+def test_swissarmybench_open_a_sab_asks_the_running_app_and_shows_its_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import webbrowser
+
+    from swissarmybench.server import __main__ as command
+
+    target = tmp_path / "sales.sab"
+    target.write_bytes(b"made up")
+    sent: list[tuple[str, dict[str, Any]]] = []
+    opened: list[str] = []
+
+    def post(info: dict[str, Any], route: str, body: dict[str, Any]) -> dict[str, Any]:
+        sent.append((route, body))
+        return {"page": False}
+
+    monkeypatch.setattr(command, "running_server", lambda path: {"port": 1, "token": "t"})
+    monkeypatch.setattr(command, "post_json", post)
+    monkeypatch.setattr(webbrowser, "open", opened.append)
+    assert command.open_project(str(target), tmp_path / "server.json") == 0
+    assert sent == [("/project/open", {"path": str(target.resolve()), "ask": True})]
+    assert opened and opened[0].startswith("http://127.0.0.1:1/workspace#token=")
+    # A home window open already: it shows the project itself.
+    monkeypatch.setattr(command, "post_json", lambda info, route, body: {"page": True})
+    assert command.open_project(str(target), tmp_path / "server.json") == 0 and len(opened) == 1
+    assert command.open_project(str(tmp_path / "gone.sab"), tmp_path / "server.json") == 1

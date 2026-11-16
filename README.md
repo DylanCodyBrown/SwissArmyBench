@@ -291,6 +291,24 @@ bar and keeps a cookie of its own (HttpOnly, SameSite=Strict, good until the ser
 or a bookmark of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to open the app
 from its tray or with `swissarmybench open`.
 
+## Projects: one .sab file
+
+A project is one file, `name.sab` (a zip inside): its notebooks, scripts and app canvases, the open tables
+with where each came from and its steps, the Sandbox, the relationships and the windows' layout. Open
+it on any computer: each table is read again from its source (a connection by name, never a password;
+a file beside the .sab first), and one that cannot come back offers its fix (Add connection, Find
+orders.csv). A pasted or pushed table's rows go in only when you tick **Keep its rows in the file**.
+The home page's **Start** view lists your recent projects (`recent_projects.json` in the state folder:
+paths and times only) and has **New project** and **Open project…**.
+
+```powershell
+swissarmybench open "C:\Users\me\Documents\sales.sab"   # starts the app when it is not running
+```
+
+The installers register `.sab` for you: on Windows for your user only (HKCU\Software\Classes, its
+icon, `swissarmybench open "%1"`), on a Linux desktop as an XDG MIME type and desktop entry. On macOS,
+open one with `swissarmybench open`.
+
 ## The Workbench
 
 Notebooks and Python scripts, in a window of their own: the grid page's **Workbench** tab opens it (or

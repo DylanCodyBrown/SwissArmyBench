@@ -8813,3 +8813,215 @@ body.panel-off-grid-status .statusbar {
     color: CanvasText;
   }
 }
+
+/* ===== START (startView.ts): new and recent projects, the home page's Home ===== */
+.start-view {
+  display: none;
+  grid-area: start;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.workspace[data-view="start"] {
+  grid-template-columns: 0 0 0 0 minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  grid-template-areas: "steps center splitter panel start" !important;
+}
+
+.workspace[data-view="start"] .steps-panel,
+.workspace[data-view="start"] .center,
+.workspace[data-view="start"] .splitter,
+.workspace[data-view="start"] .ai-panel,
+.workspace[data-view="start"] .erd-view,
+.workspace[data-view="start"] .query-view {
+  display: none !important;
+}
+
+.workspace[data-view="start"] .start-view {
+  display: block;
+}
+
+.start-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 760px;
+  padding: 36px 48px 48px;
+}
+
+.start-section h2 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.95em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn.start-action {
+  min-width: 170px;
+  justify-content: flex-start;
+  padding: 10px 14px;
+  border-color: var(--border);
+  background: var(--surface);
+  font-size: 1.02em;
+}
+
+.btn.start-action:hover {
+  border-color: var(--border-strong);
+  background: var(--raised);
+}
+
+.btn.start-action .icon-svg {
+  color: var(--accent);
+}
+
+.start-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.start-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+}
+
+.start-item:hover {
+  background: var(--row-hover);
+}
+
+.start-open {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 20px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.start-open:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+}
+
+.start-open .icon-svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+
+.start-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.start-folder {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.92em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.start-when {
+  flex: none;
+  padding-right: 10px;
+  color: var(--muted);
+  font-size: 0.88em;
+}
+
+.start-item.missing .start-open {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.start-missing {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.85em;
+}
+
+/* The Application row's project group: hidden with no project open. */
+.ribbon-group[hidden],
+.project-fixes[hidden] {
+  display: none;
+}
+
+.project-group .project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tables that did not come back when the project opened: each with its fix. */
+.project-fixes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warn-soft);
+}
+
+.project-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-fix > .icon-svg {
+  width: 16px;
+  height: 16px;
+  color: var(--warn);
+}
+
+.project-fix-message {
+  color: var(--fg);
+}
+
+/* Save as: each table with no source, and its tick. */
+.keep-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 340px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keep-rows li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.keep-rows label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

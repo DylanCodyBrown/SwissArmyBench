@@ -326,7 +326,12 @@ values** use it (`/blades/inspect` returns them, `/blades/fill` writes, import t
 
 ## Phase 3: save and open a workspace
 
-A saved workspace is a folder (`<name>.sagw/`):
+**Superseded (the owner, 2026-11-16): built as the .sab project file** (docs/ideas.md, "Projects as one
+.sab file"). The owner's choices replace the proposal below: one file holds it all (a zip, like .docx or
+.pbix, unpacked to a working folder while open), and rows only on a tick (a table keeps its source and
+steps and is read again on open; a pasted or pushed table's rows go in only when ticked).
+
+The earlier proposal, kept for the record. A saved workspace is a folder (`<name>.sagw/`):
 
 - `notebook.py`: the workspace's marimo notebook, which is the Python and SQL that built it;
 - `data/<table>.parquet`: a snapshot of each table;

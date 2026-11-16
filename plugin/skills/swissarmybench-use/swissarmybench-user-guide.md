@@ -52,11 +52,42 @@ The page has these parts:
 
 ### Getting around
 
-- **The mark** (the red square at the top left of every page and window) takes you home: the grids. From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
+- **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the forms inside Connections, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
 - **Reload** (F5 on the grid page) keeps what you were looking at, the Sandbox, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**, **Catalog › Warehouse › sales › orders**.
 - **The browser tab** names the place: the table's name, "Sandbox", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
+
+### Projects (.sab)
+
+A project is one file, **name.sab**: its notebooks, scripts and Streamlit canvases, the open tables
+with their steps, the Sandbox, the relationships and where your windows were. Email it, put it on
+OneDrive; a double-click opens it (the installer registers .sab files for you; or run
+`swissarmybench open sales.sab`, which starts the app when it is not running).
+
+- **The Start view** (the mark, or Alt+Home, brings it; it shows when nothing is open): **New
+  project**, **Open project…** (the file chooser, .sab files), your recent projects (name, folder,
+  when; a click opens one, a missing one says so, with Remove from the list) and your recent notebooks
+  and scripts (each opens in the Workbench).
+- **The tables come back from where they came from:** a connection (by its name: your passwords stay
+  in your keyring), a file (found beside the .sab first, so a folder that moved still works), the
+  notebook that makes it, or a "+" tab's query. Their steps come back with them. Nothing runs code on
+  open: a table a notebook makes comes back when you run that notebook.
+- **A table that cannot come back** (a connection this computer does not have, a file that moved)
+  shows in a strip under the tabs with one click that fixes it: **Add connection Warehouse**, **Find
+  orders.csv**, **Open data.ipynb**, then **Try again**; or **Remove**.
+- **Rows only on a tick.** A pasted or pushed table has no source to read again: **Save as…** lists
+  each one with **Keep its rows in the file** (off unless you tick it). Notebook outputs never go into
+  the file; no password, token or secret ever does.
+- **Save** (Ctrl+S, the project's group at the top of the Application row, or the Workbench's top row)
+  writes the .sab again; the first save of a new project asks where. A ● after the project's name
+  means it has unsaved changes. Opening another project asks first only then.
+- A project folder (data.ipynb, data.py: see The Workbench: Projects) still opens; the Workbench's
+  **…** menu has **Save as .sab…** to make it one file.
+- A .sab saved by a newer version opens read-only and says so.
+- **The agent** does the same: `project_open`, `project_save` (it waits for your Allow only when it
+  would keep a table's rows), `project_save_as`, `project_recent`, `project_new`, `project_close`,
+  `project_table_fix`.
 
 ### Tables: open, closed and in Python
 

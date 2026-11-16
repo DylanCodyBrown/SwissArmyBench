@@ -2767,3 +2767,80 @@ back to the home page or go back anywhere. No back buttons."
 - **Not built:** Back between the Workbench's documents (above); the Key Finder window's results and
   Compare's key picker stay one screen each (Compare's setup is one click away again, the Compare row's
   Keys…); Forward onto a plain dialog's entry does nothing visible (its entry is turned into the page's).
+
+## Projects as one .sab file (the owner, 2026-11-16; built, branch sab-projects)
+
+The owner: "We should work on a proprietary format for projects where they can be saved in a .sab file
+and this file can be opened from any session to get back to project you are working on. The home page
+should show recent projects and have a open option for projects."
+
+The owner's two choices, asked and answered:
+1. **"One file holds it all":** a .sab is a single file (a zip inside, like .docx or .pbix) holding the
+   notebooks, scripts and app canvases, the open grids with their steps, the Sandbox, the relationships
+   and the window layout. While open it is unpacked to a working folder; Save writes back into the .sab.
+2. **"Rows only on a tick":** each table keeps where it came from and its steps, and is read again on
+   open. A pasted or pushed table has no source, so Save as offers "Keep its rows in the file" per table,
+   off by default.
+
+### Built
+- **The format** (domain/sab_files.py): `project.json` (format 1, the app version, the name, the tables
+  with their sources and every grid's steps, the home page's tabs, the Workbench's documents and groups,
+  the diagram), the project's own files at their paths, `sandbox/sandbox.json`, `model.tang`, and
+  `data/<table>.parquet` only for ticked tables. A source is a connection with its database, schema and
+  table (by name, never a password), a file (relative to the .sab when it sits beside it, its old full
+  path kept as a second place to look), the project notebook whose kernel sent it, a "+" tab's query, or
+  pasted/pushed with `rows`. Fields this version does not know are kept when the file is saved again
+  (the manifest's, a table's, a source's, a grid's). A newer format opens read-only, in plain words.
+- **Safety** (adapters/sab_files.py): every entry is checked before anything is written (no `..`, no
+  absolute path or drive, no link, no name twice, counts and sizes capped in settings.py), and each one is
+  counted again as it is read, so a zip that lies about its sizes stops. The save writes a temporary file
+  beside the target, then one replace.
+- **Open** (services/sab_projects.py): the project's files into a working folder of its own in the
+  system's temporary folder (removed on close and when the server stops); each table read again (queries
+  last, they read the others), its steps applied as where it starts (no undo entry); the Sandbox, the
+  model and the layout as they were. Nothing runs code on open: a notebook-made table says "Open
+  data.ipynb", and its steps wait for it (they apply when it arrives, by any way). A table that cannot
+  come back gets a state and one click: Add connection Warehouse (then Try again), Find orders.csv, Open
+  data.ipynb, Remove. Never a dead end.
+- **Unsaved changes are worked out, not tracked:** what a save would write (tables, sources, steps, the
+  Sandbox, the model, the working folder's files) against what the last save or open wrote, plus the
+  Workbench's unsaved documents (it reports them). Opening or starting another project asks only then;
+  loose tables (no project open) count as unsaved work. New project takes the open loose tables into its
+  data.ipynb (their pasted rows never written out in a cell).
+- **Save:** the Workbench's project documents are saved first (the server asks the window,
+  `project.saveDocuments`); notebooks go in without their outputs and a pasted table's rows written in a
+  cell are taken out (rows go in only as ticked Parquet). The Sandbox goes in without what its charts
+  and query tables showed (they redraw on their tables); a table card sent with its own rows keeps them,
+  and counts as rows for the agent's Allow. The first save of a project made in the app asks where.
+- **The home page:** a Start view (`/workspace?view=start`, in the address, so Back and a reload keep it):
+  New project, Open project… (the file chooser, .sab), the recent projects (name, folder, when; a missing
+  one is marked, with Remove from the list), the recent notebooks and scripts beneath (each opens in the
+  Workbench window). It shows when nothing is open and when the last table closes; Home (the mark,
+  Alt+Home, the agent's nav home) brings it back. The project's group sits first in the Application row
+  (its name, ● with unsaved changes, Save, Save as…, Close); Ctrl+S saves; tables to fix sit in a strip
+  under the tabs, only while there are some.
+- **The Workbench:** the project's name and ● in its top row (its menu: Save project as…, Close project,
+  Open project file…); Save covers the project when the document in front is one of its own; a folder
+  project's **Save as .sab…**; it opens a project's documents and groups as saved, and closes them when
+  the project closes. Opening or starting a project from the Start view opens the Workbench window.
+- **Opening from anywhere:** `swissarmybench open sales.sab` starts the app in the background when it is
+  not running, opens the project (the page asks first when unsaved work would be lost) and shows the
+  home window when none is open. The installers register .sab: Windows for the current user only
+  (HKCU\Software\Classes, `SwissArmyBench.Project`, the package's `server/sab-file.ico`,
+  `"swissarmybench.exe" open "%1"`), Linux desktops as an XDG MIME type, icon and desktop entry. macOS:
+  not registered (it needs an app bundle); `swissarmybench open` works there.
+- **The golden rule:** `project_open`, `project_save` (keep_rows), `project_save_as` (a folder project
+  too), `project_recent` (and remove), `project_new` (no folder: a .sab project; a folder: as before),
+  `project_close`, `project_table_fix`; the guide's new topic `projects`. The agent's save asks the
+  user's Allow only when it keeps rows.
+
+### Decisions
+- One project open at a time; opening one closes the open tables, Sandbox and model (after asking when
+  they hold unsaved work).
+- The Sandbox's saved dashboards stay the user's own (in the state folder); the .sab holds the Sandbox
+  as it is.
+- The project's name is its file's name (Power BI's way); Save as renames it.
+- Data files beside a project (CSV, Excel, Parquet, JSON) are never packed: their tables keep the path.
+- The diagram is drawn from the model (no positions to keep yet): `diagram` is an empty object for now.
+- A double-click shows a console window for a moment on Windows (uv's launcher is a console program).
+- `swissarmybench uninstall` does not exist, so nothing removes the association yet.

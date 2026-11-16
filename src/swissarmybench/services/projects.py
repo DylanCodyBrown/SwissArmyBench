@@ -179,7 +179,8 @@ class Projects:
         if listed["data"] is None:
             raise NotFound(f"{listed['folder']} is not a project: it has no data.ipynb.")
         self.ws.audit.write(who, "open_project", listed["folder"])
-        return self._opened(folder)
+        # A .sab's working copy is listed, not remembered: the .sab is the recent one ("remember": false).
+        return self._opened(folder, remember=not (isinstance(body, dict) and body.get("remember") is False))
 
     async def export_data(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Export data.py: written again from the project's data.ipynb (the open one, saved or not)."""

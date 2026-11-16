@@ -50,7 +50,7 @@ export interface Context {
 
 const contexts = new Map<string, Context>();
 // What the page shows: the grids, or an app-level tab (Agent, ERD, the "+" draft) in their place.
-type AppView = "grid" | "agent" | "erd" | "query";
+type AppView = "grid" | "agent" | "erd" | "query" | "start";
 let view: AppView = "grid";
 const agentViewListeners: (() => void)[] = [];
 // The "+" tab's draft: the name of the table its query will build. `serial` tells queryTab.ts a
@@ -72,11 +72,20 @@ export function showGridView(how: Move = "auto"): void {
   setView("grid", how);
 }
 
+/** The Start view (startView.ts): new and recent projects, in place of the grids. Home brings it. */
+export function showStartView(how: Move = "auto"): void {
+  setView("start", how);
+}
+
+export function viewingStart(): boolean {
+  return view === "start";
+}
+
 // ===== the address (nav.ts): the tab in front is in it, so Back and Forward move between tabs and a
 // reload keeps the one in front. /g/<id> for a table, /workspace?view=sandbox | diagram | query for the
 // others; a dialog's own words (open=connections&at=types) stay after them.
 
-const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "sandbox", erd: "diagram", query: "query" };
+const VIEW_WORDS: Record<Exclude<AppView, "grid">, string> = { agent: "sandbox", erd: "diagram", query: "query", start: "start" };
 let activating = 0;
 let syncing: Move | null = null;
 
@@ -101,6 +110,7 @@ function addressOf(): string {
 export function placeName(): string {
   if (view === "agent") return "Sandbox";
   if (view === "erd") return "Diagram";
+  if (view === "start") return "Start";
   if (view === "query") return draft?.name || "New query";
   return activeId && contexts.has(activeId) ? label(activeId) : "";
 }
@@ -130,6 +140,7 @@ export async function showPlace(url: URL): Promise<void> {
   if (named === "sandbox") setView("agent", "replace");
   else if (named === "diagram") setView("erd", "replace");
   else if (named === "query") await newQueryTab("replace");
+  else if (named === "start" || (!order.length && url.pathname === "/workspace")) setView("start", "replace");
   else {
     const id = url.pathname.startsWith("/g/") ? decodeURIComponent(url.pathname.slice(3)) : "";
     setView("grid", "replace");
@@ -549,6 +560,8 @@ export function dropGrid(id: string): void {
     }
   }
   layout();
+  // The last table closed: the Start view, in its place in the history.
+  if (!order.length && view === "grid") return setView("start", "replace");
   render();
   syncSoon("replace");
 }
