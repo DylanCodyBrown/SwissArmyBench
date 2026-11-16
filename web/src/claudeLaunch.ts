@@ -87,7 +87,7 @@ async function load(refresh = false): Promise<ClaudeState | null> {
 
 /** The status bar's Launch Claude (its icon our own line drawing, never a company's logo). */
 export function launchButton(): HTMLButtonElement {
-  const launch = h("button", { type: "button", class: "claude-launch" }, icon("claude"), "Launch Claude") as HTMLButtonElement;
+  const launch = h("button", { type: "button", class: "claude-launch", "aria-label": "Launch Claude" }, icon("claude"), h("span", { class: "claude-launch-label" }, "Launch Claude")) as HTMLButtonElement;
   launch.addEventListener("click", () => {
     const box = launch.getBoundingClientRect();
     void launchClaude(undefined, { x: box.left, y: box.top - 8 });

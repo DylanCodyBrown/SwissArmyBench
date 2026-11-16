@@ -10218,3 +10218,14 @@ body.sql-window dialog[open] textarea.code-input {
 .claude-side select {
   min-width: 0;
 }
+
+/* A narrow window: the sparkle alone, so the status bar never scrolls sideways. */
+@media (max-width: 760px) {
+  .claude-launch {
+    padding: 0 3px;
+  }
+
+  .claude-launch .claude-launch-label {
+    display: none;
+  }
+}
