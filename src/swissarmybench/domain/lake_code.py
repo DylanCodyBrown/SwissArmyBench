@@ -83,6 +83,16 @@ def quoted(text):
     return "'" + str(text).replace("'", "''") + "'"
 
 
+def load_extension(duck, extension):
+    """DuckDB's extension loaded, installed first where this computer has not got it yet (a plain LOAD
+    fails there; DuckDB fetches it from its own extension site, as a query using it would)."""
+    try:
+        duck.execute(f"LOAD {extension}")
+    except duckdb.Error:
+        duck.execute(f"INSTALL {extension}")
+        duck.execute(f"LOAD {extension}")
+
+
 def ident(name):
     return '"' + str(name).replace('"', '""') + '"'
 
@@ -229,7 +239,7 @@ class AzureStore:
         extension's, with the token; or httpfs's, with the token as a header scoped to this address."""
         if not self.https():
             try:
-                duck.execute("LOAD azure")
+                load_extension(duck, "azure")
                 token = self.token() if self.token is not None else ""
                 duck.execute(
                     f"CREATE OR REPLACE SECRET sab_lake (TYPE azure, PROVIDER access_token, "
@@ -238,7 +248,7 @@ class AzureStore:
                 return None
             except Exception:  # the extension cannot load here: read over HTTPS instead
                 self.azure_extension = False
-        duck.execute("LOAD httpfs")
+        load_extension(duck, "httpfs")
         if self.token is not None and not self.sas:
             headers = ", ".join(f"{quoted(k)}: {quoted(v)}" for k, v in self.headers().items())
             duck.execute(
@@ -317,7 +327,7 @@ class S3Store:
         return "/".join(p for p in (f"s3://{self.bucket}", self.base, path) if p)
 
     def prepare(self, duck, delta=False):
-        duck.execute("LOAD httpfs")
+        load_extension(duck, "httpfs")
         if self.key_id:
             region = f", REGION {quoted(self.region)}" if self.region else ""
             duck.execute(
@@ -325,7 +335,7 @@ class S3Store:
                 f"SECRET {quoted(self.secret_key)}{region})"
             )
         elif self.profile:
-            duck.execute("LOAD aws")
+            load_extension(duck, "aws")
             duck.execute(
                 f"CREATE OR REPLACE SECRET sab_s3 (TYPE s3, PROVIDER credential_chain, "
                 f"PROFILE {quoted(self.profile)})"
@@ -837,7 +847,7 @@ class Lake(LakeWrites):
         # 1. DuckDB's own delta_scan (here, abfss:// with the azure extension, s3://).
         if not (getattr(self.store, "https", lambda: False)()):
             try:
-                self.duck().execute("LOAD delta")
+                load_extension(self.duck(), "delta")
                 found = f"delta_scan({quoted(url)}{at})"
                 self.duck().execute(f"DESCRIBE SELECT * FROM {found}").fetchall()
                 return found, "delta_scan"
