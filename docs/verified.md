@@ -2595,3 +2595,9 @@ real (degit and `npm install` were stood in for), the Power Apps Vite plugin's d
 the connectivity service's answer for a real connector, `pac env list`'s and `pac auth list`'s exact column
 widths on Windows, Windows and macOS (the `.cmd` wrappers of the fakes are written but not run), the
 connector spike in a running host.
+
+Whole suite with Chromium (2026-11-17, branch ext-powerapps): 3,880 passed, 45 skipped, 6 failed. Mine: one
+(test_streamlit_apps: a new folder project now holds .sab/project.json, from the base's project types; the test
+fixed). The intellisense pair (test_client_install: adapters/intellisense.py starts a process;
+test_tool_sweep: workbench_problems answers 500 for a path that is not there) are untouched by this branch.
+test_sandbox_pages, test_table_cells_page and test_workbench_page's SQL cell passed alone (load).
