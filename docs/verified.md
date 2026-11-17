@@ -2283,7 +2283,10 @@ drags; code of more than one line is pasted, one typed value):
   (rollback, rollback, commit); MERGE refused -> UPDATE then INSERT after a savepoint; keys from the
   primary key, none refused; the identity column refused unless chosen, then IDENTITY_INSERT ON and OFF;
   a computed column refused; multi-row VALUES under 2,100 parameters (524 rows of 4); a delete by a join
-  on the staged, distinct keys.
+  on the staged, distinct keys; exact types: a uniqueidentifier's text, datetime2 sized (93, 27, 7) so its
+  fractions stay, a datetimeoffset as text with its offset (the same instant: DuckDB holds zoned times as
+  instants, so the offset sent is the session's, not the row's own), bit, varbinary(max) sized (-3, 0),
+  NaN and NaT as NULL.
 - **Trino** against a stand-in driver: MERGE a batch at a time (VALUES of 2 rows), no commit or
   rollback; a connector without MERGE refused in Trino's words with the hint and "nothing was written".
 - **Dataverse** (tests/dataverse_standin.py, now with $batch change sets, upsert by an alternate key,
@@ -2300,7 +2303,8 @@ drags; code of more than one line is pasted, one typed value):
   page's cards reading Writes and Read-only, the detail listing the starters.
 - **Not checked:** a real SQL Server or Azure SQL (fast_executemany with setinputsizes on real types,
   MERGE's locking under load, Azure's transient errors as they really arrive, IDENTITY_INSERT
-  permissions, temp-table collation conflicts on a real server); a real Trino MERGE on Iceberg or Delta
+  permissions, temp-table collation conflicts on a real server, datetime2's seventh digit and a
+  datetimeoffset's text through the real ODBC driver, the 2,100-parameter path on a real wide table); a real Trino MERGE on Iceberg or Delta
   Lake; Oracle (no driver or server here: its MERGE from dual and DELETE-based replace are untested);
   an ODBC source; a real Dataverse $batch (its multipart answer, alternate keys defined in a real
   environment, the 429 limits); MySQL itself

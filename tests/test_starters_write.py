@@ -554,7 +554,7 @@ class FakeSqlServer:
 
     def answer(self, sql: str, params: Any) -> list[tuple[Any, ...]]:
         if "FROM sys.columns" in sql:
-            return list(self.COLUMNS)
+            return list(self.world.get("columns", self.COLUMNS))
         if "is_primary_key" in sql:
             return [("order_id",)] if self.world.get("primary", True) else []
         if "sys.triggers" in sql:
@@ -645,6 +645,43 @@ def test_sql_server_upsert_stages_the_rows_in_the_targets_types_then_merges_with
     assert staged[2][1] == (2, "South", "B2", None)  # NaN is NULL
     assert calls(sql_server, "setinputsizes")[-1][1] == [None, (-9, 40, 0), (12, 10, 0), (3, 12, 2)]
     assert sql_server["log"][-1] == ("commit",)
+
+
+def test_sql_server_sends_each_value_in_the_targets_exact_type(sql_server: dict[str, Any]) -> None:
+    import datetime as dt
+    import uuid
+
+    sql_server["columns"] = [
+        ("event_id", "uniqueidentifier", 16, 0, 0, False, False),
+        ("at", "datetime2", 8, 27, 7, False, False),
+        ("at_zone", "datetimeoffset", 10, 34, 7, False, False),
+        ("done", "bit", 1, 1, 0, False, False),
+        ("payload", "varbinary", -1, 0, 0, False, False),
+        ("price", "decimal", 9, 18, 4, False, False),
+    ]
+    sql_server["primary"] = True
+    zone = dt.timezone(dt.timedelta(hours=2))
+    rows = pd.DataFrame(
+        {
+            "event_id": [str(uuid.UUID(int=1)), str(uuid.UUID(int=2))],
+            "at": pd.to_datetime(["2026-01-02 03:04:05.1234567", None]),  # NaT is NULL
+            "at_zone": [dt.datetime(2026, 1, 2, 3, 4, 5, tzinfo=zone), None],
+            "done": [True, False],
+            "payload": [b"\x00\x01", None],
+            "price": [1.2345, float("nan")],  # NaN is NULL
+        }
+    )
+    text = cell("write_sql_server_append", dry_run=False, target="dbo.events")
+    assert run(text, orders=rows).counts == {"inserted": 2}
+    sizes = calls(sql_server, "setinputsizes")[-1][1]
+    assert sizes == [None, (93, 27, 7), None, None, (-3, 0, 0), (3, 18, 4)]
+    (insert,) = [c for c in calls(sql_server, "executemany") if c[1].startswith("INSERT INTO [dbo].[events]")]
+    first, second = insert[2]
+    assert first[0] == "00000000-0000-0000-0000-000000000001" and first[3] is True and first[4] == b"\x00\x01"
+    # a datetimeoffset's text with its offset: the same instant (DuckDB keeps zoned times as instants)
+    assert dt.datetime.fromisoformat(first[2]) == dt.datetime(2026, 1, 2, 3, 4, 5, tzinfo=zone)
+    assert isinstance(first[1], dt.datetime) and first[1].microsecond == 123456
+    assert second[1] is None and second[2] is None and second[4] is None and second[5] is None
 
 
 def test_sql_server_runs_the_whole_transaction_again_on_azures_passing_errors(

@@ -844,12 +844,13 @@ class SqlServerWrite(SqlWrite):
         if isinstance(value, uuid.UUID):
             return str(value)
         if isinstance(value, _dt.datetime) and value.tzinfo is not None:
-            return value.isoformat(sep=" ")  # a datetimeoffset takes it as text, its zone kept
+            return value.isoformat(sep=" ")  # a datetimeoffset takes it as text: the instant, with its offset
         return super()._value(value)
 
     def input_sizes(self, names: Sequence[str]) -> list[Any]:
         """pyodbc's size for each column (setinputsizes): text by the target's own type and length, a
-        decimal by its precision and scale; None: pyodbc's own choice."""
+        decimal by its precision and scale, a datetime2 by its scale, varbinary by its length; None:
+        pyodbc's own choice."""
         pyodbc = sys.modules.get("pyodbc")
         sizes: list[Any] = []
         for name in names:
@@ -861,7 +862,12 @@ class SqlServerWrite(SqlWrite):
                 sizes.append((pyodbc.SQL_WVARCHAR if wide else pyodbc.SQL_VARCHAR, size, 0))
             elif kind in ("decimal", "numeric") and pyodbc is not None:
                 sizes.append((pyodbc.SQL_DECIMAL, column.precision, column.scale))
-            else:
+            elif kind == "datetime2" and pyodbc is not None:  # its fractions kept (fast_executemany cut them)
+                sizes.append((getattr(pyodbc, "SQL_TYPE_TIMESTAMP", 93), 20 + column.scale, column.scale))
+            elif kind in ("varbinary", "binary") and pyodbc is not None:
+                size = 0 if column.max_length < 0 else column.max_length  # (max): 0, a stream
+                sizes.append((getattr(pyodbc, "SQL_VARBINARY", -3), size, 0))
+            else:  # bit, uniqueidentifier (its text), datetimeoffset (its text, the zone kept), ints
                 sizes.append(None)
         return sizes
 
