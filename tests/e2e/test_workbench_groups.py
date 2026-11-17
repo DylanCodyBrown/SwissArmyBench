@@ -382,12 +382,9 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
         expect(items.filter(has_text=name)).to_have_count(1)
     workbench.keyboard.press("Escape")
     menu(workbench, "Workbench menu", "New script")
-    workbench.get_by_role("button", name="Add cell").first.click()
-    expect(workbench.get_by_role("menu", name="Cell kinds").locator(".wb-menu-text")).to_have_text(
-        ["DAX", "HTML"]
-    )
-    workbench.keyboard.press("Escape")
     expect(workbench.get_by_role("button", name="Run file")).to_be_visible()
+    # A script has no "+ Cell" (the owner, 2026-11-17: cells are a notebook's).
+    expect(workbench.get_by_role("button", name="Add cell")).to_have_count(0)
     workbench.get_by_role("button", name="Document menu").click()
     expect(
         workbench.get_by_role("menu", name="Document menu").get_by_role("menuitem", name="Run statement")

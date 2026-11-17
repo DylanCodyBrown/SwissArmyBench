@@ -1852,7 +1852,9 @@ function drawControls(): void {
   const scheduled = doc.script ? button(scheduling.has(doc) ? "Running…" : "Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
   if (scheduled) scheduled.disabled = scheduling.has(doc);
   const view = dataViews.get(doc)?.view ?? "cells";
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
+  // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
+  // shouldnt be"): cells are a notebook's.
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
