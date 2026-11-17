@@ -21,7 +21,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
-from swissarmybench.domain import blade_tables, dataverse, lakes, python_connections, snippets
+from swissarmybench.domain import blade_tables, dataverse, lakes, portability, python_connections, snippets
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import project_scope as scope_rules
@@ -763,6 +763,9 @@ class BladeService:
         pinned = self._blades.pinned()
         for blade in self._blades.starters():
             entry = self.summary(blade, everything, pinned) | {"family": blade.family}
+            # A starter for kinds that run only on this computer (an ODBC source, files on this disk) says
+            # so (domain/portability.py; the owner, 2026-11-17).
+            entry["local"] = portability.as_json(portability.for_tags(blade.tags))
             if blade.kind == "snippet":
                 entry |= {
                     "language": blade.language,

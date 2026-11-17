@@ -111,13 +111,24 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   At most 100,000 rows or 1,000,000 values a query: summarize in DAX.
 - `connections_import_relationships(name, dataset)`: the dataset's joins into the relationship model.
 
+## Only works on your machine
+- What the app makes must run on an Azure Function App or a hosted Streamlit app too (Linux, no desktop,
+  no installed driver, no signed-in user). A connection that leans on this computer says so: `local` on
+  its card (`connections_usage`), on each form way (`connections_types`: `sign_ins[].local`, the kind's
+  `local`), on a starter (`blades_starters`) and in an export's answer (`local`, `local_words`). Each:
+  `reason` and `instead`. Choose a portable way: managed identity, an app registration, a vault, an
+  environment variable; never Windows sign-in, Entra as you, the keyring, a path on this disk or ODBC.
+
 ## SQL Server and Azure SQL
-- Types `sqlserver` and `azuresql` (dialect sqlserver). The code makes a `SqlServer` object: eight
-  sign-ins (`sign_ins`: Windows, SQL login, Microsoft Entra as you, Entra password, the driver's Entra
-  default, managed identity, an app registration with a vault's secret or a certificate); the driver
-  found (ODBC Driver 18, then 17, else mssql-python; none: the install command); Options: encryption
+- Types `sqlserver` and `azuresql` (dialect sqlserver), on Microsoft's mssql-python (pip only: no ODBC
+  driver). The code makes a `SqlServer` object: eight sign-ins (`sign_ins`; first a portable one: SQL
+  login, managed identity, an app registration with a vault's secret, the driver's Entra default, Entra
+  password; this machine's only: Windows, Entra as you, a certificate file); Options: encryption
   (mandatory, optional, strict), Trust server certificate, host name in certificate, port or instance,
   read-only intent (on for reads; the Write starters take the primary), multi-subnet failover, timeouts.
+- A connection saved on the earlier pyodbc code: its card says `update_driver`;
+  `connections_update_driver(name)` makes it again on mssql-python with the same settings (the user's own
+  code is never rewritten).
 - Server, database, user, client id and tenant may come from an environment variable: send
   `{"value": "...", "env": "NAME"}` for that setting (`/blades/fill`).
 - Errors come in plain words with the fix (login failed 18456, the Azure firewall 40615 with the address,
@@ -127,10 +138,11 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
 
 ## Dataverse
 - One connection (the `dataverse` type, dialect dataverse) reaches an environment's tables: its
-  `url` (https://<name>.crm.dynamics.com) and a sign-in (`sign_ins`: as you, managed identity, an app
-  registration whose client secret is a vault's entry; a typed secret is refused).
+  `url` (https://<name>.crm.dynamics.com) and a sign-in (`sign_ins`: an app registration whose client
+  secret is a vault's entry, managed identity, as you (this machine's only); a typed secret is refused).
 - Its catalog: one schema, dbo; each table's display name is `title` in `catalog_tables`.
-- Its tables are listed and read on its read-only SQL endpoint (TDS; the owner's choice). One saved
+- Its tables are listed and read on its read-only SQL endpoint (TDS, through python-tds: pure Python, no
+  ODBC driver; the owner's choice). One saved
   for the Web API still reads through it; `connections_dataverse_sql_endpoint` moves it. When the
   endpoint is off, its administrator turns it on in the Power Platform admin center. In code: `sab.read(name, table)`,
   `conn.read(table, columns=, filter=, order_by=, limit=)` (OData), `conn.fetch(fetch_xml)`.

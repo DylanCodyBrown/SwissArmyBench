@@ -9857,6 +9857,50 @@ body.has-rail .area-page {
   white-space: nowrap;
 }
 
+/* Only works on your machine (domain/portability.py): amber, on the card, the form and the detail. */
+.connection-card-local {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 4px;
+  align-items: flex-start;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.connection-card-local svg,
+.local-only svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+}
+
+.local-only {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.local-only p {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 0;
+}
+
+.local-only p + p {
+  margin-top: 4px;
+}
+
+.local-only svg {
+  color: var(--warn);
+}
+
 .connection-about {
   display: grid;
   gap: 2px;

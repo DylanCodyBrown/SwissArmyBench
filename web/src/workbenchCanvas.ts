@@ -40,7 +40,7 @@ import { type PromptOptions, promptInstall } from "./missingPackages";
 import { effectiveTheme } from "./theme";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { menuButton } from "./workbenchMenu";
-import { type AppProblem, type AppSettings, type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, type MovePlan, type PageTest, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages, type SessionRow } from "./workbenchStreamlit";
+import { type AppProblem, type AppSettings, type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, type LocalNotes, type MovePlan, type PageTest, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages, type SessionRow } from "./workbenchStreamlit";
 
 /** What Test this page answers: its counts and each block's failures, or the Python's problem. */
 export type TestResult = (PageTest & { page: string; name: string; failures: Record<string, { case: string; error: string }[]> }) | { page: string; problem: AppProblem };
@@ -284,11 +284,20 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     if (problem?.kind === "missing") void promptInstall(problem, { ...installing(() => void play()), force: true });
   }
 
+  /** The user's word before an export writes, when a connection it names runs only on this computer. */
+  async function goesAnyway(route: string): Promise<boolean> {
+    const looked = await api<LocalNotes>(`${base()}/${route}`, "POST", { check: true });
+    if (!looked.local_words || confirm(`${looked.local_words}\n\nExport it anyway?`)) return true;
+    toast("Nothing was exported.");
+    return false;
+  }
+
   async function exportApp(folder?: string, agent = false): Promise<ExportResult | null> {
     const chosen = folder ?? (await host.chooseFolder());
     if (!chosen) return null;
     await ensure();
     await host.settle();
+    if (!agent && !(await goesAnyway("export"))) return null;
     const done = await (agent ? agentApi : api)<ExportResult>(`${base()}/export`, "POST", { folder: chosen });
     // Where it went, and how to run it: what the user needs next.
     toast(`${done.folder}: ${done.run}`, done.problems.length ? "error" : "info");
@@ -303,6 +312,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     if (!chosen) return null;
     await ensure();
     await host.settle();
+    if (!agent && !(await goesAnyway("save-as"))) return null;
     const done = await (agent ? agentApi : api)<SaveAsResult>(`${base()}/save-as`, "POST", { path: chosen });
     toast(done.path, done.problems.length ? "error" : "info");
     for (const problem of done.problems) toast(problem, "error");

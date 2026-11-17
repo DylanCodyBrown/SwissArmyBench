@@ -1028,3 +1028,39 @@ def test_each_ways_code_is_its_golden_file(way: str) -> None:
     """The generated connection code per sign-in, as a golden file (tests/golden/sql_server/code_<way>.txt):
     a change to it is a change to every new SQL Server connection."""
     assert sql_server.code(way) == (GOLDEN / f"code_{way}.txt").read_text(encoding="utf-8")
+
+
+def test_the_card_offers_update_to_the_new_driver_and_the_agent_can_do_it(client: TestClient) -> None:
+    from tests.conftest import AGENT
+
+    old = (GOLDEN / "old_windows.txt").read_text(encoding="utf-8")
+    body = {"name": "Ledger", "kind": "sql", "template": "sqlserver", "dialect": "sqlserver", "code": old}
+    assert client.post("/connections", json=body, headers=AUTH).status_code == 200
+
+    def card() -> dict[str, Any]:
+        cards = client.get("/connections/usage", headers=AUTH).json()["connections"]
+        return next(c for c in cards if c["name"] == "Ledger")
+
+    before = card()
+    assert before["update_driver"] is True
+    assert [x["key"] for x in before["local"]] == ["windows"]  # Windows sign-in: this machine's only
+    answer = client.post("/connections/Ledger/update-driver", headers=AGENT)  # the agent's, as the user's
+    assert answer.status_code == 200
+    assert answer.json() == {"name": "Ledger", "changed": True, "driver": "mssql-python"}
+    code = client.get("/connections/Ledger", headers=AUTH).json()["code"]
+    assert code == (GOLDEN / "new_windows.txt").read_text(encoding="utf-8")
+    assert card()["update_driver"] is False
+    again = client.post("/connections/Ledger/update-driver", headers=AUTH).json()
+    assert again == {"name": "Ledger", "changed": False}
+
+
+def test_update_to_the_new_driver_never_rewrites_the_users_own_code(client: TestClient) -> None:
+    own = 'import pyodbc\n\nconn = pyodbc.connect("Driver={ODBC Driver 18 for SQL Server};Server=sql01;")\n'
+    body = {"name": "Own", "kind": "sql", "template": "sqlserver", "dialect": "sqlserver", "code": own}
+    assert client.post("/connections", json=body, headers=AUTH).status_code == 200
+    answer = client.post("/connections/Own/update-driver", headers=AUTH)
+    assert answer.status_code == 400 and "left as it is" in answer.text
+    assert client.get("/connections/Own", headers=AUTH).json()["code"] == own
+    cards = client.get("/connections/usage", headers=AUTH).json()["connections"]
+    card = next(c for c in cards if c["name"] == "Own")
+    assert card["update_driver"] is False and [x["key"] for x in card["local"]] == ["odbc"]

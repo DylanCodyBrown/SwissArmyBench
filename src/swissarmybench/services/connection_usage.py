@@ -20,7 +20,7 @@ from typing import Any
 
 from swissarmybench.domain import connection_usage as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import dataverse, python_connections, sql_server
+from swissarmybench.domain import dataverse, portability, python_connections, sql_server
 from swissarmybench.domain.blades import Blade, BladeError
 from swissarmybench.domain.connection_usage import Reference
 from swissarmybench.domain.notebooks import NotebookError
@@ -120,8 +120,29 @@ class ConnectionUsage:
                 missing.append(str(secret))
         return missing
 
+    def _keyring(self, summary: Mapping[str, Any]) -> list[str]:
+        """Each password's source as far as what runs elsewhere goes: "keyring" for one saved on this
+        computer and in no vault it reads (the card's Only works on your machine)."""
+        vaults = [self._blades.get(v) for v in summary.get("vaults", [])]
+        sources = []
+        for secret, saved in dict(summary.get("secrets") or {}).items():
+            in_vault = any(v.vault_all or secret in v.vault_mapping for v in vaults)
+            sources.append("keyring" if saved and not in_vault else "elsewhere")
+        return sources
+
+    def _portability(self, name: str, entry: Mapping[str, Any]) -> tuple[list[dict[str, str]], bool]:
+        """What the connection leans on that only this computer has (domain/portability.py), and whether
+        its code is the earlier SQL Server code on pyodbc (the card's Update to the new driver)."""
+        try:
+            blade = self._blades.get(name)
+        except Exception:  # a connection the listing has and the library lost: nothing to say of it
+            return [], False
+        found = portability.check(blade.code, blade.template, self._keyring(entry))
+        return portability.as_json(found), sql_server.is_old(blade.code)
+
     def _card(self, entry: Mapping[str, Any]) -> dict[str, Any]:
         name = str(entry["name"])
+        local, old_driver = self._portability(name, entry)
         calls = self.calls(name)
         failed = (entry.get("catalog_state") or {}).get("state") == "failed"
         missing = self._missing(entry)
@@ -147,6 +168,11 @@ class ConnectionUsage:
             "tables_kind": entry.get("tables_kind"),
             # A Dataverse connection saved for its Web API: its card offers the SQL endpoint.
             "reads": dataverse.WEB_API_WORDS if entry.get("tables_kind") == "dataverse_web" else "",
+            # What only this computer has (an ODBC driver, Windows sign-in, a file on this disk, the
+            # keyring...): the card's amber "Only works on your machine" (the owner, 2026-11-17).
+            "local": local,
+            # The earlier SQL Server code on pyodbc: the card offers Update to the new driver.
+            "update_driver": old_driver,
         }
 
     def overview(self) -> dict[str, Any]:

@@ -559,6 +559,9 @@ interface ExportAnswer {
   settings: { variable: string; secret: boolean }[];
   ask?: string;
   run?: string;
+  /** Each connection it uses that runs only on this computer (domain/portability.py), in one paragraph. */
+  local?: { connection: string; local: { key: string; reason: string; instead: string; words: string }[] }[];
+  local_words?: string;
 }
 
 /** Export as one Python script… (or as one notebook…): the document as it stands here (saved or
@@ -586,6 +589,15 @@ async function exportDocument(doc: Doc | null, format: "script" | "notebook", to
     ...(doc.notebook ? { kind: "notebook", cells: doc.notebook.cells() } : { kind: "script", text: doc.script!.text() }),
   };
   const call = agent ? agentApi : api;
+  // A connection it uses that runs only on this computer is said before anything is written (the owner,
+  // 2026-11-17: "this is meant to scale to a function app or up to a hosted streamlit application").
+  if (!agent) {
+    const looked = await call<ExportAnswer>("/workbench/export-script", "POST", { ...body, check: true });
+    if (looked.local_words && !confirm(`${looked.local_words}\n\nExport it anyway?`)) {
+      toast("Nothing was exported.");
+      return null;
+    }
+  }
   let done = await call<ExportAnswer>("/workbench/export-script", "POST", body);
   if (done.ask) {
     const said = [...done.problems, ...done.lint].map((p) => `• ${p}`).join("\n");

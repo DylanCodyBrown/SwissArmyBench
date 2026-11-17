@@ -403,10 +403,13 @@ ONELAKE_YOU: str = _onelake("you")
 DATALAKE_YOU: str = _datalake("you")
 DELTA_LOCAL: str = _delta("local")
 
+# The app registration first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as
+# you (this machine's only, domain/portability.py) last (the owner, 2026-11-17: "we want to advise against
+# any connectors that only work locally"). A saved connection keeps its own code.
 _ENTRA_WAYS: tuple[tuple[str, str, str], ...] = (
-    (entra.SIGN_INS[0][0], entra.YOU_MARK, "you"),
-    (entra.SIGN_INS[1][0], entra.MANAGED_MARK, "managed"),
     (entra.SIGN_INS[2][0], entra.APP_MARK, "app"),
+    (entra.SIGN_INS[1][0], entra.MANAGED_MARK, "managed"),
+    (entra.SIGN_INS[0][0], entra.YOU_MARK, "you"),
 )
 ONELAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
     (label, mark, _onelake(way)) for label, mark, way in _ENTRA_WAYS
@@ -417,7 +420,6 @@ DATALAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("SAS token, from a key vault", 'sas_token = secret("sas token")', _datalake("sas")),
 )
 DELTA_SIGN_INS: tuple[tuple[str, str, str], ...] = (
-    ("A folder on this computer", "# A folder on this computer", _delta("local")),
     *((f"Azure: {label[:1].lower()}{label[1:]}", mark, _delta(way)) for label, mark, way in _ENTRA_WAYS),
     ("Azure: account key, from a key vault", 'account_key = secret("account key")', _delta("key")),
     (
@@ -425,5 +427,6 @@ DELTA_SIGN_INS: tuple[tuple[str, str, str], ...] = (
         "aws_secret_access_key = secret(",
         _delta("s3key"),
     ),
+    ("A folder on this computer", "# A folder on this computer", _delta("local")),
     ("Amazon S3: a profile on this computer", 'profile = "', _delta("s3profile")),
 )

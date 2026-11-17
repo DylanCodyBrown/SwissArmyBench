@@ -42,7 +42,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import approvals, connection_usage, notebooks, projects
+from swissarmybench.domain import approvals, connection_usage, notebooks, portability, projects
 from swissarmybench.domain import dictionary as data_dictionary
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.datasets import DatasetInfo, quote
@@ -182,8 +182,13 @@ class StreamlitApps:
         arrange: Callable[[Any], Awaitable[dict[str, Any]]],
         approvals: Approvals,
         data_export: DataExport,
+        local_notes: Callable[[list[str]], list[dict[str, Any]]] = lambda names: [],
     ) -> None:
         self.ws = ws
+        # Each named connection that runs only on this computer (the base's services/script_export.py):
+        # an export says them before it writes (the owner, 2026-11-17: "this is meant to scale to a
+        # function app or up to a hosted streamlit application").
+        self._local_notes = local_notes
         self._files = files
         # The user's Allow for what the agent writes to disk with table rows in it (the export).
         self._approvals = approvals
@@ -1192,11 +1197,23 @@ class StreamlitApps:
 
     # ===== export: a folder that runs alone =====
 
+    def local(self, codes: list[str]) -> dict[str, Any]:
+        """The connections these codes name (sab.sql, sab.read, %%sql...) that run only on this computer,
+        each with why (domain/portability.py), and the export's words for them."""
+        named = list(
+            dict.fromkeys(n for code in codes for n in connection_usage.cell_connections("code", code, None))
+        )
+        notes = self._local_notes(named)
+        return {"local": notes, "local_words": portability.export_words(notes)}
+
     async def export(self, app_id: str, body: Any, who: str = "user") -> dict[str, Any]:
         """Export the pages as a Streamlit app that runs alone, into {"folder"}: app.py, a module for
         each page, data/ (each table the pages name, as Parquet, after its steps: a copy of the
-        rows), requirements.txt and README.txt."""
+        rows), requirements.txt and README.txt. {"check": true}: nothing written, only the connections
+        it names that run only on this computer (`local`, said before it writes)."""
         app = self._app(app_id, canvas=True)
+        if isinstance(body, dict) and body.get("check") is True:
+            return self.local([p.code for p in self._canvas_pieces(app, self._linked(app))[0].values()])
         folder = body.get("folder") if isinstance(body, dict) else None
         if not isinstance(folder, str) or not folder.strip():
             raise StreamlitError('Send {"folder": "where the app goes"}.')
@@ -1247,6 +1264,7 @@ class StreamlitApps:
             "tables": list(made.tables),
             "problems": list(made.problems),
             "run": "streamlit run app.py",
+            **self.local([p.code for p in pieces.values()]),
         }
 
     # ===== a project's data: data.ipynb -> data.py =====
@@ -1288,6 +1306,8 @@ class StreamlitApps:
         notebooks and scripts it links to. No rows (outputs dropped, a pasted table a stub), no secrets.
         """
         app = self._app(app_id, canvas=True)
+        if isinstance(body, dict) and body.get("check") is True:
+            return self.local([p.code for p in self._canvas_pieces(app, self._linked(app))[0].values()])
         target = body.get("path") if isinstance(body, dict) else None
         if not isinstance(target, str) or not target.strip():
             raise StreamlitError('Send {"path": "where the zip goes"}.')
@@ -1443,4 +1463,5 @@ class StreamlitApps:
             "data": list(made.tables),
             "fill_in": list(data.fill_in),
             "problems": problems,
+            **self.local([*(p.code for p in pieces.values()), data.text]),
         }

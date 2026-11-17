@@ -597,7 +597,7 @@ conn = duckdb.connect(r"C:\\data\\my_database.duckdb", read_only=True)""",
 conn = snowflake.connector.connect(
     account="my_account",
     user="my_user",
-    authenticator="externalbrowser",  # single sign-on; or password=secret("password")
+    password=secret("password"),  # single sign-on in a browser instead works on this computer only
     warehouse="my_warehouse",
     database="MY_DATABASE",
 )""",
