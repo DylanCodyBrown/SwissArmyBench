@@ -15,21 +15,18 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.renamed import env
 from swissarmybench.server.http import actor, error_response, json_response, read_json
 from swissarmybench.services.updates import Updates
 
-
-def edition() -> str:
-    """The app's edition: "lite" (Swiss Army Bench Lite) or "full"."""
-    return "lite" if env("SWISSARMYBENCH_EDITION").strip().lower() == "lite" else "full"
+# The app's name in the status bar (the owner, 2026-11-17: "we should probably just call this the streamlit
+# edition"). The backend says it; the page shows what it is told (the front end never asks for an edition).
+# The package, the uv tool and the commands keep their names (swissarmybench, sab).
+APP_NAME = "Swiss Army Bench Streamlit Edition"
 
 
 def routes(updates: Updates) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
-        # The edition, for the app's name in the status bar: "lite" for Swiss Army Bench Lite (its installer
-        # sets SWISSARMYBENCH_EDITION), else the full app.
-        return json_response(updates.state() | {"edition": edition()})
+        return json_response(updates.state() | {"name": APP_NAME})
 
     async def switch(request: Request) -> Response:
         try:
@@ -41,7 +38,7 @@ def routes(updates: Updates) -> list[BaseRoute]:
         # {"asked": true}: the user's button (or the agent's now) checks even with the switch off.
         body = await read_json(request) if await request.body() else {}
         asked = isinstance(body, dict) and body.get("asked") is True
-        return json_response(await updates.check(asked=asked) | {"edition": edition()})
+        return json_response(await updates.check(asked=asked) | {"name": APP_NAME})
 
     async def install(request: Request) -> Response:
         try:

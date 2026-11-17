@@ -438,14 +438,8 @@ def test_the_routes_read_switch_and_refuse_without_an_update(tmp_path: Path) -> 
         assert client.get("/updates").status_code == 401  # the token, as on every route
 
 
-def test_the_edition_names_the_app_full_unless_lite(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The status bar's name (2026-11-16): Swiss Army Bench, or Swiss Army Bench Lite where its installer set
-    SWISSARMYBENCH_EDITION=lite."""
-    from swissarmybench.server.routes_updates import edition
+def test_the_app_is_named_the_streamlit_edition() -> None:
+    """The status bar's name (the owner, 2026-11-17): the backend says it; the Lite switch is gone."""
+    from swissarmybench.server.routes_updates import APP_NAME
 
-    monkeypatch.delenv("SWISSARMYBENCH_EDITION", raising=False)
-    assert edition() == "full"
-    monkeypatch.setenv("SWISSARMYBENCH_EDITION", " Lite ")
-    assert edition() == "lite"
-    monkeypatch.setenv("SWISSARMYBENCH_EDITION", "something else")
-    assert edition() == "full"
+    assert APP_NAME == "Swiss Army Bench Streamlit Edition"

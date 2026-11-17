@@ -1,4 +1,6 @@
-# Swiss Army Bench
+# Swiss Army Bench Streamlit Edition
+
+(Installed and run as `swissarmybench`, alias `sab`.)
 
 A local server that shows any tabular data in live browser grids, with analysis built in. You
 push a DataFrame from Python and get a URL; open it in Chrome, Edge or VS Code's built-in

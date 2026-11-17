@@ -69,7 +69,7 @@ uv tool install --force --python 3.12 "${wheel_path}[server]" || fail "uv could 
 uv tool update-shell >/dev/null 2>&1 || true
 
 say ""
-say "Swiss Army Bench $VERSION is installed."
+say "Swiss Army Bench Streamlit Edition $VERSION is installed."
 say "  Start it:              swissarmybench start"
 say "  The Python client:     uv pip install \"$WHEEL\"   (in any project's environment)"
 say "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
