@@ -3592,3 +3592,13 @@ trino(non odbc)".
   old connection.
 - The "+" tab's query (DuckDB over the open tables) can be moved onto a connection through the SQL window:
   it then runs there and becomes a connection's query.
+
+## data.ipynb holds everything the app is built from (the owner, 2026-11-17)
+"how are we determining what will make it into data note book. like all structures and grids should make it
+as well as all variables that are used to create the app". Planned after the Structures branch merges:
+data.ipynb gets four read-only groups the app keeps in sync, in order: Variables (every variable a page,
+notebook or blade uses, found with ast: its source, never a value), Connections (the library connections
+used, `sab.connection(...)`), Tables (every grid: source + steps as one DuckDB query; today's Tables group),
+Structures (every Structures document: source + steps; an API call re-run; Return as table ones as DuckDB
+tables). The user's cells below, untouched; data.py exports it all, so an exported app runs on its own.
+Open: every grid and Structures document in the project (recommended), or only what the app uses (lineage).
