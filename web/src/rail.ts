@@ -5,8 +5,8 @@
  *
  *   [AREAS]   Grids (the home page's tabbed grids; the mark goes Home, the Start view), Visualizations, ERD, Notebooks,
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, Session (what the agent made this
- *             session, a count of what is new on its icon: sessionPage.ts), and Settings pinned at the
- *             bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
+ *             session, a count of what is new on its icon: sessionPage.ts), and Extensions
+ *             (extensionsPage.ts) and Settings pinned at the bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
  *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
  *             rail should land on a page not open a form"): the grids, Visualizations, the ERD, a kind's
@@ -46,9 +46,10 @@ import { onUnseen } from "./sessionPage";
 import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
 import { STRUCTURES } from "./structuresPage"; // the Structures page's layer, the same
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
+import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, the same
 import { openMenu } from "./workbenchMenu";
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "settings";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "settings";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -68,10 +69,12 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
   { area: "apps", name: "Apps", icon: "page", kind: "app" },
   { area: "visualizations", name: "Visualizations", icon: "sandbox" },
   { area: "session", name: "Session", icon: "session" }, // what the agent made this session (sessionPage.ts)
+  // What plugs into the base (extensionsPage.ts), above Settings at the bottom (the owner, 2026-11-17).
+  { area: "extensions", name: EXTENSIONS, icon: "extensions" },
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
-const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures"];
+const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "extensions"];
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
@@ -185,7 +188,7 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
     "button",
     {
       type: "button",
-      class: ["nav-rail-item", area.area === "settings" ? "nav-rail-bottom" : "", area.kind ? `nav-rail-kind km-${area.kind}` : ""].filter(Boolean).join(" "),
+      class: ["nav-rail-item", area.area === "extensions" ? "nav-rail-bottom" : "", area.kind ? `nav-rail-kind km-${area.kind}` : ""].filter(Boolean).join(" "),
       "data-area": area.area,
       "aria-label": area.name,
       "aria-keyshortcuts": undefined,

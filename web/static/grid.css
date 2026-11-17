@@ -11585,6 +11585,78 @@ g.follow-pulse > path:first-of-type {
   border-top: 1px solid var(--border);
 }
 
+/* The Extensions page (extensionsPage.ts): a card per extension. */
+.extension-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.extension-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.extension-card.coming {
+  opacity: 0.75;
+}
+
+.extension-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.extension-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.extension-status {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.extension-status.status-available {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.extension-description,
+.extension-stage,
+.extension-said {
+  margin: 0;
+}
+
+.extension-adds {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.extension-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.extension-progress {
+  width: 100%;
+}
+
 .structures-cards,
 .apis-cards {
   display: grid;

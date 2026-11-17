@@ -11,6 +11,8 @@ PUT    /autostart         {"on": false}: the tray's switch, `autostart on|off`  
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
@@ -18,15 +20,20 @@ from starlette.routing import BaseRoute, Route
 from swissarmybench.server.http import actor, error_response, json_response, read_json
 from swissarmybench.services.updates import Updates
 
-# The app's name in the status bar (the owner, 2026-11-17: "we should probably just call this the streamlit
-# edition"). The backend says it; the page shows what it is told (the front end never asks for an edition).
-# The package, the uv tool and the commands keep their names (swissarmybench, sab).
-APP_NAME = "Swiss Army Bench Streamlit Edition"
+# The app's name in the status bar (the owner, 2026-11-17: "It's not an edition now it's the streamlit
+# extension. Preinstalled"). The backend says it; the page shows what it is told, with the installed
+# extensions in its tooltip. The package, the uv tool and the commands keep their names (swissarmybench, sab).
+APP_NAME = "Swiss Army Bench"
 
 
-def routes(updates: Updates) -> list[BaseRoute]:
+def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list[BaseRoute]:
+    """`extensions`: the installed extensions' names (the version mark's tooltip)."""
+
+    def named() -> dict[str, object]:
+        return {"name": APP_NAME, "extensions": extensions()}
+
     async def state(request: Request) -> Response:
-        return json_response(updates.state() | {"name": APP_NAME})
+        return json_response(updates.state() | named())
 
     async def switch(request: Request) -> Response:
         try:
@@ -38,7 +45,7 @@ def routes(updates: Updates) -> list[BaseRoute]:
         # {"asked": true}: the user's button (or the agent's now) checks even with the switch off.
         body = await read_json(request) if await request.body() else {}
         asked = isinstance(body, dict) and body.get("asked") is True
-        return json_response(await updates.check(asked=asked) | {"name": APP_NAME})
+        return json_response(await updates.check(asked=asked) | named())
 
     async def install(request: Request) -> Response:
         try:

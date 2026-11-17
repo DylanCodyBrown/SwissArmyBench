@@ -15,6 +15,12 @@ Plans/powerapps-spinoff.plan.md section 8a (the manifest boundary).
   editions as extensions that are optional for install. The user can start with the base the add on these
   extensions. Bi edition is the base install and powerapps, streamlit, and accounting are the extensions"
 
+**Today (the owner, 2026-11-17: "It's not an edition now it's the streamlit extension. Preinstalled";
+"For now focus on the streamlit edition like we currently have and get that build out the door"):** the app
+is **Swiss Army Bench, with the Streamlit extension preinstalled**. The rail's Extensions page and the
+one-click install machinery are built (branch `extensions`); Streamlit is listed as Preinstalled and nothing
+is gated or moved yet.
+
 ## The shape
 
 | | Package | Adds a project type | Its deliverable |

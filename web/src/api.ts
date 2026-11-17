@@ -192,7 +192,7 @@ export function errorText(e: unknown): string {
   }
 }
 
-function headers(json: boolean): Record<string, string> {
+export function headers(json: boolean): Record<string, string> {
   // No token in this tab (a bookmark): the page's cookie is the credential, sent by the browser itself.
   const out: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (json) out["Content-Type"] = "application/json";

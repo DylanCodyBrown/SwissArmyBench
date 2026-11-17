@@ -36,6 +36,7 @@ from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, open_database
 from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import listing as folder_listing
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
@@ -102,6 +103,7 @@ from swissarmybench.services.controllers import Controllers
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.explorer import Explorer, OpenTable
 from swissarmybench.services.export import Exports
+from swissarmybench.services.extensions import Extensions
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
@@ -196,6 +198,7 @@ class Services:
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
+    extensions: Extensions
     claude: Claude
     context_md: ContextMd
     live: LiveUpdates
@@ -728,12 +731,25 @@ def bootstrap(
     )
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
     failure_note = state_dir / "update_failed.json" if audit_log else None
+    # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
+    # over to the update's helper, and each update keeps the installed ones (`--with`).
+    update_helper = UpdateHelper(info_file_path(), state_dir / "update_failed.json")
+    extensions = Extensions(
+        current=__version__,
+        found=discover_extensions(os.environ),
+        helper=update_helper,
+        approvals=approvals,
+        audit=ws.audit,
+        live=live,
+        stop=on_shutdown or (lambda: None),
+    )
+    update_helper.kept = extensions.kept_wheels
     updates = Updates(
         current=__version__,
         feeds=settings.update_feeds,
         feed=HttpFeed(),
         switch=UpdateSwitchFile(state_dir / "update.json" if audit_log else None),
-        helper=UpdateHelper(info_file_path(), state_dir / "update_failed.json"),
+        helper=update_helper,
         open_work=open_work,
         approvals=approvals,
         audit=ws.audit,
@@ -891,6 +907,7 @@ def bootstrap(
         connection_colours=connection_colours,
         beta=beta,
         updates=updates,
+        extensions=extensions,
         claude=claude,
         context_md=context_md,
         streamlit=streamlit,

@@ -35,6 +35,18 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 - **Update to X** asks first only if a notebook has unsaved changes or a kernel is running (nothing is saved for you). The app closes, installs the new version and opens again. If that fails, the old version opens again and the status bar says **Update failed**, with the reason.
 - **Settings, Updates, Check for updates** turns the check off. The check asks PyPI (then GitHub) which version is the latest; it is the only thing that leaves your computer, and it sends nothing about you or your data.
 
+## Extensions
+
+**Extensions** (the puzzle piece at the bottom of the rail, above Settings) lists what plugs into Swiss Army Bench, one card each: its name, what it is for, what it adds, its status and version.
+
+- **Preinstalled:** Streamlit comes with every install (the Apps area, the Streamlit canvas, App mode, the Streamlit and Components starters).
+- **Coming:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices) and Power Apps (code apps). Shown, not installable yet.
+- **Available:** **Install**, one click. The app closes, installs the extension for this same version and opens again in a window of its own; the card shows each stage while it works. If it fails, the app opens as it was and the status bar says why.
+- **Installed:** **Remove** (asked first), the same way.
+- Updates keep your installed extensions. A copy run from a source checkout (not the installer's) says what to run instead and changes nothing.
+- The version mark at the bottom left of each status bar names the app, **Swiss Army Bench**; its tooltip lists the installed extensions.
+- Your agent can list them; its Install and Remove wait for your Allow.
+
 ## Launch Claude
 
 **Launch Claude** (the sparkle at the right of the status bar, on the grids' page and in the Workbench; also in the command palette) starts Claude with what it needs to know about Swiss Army Bench.

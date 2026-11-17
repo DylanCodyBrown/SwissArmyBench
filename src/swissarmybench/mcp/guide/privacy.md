@@ -70,5 +70,9 @@ password.
   documents and running kernels), then the app stops, installs it with uv and starts again. Your
   connection ends with it; `health` says when it is back. A failure starts the old version, and
   `app_update_check` then has `failed` with the reason.
+- `extensions_list`: the Extensions page (Streamlit preinstalled; Accounting and Power Apps coming).
+  `extensions_install(id=...)` and `extensions_remove(id=...)` wait for the user's Allow, then the app
+  stops, uv installs this version with the kept extensions, and it starts again (as `app_update`).
+  A development checkout answers 409 with what to run instead.
 - `app_autostart(on=...)`: start at sign-in (the tray, which starts the server and starts it again if it
   dies). The user's tray icon has the same switch.

@@ -4333,3 +4333,40 @@ debugger on them.
 ### Next
 - Unused variables and redefinitions without pyflakes or Ruff; the run order for a
   notebook's cells before; go to definition, references and rename (the Scripts IDE brief).
+
+## Extensions: the rail's Extensions page and one-click install (the owner, 2026-11-17; built, branch extensions)
+"add an extension button to the rail to show what extensions are available to install and one click installs
+them"; then "For now focus on the streamlit edition like we currently have and get that build out the door"; then
+"It's not an edition now it's the streamlit extension. Preinstalled".
+
+**Built:** the rail's **Extensions** icon (a puzzle piece, above Settings at the bottom) and its page
+(open=extensions): a card per extension with its status (**Preinstalled**, Available, Installed, **Coming**) and
+version. The catalog (domain/extensions.py): Streamlit preinstalled; Accounting and Power Apps coming, a line each
+from Plans/editions.plan.md. Discovery of installed extension packages under the entry-point group
+`swissarmybench.extensions` at start (adapters/extensions.py; `SWISSARMYBENCH_EXTENSIONS` for tests and
+development only). Install and Remove reuse the update's helper (server/updater.py `launch_change`): the app stops,
+`uv tool install --force "swissarmybench[server]==<this version>" --with <each kept extension's wheel>`, the
+version checked, the app started; the old set again and a note on a failure. The wheel's address is the GitHub
+release of this exact version. An update of the base keeps every installed extension (`--with` its wheel at the new
+version; the restore at the old one). Remove asks the user first; the agent's `extensions_install` and
+`extensions_remove` wait for Allow; `extensions_list` reads. A development checkout (no uv receipt) answers 409 with
+what to run instead. The status bar's name is **Swiss Army Bench** (the Streamlit Edition name went); the version
+mark's tooltip lists the installed extensions ("Extensions: Streamlit"). The installers' closing line and README's
+heading say Swiss Army Bench.
+
+**Decisions:** an extension the catalog does not list but that is installed shows as Installed; it is not kept
+`--with` on an update (its wheel's address is unknown), so an update's `--force` drops it: an extension of ours is
+always in the catalog. A preinstalled extension stays Preinstalled even when a package says it is installed. The
+card follows the restart by /health: answering, stopped, then a new server (its own token: this page's link ends,
+the new app opens its own page).
+
+**Left out (later work, on the owner's narrowing):** the separate `swissarmybench-streamlit` package (its own
+pyproject, the same version, the entry point); gating the Streamlit features behind one capability check (the Apps
+area, the canvas, App mode, the cells pane, the starter families, New Streamlit app, the `streamlit_*` commands
+answering plainly without it); moving the Streamlit code out of the base; build.py building the extension wheel;
+release.yml publishing only the base wheel to PyPI (a second project would be refused) while the GitHub release
+carries the extension wheels; the update helper adding Streamlit `--with` for installs from before extensions; the
+installers' line about the Extensions page; the test suite running with the extension switched on. **PyPI later:**
+PyPI's trusted publishing covers only `swissarmybench`; publishing `swissarmybench-streamlit` there needs the owner
+to add a publisher for the new project on pypi.org first, then the install can use `--with
+swissarmybench-streamlit==<version>` instead of the GitHub wheel's address.

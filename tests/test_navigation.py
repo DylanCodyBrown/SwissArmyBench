@@ -69,6 +69,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "apps",
         "visualizations",
         "session",
+        "extensions",
         "settings",
     )
     for window in rules.WINDOWS:

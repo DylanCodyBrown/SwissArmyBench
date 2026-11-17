@@ -40,7 +40,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   the same app (entry points, one server, one library): **Accounting** (an Excel workbook from a Python
   automation; cession statements and invoices), **Power Apps** (code apps; Plans/powerapps-spinoff.plan.md) and
   **Streamlit** (today's app-building work, moved out of the base). A project's type names its extension.
-  Read "edition" in this rule as "extension": its code is backend and manifest only. Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
+  Read "edition" in this rule as "extension": its code is backend and manifest only. **Today (the owner,
+  2026-11-17: "It's not an edition now it's the streamlit extension. Preinstalled"):** the app is **Swiss Army
+  Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
+  Extensions page lists the extensions (Streamlit preinstalled, Accounting and Power Apps coming). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
@@ -296,7 +299,10 @@ src/swissarmybench/
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
-                         update's plan (uv tool install --force), the tray's menu as data
+                         update's plan (uv tool install --force, each installed extension `--with`), the tray's menu
+    extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps coming), statuses
+                         (preinstalled, available, installed, coming), an entry point's description read loosely,
+                         the wheel on this version's GitHub release, Install's and Remove's plan
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
@@ -402,6 +408,8 @@ src/swissarmybench/
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
                          work would be lost; the agent's waits for Allow), start at sign-in
+    extensions.py        the Extensions page: the cards, Install and Remove handed to the update's helper (the
+                         agent's on Allow; Remove asks the user first; a development checkout says what to run)
     claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
                          Desktop started (Desktop's config asked once); the agent reads only
     context_md.py        context.md kept current: gathered from the services, looked at after a notice (every
@@ -452,6 +460,8 @@ src/swissarmybench/
     claude.py            Launch Claude's files: claude/<project>/ (its context.md atomically, only when changed),
                          claude.json, a Desktop config (backup first)
     updates.py           the release list's one GET, update.json, the helper's and the tray's notes
+    extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
+                         SWISSARMYBENCH_EXTENSIONS (tests and development only)
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     sab_files.py         a .sab read (every entry checked first, counted as read) and unpacked into a working
@@ -489,7 +499,8 @@ src/swissarmybench/
     autostart.py         start at sign-in: a Startup shortcut (Windows), a LaunchAgent (macOS), an XDG
                          autostart entry (Linux), each running the tray
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
-                         installs with uv, checks the version, starts the app, or the old one and a note
+                         installs with uv, checks the version, starts the app, or the old one and a note;
+                         Install and Remove an extension the same way (launch_change)
     routes_updates.py    the update check, its switch, Update to X, the tray's menu, start at sign-in
     routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
@@ -563,7 +574,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
-                         areas (the owner, 2026-11-16); areaPage.ts is a page of the rail's over any page
+                         areas (the owner, 2026-11-16); extensionsPage.ts the Extensions page (open=extensions,
+                         above Settings: a card per extension, Install's progress through the restart);
+                         areaPage.ts is a page of the rail's over any page
                          (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
                          by source, uses, Add variable, Show for a keyring secret); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
