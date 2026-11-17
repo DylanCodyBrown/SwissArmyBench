@@ -57,6 +57,8 @@ import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, 
 export interface ScriptView {
   element: HTMLElement;
   text: () => string;
+  /** The whole text replaced, as an edit (unsaved until Save): a swap's code pointed at another connection. */
+  replaceText: (text: string) => void;
   runFile: () => Promise<void>;
   runSelection: () => Promise<void>;
   runToHere: () => Promise<void>;
@@ -863,6 +865,10 @@ export function scriptView(
     errorHooks,
     element: h("div", { class: "wb-script" }, editorHost),
     text: () => (editor ? editor.value() : text),
+    replaceText: (next) => {
+      if (!editor) throw new Error("The script's editor is not ready yet.");
+      editor.replaceText(next);
+    },
     runFile,
     runSelection,
     runToHere: () => runPart(true),

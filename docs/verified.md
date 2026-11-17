@@ -2076,6 +2076,37 @@ drags; code of more than one line is pasted, one typed value):
   its relationship lines otherwise (the highlight finds `path.relationshipLine` in the text's order);
   Edge (Chromium here).
 
+## Swapping a table's connection (2026-11-17, branch swap-connection)
+
+- **The rules** (tests/test_connection_swap.py): a table matched in another catalog by its name in any
+  case, its schema then its database breaking a tie (an ODBC database matching Trino's catalog), a tie or
+  none asking to pick; only one read query runs (SELECT, WITH, VALUES, EVALUATE; a DELETE or a second
+  statement refused, a semicolon inside quotes allowed); the name only changes (`EDP -> orders`,
+  `EDP/Sales model`; `EDP2` untouched); Python calls by ast (aliases, `from swissarmybench import read as
+  fetch`, the `connection=` keyword; a comment, another string, `print('EDP')` untouched; non-ASCII text
+  before the call keeps the column right); a notebook's ticked cells only; a script's Tables group left to
+  the app.
+- **Over HTTP** (tests/test_connection_swap_routes.py, EDP and Trino as SQLite files, Trino's tables in an
+  attached schema `sales` in lower case): ORDERS with two steps moved to Trino (the same grid, the same
+  steps, Trino's extra row through them, its read-only cell reads Trino), undone (its rows and origin
+  back); a table Trino lacks answers pick (its schemas, a suggested query), a picked table and a reviewed
+  query run (a DELETE refused), a query table asks for review again; a project saved with EDP deleted
+  opens with ORDERS waiting, moved at once with its steps, saved with Trino's place in project.json; a
+  query run as it is on a connection without its schema fails in the source's words and nothing changes;
+  the notebook's ticked cells only rewritten, an unticked `%%sql EDP` still listed; the agent's door.
+- **In the browser** (Chromium, tests/e2e/test_swap_connection_page.py): the Table row's Connection: EDP,
+  the chooser, the swap (the label follows, the strip's EDP → Trino and its Undo); the pick view's catalog
+  tree, Write a query… in its own window, Run on Trino closes it; the strip's Use another connection… on a
+  reopened project, Point these at Trino with one cell unticked (the file has the ticked one only).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python, on 26d1c50): 3,278 passed, 42 skipped, 3
+  failed in 19 minutes, all three in tests/e2e/test_streamlit_page.py: two expected the prompt's old title
+  (fixed on the base branch since, 1ca9404, merged in), one the pop-out across windows (load). After the
+  merge, test_streamlit_page.py and this branch's tests: 79 passed.
+- **Not checked:** a real ODBC-to-Trino move (two real servers, their naming differences); the Workbench
+  window's own rewrite of an open, unsaved document (doc.repoint: typecheck only; the file path is
+  tested); a DAX query moved between Power BI workspaces; a Python connection's table moved (its Read a
+  table box is the same path as a database's, not run here).
+
 ## A missing package, in the user's face (2026-11-16, branch package-prompt)
 
 - **The shape** (tests/test_missing_packages.py): `{"feature", "packages", "python", "command"}`, the

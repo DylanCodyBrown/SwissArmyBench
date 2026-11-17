@@ -2066,6 +2066,64 @@ def connections_usage(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/connections/{_q(a['name'])}/usage")
 
 
+# ----- a table's connection swapped (its steps kept), and the code that named the old one -----
+
+
+@command(
+    "table_connection",
+    "A table's connection, how it is read, the others, its undo",
+    req("table", "Its name."),
+)
+def table_connection(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/tables/{_q(a['table'])}/connection")
+
+
+@command(
+    "table_swap_connection",
+    "Read a table from another connection, steps kept. Answers swapped, or review (send its sql back), "
+    "or pick (send a place)",
+    req("table", "Its name."),
+    req("to", "The connection."),
+    opt("place", '{"database", "schema", "table"} there.', "json"),
+    opt("sql", "A read query to run there."),
+    opt("all", "Every row.", "bool"),
+)
+def table_swap_connection(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("to", "place", "sql", "all") if a.get(k) is not None}
+    return api.call("POST", f"/tables/{_q(a['table'])}/connection", body)
+
+
+@command("table_swap_undo", "Undo a table's last connection swap", req("table", "Its name."))
+def table_swap_undo(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/tables/{_q(a['table'])}/connection/undo", {})
+
+
+@command(
+    "connections_move_tables",
+    "Move every table read from a connection (a deleted one too) to another, as table_swap_connection",
+    req("name", "The old connection."),
+    req("to", "The new one."),
+    opt("run_as_is", "Run queries unreviewed.", "bool"),
+)
+def connections_move_tables(a: dict[str, Any]) -> Any:
+    body = {"to": a["to"], "run_as_is": a.get("run_as_is") is True}
+    return api.call("POST", f"/connections/{_q(a['name'])}/move", body)
+
+
+@command(
+    "connections_repoint",
+    "Cells naming a connection (a deleted one too): list them (no to), or point them at another",
+    req("name", "The old connection."),
+    opt("to", "The new one."),
+    opt("picks", "[{document, cell}] (default: all).", "json"),
+)
+def connections_repoint(a: dict[str, Any]) -> Any:
+    if not a.get("to"):
+        return api.call("GET", f"/connections/{_q(a['name'])}/references")
+    body = {"to": a["to"]} | ({"picks": a["picks"]} if a.get("picks") is not None else {})
+    return api.call("POST", f"/connections/{_q(a['name'])}/repoint", body)
+
+
 _CONNECTION_ARGS = (
     req(
         "kind",
@@ -2079,7 +2137,11 @@ _CONNECTION_ARGS = (
     opt("description", "What it is for."),
     opt("catalog", '{"language", "command"}: lists the source\'s columns (the type gives one).', "json"),
     opt("secrets", '{"password": "value"}: saved in the system keyring, never shown back.', "json"),
-    opt("row_limit", "A database: how many rows a table opens with as a grid (10,000 unless set).", "int"),
+    opt(
+        "row_limit",
+        "A database: how many rows a table opens with as a grid (10,000 unless set; 0: every row).",
+        "int",
+    ),
     opt(
         "vault_mapping",
         'A vault\'s entries: [{"env": "WAREHOUSE_PASSWORD", "secret": "warehouse-password"}] (each secret '
@@ -2170,7 +2232,7 @@ _PYTHON_ARGS = (
     ),
     opt("secrets", '{"NAME": "value"} for keyring variables; never shown back.', "json"),
     opt("description", "What it is for."),
-    opt("row_limit", "Rows a table opens with as a grid (default 10,000).", "int"),
+    opt("row_limit", "Rows a table opens with as a grid (default 10,000; 0: every row).", "int"),
 )
 
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import importlib.util
 import json
 import os
 import socket
@@ -44,6 +45,9 @@ def service() -> Iterator[Service]:
     running = Service().start()
     yield running
     running.stop()
+
+
+HAS_YAML = importlib.util.find_spec("yaml") is not None
 
 
 def spec_of(service: Service, auth: dict[str, Any] | None = None) -> apis.Spec:
@@ -889,8 +893,9 @@ def test_a_file_or_a_name_that_is_not_add_apis_is_never_taken(client: TestClient
         ({"form": form, "spec_url": "https://x.example.com/o.json"}, 400, "one way"),
         ({"spec_path": str(tmp_path / "missing.json")}, 404, "is not a file"),
         ({"form": form, "folder": str(tmp_path / "nowhere")}, 404, "is not there"),
-        # YAML: read where PyYAML is (no paths), refused plainly where it is not (no PyYAML).
-        ({"spec": "openapi: 3.0.0\npaths: {}\n"}, 400, "no paths|no PyYAML"),
+        # YAML: read where PyYAML is (no paths: 400); where it is not, the missing-package answer (422, the
+        # "Install PyYAML?" prompt's shape).
+        ({"spec": "openapi: 3.0.0\npaths: {}\n"}, 400 if HAS_YAML else 422, "no paths|without PyYAML"),
     ):
         answer = client.post("/apis/preview", json=bad, headers=AUTH)
         assert answer.status_code == status and any(w in answer.text for w in why.split("|")), answer.text

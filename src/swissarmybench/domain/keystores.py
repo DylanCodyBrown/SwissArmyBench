@@ -158,6 +158,7 @@ conn = trino.dbapi.connect(
     http_scheme="https",
     auth=trino.auth.BasicAuthentication(user, secret("password")),
     http_session=session,
+    request_timeout=600,  # seconds: a long query is not cut off (the client's own default is 30)
 )"""
 
 TRINO_KEYSTORE = f"""import os
@@ -187,6 +188,7 @@ conn = trino.dbapi.connect(
     http_scheme="https",
     auth=trino.auth.{MARK}(certificate, private_key),
     http_session=session,
+    request_timeout=600,  # seconds: a long query is not cut off (the client's own default is 30)
 )"""
 
 SIGN_INS: tuple[tuple[str, str, str], ...] = (

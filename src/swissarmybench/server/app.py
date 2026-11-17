@@ -14,6 +14,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_catalog.py        catalogs (a source's names and types)
   routes_blades.py         blades (saved code that loads): the user's alone
   routes_connections.py    connections (database and file blades, seen apart): the user's alone
+  routes_connection_swap.py  a table's connection swapped (its steps kept), every table of a deleted
+                           one moved, the code that named it pointed at the new one
   routes_apis.py           Add API: an OpenAPI document or a form made into API_<name>.py and a connection
   routes_folders.py        the page's file chooser: a folder's contents, the user's alone
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
@@ -68,6 +70,7 @@ from swissarmybench.server import (
     routes_cards,
     routes_catalog,
     routes_claude,
+    routes_connection_swap,
     routes_connections,
     routes_controllers,
     routes_datasets,
@@ -214,6 +217,7 @@ def create_app(
             *routes_cards.routes(ctx.cards),
             *routes_catalog.routes(ctx.catalogs),
             *routes_blades.routes(ctx.blades),
+            *routes_connection_swap.routes(ctx.connection_swap),
             *routes_connections.routes(
                 ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
             ),

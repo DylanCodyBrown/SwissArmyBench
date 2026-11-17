@@ -63,6 +63,7 @@ import { pastedToast } from "./renameTable";
 import { mountStepsPanel } from "./stepsPanel";
 import { editStep } from "./stepForms";
 import { mountStepsStrip } from "./stepsStrip";
+import { mountConnectionSqlWindow } from "./swapConnection";
 import { setGridZoom, stepZoom } from "./theme";
 
 const panelParam = new URLSearchParams(location.search).get("panel");
@@ -256,6 +257,11 @@ async function start(): Promise<void> {
     window: popout ? "steps" : keysWindow ? "keys" : sqlWindow ? "sql" : "main",
     tabs: () => [`front:${document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid"}`, ...Array.from(document.querySelectorAll(".tabs-row [role=tab]"), () => "tab")],
   });
+  if (panelParam === "connsql") {
+    // A table's query, moved to another connection: looked over in a window of its own, then run there.
+    await mountConnectionSqlWindow();
+    return;
+  }
   if (popout || keysWindow || sqlWindow) {
     mountNav(popout || sqlWindow ? "steps" : "keys");
     if (keysWindow) mountNavRail("keys"); // the areas: Grids brings the home window forward
@@ -303,6 +309,10 @@ async function start(): Promise<void> {
     // The browser tab names the place in front (the table, Visualizations, the ERD); the tab bar names them all.
     drawTitle();
   });
+  // A project as one .sab file (startView.ts): the Start view, the project's name and Save, Save as, Close and
+  // Autosave IN the Application row (the owner, 2026-11-16: "i want the save save as close and autosave on the
+  // application row"), and the strip of tables that need a fix under the tabs.
+  const projectGroup = h("div", { class: "project-group", role: "group", "aria-label": "Project", hidden: true });
   // The Application row: app-wide commands, with their words, above the ribbon's Table row.
   clear(
     $(".app-row"),
@@ -310,13 +320,9 @@ async function start(): Promise<void> {
       "div",
       { class: "ribbon-group", role: "toolbar", "aria-label": "Application tools" },
       h("div", { class: "ribbon-caption" }, h("strong", {}, "Application")),
-      h("div", { class: "ribbon-tools" }, zoomControl()), // Settings, Connections, Blades: the rail's; the tour: Start's
+      h("div", { class: "ribbon-tools" }, projectGroup, zoomControl()), // Settings, Connections, Blades: the rail's; the tour: Start's
     ),
   );
-  // A project as one .sab file (startView.ts): the Start view, the project's group first in the Application
-  // row, and the strip of tables that need a fix under the tabs.
-  const projectGroup = h("div", { class: "ribbon-group project-group", role: "toolbar", "aria-label": "Project", hidden: true });
-  $(".app-row").prepend(projectGroup);
   const fixes = h("div", { class: "project-fixes", "aria-label": "Tables to fix", hidden: true });
   $(".tabbar").after(fixes);
   mountStart($("#start-view"), projectGroup, fixes, {

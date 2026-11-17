@@ -43,6 +43,22 @@ a variable by its name.
 - In code: `workbench_run(kind="sql", connection=name)` runs a SQL cell in the source's own SQL; files
   and DataFrames are read with DuckDB.
 
+## Swapping a table's connection (the Table row's Connection…)
+- `table_connection(table)`: its connection (`exists` false: deleted, or not on this computer), how it
+  is read (`table`: a catalog table, its `place`; `query`: its `sql`), the `others`, `undo`.
+- `table_swap_connection(table, to)`: read again from `to`, the grid's steps kept (the tab stays). A
+  catalog table is matched by name in any case (schema, then database, breaks a tie; an ODBC database
+  may be Trino's catalog). Answers `swapped` (its steps problems: a step that no longer works), or `pick`
+  (`candidates`, `schemas`, a suggested `sql`: send `place` or `sql`), or `review` (a query: look it
+  over, names may differ between ODBC and native Trino, then send `sql`). `table_swap_undo` puts back
+  its rows and origin.
+- `connections_move_tables(name, to)`: every table read from `name` (a deleted connection's waiting
+  tables too) moved at once; queries come back in `review` unless `run_as_is`.
+- `connections_repoint(name)` lists the cells that name it (`pickable`: a table's read-only cell and
+  a canvas block follow on their own); with `to` (and `picks` [{document, cell}]) the name changes in
+  those cells only: inside the client's call or a `%%sql`/`%%dax` line, never another string. An open
+  document changes in the Workbench window, unsaved until Save; another's file is written.
+
 ## Power BI workspace
 - One connection (the `powerbi` type, dialect dax) reaches every dataset in the workspace, read with DAX.
   Its sign-in: an app registration whose ids come from a key vault, ids typed in, or a browser sign-in.

@@ -526,6 +526,14 @@ class SabProjects:
             return "no_connection"
         if self._connections.needs_passwords(listed[name.casefold()]):
             return "needs_password"
+        if source.sql and not source.table:
+            # A query of the user's on the connection (its table's connection was swapped): run again.
+            read = await self._connections.read_query(
+                listed[name.casefold()], source.sql, {"dataset": source.schema} if source.dax else {}
+            )
+            origin = Origin("connection", connection=read.connection, sql=source.sql, dax=read.dax)
+            await self._datasets.store_table(table.name, read.table, "connection", True, who, origin=origin)
+            return None
         place = {"database": source.database, "schema": source.schema, "table": source.table}
         answer = await self._connections.open_table(
             listed[name.casefold()], place | {"all": source.whole}, who
@@ -593,6 +601,40 @@ class SabProjects:
             await self._load(table, sab_folder, {}, who)
         await self._changed()
         return self.state()
+
+    # ===== a table's connection swapped (services/connection_swap.py) =====
+
+    def waiting(self, name: str) -> TableEntry | None:
+        """A table of the open project that has not come back, as the file says it (None: not waiting)."""
+        return self.current.waiting.get(name) if self.current is not None else None
+
+    def waiting_tables(self) -> list[TableEntry]:
+        return list(self.current.waiting.values()) if self.current is not None else []
+
+    async def move_waiting(self, name: str, source: Source, who: str) -> dict[str, Any] | None:
+        """A waiting table read again from another source (its steps as they were): None when it came
+        back, else its problem as the strip shows it."""
+        current = self._need()
+        table = current.waiting.get(name)
+        if table is None:
+            raise NotFound(f"{name} is not waiting to come back.")
+        async with self._busy:
+            sab_folder = self._archive.folder_of(current.path) if current.path else None
+            await self._load(replace(table, source=source), sab_folder, {}, who)
+        await self._changed()
+        return current.problems.get(name)
+
+    async def wait_again(self, table: TableEntry, problem: dict[str, Any] | None) -> None:
+        """A table back to waiting as it was (a swap undone): its source, steps and problem."""
+        current = self._need()
+        current.waiting[table.name] = table
+        if problem is not None:
+            current.problems[table.name] = problem
+        await self._changed()
+
+    async def changed(self) -> None:
+        """Something the project is made of changed elsewhere (a table's source): the pages hear it."""
+        await self._changed()
 
     # ===== save =====
 
