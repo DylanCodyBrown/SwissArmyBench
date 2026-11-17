@@ -2917,9 +2917,25 @@ def structures_close(a: dict[str, Any]) -> Any:
     "A folder's subfolders and files on this computer (names, sizes, dates; nothing read)",
     opt("path", "The folder (default: the home folder)."),
     opt("suffixes", "Only files ending so, as .csv,.xlsx."),
+    opt("hidden", "Hidden files and folders too.", "bool"),
 )
 def files_list(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/folders", params={"path": a.get("path"), "suffixes": a.get("suffixes")})
+    params = {
+        "path": a.get("path"),
+        "suffixes": a.get("suffixes"),
+        "hidden": "1" if a.get("hidden") else None,
+    }
+    return api.call("GET", "/folders", params=params)
+
+
+@command(
+    "files_new_folder",
+    "Make a new folder inside a folder (the file picker's New folder)",
+    req("path", "The folder it goes in."),
+    req("name", "The new folder's name."),
+)
+def files_new_folder(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/folders/new", {"path": a["path"], "name": a["name"]})
 
 
 # ===== workbench: notebooks, scripts and the kernels that run them =====

@@ -44,6 +44,8 @@ if POWERAPPS_SRC not in sys.path:
 
 # A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
 os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")
+# Nor a system file dialog (domain/file_dialogs.py): the page's own picker, on every system a test runs on.
+os.environ["SWISSARMYBENCH_SYSTEM_DIALOGS"] = "off"
 
 PORT = 8765
 TOKEN = "test-token"

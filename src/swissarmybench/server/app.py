@@ -20,7 +20,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_apis.py           Add API: an OpenAPI document or a form made into API_<name>.py and a connection
   routes_api_explorer.py   the APIs page: the library's APIs, their operations, search, send, save a web call
   routes_structures.py     Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save
-  routes_folders.py        the page's file chooser: a folder's contents, the user's alone
+  routes_folders.py        the page's own file picker: a folder's contents, its quick places, New folder
+  routes_file_dialogs.py   the system's own file dialog, on the user's click (403 for the agent)
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_lineage.py        a cell's or a canvas block's lineage, back to the data, with each step's value
@@ -88,6 +89,7 @@ from swissarmybench.server import (
     routes_datasets,
     routes_explorer,
     routes_extensions,
+    routes_file_dialogs,
     routes_folders,
     routes_grids,
     routes_intellisense,
@@ -275,6 +277,7 @@ def create_app(
             *routes_structures.routes(ctx.structures),
             *routes_api_explorer.routes(ctx.api_explorer),
             *routes_folders.routes(ctx.folders),
+            *routes_file_dialogs.routes(ctx.file_dialogs),
             *routes_intellisense.routes(ctx.intellisense),
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),

@@ -39,7 +39,9 @@ from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, op
 from swissarmybench.adapters.datasets import DatasetStore
 from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
+from swissarmybench.adapters.folders import is_folder, make_folder
 from swissarmybench.adapters.folders import listing as folder_listing
+from swissarmybench.adapters.folders import places as folder_places
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
 from swissarmybench.adapters.library import LibraryFolder
 from swissarmybench.adapters.live_updates import LiveUpdates
@@ -74,7 +76,7 @@ from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
-from swissarmybench.server import blade_runner, file_manager
+from swissarmybench.server import blade_runner, dialog_runner, file_manager
 from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
@@ -108,6 +110,7 @@ from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.explorer import BrowseSources, Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.extensions import Extensions
+from swissarmybench.services.file_dialogs import FileDialogs
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.hooks import Hooks
@@ -176,6 +179,7 @@ class Services:
     catalog_loading: CatalogLoading
     connection_tables: ConnectionTablesService
     folders: Folders
+    file_dialogs: FileDialogs
     workbench: Workbench
     models: Models
     finder: Finder
@@ -906,6 +910,26 @@ def bootstrap(
     # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
     for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
         beta.process("server", str(event["event"]), event.get("code"), None, str(event.get("reason") or ""))
+
+    # The system's own file dialog on the user's click (server/dialog_runner.py), and the page's own picker's
+    # quick places and recent folders per kind of pick (dialogs.json: paths only).
+    def picker_places() -> list[dict[str, str]]:
+        found = folder_places()
+        for name, kind, folder in (
+            ("Projects", "projects", project_explorer.folder()),
+            ("Library", "library", str(library_folder.root)),
+        ):
+            if is_folder(folder):
+                found.append({"name": name, "path": folder, "kind": kind})
+        return found
+
+    file_dialogs = FileDialogs(
+        dialog_runner.DialogRunner(),
+        JsonFile(state_dir / "dialogs.json" if audit_log else None),
+        picker_places,
+        is_folder,
+    )
+
     return Services(
         settings=settings,
         ws=ws,
@@ -931,7 +955,13 @@ def bootstrap(
         api_explorer=api_explorer,
         catalog_loading=catalog_loading,
         connection_tables=connection_tables,
-        folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
+        folders=Folders(
+            folder_listing,
+            lambda where: ensure_own_folder(where, settings.workbench_dir),
+            places=file_dialogs.places,
+            make_folder=make_folder,
+        ),
+        file_dialogs=file_dialogs,
         workbench=workbench,
         models=models,
         finder=Finder(ws, models),

@@ -73,7 +73,7 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
     folder = page.locator(".file-chooser input[aria-label=Folder]")
     folder.fill(str(orders_csv.parent))
     folder.press("Enter")
-    page.locator(".file-chooser .file-row.file", has_text="orders.csv").click()
+    page.locator(".file-chooser .file-row.file", has_text="orders.csv").dblclick()
     name = page.locator(".area-page").get_by_role("textbox", name="Name", exact=True)
     expect(name).to_have_value("orders")  # named after the file
     page.get_by_role("button", name="Test connection").click()
@@ -544,7 +544,7 @@ def test_the_workbench_runs_a_notebook_with_a_sql_cell_saves_it_and_reopens_it(
     folder = workbench.locator(".file-chooser input[aria-label=Folder]")
     folder.fill(str(tmp_path))
     folder.press("Enter")
-    workbench.locator(".file-chooser .file-row.file", has_text="orders.ipynb").click()
+    workbench.locator(".file-chooser .file-row.file", has_text="orders.ipynb").dblclick()
     expect(workbench.locator(".wb-cell")).to_have_count(2)
     expect(workbench.locator(".wb-cell").nth(1).get_by_label("Connection")).to_have_value("Orders")
     expect(workbench.locator(".wb-cell").first.locator(".wb-stream")).to_have_text("hello\n")

@@ -811,7 +811,7 @@ def test_6_a_csv_folder_workbook_sheets_and_a_database_table_are_combined_and_th
     where = page.locator(".file-chooser input[aria-label=Folder]")
     act.fill(where, STATE["files"]["folder"])
     act.press(page, "Enter")
-    act.click(page.locator(".file-chooser .file-row.file", has_text="catalogue.xlsx"))
+    act.click(page.locator(".file-chooser .file-row.file", has_text="catalogue.xlsx"), click_count=2)
     sheets = page.locator("dialog", has_text="Open catalogue.xlsx")
     act.click(sheets.get_by_role("checkbox", name="Categories"))
     act.click(sheets.get_by_role("button", name="Open"))
@@ -1250,7 +1250,8 @@ def test_11_a_project_from_a_database_to_a_page_played_and_saved_as_a_zip_that_r
         workbench.locator(
             ".file-chooser .file-row.file",
             has=workbench.locator(f".file-name:text-is('{Path(python).name}')"),
-        )
+        ),
+        click_count=2,
     )
     expect(environment).to_have_value(python, timeout=20000)
     # Three starters, each a cell of its own below, its form filled from the invoices.

@@ -61,7 +61,7 @@ def test_open_file_and_dropped_files_open_as_grids(
         path = page.locator(".file-chooser input[aria-label=Folder]")
         path.fill(str(folder))
         path.press("Enter")
-        page.locator(".file-chooser .file-row.file", has_text="people.csv").click()
+        page.locator(".file-chooser .file-row.file", has_text="people.csv").dblclick()
         expect(tabs.filter(has_text="people")).to_have_count(1, timeout=20000)
         # Dropped anywhere: a CSV opens at once ...
         drop(page, "visits 2026.csv", b"day,visits\n1,5\n2,8\n")

@@ -4947,6 +4947,38 @@ at all. (The enforcement date the coordinator gave, 2026-01-30, is not on the pa
 
 **Open (the owner is choosing):** how transformed results reach the app. Not built.
 
+## The system's own file dialog, and a better page picker (the owner, 2026-11-17; built, branch file-dialogs)
+
+"the file picker for the entire app is terrible". The app runs on the user's own computer, so the server opens
+the operating system's own dialog on the user's click and answers the real path.
+
+- **One door.** Every pick goes through fileChooser.ts's chooseFile (a test checks no other module lists folders):
+  it asks GET /dialogs once per page; when system dialogs open, POST /dialogs/choose and nothing of the page's
+  shows (a cancel is null; a second click while one is open says "A file dialog is already open"); an answer of
+  `unavailable` (the dialog's process failed) falls back to the page's picker for the rest of that page.
+- **Per system** (domain/file_dialogs.py; server/dialog_runner.py runs it, ten minutes at most, one at a time):
+  Windows: Tk first (uv's Python ships Tk; since Tk 8.6 its dialogs are the modern IFileDialog; DPI-aware,
+  `-topmost`), else PowerShell (Windows Forms' Open and Save dialogs owned by a hidden topmost form;
+  IFileOpenDialog with FOS_PICKFOLDERS for folders, never the old FolderBrowserDialog tree). macOS: osascript's
+  choose file / choose folder / choose file name after `activate` (NSOpenPanel and NSSavePanel; no Tk dock icon),
+  else Tk. Linux: kdialog on KDE, else zenity, else kdialog, else Tk; nothing without DISPLAY or WAYLAND_DISPLAY.
+  The values travel as arguments or an environment variable (JSON), never in a script's text.
+  `SWISSARMYBENCH_SYSTEM_DIALOGS=off` turns them off (the tests set it: the page's own picker everywhere).
+- **The user's own.** POST /dialogs/choose is 403 for the agent, like Show in folder; every command takes a path,
+  `files_list` finds one, `files_new_folder` is New folder's command (the golden rule). GET /dialogs and POST
+  /dialogs/recent are page plumbing (NOT_COMMANDS).
+- **The page's picker, made good:** places down the side (Home, Desktop, Documents, Downloads where they are, XDG's
+  names on Linux, OneDrive's on Windows; Projects; Library; Recent; Drives), a clickable breadcrumb and the path
+  box, Filter as you type, folders then files with modified date and size, New folder (folder and save picks),
+  Hidden files (dot names; Windows' hidden attribute), a click selects and a double-click (or Enter) opens or
+  picks, arrows, Home, End, Backspace up, Escape closes; a missing start folder shows the nearest that is there.
+  Single-click no longer picks a file (the tests double-click now).
+- **Recent folders per kind of pick** (`file:.csv,.xlsx`, `folder`, `save`; a caller may name its own `kind`):
+  dialogs.json in the state folder, eight per kind, forty kinds, paths only; a system dialog's pick is remembered
+  by the server, a page pick by POST /dialogs/recent.
+- Left as they were: the three browser `<input type=file>` uploads (a blade import, a tang import, a theme
+  import): they send bytes, not a path, and the browser's own dialog is already the system's.
+
 ## The blade screen: code read-only, a table name of its own, no catalog checkbox or panel (the owner, 2026-11-17; built, branch blade-screen)
 
 The owner, on a starter's screen ("SharePoint document as a table"): "Shouldnt the table it makes be namable

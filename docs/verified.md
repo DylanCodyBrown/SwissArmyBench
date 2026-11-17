@@ -2910,6 +2910,37 @@ NOT checked: the installers' removal of an earlier .sab registration on a real W
 - Not checked: Show its file on Windows and macOS (Explorer /select, open -R); a real Jupyter's %%sql over a
   registered blade table (the registration is checked, %%sql's reading of the namespace is the existing one).
 
+## The system's file dialog and the page's picker (2026-11-17, branch file-dialogs)
+
+Checked (Chromium; tests/test_file_dialogs.py, tests/e2e/test_file_picker_page.py):
+- Each system's plan built and read, never opened: Tk's script (compiles; the values one JSON argument),
+  PowerShell's (base64 UTF-16 -EncodedCommand; values in SAB_DIALOG; IFileOpenDialog, no FolderBrowserDialog),
+  osascript's (arguments; activate; -128 a cancel), zenity's and kdialog's command lines (filters, save name,
+  folder); each answer read (a path, a cancel, a failure). Which tool per system, none without a display or
+  with the switch off.
+- The runner with its child process stood in: a path, a cancel, the ten-minute limit a cancel, one dialog at a
+  time (a second is `busy`), a start folder that is not there started at the nearest one, Tk asked about once.
+- The door: 403 for the agent; `unavailable` with no display; the test server reports system dialogs off.
+- Recent folders per kind (dialogs.json, eight each, paths only), shown as places for that kind only; New folder
+  (made, 409 when there, refused names: `a/b`, `..`, `con`, `x:y`); hidden files on request.
+- The page: chooseFile with the system dialog stood in (the browser's requests answered by the test): Open file
+  opened the path as a grid, a cancel opened nothing, a second click said "A file dialog is already open",
+  Settings' Projects folder took the folder; the page's own picker never appeared. `unavailable` fell back to
+  the page's picker and did not ask again. Every chooseFile caller imports it from fileChooser.ts and no other
+  module lists folders (a source test).
+- The page's own picker: places (Home, Desktop, Documents, Downloads, Projects from a made-up home), a place,
+  a double-click into a folder, the breadcrumb (a part clicked), Filter, Hidden files, Backspace up, arrows and
+  Enter into a folder and onto a file (it opened as a grid), Recent per kind (shown for Open file, not for Open
+  project), New folder, Escape. Light, dark and phone width (no side scroll); screenshots looked at.
+- **A real dialog on Linux:** uv's own Python (python-build-standalone 3.12.13, Tk 9.0.3) under Xvfb, opened by
+  DialogRunner: the Tk save dialog in the start folder with the name suggested and the .csv filter; Return gave
+  the path, Escape a cancel, a second request while it was open `busy` (screenshot looked at).
+
+Not checked: a real dialog on Windows (Tk's IFileDialog, the PowerShell fallback, the C# folder picker
+compiled by Add-Type, coming to the front past Windows' foreground lock) or on macOS (osascript's panels,
+activate); zenity and kdialog on a real Linux desktop (not installed here). Debian's own Python has no Tk
+without python3-tk; uv's managed Python has it.
+
 ## The Data page (2026-11-17, branch data-page)
 
 Checked (Chromium, made-up SQLite connections; tests/test_explorer.py, tests/e2e/test_data_page.py):

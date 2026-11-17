@@ -131,6 +131,10 @@ NOT_COMMANDS = {
     "a project folder and opens it",
     "/projects/show": "Show in folder opens the user's own file manager: the user's click only (403 for the "
     "agent)",
+    "/dialogs/choose": "a system file dialog opens on the user's own screen: the user's click only (403 for "
+    "the agent, which passes paths to every command directly; files_list finds one)",
+    "/dialogs": "page plumbing: whether the page's picker opens the system's file dialog",
+    "/dialogs/recent": "page plumbing: the page's own picker remembering the folder a pick was made in",
     "/projects/delete": "Delete moves a project's folder to the trash: the user's own, on their typed name "
     "(403 for the agent; the owner, 2026-11-17)",
     "/datasets/{}/drop": "a file dropped on the page (bytes only the browser holds): the agent opens a file"
