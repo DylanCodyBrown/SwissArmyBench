@@ -34,10 +34,11 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   the shared core in `src/swissarmybench/` plus `src/swissarmybench/editions/<edition>/` (Python and its manifest,
   never a `.ts`, `.tsx`, `.css` or `.html`). A front-end change is its own change, made for every edition, only on
   the owner's word, never as part of edition work. Tests enforce it (no edition names in `web/`; no front-end files
-  under `editions/`; each edition's manifest and routes against the shared schema). Editions: **Swiss Army Bench
+  under `editions/`; each edition's manifest and routes against the shared schema). Editions (Plans/editions.plan.md),
+  all from this repository, installable side by side, the project's type choosing which opens it: **Swiss Army Bench
+  BI Edition** (`swissarmybench-bi`: notebooks and analysis, a BI notebook as the deliverable), **Swiss Army Bench
   Streamlit Edition** (`swissarmybench`, today's app) and **Swiss Army Bench Power Apps Edition**
-  (`swissarmybench-powerapps`, its own install command; Plans/powerapps-spinoff.plan.md), both from this
-  repository. Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
+  (`swissarmybench-powerapps`; Plans/powerapps-spinoff.plan.md). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
