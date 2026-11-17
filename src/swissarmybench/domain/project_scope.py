@@ -31,6 +31,8 @@ from swissarmybench.domain import connections, notebooks
 APP_FOLDER: str = ".sab"
 BLADES: str = f"{APP_FOLDER}/blades"
 DASHBOARDS: str = f"{APP_FOLDER}/dashboards"
+# The project's variables (the Variables page): variables.json, names and plain values, never a secret.
+VARIABLES: str = f"{APP_FOLDER}/variables"
 KINDS: tuple[str, ...] = ("notebook", "script", "app")
 MAX_IMPORT: int = 200  # documents, connections or blades in one import
 # The project's own files the app writes from others: shown, marked, never imported on their own.
@@ -54,9 +56,10 @@ def kind_of(path: str) -> str:
 
 
 def app_entry(name: str) -> bool:
-    """An entry of the project's own definitions: one JSON file directly in .sab/blades or .sab/dashboards."""
+    """An entry of the project's own definitions: one JSON file directly in .sab/blades, .sab/dashboards
+    or .sab/variables."""
     folder, _, file = name.rpartition("/")
-    return folder in (BLADES, DASHBOARDS) and bool(_FILE_NAME.fullmatch(file))
+    return folder in (BLADES, DASHBOARDS, VARIABLES) and bool(_FILE_NAME.fullmatch(file))
 
 
 def blade_entry(name: str) -> bool:

@@ -32,6 +32,7 @@ AREAS: tuple[str, ...] = (
     "apps",
     "blades",
     "connections",
+    "variables",
     "session",
     "settings",
 )

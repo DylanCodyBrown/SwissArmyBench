@@ -29,6 +29,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
+  routes_variables.py      the Variables page: the project's variables, their sources and uses
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
@@ -92,6 +93,7 @@ from swissarmybench.server import (
     routes_tieout,
     routes_timeseries,
     routes_updates,
+    routes_variables,
     routes_workbench,
     streamlit_proxy,
 )
@@ -230,6 +232,7 @@ def create_app(
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
             *routes_session_log.routes(ctx.session_log),
+            *routes_variables.routes(ctx.variables),
             *routes_script_runs.routes(ctx.script_runs),
             *routes_beta_log.routes(ctx.beta),
             *routes_updates.routes(ctx.updates),

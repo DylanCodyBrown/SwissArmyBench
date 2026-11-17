@@ -3711,7 +3711,7 @@ def app_audit(a: dict[str, Any]) -> Any:
     req(
         "to",
         "the rail: grids, visualizations, erd, notebooks, scripts, apps, blades, connections, "
-        "settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
+        "variables, session, settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
         "catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
     ),
     opt("window", "home (default), catalog or workbench."),
