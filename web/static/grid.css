@@ -12817,3 +12817,16 @@ dialog.find-data .dialog-body {
   padding: 0 6px;
   font-size: 11px;
 }
+
+.xc-block.xc-title {
+  justify-content: center;
+  padding: 0 6px;
+}
+
+.xc-block-head .xc-title-words {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

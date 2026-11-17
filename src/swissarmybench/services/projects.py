@@ -159,7 +159,8 @@ class Projects:
             exported = await self._export_data(folder, name)
             own = scaffold(name, list(exported["names"])) if scaffold is not None else {}
             with_app = body.get("app") is not False and own.get("app", True) is not False
-            self._files.write(folder, rules.TYPE_FILE, rules.type_file(kind))
+            if kind != rules.BASE_TYPE:  # the base's type needs no file: a folder without one is the base's
+                self._files.write(folder, rules.TYPE_FILE, rules.type_file(kind))
             for relative, text in (own.get("files") or {}).items():
                 self._files.write(folder, relative, text)
             if with_app:

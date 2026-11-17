@@ -71,7 +71,7 @@ def test_an_accounting_project_sets_its_mode(on: TestClient, tmp_path: Path) -> 
     assert mode["mode"]["families"] == ["Excel", "Write", "Files"] and mode["mode"]["tools"][0] == "workbook_"
     # Another project (the base's type): the base's mode, the Excel canvas not offered.
     other = on.post("/projects", json={"folder": str(tmp_path), "name": "analysis"}, headers=AUTH).json()
-    assert json.loads((Path(other["folder"]) / ".sab" / "project.json").read_text()) == {"type": "bi"}
+    assert not (Path(other["folder"]) / ".sab" / "project.json").exists()  # the base's type: no file
     assert on.get("/app/mode", headers=AUTH).json()["mode"]["canvases"] == ["streamlit"]
 
 

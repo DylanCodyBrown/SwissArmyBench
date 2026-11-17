@@ -2567,3 +2567,9 @@ shown), a built statement and a one-workbook build of six sheets.
 NOT checked: Excel itself opening the files (Windows, macOS); the extension installed from its wheel with
 `uv tool install --with` (its wheel was built and its entry_points.txt read; discovery was tested through
 SWISSARMYBENCH_EXTENSIONS); the extensions branch's Install and Extensions page with this package.
+
+Whole suite with Chromium (2026-11-17, branch ext-accounting): 3,859 passed, 45 skipped, 7 failed, 2 errors. One
+was this branch's (a new project wrote .sab/project.json for the base's type too; now only an extension's type
+writes it; fixed, test_streamlit_apps passes). test_client_install (adapters/intellisense.py) and test_tool_sweep's
+workbench_problems fail on the base too (files this branch did not change). test_rail_page, test_table_cells_page,
+test_ui's wide column, test_workbench_feedback's landing pages and test_workbench_page's two errors pass alone (load).
