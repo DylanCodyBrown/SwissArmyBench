@@ -17,6 +17,12 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   answer for one release: `sab.sandbox` (a warning), `sandbox_*` (cli/commands.py OLD_NAMES: run, never
   listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a .sab's `sandbox/`
   entry. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
+- **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
+  duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
+  and reads one through one contract, and DuckDB SQL names them by the connection
+  (`SELECT * FROM [Finance Captive].model_Report`). A thing with no tables (a key vault) is not a connection.
+  Connections, APIs, vaults, blades and variables are this computer's library, shared by every project and
+  made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17).
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
