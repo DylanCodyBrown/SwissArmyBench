@@ -454,7 +454,10 @@ class TsNotebooks:
             "(() => { const out: Record<string, unknown> = {}; for (const n of "
             + json.dumps(names)
             + ") { try { const v = eval(n); if (v instanceof (globalThis as any).sab.SabTable) "
-            "out[n] = { columns: v.columns, types: v.types }; } catch { /* not made yet */ } } "
+            "out[n] = { columns: v.columns, types: v.types, total: v.total, "
+            "query: (globalThis as any).sab.queryOf(v.id), rows: v.rows.slice(0, "
+            + str(data_ts.MAX_ROWS + 1)
+            + ") }; } catch { /* not made yet */ } } "
             'return { [Symbol.for("Jupyter.display")]() { return { "application/json": out }; } }; })()'
         )
         found: dict[str, dict[str, Any]] = {}
@@ -475,7 +478,13 @@ class TsNotebooks:
         cells = self._cells(body, path)
         names = [n for c in cells if c["kind"] == "typescript" for n in data_ts.declared(str(c["source"]))]
         book = self._books.get(self._files.resolve(path))
-        built = data_ts.build(cells, await self._results(book, names))
+        dataverse = [
+            str(s.get("table") or s.get("name")) for s in self._sources() if s.get("kind") == "dataverse"
+        ]
+        try:
+            built = data_ts.build(cells, await self._results(book, names), dataverse)
+        except data_ts.DataTsError as error:
+            raise Conflict(str(error)) from None
         return built | {"path": path, "target": DATA_TS}
 
     async def use_in_app(self, body: Any, who: str) -> dict[str, Any]:

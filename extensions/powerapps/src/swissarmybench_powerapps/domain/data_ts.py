@@ -10,15 +10,28 @@ The app runs in the browser (Vite and React), so only what can run there goes in
   the top, each once;
 - typed results: a name a cell made that holds a table result when the notebook last ran (its DuckDB
   columns and types, asked of the kernel) gets a row interface (`ByRegionRow`) and its type
-  (`ByRegion = ByRegionRow[]`). DuckDB's types as JSON gives them (BIGINT, DECIMAL and dates as strings).
+  (`ByRegion = ByRegionRow[]`). DuckDB's types as JSON gives them (BIGINT, DECIMAL and dates as strings);
+- where each result comes from: `SOURCES`, the tables its query read (each marked when it is one of the app's
+  Dataverse sources), so a page's hook knows what to read; the query itself is never translated;
+- a small result (at most MAX_ROWS rows and MAX_CHARS of JSON: a lookup table) as a constant
+  (`byRegionRows`); a bigger one is said plainly in a comment and in `left`, never embedded.
+
+**Nothing in it imports DuckDB or WebAssembly** (the owner, 2026-11-17: "I can't change the code apps security
+policy"): a code app's default Content-Security-Policy has `worker-src 'none'` and `script-src 'self'` plus
+the platform's, which DuckDB-Wasm needs past, and DuckDB's Node package does not run in a browser. A cell
+importing either stays in the notebook; `no_duckdb` refuses a text that would still name one. An `enum`
+stays too: the template builds with `erasableSyntaxOnly`.
 
 SQL cells and markdown stay in the notebook (DuckDB is the notebook's). Pure rules: no I/O.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
+
+from swissarmybench.domain import sql_guard
 
 HEADER = (
     "// data.ts: made from the data notebook's TypeScript cells (data.ipynb) by Swiss Army Bench.\n"
@@ -31,7 +44,12 @@ _NAME_AFTER = re.compile(
     r"^(?:export\s+)?(?:async\s+function\*?|function\*?|const|let|var|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)"
 )
 _IMPORT = re.compile(r"""^import\s.+?\sfrom\s+(["'])(.+?)\1\s*;?\s*$|^import\s+(["'])(.+?)\3\s*;?\s*$""")
-_KERNEL_ONLY = re.compile(r"\bsab\.|\bDeno\.|@duckdb/node-api|from\s+[\"']jsr:")
+_KERNEL_ONLY = re.compile(
+    r"\bsab\.|\bDeno\.|from\s+[\"']jsr:|[\"'][^\"'\n]*(?:duckdb|\.wasm)[^\"'\n]*[\"']", re.IGNORECASE
+)
+_ENUM = re.compile(r"^(?:export\s+)?(?:const\s+|declare\s+)*enum\s", re.MULTILINE)
+MAX_ROWS = 50  # a result embedded as a constant (a lookup table): at most this many rows
+MAX_CHARS = 20_000  # and at most this much JSON
 _NPM = re.compile(r"""(["'])npm:((?:@[^/"'@]+/)?[^@/"']+)(?:@[^/"']*)?(/[^"']*)?\1""")
 
 _NUMBER = {"TINYINT", "SMALLINT", "INTEGER", "FLOAT", "DOUBLE", "REAL", "UTINYINT", "USMALLINT", "UINTEGER"}
@@ -84,6 +102,92 @@ def row_types(results: dict[str, dict[str, Any]]) -> list[str]:
     return out
 
 
+class DataTsError(ValueError):
+    """A data.ts that would still name DuckDB or WebAssembly (never written)."""
+
+
+def no_duckdb(text: str) -> str:
+    """The text, or DataTsError when an import in it names DuckDB or a .wasm file."""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("import ", "export ")) and re.search(
+            r"duckdb|\.wasm", stripped, re.IGNORECASE
+        ):
+            raise DataTsError(
+                f"data.ts would import DuckDB or WebAssembly ({stripped[:80]}): code apps cannot."
+            )
+        if re.search(r"\bimport\s*\(|\brequire\s*\(", stripped) and re.search(
+            r"duckdb|\.wasm", stripped, re.IGNORECASE
+        ):
+            raise DataTsError(
+                f"data.ts would load DuckDB or WebAssembly ({stripped[:80]}): code apps cannot."
+            )
+    return text
+
+
+def _camel(name: str) -> str:
+    row = interface_name(name)[:-3]
+    return row[:1].lower() + row[1:]
+
+
+def tables_read(query: str) -> list[str]:
+    """The tables a result's query read (sqlglot, DuckDB's dialect; its own CTEs left out), in order."""
+    return [t for t in sql_guard.tables_read(query) if not t.startswith("__sab")]
+
+
+def sources(results: dict[str, dict[str, Any]], dataverse: list[str]) -> str | None:
+    """SOURCES: each result's tables, those that are the app's Dataverse sources marked (a page's hook reads
+    them through their generated services). None when no result says its query."""
+    wanted = {d.lower() for d in dataverse}
+    lines = []
+    for name in sorted(results):
+        query = results[name].get("query")
+        if not isinstance(query, str) or not results[name].get("columns"):
+            continue
+        tables = tables_read(query)
+        marked = [t for t in tables if t.lower() in wanted]
+        lines.append(f"  {_key(_camel(name))}: {{ tables: {_list(tables)}, dataverse: {_list(marked)} }},")
+    if not lines:
+        return None
+    return (
+        "/** Where each result comes from: the tables its notebook query read (the app's Dataverse sources\n"
+        " *  marked). A page reads them itself, through its hooks. */\n"
+        "export const SOURCES = {\n" + "\n".join(lines) + "\n} as const;"
+    )
+
+
+def _list(items: list[str]) -> str:
+    return "[" + ", ".join(json.dumps(i) for i in items) + "]"
+
+
+def constants(results: dict[str, dict[str, Any]]) -> tuple[list[str], list[dict[str, Any]]]:
+    """Each small result as a constant (its rows as JSON gave them); each too big said plainly."""
+    made: list[str] = []
+    too_big: list[dict[str, Any]] = []
+    for name in sorted(results):
+        found = results[name]
+        rows = found.get("rows")
+        if not isinstance(rows, list) or not found.get("columns"):
+            continue
+        total = int(found.get("total") or len(rows))
+        said = json.dumps(rows[: MAX_ROWS + 1], ensure_ascii=False, indent=2)
+        if total > MAX_ROWS or len(rows) > MAX_ROWS or len(said) > MAX_CHARS:
+            why = f"{total:,} rows" if total > MAX_ROWS else f"{len(said):,} characters"
+            too_big.append(
+                {
+                    "result": name,
+                    "why": f"{why}: more than a constant holds ({MAX_ROWS} rows, {MAX_CHARS:,} characters)",
+                }
+            )
+            made.append(
+                f"// {_camel(name)}: {why}, too big to embed here; a page reads it from its source (SOURCES)."
+            )
+            continue
+        row = interface_name(name)
+        made.append(f"export const {_camel(name)}Rows: readonly {row}[] = {said};")
+    return made, too_big
+
+
 def declared(code: str) -> list[str]:
     """The names a cell's top-level declarations make (const totals, function byRegion, type Order)."""
     names: list[str] = []
@@ -105,7 +209,11 @@ def _exported(line: str) -> str:
     return "export " + line
 
 
-def build(cells: list[dict[str, Any]], results: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+def build(
+    cells: list[dict[str, Any]],
+    results: dict[str, dict[str, Any]] | None = None,
+    dataverse: list[str] | None = None,
+) -> dict[str, Any]:
     """data.ts from the notebook's cells ({kind, source, number, name}): its text, what went in and what
     stayed in the notebook (and why)."""
     imports: list[str] = []
@@ -123,6 +231,10 @@ def build(cells: list[dict[str, Any]], results: dict[str, dict[str, Any]] | None
         if kernel_only(code):
             left.append({"cell": number, "why": "it uses the notebook's kernel (sab, Deno or DuckDB)"})
             bodies.append(f"// {label}: stays in the notebook (it uses the notebook's own kernel).")
+            continue
+        if _ENUM.search(code):
+            left.append({"cell": number, "why": "an enum does not build in the app (erasableSyntaxOnly)"})
+            bodies.append(f"// {label}: stays in the notebook (an enum does not build in the app).")
             continue
         own: list[str] = []
         for line in code.splitlines():
@@ -145,10 +257,17 @@ def build(cells: list[dict[str, Any]], results: dict[str, dict[str, Any]] | None
     types = row_types(typed)
     if types:
         parts.append("// The notebook's table results, as the app reads them.\n" + "\n\n".join(types))
+    where = sources(typed, list(dataverse or []))
+    if where:
+        parts.append(where)
+    fixed, too_big = constants(typed)
+    if fixed:
+        parts.append("// The small results, fixed (lookup tables).\n" + "\n\n".join(fixed))
     parts.extend(bodies)
+    text = no_duckdb("\n\n".join(parts) + "\n")
     return {
-        "text": "\n\n".join(parts) + "\n",
+        "text": text,
         "cells": included,
-        "left": left,
+        "left": left + too_big,
         "types": [interface_name(n) for n in sorted(typed) if typed[n].get("columns")],
     }

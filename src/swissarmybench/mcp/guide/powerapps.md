@@ -42,7 +42,8 @@ environments list and custom connectors. Every run is on the Code App page's Run
   name; ``await sab.sql`SELECT ... ${value}` `` binds values; `sab.table("name", rows)`; a query naming
   `[Connection].table` reads it first. A table output: columns, types, first rows, `total`, `id`.
 - `powerapps_ts_grid(id, name)`: that result, every row, as a grid.
-- `powerapps_data_ts`: data.ts from the saved notebook (its TypeScript exported, typed results);
+- `powerapps_data_ts`: data.ts from the saved notebook (its TypeScript exported, typed results, SOURCES,
+  small results as constants; never DuckDB: code apps' security policy forbids it);
   `use_in_app=true` writes `src/shared/data.ts`.
 - `powerapps_tsx_preview(source)`: a TSX cell (its `export default`, `// props: {...}` on line 1) as one page
   for the HTML cells' frame, with the app's own React (`npm install` first).

@@ -2785,3 +2785,18 @@ Checked here:
 NOT checked: `pa app init` and `pa app add data-source` for real (no tenant: their files are the recorded
 stand-in's), a real generated service's exact types (the page's row type is inferred from its read-all
 method's result), `vite build` and Run live of the starter files, the starter files on Windows and macOS.
+
+### Phase 2: data.ts without DuckDB (2026-11-17, branch ext-powerapps-2)
+
+Relied on: Microsoft Learn, **How to: Configure Content Security Policy** for code apps (ms.date 2026-04-07):
+the default directives (`script-src 'self' <platform>`, `worker-src 'none'`, `child-src 'none'`,
+`connect-src 'none'`), enforced by default, changed only by an environment's administrator.
+
+Checked here: data.ts with types, SOURCES (the tables each query read, by sqlglot, its CTEs left out) and a
+constant, together with the starter files, built by the installed template's own tsc (its browser settings);
+no DuckDB or `.wasm` import in any data.ts or starter file, and `no_duckdb` refusing one
+(tests/test_powerapps_notebook_rules.py). The real Deno test's data.ts (typed results, SOURCES, a constant
+from the kernel's rows) passed.
+
+NOT checked: the policy in a running code app (no tenant), DuckDB-Wasm refused there (taken from the
+documented directives; the enforcement date the coordinator gave, 2026-01-30, is not on the page).

@@ -4649,7 +4649,8 @@ in `web/` the generic `routedCells.ts` with the notebook, outputs, modes and Cod
    notebook with a comment; `npm:pkg@x` imports made the package's plain name, gathered once; typed results:
    each name a cell made that holds a table result now (asked of the kernel) gets `XRow` and `X = XRow[]`
    from DuckDB's types as JSON reads them (BIGINT, DECIMAL and dates as strings). It reads the notebook as
-   saved (the agent's and the page's), or the cells sent.
+   saved (the agent's and the page's), or the cells sent. Since the constraint below: also SOURCES and small
+   results as constants, and never anything that imports DuckDB.
 10. **TSX previews:** the cell's default export bundled by `deno bundle` for the browser (no remote, no npm
     downloads; a deno.json in the temporary folder resolves `react` and `react-dom` to the project's own
     node_modules, JSX for React's automatic runtime), one document with the props inline, shown in the HTML
@@ -4739,3 +4740,28 @@ and `pa app add data-source` from their documented output (no tenant here: the r
    starter files and a new page over a generated service (checked with the installed template).
 8. The generated service's read-all method is read from its file (`getAll`; Microsoft's docs also show
    `getall`); a service without one (a connector's actions) gives a page with made-up rows.
+
+### Phase 2, constraint: nothing the app ships imports DuckDB (the owner, 2026-11-17)
+
+The owner: "I can't change the code apps security policy." Source: Microsoft Learn, **How to: Configure Content
+Security Policy** for code apps (learn.microsoft.com/power-apps/developer/code-apps/how-to/content-security-policy,
+ms.date 2026-04-07): enforced by default, set per environment by its administrator; the defaults include
+`script-src 'self' <platform>`, `worker-src 'none'`, `child-src 'none'`, `connect-src 'none'`. DuckDB-Wasm needs
+a worker and WebAssembly past that, and DuckDB's Node package (`@duckdb/node-api`) does not run in a browser
+at all. (The enforcement date the coordinator gave, 2026-01-30, is not on the page.)
+
+**Decided:**
+1. The data notebook keeps DuckDB: its TypeScript and SQL cells run on Deno with `@duckdb/node-api` (the
+   notebook's own engine for exploring and transforming).
+2. **data.ts (src/shared/data.ts) is plain TypeScript:** the result types (interfaces from the notebook's
+   result tables' columns); `SOURCES`, where each result comes from (the tables its query read, the app's
+   Dataverse sources marked: a page's hook reads them itself); small fixed results as constants (lookup
+   tables, at most 50 rows and 20,000 characters of JSON), and a bigger one said plainly (a comment, and
+   `left` in the answer). Never the query, and no SQL translated into TypeScript.
+3. A cell importing DuckDB (any specifier naming duckdb) or a `.wasm` file stays in the notebook, and
+   `data_ts.no_duckdb` refuses a data.ts that would still name one. An `enum` stays too (the template builds
+   with `erasableSyntaxOnly`).
+4. Tests: no data.ts and no starter file contains a DuckDB import; the template's own tsc (its browser
+   settings) builds the starter files with a data.ts holding types, SOURCES and a constant.
+
+**Open (the owner is choosing):** how transformed results reach the app. Not built.

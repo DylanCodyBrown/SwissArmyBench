@@ -91,7 +91,9 @@ class FakeDeno(Kernel):
             data = {"application/json": {"rows": BY_REGION["rows"], "title": "Sales by region"}}
         elif "SabTable" in code and "application/json" in code:
             names = json.loads(code[code.index("for (const n of ") + 16:code.index(") { try")])
-            data = {"application/json": {n: {"columns": BY_REGION["columns"], "types": BY_REGION["types"]}
+            data = {"application/json": {n: {"columns": BY_REGION["columns"], "types": BY_REGION["types"],
+                                             "query": "SELECT region, total FROM account", "rows": BY_REGION["rows"],
+                                             "total": len(BY_REGION["rows"])}
                                          for n in names if n in self.made}}
         elif "nope" in code:
             return self._error("ReferenceError", "nope is not defined", ["ReferenceError: nope is not defined",

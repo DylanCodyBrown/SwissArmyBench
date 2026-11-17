@@ -112,7 +112,7 @@ def test_typescript_declarations_are_exported_and_kernel_cells_stay() -> None:
         {
             "kind": "typescript",
             "source": 'import dayjs from "npm:dayjs@1.11.13";\nexport const label = (d: string) => dayjs(d).format("D MMM");\n'
-            "interface Sale { region: string }\n  const inner = 1;\nenum Kind { A }",
+            "interface Sale { region: string }\n  const inner = 1;\ntype Kind = 'a' | 'b';",
             "number": 2,
             "name": "labels",
         },
@@ -123,14 +123,22 @@ def test_typescript_declarations_are_exported_and_kernel_cells_stay() -> None:
             "number": 4,
         },
         {"kind": "sql", "source": "SELECT 1", "number": 5},
+        {"kind": "typescript", "source": "enum Level { Low, High }", "number": 6},
+        {
+            "kind": "typescript",
+            "source": 'import * as duckdb from "@duckdb/duckdb-wasm";\nexport const x = duckdb;',
+            "number": 7,
+        },
+        {"kind": "typescript", "source": 'import init from "./engine.wasm?init";\ninit();', "number": 8},
     ]
     built = data_ts.build(cells)
     text = built["text"]
     assert text.count('import dayjs from "dayjs";') == 1
-    assert "export const label = " in text and "export interface Sale" in text and "export enum Kind" in text
+    assert "export const label = " in text and "export interface Sale" in text and "export type Kind" in text
     assert "  const inner = 1;" in text and "export   const" not in text  # only the top level
     assert "// [2] labels" in text and "// [1]: stays in the notebook" in text
-    assert [c["cell"] for c in built["left"]] == [1, 3, 4]
+    assert [c["cell"] for c in built["left"]] == [1, 3, 4, 6, 7, 8]
+    assert "enum Level" not in text and "duckdb" not in text.lower() and ".wasm" not in text
     assert built["cells"] == [{"cell": 2, "names": ["label", "Sale", "Kind"]}]
     assert "SELECT 1" not in text
 
@@ -301,4 +309,79 @@ def test_data_ts_compiles_under_the_templates_own_settings(tmp_path: Path) -> No
         text=True,
         check=False,
     )
+    assert ran.returncode == 0, ran.stdout + ran.stderr
+
+
+# ===== code apps cannot run DuckDB (the owner, 2026-11-17: "I can't change the code apps security policy") =====
+
+RESULTS: dict[str, dict[str, Any]] = {
+    "by_region": {
+        "columns": ["region", "total"], "types": ["VARCHAR", "DOUBLE"], "total": 2,
+        "query": "WITH t AS (SELECT * FROM account) SELECT region, sum(total) AS total FROM t JOIN sales USING (region) GROUP BY 1",
+        "rows": [{"region": "North", "total": 12.5}, {"region": "South", "total": 7}],
+    },
+    "orders": {"columns": ["id"], "types": ["BIGINT"], "total": 12_000, "query": "SELECT id FROM orders", "rows": [{"id": "1"}] * 51},
+}  # fmt: skip
+
+
+def test_data_ts_says_where_results_come_from_and_embeds_only_small_ones() -> None:
+    built = data_ts.build([], RESULTS, ["account"])
+    text = built["text"]
+    assert '  byRegion: { tables: ["sales", "account"], dataverse: ["account"] },' in text
+    assert '  orders: { tables: ["orders"], dataverse: [] },' in text and "} as const;" in text
+    assert "export const byRegionRows: readonly ByRegionRow[] = [" in text and '"region": "North"' in text
+    assert "// orders: 12,000 rows, too big to embed here; a page reads it from its source (SOURCES)." in text
+    assert "ordersRows" not in text
+    assert built["left"] == [
+        {"result": "orders", "why": "12,000 rows: more than a constant holds (50 rows, 20,000 characters)"}
+    ]
+    assert "SELECT" not in text and "GROUP BY" not in text  # never the query, never SQL made into TypeScript
+
+
+def test_no_data_ts_and_no_starter_file_imports_duckdb() -> None:
+    from swissarmybench_powerapps.domain import pages
+
+    texts = [data_ts.build([], RESULTS, ["account"])["text"]]
+    texts += (
+        list(pages.SHARED.values())
+        + list(pages.page_files("Accounts").values())
+        + [pages.APP_TEXT, pages.REGISTRY_TEXT]
+    )
+    for text in texts:
+        assert "duckdb" not in text.lower() and ".wasm" not in text
+    for bad in (
+        'import * as d from "@duckdb/duckdb-wasm";',
+        'export { x } from "npm:@duckdb/node-api";',
+        'const d = await import("duckdb");',
+    ):
+        with pytest.raises(data_ts.DataTsError):
+            data_ts.no_duckdb(bad)
+    assert data_ts.no_duckdb("// DuckDB ran in the notebook\nexport const a = 1;\n").startswith("// DuckDB")
+
+
+@pytest.mark.skipif(
+    not TEMPLATE or not shutil.which("node"),
+    reason="no code app with its packages here (SWISSARMYBENCH_TEST_CODEAPP), or no Node.js",
+)
+def test_data_ts_with_sources_and_constants_builds_for_the_browser(tmp_path: Path) -> None:
+    """The template's own tsc (its browser settings: lib DOM, bundler resolution) over the starter files and a
+    data.ts with types, SOURCES and a constant."""
+    from swissarmybench_powerapps.domain import pages
+
+    app = Path(str(TEMPLATE))
+    work = tmp_path / "app"
+    shutil.copytree(app, work, ignore=shutil.ignore_patterns("node_modules"))
+    (work / "node_modules").symlink_to(app / "node_modules", target_is_directory=True)
+    existing = {p: ((work / p).read_text() if (work / p).exists() else None) for p in pages.scaffold_paths()}
+    files = pages.scaffold_plan(existing, None, "") | {
+        "src/shared/data.ts": data_ts.build([], RESULTS, ["account"])["text"]
+    }
+    for path, text in files.items():
+        (work / path).parent.mkdir(parents=True, exist_ok=True)
+        (work / path).write_text(text)
+    node = str(shutil.which("node"))
+    ran = subprocess.run(  # noqa: S603 (Node.js here, the template's own compiler)
+        [node, str(app / "node_modules" / "typescript" / "bin" / "tsc"), "-p", "tsconfig.app.json", "--noEmit"],
+        cwd=work, capture_output=True, text=True, check=False,
+    )  # fmt: skip
     assert ran.returncode == 0, ran.stdout + ran.stderr

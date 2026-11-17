@@ -155,7 +155,9 @@ import { DuckDBInstance as __SabDuckDB } from "__PACKAGE__";
     return [...synced];
   }
 
-  (globalThis as Record<string, unknown>).sab = { sql, table, tables, db, save, sync, SabTable };
+  const queryOf = (id: string): string | null => results.get(id)?.query ?? null;
+
+  (globalThis as Record<string, unknown>).sab = { sql, table, tables, db, save, sync, queryOf, SabTable };
 }
 """
 for _mark, _value in (
