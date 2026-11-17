@@ -2254,3 +2254,39 @@ drags; code of more than one line is pasted, one typed value):
   import syntax is Claude Code's documented `@path`; not run here); Claude Desktop reading the resource; a
   Power BI or Dataverse connection's live catalog in the file (the made-up state covers the naming); APIs
   and Structures (their branch); the file's write load during the browser suite beyond its passing.
+
+## The Data Explorer (2026-11-17, branch data-explorer)
+
+- **Rules** (tests/test_explorer.py): `cust` matches `customer_id`, `CustomerKey` (start), `id_customer` (a
+  part), `Accustomed` (inside), not `orders`; `customerid` matches `customer_id`; words spread over the path
+  but one must be in the name; the search as sent (kinds as a list or "a,b", an unknown kind refused, the
+  limit capped at 200, a 201-character search refused); 32 results grouped in order and counted with the
+  groups cut to the limit; each result's insert code (a connection's table, an open table, a quoted column
+  with its table's variable, a variable, a blade and a vault).
+- **The seam:** a stand-in "structures" provider joins the search (its path kept) and a failing provider
+  is skipped; a kind filter leaves it out.
+- **HTTP** (two made-up SQLite connections, two pasted grids, a variable): Ledger's catalog not loaded is
+  offered and Shop's searched; `customers` with `[Shop].customers` and its insert; the columns
+  `customer_id` (orders, typed INTEGER), `CustomerKey`, and the grid's `customer_id`; both loaded:
+  `customer_id` across Ledger, Shop and the grid; `column=CUSTOMER_ID` gives invoices, orders, sales;
+  the connection picker in any case; the grid's result (source, grid, variable); the variable by name with
+  no value anywhere in it; an empty search lists without catalog columns; the agent's answer the same;
+  a bad kind is a 400; `/workbench?panel=explorer` serves the window's page.
+- **Browser** (Chromium; tests/e2e/test_data_explorer.py): the pane off, then beside the data notebook;
+  `cust` grouped and counted with the SQL name's path; Insert into a SQL cell (the SELECT) and a Python cell
+  (`sab.sql(...)`); beside a script; Show tables with this column; the agent's explorer.search drives the
+  box; Ctrl+Shift+E closes it. App mode: the canvas's Streamlit cells panel lists a named cell; Starters
+  takes its place. Pop out: the window titled Data Explorer, with the rail, carries the search; a search
+  there; a table result's drag data (taken from the window's own dragstart) dropped on a SQL cell's editor
+  in the Workbench writes the SELECT; Insert from the window into the Workbench's selected cell; Move back
+  reopens the pane with the window's search and closes the window; the agent's explorer.popOut and
+  explorer.moveBack do the same. Ctrl+K on the grid page: the dialog, its results, Open the Data Explorer.
+  The older browser tests that used the Data panel follow the new places (panels, notebook kinds, groups,
+  the rail's Apps, modes, connection colours, starters, text cells, Streamlit).
+- **Not checked:** a real drag between two browser windows (Playwright cannot; the drop is sent with the
+  data the window's dragstart set); a canvas drop of a result (not built); Structures and APIs results
+  (the trees-apis branch's providers are not registered here); Load its catalog's button in a browser (the
+  route is the existing connections_load_catalog); the resize grip by pointer; Edge.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,394 passed, 42 skipped, 1 failed in
+  22 minutes: the landing pages' test (it passed alone; its `.wb-data` check is now the Data Explorer's,
+  off on a landing page), then that file 5 passed.
