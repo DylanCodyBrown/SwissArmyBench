@@ -1,6 +1,6 @@
 [project]
 name = "swissarmybench"
-version = "0.0.16"
+version = "0.0.17"
 description = "Local server that shows tabular data in live browser grids."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
