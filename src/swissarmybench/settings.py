@@ -208,9 +208,9 @@ class Settings:
     claude_dir: Path = field(default_factory=_claude_dir)
 
     @property
-    def blades_dir(self) -> Path:
-        """Saved blades, one JSON file each (plan decision 14)."""
-        return self.state_dir / "blades"
+    def library_dir(self) -> Path:
+        """The library's default folder (Plans/library.plan.md); Settings' Library folder can move it."""
+        return self.state_dir / "library"
 
     @property
     def duckdb_memory_limit(self) -> str:

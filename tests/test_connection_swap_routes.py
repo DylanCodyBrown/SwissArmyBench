@@ -169,14 +169,12 @@ def test_a_deleted_connections_tables_all_move_and_a_project_reopens_them_from_t
         edp, trino = connections(tmp_path)
         ok(client.post("/connections", json=edp, headers=AUTH))
         ok(client.post("/connections", json=trino, headers=AUTH))
-        ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
-        ok(client.post("/connections", json=edp, headers=AUTH))
-        ok(client.post("/connections", json=trino, headers=AUTH))
+        ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))  # the library's connections
         grid = ok(
             client.post("/connections/EDP/open", json={"schema": "main", "table": "ORDERS"}, headers=AUTH)
         )["grid"]
         ok(client.post(f"/grids/{grid}/steps", json={"steps": STEPS}, headers=AUTH))
-        # EDP is deleted from the project; saved, closed and opened again, ORDERS waits for it.
+        # EDP is deleted from the library; saved, closed and opened again, ORDERS waits for it.
         ok(client.delete("/blades/EDP", headers=AUTH))
         ok(client.post("/project/save", json={}, headers=AUTH))
         ok(client.post("/project/close", json={"discard": True}, headers=AUTH))

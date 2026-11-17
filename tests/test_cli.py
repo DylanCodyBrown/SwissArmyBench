@@ -164,6 +164,7 @@ NOT_COMMANDS = {
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
     "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",
+    "/library/notices": "the page's once-only notices, taken by it: library_info shows them to the agent",
     "/updates/tray": "the tray's menu (tray plumbing): tabs_list and workbench_window documents say the same",
     "/session": "the page's cookie (page plumbing): the agent keeps the Bearer token",
     "/project/layout": "a window reports its layout for the next save (page plumbing): project_save keeps it",

@@ -16,6 +16,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -136,8 +137,18 @@ class ApiLibrary(ApiFiles):
     source.json (where it was read from, when, and the check-for-changes switch). Text only: no
     secret, no response."""
 
-    def __init__(self, root: Path) -> None:
-        self.root = root
+    def __init__(self, root: Path | Callable[[], Path], made: Callable[[], object] | None = None) -> None:
+        self._root = root
+        self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
+
+    def write(self, path: str, text: str) -> None:
+        self._made()
+        super().write(path, text)
+
+    @property
+    def root(self) -> Path:
+        """The library's apis/ folder (asked each time: Settings' Library folder moves it)."""
+        return self._root() if callable(self._root) else self._root
 
     def folder_for(self, name: str) -> str:
         return str(self.root / name)

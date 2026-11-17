@@ -186,8 +186,8 @@ def test_a_connection_keeps_its_colour_and_the_user_and_agent_change_it(tmp_path
             headers=AUTH,
         ).json()
         assert uses == {"cells": [["Warehouse"], ["Finance"], []]}
-    # This computer's colours.toml, sorted keys, one line each: a new start keeps it.
-    kept = (tmp_path / "state" / "colours.toml").read_text(encoding="utf-8")
+    # The library's colours.toml, sorted keys, one line each: a new start keeps it.
+    kept = (tmp_path / "state" / "library" / "colours.toml").read_text(encoding="utf-8")
     assert kept.splitlines()[1:] == ['"Finance" = "' + second + '"', '"Warehouse" = "#808080"']
     with make_client(tmp_path) as client:
         listed = {c["name"]: c for c in client.get("/connection-colours", headers=AUTH).json()["connections"]}

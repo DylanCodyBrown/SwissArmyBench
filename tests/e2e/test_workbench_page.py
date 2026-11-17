@@ -391,12 +391,13 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         typed.fill("reporting-password")
         dialog.get_by_role("button", name="Use it").click()
         expect(code_box(dialog)).to_have_value(re.compile(r'secret\("reporting_password"\)'))
-        # The vault is a connection: in the list under Key vaults, with what it sets.
+        # The vault is not on the Connections page (it has no tables): the Variables page lists it.
         dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
         dialog.locator(".area-page-foot").get_by_role("button", name="Back to Connections").click()
-        expect(dialog.get_by_role("heading", name="Key vaults")).to_be_visible()
-        # Its card's detail: what it sets (the Connections page, 2026-11-16).
-        dialog.locator(".connection-card", has_text="Azure Key Vault").click()
+        expect(dialog.get_by_role("heading", name="Key vaults")).to_have_count(0)
+        page.locator(".nav-rail [data-area='variables']").click()
+        # Its card's detail: what it sets (the Connections page's detail, 2026-11-16).
+        page.locator(".variables-vault-card", has_text="Azure Key Vault").click()
         config = dialog.locator(".connection-config")
         expect(config).to_contain_text("Every secret")
         expect(config).to_contain_text("CRM_KEY")

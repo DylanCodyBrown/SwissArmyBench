@@ -6,8 +6,8 @@ each connection's code. Without it (a scheduled run on this computer, an Azure F
 same calls find the connection here, so the notebook runs as it is, with no export step (the owner,
 2026-11-15: "no export feature"):
 
-    1. this computer's saved connections and blades (the app's own folder, ~/.swissarmybench/blades),
-       when the app is installed here but not running;
+    1. this computer's library (Plans/library.plan.md: ~/.swissarmybench/library, or the folder Settings
+       named), when the app is installed here but not running;
     2. the blade folders: those the app lists, those in SWISSARMYBENCH_BLADE_FOLDERS (separated by the
        system's path separator), the current folder and its blades/ folder. A connection's portable file
        (its Export, `Shop.blade.py`) put beside the notebook is found there;
@@ -23,6 +23,7 @@ Standard library only, like the rest of the client.
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -58,11 +59,21 @@ def _state() -> Path:
     return Path(override) if override else home_state_folder()
 
 
+def _library() -> Path:
+    """The library folder the app uses: the one Settings named (library.json), else the default."""
+    state = _state()
+    try:
+        chosen = json.loads((state / "library.json").read_text(encoding="utf-8")).get("folder")
+    except (OSError, ValueError, AttributeError):
+        chosen = None
+    return Path(chosen) if isinstance(chosen, str) and chosen.strip() else state / "library"
+
+
 def store() -> BladeStore:
-    """The saved blades, the blade folders and the starter pack, as the app would read them."""
+    """The library's blades, the blade folders and the starter pack, as the app would read them."""
     state = _state()
     return _Store(
-        state / "blades",
+        _library(),
         folders_file=state / "blade_folders.json",
         pins_file=state / "blade_pins.json",
         starters=_PACKAGE / "starters",
@@ -97,7 +108,7 @@ def find(name: str, blades: BladeStore | None = None) -> Blade:
     for blade in _here():
         if blade.name.casefold() == name.casefold():
             return blade
-    places = f"{_state() / 'blades'}, the blade folders, the current folder or the starter pack"
+    places = f"{_library()}, the blade folders, the current folder or the starter pack"
     raise NotFoundHereError(
         f"Swiss Army Bench is not running, and no connection or blade named {name!r} is in {places}. "
         "Start the app, or put the connection's exported file (its Export, a .blade.py file) beside the "

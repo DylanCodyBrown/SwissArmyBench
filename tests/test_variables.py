@@ -137,13 +137,23 @@ def test_the_environment_gets_its_own_values_back() -> None:
 
 
 def test_the_files_change_no_byte_when_nothing_changed(tmp_path: Path) -> None:
-    files = VariableFiles(tmp_path / "variables.json", tmp_path / "local" / "variables.json")
-    defined = [rules.Defined("SALES_REGION", "value", "North")]
+    files = VariableFiles(lambda: tmp_path)
+    defined = [
+        rules.Defined("SALES_REGION", "value", "North"),
+        rules.Defined("DATA_FOLDER", "value", "C:\\made-up\\data", local=True),
+        rules.Defined("SHOP_TOKEN", "keyring"),
+    ]
     files.write(rules.shared_json(defined), rules.local_json(defined))
-    before = (tmp_path / "variables.json").stat().st_mtime_ns
+    shared, local = tmp_path / "variables.toml", tmp_path / "local" / "variables.toml"
+    before = (shared.read_bytes(), shared.stat().st_mtime_ns, local.stat().st_mtime_ns)
     files.write(rules.shared_json(defined), rules.local_json(defined))
-    assert (tmp_path / "variables.json").stat().st_mtime_ns == before
-    assert rules.read_defined(*files.read()) == defined
+    assert (shared.read_bytes(), shared.stat().st_mtime_ns, local.stat().st_mtime_ns) == before
+    assert sorted(rules.read_defined(*files.read()), key=lambda d: d.name) == sorted(
+        defined, key=lambda d: d.name
+    )
+    # The shareable file holds names and sources; the local value only in local/.
+    assert "made-up" not in shared.read_text() and "made-up" in local.read_text()
+    assert "[variables.SHOP_TOKEN]" in shared.read_text()
 
 
 # ===== over HTTP: add, show, the agent, rename, remove =====
@@ -206,9 +216,9 @@ def test_the_page_over_http(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
         assert shown["value"] == KEYRING_SECRET
         vault_show = client.post("/variables/reveal", json={"name": "WAREHOUSE_PASSWORD"}, headers=AUTH)
         assert vault_show.status_code == 400 and "stays in the vault" in vault_show.text
-        # Never in a file: the shareable file has names and sources, the secret is the keyring's.
+        # Never in a file: the library's variables.toml has names and sources, the secret is the keyring's.
         state = tmp_path / "state"
-        written = (state / "variables.json").read_text(encoding="utf-8")
+        written = (state / "library" / "variables.toml").read_text(encoding="utf-8")
         assert "SALES_REGION" in written and KEYRING_SECRET not in written
         # Rename: the connection's code follows.
         renamed = _ok(

@@ -5,27 +5,29 @@ domain/project_scope.py).
   documents   the open project's notebooks, scripts and apps (the Workbench's Notebooks, Scripts and Apps
               pages list them)
   sources     what another place offers to import: a .sab, a project's folder, a loose notebook, script or
-              app, or "computer" (this computer's saved connections and blades, the ones saved before
-              projects held their own)
-  import      copies into the open project: documents (a name it has gets the next free one), connections
-              and blades (a name it has is skipped, and said). A connection's password is never copied:
-              it comes from this computer's keyring, environment or vault, by the connection's name, and a
-              connection with none here says "needs a password" with the fix
+              app (an older project's own connections and blades among them)
+  import      documents copied into the open project (a name it has gets the next free one); connections
+              and blades into the library (Plans/library.plan.md: shared by every project; the same one
+              skipped, a different one of that name kept as "<name> from <project>", and said). A
+              connection's password is never copied: it comes from this computer's keyring, environment or
+              vault, by the connection's name, and a connection with none here says "needs a password" with
+              the fix
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import project_scope as rules
+from swissarmybench.domain.blades import Blade
+from swissarmybench.domain.library import saved_json
 from swissarmybench.domain.sab_files import SUFFIX, SabError
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.workspace import NotFound, Refused
-
-COMPUTER: str = "computer"
 
 
 class ScopeFiles(Protocol):
@@ -52,12 +54,17 @@ class ScopeFiles(Protocol):
     def write_into(self, folder: str, relative: str, body: bytes) -> str: ...
 
 
-class ComputerBlades(Protocol):
-    """This computer's saved connections and blades (adapters/blades.py), and a blade's file name."""
+class Library(Protocol):
+    """The library (services/library.py): blades from a project taken in."""
 
-    def saved_files(self) -> list[tuple[str, bytes]]: ...
+    def take(self, blades: list[Blade], project: str, who: str = "user") -> dict[str, Any]: ...
 
-    def file_name(self, name: str) -> str: ...
+
+def _blade(raw: bytes) -> Blade | None:
+    try:
+        return saved_json(json.loads(raw.decode("utf-8-sig")))
+    except (UnicodeDecodeError, ValueError):
+        return None
 
 
 class ProjectScope:
@@ -65,14 +72,14 @@ class ProjectScope:
         self,
         projects: SabProjects,
         files: ScopeFiles,
-        computer: ComputerBlades,
+        library: Library,
         connections: ConnectionService,
         on_saved: Callable[[str], None] = lambda name: None,
     ) -> None:
         self._projects = projects
         self.ws = projects.ws
         self._files = files
-        self._computer = computer
+        self._library = library
         self._connections = connections
         self._on_saved = on_saved  # an imported connection's catalog loads itself
 
@@ -110,13 +117,13 @@ class ProjectScope:
     # ===== what a place offers =====
 
     def _place(self, raw: Any) -> tuple[str, str]:
-        """(kind, where): computer, sab, folder or file, and its whole path."""
-        if raw == COMPUTER:
-            return COMPUTER, COMPUTER
-        if not isinstance(raw, str) or not raw.strip():
+        """(kind, where): sab, folder or file, and its whole path."""
+        if raw == "computer":
             raise ValueError(
-                'Send {"from": a .sab, a project\'s folder, a notebook, script or app, or "computer"}.'
+                "This computer's connections and blades are the library's: every project has them."
             )
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError('Send {"from": a .sab, a project\'s folder, or a notebook, script or app}.')
         try:
             full = self._files.full(raw.strip())
         except FileNotFoundError as error:
@@ -135,9 +142,6 @@ class ProjectScope:
         self, kind: str, where: str
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, bytes]]:
         """A place's documents and saved blades, and each blade file's JSON (by its entry)."""
-        if kind == COMPUTER:
-            raw = {f"{rules.BLADES}/{name}": body for name, body in self._computer.saved_files()}
-            return [], self._records(raw), raw
         if kind == "file":
             return (
                 [{"path": where.replace("\\", "/").rsplit("/", 1)[-1], "kind": rules.kind_of(where)}],
@@ -161,7 +165,7 @@ class ProjectScope:
         return sorted(found, key=lambda r: str(r["name"]).casefold())
 
     async def sources(self, body: Any) -> dict[str, Any]:
-        """What a place offers to import: {"from": a .sab, a folder, a file, or "computer"}."""
+        """What a place offers to import: {"from": a .sab, a folder or a file}."""
         raw = body.get("from") if isinstance(body, dict) else None
         kind, where = self._place(raw)
         try:
@@ -180,13 +184,11 @@ class ProjectScope:
 
     async def import_(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Copy into the open project: {"from", "documents"?: [paths there], "connections"?: [names],
-        "blades"?: [names]}. A loose notebook, script or app needs no list: it is the one imported."""
+        "blades"?: [names]} (connections and blades go into the library). A loose notebook, script or app
+        needs no list: it is the one imported."""
         if not isinstance(body, dict):
             raise ValueError('Send {"from": ..., "documents": [...], "connections": [...], "blades": [...]}.')
-        folder = self._folder()
         current = self._projects.current
-        if current is not None and current.read_only:
-            raise Refused(current.read_only)
         kind, where = self._place(body.get("from"))
         try:
             wanted_documents = rules.chosen(body.get("documents"), "documents")
@@ -201,10 +203,14 @@ class ProjectScope:
             loose = False
         if not loose and not any((wanted_documents, wanted_connections, wanted_blades)):
             raise ValueError("Name what to import: documents, connections or blades.")
+        # Documents go into the open project; connections and blades into the library (no project needed).
+        folder = self._folder() if loose or wanted_documents else ""
+        if folder and current is not None and current.read_only:
+            raise Refused(current.read_only)
         try:
             done = await asyncio.to_thread(
                 self._copy, folder, kind, where, loose, wanted_documents or [], wanted_connections or [],
-                wanted_blades or [],
+                wanted_blades or [], who,
             )  # fmt: skip
         except (SabError, rules.ScopeError) as error:
             raise ValueError(str(error)) from None
@@ -239,9 +245,10 @@ class ProjectScope:
         documents: list[str],
         connections: list[str],
         blades: list[str],
+        who: str,
     ) -> dict[str, Any]:
         offered, records, raw = self._offered(kind, where)
-        taken = [relative for relative, _, _ in self._files.files(folder)]
+        taken = [relative for relative, _, _ in self._files.files(folder)] if folder else []
         copied: list[dict[str, str]] = []
         if loose:
             name = offered[0]["path"]
@@ -260,34 +267,25 @@ class ProjectScope:
                 taken.append(relative)
                 full = self._files.write_into(folder, relative, bodies[path])
                 copied.append({"from": path, "path": relative, "full": full})
-        # Connections and blades: the project's own names are never overwritten.
-        own = {
-            str(r["name"]).casefold()
-            for r in self._records(
-                {
-                    n: self._files.read_file(folder, n)
-                    for n, _, _ in self._files.app_files(folder)
-                    if rules.blade_entry(n)
-                }
-            )
-        }
+        # Connections and blades: into the library (the same one skipped, a different one kept under a
+        # name of its own, never overwritten).
         added: dict[str, list[str]] = {"connections": [], "blades": []}
         skipped: list[str] = []
+        renamed: dict[str, str] = {}
+        source = rules.name_of(where)
         for group, wanted in (("connections", connections), ("blades", blades)):
             if not wanted:
                 continue
             pool = [r for r in records if bool(r["connection"]) == (group == "connections")]
             names = rules.pick([str(r["name"]) for r in pool], wanted, group[:-1])
-            for name in names:
-                record = next(r for r in pool if r["name"] == name)
-                if name.casefold() in own:
-                    skipped.append(name)
-                    continue
-                entry = f"{rules.BLADES}/{self._computer.file_name(name)}"
-                self._files.write_into(folder, entry, raw[str(record["file"])])
-                own.add(name.casefold())
-                added[group].append(name)
-        return {"documents": copied, **added, "skipped": skipped}
+            files = {str(r["name"]): str(r["file"]) for r in pool}
+            chosen = [b for n in names if (b := _blade(raw[files[n]])) is not None]
+            took = self._library.take(chosen, source, who)
+            kept = [*took["added"], *took["renamed"]]
+            added[group] += [took["renamed"].get(n, n) for n in names if n in kept]
+            skipped += took["skipped"]
+            renamed |= took["renamed"]
+        return {"documents": copied, **added, "skipped": skipped, "renamed": renamed}
 
 
 def _listed(record: dict[str, Any]) -> dict[str, Any]:

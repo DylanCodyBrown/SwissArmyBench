@@ -22,9 +22,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   and reads one through one contract, and DuckDB SQL names them by the connection
   (`SELECT * FROM [Finance Captive].model_Report`). A thing with no tables (a key vault) is not a connection.
   Connections, APIs, vaults, blades and variables are this computer's library, shared by every project and
-  made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17). APIs already live there:
-  `~/.swissarmybench/library/apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json,
-  source.json); an API's tables are its web calls with Return as table on, and it is not on the Connections page.
+  made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17): the **library** folder, below. An
+  API lives in its `apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json, source.json);
+  an API's tables are its web calls with Return as table on, and it is not on the Connections page. Key vaults
+  are added and listed on the Variables page, not the Connections page.
 - **The front end and the back end (the owner, 2026-11-17): "set a boundary on what is front end and what is back
   end ... a rule that we can never modify the front end of this app" / "including the edition right in this repo and
   a separated install command".** **Editions never modify the front end.** The front end (`web/`) is one, shared
@@ -97,15 +98,16 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   posture: 127.0.0.1 only, token on every data route (or, for the pages, the `sab_<port>` cookie the
   token buys once: HttpOnly, SameSite=Strict, a per-start secret, our own Origin on unsafe methods;
   `server/security.py`), DuckDB locked (`adapters/database.py`),
-  nothing written to disk except explicit exports, saved dashboards, the audit log and, in beta mode,
+  nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
+  and the one-time move into it), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
   **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
-  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `colours.toml` (each connection's colour, by name).
-  **Variables (the owner, 2026-11-16/17):** this computer's, never in a .sab: `variables.json` (names, sources,
-  plain values that may be shared), `local/variables.json` (values marked this computer only), a secret's
+  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it).
+  **Variables (the owner, 2026-11-16/17):** the library's, never in a .sab: `variables.toml` (names, sources,
+  plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs.
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
@@ -118,12 +120,20 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   the user named, at once), by Autosave when the user turned it on, and by the Autosave switch itself
   (project.json only); the agent's save waits for the user's Allow when it keeps a table's rows. An open
   one is unpacked into a working folder in the system's temporary folder, removed when it closes or the
-  server stops; `recent_projects.json` holds the recent projects' paths and times only. **Everything is
-  the project's own (2026-11-16):** its connections and blades (`.sab/blades`, the blade store's JSON) and
-  saved dashboards (`.sab/dashboards`) live in its working folder and its .sab; with no project open the
-  stores are this computer's (~/.swissarmybench/blades, the state folder's dashboards). Never a secret,
-  token or password in a .sab: a connection names where its password comes from (keyring, environment,
-  vault), resolved on each computer by the connection's name.
+  server stops; `recent_projects.json` holds the recent projects' paths and times only. A project keeps its
+  documents, tables, grids, Structures, Visualizations, model and saved dashboards (`.sab/dashboards`).
+  **The library (the owner, 2026-11-17; Plans/library.plan.md):** connections, APIs, vaults, blades, tangs,
+  variables and connection colours live outside every project, in one folder of text files made to be a Git
+  repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
+  `library.json` keeps the path): `connections/`, `vaults/`, `blades/<name>.blade.py`, `apis/<name>/`,
+  `tangs/`, `variables.toml`, `colours.toml`, `local/` (this computer only, git-ignored), README.md and
+  .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
+  nothing changes no byte. Never a secret, token, password or row in it (nor in a .sab): a connection names
+  where its password comes from (keyring, environment, vault), resolved on each computer by its name; a
+  clone asks for each missing one. This computer's older stores (blades/*.json, variables.json, colours.toml,
+  tangs/) moved in once at start (the old files in `backup/before-library-<date>/`, said once on the page);
+  an older project's own `.sab/blades` are copied in as it opens (the same skipped, a different one kept as
+  `<name> from <project>`, said) and its next save leaves them out. The app never runs git.
 
 ## Layout
 
@@ -228,6 +238,9 @@ src/swissarmybench/
     structures.py        Structures: JSON, YAML (the adapter's), XML (no DOCTYPE or entity) and TOML (written
                          here); paths ($.orders[3], [*]); steps replayed on the original (pick, filter, rename,
                          remove, set, add, sort, flatten); records for a grid; shapes; a structure's lineage
+    library.py           the library's rules: its layout, which folder a blade's file goes in (vaults/,
+                         connections/, blades/), README.md and .gitignore, variables.toml and local/variables.toml
+                         (sorted, stable), the JSON blades from before it, "<name> from <project>", the notices
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
@@ -261,7 +274,7 @@ src/swissarmybench/
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
     project_scope.py     what is the open project's own: its documents (by kind; data.py and pages/*.py
-                         marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/blades and .sab/dashboards, an import's free names and
+                         marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/dashboards (and an older one's .sab/blades), an import's free names and
                          picks, a connection's passwords with no source on this computer and the fix
     sab_files.py         a project as one .sab file (a zip): project.json (each table's source and grids'
                          steps, the tabs, the windows' layout, autosave; unknown fields kept, a newer format read-only),
@@ -430,10 +443,13 @@ src/swissarmybench/
                          again with its steps; Visualizations, model, layout), save (rows only on a tick; the
                          agent's with them on the user's Allow), autosave (a quiet save once a change
                          settles), close, the recent list, a table's fix; unsaved changes worked out, not
-                         tracked; each open, new and close points the stores at the project (scope)
+                         tracked; each open, new and close points the dashboards at the project (scope); an
+                         older project's own blades into the library as it opens (adopt)
+    library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
+                         once, an older project's blades taken in (the same skipped, `<name> from <project>`)
     project_scope.py     the open project's documents, and import: documents from another .sab, a project
-                         folder or a loose file; connections and blades from another project or this
-                         computer's saved ones (a name the project has: skipped, or the next free one)
+                         folder or a loose file into the project; an older project's connections and blades
+                         into the library (services/library.py's take)
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
@@ -447,16 +463,19 @@ src/swissarmybench/
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
     views.py             the view cache and windows
     catalogs.py          loaded catalogs: tree queries and search in the locked DuckDB
-    blades.py            saved blades (~/.swissarmybench/blades, one JSON each), blade folders
-                         (.blade.py files found by their header), favourites; secrets via keyring
+    blades.py            saved blades (the library's connections/, vaults/, blades/<name>.blade.py: one portable
+                         file each, written only when its text changes), blade folders (.blade.py files found
+                         by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
+    library.py           the library folder: where (library.json), README.md and .gitignore on first write,
+                         counts, the one-time move of this computer's older stores (a dated backup), an older
+                         project's .sab/blades read and dropped from its working folder
     blade_run.py         run a blade, its catalog command, a vault, in this Python (standard library
                          only: sab.blade uses it too); which packages this Python has
     codegen.py           runs copied code and compares it with the grid
     export.py            CSV, Excel and Parquet writers; the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
     beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
-    connection_colours.py colours.toml (the state folder's; the library's later by its path), written only
-                         when it changes
+    connection_colours.py colours.toml (the library's), written only when it changes
     claude.py            Launch Claude's files: claude/<project>/ (its context.md atomically, only when changed),
                          claude.json, a Desktop config (backup first)
     updates.py           the release list's one GET, update.json, the helper's and the tray's notes
@@ -469,8 +488,8 @@ src/swissarmybench/
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
     structure_files.py   Structures' files (read, written whole), YAML by PyYAML (else the missing-package
                          answer), records as an Arrow table for Open as grid
-    variables.py         the Variables page's files (variables.json shareable, local/variables.json this computer's;
-                         the library's later), the keyring (`variable/<NAME>`), the server's own environment
+    variables.py         the Variables page's files (the library's variables.toml, shareable; local/variables.toml,
+                         this computer's), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
@@ -487,7 +506,7 @@ src/swissarmybench/
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense,
-                         connection_swap, variables, connection_colours, connection_tables, explorer). Every route serves
+                         connection_swap, variables, connection_colours, connection_tables, explorer, library). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -576,9 +595,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          there (no switch), and the top tabs and the Application row no longer repeat its
                          areas (the owner, 2026-11-16); extensionsPage.ts the Extensions page (open=extensions,
                          above Settings: a card per extension, Install's progress through the restart);
-                         areaPage.ts is a page of the rail's over any page
+                         library.ts Settings' Library (the folder, Change…,
+                         Default, its counts) and the move's notices, said once; areaPage.ts is a page of the rail's over any page
                          (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
-                         by source, uses, Add variable, Show for a keyring secret); sessionPage.ts the Session page
+                         by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); connectionsWindow.ts the

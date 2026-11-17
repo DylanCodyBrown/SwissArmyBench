@@ -2549,3 +2549,38 @@ Settings, the page's Preinstalled and Coming cards, the version mark's tooltip, 
 stood-in restart with a made-up available extension, a development checkout's words on the card).
 NOT checked: a real uv install of an extension wheel from a GitHub release (none exists yet); Windows (the helper's
 stop_in path for an extension change is the update's, untested here); the page reopening after a real restart.
+
+## The library (2026-11-17, branch library)
+
+- **Rules** (tests/test_library.py, made-up names and values): variables.toml and local/variables.toml
+  sorted, stable and read back (quotes, newlines, DEL); which folder each blade goes in (vaults/,
+  connections/, blades/); `<name> from <project>` (no brackets, numbered, within 64 characters); the
+  notice's words; every starter blade's portable text reads back to the same text.
+- **HTTP**: nothing written until something is saved, then README.md and .gitignore (`local/`); a
+  connection, a vault, a blade, an API (apis/Shop/), shareable, local and keyring variables and a colour
+  each in its own file; every file scanned for the test's three made-up secrets (none); the user's README
+  kept; everything saved again unchanged leaves every byte and every modification time as it was; a copy
+  of the folder without local/ (a clone) on another state folder with an empty keyring: the same blades,
+  Warehouse "needs a password", the shared variable's value, the local one empty, the keyring one Not set,
+  the colour; its password set there, nothing lands in the folder; back to the default folder; the
+  folder refused when relative or a file; the agent's change refused on No (403) and done on Allow; the
+  choice kept across restarts. Migration: older blades/*.json, variables.json, colours.toml and tangs
+  written as library files, the old ones in backup/before-library-<date>/, the notice taken once, nothing
+  said on the next start; an older .sab's own blades: the same skipped, a different one kept as "Shop from
+  older", a new one added, the notice, the library's own file untouched, the next save without
+  .sab/blades. test_project_scope, test_sab_projects and test_connection_swap_routes rewritten for the
+  library (dashboards still each project's own; import from a .sab into the library; "computer" refused).
+  The standalone client (sab.blade without the app) reads the library (test_standalone).
+- **In the browser** (Chromium, tests/e2e/test_library_page.py, its own server with older stores laid out):
+  the move's notice on the page, Settings' Library (the folder, the counts, Change…), the Variables page's
+  key vault card and Add key vault's types, the vault's detail opened from it, the Connections page with no
+  vault card and no Key vaults types; test_workbench_page's vault made from a password's form now found on
+  the Variables page.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,763 passed, 45 skipped, 10 failed in
+  31 minutes. test_tour failed under load and passed alone. The other nine fail the same on 072ed1a,
+  before this branch: test_intellisense_page (the hover), four test_starters_page drags,
+  test_table_cells_page's maker link, test_write_starters_page's hover, test_client_install
+  (adapters/intellisense.py starts a process), test_tool_sweep's workbench_problems (a 500).
+- **Not checked:** a real GitHub clone on a second computer (a copied folder stands in); Windows paths
+  (library.json, the backup's move, file names); a real system keyring (Credential Manager, Keychain);
+  Edge (Chromium here).

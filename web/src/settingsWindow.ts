@@ -16,6 +16,7 @@
  *          [KIND COLOURS]         app pages, notebooks, scripts: a colour each -> kindColours.ts (the
  *                                 server's, for every window; kept across restarts)
  *          [SESSION]              Follow the agent (kept across restarts; the user's switch) -> sessionPage.ts
+ *          [LIBRARY]              the library folder: where, Change…, Default, what is in it -> library.ts
  *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
@@ -23,6 +24,7 @@
  * */
 import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
+import { librarySection } from "./library";
 import { claudeSection } from "./claudeLaunch";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, toast } from "./dom";
@@ -156,6 +158,7 @@ function drawSettings(): void {
       h("legend", {}, icon("sun"), "Theme"),
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
+    librarySection(),
     panelsSection(),
     kindColoursSection(),
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.

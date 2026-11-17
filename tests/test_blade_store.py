@@ -71,7 +71,7 @@ def test_save_read_rename_and_remove(store: BladeStore, bakery: Path) -> None:
     assert (saved.variable, saved.dialect, saved.has_catalog) == ("conn", "sqlite", True)
     assert [b.name for b in store.all()] == ["Bakery"]
     assert store.get("bakery").name == "Bakery"
-    files = list((store.folder).glob("*.json"))
+    files = list((store.folder / "connections").glob("*.blade.py"))
     assert len(files) == 1
     if sys.platform != "win32":
         assert stat.S_IMODE(files[0].stat().st_mode) == 0o600
@@ -80,7 +80,7 @@ def test_save_read_rename_and_remove(store: BladeStore, bakery: Path) -> None:
     store.save(sqlite_blade(bakery, "Bakery Two"), previous_name="Bakery")
     assert [b.name for b in store.all()] == ["Bakery Two"]
     store.remove("bakery two")
-    assert store.all() == [] and list(store.folder.glob("*")) == []
+    assert store.all() == [] and list(store.folder.glob("*/*.blade.py")) == []
 
 
 @pytest.mark.parametrize(
@@ -129,7 +129,7 @@ def test_secrets_live_in_the_vault_never_in_the_file(
     store.save(sqlite_blade(bakery, extra="password = secret('password')\n"))
     assert store.secret_status("Bakery") == {"password": False}
     assert store.set_secrets("Bakery", {"password": "sourdough-starter"}) == {"password": True}
-    assert "sourdough-starter" not in next(store.folder.glob("*.json")).read_text()
+    assert "sourdough-starter" not in next(store.folder.glob("*/*.blade.py")).read_text()
     assert vault.values == {("SwissArmyBench", "blade/bakery/password"): "sourdough-starter"}
     with pytest.raises(BladeError, match="never asks for"):
         store.set_secrets("Bakery", {"token": "x"})
@@ -249,7 +249,7 @@ def test_favourites_are_kept_on_this_computer(tmp_path: Path, vault: MemoryKeyri
     store = BladeStore(tmp_path / "blades", pins_file=tmp_path / "pins.json")
     store.save(sqlite_blade(bakery))
     assert store.set_pinned("bakery", True) and store.pinned() == {"bakery"}
-    assert "pinned" not in next(store.folder.glob("*.json")).read_text()  # not in the blade itself
+    assert "pinned" not in next(store.folder.glob("*/*.blade.py")).read_text()  # not in the blade itself
     store.set_pinned("Bakery", False)
     assert store.pinned() == set()
     with pytest.raises(KeyError):
@@ -303,7 +303,7 @@ def test_a_folder_blade_saves_back_to_its_file_and_follows_it(folders: tuple[Bla
     )
     text = path.read_text()
     assert '# description = "Edited in the app."' in text and '# tags = ["sales"]' in text
-    assert list(store.folder.glob("*.json")) == []  # it stays a file in the folder, not a saved copy
+    assert list(store.folder.glob("*/*.blade.py")) == []  # it stays a file in the folder, not a saved copy
     # Someone changes the file (a git pull): the app sees it on the next look.
     path.write_text(text.replace("x = 1", "x = 2"))
     os.utime(path, ns=(time.time_ns() + 10_000_000, time.time_ns() + 10_000_000))

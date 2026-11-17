@@ -1,10 +1,10 @@
 """The Variables page's edge (services/variables.py): its two files, this computer's keyring for the
 keyring variables, and the server's own environment, which every process it starts inherits.
 
-  files         two JSON files in the state folder: variables.json (shareable: names, sources, plain values
-                not marked local; the library's variables.toml later, Plans/library.plan.md) and
-                local/variables.json (this computer only: the local plain values). No state folder (a
-                test's server): kept in memory. The later move to the library folder is these two paths.
+  files         two TOML files in the library (Plans/library.plan.md): variables.toml (shareable: names,
+                sources, plain values not marked local) and local/variables.toml (this computer only, git-
+                ignored: the local plain values). Written only when their text changes. No folder (a test's
+                server): kept in memory.
   keyring       service SwissArmyBench, user `variable/<NAME>`: one value per name on this computer
   environment   the variables' values set in this process's environment (connections' runs, kernels
                 started from now on and scheduled scripts inherit it); a name the computer had already
@@ -13,41 +13,54 @@ keyring variables, and the server's own environment, which every process it star
 
 from __future__ import annotations
 
-import json
 import os
-from collections.abc import Mapping, MutableMapping
+from collections.abc import Callable, Mapping, MutableMapping
 from pathlib import Path
 from typing import Any
 
 from swissarmybench.adapters.blades import KEYRING_SERVICE, BladeStore
+from swissarmybench.domain import library
 
 
 class VariableFiles:
-    """The shareable file and this computer's local one (None: memory only)."""
+    """The shareable file and this computer's local one, in the library (None: memory only). `root` gives the
+    library folder each time, so Settings' Library folder moves them."""
 
-    def __init__(self, shared: Path | None, local: Path | None) -> None:
-        self.shared = shared
-        self.local = local
+    def __init__(self, root: Callable[[], Path] | None, made: Callable[[], object] | None = None) -> None:
+        self._root = root
+        self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
         self._memory: dict[str, Any] = {}
+
+    @property
+    def shared(self) -> Path | None:
+        return self._root() / library.VARIABLES_FILE if self._root else None
+
+    @property
+    def local(self) -> Path | None:
+        return self._root() / library.LOCAL_VARIABLES_FILE if self._root else None
 
     def _read(self, path: Path | None, key: str) -> Any:
         if path is None:
             return self._memory.get(key)
         try:
-            return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
-        except (OSError, ValueError):
+            text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        except (OSError, UnicodeError):
             return None
+        return library.read_variables_toml(text) if key == "shared" else library.read_local_toml(text)
 
     def _write(self, path: Path | None, key: str, data: Any) -> None:
         if path is None:
             self._memory[key] = data
             return
-        text = json.dumps(data, indent=1, sort_keys=True) + "\n"
+        text = library.variables_toml(data) if key == "shared" else library.local_toml(data)
         if path.is_file() and path.read_text(encoding="utf-8") == text:
             return  # nothing changed: no file touched (a Git diff shows only the user's changes)
+        if not path.is_file() and key == "local" and not (data or {}).get("values"):
+            return  # no local value: no local file
+        self._made()
         path.parent.mkdir(parents=True, exist_ok=True)
         part = path.with_name(path.name + ".part")
-        part.write_text(text, encoding="utf-8")
+        part.write_text(text, encoding="utf-8", newline="\n")
         part.replace(path)
 
     def read(self) -> tuple[Any, Any]:
