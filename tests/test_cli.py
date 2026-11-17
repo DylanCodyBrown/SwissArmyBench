@@ -166,6 +166,7 @@ NOT_COMMANDS = {
     "work unseen); 403 for the agent. app_session reads it",
     "/connections/rewrite": "the Workbench window's helper for its open documents: connections_repoint does"
     " the whole",
+    "/structures/saved": "sab.structure's read of a saved file (the client's): structures_show reads one",
     "/connections/{}/used": "a Workbench kernel's count of a call (plumbing): connections_usage reads it",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",

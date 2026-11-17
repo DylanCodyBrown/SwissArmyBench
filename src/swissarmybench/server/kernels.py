@@ -390,6 +390,10 @@ class Kernel:
             url = await self.evaluate(f"__import__('swissarmybench').push({expression}, name={name!r})")
         return None if url is None else str(url)
 
+    async def structure(self, name: str) -> Any:
+        """A variable opened on the Structures page (sent from the kernel): {"id", "name"}, or None."""
+        return await self.evaluate(f"__import__('swissarmybench').show_structure({name}, name={name!r})")
+
     async def interrupt(self) -> None:
         self._interrupts += 1
         self._input.put_nowait("")  # a run waiting at input() goes on (and is interrupted)

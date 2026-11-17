@@ -40,7 +40,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from swissarmybench.domain import approvals, notebooks
+from swissarmybench.domain import approvals, notebooks, structures
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain.projects import DataCell
 from swissarmybench.domain.table_cells import Origin
@@ -56,6 +56,7 @@ VISUALIZATIONS: str = "visualizations/visualizations.json"
 # one release, never written.
 OLD_SANDBOX: str = "sandbox/sandbox.json"
 ROWS_FOLDER: str = "data"
+STRUCTURES_FOLDER: str = "structures"
 MAX_NAME: int = 100
 MAX_ENTRY_NAME: int = 400
 MAX_TABLES: int = 200
@@ -532,6 +533,10 @@ def packed(relative: str) -> bool:
         return False
     lowered = name.lower()
     if lowered.endswith(".stapp.json"):
+        return True
+    # A structure (JSON, YAML, XML, TOML) the Structures page saved in the project's structures/ folder:
+    # text the project wrote, not a data file brought into it.
+    if parts[0] == STRUCTURES_FOLDER and len(parts) == 2 and structures.format_of(name):
         return True
     return posixpath.splitext(lowered)[1] in PACKED_SUFFIXES
 

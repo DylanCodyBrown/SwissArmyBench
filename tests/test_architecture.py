@@ -53,6 +53,8 @@ CLIENT_MODULES = (
     "swissarmybench.client.kernel_connections",
     "swissarmybench.client.kernel_variables",
     "swissarmybench.client.watcher",
+    "swissarmybench.client.structures_client",
+    "swissarmybench.domain.structures",
     "swissarmybench.client.table_cells",
     "swissarmybench.client.html_cells",
     "swissarmybench.client.lineage_values",

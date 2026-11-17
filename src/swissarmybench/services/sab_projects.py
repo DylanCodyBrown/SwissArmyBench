@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -181,6 +181,10 @@ class SabProjects:
         self._asked: str | None = None  # a .sab another program asked to open (the page asks the user)
         self._busy = asyncio.Lock()
         datasets.stored.append(self._arrived)
+        # What other features keep in project.json (Structures: the ones open), and what they do once a
+        # project has opened (its open structures come back): each a key of the manifest's own.
+        self.manifest_extras: list[Callable[[], dict[str, Any]]] = []
+        self.opened: list[Callable[[str, Mapping[str, Any]], Awaitable[None]]] = []
 
     # ===== what is open, and whether a save would change anything =====
 
@@ -459,6 +463,8 @@ class SabProjects:
                     )
                 except TangError:
                     pass  # a model edited into something else: the project opens without it
+            for opened in self.opened:
+                await opened(folder, manifest.extra)
             self._recent.add(full, self._now())
             self.current.saved_key = self._key()
             self.ws.audit.write(who, "open_sab_project", None, tables=len(manifest.tables))
@@ -768,7 +774,7 @@ class SabProjects:
                 visualizations=cards_entry,
                 model=model_entry,
                 autosave=current.autosave,
-                extra=dict(earlier.extra) if earlier else {},
+                extra=(dict(earlier.extra) if earlier else {}) | _extras(self.manifest_extras),
             )
             entries.insert(0, (rules.MANIFEST, rules.write_manifest(manifest).encode("utf-8")))
             try:
@@ -908,3 +914,10 @@ class SabProjects:
         """The server stops: the temporary working folder goes."""
         if self.current is not None:
             self._archive.remove(self.current.root)
+
+
+def _extras(makers: list[Callable[[], dict[str, Any]]]) -> dict[str, Any]:
+    found: dict[str, Any] = {}
+    for make in makers:
+        found |= make()
+    return found

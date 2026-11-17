@@ -938,7 +938,7 @@ def _leading(lines: Sequence[str]) -> Iterable[str]:
 class Origin:
     """Where a table came from, for the load its cell starts with when no code made it."""
 
-    kind: str = "unknown"  # python, file, dropped, paste, connection, query, unknown
+    kind: str = "unknown"  # python, file, dropped, paste, connection, query, structure, unknown
     kernel: str | None = None  # the Workbench kernel that pushed it
     path: str | None = None
     sheet: str | None = None
@@ -964,6 +964,8 @@ class Origin:
             return f"{name} · {self.sheet}" if name and self.sheet else name
         if self.kind == "connection":
             return self.connection or ""
+        if self.kind == "structure":
+            return " · ".join(filter(None, [self.filename, self.sql]))
         return {"python": "Python", "paste": "Pasted", "query": "Query"}.get(self.kind, "")
 
 
@@ -1050,6 +1052,8 @@ def load_code(
         return ["import swissarmybench as sab"], f"{var} = {origin.code}"
     if origin.kind == "query" and origin.sql:
         return [duck], f"{var} = {module}.sql({python_string(origin.sql.strip())}).df()"
+    if origin.kind == "structure" and origin.code:  # a structure's list of records (Structures' Open as grid)
+        return ["import swissarmybench as sab"], f"{var} = {origin.code}"
     if origin.kind == "paste":
         if pasted is not None:
             return [duck], f"{var} = {module}.sql({python_string(pasted)}).df()"

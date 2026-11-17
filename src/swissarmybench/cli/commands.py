@@ -2447,6 +2447,143 @@ def connections_password_source(a: dict[str, Any]) -> Any:
     return api.call("POST", "/connections/source", body)
 
 
+# ===== structures: JSON, YAML, XML and TOML as documents (the Structures page) =====
+
+
+@command("structures_list", "The open structures (id, name, format, steps) and the project's structure files")
+def structures_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/structures")
+
+
+@command(
+    "structures_open",
+    "Open a structure: a .json/.yaml/.xml/.toml file (path), pasted text (text, format found), or a new "
+    "one (kind object|list, or value: your JSON)",
+    opt("path", "A file."),
+    opt("text", "Text to paste instead."),
+    opt("format", "json, yaml, xml or toml (pasted: found when not given; new: json)."),
+    opt("kind", "New: object or list."),
+    opt("value", "New: this JSON value.", "json"),
+    opt("name", "Its name."),
+)
+def structures_open(a: dict[str, Any]) -> Any:
+    if a.get("path"):
+        return api.call("POST", "/structures/open", {"path": a["path"]})
+    if a.get("text"):
+        return api.call(
+            "POST", "/structures/paste", {k: a[k] for k in ("text", "format", "name") if a.get(k)}
+        )
+    body = {k: a[k] for k in ("kind", "format", "name") if a.get(k)}
+    if "value" in a:
+        body["value"] = a["value"]
+    return _structure_summary(api.call("POST", "/structures", body))
+
+
+def _structure_summary(answer: Any) -> Any:
+    """An open structure without its values (structures_show reads them, capped)."""
+    if isinstance(answer, dict):
+        return {k: v for k, v in answer.items() if k not in ("value", "text")}
+    return answer
+
+
+@command(
+    "structures_show",
+    "A structure's shape (types, counts, keys), its record lists, and the node at path, capped like rows",
+    req("structure", "Its id or name."),
+    opt("path", "$.orders[0] (default $)."),
+    values=True,
+)
+def structures_show(a: dict[str, Any]) -> Any:
+    query = f"?path={_q(a['path'])}" if a.get("path") else ""
+    return api.call("GET", f"/structures/{_q(a['structure'])}/describe" + query)
+
+
+@command(
+    "structures_step_add",
+    "Add a step: op pick|filter|rename|remove|set|add|sort|flatten; path ($.orders, [*] for each); "
+    "filter: field, test (= != > >= < <= contains, starts with, exists, missing), value; rename: key, to; "
+    "set/add: key, value; sort: field, descending",
+    req("structure", "Its id or name."),
+    req("step", '{"op": "filter", "path": "$.orders", "field": "status", "value": "open"}.', "json"),
+)
+def structures_step_add(a: dict[str, Any]) -> Any:
+    return _structure_summary(api.call("POST", f"/structures/{_q(a['structure'])}/steps", a["step"]))
+
+
+@command(
+    "structures_step_remove",
+    "Remove a step (index from 0; the last when not given), or undo / redo the last change",
+    req("structure", "Its id or name."),
+    opt("index", "The step's index.", "int"),
+    opt("undo", "Undo the last step.", "bool"),
+    opt("redo", "Redo what was undone.", "bool"),
+)
+def structures_step_remove(a: dict[str, Any]) -> Any:
+    sid = _q(a["structure"])
+    if a.get("undo"):
+        return _structure_summary(api.call("POST", f"/structures/{sid}/undo", {}))
+    if a.get("redo"):
+        return _structure_summary(api.call("POST", f"/structures/{sid}/redo", {}))
+    body = {"index": a["index"]} if a.get("index") is not None else {}
+    return _structure_summary(api.call("POST", f"/structures/{sid}/steps/remove", body))
+
+
+@command(
+    "structures_edit",
+    "Change a structure: its whole text (only with no steps), the format it is written in, or its name",
+    req("structure", "Its id or name."),
+    opt("text", "The new text, in its format."),
+    opt("format", "json, yaml, xml or toml."),
+    opt("name", "A new name."),
+)
+def structures_edit(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("text", "format", "name") if a.get(k) is not None}
+    return _structure_summary(api.call("PUT", f"/structures/{_q(a['structure'])}", body))
+
+
+@command(
+    "structures_open_as_grid",
+    "Open the list of records at path as a grid (a table: SQL and Analyze work on it)",
+    req("structure", "Its id or name."),
+    opt("path", "$.orders (default $)."),
+    opt("name", "The table's name."),
+)
+def structures_open_as_grid(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("path", "name") if a.get(k)}
+    return api.call("POST", f"/structures/{_q(a['structure'])}/grid", body)
+
+
+@command(
+    "structures_save",
+    "Save a structure to its file; with name, format, folder or path: Save as (default: the project's "
+    "structures/ folder)",
+    req("structure", "Its id or name."),
+    opt("name", "Save as: its file's name."),
+    opt("format", "Save as: json, yaml, xml or toml."),
+    opt("folder", "Save as: the folder."),
+    opt("path", "Save as: the whole path."),
+)
+def structures_save(a: dict[str, Any]) -> Any:
+    sid = _q(a["structure"])
+    body = {k: a[k] for k in ("name", "format", "folder", "path") if a.get(k)}
+    if body:
+        return api.call("POST", f"/structures/{sid}/save-as", body)
+    return api.call("POST", f"/structures/{sid}/save", {})
+
+
+@command(
+    "structures_close",
+    "Close an open structure (unsaved steps go), or with references=true: where code calls "
+    "sab.structure(name)",
+    req("structure", "Its id or name (references: the saved structure's name)."),
+    opt("references", "Only list where it is used.", "bool"),
+)
+def structures_close(a: dict[str, Any]) -> Any:
+    if a.get("references"):
+        return api.call("GET", f"/structures/references?name={_q(a['structure'])}")
+    return api.call("DELETE", f"/structures/{_q(a['structure'])}")
+
+
 # ===== files: the file chooser =====
 
 
@@ -3652,12 +3789,16 @@ def workbench_variables(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_to_grid",
-    "Open a table from a kernel as a grid: a variable, or a cell's result (an output's Open as grid)",
+    "Open a table from a kernel as a grid: a variable, or a cell's result (an output's Open as grid); "
+    "structure=true: a dict or list variable on the Structures page",
     req("kernel", "The kernel's id."),
     opt("name", "The variable; with output, the new table's name (else out_<n>)."),
     opt("output", "A result's number, as In [n] shows it: opens Out[n].", "int"),
+    opt("structure", "Open the variable in Structures instead.", "bool"),
 )
 def workbench_to_grid(a: dict[str, Any]) -> Any:
+    if a.get("structure"):
+        return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/structure", {"name": a.get("name")})
     body: dict[str, Any] = {k: a[k] for k in ("name", "output") if a.get(k) is not None}
     return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/grid", body)
 
@@ -3977,6 +4118,8 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("erd", "ERD tab"),
     ("blades", "Blades: the user's saved code that loads from outside Python"),
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
+    ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
+    ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),

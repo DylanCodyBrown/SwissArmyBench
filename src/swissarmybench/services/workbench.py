@@ -78,6 +78,8 @@ class Kernel(Protocol):
 
     async def grid(self, expression: str, name: str) -> str | None: ...
 
+    async def structure(self, name: str) -> Any: ...
+
     async def interrupt(self) -> None: ...
 
     async def restart(self) -> None: ...
@@ -667,6 +669,17 @@ class Workbench:
             raise Conflict("The kernel is running code: open it as a grid when the run is done.")
         self.ws.audit.write("user", "variable_to_grid", name, output=output)
         return {"url": url, "dataset": name}
+
+    async def structure(self, kernel_id: str, body: Any) -> dict[str, Any]:
+        """A variable (a dict or a list) opened on the Structures page: {"name"} (sent from the kernel)."""
+        name = body.get("name") if isinstance(body, dict) else None
+        if not isinstance(name, str) or not name.isidentifier():
+            raise ValueError('Send {"name": "a variable\'s name"}.')
+        opened = await self._kernel(kernel_id).structure(name)
+        if opened is None:
+            raise Conflict("The kernel is running code: open it when the run is done.")
+        self.ws.audit.write("user", "variable_to_structure", name)
+        return opened if isinstance(opened, dict) else {"opened": opened}
 
     async def interrupt(self, kernel_id: str) -> None:
         await self._kernel(kernel_id).interrupt()

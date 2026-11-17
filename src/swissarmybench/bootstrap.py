@@ -51,6 +51,8 @@ from swissarmybench.adapters.state_files import (
     is_own_file,
 )
 from swissarmybench.adapters.streamlit_files import AppFiles
+from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
+from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
@@ -108,6 +110,7 @@ from swissarmybench.services.session_log import Heard, SessionLog
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.streamlit import StreamlitApps
+from swissarmybench.services.structures import Structures
 from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
@@ -144,6 +147,7 @@ class Services:
     connections: ConnectionService
     connection_usage: ConnectionUsage
     apis: Apis
+    structures: Structures
     catalog_loading: CatalogLoading
     folders: Folders
     workbench: Workbench
@@ -483,6 +487,10 @@ def bootstrap(
         dashboards.folder = app / "dashboards" if app else state_dir / "dashboards"
         await catalog_loading.rescope()
         await live.broadcast({"type": "blades_changed"})
+        if structures_ready:
+            await structures_ready[0].project_changed(folder)  # the closed project's structures go with it
+
+    structures_ready: list[Structures] = []  # set once built (below): use_project is made before it
 
     def carry_connections(folder: str, names: list[str]) -> None:
         """A new project's open tables' connections, copied in from this computer's (and the vaults
@@ -523,6 +531,21 @@ def bootstrap(
         carry=carry_connections,
         autosave_seconds=settings.autosave_seconds,
     )
+    # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
+    structures = Structures(
+        ws,
+        StructureFiles(),
+        StructureCodecs(),
+        datasets,
+        rows_to_table,
+        project_folder=lambda: sab_projects.current.folder if sab_projects.current else None,
+        default_folder=documents.made_default_folder,
+        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        read_document=documents.read,
+    )
+    structures_ready.append(structures)
+    sab_projects.manifest_extras.append(lambda: {"structures": {"open": structures.open_paths()}})
+    sab_projects.opened.append(structures.project_changed)
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
     connection_swap = ConnectionSwap(
         ws,
@@ -630,6 +653,7 @@ def bootstrap(
         connections=connections,
         connection_usage=connection_usage,
         apis=apis,
+        structures=structures,
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=workbench,
