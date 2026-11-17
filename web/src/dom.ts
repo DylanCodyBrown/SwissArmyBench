@@ -477,7 +477,8 @@ export function showMenu(x: number, y: number, label: string, items: MenuItem[])
         : h("button", { type: "button", role: "menuitem", disabled: Boolean(item[3]), title: item[3], onclick: () => { menu.remove(); item[2](); } }, icon(item[0]), item[1]),
     ),
   );
-  document.body.append(menu);
+  // A modal dialog makes the rest of the page inert: a menu opened from one lives inside it (as toasts do).
+  ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body).append(menu);
   menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
   (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();

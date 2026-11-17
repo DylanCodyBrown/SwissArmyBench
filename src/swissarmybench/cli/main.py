@@ -88,7 +88,7 @@ def save_picture(data: bytes) -> Path:
 
 def pack_new(argv: list[str]) -> int:
     """`sab pack new <folder> [--marketplace name] [--pack name] [--owner name] [--description text]`:
-    a new Claude Code plugin marketplace repository with one pack (blades/ and tangs/), on this
+    a new Claude Code plugin marketplace repository with one pack (blades/ and relationship-sets/), on this
     computer, with no server needed. Push it to GitHub and teammates add it with /plugin."""
     from swissarmybench.domain.packs import PackError, scaffold
 
@@ -127,7 +127,8 @@ def pack_new(argv: list[str]) -> int:
                 "files": sorted(files),
                 "next": [
                     f"Add {target} as a blade folder (blades page, Blade folders), save blades and "
-                    f"tangs into packs/{pack}/blades and packs/{pack}/tangs, then push it to GitHub.",
+                    f"relationship sets into packs/{pack}/blades and packs/{pack}/relationship-sets, "
+                    "then push it to GitHub.",
                     "Teammates: /plugin marketplace add <owner>/<repository>, then "
                     f"/plugin install {pack}@{marketplace}",
                 ],

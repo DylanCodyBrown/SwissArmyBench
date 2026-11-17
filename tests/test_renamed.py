@@ -263,12 +263,15 @@ def test_an_old_tang_is_read_and_a_new_one_written_under_the_new_mark() -> None:
         "tables": {"orders": {"primary_key": ["order_id"], "columns": [["order_id", "BIGINT"]]}},
         "relationships": [],
     }
-    model = relationships.read_tang(json.dumps(tang))
+    model = relationships.read_set(json.dumps(tang))
     assert model.name == "Made-up store"
-    written = json.loads(relationships.write_tang(model))
-    assert written["swissarmybench"] == "tang" and "swissarmygrid" not in written
-    with pytest.raises(relationships.TangError):
-        relationships.read_tang(json.dumps({"someone": "tang", "format": 1}))
+    # Under the newer name too: "swissarmybench": "tang" (a tang until 2026-11-17) reads as a set.
+    assert relationships.read_set(json.dumps({**tang, "swissarmybench": "tang"})).name == "Made-up store"
+    written = json.loads(relationships.write_set(model))
+    assert written["swissarmybench"] == "relationship-set" and "swissarmygrid" not in written
+    assert relationships.set_file_name("Made-up store") == "made-up_store.relationships.json"
+    with pytest.raises(relationships.RelationshipSetError):
+        relationships.read_set(json.dumps({"someone": "tang", "format": 1}))
 
 
 def test_an_old_streamlit_app_and_its_old_saved_pages_are_still_its_own() -> None:

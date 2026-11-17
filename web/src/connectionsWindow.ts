@@ -711,7 +711,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         ? null
         : button("Remove", () => {
             if (!confirm(config.kind === "vault" ? `Remove the key vault ${name}? Its variables stop being set.` : `Remove the connection ${name}? Its saved passwords go too.`)) return;
-            void api(`/blades/${path}`, "DELETE").then(() => {
+            void api<{ relationships_removed?: number }>(`/blades/${path}`, "DELETE").then((gone) => {
+              // The relationships its tables held went with it (the ERD redraws on the server's notice).
+              const n = gone.relationships_removed ?? 0;
+              if (n) toast(`Removed ${n} relationship${n === 1 ? "" : "s"} that came from ${name}.`);
               void go(urlOf(LIST), "replace");
               void showList();
             }, (e: Error) => toast(e.message, "error"));

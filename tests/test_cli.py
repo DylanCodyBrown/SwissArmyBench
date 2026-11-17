@@ -127,6 +127,8 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    "/relationships/tangs": "the old name of /relationships/sets (a tang until 2026-11-17), one release",
+    "/relationships/tang": "the old name of /relationships/set (a tang until 2026-11-17), one release",
     "/projects": "a project type's scaffold alone, not opened (an extension's own New): project_new makes "
     "a project folder and opens it",
     "/projects/show": "Show in folder opens the user's own file manager: the user's click only (403 for the "
@@ -412,8 +414,9 @@ def test_the_old_sandbox_names_still_run_their_visualizations_commands(live: Liv
     from swissarmybench.cli import main as cli_main
     from swissarmybench.cli.commands import OLD_NAMES
 
-    assert set(OLD_NAMES.values()) == {n for n in REGISTRY if n.startswith("visualizations_")}
-    assert len(OLD_NAMES) == 12 and not any(n.startswith("sandbox_") for n in REGISTRY)
+    sandbox = {k: v for k, v in OLD_NAMES.items() if k.startswith("sandbox_")}
+    assert set(sandbox.values()) == {n for n in REGISTRY if n.startswith("visualizations_")}
+    assert len(sandbox) == 12 and not any(n.startswith("sandbox_") for n in REGISTRY)
     note = run("sandbox_add", grid=clients, kind="note", title="old name", body="still here")
     assert note["card"] in {c["id"] for c in run("visualizations_list", grid=clients)["cards"]}
     assert cli_main.parse(["sandbox_delete", note["card"]]) == ("sandbox_delete", {"card": note["card"]})
@@ -649,7 +652,11 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # project_copy, project_import_sab, projects_list, projects_sort, project_rename,
     # project_remove_from_list, projects_folder_set, project_types (2,500 characters).
     # The .sab conversion removed (2026-11-17) took one: project_import_sab.
-    assert size < 79_000, f"the tool list is {size} characters"
+    # Relationship sets (2026-11-17: tangs renamed, the dialog made to manage them) added five:
+    # relationships_delete, _update, _undo (the joins in use), _rename_set, _delete_set, and a saved set's
+    # export in relationships_export_set; the ERD of the project's tables added relationships_scope and the
+    # scope argument of erd_text and erd_draw (1,500 characters in all).
+    assert size < 80_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

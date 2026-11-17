@@ -1,13 +1,14 @@
 # The library
 
-Connections, APIs, key vaults, blades, tangs, variables and connection colours are this computer's library,
+Connections, APIs, key vaults, blades, relationship sets, variables and connection colours are this computer's library,
 shared by every project (a project names them; it never holds them). The library is one folder of text
 files made to be a Git repository: `~/.swissarmybench/library` unless the user pointed Settings' Library
 folder at another (a clone of a team's library).
 
 ```
 connections/<name>.blade.py   vaults/<name>.blade.py   blades/<name>.blade.py
-apis/<name>/                  tangs/<name>.tang        variables.toml   colours.toml
+apis/<name>/                  relationship-sets/<name>.relationships.json
+variables.toml                colours.toml
 local/                        this computer only (git-ignored): plain values marked local
 ```
 
@@ -17,7 +18,7 @@ local/                        this computer only (git-ignored): plain values mar
   connection, API, vault, blade and variable then comes from there, so it waits for the user's Allow.
 - The usual commands act on it: `connections_create`, `blades_new`, `blades_update`, `variables_set`,
   `connections_api_add`, `apis_save_call`,
-  `relationships_save_tang`, `connections_colours`. Each save writes one file; a save that changes nothing
+  `relationships_save_set`, `connections_colours`. Each save writes one file; a save that changes nothing
   changes no byte.
 - Never in it: a password or secret's value, a token, a row of data. Secrets stay in each computer's keyring
   (`connections_password_source`). On another computer a cloned library's connections say which passwords

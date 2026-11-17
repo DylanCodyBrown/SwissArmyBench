@@ -277,9 +277,34 @@ RULES: dict[str, Rule] = {
         "visualizations",
         _area("visualizations"),
     ),
-    # The ERD: relationships, each one added named; a tang saved.
+    # The ERD: relationships, each one added named; a set saved, renamed or deleted; joins deleted or changed.
     "relationships": _relationships,
+    "save_relationship_set": lambda d, x: (
+        f"Saved the relationships as {_name(x.get('set'))}",
+        "erd",
+        _area("erd"),
+    ),
     "save_tang": lambda d, x: (f"Saved the relationships as {_name(x.get('tang'))}", "erd", _area("erd")),
+    "rename_relationship_set": lambda d, x: (
+        f"Renamed the saved set {_name(x.get('set'))} to {_name(x.get('to'))}",
+        "erd",
+        _area("erd"),
+    ),
+    "delete_relationship_set": lambda d, x: (
+        f"Deleted the saved set {_name(x.get('set'))}",
+        "erd",
+        _area("erd"),
+    ),
+    "relationships_delete": lambda d, x: (
+        f"Deleted {_count(x.get('removed'), 'relationship')}",
+        "erd",
+        _area("erd"),
+    ),
+    "relationships_update": lambda d, x: (
+        f"Changed {_count(x.get('changed'), 'relationship')}",
+        "erd",
+        _area("erd"),
+    ),
     # Connections and blades.
     "save_blade": lambda d, x: _blade(d, x, "Saved"),
     "remove_blade": lambda d, x: (
@@ -431,3 +456,8 @@ def read_saved(saved: Any) -> bool:
     if isinstance(saved, dict) and isinstance(saved.get("follow"), bool):
         return bool(saved["follow"])
     return DEFAULT_FOLLOW
+
+
+def _count(raw: object, word: str) -> str:
+    n = raw if isinstance(raw, int) else 0
+    return f"{n} {word}{'' if n == 1 else 's'}"

@@ -5,7 +5,7 @@ written: the audit log, saved dashboards, the connection file and the model libr
   dashboards           Visualizations saved on the user's click: its cards as drawn, the last 60 versions
   themes               Visualizations themes the user imported (colours only), one small file each
   the connection file  where the running server is, and its token (owner-only)
-  the model library    relationship models: the shipped ones, the user's, and SWISSARMYBENCH_MODELS
+  the model library    relationship sets and models: the shipped ones, the user's, SWISSARMYBENCH_MODELS
   preferences          small JSON files the user's own choices are kept in: the kind colours
                        (kind_colours.json), a script's run settings (run_settings.json: arguments and
                        where each variable comes from; a plain value only, never a secret's)
@@ -19,20 +19,23 @@ import json
 import os
 import threading
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 from swissarmybench.domain.datasets import validate_name
+from swissarmybench.domain.library import OLD_TANGS, RELATIONSHIP_SETS
 from swissarmybench.domain.relationships import (
-    TANG_SUFFIX,
     Model,
-    TangError,
+    RelationshipSetError,
+    is_set_file,
     parse_model,
-    read_tang,
-    tang_file_name,
-    write_tang,
+    read_set,
+    same_set,
+    set_file_name,
+    write_set,
 )
 from swissarmybench.renamed import env, home_state_folder
 
@@ -275,26 +278,31 @@ def is_own_file(path: str, state_dir: Path, export_dir: Path) -> bool:
     return target == connection or inside_state
 
 
-# ===== the tang library =====
-# Tangs (saved sets of relationships, domain/relationships.py has the .tang shape) and the older model
-# JSON files. Read in this order, a later one with the same name winning:
+# ===== the relationship sets =====
+# Relationship sets (saved sets of relationships, domain/relationships.py has the file's shape) and the
+# older model JSON files. Read in this order, a later one with the same name winning:
 #
 #   1. the models shipped in the package (src/swissarmybench/models/*.json), released with it
 #   2. ~/.swissarmybench/models/*.json: a person's own older models
-#   3. ~/.swissarmybench/tangs/*.tang: a person's own tangs ("mine"), where Save tang writes by default
+#   3. the library's relationship-sets/: a person's own sets ("mine"), where Save as a set writes by
+#      default (and, one release, the library's old tangs/ folder, for a clone not moved yet)
 #   4. every folder in SWISSARMYBENCH_MODELS (separated by ; on Windows)
-#   5. the shared folders: the blade folders, so one team folder carries blades and tangs alike
-#      (.tang files at any depth up to SHARED_DEPTH, hidden folders and environments skipped). A tang
-#      saved there is in a coworker's list the next time their window opens.
+#   5. the shared folders: the blade folders, so one team folder carries blades and sets alike
+#      (.relationships.json files, and the old .tang ones, at any depth up to SHARED_DEPTH, hidden
+#      folders and environments skipped). A set saved there is in a coworker's list the next time
+#      their window opens.
 
 SHARED_DEPTH = 4
 _SKIPPED_DIRS = frozenset(
     {"__pycache__", "node_modules", "site-packages", ".venv", "venv", "env", "build", "dist"}
 )
+# Where a set may be renamed or deleted: the person's own and the shared folders. The package's, a
+# pack's (from a marketplace: changed in its repository) and SWISSARMYBENCH_MODELS' are read-only.
+EDITABLE = ("mine", "shared")
 
 
 class ModelFiles:
-    """The library of tangs and models: the service layer's `ModelLibrary` port. `shared` gives the
+    """The relationship sets and models: the service layer's `ModelLibrary` port. `shared` gives the
     shared folders (the blade folders that exist) each time, so a change there shows at once."""
 
     def __init__(
@@ -307,15 +315,21 @@ class ModelFiles:
     ) -> None:
         self.state_dir = state_dir
         self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
-        # The library's tangs/ (Plans/library.plan.md): where a saved tang goes; the state folder's before.
+        # The library's relationship-sets/ (Plans/library.plan.md): where a saved set goes.
         self._library = library
         self._shared = shared or (lambda: [])
-        # Installed packs' tangs folders (adapters/packs.py): read-only tangs from a marketplace.
+        # Installed packs' relationship-sets folders (adapters/packs.py): read-only sets from a marketplace.
         self._packs = packs or (lambda: [])
 
     @property
     def mine(self) -> Path:
-        return self._library() / "tangs" if self._library else self.state_dir / "tangs"
+        root = self._library() if self._library else self.state_dir
+        return root / RELATIONSHIP_SETS
+
+    @property
+    def _old_mine(self) -> Path:
+        root = self._library() if self._library else self.state_dir
+        return root / OLD_TANGS
 
     def folders(self) -> list[str]:
         return [str(folder) for folder, _ in self._folders()]
@@ -327,6 +341,7 @@ class ModelFiles:
         folders = [
             (Path(str(files("swissarmybench").joinpath("models"))), "package"),
             (self.state_dir / "models", "mine"),
+            (self._old_mine, "mine"),
             (self.mine, "mine"),
         ]
         folders += [
@@ -336,9 +351,9 @@ class ModelFiles:
         folders = [(folder, "pack") for folder, _ in self._packs()] + folders  # a clone wins over its install
         return folders
 
-    def _tang_files(self, folder: Path, deep: bool) -> list[Path]:
+    def _set_files(self, folder: Path, deep: bool) -> list[Path]:
         if not deep:
-            return sorted(folder.glob(f"*{TANG_SUFFIX}"))
+            return sorted(p for p in folder.iterdir() if p.is_file() and is_set_file(p.name))
         found: list[Path] = []
         for root, dirs, names in os.walk(folder):
             depth = len(Path(root).relative_to(folder).parts)
@@ -347,36 +362,37 @@ class ModelFiles:
                 if depth >= SHARED_DEPTH
                 else sorted(d for d in dirs if not d.startswith(".") and d not in _SKIPPED_DIRS)
             )
-            found += [Path(root) / n for n in sorted(names) if n.endswith(TANG_SUFFIX)]
+            found += [Path(root) / n for n in sorted(names) if is_set_file(n)]
             if len(found) > 2000:
                 break
         return found
 
     def read(self) -> tuple[dict[str, tuple[Model, str]], list[str]]:
-        """Every tang and model by name (with its file), and the files that could not be read."""
+        """Every set and model by name (with its file), and the files that could not be read."""
         found: dict[str, tuple[Model, str]] = {}
         problems: list[str] = []
         for folder, where in self._folders():
             if not folder.is_dir():
                 continue
-            for path in sorted(folder.glob("*.json")) if where not in ("shared", "pack") else []:
+            plain = sorted(p for p in folder.glob("*.json") if not is_set_file(p.name))
+            for path in plain if where not in ("shared", "pack") else []:
                 try:
                     model = parse_model(json.loads(path.read_text(encoding="utf-8")))
                     found[model.name] = (model, str(path))
                 except (OSError, ValueError) as error:
                     problems.append(f"{path.name}: {error}")
-            for path in self._tang_files(folder, deep=where in ("shared", "pack")):
+            for path in self._set_files(folder, deep=where in ("shared", "pack")):
                 try:
                     if path.stat().st_size > 2_000_000:
-                        raise TangError("larger than 2 MB")
-                    model = read_tang(path.read_text(encoding="utf-8"))
+                        raise RelationshipSetError("larger than 2 MB")
+                    model = read_set(path.read_text(encoding="utf-8"))
                     found[model.name] = (model, str(path))
                 except (OSError, ValueError) as error:
                     problems.append(f"{path.name}: {error}")
         return found, problems
 
     def where(self, path: str) -> str:
-        """Which kind of folder a library file is in: package, mine, environment or shared."""
+        """Which kind of folder a library file is in: package, mine, environment, shared or pack."""
         target = Path(path).resolve()
         for folder, kind in reversed(self._folders()):
             try:
@@ -387,19 +403,51 @@ class ModelFiles:
         return "mine"
 
     def save(self, model: Model, folder: str | None) -> str:
-        """Write the tang into the person's own folder, or into one of the shared folders (and no
-        other). The same name writes the same file again: saving a tang updates it."""
+        """Write the set into the person's own folder, or into one of the shared folders (and no other).
+        The same name writes the same file again: saving a set updates it, and a save that changes
+        nothing but the time changes no byte (the library is made to be a Git repository)."""
         if folder is None:
             target = self.mine
         else:
             shared = {os.path.normcase(str(Path(p).resolve())): Path(p) for p in self.shared_folders()}
             chosen = shared.get(os.path.normcase(str(Path(folder).resolve())))
             if chosen is None:
-                raise ValueError("Save into your own tangs or one of the shared folders (the blade folders).")
+                raise ValueError("Save into your own sets or one of the shared folders (the blade folders).")
             target = chosen
         if folder is None:
             self._made()
         target.mkdir(parents=True, exist_ok=True)
-        path = target / tang_file_name(model.name)
-        path.write_text(write_tang(model), encoding="utf-8")
+        path = target / set_file_name(model.name)
+        if path.is_file():
+            try:
+                if same_set(read_set(path.read_text(encoding="utf-8")), model):
+                    return str(path)
+            except (OSError, ValueError):
+                pass
+        path.write_text(write_set(model), encoding="utf-8", newline="\n")
         return str(path)
+
+    def _editable(self, path: str) -> Path:
+        where = self.where(path)
+        if where not in EDITABLE:
+            said = {"package": "built in", "pack": "from a pack (change it in its repository)"}
+            raise PermissionError(
+                f"This set is {said.get(where, 'read-only here')}: it cannot be changed here."
+            )
+        return Path(path)
+
+    def delete(self, path: str) -> None:
+        """Delete a set's file (the person's own or a shared folder's)."""
+        self._editable(path).unlink(missing_ok=True)
+
+    def rename(self, path: str, model: Model, new: str) -> str:
+        """The set saved again under its new name, beside its old file, and the old file gone. Answers
+        the new file's path."""
+        old = self._editable(path)
+        target = old.parent / set_file_name(new)
+        if target.exists() and target.resolve() != old.resolve():
+            raise FileExistsError(f"{target.name} is there already: choose another name.")
+        target.write_text(write_set(replace(model, name=new)), encoding="utf-8", newline="\n")
+        if target.resolve() != old.resolve():
+            old.unlink(missing_ok=True)
+        return str(target)

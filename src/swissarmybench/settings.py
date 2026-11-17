@@ -210,7 +210,7 @@ class Settings:
     # (the file chooser's first look at it, or a save into it).
     workbench_dir: Path = field(default_factory=_workbench_dir)
     projects_dir: Path = field(default_factory=_projects_dir)
-    # Claude Code's folder: installed plugins that carry blades and tangs (packs) are read from here.
+    # Claude Code's folder: installed plugins that carry blades and relationship sets (packs) are read here.
     claude_dir: Path = field(default_factory=_claude_dir)
 
     @property

@@ -134,7 +134,7 @@ def _row_count(grid: str) -> int | None:
 GUIDE_TOPICS: dict[str, str] = {
     "grids": "Grids and steps: data in, reading, the ribbon, steps, SQL, the page",
     "analyze": "Analyze and Visualizations: the analyses, cards, dashboards, themes",
-    "relationships": "Keys and relationships: the finder, tangs, the ERD, compare and tie-out",
+    "relationships": "Keys and relationships: the finder, saved sets, the ERD, compare and tie-out",
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python; key vaults, variables",
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
     "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
@@ -142,7 +142,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
     "projects": "Projects as folders: open, save, the recent ones, tables that need a fix",
-    "library": "The library: connections, APIs, vaults, blades, tangs, variables as a Git repository's files",
+    "library": "The library: connections, APIs, vaults, blades, relationship sets, variables as a Git repo's files",
     "accounting": "Accounting (an extension): the Excel canvas, Play, workbook.py, templates, statements",
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
@@ -1081,15 +1081,50 @@ def set_relationships(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_library",
-    "The saved tangs (relationship sets: the user's and the team's shared ones) and which tables are open",
+    "The saved relationship sets (the user's and the team's shared ones) and which of their tables are open",
 )
 def library(a: dict[str, Any]) -> Any:
     return api.call("GET", "/relationships/library")
 
 
-@command("relationships_apply_library", "Apply a saved tang by name (merges)", req("name", "Tang name."))
+@command(
+    "relationships_apply_library", "Apply a saved relationship set by name (merges)", req("name", "Its name.")
+)
 def apply_library(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/relationships/library/{_q(a['name'])}")
+
+
+JOINS_SHAPE = '[{"from": "<dataset>", "from_columns": [...], "to": "<dataset>", "to_columns": [...]}, ...]'
+
+
+@command(
+    "relationships_delete",
+    "Delete joins from the ones in use (relationships_undo brings them all back). Joins: " + JOINS_SHAPE,
+    req("joins", "The joins to delete.", "json"),
+)
+def relationships_delete(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/relationships/delete", {"joins": a["joins"]})
+
+
+@command(
+    "relationships_update",
+    "Change joins in use: their kind and/or Run (active: whether a join is used). Undo with relationships_undo",
+    req("joins", "The joins to change: " + JOINS_SHAPE, "json"),
+    opt("kind", "one-to-one, one-to-many, many-to-one or many-to-many."),
+    opt("active", "Run: true to use the joins, false to keep them but not use them.", "bool"),
+)
+def relationships_update(a: dict[str, Any]) -> Any:
+    body: dict[str, Any] = {"joins": a["joins"]}
+    if a.get("kind"):
+        body["kind"] = a["kind"]
+    if a.get("active") is not None:
+        body["active"] = bool(a["active"])
+    return api.call("POST", "/relationships/update", body)
+
+
+@command("relationships_undo", "Undo the last delete or change of the joins in use")
+def relationships_undo(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/relationships/undo")
 
 
 @command(
@@ -1103,12 +1138,12 @@ def find_relationships(a: dict[str, Any]) -> Any:
 
 @command(
     "relationships_check",
-    "Run the current relationships (or a saved tang) against the open tables: holds, orphans or broken",
-    opt("tang", "A saved tang's name (default the current relationships)."),
+    "Run the current relationships (or a saved set) against the open tables: holds, orphans or broken",
+    opt("set", "A saved set's name (default the current relationships)."),
     values=True,
 )
 def check_relationships(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/relationships/check", {"tang": a["tang"]} if a.get("tang") else {})
+    return api.call("POST", "/relationships/check", {"set": a["set"]} if a.get("set") else {})
 
 
 @command(
@@ -1121,13 +1156,26 @@ def relationship_path(a: dict[str, Any]) -> Any:
     return api.call("GET", "/relationships/path", params={"from": a["start"], "to": a["end"]})
 
 
+SCOPE = opt("scope", "project (default: the tables the open project uses) or all.")
+
+
 @command(
     "erd_text",
-    "The ERD as Mermaid text, for the open tables the model knows.",
+    "The ERD as Mermaid text: the tables the open project uses (or all; no project open: the open tables)",
     opt("tables", "Comma-separated dataset names."),
+    SCOPE,
 )
 def erd(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/relationships/erd", params={"tables": a.get("tables")})
+    return api.call("GET", "/relationships/erd", params={"tables": a.get("tables"), "scope": a.get("scope")})
+
+
+@command(
+    "relationships_scope",
+    "Which of the model's tables the open project uses (drawn on the ERD) and which not, by connection",
+    SCOPE,
+)
+def relationships_scope(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/relationships/scope", params={"scope": a.get("scope")})
 
 
 @command(
@@ -1136,9 +1184,10 @@ def erd(a: dict[str, Any]) -> Any:
     req("grid", "Grid the card is filed with."),
     opt("tables", "Comma-separated dataset names."),
     opt("title", "Card title (default Relationships)."),
+    SCOPE,
 )
 def add_erd(a: dict[str, Any]) -> Any:
-    drawn = api.call("GET", "/relationships/erd", params={"tables": a.get("tables")})
+    drawn = api.call("GET", "/relationships/erd", params={"tables": a.get("tables"), "scope": a.get("scope")})
     card = api.call(
         "POST",
         f"/grids/{_q(a['grid'])}/cards",
@@ -4096,7 +4145,7 @@ def workbench_environment_choose(a: dict[str, Any]) -> Any:
     return api.call("POST", "/workbench/environment", {"path": a["path"], "python": a["python"]})
 
 
-# ===== packs: blades and tangs from a Claude Code plugin marketplace =====
+# ===== packs: blades and relationship sets from a Claude Code plugin marketplace =====
 
 
 @command(
@@ -4124,10 +4173,10 @@ def packs_new(a: dict[str, Any]) -> Any:
 
 @command(
     "packs_add",
-    "Copy saved blades and tangs into an editable pack",
+    "Copy saved blades and relationship sets into an editable pack",
     req("pack", "The pack's folder (packs_list)."),
     opt("blades", "Blade names.", "list"),
-    opt("tangs", "Tang names.", "list"),
+    opt("sets", "Relationship set names.", "list"),
     opt("replace", "Replace ones already there.", "bool"),
 )
 def packs_add(a: dict[str, Any]) -> Any:
@@ -4137,7 +4186,7 @@ def packs_add(a: dict[str, Any]) -> Any:
         {
             "pack": a["pack"],
             "blades": a.get("blades") or [],
-            "tangs": a.get("tangs") or [],
+            "sets": a.get("sets") or [],
             "replace": bool(a.get("replace")),
         },
     )
@@ -4251,37 +4300,61 @@ def catalog_remove(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "relationships_save_tang",
-    "Save the current relationships as a tang (a shared .tang file)",
-    req("name", "The tang's name."),
+    "relationships_save_set",
+    "Save the current relationships as a relationship set (a shared .relationships.json file)",
+    req("name", "The set's name."),
     opt("description", "What it joins."),
     opt("tags", "Words to find it by.", "list"),
     opt("author", "Who made it."),
-    opt("folder", "A blade folder to save it in (default: the user's own tangs)."),
+    opt("folder", "A blade folder to save it in (default: the user's own sets, in the library)."),
 )
-def relationships_save_tang(a: dict[str, Any]) -> Any:
+def relationships_save_set(a: dict[str, Any]) -> Any:
     return api.call(
         "POST",
-        "/relationships/tangs",
+        "/relationships/sets",
         {k: a[k] for k in ("name", "description", "tags", "author", "folder") if a.get(k) is not None},
     )
 
 
-@command("relationships_export_tang", "The current relationships as .tang text")
-def relationships_export_tang(a: dict[str, Any]) -> Any:
-    data, _ = api.fetch_bytes("GET", "/relationships/tang")
+@command(
+    "relationships_export_set",
+    "A saved relationship set, or the current relationships, as .relationships.json text",
+    opt("name", "A saved set's name (default the current relationships)."),
+)
+def relationships_export_set(a: dict[str, Any]) -> Any:
+    path = f"/relationships/sets/{_q(a['name'])}" if a.get("name") else "/relationships/set"
+    data, _ = api.fetch_bytes("GET", path)
     return {"text": data.decode("utf-8", "replace")}
 
 
 @command(
-    "relationships_import_tang",
-    "Import .tang text: without apply, what it would change; apply and save to use and keep it",
-    req("text", "The .tang file's text."),
+    "relationships_rename_set",
+    "Rename a saved relationship set (its file too)",
+    req("name", "Its name now."),
+    req("new_name", "Its new name."),
+)
+def relationships_rename_set(a: dict[str, Any]) -> Any:
+    return api.call("PATCH", f"/relationships/sets/{_q(a['name'])}", {"name": a["new_name"]})
+
+
+@command(
+    "relationships_delete_set",
+    "Delete a saved relationship set's file (waits for the user's Allow)",
+    req("name", "Its name."),
+)
+def relationships_delete_set(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/relationships/sets/{_q(a['name'])}")
+
+
+@command(
+    "relationships_import_set",
+    "Import a relationship set's text: without apply, what it would change; apply and save to use and keep it",
+    req("text", "The .relationships.json file's text."),
     opt("apply", "Apply it to the current relationships.", "bool"),
-    opt("save", "Keep it in the tang library.", "bool"),
+    opt("save", "Keep it with the saved sets.", "bool"),
     opt("folder", "Where to keep it."),
 )
-def relationships_import_tang(a: dict[str, Any]) -> Any:
+def relationships_import_set(a: dict[str, Any]) -> Any:
     return api.call(
         "POST",
         "/relationships/import",
@@ -4372,7 +4445,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("project", "Projects: a folder (its files, and .sab/: tables, steps, Visualizations, relationships)"),
     ("projects", "The Project Explorer: every project as a card, sorted; the project types explained"),
-    ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
+    ("packs", "Packs: blades and relationship sets from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
@@ -4405,12 +4478,24 @@ def _arrange() -> None:
 _arrange()
 
 # The old names, one release (as renamed.py keeps SwissArmyGrid's): the Sandbox became Visualizations (the
-# owner, 2026-11-16), so each sandbox_* command is its visualizations_* one. Accepted by the dispatcher (the
-# `sab` command and an MCP call by name) but not listed: the tool list carries the new names only.
+# owner, 2026-11-16), so each sandbox_* command is its visualizations_* one; a tang became a relationship
+# set (the owner, 2026-11-17), so relationships_*_tang is relationships_*_set. Accepted by the dispatcher
+# (the `sab` command and an MCP call by name) but not listed: the tool list carries the new names only.
 OLD_NAMES: dict[str, str] = {
     "sandbox" + name.removeprefix("visualizations"): name
     for name in REGISTRY
     if name.startswith("visualizations_")
+} | {
+    "relationships_save_tang": "relationships_save_set",
+    "relationships_export_tang": "relationships_export_set",
+    "relationships_import_tang": "relationships_import_set",
+}
+
+
+# An old argument's name, one release: (command, old) -> new. A tang became a relationship set.
+OLD_ARGS: dict[tuple[str, str], str] = {
+    ("relationships_check", "tang"): "set",
+    ("packs_add", "tangs"): "sets",
 }
 
 
@@ -4506,7 +4591,7 @@ def execute_result(name: str, raw: dict[str, Any] | None = None) -> str | ImageR
         close = difflib.get_close_matches(name, list(REGISTRY), n=5)
         hint = f" Did you mean: {', '.join(close)}?" if close else ""
         raise CommandError(f"No command {name!r}.{hint} Call commands for the catalog.")
-    given = dict(raw or {})
+    given = {OLD_ARGS.get((name, k), k): v for k, v in (raw or {}).items()}
     known = {x.name: x for x in cmd.args}
     unknown = sorted(set(given) - set(known))
     if unknown:

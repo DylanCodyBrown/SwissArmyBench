@@ -1,5 +1,5 @@
-"""Packs: blades and tangs from a Claude Code plugin marketplace. A made-up Claude folder stands in for
-the user's: one installed pack, one the user switched off, one plugin that is not a pack."""
+"""Packs: blades and relationship sets from a Claude Code plugin marketplace. A made-up Claude folder
+stands in for the user's: one installed pack, one the user switched off, one plugin that is not a pack."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from starlette.testclient import TestClient
 from swissarmybench.cli.main import main as sab
 from swissarmybench.domain.blades import read_blade, write_blade
 from swissarmybench.domain.packs import PackError, installed_entries, is_enabled, scaffold
-from swissarmybench.domain.relationships import parse_model, read_tang, write_tang
+from swissarmybench.domain.relationships import parse_model, read_set, write_set
 from tests.conftest import AGENT, AUTH, make_client
 
 BAKERY = {"name": "Bakery DB", "kind": "other", "code": "conn = 1\n", "variable": "conn", "tags": ["bakery"]}
@@ -36,7 +36,7 @@ def test_a_new_marketplace_has_its_manifest_one_pack_and_the_commands() -> None:
     assert manifest["plugins"][0] | {} == manifest["plugins"][0]
     assert manifest["plugins"][0]["source"] == "./packs/sales" and "version" not in manifest["plugins"][0]
     assert json.loads(files["packs/sales/.claude-plugin/plugin.json"])["name"] == "sales"
-    assert "packs/sales/blades/README.md" in files and "packs/sales/tangs/README.md" in files
+    assert "packs/sales/blades/README.md" in files and "packs/sales/relationship-sets/README.md" in files
     assert "/plugin install sales@team-blades" in files["README.md"]
 
 
@@ -75,7 +75,7 @@ def test_the_install_record_is_read_loosely_and_off_means_off() -> None:
 
 
 def plugin(
-    cache: Path, marketplace: str, name: str, version: str, blades: bool = True, tangs: bool = True
+    cache: Path, marketplace: str, name: str, version: str, blades: bool = True, sets: str = "new"
 ) -> Path:
     root = cache / marketplace / name / version
     (root / ".claude-plugin").mkdir(parents=True)
@@ -83,9 +83,17 @@ def plugin(
     if blades:
         (root / "blades").mkdir()
         (root / "blades" / "bakery_db.blade.py").write_text(write_blade(BAKERY), encoding="utf-8")
-    if tangs:
+    if sets == "new":
+        (root / "relationship-sets").mkdir()
+        (root / "relationship-sets" / "bakery.relationships.json").write_text(
+            write_set(parse_model(TANG)), encoding="utf-8"
+        )
+    elif sets == "old":  # an older pack's tangs/ (the old name), read for one release
+        old = json.loads(write_set(parse_model(TANG | {"name": "Bakery joins old"}))) | {
+            "swissarmybench": "tang"
+        }
         (root / "tangs").mkdir()
-        (root / "tangs" / "bakery.tang").write_text(write_tang(parse_model(TANG)), encoding="utf-8")
+        (root / "tangs" / "bakery.tang").write_text(json.dumps(old), encoding="utf-8")
     return root
 
 
@@ -95,11 +103,12 @@ def claude(tmp_path: Path) -> Path:
     cache = home / "plugins" / "cache"
     sales = plugin(cache, "team-blades", "sales", "1a2b3c4d5e6f")
     hr = plugin(cache, "team-blades", "hr", "0f0f0f0f0f0f")
-    tools = plugin(cache, "team-blades", "lint-tools", "1.0.0", blades=False, tangs=False)
+    tools = plugin(cache, "team-blades", "lint-tools", "1.0.0", blades=False, sets="")
+    legacy = plugin(cache, "team-blades", "legacy", "0.9.0", blades=False, sets="old")
     record = {
         "plugins": {
             f"{n}@team-blades": [{"installPath": str(p), "version": p.name}]
-            for n, p in (("sales", sales), ("hr", hr), ("lint-tools", tools))
+            for n, p in (("sales", sales), ("hr", hr), ("lint-tools", tools), ("legacy", legacy))
         }
     }
     (home / "plugins" / "installed_plugins.json").write_text(json.dumps(record), encoding="utf-8")
@@ -115,10 +124,11 @@ def client(tmp_path: Path, claude: Path) -> Iterator[TestClient]:
         yield test_client
 
 
-def test_an_installed_packs_blades_and_tangs_are_listed_read_only(client: TestClient) -> None:
+def test_an_installed_packs_blades_and_sets_are_listed_read_only(client: TestClient) -> None:
     packs = client.get("/packs", headers=AUTH).json()
     by = {p["name"]: p for p in packs["installed"]}
-    assert set(by) == {"sales", "hr"}  # lint-tools carries no blades or tangs: not a pack
+    assert set(by) == {"sales", "hr", "legacy"}  # lint-tools carries no blades or sets: not a pack
+    assert by["sales"]["relationship_sets"] == 1 and by["legacy"]["relationship_sets"] == 1
     assert by["sales"]["enabled"] and not by["hr"]["enabled"]
     assert by["sales"]["label"] == "sales@team-blades 1a2b3c4d5e6f" and by["sales"]["blades"] == 1
     blades = client.get("/blades", headers=AUTH).json()["blades"]
@@ -129,9 +139,13 @@ def test_an_installed_packs_blades_and_tangs_are_listed_read_only(client: TestCl
     assert client.delete("/blades/Bakery%20DB", headers=AUTH).status_code == 400
     copy = client.post("/blades", json=BAKERY | {"name": "Bakery DB copy"}, headers=AUTH)
     assert copy.status_code == 200 and copy.json()["source"] == "saved"
-    tangs = client.get("/relationships/library", headers=AUTH).json()["models"]
-    entry = next(t for t in tangs if t["name"] == "Bakery joins")
-    assert entry["where"] == "pack" and entry["tang"]
+    sets = client.get("/relationships/library", headers=AUTH).json()["models"]
+    entry = next(t for t in sets if t["name"] == "Bakery joins")
+    assert entry["where"] == "pack" and entry["set"]
+    old = next(t for t in sets if t["name"] == "Bakery joins old")  # an older pack's tangs/, one release
+    assert old["where"] == "pack" and old["file"].endswith(".tang")
+    gone = client.delete("/relationships/sets/Bakery%20joins", headers=AUTH)
+    assert gone.status_code == 403 and "pack" in gone.text  # changed in its repository, not here
 
 
 def test_a_new_marketplace_is_made_added_as_a_blade_folder_and_filled(
@@ -150,17 +164,19 @@ def test_a_new_marketplace_is_made_added_as_a_blade_folder_and_filled(
     ]
     client.post("/blades", json=BAKERY | {"name": "Oven log"}, headers=AUTH)
     client.post("/relationships", json={"model": TANG}, headers=AUTH)
-    client.post("/relationships/tangs", json={"name": "Bakery joins mine"}, headers=AUTH)
+    client.post("/relationships/sets", json={"name": "Bakery joins mine"}, headers=AUTH)
     added = client.post(
         "/packs/add",
-        json={"pack": editable[0]["root"], "blades": ["Oven log"], "tangs": ["Bakery joins mine"]},
+        json={"pack": editable[0]["root"], "blades": ["Oven log"], "sets": ["Bakery joins mine"]},
         headers=AUTH,
     ).json()
     assert len(added["written"]) == 2 and added["kept"] == []
     blade_file = folder / "packs" / "sales" / "blades" / "oven_log.blade.py"
     assert "conn = 1" in blade_file.read_text(encoding="utf-8")
-    assert read_tang(
-        (folder / "packs" / "sales" / "tangs" / "bakery_joins_mine.tang").read_text(encoding="utf-8")
+    assert read_set(
+        (folder / "packs" / "sales" / "relationship-sets" / "bakery_joins_mine.relationships.json").read_text(
+            encoding="utf-8"
+        )
     ).relationships
     again = client.post(
         "/packs/add", json={"pack": editable[0]["root"], "blades": ["Oven log"]}, headers=AUTH
@@ -211,10 +227,10 @@ def test_this_repository_is_a_marketplace_and_its_example_pack_matches_the_sampl
     pack = sources["sample-store"]
     [blade] = (pack / "blades").glob("*.blade.py")
     assert read_blade(blade.read_text(encoding="utf-8"))["variable"] == "regions"
-    [tang_file] = (pack / "tangs").glob("*.tang")
-    tang = read_tang(tang_file.read_text(encoding="utf-8"))
+    [set_file] = (pack / "relationship-sets").glob("*.relationships.json")
+    saved = read_set(set_file.read_text(encoding="utf-8"))
     found = {
-        (r.from_table, tuple(r.from_columns), r.to_table, tuple(r.to_columns)) for r in tang.relationships
+        (r.from_table, tuple(r.from_columns), r.to_table, tuple(r.to_columns)) for r in saved.relationships
     }
     truth = {(r.from_table, r.from_columns, r.to_table, r.to_columns) for r in TRUE_RELATIONSHIPS}
     assert found == truth

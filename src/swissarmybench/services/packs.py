@@ -1,10 +1,11 @@
-"""Packs: blades and tangs from a Claude Code plugin marketplace (domain/packs.py has the idea).
+"""Packs: blades and relationship sets from a Claude Code plugin marketplace (domain/packs.py has the
+idea).
 
-  list     the installed packs (read-only: their blades and tangs show on the blades page and in the
-           Relationships window with the pack's name), the editable ones (clones in the blade folders),
+  list     the installed packs (read-only: their blades and relationship sets show on the blades page and
+           in the Relationships window with the pack's name), the editable ones (clones in the blade folders),
            and the commands to share
   create   a new marketplace repository with one pack, optionally added as a blade folder at once
-  add      copy chosen blades and tangs into an editable pack, ready to commit
+  add      copy chosen blades and relationship sets into an editable pack, ready to commit
 
 All of it is the user's: the routes refuse the agent (files on disk, and code others will run).
 """
@@ -14,8 +15,8 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from swissarmybench.domain.blades import Blade, file_name, write_blade
-from swissarmybench.domain.packs import BLADES_FOLDER, TANGS_FOLDER, Pack, PackError, scaffold
-from swissarmybench.domain.relationships import Model, tang_file_name, write_tang
+from swissarmybench.domain.packs import BLADES_FOLDER, SETS_FOLDER, Pack, PackError, scaffold
+from swissarmybench.domain.relationships import Model, set_file_name, write_set
 from swissarmybench.services.workspace import NotFound, Workspace
 
 
@@ -44,18 +45,18 @@ class PackBlades(Protocol):
     def set_folders(self, paths: Any) -> list[dict[str, Any]]: ...
 
 
-class PackTangs(Protocol):
-    """What packs need of the tang library: every tang by name."""
+class PackSets(Protocol):
+    """What packs need of the relationship sets: every set by name."""
 
     def read(self) -> tuple[dict[str, tuple[Model, str]], list[str]]: ...
 
 
 class Packs:
-    def __init__(self, ws: Workspace, files: PackFiles, blades: PackBlades, tangs: PackTangs) -> None:
+    def __init__(self, ws: Workspace, files: PackFiles, blades: PackBlades, sets: PackSets) -> None:
         self.ws = ws
         self.files = files
         self.blades = blades
-        self.tangs = tangs
+        self.sets = sets
 
     def list(self) -> dict[str, Any]:
         installed = self.files.installed()
@@ -94,10 +95,11 @@ class Packs:
         return {"folder": body["folder"], "files": written, "added_as_blade_folder": added}
 
     def add(self, body: Any, who: str) -> dict[str, Any]:
-        """Copy blades and tangs into an editable pack: {"pack": <its folder>, "blades": [names],
-        "tangs": [names], "replace": false}. A file already there is kept unless replace."""
+        """Copy blades and relationship sets into an editable pack: {"pack": <its folder>, "blades":
+        [names], "sets": [names], "replace": false} ("tangs", the old name, one release). A file already
+        there is kept unless replace."""
         if not isinstance(body, dict) or not isinstance(body.get("pack"), str):
-            raise PackError('Send {"pack": "<the pack\'s folder>", "blades": [...], "tangs": [...]}.')
+            raise PackError('Send {"pack": "<the pack\'s folder>", "blades": [...], "sets": [...]}.')
         root, replace = body["pack"], bool(body.get("replace"))
         written: list[str] = []
         kept: list[str] = []
@@ -110,14 +112,14 @@ class Packs:
                 root, BLADES_FOLDER, file_name(blade.name), write_blade(blade.to_json()), replace
             )
             (written if done else kept).append(path)
-        found, _ = self.tangs.read()
-        for name in body.get("tangs") or []:
+        found, _ = self.sets.read()
+        for name in [*(body.get("sets") or []), *(body.get("tangs") or [])]:
             entry = found.get(str(name))
             if entry is None:
-                raise NotFound(f"No tang named {name!r}.")
-            tang = entry[0]
+                raise NotFound(f"No relationship set named {name!r}.")
+            saved = entry[0]
             path, done = self.files.write(
-                root, TANGS_FOLDER, tang_file_name(tang.name), write_tang(tang), replace
+                root, SETS_FOLDER, set_file_name(saved.name), write_set(saved), replace
             )
             (written if done else kept).append(path)
         self.ws.audit.write(who, "add_to_pack", None, pack=root, written=len(written))

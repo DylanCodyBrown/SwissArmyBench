@@ -3268,7 +3268,7 @@ body.agent-view .titlebar {
   }
 }
 
-/* ===== The Relationships window: tangs, the finder, the joins in use (relationshipsDialog.ts) ===== */
+/* ===== The Relationships window: saved sets, the finder, the joins in use (relationshipsDialog.ts) ===== */
 .rel-section {
   margin-bottom: 18px;
   padding-bottom: 12px;
@@ -3279,7 +3279,7 @@ body.agent-view .titlebar {
   margin: 0 0 8px;
 }
 
-.tang-list,
+.set-list,
 .suggestion-list {
   display: grid;
   gap: 6px;
@@ -3288,7 +3288,7 @@ body.agent-view .titlebar {
   list-style: none;
 }
 
-.tang-item,
+.set-item,
 .suggestion {
   display: flex;
   align-items: flex-start;
@@ -3303,7 +3303,7 @@ body.agent-view .titlebar {
   opacity: 0.75;
 }
 
-.tang-text {
+.set-text {
   display: grid;
   flex: 1;
   gap: 3px;
@@ -3317,11 +3317,11 @@ body.agent-view .titlebar {
   gap: 4px 8px;
 }
 
-.tang-where {
+.set-where {
   margin-left: 8px;
 }
 
-.tang-where.shared {
+.set-where.shared {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -3342,22 +3342,240 @@ body.agent-view .titlebar {
   background: var(--accent);
 }
 
-.rel-table tr.run-holds td:nth-child(5) {
-  color: var(--ok);
-}
-
+.rel-table tr.run-holds .rel-col-check,
 .rel-run tr.run-holds td:nth-child(2) {
   color: var(--ok);
 }
 
-.rel-table tr.run-orphans td:nth-child(5),
+.rel-table tr.run-orphans .rel-col-check,
 .rel-run tr.run-orphans td:nth-child(2) {
   color: var(--warn);
 }
 
-.rel-table tr.run-broken td:nth-child(5),
+.rel-table tr.run-broken .rel-col-check,
 .rel-run tr.run-broken td:nth-child(2) {
   color: var(--error);
+}
+
+/* The joins in use, managed: it fits the window at any width down to 700px. The columns are fixed (the
+   names cut with an ellipsis, all of each in its tooltip), the table scrolls up and down inside the
+   dialog, never sideways, and the dialog never grows past the viewport. */
+.rel-dialog .dialog-body {
+  overflow-x: hidden;
+}
+
+.rel-current {
+  min-width: 0;
+}
+
+.rel-current h3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rel-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.rel-tools .rel-filter {
+  flex: 1 1 140px;
+  min-width: 90px;
+  max-width: 320px;
+}
+
+.rel-count {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.92em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rel-tools .btn {
+  flex: none;
+}
+
+/* Tables in this project / All tables (relationships.ts scopeSwitch): the ERD's and the window's. */
+.scope-switch {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.scope-switch .scope-choice {
+  border: 0;
+  border-radius: 0;
+}
+
+.scope-switch .scope-choice[aria-pressed="true"] {
+  background: var(--accent-soft, var(--surface-2));
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.erd-scope {
+  justify-content: center;
+}
+
+.rel-scope,
+.erd-scope {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.rel-hidden,
+.erd-hidden {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rel-scroll {
+  max-height: min(60vh, 560px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.rel-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.rel-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--raised);
+  text-align: left;
+}
+
+.rel-table th,
+.rel-table td {
+  overflow: hidden;
+  padding: 3px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.rel-table tr.selected td {
+  background: var(--accent-soft, var(--surface-2));
+}
+
+.rel-table tr.rel-off .rel-col-from,
+.rel-table tr.rel-off .rel-col-to,
+.rel-table tr.rel-off .rel-col-on {
+  color: var(--muted);
+}
+
+.rel-table tr.rel-group th {
+  background: var(--surface-2);
+  font-weight: 600;
+  text-align: left;
+}
+
+.rel-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.rel-col-pick {
+  width: 30px;
+}
+
+.rel-col-kind {
+  width: 142px;
+}
+
+.rel-col-run {
+  width: 44px;
+  text-align: center;
+}
+
+.rel-col-check {
+  width: 130px;
+}
+
+.rel-col-note {
+  width: 22%;
+}
+
+.rel-col-menu {
+  width: 34px;
+}
+
+.rel-kind {
+  width: 100%;
+  min-width: 0;
+  padding-right: 18px;
+  padding-left: 4px;
+  font-size: 0.92em;
+}
+
+.rel-mid {
+  display: flex;
+  min-width: 0;
+}
+
+.rel-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rel-tail {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Narrow: the note goes (it is in the row's Check tooltip), the check keeps its icon only, and the
+   footer's words fold to icons (design principle 3.6: one line per row). */
+@media (max-width: 960px) {
+  .rel-col-note {
+    display: none;
+  }
+
+  .rel-col-check {
+    width: 64px;
+  }
+
+  .rel-check-word {
+    display: none;
+  }
+
+  .rel-foot .btn:not(.primary) .btn-label,
+  .rel-tools .btn .btn-label {
+    display: none;
+  }
 }
 
 /* ===== The tour (tour.ts): a spotlight on the real control, a card beside it, then a game ===== */

@@ -22,7 +22,7 @@ export interface Join {
   evidence?: string; // why it is trusted, from when it was found
 }
 
-/** The current relationships; saved, they are a tang (with its tags, author and time). */
+/** The current relationships; saved, they are a relationship set (with its tags, author and time). */
 export interface RelationshipModel {
   name: string;
   description: string;
@@ -31,10 +31,50 @@ export interface RelationshipModel {
   saved_at?: string;
   tables: Record<string, { primary_key?: string[]; source?: string; columns?: [string, string][] }>;
   relationships: Join[];
+  can_undo?: boolean; // the last delete or edit of the joins in use can be undone
 }
 
 let model: RelationshipModel = { name: "current", description: "", tables: {}, relationships: [] };
 const listeners: (() => void)[] = [];
+
+/** Which of the model's tables the open project uses (GET /relationships/scope): the ERD and the
+ * Relationships window draw those by default. `project` false: no project open, everything is drawn. */
+export interface RelationshipScope {
+  project: boolean;
+  tables: string[];
+  hidden: string[];
+  hidden_from: { connection: string; tables: number }[];
+  relationships: number;
+  all_relationships: number;
+  words: string;
+}
+
+export async function projectScope(): Promise<RelationshipScope | null> {
+  try {
+    return await api<RelationshipScope>("/relationships/scope?scope=project");
+  } catch {
+    return null;
+  }
+}
+
+/** The switch between the tables the project uses and all of them, shared by the ERD and the window. */
+export function scopeSwitch(all: boolean, change: (all: boolean) => void): HTMLElement {
+  const choice = (label: string, on: boolean): HTMLButtonElement => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn ghost scope-choice";
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String(on));
+    b.addEventListener("click", () => change(label === "All tables"));
+    return b;
+  };
+  const host = document.createElement("span");
+  host.className = "scope-switch";
+  host.setAttribute("role", "group");
+  host.setAttribute("aria-label", "Which tables");
+  host.append(choice("Tables in this project", !all), choice("All tables", all));
+  return host;
+}
 
 export function currentModel(): RelationshipModel {
   return model;

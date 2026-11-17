@@ -129,6 +129,7 @@ from swissarmybench.services.project_explorer import ProjectExplorer
 from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
+from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
@@ -182,6 +183,7 @@ class Services:
     file_dialogs: FileDialogs
     workbench: Workbench
     models: Models
+    project_tables: ProjectTables
     finder: Finder
     packs: Packs
     keys: KeyFinder
@@ -278,16 +280,16 @@ def bootstrap(
         connection, settings.max_dataset_bytes, settings.max_total_bytes, settings.max_datasets
     )
     live = LiveUpdates()
-    # Packs: installed Claude Code plugins that carry blades and tangs, and editable clones in the
-    # blade folders. Their blades and tangs join the blade store and the tang library read-only.
+    # Packs: installed Claude Code plugins that carry blades and relationship sets, and editable clones in
+    # the blade folders. Their blades and sets join the blade store and the relationship sets read-only.
     pack_files = PackFolders(
         settings.claude_dir,
         shared=lambda: [f["path"] for f in blade_store.folders() if f["exists"]],
         environ=os.environ,
     )
-    # The library (Plans/library.plan.md): this computer's connections, APIs, vaults, blades, tangs, variables
-    # and colours, in one folder made to be a Git repository, whatever project is open; Settings points it
-    # elsewhere (library.json: the path only). README.md and .gitignore made on first use.
+    # The library (Plans/library.plan.md): this computer's connections, APIs, vaults, blades, relationship
+    # sets, variables and colours, in one folder made to be a Git repository, whatever project is open;
+    # Settings points it elsewhere (library.json: the path only). README.md and .gitignore made on first use.
     library_folder = LibraryFolder(settings.library_dir, state_dir / "library.json" if audit_log else None)
     blade_store = BladeStore(
         library_folder.root,
@@ -448,18 +450,19 @@ def bootstrap(
     catalog_loading = CatalogLoading(
         ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once
     )
-    # Tangs come from the person's own folder and the shared folders, which are the blade folders:
-    # one team folder carries blades and tangs alike.
+    # Relationship sets come from the person's own folder and the shared folders, which are the blade
+    # folders: one team folder carries blades and sets alike.
     compares = Compares(ws)
     models = Models(
         ws,
         ModelFiles(
             state_dir,
             shared=lambda: [f["path"] for f in blade_store.folders() if f["exists"]],
-            packs=pack_files.tang_dirs,
+            packs=pack_files.set_dirs,
             library=lambda: library_folder.root,
             made=library_folder.ensure,
         ),
+        approvals,
     )
     datasets.renamed.append(models.rename_table)
     documents = Documents(state_dir / "recent.json", settings.workbench_dir)
@@ -671,6 +674,27 @@ def bootstrap(
         open_documents=lambda: hooks.documents(),
         ask_window=lambda command, args: workbench_window.ask(command, args, "app"),
     )
+
+    # The tables the open project uses: the ERD draws only those by default (the owner, 2026-11-17).
+    def project_documents() -> tuple[set[str], list[tuple[str, str]]] | None:
+        project = sab_projects.state().get("project")
+        if not project:
+            return None
+        names = {str(t["name"]) for t in project.get("tables", [])}
+        texts: list[tuple[str, str]] = []
+        for path in usage_documents(documents, hooks, sab_projects, project_files):
+            try:
+                text, full, _ = documents.read(path)
+            except (OSError, ValueError):
+                continue
+            texts.append((full, text))
+        return names, texts
+
+    project_tables = ProjectTables(models, project_documents)
+    # A connection deleted: the relationships its tables held go from the ones in use (saved sets stay).
+    blades.connection_removed.append(
+        lambda name, who: models.forget_connection(name, set(connection_swap.tables_of(name)), who)
+    )
     project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
     # The Variables page: this computer's variables (never a project's): the shareable file and the local
     # values; their values given to this server's environment, so what it runs and starts reads them.
@@ -683,6 +707,9 @@ def bootstrap(
             state_dir, blade_store, variables_file, datetime.now(UTC).date().isoformat()
         )
         library.notice("computer", library_rules.computer_migration_words(moved["moved"], moved["backup"]))
+        # Once: the library's tangs/ (the old name, 2026-11-17) as relationship-sets/ (said on the page).
+        sets = library_folder.move_relationship_sets(state_dir, datetime.now(UTC).date().isoformat())
+        library.notice("computer", library_rules.sets_migration_words(sets["moved"], sets["backup"]))
 
     async def save_variable_blade(data: dict[str, Any], previous: str, who: str) -> Any:
         saved = await blades.save(data, previous, who)
@@ -964,6 +991,7 @@ def bootstrap(
         file_dialogs=file_dialogs,
         workbench=workbench,
         models=models,
+        project_tables=project_tables,
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),
         library=library,

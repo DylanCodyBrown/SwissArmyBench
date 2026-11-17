@@ -151,16 +151,17 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `projects.json` the Project Explorer's projects folder, sort, custom order and hidden ones. The old
   single .sab file is not read any more (its conversion removed, the owner, 2026-11-17: `swissarmybench open
   x.sab` says so in one line); the installers take an earlier .sab registration away.
-  **The library (the owner, 2026-11-17; Plans/library.plan.md):** connections, APIs, vaults, blades, tangs,
-  variables and connection colours live outside every project, in one folder of text files made to be a Git
+  **The library (the owner, 2026-11-17; Plans/library.plan.md):** connections, APIs, vaults, blades, relationship
+  sets, variables and connection colours live outside every project, in one folder of text files made to be a Git
   repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
   `library.json` keeps the path): `connections/`, `vaults/`, `blades/<name>.blade.py`, `apis/<name>/`,
-  `tangs/`, `variables.toml`, `colours.toml`, `local/` (this computer only, git-ignored), README.md and
+  `relationship-sets/`, `variables.toml`, `colours.toml`, `local/` (this computer only, git-ignored), README.md and
   .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
   nothing changes no byte. Never a secret, token, password or row in it (nor in a project): a connection names
   where its password comes from (keyring, environment, vault), resolved on each computer by its name; a
   clone asks for each missing one. This computer's older stores (blades/*.json, variables.json, colours.toml,
-  tangs/) moved in once at start (the old files in `backup/before-library-<date>/`, said once on the page);
+  tangs/) moved in once at start (the old files in `backup/before-library-<date>/`, said once on the page;
+  the library's tangs/, a relationship set's old name, became relationship-sets/ once, 2026-11-17);
   an older project's own `.sab/blades` are copied in as it opens (the same skipped, a different one kept as
   `<name> from <project>`, said) and its next save leaves them out. The app never runs git.
 
@@ -192,9 +193,10 @@ src/swissarmybench/
     codegen.py           generated code: the steps as one DuckDB query, and how it is pasted and run
     charts.py            chart spec validation, the aggregate query's text, Vega-Lite, Altair
     export.py            export options, provenance
-    relationships.py     keys, the Key Finder's scoring, compare, relationship models, the ERD; tangs
-                         (the .tang file: a saved, shared set of relationships) and the relationship
-                         finder's rules (judge, suggest, implied joins, paths between tables)
+    relationships.py     keys, the Key Finder's scoring, compare, relationship models, the ERD; relationship
+                         sets (the .relationships.json file: a saved, shared set; the old .tang read); the
+                         joins in use managed (delete, kind, Run, a deleted connection's taken out) and the
+                         relationship finder's rules (judge, suggest, implied joins, paths between tables)
     catalogs.py          catalog rules: dialects (DAX among them: 'Table'[Column], EVALUATE TOPN, COUNTROWS),
                          names, which source column is read as what
     dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
@@ -317,7 +319,7 @@ src/swissarmybench/
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name); where a SQL error points
-    packs.py             a pack (a Claude Code plugin with blades/ and tangs/): names, the new marketplace's
+    packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
@@ -495,10 +497,12 @@ src/swissarmybench/
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
+    relationship_scope.py the tables the open project uses (open, its own, named in its documents' code):
+                         what the ERD and the Relationships window draw by default (scope project or all)
     tieout.py            the tie-out report on a compare's two grids
     processes.py         Python sessions offering tables: the registry and the Open list
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
-    packs.py             list packs, make a marketplace, add saved blades and tangs to an editable pack
+    packs.py             list packs, make a marketplace, add saved blades and relationship sets to an editable pack
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
     database.py          the locked DuckDB, the priority worker pool, DuckDB's own SQL grammar
@@ -800,7 +804,7 @@ plugin/                  the swissarmybench plugin: skills/swissarmybench-use (S
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
 .claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
-examples/packs/          sample-store: an example pack (a made-up blade, the store's tang)
+examples/packs/          sample-store: an example pack (a made-up blade, the store's relationship set)
 build.py                 build the page (release) and the one wheel; --vsix also packages the extension
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes

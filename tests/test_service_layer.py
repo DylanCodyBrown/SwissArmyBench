@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any, TypeVar
 
 import pytest
@@ -254,7 +255,18 @@ class FakeLibrary:
 
     def save(self, model: Model, folder: str | None) -> str:
         self.models = (*self.models, model)
-        return f"shelf/{model.name}.tang"
+        return self.save_path(model)
+
+    @staticmethod
+    def save_path(model: Model) -> str:
+        return f"shelf/{model.name}.relationships.json"
+
+    def delete(self, path: str) -> None:
+        self.models = tuple(m for m in self.models if path not in (f"shelf/{m.name}.json", self.save_path(m)))
+
+    def rename(self, path: str, model: Model, new: str) -> str:
+        self.delete(path)
+        return self.save(replace(model, name=new), None)
 
 
 def test_the_relationship_model_merges_and_announces_itself(tmp_path: Any) -> None:
@@ -268,7 +280,7 @@ def test_the_relationship_model_merges_and_announces_itself(tmp_path: Any) -> No
     listed = models.library()
     assert listed["folders"] == ["shelf"] and listed["problems"] == ["broken.json: not a model"]
     assert listed["models"][0]["open_tables"] == ["customers", "orders"]
-    with pytest.raises(NotFound, match="No tang named 'cellar'"):
+    with pytest.raises(NotFound, match="No relationship set named 'cellar'"):
         asyncio.run(models.apply_library("cellar", "user"))
 
     current = asyncio.run(models.apply_library("bakery", "agent"))

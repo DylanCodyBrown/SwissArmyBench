@@ -1,16 +1,17 @@
-"""Packs on disk: the Claude Code plugins carrying blades and tangs, and the clones a team edits.
+"""Packs on disk: the Claude Code plugins carrying blades and relationship sets, and the clones a team edits.
 
 Installed packs come from Claude Code's own folders, read and never written:
 
   <claude dir>/plugins (or CLAUDE_CODE_PLUGIN_CACHE_DIR); the claude dir is ~/.claude (Settings)
       installed_plugins.json        which plugin versions are installed, and where (read loosely)
-      cache/<marketplace>/<plugin>/<version>/   the installed copy: its blades/ and tangs/ are the pack's
+      cache/<marketplace>/<plugin>/<version>/   the installed copy: its blades/ and relationship-sets/
+                                                are the pack's
   <claude dir>/settings.json  enabledPlugins: a plugin set to false is left out
 
 Editable packs are plugin folders (a `.claude-plugin/plugin.json`) inside the blade folders: a clone of
-the team's marketplace repository. Their blades and tangs are already read as folder blades and shared
-tangs; here they are listed so Add to pack can write into them. Scaffolding a new marketplace writes a
-new folder.
+the team's marketplace repository. Their blades and sets are already read as folder blades and shared
+sets (an older pack's tangs/ too, one release); here they are listed so Add to pack can write into
+them. Scaffolding a new marketplace writes a new folder.
 """
 
 from __future__ import annotations
@@ -23,13 +24,15 @@ from typing import Any
 
 from swissarmybench.domain.packs import (
     BLADES_FOLDER,
-    TANGS_FOLDER,
+    OLD_TANGS_FOLDER,
+    SETS_FOLDER,
     Pack,
     PackError,
     installed_entries,
     is_enabled,
     split_id,
 )
+from swissarmybench.domain.relationships import OLD_SET_SUFFIX, SET_SUFFIX
 
 _DEPTH = 4
 _SKIPPED = frozenset(
@@ -82,15 +85,16 @@ class PackFolders:
         return found
 
     def installed(self) -> list[Pack]:
-        """Every installed plugin that carries blades or tangs, enabled or not (the list says)."""
+        """Every installed plugin that carries blades or relationship sets, enabled or not (the list says)."""
         settings = _read_json(self.config_dir / "settings.json")
         packs: list[Pack] = []
         seen: set[str] = set()
         for plugin_id, root, version in self._install_paths():
             if plugin_id in seen or not root.is_dir():
                 continue
-            blades_dir, tangs_dir = root / BLADES_FOLDER, root / TANGS_FOLDER
-            if not blades_dir.is_dir() and not tangs_dir.is_dir():
+            blades_dir = root / BLADES_FOLDER
+            sets = any((root / f).is_dir() for f in (SETS_FOLDER, OLD_TANGS_FOLDER))
+            if not blades_dir.is_dir() and not sets:
                 continue  # a plugin that is not a pack
             seen.add(plugin_id)
             name, marketplace = (
@@ -99,7 +103,7 @@ class PackFolders:
             packs.append(
                 Pack(
                     name, marketplace, version[:12], str(root), _count(blades_dir, ".py"),
-                    _count(tangs_dir, ".tang"), is_enabled(settings, plugin_id),
+                    _count_sets(root), is_enabled(settings, plugin_id),
                 )
             )  # fmt: skip
         return packs
@@ -108,8 +112,16 @@ class PackFolders:
         """(blades folder, the pack's label) of each enabled installed pack."""
         return [(Path(p.root) / BLADES_FOLDER, p.label) for p in self.installed() if p.enabled and p.blades]
 
-    def tang_dirs(self) -> list[tuple[Path, str]]:
-        return [(Path(p.root) / TANGS_FOLDER, p.label) for p in self.installed() if p.enabled and p.tangs]
+    def set_dirs(self) -> list[tuple[Path, str]]:
+        """(relationship sets folder, the pack's label) of each enabled installed pack: its
+        relationship-sets/, and an older pack's tangs/ (one release)."""
+        return [
+            (Path(p.root) / folder, p.label)
+            for p in self.installed()
+            if p.enabled and p.sets
+            for folder in (OLD_TANGS_FOLDER, SETS_FOLDER)
+            if (Path(p.root) / folder).is_dir()
+        ]
 
     def editable(self) -> list[Pack]:
         """Plugin folders inside the blade folders (clones of a marketplace repository)."""
@@ -146,7 +158,7 @@ class PackFolders:
                 packs.append(
                     Pack(
                         manifest["name"], marketplace, str(manifest.get("version") or "clone"), str(here),
-                        _count(here / BLADES_FOLDER, ".py"), _count(here / TANGS_FOLDER, ".tang"),
+                        _count(here / BLADES_FOLDER, ".py"), _count_sets(here),
                         editable=True,
                     )
                 )  # fmt: skip
@@ -168,12 +180,13 @@ class PackFolders:
         return written
 
     def write(self, root: str, folder: str, name: str, text: str, replace: bool) -> tuple[str, bool]:
-        """Write one blade or tang into an editable pack (and nowhere else). (path, whether written)."""
+        """Write one blade or relationship set into an editable pack (and nowhere else). (path,
+        whether written)."""
         allowed = {os.path.normcase(str(Path(p.root).resolve())) for p in self.editable()}
         pack_root = Path(root)
         if os.path.normcase(str(pack_root.resolve())) not in allowed or folder not in (
             BLADES_FOLDER,
-            TANGS_FOLDER,
+            SETS_FOLDER,
         ):
             raise PackError("Add to a pack inside one of your blade folders (a clone of the repository).")
         path = pack_root / folder / name
@@ -182,3 +195,8 @@ class PackFolders:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return str(path), True
+
+
+def _count_sets(root: Path) -> int:
+    """A pack's relationship sets: its relationship-sets/ files and an older pack's tangs/ ones."""
+    return _count(root / SETS_FOLDER, SET_SUFFIX) + _count(root / OLD_TANGS_FOLDER, OLD_SET_SUFFIX)

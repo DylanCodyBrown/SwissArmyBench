@@ -2986,3 +2986,36 @@ after Variables; no "Open a .sab fileâ€¦"; New project's Choose another folderâ€
 folder with its note; the rail's Data opens `open=data`; the Blades page has no Catalog panel.
 
 NOT checked: Windows and macOS desktops, Edge.
+
+## Relationship sets, the Relationships window's management, the project's ERD (2026-11-17, branch relationship-sets)
+
+- The rename: a set saved writes `relationship-sets/<name>.relationships.json` in the library, marked
+  `"swissarmybench": "relationship-set"`; saved again with nothing but the time changed, no byte is written. Old
+  `.tang` files read from a shared folder, an older pack's `tangs/`, an import and `{"tang": name}` for a check;
+  `POST /relationships/tangs` and `GET /relationships/tang` answer; `relationships_save_tang`, `_export_tang`,
+  `_import_tang` run their `_set` commands and are not listed. The library's `tangs/` moves once at start (a
+  broken file stays only in `backup/before-relationship-sets-<date>/tangs`), said once without the old word.
+- The window, in Chromium at 700px and 1600px wide with 40 made-up foreign keys of long names: no sideways
+  scroll (scrollWidth <= clientWidth for the dialog, its body, the table's box and the footer; the dialog inside
+  the viewport), the Run column shown, names cut in the middle with their tooltip. Select all, Delete selected
+  (40), the toast's Undo (40 back), the filter (10 of 40), a shift-click range (4 selected), Run off (4),
+  select all of the filtered rows only (10), Kind and Run in place, sort by From descending, group by From
+  table, a row's menu Delete. A saved set renamed and deleted from its menu (its files on disk checked).
+- HTTP: delete, update and undo of the joins in use (40, then one step back), kind refused when not one of the
+  four, the agent's the same; rename (the old file gone, a taken name refused), export a saved set, a pack's set
+  refused (403); the agent's delete of a saved set waits for Allow (403 on decline).
+- A deleted connection (a made-up CSV connection, FI-Atlas): `DELETE /blades/FI-Atlas` answers
+  `relationships_removed: 40`, one join of other tables stays, a saved set keeps its 41; in the browser the
+  Connections page's Remove shows "Removed 40 relationships that came from FI-Atlas.".
+- The project's ERD: with a project open, the scope's used tables are the open ones, the project's and those its
+  notebook (cell sources) and script name; 37 of 40 made-up FI-Atlas tables hidden and said in one sentence; a
+  join drawn only with both ends used; `scope=all` draws everything; no project: everything, no switch. In
+  Chromium: the switch, the count, cost_center not drawn until All tables, the window's In use now 1 row by
+  default and 38 on All tables.
+- Checks: ruff check, ruff format --check, mypy, npm run typecheck and npm run build clean. The whole suite with
+  Chromium: 4094 passed, 49 skipped, 1 failed (test_catalog_page's packs test still clicked "Add blades and
+  tangs": fixed, passes alone).
+
+NOT checked: Edge, Windows paths, a real SQL Server's or Power BI dataset's imported relationships (made-up
+models with their recorded sources stand in), a library clone pointed at in Settings that still has `tangs/`
+(read by rule, not looked at in a browser), dark theme screenshots.

@@ -5037,3 +5037,76 @@ already".
 
 ### Next
 - The images 20-catalog.png and 21-blade-save.png in the user guide are no longer referenced: new screenshots.
+
+## Relationship sets, and the Relationships window that manages them (the owner, 2026-11-17; built, branch relationship-sets)
+
+The owner, on the "Relationships and tangs" dialog with about forty imported foreign keys: "drop tang its cheesy
+and look at that form, I cant mass delete anything or manage those at all and they dont fit in the window". Then:
+"and when a connection is delete from the app just remove the associated relationships it held".
+
+**The name.** A tang is now a **relationship set** (in sentences "saved relationships", "a saved set"): it says
+what it is, where tang needed the knife explained. The dialog is **Relationships**; its sections **Saved sets**,
+**Find relationships**, **In use now**; **Save as tang** is **Save as a set…**. The file is
+`<name>.relationships.json` (still one file per item, marked `"swissarmybench": "relationship-set"`, sorted as
+before), in the library's `relationship-sets/` (was `tangs/`) and a pack's `relationship-sets/`. A save that
+changes nothing but the time writes no byte (the library is a Git repository). Decisions:
+- Renamed like the earlier renames: everything shown, written or listed uses the new words; the old ones answer
+  for one release: `.tang` files (and the `"tang"` mark) read everywhere they were (library, shared folders, a
+  pack's `tangs/`, an import, a project's `.sab/model.json`), the routes `POST /relationships/tangs` and
+  `GET /relationships/tang`, the commands `relationships_save_tang`, `_export_tang`, `_import_tang` (OLD_NAMES:
+  run, never listed), the arguments `relationships_check(tang=)` and `packs_add(tangs=)` (OLD_ARGS, the `sab`
+  dispatcher). The library's `tangs/` is written as `relationship-sets/` once at start, the old folder kept in
+  `backup/before-relationship-sets-<date>/` and said once on the page; a file that does not read is only in the
+  backup. A library pointed at a clone that still has `tangs/` reads it until that clone's own start moves it.
+- Internal names kept the old word where renaming was churn only: none of the Python's public names did (read_set,
+  write_set, RelationshipSetError, set_file_name); the tour's card is now **Saved set**; CSS classes are `set-*`.
+- `relationships_library` and `relationships_apply_library` kept their names (no "tang" in them).
+
+**The window.** In use now is a manager: a checkbox per row, Select all (of the filtered rows), shift-click
+ranges, the count ("12 selected"), **Delete selected**, **Run on** and **Run off** for the selection, Kind
+(many-to-one, one-to-one, one-to-many, many-to-many) and Run changed in place, a row's ⋯ menu (Run on/off,
+Delete), a filter by table or column, sort by any column (a third click: the order they came in), **Group by
+From table**. Every change has one **Undo** in its toast, which puts back all of that change (the server keeps
+the last 20 states of the joins in use: delete, edit, apply and import each push one). Decisions:
+- **Run** is `active` (whether a join is used; Power BI's inactive relationship), as the brief asked; the old
+  Run column (the check against the open tables) is **Check**, and the saved sets' Run button is **Check** too,
+  so one word does not mean two things.
+- Fits the window: a fixed table layout, the names cut in the middle (forty foreign keys differ at their ends:
+  `gen…_line_07`), all of each in its tooltip; the table scrolls up and down inside the dialog, never sideways;
+  under 960px the Note column steps aside (it is in the Check tooltip) and the toolbar's and footer's words
+  fold to icons (design principle 3.6). Tested at 700px and 1600px: scrollWidth <= clientWidth for the dialog,
+  its body, the table's box and the footer, and the dialog inside the viewport.
+- A menu opened from a modal dialog now lives inside it (dom.ts showMenu, as the toasts already did): before,
+  the page around a modal was inert and the menu could not be clicked.
+- Saved sets: Apply, Check, and a ⋯ menu with Rename…, Export, Delete. A pack's or built-in set says why it
+  cannot be renamed or deleted here (it changes in its repository).
+- The agent: `relationships_delete(joins)`, `relationships_update(joins, kind, active)`, `relationships_undo`,
+  `relationships_save_set`, `relationships_export_set(name?)`, `relationships_import_set`,
+  `relationships_rename_set`, `relationships_delete_set` (waits for the user's Allow: it deletes the user's file).
+  Filter, sort and group are views of `relationships_get`'s answer, so they have no command of their own.
+
+**A deleted connection's relationships.** Deleting a connection (the Connections page's Remove, `blades_delete`)
+takes out of the joins in use every one to or from a table the connection brought: a table whose recorded source
+is the connection (`connection:<name>` for a database's foreign keys, `<name>/<dataset> (Power BI)` for a
+dataset's), or, with no recorded source, one of the open tables read from it (ConnectionSwap.tables_of). Those
+tables' keys and sources go too. The delete's answer carries `relationships_removed`, the page's toast says
+"Removed 40 relationships that came from <name>.", and the ERD redraws on the server's notice. Saved sets are
+the user's files: left alone. `relationships_undo` puts the joins back (the connection itself is not restored).
+
+**The ERD draws the tables the project uses.** The owner (2026-11-17): "Relationships should filter the erd to
+only the tables that are being used in the project": importing a connection's foreign keys drew all forty of its
+tables. With a project open, a table is **used** when it is open, is one of the project's tables
+(`.sab/project.json`), or its name stands as a word in one of the project's documents' code (a notebook's cell
+sources, never its outputs; a script as it is): `%%sql` and `%%dax` cells, `sab.sql`, `sab.read`,
+`sab.connection` calls, `[FI-Atlas].gl_entry`, `dbo.Vendor` for a table opened as `dbo_Vendor`
+(domain/relationships.py named_in, code_of; services/relationship_scope.py). A relationship is drawn when both
+its ends are used; the model keeps every one (the ERD's FK marks follow the drawn joins only). Decisions:
+- Words, not a SQL parse: one rule for SQL, DAX and Python, and a cell that does not parse still counts. A word
+  that happens to be a table's name shows that table: a false "used" is a box too many, never a lost join.
+- **Tables in this project** (the default) / **All tables**: a switch on the ERD with the count of the hidden
+  ones by connection ("34 more tables from FI-Atlas are not used in this project.", from the tables' recorded
+  source), and the same switch over **In use now** in the Relationships window. With no project open the ERD
+  is as before (the open tables, else the whole model) and no switch shows.
+- The agent: `erd_text` and `erd_draw` take `scope` (project, the default, or all), `GET /relationships/erd?scope=`
+  and `relationships_scope` (`GET /relationships/scope`) answer which tables are used and hidden.
+

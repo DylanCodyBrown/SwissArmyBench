@@ -1747,7 +1747,7 @@ def test_relationships_mark_keys_and_draw_an_erd(browser: Browser, server: dict[
     expect(page.locator(".ag-header-cell[col-id='cust'] .sab-header-key")).to_have_count(0)
     page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Relationships").click()
     dialog = page.locator("dialog")
-    expect(dialog).to_contain_text("No tangs yet")  # the package ships no tangs
+    expect(dialog).to_contain_text("No saved sets yet")  # the package ships none
     expect(dialog).to_contain_text("rel_orders")
     dialog.get_by_role("button", name="Draw diagram").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")

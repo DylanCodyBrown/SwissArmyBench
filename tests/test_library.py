@@ -1,8 +1,8 @@
 """The library (Plans/library.plan.md; the owner, 2026-11-17: "Apis, Connections they live OUTSIDE of the
 project" / "that library is the thing I wanted to push to a github repo"): connections, APIs, vaults,
-blades, tangs, variables and colours as one folder of text files, whatever project is open. Made on first
-use; one file per item; a save that changes nothing changes no byte; never a secret; a clone on another
-computer opens with the same items and asks only for secrets and local values; this computer's older
+blades, relationship sets, variables and colours as one folder of text files, whatever project is open.
+Made on first use; one file per item; a save that changes nothing changes no byte; never a secret; a clone on
+another computer opens with the same items and asks only for secrets and local values; this computer's older
 stores and an older project's own blades move in once, said. Made-up data only."""
 
 from __future__ import annotations
@@ -174,7 +174,7 @@ def test_made_on_first_use_one_file_each_no_secret_and_a_second_save_changes_not
             "vaults": 1,
             "blades": 1,
             "apis": 1,
-            "tangs": 0,
+            "relationship_sets": 0,
             "local_files": 1,
         }
     names = set(files_of(library))
@@ -309,7 +309,7 @@ def test_this_computers_older_stores_move_in_once_with_a_backup_and_a_notice(tmp
     )
     (state / "colours.toml").write_text('"Old warehouse" = "#0e7c7b"\n', encoding="utf-8")
     (state / "tangs").mkdir()
-    (state / "tangs" / "store.tang").write_text("made-up tang\n", encoding="utf-8")
+    (state / "tangs" / "store.tang").write_text(OLD_TANG, encoding="utf-8")
     with make_client(tmp_path) as client:
         assert "Old warehouse" in {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}
         variables = {v["name"]: v for v in ok(client.get("/variables", headers=AUTH))["variables"]}
@@ -324,7 +324,7 @@ def test_this_computers_older_stores_move_in_once_with_a_backup_and_a_notice(tmp
     library = state / "library"
     assert (library / "connections" / "old_warehouse.blade.py").is_file()
     assert (library / "variables.toml").is_file() and (library / "colours.toml").is_file()
-    assert (library / "tangs" / "store.tang").is_file()
+    assert (library / "relationship-sets" / "made-up_store.relationships.json").is_file()  # a tang no more
     assert not (state / "blades").exists() and not (state / "variables.json").exists()
     backups = list((state / "backup").iterdir())
     assert len(backups) == 1 and backups[0].name.startswith("before-library-")
@@ -371,3 +371,40 @@ def test_an_older_projects_own_blades_move_into_the_library_and_its_next_save_le
         # Closed, the library keeps them: every project has them.
         ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
         assert "Orchard" in {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}
+
+
+# A tang (the old name of a relationship set, until 2026-11-17), as an older version wrote it.
+OLD_TANG = json.dumps(
+    {
+        "swissarmybench": "tang",
+        "format": 1,
+        "name": "Made-up store",
+        "relationships": [
+            {"from": "orders", "from_columns": ["store_id"], "to": "stores", "to_columns": ["store_id"]}
+        ],
+    }
+)
+
+
+def test_the_librarys_tangs_become_relationship_sets_once_with_a_dated_backup(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    old = state / "library" / "tangs"
+    old.mkdir(parents=True)
+    (old / "store.tang").write_text(OLD_TANG, encoding="utf-8")
+    (old / "broken.tang").write_text("not a set\n", encoding="utf-8")
+    with make_client(tmp_path) as client:
+        notices = ok(client.get("/library", headers=AGENT))["notices"]
+        said = " ".join(n["text"] for n in notices)
+        assert "1 saved set of relationships now live in your library's relationship-sets folder" in said
+        assert "tang" not in said.split("The old files")[0].lower()  # the old word is not said
+        listed = {m["name"]: m for m in ok(client.get("/relationships/library", headers=AUTH))["models"]}
+        assert listed["Made-up store"]["file"].endswith("made-up_store.relationships.json")
+        assert ok(client.get("/library", headers=AUTH))["counts"]["relationship_sets"] == 1
+    moved = state / "library" / "relationship-sets" / "made-up_store.relationships.json"
+    assert json.loads(moved.read_text(encoding="utf-8"))["swissarmybench"] == "relationship-set"
+    assert not old.exists()
+    [backup] = (state / "backup").iterdir()
+    assert backup.name.startswith("before-relationship-sets-")
+    assert {p.name for p in (backup / "tangs").iterdir()} == {"store.tang", "broken.tang"}  # kept whole
+    with make_client(tmp_path) as client:  # once: a second start says nothing
+        assert ok(client.get("/library", headers=AGENT))["notices"] == []

@@ -1,12 +1,12 @@
 """The library (Plans/library.plan.md; the owner, 2026-11-17: "Apis, Connections they live OUTSIDE of the
 project, I dont wanna have to go hunt an api every project" / "that library is the thing I wanted to push
 to a github repo so it can be shared as a code base with fellow users later"). This computer's connections,
-APIs, vaults, blades, tangs, variables and connection colours, in one folder of text files made to be a Git
-repository, shared by every project.
+APIs, vaults, blades, relationship sets, variables and connection colours, in one folder of text files made
+to be a Git repository, shared by every project.
 
   layout      connections/<name>.blade.py, vaults/<name>.blade.py, blades/<name>.blade.py, apis/<name>/,
-              tangs/<name>.tang, variables.toml, colours.toml, local/ (this computer only, git-ignored),
-              README.md and .gitignore (made on first use, the user's to edit)
+              relationship-sets/<name>.relationships.json, variables.toml, colours.toml, local/ (this computer
+              only, git-ignored), README.md and .gitignore (made on first use, the user's to edit)
   which       a blade's folder by what it is: a key vault in vaults/, a connection in connections/, the
               rest in blades/ (an API's blades stay in its own apis/<name>/ folder)
   stable      one file per item, sorted keys, the same text for the same thing: a save that changes
@@ -37,7 +37,8 @@ CONNECTIONS: str = "connections"
 VAULTS: str = "vaults"
 BLADES: str = "blades"
 APIS: str = "apis"
-TANGS: str = "tangs"
+RELATIONSHIP_SETS: str = "relationship-sets"
+OLD_TANGS: str = "tangs"  # the old name (2026-11-17), one release: moved to relationship-sets/ at start
 LOCAL: str = "local"
 VARIABLES_FILE: str = "variables.toml"
 LOCAL_VARIABLES_FILE: str = f"{LOCAL}/variables.toml"
@@ -47,7 +48,7 @@ NEVER: tuple[str, ...] = ("passwords and secrets", "tokens", "rows of data")
 
 README: str = """# Swiss Army Bench library
 
-This computer's connections, APIs, key vaults, blades, relationship sets (tangs), variables and connection
+This computer's connections, APIs, key vaults, blades, relationship sets, variables and connection
 colours, shared by every project. Each item is one text file, so the folder works as a Git repository:
 commit and push it with your own tools, and a teammate who clones it and points Swiss Army Bench at it
 (Settings, Library) gets the same items.
@@ -56,7 +57,7 @@ commit and push it with your own tools, and a teammate who clones it and points 
     vaults/        each key vault
     apis/          each API: its client, its blades, its OpenAPI document
     blades/        functions, analyses, snippets
-    tangs/         saved relationship sets
+    relationship-sets/  saved sets of relationships
     variables.toml each variable's name and where its value comes from
     colours.toml   each connection's colour
     local/         this computer only (not committed: see .gitignore)
@@ -234,4 +235,15 @@ def saved_json(data: Any) -> Blade | None:
         web_call=dict(data.get("web_call") or {}) if isinstance(data.get("web_call"), dict) else {},
         created_at=float(data.get("created_at", 0)),
         updated_at=float(data.get("updated_at", 0)),
+    )
+
+
+def sets_migration_words(moved: int, backup: str) -> str:
+    """The one-time move of the library's old tangs/ folder to relationship-sets/, in one sentence (or "")."""
+    if not backup:
+        return ""
+    sets = f"{moved} saved set{'' if moved == 1 else 's'} of relationships"
+    return (
+        f"Your {sets} now live in your library's {RELATIONSHIP_SETS} folder. "
+        f"The old files are kept in {backup}."
     )
