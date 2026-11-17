@@ -38,7 +38,18 @@ FAMILIES: tuple[str, ...] = (
     "Controllers",
     "Text and layout",
     "Components",
+    "Write",
 )
+# Starters of other families listed in the Write family too (docs/ideas.md, "Writing data"): Excel's
+# writers, and Power BI's refreshes (after the source is written, the model is refreshed).
+CROSS_LISTED: dict[str, tuple[str, ...]] = {
+    "Write": (
+        "Excel write table",
+        "Excel range as table",
+        "Power BI refresh dataset",
+        "Power BI refresh and wait",
+    ),
+}
 TANGS_FOLDER = "tangs"
 
 

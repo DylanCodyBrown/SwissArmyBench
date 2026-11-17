@@ -165,6 +165,31 @@ interface Card {
   missing: string[];
   catalog_state: { state: string; error?: string } | null;
   calls: Calls;
+  /** What it writes (domain/write_capability.py): its Write starters, or why it is read-only. */
+  writes?: Writes | null;
+}
+
+interface Writes {
+  writable: boolean;
+  starters: string[];
+  how: string;
+  note: string;
+  reason: string;
+  words: string;
+}
+
+/** A small label on a card: Writes, or Read-only (the starters or the reason on hover). */
+function writesLabel(w: Writes | null | undefined): HTMLElement | null {
+  if (!w) return null;
+  return h("span", { class: `connection-writes ${w.writable ? "writable" : "read-only"}`, title: w.words }, w.writable ? "Writes" : "Read-only");
+}
+
+/** A connection's writes in its detail: each Write starter (its name: the Blades page has it), or why not. */
+function writesTerm(w: Writes | null | undefined): HTMLElement[] {
+  if (!w) return [];
+  if (!w.writable) return term("Read-only", w.reason);
+  const said = w.starters.length ? w.starters.join(", ") : w.how;
+  return term("Writes", h("span", { class: "connection-writes-list" }, said, w.note ? h("span", { class: "hint" }, ` (${w.note})`) : ""));
 }
 
 /** A cell, a canvas block or an open grid that uses a connection. */
@@ -562,7 +587,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           },
           h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
           h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection])),
-          statusPill(c),
+          h("span", { class: "connection-card-marks" }, statusPill(c), writesLabel(c.writes)),
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
         ),
       );
@@ -657,6 +682,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       ...config.vault_entries.flatMap((e) => term(e.variable, h("code", {}, e.secret))),
       ...(config.row_limit === 0 ? term("Rows to open", "Every row") : config.row_limit ? term("Rows to open", config.row_limit.toLocaleString()) : []),
       ...(c ? term("In code", h("code", { class: "connection-in-code" }, inCode(c))) : []),
+      ...writesTerm(usage.writes),
     );
     const calls = usage.calls;
     /** After a Test: the status and the calls again, the rest (a Test's rows under it) as it is. */

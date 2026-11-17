@@ -114,6 +114,7 @@ class ConnectionUsage:
             "connection": entry.get("connection"),
             "type": entry.get("type") or "",
             "template": entry.get("template"),
+            "writes": entry.get("writes"),  # "Writes: <the starters>" or "Read-only: <why>"
             "dialect": entry.get("dialect"),
             "description": entry.get("description") or "",
             "source": entry.get("source"),

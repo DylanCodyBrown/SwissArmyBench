@@ -17,15 +17,15 @@ import { button, clear, h, openDialog, toast } from "./dom";
 /** The type a snippet's drag carries: {"name", "language"}. */
 export const SNIPPET_DRAG = "application/x-sab-snippet";
 
-export type SnippetLanguage = "dax" | "html" | "markdown" | "streamlit";
+export type SnippetLanguage = "dax" | "html" | "markdown" | "streamlit" | "python";
 /** The cell kind each language goes into, and how it is said. */
-export const SNIPPET_CELL: Record<SnippetLanguage, "dax" | "html" | "markdown" | "code"> = { dax: "dax", html: "html", markdown: "markdown", streamlit: "code" };
-const CELL_WORDS: Record<SnippetLanguage, string> = { dax: "a DAX cell", html: "an HTML cell", markdown: "a Markdown cell", streamlit: "a Python cell" };
+export const SNIPPET_CELL: Record<SnippetLanguage, "dax" | "html" | "markdown" | "code"> = { dax: "dax", html: "html", markdown: "markdown", streamlit: "code", python: "code" };
+const CELL_WORDS: Record<SnippetLanguage, string> = { dax: "a DAX cell", html: "an HTML cell", markdown: "a Markdown cell", streamlit: "a Python cell", python: "a Python cell" };
 
 export interface Placeholder {
   name: string;
   label: string;
-  kind: "table" | "column" | "measure" | "name" | "number" | "text";
+  kind: "table" | "column" | "measure" | "name" | "connection" | "number" | "text";
   default: string;
   follows: string;
 }
@@ -51,7 +51,7 @@ interface SnippetFormData {
   cell_words: string;
   text: string;
   placeholders: Placeholder[];
-  options: { tables: { name: string; columns: string[]; measures: string[] }[]; dataset?: string };
+  options: { tables: { name: string; columns: string[]; measures: string[] }[]; dataset?: string; connections?: string[] };
 }
 
 export interface FilledSnippet {
@@ -84,7 +84,7 @@ export async function copyAsOwn(name: string): Promise<string | null> {
 /** Whether a snippet of `language` goes into a cell of `kind`; the message when it does not. */
 export function refusal(language: SnippetLanguage, kind: string): string | null {
   if (SNIPPET_CELL[language] === kind) return null;
-  return `${{ dax: "A DAX snippet", html: "An HTML snippet", markdown: "A Markdown snippet", streamlit: "A Streamlit starter" }[language]} goes in ${CELL_WORDS[language]}.`;
+  return `${{ dax: "A DAX snippet", html: "An HTML snippet", markdown: "A Markdown snippet", streamlit: "A Streamlit starter", python: "A Python snippet" }[language]} goes in ${CELL_WORDS[language]}.`;
 }
 
 /** What a drag carries, when it is a snippet. */
@@ -174,6 +174,7 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
       if (p.kind === "table") choices = tables.map((t) => t.name);
       if (p.kind === "column") choices = (p.follows ? tableOf(value(p.follows))?.columns : undefined) ?? [...new Set(tables.flatMap((t) => t.columns))];
       if (p.kind === "measure") choices = [...new Set(tables.flatMap((t) => t.measures))];
+      if (p.kind === "connection") choices = form.options.connections ?? [];
       clear(list, ...choices.map((c) => h("option", { value: c })));
       if (edited.has(p.name)) {
         if (p.kind === "column") taken.push(input.value);
@@ -181,7 +182,7 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
       }
       if (p.kind === "table") input.value = likely(p, choices, []);
       else if (p.kind === "column") input.value = likely(p, choices, taken);
-      else if (p.kind === "measure") input.value = choices[0] ?? p.default;
+      else if (p.kind === "measure" || p.kind === "connection") input.value = choices[0] ?? p.default;
       else if (p.default) input.value = /\{[a-z]/.test(p.default) ? fromTemplate(p.default) : p.default;
       else if (p.follows && p.kind === "name") input.value = pythonName(value(p.follows));
       else if (p.follows) input.value = labelOf(value(p.follows));
@@ -249,12 +250,13 @@ export async function pickSnippet(language: SnippetLanguage): Promise<string | n
   let found: StarterSummary[];
   try {
     const [pack, mine] = await Promise.all([starters(), api<{ blades: StarterSummary[] }>("/blades")]);
-    found = [...mine.blades.filter((b) => b.kind === "snippet" && b.language === language), ...pack.flatMap((f) => f.blades.filter((b) => b.language === language))];
+    const fits = (b: StarterSummary): boolean => !!b.language && SNIPPET_CELL[b.language] === SNIPPET_CELL[language];
+    found = [...mine.blades.filter((b) => b.kind === "snippet" && fits(b)), ...pack.flatMap((f) => f.blades.filter(fits))];
   } catch (error) {
     toast((error as Error).message, "error");
     return null;
   }
-  const { body, foot, close } = openDialog(`Insert ${{ dax: "a DAX snippet", html: "an HTML snippet", markdown: "a Markdown snippet", streamlit: "a Streamlit starter" }[language]}`);
+  const { body, foot, close } = openDialog(`Insert ${{ dax: "a DAX snippet", html: "an HTML snippet", markdown: "a Markdown snippet", streamlit: "a Streamlit starter", python: "a Python snippet" }[language]}`);
   return await new Promise<string | null>((resolve) => {
     let done = false;
     const finish = (name: string | null): void => {

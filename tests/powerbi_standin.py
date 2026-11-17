@@ -7,6 +7,8 @@ parameters, take over and the refresh schedule):
   POST /{tenant}/oauth2/v2.0/token                                    the client credentials sign-in
   GET  /v1.0/myorg/groups/{workspace}/datasets                        the workspace's datasets
   POST /v1.0/myorg/groups/{workspace}/datasets/{dataset}/executeQueries   one DAX query, rows as JSON
+  POST /v1.0/myorg/groups/{workspace}/datasets                      a push dataset (the Write starters)
+  GET, POST, DELETE .../datasets/{push dataset}/tables[/{table}/rows]  its tables, rows in, rows out
 
 over a made-up workspace of three datasets:
 
@@ -34,7 +36,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 TENANT = "made-up-tenant-0001"
 CLIENT = "made-up-client-0002"
@@ -417,6 +419,9 @@ class StandIn:
         self.parameters: dict[str, list[dict[str, Any]]] = {DATASET: [dict(p) for p in PARAMETERS]}
         self.owners: dict[str, str] = {}
         self.refresh_polls = 2
+        # Push datasets (the Write starters): id -> {name, tables: {table: columns}, rows: {table: [...]}}
+        self.push: dict[str, dict[str, Any]] = {}
+        self.push_throttle = 0  # the next this many pushes of rows are answered 429
         self._serial = 0
         standin = self
 
@@ -446,6 +451,11 @@ class StandIn:
                 status, answer = standin.listing(self.path, authorization)
                 self._send(status, answer)
 
+            def do_DELETE(self) -> None:
+                authorization = self.headers.get("Authorization") or ""
+                acted = standin.act("DELETE", self.path, b"", authorization)
+                self._send(*(acted or (404, _refusal("PowerBIEntityNotFound"), {})))
+
             def do_POST(self) -> None:
                 body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
                 authorization = self.headers.get("Authorization") or ""
@@ -471,9 +481,17 @@ class StandIn:
         if found.group(1) != WORKSPACE:
             return 404, _refusal("PowerBIEntityNotFound")
         listed = [
-            {"id": m.id, "name": m.name, "isRefreshable": True, "configuredBy": "made.up@example.com"}
+            {
+                "id": m.id,
+                "name": m.name,
+                "isRefreshable": True,
+                "configuredBy": "made.up@example.com",
+                "addRowsAPIEnabled": False,
+            }
             for m in self.models
         ]
+        listed += [{"id": i, "name": d["name"], "isRefreshable": False, "addRowsAPIEnabled": True}
+                   for i, d in self.push.items()]  # fmt: skip
         return 200, {"value": listed}
 
     def answer(self, path: str, body: bytes, authorization: str) -> tuple[int, dict[str, Any]]:
@@ -524,6 +542,9 @@ class StandIn:
         as Unknown (Power BI's word for running) until it has been asked about `refresh_polls` times."""
         place = r"/v1\.0/myorg/groups/([^/]+)/(datasets|dataflows|reports)(/[^?]*)?(\?.*)?"
         found = re.fullmatch(place, path)
+        pushed = self._push(method, found, body, authorization) if found is not None else None
+        if pushed is not None:
+            return pushed
         if found is None or (found.group(2) == "datasets" and not found.group(3)):
             return None  # the datasets list and executeQueries are the connection's own (above)
         what, rest, query = found.group(2), (found.group(3) or ""), (found.group(4) or "")
@@ -589,6 +610,65 @@ class StandIn:
         if action == "/refreshSchedule" and method == "GET":
             return 200, dict(SCHEDULE), {}
         return 404, _refusal("PowerBIEntityNotFound"), {}
+
+    # ===== push datasets (the Write starters, client/write_powerbi.py) =====
+
+    def _push(self, method: str, found: re.Match[str], body: bytes, authorization: str) -> Acted | None:
+        """POST datasets (a push dataset), GET .../tables, POST and DELETE .../tables/{t}/rows, as Power BI
+        documents them: 10,000 rows a request at most; `push_throttle` answers the next pushes 429."""
+        what, rest = found.group(2), found.group(3) or ""
+        if what != "datasets":
+            return None
+        part = re.fullmatch(r"/([^/]+)/tables(?:/([^/]+)/rows)?", rest)
+        if not (rest == "" and method == "POST") and (part is None or part.group(1) not in self.push):
+            return None
+        sent: Any = json.loads(body) if body.strip() else None
+        self.requests.append(
+            {"what": "push", "method": method, "path": found.group(0).split("?")[0], "body": sent}
+        )
+        if authorization != f"Bearer {TOKEN}":
+            return 401, _refusal("TokenExpired"), {}
+        if found.group(1) != WORKSPACE:
+            return 404, _refusal("PowerBIEntityNotFound"), {}
+        if rest == "":
+            if (sent or {}).get("defaultMode") != "Push" or not (sent or {}).get("tables"):
+                return (
+                    400,
+                    {"error": {"code": "InvalidRequest", "message": "A push dataset needs its tables."}},
+                    {},
+                )
+            self._serial += 1
+            made = f"99999999-0000-4000-8000-{self._serial:012d}"
+            tables = {t["name"]: t["columns"] for t in sent["tables"]}
+            self.push[made] = {"name": sent["name"], "tables": tables, "rows": {t: [] for t in tables}}
+            return 201, {"id": made, "name": sent["name"], "defaultRetentionPolicy": "None"}, {}
+        assert part is not None
+        dataset = self.push[part.group(1)]
+        table = part.group(2)
+        if table is None:
+            return 200, {"value": [{"name": n} for n in dataset["tables"]]}, {}
+        table = unquote(table)
+        if table not in dataset["tables"]:
+            return 404, _refusal("ItemNotFound", f"Table {table} not found."), {}
+        if method == "DELETE":
+            dataset["rows"][table] = []
+            return 200, None, {}
+        if self.push_throttle:
+            self.push_throttle -= 1
+            return 429, _refusal("TooManyRequests"), {"Retry-After": "0"}
+        rows = (sent or {}).get("rows") or []
+        if len(rows) > 10_000:
+            return 400, _refusal("InvalidRequest", "A request holds 10,000 rows at most."), {}
+        names = {c["name"] for c in dataset["tables"][table]}
+        for row in rows:
+            if set(row) - names:
+                return (
+                    400,
+                    _refusal("InvalidRequest", f"Column {sorted(set(row) - names)[0]} is not in {table}."),
+                    {},
+                )
+        dataset["rows"][table] += rows
+        return 200, None, {}
 
     def _dataflow(self, method: str, rest: str, sent: Any) -> Acted:
         if not rest and method == "GET":

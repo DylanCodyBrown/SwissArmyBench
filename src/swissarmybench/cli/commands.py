@@ -2028,7 +2028,8 @@ def app_snapshot(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_list",
-    "Every connection: database or file, its type, its name in Workbench code, its catalog",
+    "Every connection: database or file, its type, its name in Workbench code, its catalog, and what it "
+    "writes (writes.words: 'Writes: <the Write starters>' or 'Read-only: <why>'; never write a read-only one)",
 )
 def connections_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections")
@@ -2051,7 +2052,9 @@ def connections_get(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "connections_overview", "The Connections page's cards: each connection's status and calls this session"
+    "connections_overview",
+    "The Connections page's cards: each connection's status, calls this session and writes ('Writes: ...' "
+    "or 'Read-only: <why>')",
 )
 def connections_overview(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections/usage")
