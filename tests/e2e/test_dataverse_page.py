@@ -127,28 +127,21 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     expect(dialog.get_by_role("button", name="Web API (switch to the SQL endpoint)")).to_be_visible()
     wait_until(lambda: any(c["name"] == "Sales CRM" for c in call(server, "GET", "/catalogs")["catalogs"]))
 
-    # The catalog: one schema, its tables; a display name shows where it says more than the name.
-    catalog = page.context.new_page()
-    catalog.goto(f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}&catalog=Sales%20CRM")
-    catalog.wait_for_selector('[role="treeitem"]')
-    expect(catalog.locator('[role="treeitem"][aria-level="1"] > .node > .node-label')).to_have_text(["dbo"])
-    tables = catalog.locator('[role="treeitem"][aria-level="2"]')
-    expect(tables.locator(":scope > .node > .node-label")).to_have_text(
-        ["account", "contact", "opportunity", "systemuser"]
-    )
-    expect(tables.locator(":scope > .node > .node-kind")).to_have_text(["User"])  # Account for account: no
-    tables.filter(has=catalog.locator(':scope > .node > .node-label:text-is("opportunity")')).locator(
-        ":scope > .node .node-label"
-    ).first.click()
-    detail = catalog.locator("#detail")
-    expect(detail.locator("pre")).to_have_text('sab.read("Sales CRM", "opportunity")')
-    stage = detail.locator(".columns-table").first.locator("tr", has_text="salesstage")
-    expect(stage.locator("td").nth(1)).to_have_text("Picklist")
-    expect(stage.locator("td").nth(3)).to_have_text("Sales Stage")
-    expect(detail.locator(".preview-table tbody tr")).to_have_count(50, timeout=60000)  # its first rows
-    detail.get_by_role("button", name="Open as grid").click()
-    expect(catalog.locator(".toast", has_text="opportunity is open as a grid.")).to_be_visible(timeout=60000)
-    catalog.close()
+    # The catalog (the blades page's catalog panel went, 2026-11-17: read through its routes, and the
+    # Connections page's tree): one schema, its tables; a display name where it says more than the name.
+    schemas = call(server, "GET", "/catalogs/Sales%20CRM/schemas")["schemas"]
+    assert [x["schema"] for x in schemas] == ["dbo"]
+    listed = call(server, "GET", "/catalogs/Sales%20CRM/tables?schema=dbo")["tables"]
+    assert [t["table"] for t in listed] == ["account", "contact", "opportunity", "systemuser"]
+    assert [t.get("title") for t in listed if t.get("title")] == ["User"]  # Account for account: no
+    columns = call(server, "GET", "/catalogs/Sales%20CRM/columns?schema=dbo&table=opportunity")["columns"]
+    stage = next(c for c in columns if c["column"] == "salesstage")
+    assert stage["type"] == "Picklist" and stage["description"] == "Sales Stage"
+    tree = dialog.locator(".connection-tables")
+    opportunity = tree.locator(".conn-tree-table[data-table='opportunity']")
+    expect(opportunity).to_be_visible(timeout=60000)
+    opportunity.get_by_role("button", name="Open").click()
+    expect(page.locator(".toast", has_text="opportunity")).to_be_visible(timeout=60000)
 
     # The grid: every opportunity (fewer than Rows to open), its choice columns as their labels.
     page.bring_to_front()

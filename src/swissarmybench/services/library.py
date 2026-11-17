@@ -55,6 +55,8 @@ class Store(Protocol):
 
     def text_of(self, blade: Blade) -> str: ...
 
+    def listed(self, blade: Blade) -> Blade: ...
+
     def copy_secrets(self, source: str, target: str) -> None: ...
 
 
@@ -142,6 +144,10 @@ class Library:
         self.notice("project", done["words"] if (done["added"] or done["renamed"]) else "")
         return done
 
+    def _same(self, own: Blade, blade: Blade) -> bool:
+        """The same blade: the same file text, a connection's listing query filled as the library's is."""
+        return self._store.text_of(own) == self._store.text_of(self._store.listed(blade))
+
     def take(self, blades: list[Blade], project: str, who: str = "user") -> dict[str, Any]:
         """Blades from a project (opened, or imported from) into the library: a new name added, the same
         text skipped, a different one kept as "<name> from <project>" (its secrets copied to the new name)."""
@@ -158,7 +164,7 @@ class Library:
                 self._store.adopt(blade)
                 added.append(blade.name)
                 taken.append(blade.name)
-            elif own.path or own.pack or self._store.text_of(own) == self._store.text_of(blade):
+            elif own.path or own.pack or self._same(own, blade):
                 skipped.append(blade.name)  # the same one (or a folder's or a pack's of that name)
             else:
                 old, new = blade.name, rules.migrated_name(blade.name, project, taken)

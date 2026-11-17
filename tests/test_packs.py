@@ -124,8 +124,8 @@ def test_an_installed_packs_blades_and_tangs_are_listed_read_only(client: TestCl
     blades = client.get("/blades", headers=AUTH).json()["blades"]
     [bakery] = [b for b in blades if b["name"] == "Bakery DB"]  # once: the switched-off pack adds nothing
     assert bakery["source"] == "pack" and bakery["pack"] == "sales@team-blades 1a2b3c4d5e6f"
-    change = client.put("/blades/Bakery%20DB", json=BAKERY | {"code": "conn = 2\n"}, headers=AUTH)
-    assert change.status_code == 400 and "comes from the pack" in change.text and "save a copy" in change.text
+    change = client.put("/blades/Bakery%20DB", json={"description": "mine"}, headers=AUTH)
+    assert change.status_code == 400 and "comes from the pack" in change.text
     assert client.delete("/blades/Bakery%20DB", headers=AUTH).status_code == 400
     copy = client.post("/blades", json=BAKERY | {"name": "Bakery DB copy"}, headers=AUTH)
     assert copy.status_code == 200 and copy.json()["source"] == "saved"

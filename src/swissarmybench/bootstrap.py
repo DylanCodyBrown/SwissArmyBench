@@ -63,11 +63,11 @@ from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles,
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
+from swissarmybench.domain import blade_tables, python_connections
 from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import projects as project_rules
-from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
@@ -295,6 +295,8 @@ def bootstrap(
         starters=Path(__file__).resolve().parent / "starters",
         # Each extension that is on: its own starters (its module's STARTERS folder).
         more_starters=lambda: [Path(s) for m in on_extensions if (s := getattr(m, "STARTERS", None))],
+        # A connection's tables are always listed: one saved with no listing query gets its starter's.
+        listing=lambda b: blade_tables.listing_for(b.kind, b.template, b.dialect, TEMPLATES),
     )
     verifier = Verifier(settings.duckdb_memory_limit)
 
@@ -437,6 +439,7 @@ def bootstrap(
         blade_runner.install_packages,
         python=sys.executable,
         environ=os.environ,
+        reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
     )
     catalog_loading = CatalogLoading(
         ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once

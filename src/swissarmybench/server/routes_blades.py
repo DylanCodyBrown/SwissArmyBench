@@ -3,7 +3,12 @@ the agent can too, so every route serves the agent but one: /blades/{name}/pytho
 carries the saved password values (they never reach the agent):
 
   GET    /blades, /blades/templates, /blades/{name}
-  POST   /blades                     save a new one        PUT /blades/{name}   change or rename it
+  POST   /blades                     save a new one        PUT /blades/{name}   its name, description, tags,
+                                     table name: its file's header only (a blade's code is edited in its
+                                     file, never in the app: the owner, 2026-11-17)
+  GET    /blades/new  POST ...       New blade: the choices; a new .blade.py in the library's blades/ folder
+  GET    /blades/table-name?name=&blade=   the live check of a table name ("available", or why not)
+  POST   /blades/{name}/show         Show its file: the system's file manager (the user's click only)
   DELETE /blades/{name}
   POST   /blades/inspect             what code makes, asks for, imports and needs (nothing saved or run)
   POST   /blades/fill                write values into the code at its settings; the new code and settings
@@ -68,9 +73,32 @@ def routes(blades: BladeService) -> list[BaseRoute]:
     async def save_blade(request: Request) -> Response:
         try:
             previous = request.path_params.get("name")
-            return json_response(await blades.save(await read_json(request), previous, actor(request)))
+            if previous is not None:  # a saved blade: its header only, never its code
+                return json_response(await blades.update(previous, await read_json(request), actor(request)))
+            return json_response(await blades.save(await read_json(request), None, actor(request)))
         except VaultUnavailableError as error:
             return Response(str(error), status_code=409)
+        except Exception as error:
+            return error_response(error)
+
+    async def new_blade(request: Request) -> Response:
+        try:
+            if request.method == "GET":
+                return json_response(blades.new_blades())
+            return json_response(await blades.new(await read_json(request), actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def table_name(request: Request) -> Response:
+        try:
+            name = request.query_params.get("name", "")
+            return json_response(blades.table_name_check(name, request.query_params.get("blade") or None))
+        except Exception as error:
+            return error_response(error)
+
+    async def show_file(request: Request) -> Response:
+        try:
+            return json_response(await blades.show_file(request.path_params["name"], actor(request)))
         except Exception as error:
             return error_response(error)
 
@@ -271,6 +299,8 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades", list_blades),
         Route("/blades", save_blade, methods=["POST"]),
         Route("/blades/templates", templates),
+        Route("/blades/new", new_blade, methods=["GET", "POST"]),
+        Route("/blades/table-name", table_name),
         Route("/blades/folders", folders, methods=["GET", "PUT"]),
         Route("/blades/export", export_all),
         Route("/blades/import", import_blades, methods=["POST"]),
@@ -288,6 +318,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades/{name}/test", test, methods=["POST"]),
         Route("/blades/{name}/python", python),
         Route("/blades/{name}/pin", pin, methods=["PUT"]),
+        Route("/blades/{name}/show", show_file, methods=["POST"]),
         Route("/blades/{name}/export", export_one),
         Route("/blades/{name}/copy", copy, methods=["POST"]),
         Route("/blades/{name}/snippet", snippet, methods=["GET", "POST"]),

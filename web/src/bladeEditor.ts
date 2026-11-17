@@ -1,14 +1,19 @@
 /**
- * bladeEditor.ts: the blade save screen, its templates, and running a blade (Refresh, Test). [VIEW]
+ * bladeEditor.ts: the blade screen, New blade, and running a blade (Refresh, Test). [VIEW]
  *
- * A blade is saved Python that reaches outside Python to load something (plan decisions 14-16).
- * The save screen names it, marks its kind (SQL connection, other, vault, secret), shows what the
- * code makes and asks for (read by the server, never run), which packages it needs and which are
- * missing, its secrets (kept in the operating system's vault; typed here, never shown again), a
- * vault's secret-to-variable map, a secret blade's variable names, and an optional catalog command.
+ * A blade is saved Python that reaches outside Python to load something (plan decisions 14-16). Its code
+ * is edited in its file (the library's or a blade folder's .blade.py), never in the app (the owner,
+ * 2026-11-17: "blades can only be edited in the folder not from the app"): the screen shows it read-only
+ * (Monaco, as tall as the code), with Show its file (a starter's: Copy as your own). What the screen
+ * changes is the file's header: the name, description, tags, and a table blade's own table name ("Its
+ * table is called", checked as it is typed). It shows what the code makes, the secrets it asks for
+ * (typed here into the operating system's vault, never shown again), missing packages, and a
+ * connection's "How its tables are listed" (read-only, folded). New blade makes a file from a template.
  */
 import { api, ApiError } from "./api";
 import { append, button, clear, h, openDialog, toast } from "./dom";
+import type { EditorLanguage } from "./lazy/codeEditor";
+import { effectiveTheme } from "./theme";
 import { exportBlades } from "./bladeLibrary";
 import { copyAsOwn } from "./starters";
 import { installError, type Missing, promptInstall, reminder } from "./missingPackages";
@@ -49,6 +54,9 @@ export interface BladeSummary {
   connection?: "database" | "file" | "vault" | "python" | null;
   /** A connection's variable in the Workbench (Sales DB -> sales_db). */
   code_name?: string | null;
+  /** A table blade (a function or code that makes a DataFrame): its table's own name ("": its code's). */
+  names_table?: boolean;
+  table?: string;
 }
 
 interface CatalogCommand {
@@ -63,6 +71,10 @@ interface BladeDetail extends BladeSummary {
   inspect?: Inspection;
   /** A snippet's placeholders (domain/snippets.py). */
   placeholders?: { name: string; label: string; kind: string }[];
+  /** The file it is kept in (edited there: Show its file). */
+  file?: string;
+  /** Kept by the app (the library's): Remove deletes its file. A blade folder's file is the user's. */
+  removable?: boolean;
 }
 
 interface Package {
@@ -148,18 +160,6 @@ export interface Template {
   note: string;
 }
 
-export const DIALECTS: [string, string][] = [
-  ["sqlserver", "SQL Server / Azure SQL"],
-  ["postgres", "PostgreSQL / Redshift"],
-  ["mysql", "MySQL / MariaDB"],
-  ["oracle", "Oracle"],
-  ["sqlite", "SQLite"],
-  ["duckdb", "DuckDB"],
-  ["snowflake", "Snowflake"],
-  ["trino", "Trino / Presto"],
-  ["other", "Other"],
-];
-
 const KIND_LABELS: Record<BladeKind, string> = {
   sql: "SQL connection",
   other: "Other",
@@ -168,16 +168,6 @@ const KIND_LABELS: Record<BladeKind, string> = {
   analysis: "Analysis",
   snippet: "Snippet",
 };
-
-/** What a new analysis blade starts from: the rows in, markdown and a table out. */
-const ANALYSIS_STARTER = `import pandas as pd
-
-
-def analyze(df: pd.DataFrame, columns: list[str]) -> list:
-    picked = df[columns] if columns else df
-    note = f"## {len(df):,} rows\\n\\nWhat stands out in {', '.join(columns) or 'the table'}."
-    return [note, picked.describe(include="all").transpose().reset_index(names="column")]
-`;
 
 /** "a, b,c" -> ["a", "b", "c"]: tags as typed, commas between. */
 export function splitTags(text: string): string[] {
@@ -313,538 +303,263 @@ export async function install(packages: string[]): Promise<boolean> {
   }
 }
 
-// ===== the template picker =====
 
-/** "New blade": templates by group, a blank one, and a secret blade. */
-export async function showTemplatePicker(host: HTMLElement, onPick: (template: Template | null, kind: BladeKind) => void): Promise<void> {
-  clear(host, h("h2", {}, "New blade"), h("p", { class: "hint" }, "Loading..."));
-  let all: Template[];
+// ===== New blade: a file from a template, then edited in the user's own editor =====
+
+interface NewChoice {
+  id: string;
+  label: string;
+  group: string;
+  kind: BladeKind;
+}
+
+/** Show a blade's file in the system's file manager (the user's click; the agent is refused). */
+export async function showFile(name: string): Promise<void> {
   try {
-    all = await templates();
+    await api(`${path(name)}/show`, "POST");
+  } catch (error) {
+    toast((error as Error).message, "error");
+  }
+}
+
+/** "New blade": the templates by group. A pick makes a new .blade.py in the library's blades/ folder and
+ *  shows it in its folder; `onMade` gets its name (the page opens its screen). */
+export async function showTemplatePicker(host: HTMLElement, onMade: (name: string) => void): Promise<void> {
+  clear(host, h("h2", {}, "New blade"), h("p", { class: "hint" }, "Loading..."));
+  let all: NewChoice[];
+  try {
+    all = (await api<{ choices: NewChoice[] }>("/blades/new")).choices;
   } catch (error) {
     toast((error as Error).message, "error");
     return;
   }
-  const groups = new Map<string, Template[]>();
-  for (const template of all) {
-    const list = groups.get(template.group) ?? [];
-    list.push(template);
-    groups.set(template.group, list);
-  }
-  const column = (title: string, items: HTMLElement[]): HTMLElement => h("section", {}, h("h3", {}, title), h("ul", {}, ...items.map((item) => h("li", {}, item))));
-  const pick = (template: Template): HTMLElement =>
-    button(template.label, () => onPick(template, template.kind));
+  const groups = new Map<string, NewChoice[]>();
+  for (const choice of all) groups.set(choice.group, [...(groups.get(choice.group) ?? []), choice]);
+  const make = async (choice: NewChoice): Promise<void> => {
+    try {
+      const made = await api<BladeSummary>("/blades/new", "POST", { template: choice.id });
+      onMade(made.name);
+      void showFile(made.name);
+    } catch (error) {
+      toast((error as Error).message, "error");
+    }
+  };
   clear(
     host,
     h("h2", {}, "New blade"),
     h(
       "div",
-      { class: "row-actions" },
-      button("Paste my own code", () => onPick(null, "other"), { icon: "code", class: "primary" }),
-      button("Secret blade", () => onPick(null, "secret"), { icon: "key" }),
-    ),
-    h(
-      "div",
       { class: "template-groups" },
-      ...[...groups.entries()].map(([group, list]) => column(group, list.map(pick))),
+      ...[...groups.entries()].map(([group, list]) =>
+        h("section", {}, h("h3", {}, group), h("ul", {}, ...list.map((choice) => h("li", {}, button(choice.label, () => void make(choice)))))),
+      ),
     ),
   );
 }
 
-// ===== the save screen =====
+// ===== the blade screen: its code read-only (edited in its file), its name, words and table name =====
 
-interface Draft {
-  name: string;
-  kind: BladeKind;
-  dialect: string;
-  code: string;
-  variable: string;
-  catalogOn: boolean;
-  catalogLanguage: "sql" | "python";
-  catalogCommand: string;
-  mapping: { env: string; secret: string }[];
-  envNames: string;
-  template: string | null;
-  description: string;
-  tags: string;
-  /** A snippet's: dax, html, markdown or streamlit; the name a Streamlit piece gives its cell; its family. */
-  language: string;
-  cellName: string;
-  family: string;
-}
-
-function draftFrom(detail: BladeDetail | null, template: Template | null, kind: BladeKind): Draft {
-  if (detail) {
-    return {
-      name: detail.name,
-      kind: detail.kind,
-      dialect: detail.dialect,
-      code: detail.code,
-      variable: detail.variable ?? "",
-      catalogOn: detail.catalog !== null,
-      catalogLanguage: detail.catalog?.language ?? "sql",
-      catalogCommand: detail.catalog?.command ?? "",
-      mapping: detail.vault_mapping.length ? detail.vault_mapping : [{ env: "", secret: "" }],
-      envNames: detail.env_names.join("\n"),
-      template: detail.template,
-      description: detail.description ?? "",
-      tags: (detail.tags ?? []).join(", "),
-      language: detail.language || "dax",
-      cellName: detail.cell_name ?? "",
-      family: detail.family ?? "",
-    };
+/** Monaco, loaded when a blade screen first opens; its styles with it. */
+let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
+function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
+  if (!document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) {
+    document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
   }
-  return {
-    name: template?.label ?? "",
-    kind: template?.kind ?? kind,
-    dialect: template?.dialect ?? "other",
-    code: template?.code ?? "",
-    variable: template?.variable ?? "",
-    catalogOn: template?.catalog !== null && template?.catalog !== undefined,
-    catalogLanguage: template?.catalog?.language ?? (template?.kind === "sql" ? "sql" : "python"),
-    catalogCommand: template?.catalog?.command ?? "",
-    mapping: template?.vault_mapping.length ? template.vault_mapping.map((m) => ({ ...m })) : [{ env: "", secret: "" }],
-    envNames: "",
-    template: template?.id ?? null,
-    description: "",
-    tags: "",
-    language: "dax",
-    cellName: "",
-    family: "",
-  };
+  return (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
 }
 
-/** Open the save screen for a saved blade (`name`), or a new one from a template. Calls `onSaved`
- * with the saved name, or `onClosed` when the user leaves without saving. */
+const LANGUAGES: Record<string, EditorLanguage> = { dax: "dax", html: "html", markdown: "markdown", python: "python", streamlit: "python", sql: "sql", typescript: "typescript", tsx: "tsx" };
+
+/** Code shown read-only: its language's colours, line numbers, as tall as the code (a few lines at least,
+ *  about 70% of the window at most, then it scrolls; wide lines scroll sideways). A plain box until Monaco
+ *  has loaded. */
+export function codeViewer(code: string, language: string, label: string): HTMLElement {
+  const host = h("div", { class: "blade-code", "aria-label": label, "data-lines": String(code.split("\n").length) }, h("pre", { class: "code-box blade-code-plain" }, code));
+  void loadEditors().then(
+    (m) => {
+      // Drawn once it is on the page (the screen appends it after this returns).
+      const whenShown = (left: number): void => {
+        if (host.isConnected) mount(m);
+        else if (left > 0) requestAnimationFrame(() => whenShown(left - 1));
+      };
+      whenShown(120);
+    },
+    () => undefined, // the plain box stays
+  );
+  let mounted = false;
+  function mount(m: typeof import("./lazy/codeEditor")): void {
+    if (mounted || !host.isConnected) return;
+    mounted = true;
+    const box = h("div", { class: "blade-code-monaco" });
+    host.replaceChildren(box);
+    m.createCodeEditor(box, {
+      language: LANGUAGES[language] ?? "python",
+      value: code,
+      theme: effectiveTheme(),
+      readOnly: true,
+      readOnlyMessage: "A blade's code is edited in its file.",
+      fit: { min: 4, maxShare: 0.7 },
+    });
+  }
+  return host;
+}
+
+/** Open the screen of a blade (`name`). `onSaved` gets the name it was saved under; `onClosed` runs when
+ *  the user leaves. The arguments after `name` are the old editor's and ignored. */
 export async function editBlade(
   host: HTMLElement,
   name: string | null,
-  template: Template | null,
-  kind: BladeKind,
+  _template: Template | null,
+  _kind: BladeKind,
   onSaved: (name: string) => void,
   onClosed: () => void,
 ): Promise<void> {
-  let detail: BladeDetail | null = null;
-  if (name) {
-    try {
-      detail = await api<BladeDetail>(path(name));
-    } catch (error) {
-      toast((error as Error).message, "error");
-      return;
-    }
+  if (name === null) {
+    await showTemplatePicker(host, (made) => {
+      onSaved(made);
+      void editBlade(host, made, null, "other", onSaved, onClosed);
+    });
+    return;
   }
-  const draft = draftFrom(detail, template, kind);
+  let detail: BladeDetail;
+  try {
+    detail = await api<BladeDetail>(path(name));
+  } catch (error) {
+    toast((error as Error).message, "error");
+    return;
+  }
+  const starter = detail.source === "starter";
+  const pack = Boolean(detail.pack) && !starter;
+  const readOnly = starter || pack;
+  let savedName = detail.name;
   const typedSecrets = new Map<string, string>();
-  let inspection: Inspection | null = detail?.inspect ?? null;
   const status = h("div", { class: "status-line", role: "status", "aria-live": "polite" });
   const say = (text: string, kindOf: "" | "error" | "ok" = ""): void => {
     status.textContent = text;
     status.className = `status-line ${kindOf}`;
   };
 
-  // ----- fields that stay put while the rest re-renders -----
-  const nameInput = h("input", { type: "text", value: draft.name, maxlength: "64", "aria-label": "Blade name", spellcheck: "false" });
-  nameInput.addEventListener("input", () => (draft.name = nameInput.value));
-  const descriptionInput = h("textarea", { rows: "2", maxlength: "2000", "aria-label": "Description" }) as HTMLTextAreaElement;
-  descriptionInput.value = draft.description;
-  descriptionInput.addEventListener("input", () => (draft.description = descriptionInput.value));
-  const tagsInput = h("input", { type: "text", value: draft.tags, "aria-label": "Tags", spellcheck: "false" });
-  tagsInput.addEventListener("input", () => (draft.tags = tagsInput.value));
-  // Where a new blade is kept: in the app, or as a .blade.py file in one of the blade folders.
-  const whereSelect = h("select", { "aria-label": "Keep it in" }, h("option", { value: "" }, "This app"));
-  if (!name) {
-    void api<{ folders: { path: string; exists: boolean }[] }>("/blades/folders").then((got) => {
-      for (const folder of got.folders) if (folder.exists) whereSelect.append(h("option", { value: folder.path }, `Blade folder: ${folder.path}`));
-      whereLabel.hidden = whereSelect.options.length < 2;
-    }, () => undefined);
-  }
-  const whereLabel = h("label", { hidden: true }, h("span", {}, "Keep it in"), whereSelect);
-  const codeBox = h("textarea", { class: "code-box", rows: "12", spellcheck: "false", "aria-label": "Blade code" }) as HTMLTextAreaElement;
-  codeBox.value = draft.code;
-  const madeHost = h("div", {});
-  const settingsHost = h("fieldset", { hidden: true });
-  const secretsHost = h("div", {});
-  const packagesHost = h("div", {});
-  const kindHost = h("div", {});
-  const sections = h("div", { class: "editor" });
+  // ----- what the app changes: its file's header (name, description, tags, table name) -----
+  const nameInput = h("input", { type: "text", value: detail.name, maxlength: "64", "aria-label": "Blade name", spellcheck: "false", readonly: readOnly });
+  const descriptionInput = h("textarea", { rows: "2", maxlength: "2000", "aria-label": "Description", readonly: readOnly }) as HTMLTextAreaElement;
+  descriptionInput.value = detail.description ?? "";
+  const tagsInput = h("input", { type: "text", value: (detail.tags ?? []).join(", "), "aria-label": "Tags", spellcheck: "false", readonly: readOnly });
 
-  let inspectTimer = 0;
-  codeBox.addEventListener("input", () => {
-    draft.code = codeBox.value;
-    window.clearTimeout(inspectTimer);
-    inspectTimer = window.setTimeout(() => void inspect(), 400);
-  });
-  codeBox.addEventListener("keydown", (event) => {
-    if (event.key !== "Tab" || event.shiftKey) return;
-    event.preventDefault(); // a Tab in code is four spaces, not a jump out of the box
-    codeBox.setRangeText("    ", codeBox.selectionStart, codeBox.selectionEnd, "end");
-    draft.code = codeBox.value;
-  });
-
-  async function inspect(): Promise<void> {
-    if (draft.kind === "snippet") {
-      renderInspection(); // text for a cell: nothing to read as Python
-      return;
-    }
-    if (!draft.code.trim()) {
-      inspection = null;
-      renderInspection();
+  // Its table's own name, checked as it is typed (debounced): "available", or why not.
+  const tableInput = h("input", { type: "text", value: detail.table ?? "", maxlength: "64", "aria-label": "Its table is called", spellcheck: "false", placeholder: detail.variable ?? "", readonly: readOnly });
+  const tableSaid = h("div", { class: "table-name-check", role: "status", "aria-live": "polite" });
+  let tableOk = true;
+  let checkTimer = 0;
+  let asked = 0;
+  async function checkTable(): Promise<void> {
+    const wanted = tableInput.value.trim();
+    const mine = ++asked;
+    if (!wanted || wanted === (detail.table ?? "")) {
+      tableOk = true;
+      tableSaid.textContent = "";
+      tableSaid.className = "table-name-check";
       return;
     }
     try {
-      inspection = await api<Inspection>("/blades/inspect", "POST", { code: draft.code, template: draft.template, name: name ?? undefined });
+      const answer = await api<{ available: boolean; said: string }>(`/blades/table-name?name=${encodeURIComponent(wanted)}&blade=${encodeURIComponent(savedName)}`);
+      if (mine !== asked) return; // a newer check is on its way
+      tableOk = answer.available;
+      tableSaid.textContent = answer.said;
+      tableSaid.className = `table-name-check ${answer.available ? "ok" : "error"}`;
     } catch (error) {
-      say((error as Error).message, "error");
-      return;
-    }
-    if (inspection.variable && (!draft.variable || !inspection.assigned.includes(draft.variable))) {
-      draft.variable = inspection.variable;
-    }
-    renderInspection();
-  }
-
-  /** The code's settings: one field each; a finished change is written into the code by the server. */
-  function renderSettings(): void {
-    // A starter's settings are changed on its copy (Copy as your own), not here.
-    const settings = draft.kind === "secret" || detail?.source === "starter" ? [] : (inspection?.settings ?? []);
-    settingsHost.hidden = !settings.length;
-    clear(
-      settingsHost,
-      h("legend", {}, "Settings"),
-      ...settings.map((setting) => {
-        let typed = String(setting.value);
-        return settingField(setting, (value) => (typed = value), () => {
-          if (typed === String(setting.value)) return;
-          void writeSetting(setting.id, typed);
-        });
-      }),
-    );
-  }
-
-  async function writeSetting(id: string, value: string): Promise<void> {
-    try {
-      const answer = await api<{ code: string; settings: BladeSetting[] }>("/blades/fill", "POST", {
-        code: draft.code,
-        values: { [id]: value },
-        template: draft.template,
-        name: name ?? undefined,
-      });
-      draft.code = codeBox.value = answer.code;
-      if (inspection) inspection.settings = answer.settings;
-      renderSettings();
-      say("Changed in the code.", "ok");
-    } catch (error) {
-      say((error as Error).message, "error");
-      renderSettings();
+      if (mine === asked) tableSaid.textContent = (error as Error).message;
     }
   }
+  tableInput.addEventListener("input", () => {
+    window.clearTimeout(checkTimer);
+    checkTimer = window.setTimeout(() => void checkTable(), 250);
+  });
 
-  function renderInspection(): void {
-    renderSettings();
-    if (draft.kind === "snippet") {
-      // Its placeholders, as the form will ask for them: <<measure>>, <<date column>>.
-      const names = [...new Set([...draft.code.matchAll(/<<\s*([a-z][a-z0-9_ ]{0,39}?)\s*(?::[^<>\n]*)?>>/g)].map((m) => m[1]!))];
-      clear(madeHost, names.length ? h("div", { class: "chips" }, h("span", { class: "hint" }, "Asks for"), ...names.map((n) => h("span", { class: "chip" }, n))) : null);
-      clear(secretsHost);
-      clear(packagesHost);
-      return;
-    }
-    const found = inspection;
-    if (found?.error) {
-      clear(madeHost, h("span", { class: "warning-text" }, found.error));
-      clear(secretsHost);
-      clear(packagesHost);
-      return;
-    }
-    // What the code makes: the variable sab.blade() hands back.
-    const names = found?.assigned ?? [];
-    const select = h("select", { "aria-label": "The variable it makes" });
-    for (const n of names) select.append(h("option", { value: n, selected: n === draft.variable }, n));
-    select.addEventListener("change", () => (draft.variable = select.value));
-    clear(
-      madeHost,
-      names.length
-        ? h("label", {}, h("span", {}, draft.kind === "vault" ? "The function that reads a secret" : "It makes"), select)
-        : h("span", { class: "hint" }, "No variable assigned"),
-    );
-    // Secrets: typed here, kept in the operating system's vault.
-    const secretNames = found?.secrets ?? [];
-    clear(secretsHost);
-    if (secretNames.length) {
-      for (const secret of secretNames) {
-        const saved = detail?.secrets[secret] === true;
-        const input = h("input", {
-          type: "password",
-          autocomplete: "new-password",
-          placeholder: saved ? "Saved" : "Not saved",
-          "aria-label": `secret ${secret}`,
-        });
-        input.value = typedSecrets.get(secret) ?? "";
-        input.addEventListener("input", () => typedSecrets.set(secret, input.value));
-        const forget = saved && name
-          ? button("Forget", () => {
-              void api(`${path(name)}/secrets`, "PUT", { [secret]: null }).then(() => {
-                if (detail) detail.secrets[secret] = false;
-                renderInspection();
-                say(`Forgot ${secret}.`, "ok");
-              }, (error: Error) => say(error.message, "error"));
-            }, { class: "ghost" })
-          : null;
-        secretsHost.append(h("label", {}, h("span", {}, `secret("${secret}")`), h("div", { class: "row-actions" }, input, forget)));
-      }
-    }
-    // Packages the code needs, and which are missing from Swiss Army Bench's Python.
-    clear(packagesHost);
-    // Only what is missing is listed, with Install (principle 7.9): an installed package needs nothing.
-    const missingPackages = (found?.packages ?? []).filter((p) => !p.installed);
-    const missing = missingPackages.map((p) => p.pip);
-    if (missing.length) {
-      packagesHost.append(
-        h(
-          "div",
-          { class: "chips" },
-          ...missingPackages.map((p) => h("span", { class: "chip missing", title: p.guessed ? "Guessed name" : p.module }, `${p.pip} missing`)),
-        ),
-      );
-    }
-    // The command for the user's own Python is offered whatever is installed here.
-    const copyCommand = found?.install_yours
-      ? button("Copy install command", () => {
-          void navigator.clipboard.writeText(found.install_yours ?? "").then(() => toast("Copied."));
-        }, { icon: "copy", class: "ghost" })
-      : null;
-    if (missing.length || copyCommand) {
-      packagesHost.append(
-        h(
-          "div",
-          { class: "row-actions" },
-          inspection?.missing ? reminder(inspection.missing, { then: () => inspect() }) : null,
-          copyCommand,
-        ),
-      );
-    }
-  }
-
-  function renderKind(): void {
-    clear(kindHost);
-    const isCode = draft.kind !== "secret";
-    codeFieldset.hidden = !isCode;
-    if (draft.kind === "analysis" && !draft.code.trim()) {
-      draft.code = codeBox.value = ANALYSIS_STARTER;
-      codeBox.dispatchEvent(new Event("input"));
-    }
-    if (draft.kind === "sql") {
-      const dialect = h("select", { "aria-label": "SQL dialect" });
-      for (const [value, label] of DIALECTS) dialect.append(h("option", { value, selected: value === draft.dialect }, label));
-      dialect.addEventListener("change", () => (draft.dialect = dialect.value));
-      kindHost.append(h("label", {}, h("span", {}, "SQL dialect"), dialect));
-    }
-    if (draft.kind === "snippet") kindHost.append(snippetEditor());
-    if (draft.kind === "vault") kindHost.append(mappingEditor());
-    if (draft.kind === "secret") kindHost.append(secretNamesEditor());
-    if (draft.kind === "sql" || draft.kind === "other") kindHost.append(catalogEditor());
-  }
-
-  /** A snippet's language, and for a Streamlit piece the name its cell takes when it is dropped. */
-  function snippetEditor(): HTMLElement {
-    const language = h("select", { "aria-label": "Language" }, ...([["dax", "DAX"], ["html", "HTML"], ["markdown", "Markdown"], ["streamlit", "Streamlit"], ["python", "Python"]] as const).map(([value, label]) => h("option", { value, selected: draft.language === value }, label))) as HTMLSelectElement;
-    const cellName = h("input", { type: "text", value: draft.cellName, maxlength: "120", "aria-label": "Its cell's name", spellcheck: "false" });
-    const named = h("label", { hidden: draft.language !== "streamlit" }, h("span", {}, "Its cell's name"), cellName);
-    language.addEventListener("change", () => {
-      draft.language = language.value;
-      named.hidden = draft.language !== "streamlit";
-    });
-    cellName.addEventListener("input", () => (draft.cellName = cellName.value));
-    return h("div", { class: "form-grid" }, h("label", {}, h("span", {}, "Language"), language), named);
-  }
-
-  function mappingEditor(): HTMLElement {
-    const rows = h("div", { class: "list-editor" });
-    const render = (): void => {
-      clear(rows);
-      draft.mapping.forEach((row, index) => {
-        const env = h("input", { type: "text", value: row.env, placeholder: "WAREHOUSE_PASSWORD", "aria-label": `variable ${index + 1}`, spellcheck: "false" });
-        const secret = h("input", { type: "text", value: row.secret, placeholder: "warehouse-password", "aria-label": `secret in the vault ${index + 1}`, spellcheck: "false" });
-        env.addEventListener("input", () => (row.env = env.value.trim()));
-        secret.addEventListener("input", () => (row.secret = secret.value.trim()));
-        rows.append(
-          h(
-            "div",
-            { class: "mapping-row" },
-            env,
-            h("span", { class: "hint" }, "←"),
-            secret,
-            button("Remove", () => {
-              draft.mapping.splice(index, 1);
-              if (!draft.mapping.length) draft.mapping.push({ env: "", secret: "" });
-              render();
-            }, { icon: "trash", iconOnly: true, class: "ghost" }),
-          ),
-        );
-      });
-    };
-    render();
-    return h(
-      "fieldset",
-      {},
-      h("legend", {}, "Secrets in the vault → environment variables"),
-      h("div", { class: "mapping-row hint" }, h("span", {}, "Environment variable"), h("span", {}), h("span", {}, "Secret's name in the vault"), h("span", {})),
-      rows,
-      h("div", {}, button("Add a secret", () => {
-        draft.mapping.push({ env: "", secret: "" });
-        render();
-      }, { icon: "plus", class: "ghost" })),
-    );
-  }
-
-  function secretNamesEditor(): HTMLElement {
-    const box = h("textarea", { class: "code-box", rows: "5", spellcheck: "false", "aria-label": "Environment variable names" }) as HTMLTextAreaElement;
-    box.value = draft.envNames;
-    box.addEventListener("input", () => (draft.envNames = box.value));
-    return h(
-      "fieldset",
-      {},
-      h("legend", {}, "Environment variables"),
-      box,
-    );
-  }
-
-  function catalogEditor(): HTMLElement {
-    const on = h("input", { type: "checkbox", checked: draft.catalogOn });
-    const body = h("div", { class: "editor" });
-    const command = h("textarea", { class: "code-box", rows: "8", spellcheck: "false", "aria-label": "Catalog command" }) as HTMLTextAreaElement;
-    command.value = draft.catalogCommand;
-    command.addEventListener("input", () => (draft.catalogCommand = command.value));
-    const language = h("div", { class: "segmented", role: "group", "aria-label": "Catalog command language" });
-    const renderLanguage = (): void => {
-      clear(
-        language,
-        ...(["sql", "python"] as const).map((value) =>
-          button(value === "sql" ? "SQL" : "Python", () => {
-            draft.catalogLanguage = value;
-            renderLanguage();
-          }, { pressed: draft.catalogLanguage === value }),
-        ),
-      );
-    };
-    renderLanguage();
-    const starter = button("Starter query", () => {
-      void templates().then((all) => {
-        const match = all.find((t) => t.kind === "sql" && t.dialect === draft.dialect && t.catalog?.language === "sql");
-        if (!match?.catalog) {
-          toast("No starter query for this dialect", "error");
-          return;
-        }
-        draft.catalogLanguage = "sql";
-        draft.catalogCommand = command.value = match.catalog.command;
-        renderLanguage();
-      });
-    }, { class: "ghost", icon: "sql" });
-    body.append(
-      h("div", { class: "row-actions" }, language, draft.kind === "sql" ? starter : null),
-      command,
-    );
-    body.hidden = !draft.catalogOn;
-    on.addEventListener("change", () => {
-      draft.catalogOn = on.checked;
-      body.hidden = !on.checked;
-    });
-    return h("fieldset", {}, h("legend", {}, h("label", { class: "check" }, on, "Add to the catalog")), body);
-  }
-
-  // ----- the kind switch, the code, the buttons -----
-  const kinds = h("div", { class: "segmented", role: "group", "aria-label": "Kind of blade" });
-  const renderKinds = (): void => {
-    clear(
-      kinds,
-      ...(Object.keys(KIND_LABELS) as BladeKind[]).map((value) =>
-        button(KIND_LABELS[value], () => {
-          draft.kind = value;
-          renderKinds();
-          renderKind();
-          renderInspection();
-        }, { pressed: draft.kind === value }),
-      ),
-    );
-  };
-  const codeFieldset = h(
-    "fieldset",
-    {},
-    h("legend", {}, "Code"),
-    codeBox,
-    madeHost,
-    secretsHost,
-    packagesHost,
+  // ----- the code: read-only, edited in its file -----
+  const language = detail.kind === "snippet" ? detail.language || "python" : "python";
+  const code = codeViewer(detail.kind === "secret" ? detail.env_names.join("\n") : detail.code, detail.kind === "secret" ? "plaintext" : language, "Blade code");
+  const fileLine = detail.file ? h("p", { class: "hint blade-file-path" }, h("code", {}, detail.file)) : null;
+  const codeActions = h(
+    "div",
+    { class: "row-actions" },
+    readOnly
+      ? button("Copy as your own", () => void copyStarter(detail.name), { class: "primary", icon: "copy" })
+      : button("Show its file", () => void showFile(savedName), { icon: "folder" }),
   );
-
-  function body(): Record<string, unknown> {
-    const out: Record<string, unknown> = {
-      name: draft.name.trim(),
-      kind: draft.kind,
-      template: draft.template,
-      description: draft.description.trim(),
-      tags: splitTags(draft.tags),
-    };
-    if (!savedName && whereSelect.value) out.folder = whereSelect.value;
-    if (draft.kind === "secret") {
-      out.env_names = draft.envNames.split(/[\s,]+/).filter(Boolean);
-      return out;
-    }
-    if (draft.family) out.family = draft.family;
-    if (draft.kind === "snippet") {
-      return { ...out, code: draft.code, language: draft.language, cell_name: draft.cellName.trim() };
-    }
-    out.code = draft.code;
-    out.variable = draft.variable;
-    if (draft.kind === "sql") out.dialect = draft.dialect;
-    if (draft.kind === "vault") out.vault_mapping = draft.mapping.filter((m) => m.env || m.secret);
-    if ((draft.kind === "sql" || draft.kind === "other") && draft.catalogOn && draft.catalogCommand.trim()) {
-      out.catalog = { language: draft.catalogLanguage, command: draft.catalogCommand };
-    }
-    const secrets = Object.fromEntries([...typedSecrets].filter(([, value]) => value));
-    if (Object.keys(secrets).length) out.secrets = secrets;
-    return out;
-  }
-
-  let savedName = name;
-  // A starter (the built-in pack) is read-only: Copy as your own makes the user's copy and opens it.
-  const starter = detail?.source === "starter";
-  codeBox.readOnly = starter;
   async function copyStarter(of: string): Promise<void> {
     const made = await copyAsOwn(of);
     if (!made) return;
     onSaved(made);
     await editBlade(host, made, null, "other", onSaved, onClosed);
   }
-  // A pack's blade is read-only here: saving makes a copy of your own (named "<name> copy" unless
-  // renamed first); the pack itself changes in its repository.
-  let fromPack = Boolean(detail?.pack);
-  async function save(then: "close" | "refresh" | "test"): Promise<void> {
+
+  // What the code makes, its secrets (kept in the operating system's vault) and missing packages.
+  const inspection = detail.inspect ?? null;
+  const madeLine = detail.kind === "snippet" || detail.kind === "secret" || !detail.variable ? null : h("p", { class: "hint" }, `${detail.kind === "vault" ? "The function that reads a secret" : "It makes"} `, h("code", {}, detail.variable));
+  const secretsHost = h("div", {});
+  for (const secret of inspection?.secrets ?? []) {
+    const saved = detail.secrets[secret] === true;
+    const input = h("input", { type: "password", autocomplete: "new-password", placeholder: saved ? "Saved" : "Not saved", "aria-label": `secret ${secret}` });
+    input.addEventListener("input", () => typedSecrets.set(secret, input.value));
+    const forget = saved
+      ? button("Forget", () => {
+          void api(`${path(savedName)}/secrets`, "PUT", { [secret]: null }).then(() => {
+            detail.secrets[secret] = false;
+            input.placeholder = "Not saved";
+            forget?.remove();
+            say(`Forgot ${secret}.`, "ok");
+          }, (error: Error) => say(error.message, "error"));
+        }, { class: "ghost" })
+      : null;
+    secretsHost.append(h("label", {}, h("span", {}, `secret("${secret}")`), h("div", { class: "row-actions" }, input, forget)));
+  }
+  const missing = (inspection?.packages ?? []).filter((p) => !p.installed);
+  const packagesHost = missing.length
+    ? h(
+        "div",
+        { class: "row-actions" },
+        h("div", { class: "chips" }, ...missing.map((p) => h("span", { class: "chip missing", title: p.guessed ? "Guessed name" : p.module }, `${p.pip} missing`))),
+        inspection?.missing ? reminder(inspection.missing, { then: () => void editBlade(host, savedName, null, "other", onSaved, onClosed) }) : null,
+      )
+    : null;
+  const vaultRows = detail.kind === "vault" && detail.vault_mapping.length
+    ? h("table", { class: "columns-table" }, h("tbody", {}, ...detail.vault_mapping.map((m) => h("tr", {}, h("td", {}, h("code", {}, m.env)), h("td", { class: "hint" }, "←"), h("td", {}, m.secret)))))
+    : null;
+
+  // A connection's tables are always listed; the query that lists them is its file's, shown read-only.
+  const listing = detail.connection && detail.connection !== "vault" && detail.catalog
+    ? h(
+        "details",
+        { class: "blade-listing" },
+        h("summary", {}, "How its tables are listed"),
+        codeViewer(detail.catalog.command, detail.catalog.language, "How its tables are listed"),
+      )
+    : null;
+  // Opened: the viewer measures itself again (it was folded away when drawn).
+  listing?.addEventListener("toggle", () => window.dispatchEvent(new Event("resize")));
+
+  function body(): Record<string, unknown> {
+    const out: Record<string, unknown> = { name: nameInput.value.trim(), description: descriptionInput.value.trim(), tags: splitTags(tagsInput.value) };
+    if (detail.names_table) out.table = tableInput.value.trim();
+    const secrets = Object.fromEntries([...typedSecrets].filter(([, value]) => value));
+    if (Object.keys(secrets).length) out.secrets = secrets;
+    return out;
+  }
+
+  async function save(): Promise<void> {
+    if (detail.names_table) await checkTable();
+    if (!tableOk) {
+      say(tableSaid.textContent ?? "", "error");
+      tableInput.focus();
+      return;
+    }
     say("Saving...");
     try {
-      const sent = body();
-      if (fromPack && String(sent.name).toLowerCase() === (name ?? "").toLowerCase()) {
-        sent.name = draft.name = nameInput.value = `${name} copy`;
-      }
-      const target = fromPack ? null : savedName;
-      const saved = await api<BladeSummary>(target ? path(target) : "/blades", target ? "PUT" : "POST", sent);
-      fromPack = false;
+      const saved = await api<BladeSummary>(path(savedName), "PUT", body());
       savedName = saved.name;
+      detail.table = saved.table ?? "";
       typedSecrets.clear();
       say(`Saved ${saved.name}.`, "ok");
-      if (then === "refresh") {
-        say(`Saved. Refreshing ${saved.name}'s catalog...`);
-        const answer = await runBlade<{ catalog: { columns: number; tables: number } }>(saved.name, "refresh");
-        if (answer) say(`Refreshed: ${answer.catalog.tables} tables, ${answer.catalog.columns} columns.`, "ok");
-        else say("Saved, but the refresh did not finish.", "error");
-      }
-      if (then === "test") {
-        say(`Saved. Testing ${saved.name}...`);
-        const answer = await runBlade<{ ok: boolean; type?: string; variables?: string[] }>(saved.name, "test");
-        if (answer?.variables) say(`It works: it sets ${answer.variables.join(", ")}.`, "ok");
-        else if (answer?.type) say(`It works: it makes a ${answer.type}.`, "ok");
-        else say("Saved, but the test did not pass.", "error");
-      }
       onSaved(saved.name);
     } catch (error) {
       say((error as Error).message, "error");
@@ -852,10 +567,9 @@ export async function editBlade(
   }
 
   async function remove(): Promise<void> {
-    if (!savedName) return;
     const target = savedName;
     const { body: dialogBody, foot, close } = openDialog(`Remove ${target}?`);
-    dialogBody.append(h("p", {}, "Its saved secrets are removed too."));
+    dialogBody.append(h("p", {}, "Its file and its saved secrets go."));
     foot.append(
       button("Cancel", close, { class: "ghost" }),
       button("Remove", () => {
@@ -865,63 +579,33 @@ export async function editBlade(
     );
   }
 
-  renderKinds();
-  clear(
-    host,
-    h("h2", {}, name ? `Blade: ${name}` : "Save as blade"),
-    sections,
-  );
+  const runnable = detail.kind !== "snippet" && detail.kind !== "secret";
+  clear(host, h("h2", {}, `Blade: ${detail.name}`));
   append(
-    sections,
-    h("label", {}, h("span", {}, "Name"), nameInput),
-    starter
-      ? h("p", { class: "warning-text" }, `${detail?.family ?? ""} starter: read-only`.trim())
-      : detail?.pack
-      ? h(
-          "p",
-          { class: "warning-text" },
-          `From the pack ${detail.pack}: read-only`,
-        )
-      : detail?.path
-        ? h("p", { class: "hint" }, "File: ", h("code", {}, detail.path))
-        : null,
-    h("label", {}, h("span", {}, "Description"), descriptionInput),
-    h("label", {}, h("span", {}, "Tags"), tagsInput),
-    name ? null : whereLabel,
-    detail?.source === "starter" ? null : h("div", {}, h("div", { class: "hint" }, "Kind"), kinds),
-    settingsHost,
-    codeFieldset,
-    kindHost,
+    host,
     h(
       "div",
-      { class: "row-actions" },
-      ...(starter && detail
-        ? [
-            button("Copy as your own", () => void copyStarter(detail.name), { class: "primary", icon: "copy" }),
-            detail.kind === "snippet" ? null : button("Test", () => void runBlade(detail.name, "test").then((a) => a && say("It works.", "ok")), { icon: "check" }),
-          ]
-        : detail?.pack
-        ? [
-            button("Save a copy", () => void save("close"), { class: "primary", icon: "copy" }),
-            button("Test", () => void runBlade(detail.name, "test").then((a) => a && say("It works.", "ok")), { icon: "check" }),
-            detail.catalog ? button("Refresh the catalog", () => void runBlade(detail.name, "refresh").then((a) => a && say("Refreshed.", "ok")), { icon: "play" }) : null,
-          ]
-        : [
-            button("Save", () => void save("close"), { class: "primary", icon: "save" }),
-            button("Save and refresh the catalog", () => void save("refresh"), { icon: "play" }),
-            button("Save and test", () => void save("test"), { icon: "check" }),
-          ]),
-      button("Cancel", onClosed, { class: "ghost" }),
-      name ? button("Export", () => void exportBlades(savedName ?? name), { icon: "export", class: "ghost", title: "Download as .blade.py" }) : null,
-      name && !detail?.path && !starter ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,
+      { class: "editor blade-screen" },
+      h("div", { class: "blade-kind-line" }, h("span", { class: `blade-kind ${detail.kind}` }, kindLabel(detail.kind)), starter ? h("span", { class: "warning-text" }, `${detail.family ?? ""} starter: read-only`.trim()) : pack ? h("span", { class: "warning-text" }, `From the pack ${detail.pack}: read-only`) : null),
+      h("label", {}, h("span", {}, "Name"), nameInput),
+      h("label", {}, h("span", {}, "Description"), descriptionInput),
+      h("label", {}, h("span", {}, "Tags"), tagsInput),
+      detail.names_table ? h("div", { class: "table-name-field" }, h("label", {}, h("span", {}, "Its table is called"), tableInput), tableSaid) : null,
+      h("fieldset", { class: "blade-code-field" }, h("legend", {}, "Code"), code, fileLine, codeActions, madeLine, secretsHost, packagesHost, vaultRows),
+      listing,
+      h(
+        "div",
+        { class: "row-actions" },
+        readOnly ? null : button("Save", () => void save(), { class: "primary", icon: "save" }),
+        runnable ? button("Test", () => void runBlade<{ type?: string; variables?: string[] }>(savedName, "test").then((a) => a && say(a.variables ? `It works: it sets ${a.variables.join(", ")}.` : a.type ? `It works: it makes a ${a.type}.` : "It works.", "ok")), { icon: "check" }) : null,
+        button("Cancel", onClosed, { class: "ghost" }),
+        button("Export", () => void exportBlades(savedName), { icon: "export", class: "ghost", title: "Download as .blade.py" }),
+        detail.removable ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,
+      ),
+      status,
     ),
-    status,
   );
-  renderKind();
-  if (draft.code && !inspection) await inspect();
-  else renderInspection();
   nameInput.focus();
-  // Opened with packages missing: the prompt in the user's face (not while the code is typed: then the
-  // reminder beside the packages says it).
-  if (inspection?.missing) void promptInstall(inspection.missing, { then: () => inspect() });
+  // Opened with packages missing: the prompt in the user's face.
+  if (inspection?.missing) void promptInstall(inspection.missing, { then: () => void editBlade(host, savedName, null, "other", onSaved, onClosed) });
 }

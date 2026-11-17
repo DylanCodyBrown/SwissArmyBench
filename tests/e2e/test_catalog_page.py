@@ -1,13 +1,15 @@
 # ruff: noqa: F811
-"""The blades and catalog page in a real browser: the tree, search, the save screen and Refresh.
+"""The blades page in a real browser: the list, the blade screen (its code read-only, a table name of its
+own checked as it is typed, Show its file), New blade, import, export, blade folders and packs. The catalog
+panel went (the owner, 2026-11-17): a connection's tables are on the Connections page.
 
 Made-up data only. No test saves a secret: on Windows that would reach the real Credential Manager.
 """
 
 from __future__ import annotations
 
+import os
 import re
-import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -20,22 +22,14 @@ from playwright.sync_api import Browser, Page, expect
 # reads as a redefinition in every test that takes them.
 from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
 
-ROWS = [
-    [f"schema_{i % 3}", f"table_{i % 700:03}", f"column_{i}", "int" if i % 2 else "varchar"]
-    for i in range(2100)
-]
-ROWS += [["sales", "orders", "order_id", "int"], ["sales", "orders", "placed at", "datetime2"]]
+# Screenshots of the blade screen, light and dark, where this names a folder (none: no pictures).
+SHOTS = os.environ.get("SWISSARMYBENCH_TEST_SHOTS", "")
 
 
 @pytest.fixture
 def warehouse(server: dict[str, Any]) -> Iterator[str]:
-    call(
-        server,
-        "PUT",
-        "/catalogs/Warehouse?dialect=sqlserver",
-        {"columns": ["TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "DATA_TYPE"], "data": ROWS},
-    )
-    yield f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}&catalog=Warehouse"
+    """The blades page (the name is the old fixture's: a catalog called Warehouse it no longer loads)."""
+    yield f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}"
     for blade in call(server, "GET", "/blades")["blades"]:
         call(server, "DELETE", f"/blades/{quote(blade['name'])}")
     for catalog in call(server, "GET", "/catalogs")["catalogs"]:
@@ -47,168 +41,9 @@ def open_page(browser: Browser, url: str) -> Page:
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(url)
-    page.wait_for_selector('[role="treeitem"]')
+    page.wait_for_selector(".blade-list")
     page.errors = errors  # type: ignore[attr-defined]
     return page
-
-
-def item(page: Page, label: str) -> Any:
-    return page.locator(
-        '[role="treeitem"]', has=page.locator(f':scope > .node > .node-label:text-is("{label}")')
-    )
-
-
-def test_the_tree_opens_lazily_and_shows_a_table_with_its_select(browser: Browser, warehouse: str) -> None:
-    page = open_page(browser, warehouse)
-    schemas = page.locator('[role="treeitem"][aria-level="1"]')
-    expect(schemas).to_have_count(4)
-    sales = item(page, "sales")
-    sales.locator(":scope > .node").click()
-    expect(sales).to_have_attribute("aria-expanded", "true")
-    item(page, "orders").locator(":scope > .node").click()
-    expect(page.locator("#detail pre")).to_have_text(
-        "SELECT TOP 100 [order_id], [placed at]\nFROM [sales].[orders]"
-    )
-    expect(item(page, "placed at").locator(".node-meta")).to_have_text("datetime2")
-    # Columns are not loaded until a table opens: schema_0 holds 700 tables, shown 500 at a time.
-    item(page, "schema_0").locator(":scope > .node").click()
-    expect(page.locator(".node.more")).to_have_count(1)
-    expect(page.locator(".node.more")).to_contain_text("Show more (200 left)")
-    page.locator(".node.more").click()
-    expect(page.locator('[role="treeitem"][aria-level="2"]')).to_have_count(1 + 700)
-    assert page.errors == []  # type: ignore[attr-defined]
-    page.close()
-
-
-def test_the_keyboard_walks_the_tree(browser: Browser, warehouse: str) -> None:
-    page = open_page(browser, warehouse)
-    page.locator('[role="tree"]').focus()
-    for key in ["Home", "ArrowRight", "ArrowDown", "ArrowRight", "ArrowDown"]:  # sales -> orders -> order_id
-        page.keyboard.press(key)
-        page.wait_for_timeout(150)  # each expand loads its children
-    selected = page.locator('[role="treeitem"][aria-selected="true"] > .node > .node-label')
-    expect(selected).to_have_text("order_id")
-    page.keyboard.press("ArrowLeft")
-    expect(selected).to_have_text("orders")
-    page.keyboard.press("ArrowLeft")
-    expect(page.locator('[role="treeitem"][aria-selected="true"]')).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.close()
-
-
-def test_search_finds_a_column_and_opens_the_tree_at_it(browser: Browser, warehouse: str) -> None:
-    page = open_page(browser, warehouse)
-    page.get_by_role("searchbox", name="Search the catalog").fill("placed")
-    hit = page.locator(".cat-tree button", has_text="orders.placed at")
-    expect(hit).to_be_visible()
-    hit.click()
-    expect(page.locator('[role="treeitem"][aria-selected="true"] > .node > .node-label')).to_have_text(
-        "placed at"
-    )
-    expect(page.locator("#detail h2")).to_contain_text("orders")
-    # A table past the first page of its schema is revealed too.
-    page.get_by_role("searchbox", name="Search the catalog").fill("table_650")
-    page.locator(".cat-tree button", has_text="schema_2.table_650").click()
-    expect(page.locator('[role="treeitem"][aria-selected="true"] > .node > .node-label')).to_have_text(
-        "table_650"
-    )
-    page.close()
-
-
-def test_dragging_gives_the_quoted_name_or_the_blade_line(
-    browser: Browser, warehouse: str, server: dict[str, Any]
-) -> None:
-    call(server, "POST", "/blades", {"name": "Bakery", "kind": "other", "code": "path = 'bakery.csv'\n"})
-    page = open_page(browser, warehouse)
-    item(page, "sales").locator(":scope > .node").click()
-    item(page, "orders").locator(":scope > .node").click()
-    expect(item(page, "placed at")).to_be_visible()
-    dragged = page.evaluate(
-        """() => {
-            const pick = (el) => {
-                const t = new DataTransfer();
-                el.dispatchEvent(new DragEvent('dragstart', {dataTransfer: t, bubbles: true}));
-                return t.getData('text/plain');
-            };
-            const label = (text) => [...document.querySelectorAll('[role=treeitem]')]
-                .find(i => i.querySelector(':scope > .node > .node-label').textContent === text);
-            const blade = document.querySelector('.blade-item');
-            return [pick(label('orders')), pick(label('placed at')), pick(blade)];
-        }"""
-    )
-    assert dragged == ["[sales].[orders]", "[placed at]", 'path = sab.blade("Bakery")']
-    page.close()
-
-
-def test_a_new_sqlite_blade_saves_refreshes_and_fills_the_catalog(
-    browser: Browser, warehouse: str, server: dict[str, Any]
-) -> None:
-    database = Path(server["tmp"]) / "bakery.sqlite"
-    with sqlite3.connect(database) as setup:
-        setup.execute("CREATE TABLE IF NOT EXISTS loaves (loaf_id INTEGER, crust TEXT)")
-    page = open_page(browser, warehouse)
-    page.get_by_role("button", name="New blade").first.click()
-    page.get_by_role("button", name="SQLite", exact=True).click()
-    page.get_by_label("Blade name").fill("Bakery")
-    code = page.get_by_label("Blade code")
-    code.fill(code.input_value().replace(r"C:\data\my_database.sqlite", str(database)))
-    expect(page.get_by_label("The variable it makes")).to_have_value("conn")
-    page.get_by_role("button", name="Save and refresh the catalog").click()
-    expect(page.locator(".status-line")).to_contain_text("Refreshed: 1 tables, 2 columns")
-    expect(page.locator(".blade-item")).to_contain_text("Bakery")
-    page.locator('select[aria-label="Catalog"]').select_option("Bakery")
-    # One schema: it opens by itself.
-    expect(item(page, "main")).to_have_attribute("aria-expanded", "true")
-    item(page, "loaves").locator(":scope > .node").click()
-    expect(page.locator("#detail pre")).to_have_text(
-        'SELECT "loaf_id", "crust"\nFROM "main"."loaves"\nLIMIT 100'
-    )
-    page.close()
-
-
-def test_a_refresh_asks_for_a_secret_blade_value_and_never_keeps_it(
-    browser: Browser,
-    warehouse: str,
-    server: dict[str, Any],
-) -> None:
-    database = Path(server["tmp"]) / "ovens.sqlite"
-    with sqlite3.connect(database) as setup:
-        setup.execute("CREATE TABLE IF NOT EXISTS ovens (oven_id INTEGER)")
-    call(server, "POST", "/blades", {"name": "Oven login", "kind": "secret", "env_names": ["OVEN_PASSWORD"]})
-    code = (
-        "import sqlite3\nassert secret('OVEN_PASSWORD') == 'proof-42'\n"
-        f"conn = sqlite3.connect({str(database)!r})\n"
-    )
-    blade = {
-        "name": "Ovens",
-        "kind": "sql",
-        "dialect": "sqlite",
-        "code": code,
-        "catalog": {
-            "language": "sql",
-            "command": "SELECT name AS table_name, 'oven_id' AS column_name FROM sqlite_master",
-        },
-    }
-    call(server, "POST", "/blades", blade)
-    page = open_page(browser, warehouse)
-    # A blade's row has no refresh of its own (2026-11-14): its save screen refreshes, and the one
-    # beside the catalog picker refreshes the catalog shown.
-    row = page.locator(".blade-item", has_text="Ovens")
-    expect(row.get_by_role("button", name="Refresh catalog")).to_have_count(0)
-    row.locator(".blade-name").click()
-    page.get_by_role("button", name="Save and refresh the catalog").click()
-    dialog = page.locator("dialog")
-    expect(dialog).to_contain_text("OVEN_PASSWORD")
-    dialog.get_by_label("OVEN_PASSWORD").fill("proof-42")
-    dialog.get_by_role("button", name="Run").click()
-    picker = page.locator("select[aria-label='Catalog']")
-    expect(picker.locator("option", has_text="Ovens")).to_have_count(1, timeout=20000)
-    # Never kept: the next refresh asks again.
-    picker.select_option("Ovens")
-    page.get_by_role("button", name="Refresh", exact=True).click()
-    expect(page.locator("dialog")).to_contain_text("OVEN_PASSWORD")
-    page.close()
 
 
 def test_the_page_follows_the_theme(browser: Browser, warehouse: str) -> None:
@@ -438,33 +273,6 @@ def test_import_suggests_values_for_a_blades_settings_and_writes_them_in(
     page.close()
 
 
-def test_the_save_screen_changes_a_setting_in_the_code(
-    browser: Browser, server: dict[str, Any], warehouse: str
-) -> None:
-    call(
-        server,
-        "POST",
-        "/blades",
-        {"name": "Orders DB", "kind": "sql", "dialect": "postgres", "code": POSTGRES_STARTER},
-    )
-    page = open_page(browser, warehouse)
-    blade_item(page, "Orders DB").locator(".blade-name").click()
-    settings = page.locator("#detail fieldset", has=page.locator("legend", has_text="Settings"))
-    expect(settings.get_by_text("needs your value")).to_have_count(3)
-    host = page.get_by_label("host (server)")
-    host.fill("db07.corp.local")
-    host.press("Enter")
-    expect(page.get_by_label("Blade code")).to_have_value(
-        POSTGRES_STARTER.replace("my-server", "db07.corp.local")
-    )
-    expect(settings.get_by_text("needs your value")).to_have_count(2)
-    page.get_by_role("button", name="Save", exact=True).click()
-    expect(page.locator(".status-line")).to_contain_text("Saved Orders DB.")
-    assert 'host="db07.corp.local"' in call(server, "GET", "/blades/Orders%20DB")["code"]
-    assert page.errors == []  # type: ignore[attr-defined]
-    page.close()
-
-
 def test_a_long_blade_name_never_hides_the_blade_buttons(
     browser: Browser, server: dict[str, Any], warehouse: str
 ) -> None:
@@ -505,7 +313,7 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         till.locator(".blade-name").click()
         expect(page.locator("#detail")).to_contain_text("From the pack sales@team-blades")
         expect(page.locator("#detail").get_by_role("button", name="Save", exact=True)).to_have_count(0)
-        page.locator("#detail").get_by_role("button", name="Save a copy").click()
+        page.locator("#detail").get_by_role("button", name="Copy as your own").click()
         expect(blade_item(page, "Till export copy")).to_have_count(1)
         # The Packs window: the installed pack, the commands, and a new marketplace repository.
         page.get_by_role("button", name="Packs").click()
@@ -536,13 +344,120 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         shutil.rmtree(root.parents[3])
 
 
-def test_a_tables_right_click_opens_it_as_a_grid_and_scripts_nothing(
-    browser: Browser, warehouse: str
-) -> None:
-    """Script as left the menu with To Python (2026-11-14): Open as grid is what it offers."""
+# ===== the blade screen (the owner, 2026-11-17) =====
+
+
+def test_the_blades_page_has_no_catalog_panel(browser: Browser, warehouse: str) -> None:
+    """ "we dont even need catalog if its just tables": no Catalog section, picker, tree or search."""
     page = open_page(browser, warehouse)
-    item(page, "sales").locator(":scope > .node").click()
-    orders = item(page, "orders").locator(":scope > .node")
-    orders.click(button="right")
-    menu = page.get_by_role("menu", name="orders")
-    expect(menu.get_by_role("menuitem")).to_have_text(["Open as grid", "Leave a note…"])
+    expect(page.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
+    expect(page.locator("#catalog")).to_have_count(0)
+    expect(page.get_by_role("heading", name="Catalog", exact=True)).to_have_count(0)
+    expect(page.locator("select[aria-label='Catalog']")).to_have_count(0)
+    expect(page.get_by_role("searchbox", name="Search the catalog")).to_have_count(0)
+    expect(page.locator("[role='tree']")).to_have_count(0)
+    page.close()
+
+
+def shoot(page: Page, name: str) -> None:
+    if not SHOTS:
+        return
+    Path(SHOTS).mkdir(parents=True, exist_ok=True)
+    for theme in ("light", "dark"):  # the theme chosen, the page drawn again (Monaco's own theme too)
+        page.evaluate(f"localStorage.setItem('swissarmybench.theme', '{theme}')")
+        page.reload()
+        page.locator(".blade-code .monaco-editor").first.wait_for(timeout=20000)
+        page.evaluate("document.querySelectorAll('details.blade-listing').forEach((d) => (d.open = true))")
+        page.wait_for_timeout(600)
+        page.screenshot(path=str(Path(SHOTS) / f"{name}-{theme}.png"))
+    page.evaluate("localStorage.removeItem('swissarmybench.theme')")
+    page.reload()
+    page.locator(".blade-code .monaco-editor").first.wait_for(timeout=20000)
+
+
+def test_new_blade_makes_a_file_shown_read_only_with_its_table_name_checked(
+    browser: Browser, server: dict[str, Any], warehouse: str
+) -> None:
+    call(server, "PUT", "/datasets/orders", {"columns": ["a"], "data": [[1]]})
+    page = browser.new_page(viewport={"width": 1400, "height": 900}, device_scale_factor=2)
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(warehouse)
+    page.wait_for_selector(".blade-list")
+    # Show its file is the user's click: stood in, so the test opens no file manager.
+    page.route("**/blades/*/show", lambda route: route.fulfill(status=200, body='{"shown": "stood in"}'))
+    try:
+        page.get_by_role("button", name="New blade").first.click()
+        page.get_by_role("button", name="A table (a DataFrame)").click()
+        expect(page.locator("#detail h2")).to_have_text("Blade: New table")
+        made = call(server, "GET", "/blades/New%20table")
+        assert Path(made["file"]).is_file() and Path(made["file"]).parent.name == "blades"
+        # The code read-only, as tall as it is: Monaco with line numbers, no typing.
+        viewer = page.locator(".blade-code .monaco-editor")
+        expect(viewer).to_be_visible(timeout=20000)
+        expect(page.locator(".blade-code .line-numbers").first).to_be_visible()
+        height = page.locator(".blade-code-monaco").evaluate("e => e.getBoundingClientRect().height")
+        lines = made["code"].count("\n")
+        assert 4 * 18 <= height <= max(lines, 4) * 22 + 20, height
+        page.locator(".blade-code .view-lines").click()
+        page.keyboard.type("typed")
+        assert call(server, "GET", "/blades/New%20table")["code"] == made["code"]
+        expect(page.get_by_role("button", name="Show its file")).to_be_visible()
+        page.get_by_role("button", name="Show its file").click()
+        expect(page.get_by_label("Blade code")).to_be_visible()
+        expect(page.get_by_text("Add to the catalog")).to_have_count(0)
+        expect(page.get_by_text("How its tables are listed")).to_have_count(0)
+        # Its table's name: taken, then available, as it is typed.
+        field = page.get_by_label("Its table is called")
+        expect(field).to_have_attribute("placeholder", "make_table")
+        field.fill("orders")
+        expect(page.locator(".table-name-check")).to_have_text("orders is already a table")
+        field.fill("orders_by_month")
+        expect(page.locator(".table-name-check")).to_have_text("available")
+        page.get_by_role("button", name="Save", exact=True).click()
+        expect(page.locator(".status-line")).to_contain_text("Saved New table.")
+        assert '# table = "orders_by_month"' in Path(made["file"]).read_text(encoding="utf-8")
+        shoot(page, "blade-screen")
+        # A taken name is refused on save with the same words.
+        field = page.get_by_label("Its table is called")
+        field.fill("orders")
+        page.get_by_role("button", name="Save", exact=True).click()
+        expect(page.locator(".status-line")).to_have_text("orders is already a table")
+        assert errors == []
+    finally:
+        page.close()
+        call(server, "DELETE", "/datasets/orders")
+
+
+def test_a_starter_is_copied_and_a_connection_shows_how_its_tables_are_listed(
+    browser: Browser, server: dict[str, Any], warehouse: str
+) -> None:
+    call(
+        server,
+        "POST",
+        "/blades",
+        {
+            "name": "Bakery",
+            "kind": "sql",
+            "template": "sqlite",
+            "dialect": "sqlite",
+            "code": "import sqlite3\nconn = sqlite3.connect(':memory:')\n",
+        },
+    )
+    page = open_page(browser, warehouse)
+    page.goto(warehouse.replace("/catalog#", "/catalog?blade=Bakery#"))
+    listing = page.locator("details.blade-listing")
+    expect(listing.locator("summary")).to_have_text("How its tables are listed")
+    expect(listing).not_to_have_attribute("open", "")
+    listing.locator("summary").click()
+    expect(listing.locator(".monaco-editor, pre")).to_contain_text("sqlite_master", timeout=20000)
+    expect(page.get_by_label("Its table is called")).to_have_count(0)
+    shoot(page, "connection-listing")
+    page.goto(warehouse.replace("/catalog#", "/catalog?blade=SharePoint%20document%20as%20a%20table#"))
+    expect(page.locator("#detail")).to_contain_text("starter: read-only")
+    expect(page.get_by_role("button", name="Show its file")).to_have_count(0)
+    expect(page.get_by_role("button", name="Copy as your own")).to_be_visible()
+    expect(page.locator(".blade-code .monaco-editor")).to_be_visible(timeout=20000)
+    shoot(page, "starter")
+    assert page.errors == []  # type: ignore[attr-defined]
+    page.close()

@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
+from swissarmybench.domain.blade_templates import Template as Template
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
@@ -345,6 +346,10 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         lines.append("vault_all = true  # every secret in the vault, each under its own name")
     if kind != "secret":
         lines.append(f"variable = {_toml_string(str(blade.get('variable') or ''))}")
+        if kind == "other" and blade.get("table"):
+            lines.append(
+                f"table = {_toml_string(str(blade['table']))}  # its table's name, wherever it lands"
+            )
         try:
             secrets = read_code(str(blade.get("code", ""))).secrets
         except BladeCodeError:
@@ -388,14 +393,26 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
     return lines
 
 
+def header_block(blade: dict[str, Any]) -> list[str]:
+    """The blade's header as its file's lines, from its opening line to its closing one."""
+    lines = "\n".join(_header_lines(blade)).split("\n")
+    return ["# /// " + HEADER_TYPE, *("# " + line if line else "#" for line in lines), _CLOSE]
+
+
+def header_span(lines: list[str]) -> tuple[int, int] | None:
+    """Where a file's header opens and closes (its lines without their line ends), or None."""
+    start = _header_start(lines)
+    end = (
+        None if start is None else next((i for i in range(start + 1, len(lines)) if lines[i] == _CLOSE), None)
+    )
+    return None if start is None or end is None else (start, end)
+
+
 def write_blade(blade: dict[str, Any]) -> str:
     """The blade as its portable file. `blade` is a saved blade's JSON (its `to_json()`)."""
     if blade.get("secrets") and isinstance(blade["secrets"], dict):
         raise PortableError("A portable blade never holds secret values, only their names.")
-    header = ["# /// " + HEADER_TYPE]
-    for line in "\n".join(_header_lines(blade)).split("\n"):
-        header.append("# " + line if line else "#")
-    header.append(_CLOSE)
+    header = header_block(blade)
     code = "" if blade.get("kind") == "secret" else str(blade.get("code", ""))
     if blade.get("kind") == "snippet":
         code = snippets.file_body(code)
@@ -483,6 +500,8 @@ def read_blade(text: str) -> dict[str, Any]:
             where = f" on line {error.lineno}" if error.lineno else ""
             raise PortableError(f"The blade's code is not valid Python{where}: {error.msg}.") from None
         blade |= {"code": code, "variable": str(header.get("variable") or "")}
+        if kind == "other" and isinstance(header.get("table"), str) and header["table"]:
+            blade["table"] = header["table"]
         if kind == "sql":
             blade["dialect"] = str(header.get("dialect") or "other")
         if isinstance(header.get("row_limit"), int):
@@ -524,6 +543,18 @@ def read_blade(text: str) -> dict[str, Any]:
     if isinstance(header.get("family"), str) and header["family"]:
         blade["family"] = header["family"]
     return blade
+
+
+# A blade's table name: a dataset's name (domain/datasets.py), so it opens as a grid as it is.
+_TABLE_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
+TABLE_NAME_RULE: str = "use 1 to 64 letters, digits, '_' or '-'"
+
+
+def check_table_name(name: str) -> str:
+    """A blade's table name as written, or "" for none; BladeError when no table can have it."""
+    if name and not _TABLE_NAME.fullmatch(name):
+        raise BladeError(f"not a valid name: {TABLE_NAME_RULE}")
+    return name
 
 
 def _found(file: str, data: bytes) -> Found:
@@ -1187,6 +1218,7 @@ class Blade:
     # a copy.
     family: str = ""
     web_call: dict[str, Any] = field(default_factory=dict)  # a web call blade's (domain/web_calls.py)
+    table: str = ""  # its result's table name (domain/blade_tables.py); "": the name its code makes
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
     pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace
     created_at: float = 0.0
@@ -1250,6 +1282,7 @@ class Blade:
             "cell_name": self.cell_name,
             "family": self.family,
             "web_call": dict(self.web_call) or None,
+            "table": self.table,
             "path": self.path,
             "pack": self.pack,
             "source": self.source,
@@ -1428,6 +1461,8 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
             blade.catalog_language, blade.catalog_command = language, command
     if kind == "other" and data.get("web_call"):  # a WebCallError is a ValueError: said as one
         blade.web_call = web_calls.check_web_call(data["web_call"])
+    if kind == "other" and not blade.web_call:
+        blade.table = check_table_name(_text(data, "table", 200).strip())
     if kind == "other" and blade.template == python_connections.TEMPLATE:
         blade.row_limit = _row_limit(data)
         try:  # its Read a table box, and where each variable its three boxes read comes from
@@ -1451,50 +1486,3 @@ def _row_limit(data: dict[str, Any]) -> int | None:
     if int(limit) != EVERY_ROW and not 1 <= int(limit) <= 50_000_000:
         raise BladeError("Rows to open is between 1 and 50,000,000, or 0 for every row.")
     return int(limit)
-
-
-# ===== a starter =====
-# A starting point the user edits on the save screen (the starters themselves: server/blade_templates.py).
-
-
-@dataclass(frozen=True)
-class Template:
-    id: str
-    label: str
-    group: str  # "Databases", "Files", "Vaults", "Other"
-    kind: str  # "sql", "other", "vault" or "analysis"
-    code: str
-    variable: str
-    dialect: str = "other"
-    catalog_language: str | None = None  # "sql" or "python"
-    catalog_command: str | None = None
-    vault_mapping: tuple[tuple[str, str], ...] = ()  # (environment variable, secret name) examples
-    note: str = ""
-    # Ways to sign in, each its own code (the form's Sign in): (label, a text only that code holds, code).
-    # The first is `code`.
-    sign_ins: tuple[tuple[str, str, str], ...] = ()
-    # Where the form first offers its passwords from: "vault" (a key vault), else saved on this computer.
-    secrets_from: str = ""
-    # A connection from the user's own Python: its Read a table box.
-    read_command: str | None = None
-
-    def to_json(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "group": self.group,
-            "kind": self.kind,
-            "dialect": self.dialect,
-            "code": self.code,
-            "variable": self.variable,
-            "catalog": (
-                {"language": self.catalog_language, "command": self.catalog_command}
-                if self.catalog_language and self.catalog_command
-                else None
-            ),
-            "vault_mapping": [{"env": e, "secret": s} for e, s in self.vault_mapping],
-            "note": self.note,
-            "sign_ins": [{"label": label, "mark": mark, "code": code} for label, mark, code in self.sign_ins],
-            "secrets_from": self.secrets_from,
-            "read": {"command": self.read_command} if self.read_command else None,
-        }

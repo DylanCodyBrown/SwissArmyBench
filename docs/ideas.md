@@ -4891,3 +4891,62 @@ at all. (The enforcement date the coordinator gave, 2026-01-30, is not on the pa
    settings) builds the starter files with a data.ts holding types, SOURCES and a constant.
 
 **Open (the owner is choosing):** how transformed results reach the app. Not built.
+
+## The blade screen: code read-only, a table name of its own, no catalog checkbox or panel (the owner, 2026-11-17; built, branch blade-screen)
+
+The owner, on a starter's screen ("SharePoint document as a table"): "Shouldnt the table it makes be namable
+by me with a realtime check for available names" (chose "a table name of its own"); "also that code box
+should be bigger autosize and be formated" / "the code box is read only though blades can only be edited in
+the folder not from the app"; "what the heck does add to catalog do, all blades should be in the catalog
+already"; then "and yea we dont even need catalog if its just tables, we handle that in the variable page
+already".
+
+### Built
+- **The code is read-only, for every blade.** The screen (bladeEditor.ts) shows it in Monaco (its language's
+  colours, line numbers, no typing), as tall as the code: 4 lines at least, about 70% of the window at most,
+  then it scrolls; wide lines scroll sideways (codeEditor.ts's new `fit` option). Under it the file's path
+  and **Show its file** (server/file_manager.py `reveal`: Explorer's /select, the Finder's -R, else the
+  folder; the user's click, 403 for the agent, in NOT_COMMANDS); a starter's or a pack's: **Copy as your own**.
+- **Removed:** the code box's editing, the Kind switch, the Settings fields that wrote into the code
+  (/blades/fill stays: it saves nothing, and the Connections forms use it), Save and refresh the catalog, Save
+  and test, Save a copy, the template picker's Paste my own code and the "Keep it in" choice. PUT
+  /blades/{name} changes the file's header only (name, description, tags, table); anything else sent must be
+  as it is, else 400 "<name>'s code is edited in its file (<path>), never in the app". Agent commands:
+  **blades_create removed** (it saved code); **blades_update narrowed** (name, new_name, description, tags,
+  table: no code, kind, dialect, catalog, vault mapping); **blades_new added** (a file from a template; no
+  template: the choices); **blades_table_name_check added**. POST /blades stays as the HTTP door that
+  creates a blade with its code (tests and the import's own path use it; no page or command sends code to it).
+- **New blade** (the left panel): A table (a DataFrame), Any code, Secret blade, Snippet (Markdown), and the
+  analysis starters; the file is made in the library's blades/ and shown in its folder. Connections are made
+  on the Connections page. A file edited outside shows at once (the store reads a file again when its time or
+  size changes).
+- **Its table is called** (domain/blade_tables.py): for kind "other" that is no connection and no web call;
+  `table = "..."` in the header (domain/blades.py `with_header` rewrites the header, the bytes after it as they
+  were, CRLF too; a save that changes nothing writes nothing). The live check, GET
+  /blades/table-name?name=&blade= (debounced 250 ms on the page): a dataset name's rule, DuckDB's reserved
+  words (keyword_category 'reserved', SqlGrammar.reserved), other blades' table names, connections' names
+  (not vaults), the open tables; any case. Save refuses with the same words; so does New blade with a table.
+- **Where the name lands:** `sab.blade(...)` (client/blades_client.py) in Jupyter, IPython or a Workbench kernel
+  makes its result the variable of that name (a function blade's each time it is called, `functools.wraps`):
+  DuckDB SQL (%%sql, sab.sql read the namespace's DataFrames by name), the Variables panel, and the Open list
+  (the watcher, so Open as grid names the grid so). The Data Explorer lists it as a result under that name
+  (its SQL insert the name). There was no other place: no app path opens a blade's result as a grid by itself.
+  The spec (/blades/{name}/python, client/standalone.py) carries `table`.
+- **No catalog checkbox.** A connection's listing query is shown read-only in a folded **How its tables are
+  listed**; function, code and snippet blades have none. A connection saved with no listing query gets its
+  starter's (by template, else the dialect's first database starter) as the store reads it (BladeStore
+  `listing`, from bootstrap); nothing is written until the connection is next saved.
+- **No catalog panel on the blades page** (catalogPage.ts, catalog.html): its picker, search, tree, table
+  views and their addresses (?catalog=…) went, and app_navigate's `catalog:<name>/<schema>/<table>` places.
+  Kept: services/catalogs.py, catalog_loading.py, adapters/catalogs.py, every `catalog_*` command (other
+  features and the agent read loaded catalogs), and the Workbench's "+ Table" catalog tree (catalogRail.ts
+  draws it only where a page gives `catalogHost`).
+
+### Decisions
+- Folder blades and an API's blades are header-edited in their own files; Remove shows only for files the app
+  keeps (the library's): a blade folder's file is the user's to delete.
+- Other blades' default names (their variables) do not count as taken: only names set in a header.
+- The Workbench's "+ Table" catalog tree stays (it is not the blades page); worth asking the owner.
+
+### Next
+- The images 20-catalog.png and 21-blade-save.png in the user guide are no longer referenced: new screenshots.

@@ -113,29 +113,17 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     row.locator(".connection-detail-tools").get_by_role("button", name="Test", exact=True).click()
     expect(row.locator(".connection-tested tbody tr")).to_have_count(20, timeout=60000)
 
-    # The catalog: the tree, a table's columns with their descriptions, its first rows, the line to read it.
-    catalog = page.context.new_page()
-    catalog.goto(f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}&catalog=Orders%20API")
-    catalog.wait_for_selector('[role="treeitem"]')
-    expect(catalog.locator('[role="treeitem"][aria-level="1"] > .node > .node-label')).to_have_text(["api"])
-    expect(catalog.locator('[role="treeitem"][aria-level="2"] > .node > .node-label')).to_have_text(
-        ["clients", "orders"]
-    )
-    catalog.locator('[role="treeitem"] .node-label', has_text=re.compile("^orders$")).click()
-    detail = catalog.locator("#detail")
-    expect(detail.locator("pre")).to_have_text('sab.read("Orders API", "orders", schema="api")')
-    expect(detail.locator("p.hint").first).to_have_text("api in Orders API · 2 columns · Python")
-    described = detail.locator(".columns-table").first.locator("tr", has_text="amount")
-    expect(described.locator("td").nth(1)).to_have_text("number")
-    expect(described.locator("td").nth(3)).to_have_text("made up")
-    expect(detail.locator(".preview-table tbody tr")).to_have_count(30, timeout=60000)
-
+    # The catalog (the blades page's catalog panel went, 2026-11-17: its routes, and the Connections
+    # page's tree): a table's columns with their descriptions; Open from the tree.
+    listed = call(server, "GET", "/catalogs/Orders%20API/tables?schema=api")["tables"]
+    assert [t["table"] for t in listed] == ["clients", "orders"]
+    columns = call(server, "GET", "/catalogs/Orders%20API/columns?schema=api&table=orders")["columns"]
+    amount = next(c for c in columns if c["column"] == "amount")
+    assert amount["type"] == "number" and amount["description"] == "made up"
+    orders = row.locator(".connection-tables .conn-tree-table[data-table='orders']")
+    expect(orders).to_be_visible(timeout=60000)
     # Open as grid: the first Rows to open rows, the note, and the rest one click away.
-    detail.get_by_role("button", name="Open as grid").click()
-    expect(
-        catalog.locator(".toast", has_text="orders: the first 10 of 30 rows open as a grid.")
-    ).to_be_visible(timeout=60000)
-    catalog.close()
+    orders.get_by_role("button", name="Open").click()
     page.bring_to_front()
     page.locator(".nav-rail [data-area='grids']").click()  # the page makes way for the grids
     page.locator(".tab-item[data-grid]").filter(has_text=re.compile("^orders$")).click()

@@ -2133,8 +2133,9 @@ function bladeDoc(name: string | null): void {
   const saved = (savedName: string): void => { editingBlade = false; rail.bladeSaved(savedName); void loadConnections(); };
   if (name !== null) void editBlade(doc.element, name, null, "other" as BladeKind, saved, done);
   else
-    void showTemplatePicker(doc.element, (template, kind) => {
-      void editBlade(doc.element, null, template, kind, saved, done);
+    void showTemplatePicker(doc.element, (made) => {
+      saved(made);
+      void editBlade(doc.element, made, null, "other" as BladeKind, saved, done);
     });
   show(doc);
 }

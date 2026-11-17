@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from typing import Any
-from urllib.parse import quote
 
 import pandas as pd
 import pytest
@@ -208,81 +207,25 @@ def test_back_closes_a_plain_dialog_and_never_leaves_the_page_under_it(
     page.context.close()
 
 
-@pytest.fixture
-def warehouse(server: dict[str, Any]) -> Iterator[str]:
-    rows = [["sales", "orders", "order_id", "int"], ["sales", "orders", "amount", "decimal"]]
-    rows += [["sales", "customers", "customer_id", "int"], ["stock", "items", "sku", "varchar"]]
-    call(
-        server,
-        "PUT",
-        "/catalogs/NavWarehouse?dialect=sqlserver",
-        {"columns": ["TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "DATA_TYPE"], "data": rows},
-    )
-    yield f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}&catalog=NavWarehouse"
-    for blade in call(server, "GET", "/blades")["blades"]:
-        call(server, "DELETE", f"/blades/{quote(blade['name'])}")
-    for catalog in call(server, "GET", "/catalogs")["catalogs"]:
-        call(server, "DELETE", f"/catalogs/{quote(catalog['name'])}")
-
-
-def node(page: Page, label: str) -> Any:
-    return page.locator(
-        '[role="treeitem"]', has=page.locator(f':scope > .node > .node-label:text-is("{label}")')
-    )
-
-
-def test_the_catalogs_views_are_in_the_address_with_a_trail_and_back(
-    browser: Browser, warehouse: str
-) -> None:
+def test_the_blades_pages_views_are_in_the_address(browser: Browser, server: dict[str, Any]) -> None:
+    """The blades page (its catalog panel went, 2026-11-17): the welcome, New blade and a blade's screen are
+    in the address; Back is named; a blade that is not there is said, with the way back."""
+    url = f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}"
     page = browser.new_context(viewport={"width": 1400, "height": 860}).new_page()
-    page.goto(warehouse)
-    page.wait_for_selector('[role="treeitem"]')
+    page.goto(url)
+    detail = page.locator("#detail")
+    expect(detail.locator("h2")).to_have_text("Blades", timeout=20000)
     expect(page.locator(".cat-top > a.app-mark")).to_have_attribute("href", "/workspace")
     expect(page).to_have_title("Blades")
-    node(page, "sales").locator(":scope > .node").click()
-    expect(page).to_have_url(re.compile(r"/catalog\?catalog=NavWarehouse&schema=sales$"))
-    expect(page).to_have_title("Blades · NavWarehouse › sales")
-    node(page, "orders").locator(":scope > .node").click()
-    expect(page).to_have_url(re.compile(r"schema=sales&table=orders"))
-    expect(page).to_have_title("Blades · NavWarehouse › sales › orders")
-    detail = page.locator("#detail")
-    trail = detail.get_by_role("navigation", name="Breadcrumb")
-    expect(trail.locator("li")).to_have_text(["Catalog", "NavWarehouse", "sales", "orders"])
-    expect(detail.get_by_role("button", name="Back to sales")).to_be_visible()
-
-    # A reload keeps the table, its tree opened at it.
-    page.reload()
-    expect(detail.locator("h2")).to_have_text("orders", timeout=20000)
-    expect(node(page, "orders")).to_have_attribute("aria-selected", "true")
-
-    # Back to the schema (the visible Back), then the browser's Back and Forward.
-    detail.get_by_role("button", name="Back to sales").click()
-    expect(detail.locator("h2")).to_have_text("sales")
-    expect(page).to_have_url(re.compile(r"schema=sales$"))
-    page.go_forward()
-    expect(detail.locator("h2")).to_have_text("orders")
-    # The crumbs: the catalog's own page, then the welcome.
-    trail.get_by_role("link", name="NavWarehouse").click()
-    expect(detail.locator("h2")).to_have_text("NavWarehouse")
-    expect(detail).to_contain_text("2 schemas · 3 tables")
-    expect(page).to_have_title("Blades · NavWarehouse")
-    page.go_back()
-    expect(detail.locator("h2")).to_have_text("orders")
-    detail.get_by_role("navigation", name="Breadcrumb").get_by_role("link", name="Catalog").click()
-    expect(detail.locator("h2")).to_have_text("Blades and the catalog")
-    expect(page).to_have_title("Blades")
-
-    # The editor is in the address too; its Back is named and goes to the welcome.
     detail.get_by_role("button", name="New blade").click()
     expect(page).to_have_url(re.compile(r"\?blade=$"))
     expect(page).to_have_title("Blades · New blade")
     detail.get_by_role("button", name="Back to Blades").click()
-    expect(detail.locator("h2")).to_have_text("Blades and the catalog")
-    # An address whose table is gone: said, with the way back (no dead end).
-    page.goto(warehouse.split("#")[0] + "?catalog=NavWarehouse&schema=sales&table=gone")
-    expect(detail.get_by_role("alert")).to_contain_text("is not in the catalog", timeout=20000)
+    expect(detail.locator("h2")).to_have_text("Blades")
+    page.goto(url.split("#")[0] + "?blade=Gone")
+    expect(detail.get_by_role("alert")).to_contain_text("There is no blade called Gone", timeout=20000)
     detail.get_by_role("button", name="Back to Blades").click()
-    expect(detail.locator("h2")).to_have_text("Blades and the catalog")
+    expect(detail.locator("h2")).to_have_text("Blades")
     page.context.close()
 
 

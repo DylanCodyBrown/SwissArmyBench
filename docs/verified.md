@@ -2889,3 +2889,23 @@ Whole suite: 4,028 passed, 49 skipped; three browser tests failed under load and
 
 NOT checked: the installers' removal of an earlier .sab registration on a real Windows or Linux desktop
 (unchanged code; only its comments changed).
+
+## The blade screen (2026-11-17, branch blade-screen)
+
+- Checked (tests/test_blade_screen.py): the header's table name written and read, the code's bytes after it
+  untouched (CRLF kept, an unchanged save writes no byte); every answer of the live check (available, a table,
+  a connection, another blade's table, a reserved word, not a valid name); the route answers the page and the
+  agent alike; saving and New blade refuse a taken name with the same words; no PUT changes code, kind or
+  variable (user or agent), /blades/fill saves nothing; New blade's file in the library's blades/; a file
+  edited outside read again without a restart; Show its file 403 for the agent, stood in for the user; a
+  connection with no listing query gets its starter's on read (nothing written); the Connections tree and the
+  Data Explorer still list a connection's tables; the Data Explorer lists a blade's table by its name;
+  `sab.blade` registers a function blade's result under the name (a stand-in IPython namespace).
+- Agent (tests/test_cli.py): blades_new, blades_update (header only, a reserved name refused),
+  blades_table_name_check; navigation without the catalog places (tests/test_navigation.py).
+- Browser (tests/e2e/test_catalog_page.py, Chromium): no Catalog panel; New blade makes the file; the viewer
+  read-only, line numbers, sized to the code; Show its file (stood in by a route); the table name turning from
+  taken to available as it is typed; no "Add to the catalog" on a function blade; a connection's How its
+  tables are listed, folded; a starter's Copy as your own. Screenshots light and dark.
+- Not checked: Show its file on Windows and macOS (Explorer /select, open -R); a real Jupyter's %%sql over a
+  registered blade table (the registration is checked, %%sql's reading of the namespace is the existing one).

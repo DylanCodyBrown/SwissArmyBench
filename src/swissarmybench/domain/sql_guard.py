@@ -110,6 +110,8 @@ class SqlGrammar:
     table_functions: frozenset[str]
     # Its keywords, lowercase: a table named like one is quoted in generated SQL.
     keywords: frozenset[str]
+    # Its reserved words, lowercase (keyword_category 'reserved'): never a blade's table name.
+    reserved: frozenset[str] = frozenset()
 
 
 # What DuckDB says when asked to serialize a query holding a PIVOT.

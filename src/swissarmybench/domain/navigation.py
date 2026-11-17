@@ -4,9 +4,10 @@ go back anywhere"): the places an agent can send a window to, as `app_navigate` 
 The rail (web/src/rail.ts) names the areas, the same from every window; each is a page (the owner,
 2026-11-16: "clicking the rail should land on a page not open a form"). The pages keep their views in
 the address (web/src/nav.ts): the home page's tabs, the Settings and Connections pages over any page
-(open=settings, open=connections: a connection's detail and its forms), the blades page's catalog and
-editor, the Workbench's landing page for a kind (?kind=notebook&view=list). The agent moves them as the
-user does: Home (the mark), Back and Forward (the browser's own), or a named view where the page has one.
+(open=settings, open=connections: a connection's detail and its forms), the blades page's blade screen
+(its catalog panel went, the owner 2026-11-17: a connection's tables are on the Connections page), the
+Workbench's landing page for a kind (?kind=notebook&view=list). The agent moves them as the user does:
+Home (the mark), Back and Forward (the browser's own), or a named view where the page has one.
 Pure rules, no I/O: a request read into the notice the window acts on.
 """
 
@@ -56,13 +57,13 @@ EVERYWHERE: tuple[str, ...] = (
     "add_connection",
     "add_api",
 )
-# Each window's own views. `grid:<id>`, `catalog:<name>/<schema>/<table>` and `blade:<name>` name one.
+# Each window's own views. `grid:<id>` and `blade:<name>` name one.
 OWN: dict[str, tuple[str, ...]] = {
     "home": ("query", "grid:<id>"),
-    "catalog": ("catalog", "catalog:<name>[/<schema>[/<table>]]", "blade:<name>", "new_blade"),
+    "catalog": ("blade:<name>", "new_blade"),
     "workbench": (),
 }
-NAMED: tuple[str, ...] = ("grid", "catalog", "blade", "connection")
+NAMED: tuple[str, ...] = ("grid", "blade", "connection")
 MAX_NAME: int = 512
 
 
@@ -105,19 +106,11 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
         notice["grid"] = name
     elif kind in ("blade", "connection"):
         notice["name"] = name
-    elif kind == "catalog" and name:
-        parts = name.split("/", 2)
-        if not all(parts):
-            raise NavigationError(
-                "A catalog's view is catalog:<name>, catalog:<name>/<schema> or "
-                "catalog:<name>/<schema>/<table>."
-            )
-        notice |= dict(zip(("catalog", "schema", "table"), parts, strict=False))
     return notice
 
 
 def said(notice: dict[str, Any]) -> str:
     """The move in the audit log's words: "home window to grid g1", never more than the names."""
-    named = [str(notice[k]) for k in ("grid", "name", "catalog", "schema", "table") if k in notice]
+    named = [str(notice[k]) for k in ("grid", "name") if k in notice]
     where = f"{notice['window']} window to {notice['to']}{' ' + '/'.join(named) if named else ''}"
     return where + (", in a new window" if notice.get("new_window") else "")

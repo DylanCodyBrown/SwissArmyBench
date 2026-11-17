@@ -15,7 +15,7 @@ local/                        this computer only (git-ignored): plain values mar
   computer, what never goes in, and any notice the page is showing (the move into the library).
 - `library_set_folder(folder)`: point it at another folder, or back at the default (no folder). Every
   connection, API, vault, blade and variable then comes from there, so it waits for the user's Allow.
-- The usual commands act on it: `connections_create`, `blades_create`, `blades_update`, `variables_set`,
+- The usual commands act on it: `connections_create`, `blades_new`, `blades_update`, `variables_set`,
   `connections_api_add`, `apis_save_call`,
   `relationships_save_tang`, `connections_colours`. Each save writes one file; a save that changes nothing
   changes no byte.

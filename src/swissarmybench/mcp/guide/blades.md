@@ -2,16 +2,28 @@
 
 A blade is the user's saved Python that reaches outside Python: a database connection, a file, an
 API, a vault, or an analysis. In any Python, `conn = sab.blade("Warehouse")` runs it there. The blades
-page is Blades and catalog in the Application row.
+page is Blades on the rail. A blade's code is edited in its file (a `.blade.py` in the library or a blade
+folder), never in the app (the owner, 2026-11-17): the app shows it read-only.
 
 ## Using and making blades
 - `blades_list` (never a secret's value) and `blades_get`: reuse one before making another.
-- `blades_templates`: starters for databases, files, vaults and analyses; `id=` gives one's code.
+- `blades_templates`: starters for connections (databases, files, vaults) and analyses; `id=` gives one's code.
 - `blades_inspect`: what code makes, asks for (secrets), imports and needs; its settings (server,
-  database, path). `blades_fill` writes values at those settings. Nothing runs.
-- `blades_create` (kind sql, other, vault, secret or analysis) and `blades_update`, saved as the user
-  saves them. Write `secret("password")` where a password goes, and give a description and tags.
-  Then tell the user which secrets to type (or `blades_secrets` saves values they give you).
+  database, path). `blades_fill` gives the code with values at those settings (a connection's form
+  uses it); nothing is saved or run.
+- `blades_new` (no template: the choices; `table`, `code`, `secret`, `snippet`, an analysis): a new
+  `.blade.py` in the library's blades/ folder. The user changes its code in their own editor (the page's
+  Show its file); a changed file shows at once. Connections are made with `connections_create`.
+- `blades_update`: a blade's name, description, tags and table name only (its file's header; the code's
+  bytes untouched). Code, kind and the rest are refused: they are edited in the file.
+- A table blade (a function or code that makes a DataFrame) has a table name of its own (`table` in its
+  header; none: the name its code makes). `blades_table_name_check(name, blade)` says `available` or why
+  not (already a table, a connection, another blade's table, not a valid name); `blades_update(table=)`
+  refuses a taken one. `sab.blade(...)` in a kernel makes its result (a function's, each call) the
+  variable of that name: DuckDB SQL, the Variables panel and the Open list name it so; the Data Explorer
+  inserts it under that name.
+- A connection's tables are always listed: its listing query (`blades_get`'s `catalog`, read-only) is its
+  starter's when it had none.
 - `blades_test` runs one in a child process; `blades_refresh` loads its catalog; `blades_install`
   installs its packages into the app's Python.
 - `blades_pin`, `blades_delete`, `blades_folders` (folders searched for `.blade.py` files),
