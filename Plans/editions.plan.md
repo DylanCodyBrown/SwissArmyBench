@@ -51,6 +51,41 @@ All built and released from this repository. The base runs alone; each extension
 7. **The agent:** its tools are the base's plus each installed extension's; `context.md` says the project's type
    and the installed extensions.
 
+## Project modes: the switch when a project is active (the owner, 2026-11-17)
+"The hardest part to get right here will be the modal switch that needs to happen when the project is active. For
+example if the deliverable is an analysis/bi then the canvases become pdf html, the blades filter to that project
+type, and the script workbench is python only. But for a code app it's typescript react can and additional cell
+types with blades for typescript. Streamlit is what we have now. Accounting gets excel tools, the excel canvas and
+blades for accounting tools"
+
+**The open project's type sets a mode, and the mode decides the whole working set.** Each project type (the base's
+and each extension's) declares its mode as data, in its manifest:
+
+| Project type (deliverable) | Canvas | Blades and functions shown | Script and code languages | Extra cell types |
+|---|---|---|---|---|
+| BI (a BI notebook) | Report canvas (HTML and PDF) | analysis, charts, report text | Python | none beyond SQL, DAX, HTML, Markdown |
+| Streamlit (an app) | Streamlit canvas | Streamlit pieces, components, controllers | Python | none (today's) |
+| Accounting (an Excel workbook) | Excel canvas | Excel and accounting tools (statements, invoices, workbook functions, write blades) | Python | none |
+| Code app (Power Apps) | component previews (TSX) | TypeScript and React blades, connectors | TypeScript and React | TypeScript and TSX cells |
+
+Rules:
+1. **One mode at a time, from the open project** (no project open: the BI mode, the base's). Switching projects
+   switches modes; nothing mixes.
+2. **What a mode sets:** the canvas kind(s) offered (New, the Apps or canvas area of the rail and its name), the
+   blade and function families shown (Insert a blade… / Insert a function…, the Blades page's default filter, the
+   starters gallery; the user can still show all), the Scripts IDE's languages (new files, templates, IntelliSense
+   and lint providers), the notebook's cell kinds (the "+ Cell" menu, Jupyter-style keys), the agent's tool list
+   and context.md's guide (only the mode's tools are offered first), and the deliverable's export (Report: HTML
+   and PDF; Streamlit: the app export; Accounting: workbook.py and the workbook; Code app: push).
+3. **Shared in every mode:** Grids, connections, the library, APIs, Structures, the Data Explorer, Variables,
+   Session, Settings, the data notebook.
+4. **Declared, not coded:** a mode is the manifest's data (canvas kinds, blade families, languages, cell kinds,
+   tool groups, export). The front end reads it (the boundary rule); an extension adds a mode by declaring one.
+   No `if project type == ...` in shared code: a mode check reads the declaration.
+5. **Before the manifest boundary exists**, each extension puts its mode in its extension description (the
+   entry point) as the same data, and the base reads it through one function (`active_mode()`), so the later
+   boundary work moves it, not rewrites it.
+
 ## The base: Swiss Army Bench (BI Edition)
 **For:** analysing data in notebooks and handing over a finished BI notebook.
 **Has:** Grids and steps, the Analyze menu (Show the math), Visualizations, the ERD and Key Finder, compare and
