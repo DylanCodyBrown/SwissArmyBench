@@ -765,6 +765,32 @@ extensions/accounting/   the Accounting extension (swissarmybench-accounting, it
                          reinsurer's cessions)
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
                          and an Open Swiss Army Bench button (starts the server when needed, opens its window)
+extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
+                         powerapps = swissarmybench_powerapps.extension; project type codeapp): Power Apps code
+                         apps built with Microsoft's own command lines (pa for the app, pac for environments and
+                         custom connectors); docs/ideas.md "The Power Apps extension, phase 1"
+  src/swissarmybench_powerapps/
+    extension.py         what the base reads: ID, NAME, ADDS, MODE (the code app mode as data), AREAS, routes,
+                         commands, STARTERS, SECRET_PATHS, SESSION_RULES, stop; its composition root
+    commands.py          the agent's powerapps_* tools (Push, a custom connector, an install wait for Allow)
+    domain/cli_lines.py  each action's command line (every value checked: one line, no option, never a secret)
+                         and each command's output read (JSON, pac's tables by their headings)
+    domain/tools.py      Node.js, npm, pa, pac, .NET, Deno: versions, each system's install, the missing answer
+    domain/project.py    a code app's folder: power.config.json's sources, the generated files, the tree, the
+                         .sab/project.json type
+    domain/connectors.py a connector in the APIs explorer's model (read-only), custom connector files from an
+                         OpenAPI document (Swagger 2.0, the sign-in as connection parameters, no secret)
+    services/powerapps.py the use cases: runs (streamed, kept for the session, audited), sign-in, environments,
+                         new and open, sources, connectors, Run live, Push, versions, custom connectors
+    adapters/runner.py   child processes (time limits, lines as they come, stdin closed), a free port
+    adapters/files.py    the code app's folder, the connector files, powerapps.json (the last code app opened)
+    adapters/environment_api.py  a connector's definition from the connectivity service (pac's token, in memory)
+    server/routes.py     /powerapps/* and the dev server's live pages (/powerapps/live/<key>/, the live proxy)
+    starters/            TypeScript and React snippet starters (families TypeScript, React, Connectors)
+web/src/codeAppPage.ts   (a plug-in) the rail's Code App page: tools, sign-in, project, connectors (the APIs
+                         explorer's look), Run live's pane, Push, custom connectors, runs; shown while on
+web/src/workbenchCodeFile.ts (a plug-in) a code app's file in the Workbench's editor: Monaco's TypeScript
+                         service (ts.worker.js) over the project's files; New TypeScript file in the code app mode
 ```
 
 ## Commands

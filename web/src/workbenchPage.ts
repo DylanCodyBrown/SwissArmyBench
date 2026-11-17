@@ -68,6 +68,7 @@ import { cellsPane } from "./workbenchCellsPane";
 import { EXPLORER_BROADCAST, EXPLORER_WINDOW, type ExplorerResult, type ExplorerState, openExplorerWindow } from "./dataExplorer";
 import { openVariables } from "./variablesPage";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
+import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { appMark, back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
@@ -94,7 +95,7 @@ import { type AppHost, appPanels } from "./workbenchApp";
 import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
-import { modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
+import { activeMode, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, mountProject, onBeforeSave, onProject, openProject as openSabProject, projectLabel, projectState, type ProjectState, reportLayout, saveFolderAsFile, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
@@ -105,7 +106,7 @@ watchTheme();
 
 interface Doc {
   id: number;
-  kind: "notebook" | "script" | "app" | "blade" | "table" | "workbook";
+  kind: "notebook" | "script" | "app" | "blade" | "table" | "workbook" | "codefile";
   title: string;
   path: string | null;
   modified: number | null;
@@ -127,6 +128,8 @@ interface Doc {
   modes?: ModeFrame;
   /** App mode: Properties and State share the live page's state. */
   app?: ReturnType<typeof appPanels>;
+  /** A code app's file (workbenchCodeFile.ts, the Power Apps extension's plug-in): TypeScript or TSX. */
+  codefile?: CodeFileView;
 }
 
 interface PythonChoice {
@@ -1426,6 +1429,7 @@ function close(doc: Doc, moved = false): void {
   doc.notebook?.dispose();
   doc.script?.dispose();
   doc.console?.dispose();
+  doc.codefile?.dispose();
   docs.splice(docs.indexOf(doc), 1);
   tablesSent.delete(doc);
   flows.delete(doc);
@@ -1478,6 +1482,49 @@ onMode(() => {
   drawTop();
 });
 void whenMode();
+
+registerTabKind({ id: "codefile", label: "Code file", icon: "codeapp", mark: "script" });
+
+// ===== a code app's files (the Power Apps extension's plug-in: workbenchCodeFile.ts) =====
+
+/** A file of the open code app, in the editor (TypeScript or TSX with Monaco's own language service). */
+async function openCodeFileDoc(path: string): Promise<void> {
+  const already = docs.find((d) => d.kind === "codefile" && d.codefile?.path === path);
+  if (already) return show(already);
+  const doc = makeDoc("codefile", baseName(path), path, null);
+  try {
+    doc.codefile = await openCodeFile(path, effectiveTheme(), () => {
+      if (!doc.dirty) {
+        doc.dirty = true;
+        drawTabs();
+      }
+    });
+  } catch (e) {
+    docs.splice(docs.indexOf(doc), 1);
+    toast((e as Error).message, "error");
+    return;
+  }
+  doc.element.append(doc.codefile.element);
+  show(doc);
+}
+
+/** The mode's first language when it is not Python: New makes a file of it (a code app: TypeScript). */
+const scriptLanguage = (): string | null => {
+  const first = activeMode().mode.languages[0];
+  return first && first !== "python" ? first : null;
+};
+const LANGUAGE_WORDS: Record<string, string> = { typescript: "TypeScript", tsx: "TSX", python: "Python" };
+async function newModeFile(language: string): Promise<void> {
+  const ending = language === "tsx" ? ".tsx" : ".ts";
+  const name = prompt(`New ${LANGUAGE_WORDS[language] ?? language} file (in the code app's src folder)`, `module${ending}`);
+  if (!name) return;
+  try {
+    const path = await newCodeFile(name.endsWith(ending) || /\.(ts|tsx)$/.test(name) ? name : `${name}${ending}`);
+    await openCodeFileDoc(path);
+  } catch (e) {
+    toast((e as Error).message, "error");
+  }
+}
 
 const groups = mountGroups<Doc>({
   kindOf,
@@ -1615,6 +1662,13 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     if (!as) return doc.workbook.save();
     const where = await chooseFile({ title: "Save workbook design as", mode: "save", start: doc.path ?? project?.folder ?? homeFolder, name: `workbook${WORKBOOK_ENDING}` });
     return where ? doc.workbook.save(where.toLowerCase().endsWith(".json") ? where : where + WORKBOOK_ENDING) : false;
+  }
+  if (doc?.codefile) {
+    await doc.codefile.save();
+    doc.dirty = false;
+    drawTabs();
+    toast(`Saved ${doc.title}.`);
+    return true;
   }
   if (!doc || (doc.kind !== "notebook" && doc.kind !== "script" && doc.kind !== "app")) return false;
   let path = doc.path;
@@ -1770,6 +1824,11 @@ function topKind(): Kind {
 /** The top bar's New: that kind's start. From a landing page the move is pushed, so Back returns to it. */
 function topStart(): void {
   const k = topKind();
+  const own = k === "script" ? scriptLanguage() : null;
+  if (own) {
+    void newModeFile(own);
+    return;
+  }
   const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
   if (!start) return;
   if (landing.kind()) {
@@ -1783,7 +1842,8 @@ function topStart(): void {
 function drawTop(): void {
   const doc = current;
   const makes = tabKinds().find((t) => t.mark === topKind() && t.start);
-  const making = makes ? startLabel(makes) : "";
+  const own = topKind() === "script" ? scriptLanguage() : null;
+  const making = own ? `New ${LANGUAGE_WORDS[own] ?? own} file` : makes ? startLabel(makes) : "";
   const newLabel = topNew.querySelector(".btn-label");
   if (newLabel && making) newLabel.textContent = making;
   topNew.title = making;
@@ -1842,6 +1902,10 @@ function cellEntries(doc: Doc): MenuEntry[] {
     { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: add("dax") },
     { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: add("html") },
     { label: "Markdown", icon: "edit", run: add("markdown") },
+    // The open project's mode's own cell kinds (a code app: TypeScript and TSX): offered, not yet run here.
+    ...activeMode().mode.cell_kinds
+      .filter((k) => !["code", "python", "sql", "dax", "html", "markdown"].includes(k))
+      .map((k) => ({ label: `${LANGUAGE_WORDS[k] ?? k} (coming)`, icon: "code", disabled: true, title: "Coming: a later version runs these cells", run: () => undefined })),
   ];
 }
 
@@ -2483,7 +2547,7 @@ onTabKinds(() => {
 // ===== commands: the palette, the keys and the agent (workbench_window) =====
 
 const isCode = (): boolean => !!current?.notebook || !!current?.script;
-const saves = (): boolean => isCode() || !!current?.canvas || !!current?.workbook;
+const saves = (): boolean => isCode() || !!current?.canvas || !!current?.workbook || !!current?.codefile;
 const isCanvas = (): boolean => !!current?.canvas;
 const NO_CANVAS = "no Streamlit app is in front";
 const isScript = (): boolean => !!current?.script;
@@ -3226,11 +3290,21 @@ onPanels(() => {
 });
 
 watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
+// The open project's mode changed (a project opened or closed): New's language and the cell kinds follow.
+onNotice((notice) => {
+  if (notice.type === "mode_changed") void refreshMode();
+});
+// Another window of this app asks for a code app's file here (the Code App page's Open in the Workbench).
+window.addEventListener("message", (e: MessageEvent) => {
+  const said = e.data as { sab?: unknown; path?: unknown } | null;
+  if (e.origin === location.origin && said?.sab === "codefile" && typeof said.path === "string") void openCodeFileDoc(said.path);
+});
 void Promise.all([
   loadPanels(),
   loadKindColours(),
   refreshHome(),
   loadConnections(),
+  whenMode(),
   api<{ pythons: PythonChoice[] }>("/workbench/pythons").then((r) => (pythons = r.pythons), () => undefined),
 ]).then(() => {
   drawEmpty();
@@ -3239,6 +3313,8 @@ void Promise.all([
   const fresh = openedWith.get("fresh") === "1";
   if (fresh) sessionStorage.removeItem(SESSION_KEY);
   void (fresh ? Promise.resolve(false) : restore()).then(() => {
+    const codefile = openedWith.get("codefile"); // a code app's file (the Code App page)
+    if (codefile) void openCodeFileDoc(codefile);
     const wanted = openedWith.get("open"); // the address as opened (the page clears it once the token is read)
     // At a reference's cell too (the Connections page, with no Workbench window yet).
     const cell = Number(openedWith.get("cell"));

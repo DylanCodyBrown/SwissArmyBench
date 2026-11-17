@@ -85,8 +85,17 @@ _MESSAGES: dict[int, str] = {
 class LocalOnlyGuard:
     """ASGI middleware enforcing the Host, Origin and token checks."""
 
-    def __init__(self, app: ASGIApp, port: int, token: str, session: str | None = None) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        port: int,
+        token: str,
+        session: str | None = None,
+        secret_paths: tuple[str, ...] = (),
+    ) -> None:
         self._app = app
+        # Live pages whose path carries their own secret (Streamlit's; an extension's dev server's).
+        self._secret_paths: tuple[str, ...] = (_SECRET_PATH, *secret_paths)
         self._token: bytes = token.encode("ascii")
         # The page's cookie value: a secret of this start's own (None: no cookie is accepted).
         self._session: bytes | None = session.encode("ascii") if session else None
@@ -122,7 +131,7 @@ class LocalOnlyGuard:
             return 403
         origin: str | None = headers.get("origin")
         path: str = scope["path"]
-        if path.startswith(_SECRET_PATH) and len(path) > len(_SECRET_PATH):
+        if any(path.startswith(p) and len(path) > len(p) for p in self._secret_paths):
             # A sandboxed frame has no origin of its own to name.
             return None if origin in (None, "null") or origin in self._allowed_origins else 403
         if origin is not None and origin not in self._allowed_origins:

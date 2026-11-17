@@ -48,7 +48,7 @@ from typing import Any
 
 from swissarmybench.domain import html_cells
 
-LANGUAGES: tuple[str, ...] = ("dax", "html", "markdown", "streamlit", "python")
+LANGUAGES: tuple[str, ...] = ("dax", "html", "markdown", "streamlit", "python", "typescript", "tsx")
 # The cell a snippet of each language goes into, in the user's words.
 CELL_KIND: dict[str, str] = {
     "dax": "dax",
@@ -56,6 +56,10 @@ CELL_KIND: dict[str, str] = {
     "markdown": "markdown",
     "streamlit": "code",
     "python": "code",
+    # TypeScript and React (a code app's: the Power Apps extension's mode): a .ts or .tsx file, or (phase 2)
+    # a TypeScript cell.
+    "typescript": "typescript",
+    "tsx": "tsx",
 }
 CELL_WORDS: dict[str, str] = {
     "dax": "a DAX cell",
@@ -63,6 +67,8 @@ CELL_WORDS: dict[str, str] = {
     "markdown": "a Markdown cell",
     "streamlit": "a Python cell",
     "python": "a Python cell",
+    "typescript": "a TypeScript file",
+    "tsx": "a TSX file",
 }
 LANGUAGE_WORDS: dict[str, str] = {
     "dax": "DAX",
@@ -70,7 +76,16 @@ LANGUAGE_WORDS: dict[str, str] = {
     "markdown": "Markdown",
     "streamlit": "Streamlit",
     "python": "Python",
+    "typescript": "TypeScript",
+    "tsx": "TypeScript and React",
 }
+# TypeScript's reserved words: a bare value is never one.
+_SCRIPT_KEYWORDS: frozenset[str] = frozenset(
+    "break case catch class const continue debugger default delete do else enum export extends false finally "
+    "for function if import in instanceof new null return super switch this throw true try typeof var void "
+    "while with as implements interface let package private protected public static yield any boolean "
+    "number string symbol type from of await async".split()
+)
 # A typed value in Markdown: the marks that would format, link or fill a name are escaped (a backslash;
 # markup as HTML's own references), the rest is as typed, so "Made-up, 2026-01-31" reads as it is.
 _MARKDOWN_MARKS: frozenset[str] = frozenset("\\`*_[]{}|~$")
@@ -270,6 +285,38 @@ def _python_places(text: str) -> dict[int, str]:
     return places
 
 
+def _script_places(text: str) -> dict[int, str]:
+    """Each placeholder's place in TypeScript (and TSX), by where it starts: a string ('...', "...", or a
+    template literal's text), a comment (// or /* */), or bare."""
+    places: dict[int, str] = {}
+    matches = {m.start(): m.end() for m in PLACEHOLDER.finditer(text)}
+    state, quote, i = "code", "", 0
+    while i < len(text):
+        if i in matches:
+            places[i] = state
+            i = matches[i]
+            continue
+        two, one = text[i : i + 2], text[i]
+        if state == "code":
+            if two == "//":
+                state = "line comment"
+            elif two == "/*":
+                state, i = "block comment", i + 1
+            elif one in "'\"`":
+                state, quote = ("template" if one == "`" else "string"), one
+        elif state == "line comment" and one == "\n":
+            state = "code"
+        elif state == "block comment" and two == "*/":
+            state, i = "code", i + 1
+        elif state in ("string", "template"):
+            if one == "\\":
+                i += 1
+            elif one == quote:
+                state = "code"
+        i += 1
+    return places
+
+
 def _html_places(text: str) -> dict[int, str]:
     """Each placeholder's place in HTML: inside an HTML cell's {{ ... }}, or the markup."""
     places: dict[int, str] = {}
@@ -314,6 +361,9 @@ def _written(value: str, place: str, language: str, kind: str, label: str) -> st
         written = value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'")
         return written.replace("{", "{{").replace("}", "}}") if place == "f-string" else written
 
+    elif language in ("typescript", "tsx") and place in ("string", "template"):
+        written = value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'").replace("`", "\\`")
+        return written.replace("${", "\\${") if place == "template" else written
     elif language == "html" and place == "markup":
         return html.escape(value, quote=True)
     elif language == "markdown" and place == "markup":
@@ -323,8 +373,9 @@ def _written(value: str, place: str, language: str, kind: str, label: str) -> st
             raise SnippetError(f"{label} goes inside code here: it cannot hold a backtick (`).")
         return value
     # Bare in DAX or Python, or an HTML cell's name: a name or a number, nothing that could be code.
-    if not _BARE.fullmatch(value) or keyword.iskeyword(value):
-        what = "a Python name" if language != "dax" else "a name"
+    script = language in ("typescript", "tsx")
+    if not _BARE.fullmatch(value) or (value in _SCRIPT_KEYWORDS if script else keyword.iskeyword(value)):
+        what = "a TypeScript name" if script else "a Python name" if language != "dax" else "a name"
         raise SnippetError(f"{label} is {what} or a number here: letters, digits and _ ({value!r}).")
     return value
 
@@ -371,6 +422,8 @@ def fill(text: str, language: str, values: Mapping[str, Any]) -> str:
         "python": _python_places,
         "html": _html_places,
         "markdown": _markdown_places,
+        "typescript": _script_places,
+        "tsx": _script_places,
     }[language](text)
 
     def write(match: re.Match[str]) -> str:

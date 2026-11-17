@@ -284,6 +284,8 @@ def bootstrap(
         packs=pack_files.blade_dirs,
         # The built-in starter pack ships inside the package, so each version brings its own.
         starters=Path(__file__).resolve().parent / "starters",
+        # Each extension that is on: its own starters (its module's STARTERS folder).
+        more_starters=lambda: [Path(s) for m in on_extensions if (s := getattr(m, "STARTERS", None))],
     )
     verifier = Verifier(settings.duckdb_memory_limit)
 

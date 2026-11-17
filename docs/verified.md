@@ -2619,3 +2619,66 @@ was this branch's (a new project wrote .sab/project.json for the base's type too
 writes it; fixed, test_streamlit_apps passes). test_client_install (adapters/intellisense.py) and test_tool_sweep's
 workbench_problems fail on the base too (files this branch did not change). test_rail_page, test_table_cells_page,
 test_ui's wide column, test_workbench_feedback's landing pages and test_workbench_page's two errors pass alone (load).
+
+## The Power Apps extension, phase 1 (2026-11-17, branch ext-powerapps)
+
+Relied on (read 2026-11-17):
+- Microsoft Learn, **Power Apps CLI command reference** (code-apps/reference/cli, ms.date 2026-11-10): `pa app
+  init|add data-source|remove data-source|run|push|list`, `pa auth login|status --json|switch`, `pa connector
+  list --json` (id, name, displayName, description, isTabular), `pa connection list --json`; non-interactive
+  use needs every option given. **Environment variables** (2026-10-02): `pa app run`'s local host on 8080,
+  the app at `http://localhost:3000` unless `localAppUrl` says otherwise.
+- **Quickstart** (code-apps/how-to/create-an-app-from-scratch, 2026-08-13): `npx degit
+  github:microsoft/PowerAppsCodeApps/templates/vite my-app`, `npm install`, `pa app init`, `pa app run`
+  (Local Play), `npm run build`, `pa app push`.
+- **Connect to data** (2026-10-02): generated `src/generated/models/*Model.ts` and `services/*Service.ts`;
+  Excel Online connectors not supported yet.
+- **Overview** (2026-09-23): an administrator enables code apps per environment (Power Platform admin center,
+  Manage, Environments, Settings, Product, Features, Power Apps code apps, Enable code apps); no command
+  line reads that setting, so the app says it plainly when a command's error names it.
+- **pac code** (power-platform/developer/cli/reference/code, 2026-10-25): "(Preview) ... use the npm-based
+  Power Apps CLI instead": so `pa` is used (docs over the plan, said in docs/ideas.md).
+- **pac auth** (2026-10-25: create, list, select, token), **pac env** (list, who), **pac connector**
+  (create, update, download, list --json), **pac install** (the .NET tool `Microsoft.PowerApps.CLI.Tool`;
+  `pac` alone prints "Version: x").
+- The template's `package.json` and `vite.config.ts` (the Power Apps Vite plugin) read from the
+  PowerAppsCodeApps repository's main branch.
+- The npm packages themselves, read (not run against a tenant): `@microsoft/power-apps-cli` 1.4.2 (its
+  `power.config.json` schema; `pa auth status --json`'s shape; the push's "App pushed successfully. You can
+  play your app at <link>"; `pa app run` starting `npm run dev`; the connectivity service it reads for a
+  connector, `https://api.powerplatform.com/connectivity/connectors/<name>?api-version=1&$filter=environment
+  eq '<id>'`, its `properties.swagger`) and `@microsoft/power-apps` 1.6.0 (the host bridge: the spike in
+  docs/ideas.md).
+- The Power Platform API's documented **Get Connector By Id** (api-version 2024-10-01) returns no definition:
+  the CLI's own `api-version=1` read above is what the app uses, not a documented contract.
+
+Checked here: every command line (tests/test_powerapps_rules.py), the secret guard, each output's reading
+(recorded made-up output in the documented shapes; pac's tables with headings a single space apart, as the
+docs print them), power.config.json's sources, the generated files, the tree, the tools' versions and
+install commands, the connectors in the explorer's model, custom connector files from a made-up OpenAPI
+document (each sign-in), the TypeScript snippets; through the door with the tools stood in by recorded
+fakes on a PATH of their own (tests/powerapps_fakes.py: pa, pac, npm, npx, node) and the connectivity
+service by a made-up stand-in (tests/test_powerapps.py): off and on, the missing-tool answer, sign-in,
+environments and profiles, New code app, code apps switched off said plainly, sources added and removed,
+the editor's file read and saved (and refused outside the folder), connectors listed, searched, read from
+the app's schemas and from the service (its token never in a run, the log or an answer), Run live through
+the proxy (a made-up dev server; a wrong key refused), Push's dry run and the agent's push declined then
+allowed, a custom connector made, every action an agent command. Node.js and npm for real (version
+reading) where present (v22 here). Browser (Chromium): tests/e2e/test_codeapp_page.py (the rail's area off
+and on; New code app to Push; a connector explored and added; Run live in the pane; the runs; a custom
+connector's dry run and Make; App.tsx in the Workbench with Monaco's TypeScript service marking a type error,
+saved with Ctrl+S; New TypeScript file in the code app mode; the Blades page's families).
+
+NOT checked: a real Power Platform environment, a real `pa` or `pac` sign-in, `pa app init`, `add
+data-source`, `push` or `pac connector create` against a tenant, the template downloaded and installed for
+real (degit and `npm install` were stood in for), the Power Apps Vite plugin's dev server under `--base`
+(its printed Local Play address, its own config route), Local Play itself, the local runner (`pa app run`),
+the connectivity service's answer for a real connector, `pac env list`'s and `pac auth list`'s exact column
+widths on Windows, Windows and macOS (the `.cmd` wrappers of the fakes are written but not run), the
+connector spike in a running host.
+
+Whole suite with Chromium (2026-11-17, branch ext-powerapps): 3,880 passed, 45 skipped, 6 failed. Mine: one
+(test_streamlit_apps: a new folder project now holds .sab/project.json, from the base's project types; the test
+fixed). The intellisense pair (test_client_install: adapters/intellisense.py starts a process;
+test_tool_sweep: workbench_problems answers 500 for a path that is not there) are untouched by this branch.
+test_sandbox_pages, test_table_cells_page and test_workbench_page's SQL cell passed alone (load).

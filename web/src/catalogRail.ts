@@ -305,9 +305,16 @@ export function mountRail(host: RailHost): Rail {
   // ===== blades =====
 
   let startersAsked: Promise<unknown> | null = null;
+  // The open project's mode (app_mode): its blade families open at first (modes.ts orders them).
+  let modeFamilies: string[] = [];
   async function loadBlades(): Promise<void> {
     // The starters come with the app and do not change while it runs: asked once, beside the first list.
     startersAsked ??= starters().then((found) => (starterFamilies = found), () => undefined);
+    await api<{ mode: { families: string[] } }>("/app/mode").then((got) => {
+      const fresh = (got.mode.families ?? []).filter((f) => !modeFamilies.includes(f));
+      modeFamilies = got.mode.families ?? [];
+      for (const family of fresh) openFamilies.add(family); // the mode's families open at first
+    }, () => undefined);
     try {
       [blades] = await Promise.all([api<{ blades: BladeSummary[] }>("/blades").then((r) => r.blades), startersAsked]);
     } catch (error) {
@@ -349,7 +356,7 @@ export function mountRail(host: RailHost): Rail {
           ]);
         },
       },
-      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit", python: "Python" }[language] : "Python"),
+      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit", python: "Python", typescript: "TypeScript", tsx: "TSX" }[language] : "Python"),
       h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );
@@ -1144,7 +1151,7 @@ export function mountRail(host: RailHost): Rail {
 
 /** Each blade kind's icon, each starter family's, each snippet language's (dom.ts ICONS). */
 const BLADE_ICONS: Record<string, string> = { sql: "sql", other: "bolt", vault: "key", secret: "key", analysis: "fit", snippet: "copy" };
-const LANGUAGE_ICONS: Record<string, string> = { dax: "formula", html: "html", markdown: "markdown", streamlit: "page", python: "code" };
+const LANGUAGE_ICONS: Record<string, string> = { dax: "formula", html: "html", markdown: "markdown", streamlit: "page", python: "code", typescript: "codeapp", tsx: "codeapp" };
 const FAMILY_ICONS: Record<string, string> = {
   "Power BI": "powerbi",
   Excel: "excel",

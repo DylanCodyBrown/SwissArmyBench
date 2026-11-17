@@ -69,6 +69,7 @@ class BladeStore:
         packs: Callable[[], list[tuple[Path, str]]] | None = None,
         starters: Path | None = None,
         made: Callable[[], object] | None = None,
+        more_starters: Callable[[], list[Path]] | None = None,
     ) -> None:
         # The library (Plans/library.plan.md): saved blades are its connections/, vaults/ and blades/ files;
         # an API's blades (its API blade, its web call blades) are files in its apis/<name>/ folder, read like
@@ -76,6 +77,8 @@ class BladeStore:
         # owner, 2026-11-17: "Apis, Connections they live OUTSIDE of the project").
         self.folder = folder
         self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
+        # The extensions' own starter blades (each an extension's STARTERS folder, while it is on).
+        self._more_starters = more_starters or (lambda: [])
         self.folders_file = folders_file
         # Installed packs' blades folders, with each pack's label: read-only blades from a marketplace.
         self._packs = packs or (lambda: [])
@@ -317,10 +320,11 @@ class BladeStore:
 
     def starters(self) -> list[Blade]:
         """The built-in starter pack's blades, by family then name (the families' order: FAMILIES)."""
-        if self.starters_folder is None:
-            return []
         problems: list[dict[str, str]] = []
-        found = self._pack_files(self.starters_folder, rules.STARTERS, problems)
+        found: list[Blade] = []
+        for folder in [self.starters_folder, *self._more_starters()]:
+            if folder is not None and folder.is_dir():
+                found += self._pack_files(folder, rules.STARTERS, problems)
         order = {family: i for i, family in enumerate(rules.FAMILIES)}
         return sorted(found, key=lambda b: (order.get(b.family, len(order)), b.name.casefold()))
 

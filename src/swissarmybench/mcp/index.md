@@ -48,9 +48,9 @@ No prefix: `guide`, `commands`, `health`.
 - Not running: ask the user to run `swissarmybench` (`health` checks).
 - A bug report: `app_beta_notes`, then `app_beta_log(kind="error")`.
 - Prefer steps on the user's grid to copies; give the table and filter behind a number.
-- `workbench_export_script`: a document as one file.
+- `workbench_export_script`: a document, one file.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
-  streamlit, projects, library, accounting, writing, privacy. Also `swissarmybench://guide/<topic>`.
+  streamlit, projects, library, accounting, powerapps, writing, privacy. Also `swissarmybench://guide/<topic>`.
 - `commands(match="word")`: every tool's exact arguments.

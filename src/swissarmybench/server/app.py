@@ -70,6 +70,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from swissarmybench.bootstrap import bootstrap
+from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.server import (
     routes_agent,
     routes_analysis,
@@ -143,6 +144,11 @@ def create_app(
     settings, workers = ctx.settings, ctx.workers
     # The pages' cookie (security.py): a secret of this start's own, never the token, in memory only.
     session_secret = secrets.token_urlsafe(32)
+    # Each extension that is on: its live pages' secret paths (the guard lets them through, the route checks
+    # the secret) and its Session page words.
+    secret_paths = tuple(p for extension in ctx.extensions for p in getattr(extension, "SECRET_PATHS", ()))
+    for extension in ctx.extensions:
+        session_log_rules.RULES.update(getattr(extension, "SESSION_RULES", None) or {})
 
     async def session(request: Request) -> Response:
         # The guard let the request in (the token, or a good cookie). POST: the cookie for this start.
@@ -226,6 +232,10 @@ def create_app(
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         await ctx.sab_projects.stop()  # nor an open .sab's working folder
+        for extension in ctx.extensions:  # nor an extension's processes (a code app's dev server)
+            stop = getattr(extension, "stop", None)
+            if callable(stop):
+                await stop(ctx)
         ctx.variables.release()  # the environment as it was
         workers.close()
         ctx.beta.stopped()
@@ -293,7 +303,9 @@ def create_app(
             Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[
-            Middleware(LocalOnlyGuard, port=port, token=token, session=session_secret),
+            Middleware(
+                LocalOnlyGuard, port=port, token=token, session=session_secret, secret_paths=secret_paths
+            ),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
         ],
         lifespan=lifespan,
