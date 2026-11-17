@@ -247,30 +247,26 @@ def test_the_data_notebook_and_the_app_notebooks_have_icons_of_their_own(
     shot(page, "notebook-icons")
 
 
-def test_the_scripts_page_shows_each_tables_transformations_and_opens_them(
+def test_the_landing_pages_have_no_transformations_and_no_data_panel(
     browser: Browser, server: dict[str, Any], orchard: dict[str, Any]
 ) -> None:
+    """The owner (2026-11-17): "notebooks also has data panel on the left and transformations which is not
+    needed"; on Scripts: "I see data on the left which is uneeded". A table's transformations live in
+    data.ipynb, which the agent still opens at the table's cell."""
     page = workbench(browser, server, path=orchard["data"])
     expect(page.locator(".wb-tab", has_text="data.ipynb")).to_be_visible(timeout=20000)
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=script&view=list#token={server['token']}")
     landing = page.locator(".wb-landing")
-    expect(landing).to_be_visible(timeout=20000)
-    expect(landing.get_by_role("heading", name="Scripts", exact=True)).to_be_visible()
-    card = landing.locator(f".wb-landing-table[data-table='{TABLE}']")
-    expect(card).to_contain_text(f"{TABLE} · 2 steps", timeout=20000)
-    expect(card.locator(".wb-landing-steps li")).to_have_text(
-        ["Keep rows where plums is greater than 5", "Sort by plums descending"]
-    )
-    shot(page, "scripts-landing-transformations")
-    # A click opens the table's read-only cell in the document that holds it.
-    card.click()
-    expect(landing).to_be_hidden()
-    cell = page.locator(".wb-tcell.role-transformations")
-    expect(cell).to_be_in_viewport(timeout=20000)
-    expect(page.locator(".wb-tab", has_text="data.ipynb")).to_have_attribute("aria-selected", "true")
-    # The Notebooks page shows them too; the agent opens them the same way.
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=notebook&view=list#token={server['token']}")
-    expect(landing.locator(f".wb-landing-table[data-table='{TABLE}']")).to_be_visible(timeout=20000)
+    for kind, title in (("script", "Scripts"), ("notebook", "Notebooks")):
+        page.goto(
+            f"http://127.0.0.1:{server['port']}/workbench?kind={kind}&view=list#token={server['token']}"
+        )
+        expect(landing).to_be_visible(timeout=20000)
+        expect(landing.get_by_role("heading", name=title, exact=True)).to_be_visible()
+        expect(landing.locator(".wb-landing-table")).to_have_count(0)
+        expect(landing.get_by_role("heading", name="Transformations")).to_have_count(0)
+        expect(page.locator(".wb-data")).to_be_hidden()
+    shot(page, "notebooks-landing-no-data-panel")
+    # The agent still opens a table's transformations: its read-only cell in data.ipynb.
     shown = window(server, "tables.transformations", table=TABLE)
     assert shown["table"] == TABLE and shown["cell"] and shown["document"].endswith("data.ipynb")
     expect(landing).to_be_hidden()

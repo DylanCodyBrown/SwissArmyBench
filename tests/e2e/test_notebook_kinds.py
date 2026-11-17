@@ -126,7 +126,7 @@ def test_the_data_panel_is_beside_app_notebooks_and_canvases_not_the_data_notebo
     assert window(server, "documents")["panes"]["data_panel"] == "away"
     with pytest.raises(urllib.error.HTTPError) as refused:
         window(server, "view.toggleSidebar", collapsed=False)
-    assert "not beside the data notebook" in refused.value.read().decode()
+    assert "not the data notebook" in refused.value.read().decode()
     page.locator(".wb-top button[aria-label='Workbench menu']").click()
     menu = page.get_by_role("menu")
     expect(menu).to_be_visible()

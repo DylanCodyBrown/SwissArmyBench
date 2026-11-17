@@ -160,12 +160,9 @@ export function mountLanding(host: LandingHost): Landing {
     );
     const [more, tables] = await Promise.all([projectDocuments(k).catch(() => [] as string[]), k === "app" ? Promise.resolve([]) : host.tables().catch(() => [] as LandingTable[])]);
     if (mine !== serial || shown !== k) return;
-    if (tables.length) {
-      tablesHost.replaceChildren(
-        h("h2", { class: "wb-landing-section" }, "Transformations"),
-        h("ul", { class: "wb-landing-cards wb-landing-tables-list", "aria-label": "Transformations" }, ...tables.map(tableCard)),
-      );
-    }
+    // No Transformations cards (the owner, 2026-11-17: "notebooks also has data panel on the left and
+    // transformations which is not needed"): a table's transformations live in data.ipynb and data.py.
+    void tables;
     const openPaths = new Set(opened.map((d) => d.path).filter(Boolean));
     for (const path of more.filter((p) => !openPaths.has(p))) {
       const doc = { title: baseName(path), path, dirty: false, front: false };
