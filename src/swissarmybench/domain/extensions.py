@@ -230,8 +230,8 @@ def development_words(ext: Extension) -> str:
     """What a development checkout runs instead of Install (it is not a uv tool)."""
     return (
         f"This copy is a development checkout, not the installed app: install {ext.package} into its "
-        f"environment yourself (uv pip install -e extensions/{ext.id}), or run SWISSARMYBENCH_EXTENSIONS={ext.id} "
-        "to treat it as installed."
+        f"environment yourself (uv pip install -e extensions/{ext.id}), or run "
+        f"SWISSARMYBENCH_EXTENSIONS={ext.id} to treat it as installed."
     )
 
 

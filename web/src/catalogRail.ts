@@ -374,6 +374,9 @@ export function mountRail(host: RailHost): Rail {
       .filter((f) => !narrowed || familyShown(f.family))
       .map((f) => ({ family: f.family, shown: f.blades.filter((b) => bladeMatches(b)) }))
       .filter((f) => f.shown.length);
+    // Narrowed, in the mode's own order (a code app's: TypeScript, React, Connectors).
+    const order = activeMode().mode.families;
+    if (narrowed) families.sort((a, b) => order.indexOf(a.family) - order.indexOf(b.family));
     if (!families.length && !familyWords()) return;
     const all = familyWords()
       ? button(everyFamily ? `${activeMode().mode.name} only` : "Show all", () => {

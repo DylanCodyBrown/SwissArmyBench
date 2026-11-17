@@ -12469,6 +12469,7 @@ dialog.find-data .dialog-body {
   flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 12px;
+}
 
 /* ===== The Excel canvas (excelCanvas.ts, excelPreview.ts, excelTemplates.ts: the Accounting extension's
    front-end plug-in). Blocks on a grid of cells; Play's sheet as Excel draws it; templates and statements. */
@@ -12849,6 +12850,7 @@ dialog.find-data .dialog-body {
   gap: 8px;
   margin: 0 0 4px;
   overflow-wrap: anywhere;
+}
 
 .xc-template-main {
   display: flex;
@@ -12962,6 +12964,7 @@ dialog.find-data .dialog-body {
   color: var(--fg);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
 
 /* ===== The Code App page (codeAppPage.ts: the Power Apps extension's plug-in) and a code app's file in the
    Workbench (workbenchCodeFile.ts) ===== */

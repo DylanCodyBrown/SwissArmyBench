@@ -288,10 +288,10 @@ def test_the_blades_page_shows_the_modes_families_first(browser: Browser, server
     ]
     expect(page.locator(".starter-item[data-starter='React rows table']")).to_be_visible()
     shot(page, "codeapp-blades")
-    page.locator(".starter-every").click()
+    page.get_by_role("button", name="Show all", exact=True).click()
     expect(page.locator(".starter-family-row[data-family='Excel']")).to_be_visible()
     # Closed, the base's mode: every family as before.
     call(server, "POST", "/powerapps/project/close", {})
     page.reload()
     expect(page.locator(".starter-family-row[data-family='Excel']")).to_be_visible(timeout=20000)
-    expect(page.locator(".starter-every")).to_have_count(0)
+    expect(page.get_by_role("button", name="Show all", exact=True)).to_have_count(0)
