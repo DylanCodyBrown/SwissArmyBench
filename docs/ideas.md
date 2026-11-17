@@ -3601,4 +3601,4 @@ notebook or blade uses, found with ast: its source, never a value), Connections 
 used, `sab.connection(...)`), Tables (every grid: source + steps as one DuckDB query; today's Tables group),
 Structures (every Structures document: source + steps; an API call re-run; Return as table ones as DuckDB
 tables). The user's cells below, untouched; data.py exports it all, so an exported app runs on its own.
-Open: every grid and Structures document in the project (recommended), or only what the app uses (lineage).
+Decided (the owner, 2026-11-17): "everything in the project": every grid and Structures document, used by a page or not.
