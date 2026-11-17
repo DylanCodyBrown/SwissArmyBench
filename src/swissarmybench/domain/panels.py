@@ -12,9 +12,7 @@ from typing import Any
 
 # Each panel: its id (the page's and the agent's), the page it is on, and its name in Settings.
 PANELS: tuple[tuple[str, str, str], ...] = (
-    ("workbench.data", "Workbench", "Data panel"),
-    ("workbench.tables", "Workbench", "Tables"),
-    ("workbench.blades", "Workbench", "Blade variables"),
+    ("workbench.explorer", "Workbench", "Data Explorer"),
     ("workbench.streamlit", "Workbench", "Streamlit cells"),
     ("workbench.console", "Workbench", "Console"),
     ("workbench.variables", "Workbench", "Variables"),

@@ -139,3 +139,14 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   `catalog_load` and `catalog_remove` for one you make yourself.
 - A source's tables are not in the grid's DuckDB: `steps_run_sql` cannot read them. Open one as a grid,
   or run SQL on the source in a kernel.
+
+## Finding data (the Data Explorer)
+- `explorer_search(text)` searches everything that holds data at once: connections, their loaded catalogs'
+  tables and columns (each table with its DuckDB SQL name), the open tables and their columns, variables
+  (names and sources) and blades. Any case, by parts: `cust` finds `customer_id` and `CustomerKey`.
+- `kinds=["columns"]`, `connection="Shop"` narrow it; `column="customer_id"` lists every table with that
+  column in every connection (a join's hint). `offers` are connections whose catalog is not loaded:
+  `connections_load_catalog`, then search again.
+- The user's pane (Ctrl+Shift+E in the Workbench, Ctrl+K on the grid page) shows the same results; its
+  actions are tools you have: `connections_open_table`, `connections_preview_table`, `workbench_window`
+  (`explorer.insert`, `explorer.popOut`, `explorer.moveBack`).

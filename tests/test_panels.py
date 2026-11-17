@@ -18,6 +18,9 @@ def test_every_panel_is_on_until_switched_off() -> None:
     state = rules.defaults()
     assert set(state) == set(rules.IDS) and all(state.values())
     assert {page for _, page, _ in rules.PANELS} == {"Workbench", "Grid page"}
+    # The Data panel became the Data Explorer (2026-11-17): one switch for the pane.
+    assert ("workbench.explorer", "Workbench", "Data Explorer") in rules.PANELS
+    assert "workbench.data" not in rules.IDS
     # The rail has no switch (the owner, 2026-11-16): it is how you get around, so it is always there.
     assert "app.rail" not in rules.IDS
     assert rules.changes({"workbench.console": False}) == {"workbench.console": False}
@@ -35,7 +38,7 @@ def test_switches_are_the_servers_shared_and_on_again_at_each_start(tmp_path: Pa
     with make_client(tmp_path) as client:
         listed = client.get("/panels", headers=AUTH).json()["panels"]
         assert [p["id"] for p in listed] == list(rules.IDS) and all(p["on"] for p in listed)
-        assert listed[4] == {"id": "workbench.console", "page": "Workbench", "name": "Console", "on": True}
+        assert listed[2] == {"id": "workbench.console", "page": "Workbench", "name": "Console", "on": True}
         off = client.put("/panels", json={"workbench.console": False, "grid.ribbon": False}, headers=AUTH)
         assert off.status_code == 200, off.text
         state = {p["id"]: p["on"] for p in client.get("/panels", headers=AGENT).json()["panels"]}
