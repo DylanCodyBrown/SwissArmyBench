@@ -196,6 +196,6 @@ def test_dataverses_cursor_reads_tds_through_python_tds(names: dict[str, Any]) -
     assert cursor.description[0][0] == "name" and cursor.fetchall() == [("master",)]
     cursor.execute("SELECT TOP 1 100 % 7 AS m, '?' AS q FROM sys.databases")  # no parameters: as it is
     assert cursor.fetchall() == [(2, "?")]
-    with pytest.raises(RuntimeError, match="Dataverse's SQL endpoint refused: .*Invalid object name"):
+    with pytest.raises(RuntimeError, match=r"Dataverse's SQL endpoint refused: .*Invalid object name"):
         cursor.execute("SELECT * FROM dbo.no_such_table")
     raw.close()
