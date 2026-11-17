@@ -2385,3 +2385,10 @@ run), ODBC Driver 17/18 and mssql-python themselves (mssql-python's `attrs_befor
 are assumed, with a fallback to the string alone), Azure SQL serverless resume, Entra tokens from Microsoft,
 Windows integrated and Kerberos, the read replica routing, arrow-odbc (not measured), SQLCancel against a
 real driver.
+
+Whole suite with Chromium (2026-11-17, branch sql-server): 3,697 passed, 44 skipped, 11 failed. Run again
+alone, on this branch and on its base (ec0d298) alike: test_beta_export_page (the zip), test_html_cells_page
+(a script's HTML cell: Add cell never came), test_powerbi_page, test_ui's agent snapshot, narrow window and
+Application row (Zoom out), test_swap_connection_page's deleted connection (the notebook not rewritten)
+fail on the base too; test_rail_page and test_streamlit_page's export passed alone (load). One was this
+branch's: test_workbench_page's database form order (the SQL Server sign-in's new label; fixed).
