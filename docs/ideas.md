@@ -4120,7 +4120,8 @@ Decisions:
 
 ## The editions' names (the owner, 2026-11-17)
 "we should probably just call this the streamlit edition": today's app is **Swiss Army Bench Streamlit Edition**
-(data work and Streamlit apps); beside it **Swiss Army Bench Power Apps Edition** (Plans/code-apps.plan.md) and
-**Swiss Army Bench Lite** (Plans/lite-edition.plan.md). The visible name changes (status bar, titles, installer
+(data work and Streamlit apps); beside it **Swiss Army Bench Power Apps Edition** (Plans/code-apps.plan.md).
+The Lite edition's plan was scrapped (the owner, 2026-11-17: "Scrap the plan for the light app"); its status-bar
+name switch (SWISSARMYBENCH_EDITION=lite) goes with the Streamlit Edition rename. The visible name changes (status bar, titles, installer
 messages, README); the PyPI package, the uv tool and the commands stay `swissarmybench` and `sab`, so installed
 copies keep updating.

@@ -30,8 +30,8 @@ one place, with an agent that can do all of it too:
 It does nothing else: no DuckDB grids, no Python notebooks, no Streamlit, no analysis menu.
 
 ## How: an edition of this repository (recommended), not a separate one
-**Recommended: a third edition in this repository**, beside the full app and the Lite edition
-(Plans/lite-edition.plan.md): one source tree, a build making a separate wheel,
+**Recommended: a second edition in this repository**, beside the Streamlit Edition (today's app; the Lite
+edition was scrapped, 2026-11-17): one source tree, a build making a separate wheel,
 `swissarmybench-codeapps` on PyPI with its own installer, version line, tray, update check, and the name
 "Swiss Army Bench for Code Apps" in the status bar. The edition is fixed at install: the server mounts
 only its routes, the rail shows only its pages, the agent gets only its tools. Nothing switches inside a
@@ -46,7 +46,6 @@ running app.
   there for a code app, and the library goes to Git the same way.
 - **To decide:** whether the code apps edition's wheel leaves out the data features' code (smaller; a
   second set of build tests) or only their dependencies (DuckDB, pandas, ipykernel, Streamlit: simpler).
-  The Lite plan has the same question: decide it once for both.
 
 ## What it keeps, changes, drops, adds
 
@@ -122,7 +121,7 @@ Teams, OneDrive, Planner, SharePoint) stay the way.
 
 ## Work, roughly (branches of the size this project has been built in)
 1. **Editions as data:** the edition at start decides routes, rail, palette, menus, agent tools, the
-   status bar's name (shared with Lite: build it once). The build makes the wheels; the installers per
+   status bar's name. The build makes the wheels; the installers per
    edition; the release workflow tests and publishes each. *(1 branch)*
 2. **Environments, the Code App project and its tools:** pac and Node.js found and installed, sign-in,
    New and Open code app, the scaffold, `npm install`. *(1 branch)*
@@ -146,7 +145,7 @@ what it relied on in docs/verified.md.
 
 ## Open questions
 1. The edition's name: "Swiss Army Bench for Code Apps" (used here) or another.
-2. Leave the data features' code out of the code apps wheel, or only their dependencies (shared with Lite).
+2. Leave the data features' code out of the code apps wheel, or only their dependencies.
 3. Whether a code app project can also hold Python helpers (scripts that seed Dataverse, for example), or
    stays TypeScript only.
 
@@ -184,7 +183,7 @@ This supersedes the sections above where they differ.
    shell (security, the live-preview proxy, the agent's tools, context.md, the updater and installers) and
    calls pac, Node and Deno instead of DuckDB in Python and the IPython kernel. Rewriting the server in
    TypeScript is not planned: it costs much and changes nothing the user sees.
-6. **Work, revised:** (1) editions as data, shared with Lite; (2) the pac layer (find and install pac, Node,
+6. **Work, revised:** (1) editions as data; (2) the pac layer (find and install pac, Node,
    Deno; run, parse and show commands; auth and environments); (3) **the connector spike** (point 2); (4) the
    Code App project via pac and the live app in a pane; (5) the data notebook on Deno with SQL and TypeScript
    cells on DuckDB, Dataverse into grids, `data.ts` and the `.ts` modules; (6) connectors and custom
