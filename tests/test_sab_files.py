@@ -235,7 +235,7 @@ def test_a_type_only_project_json_is_a_project_with_no_tables_yet() -> None:
     assert read_only is None and manifest.tables == () and manifest.autosave is True
     assert json.loads(rules.write_manifest(manifest))["type"] == "accounting"
     with pytest.raises(SabError):
-        rules.read_manifest(json.dumps({"type": "accounting"}))  # an old .sab's must say it is one
+        rules.read_manifest(json.dumps({"type": "accounting"}))  # outside a folder it must say it is one
 
 
 def test_a_folder_is_a_project_by_its_sab_or_its_data_notebook() -> None:

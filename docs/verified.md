@@ -2875,3 +2875,17 @@ Checked on Linux in a container, each in its own uv tool folder and home:
 
 NOT checked: macOS and Windows desktops, the tray during these restarts, Edge, a code app against a real Power
 Platform environment.
+
+## The .sab conversion removed (2026-11-17, branch remove-sab-import)
+
+Checked (Linux, Chromium in place of Edge): `swissarmybench open x.sab` (there or not, any case) prints
+"x.sab: this version opens project folders only." and neither starts the app nor asks it anything; no route
+has "sab" in its path, `/project/import-sab` answers 404/405, `/project/open` of a .sab file answers 400 and
+writes nothing; no command names the import; `project_import` takes a project folder or a loose file; the
+Start view has no Open a .sab file…; the package carries no `server/sab-file.*`. A project folder's `.sab/`
+(save, open, copy, autosave, Keep its rows) and an older folder's `.sab/blades` adoption pass as before.
+Whole suite: 4,028 passed, 49 skipped; three browser tests failed under load and pass alone
+(test_table_cells_page's maker link, test_ui's system theme, test_workbench_page's error panel).
+
+NOT checked: the installers' removal of an earlier .sab registration on a real Windows or Linux desktop
+(unchanged code; only its comments changed).
