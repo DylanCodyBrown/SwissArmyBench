@@ -1,5 +1,8 @@
 # Swiss Army Bench Power Apps Edition (a plan)
 
+**Superseded in part (2026-11-17): the edition now spins off into a repository of its own:
+Plans/powerapps-spinoff.plan.md is the hand-over. This file stays as the history of the decision.**
+
 Status: **planned, not started** (the owner, 2026-11-17).
 
 ## The owner's words (2026-11-17)
