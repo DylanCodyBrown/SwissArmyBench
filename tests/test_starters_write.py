@@ -664,7 +664,7 @@ def test_sql_server_sends_each_value_in_the_targets_exact_type(sql_server: dict[
     rows = pd.DataFrame(
         {
             "event_id": [str(uuid.UUID(int=1)), str(uuid.UUID(int=2))],
-            "at": pd.to_datetime(["2026-01-02 03:04:05.1234567", None]),  # NaT is NULL
+            "at": pd.to_datetime(pd.Series(["2026-01-02 03:04:05.1234567", None])),  # NaT is NULL
             "at_zone": [dt.datetime(2026, 1, 2, 3, 4, 5, tzinfo=zone), None],
             "done": [True, False],
             "payload": [b"\x00\x01", None],
