@@ -21,6 +21,7 @@ import { watchConnectionColours } from "./connectionColours";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
 import { type CatalogInfo, type CatalogPlace, mountRail, schemaDetails, tableDetails, type TableView, watchTheme } from "./catalogRail";
 import { betaMark, mountBeta } from "./betaNotes";
+import { installZoomInput, zoomControl } from "./zoom";
 import { button, clear, formatCount, h, toast } from "./dom";
 import { appMark, backButton, backTo, crumbs, go, type Move, mountNav, setTitle, startNav } from "./nav";
 import { mountNavRail } from "./rail";
@@ -210,4 +211,5 @@ onNotice((notice) => {
 
 // Beta mode on the blades page: the right-click notes and the Beta mark, from the start (not after an editor closes).
 mountBeta("catalog");
-document.querySelector(".cat-top")?.append(betaMark());
+document.querySelector(".cat-top")?.append(zoomControl(), betaMark());
+installZoomInput();

@@ -11,8 +11,10 @@ connections it offers to load). The built-in ones:
   variables     this computer's variables by name, with their source (never a value)
   blades        the blades that are not connections, by name, with their call
 
-SEAM (trees-apis): `register("structures", ...)` and `register("apis", ...)`: a Structures document's
-names and paths, an API's web calls that return a table and their columns, once that branch merges.
+  structures    Structures: the open documents and saved files by name, an open one's keys by their paths
+  apis          an API's web calls with Return as table on, by their DuckDB SQL names, and their columns
+
+Another source joins with `register(name, provider)`; a provider that fails is skipped.
 Names only: no provider answers a value, a row or a secret.
 """
 
@@ -25,6 +27,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import explorer as rules
+from swissarmybench.domain import web_calls
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connection_swap import Place
 from swissarmybench.domain.explorer import Query, Result
@@ -301,6 +304,109 @@ def blades_provider(listing: Callable[[], list[dict[str, Any]]]) -> Provider:
                     more={"blade_kind": b.get("kind")},
                 )
             )
+        return found
+
+    return provide
+
+
+def structures_provider(listing: Callable[[], dict[str, Any]], value_of: Callable[[str], Any]) -> Provider:
+    """Structures: each open structure and saved structure file by name; an open one's keys by their paths
+    (`$.orders[].customer.id`), each with the parts of a place that has it (Open at this node). A saved
+    file that is not open is found by its name (its text is not read for a search)."""
+
+    async def provide(query: Query) -> Found:
+        found = Found()
+        if not query.wants("structures"):
+            return found
+        listed = listing()
+        open_files = {str(s.get("path") or "") for s in listed.get("open", [])}
+        for s in listed.get("open", []):
+            sid, name = str(s["id"]), str(s["name"])
+            whole = {"structure": sid, "file": s.get("path"), "pointer": "$", "parts": []}
+            found.results.append(
+                Result("structures", name, detail=str(s.get("format") or "").upper(), icon="json", more=whole)
+            )
+            if query.empty or s.get("error"):
+                continue
+            try:
+                value = value_of(sid)
+            except Exception:  # noqa: S112 (a structure whose steps fail: its name only)
+                continue
+            for p in rules.structure_paths(value):
+                parent = rules.parent_pointer(p.pointer)
+                found.results.append(
+                    Result(
+                        "structures",
+                        p.key,
+                        [name, parent],
+                        detail=p.type,
+                        icon="json",
+                        more={
+                            "structure": sid,
+                            "file": s.get("path"),
+                            "pointer": p.pointer,
+                            "parts": list(p.parts),
+                        },
+                    )
+                )
+        for f in listed.get("files", []):
+            if f.get("open") or str(f.get("path") or "") in open_files:
+                continue
+            saved = {"structure": None, "file": f.get("path"), "pointer": "$", "parts": []}
+            fmt = str(f.get("format") or "").upper()
+            found.results.append(
+                Result("structures", str(f["name"]), ["Saved"], detail=fmt, icon="json", more=saved)
+            )
+        return found
+
+    return provide
+
+
+def apis_provider(blades: Callable[[], list[dict[str, Any]]]) -> Provider:
+    """APIs: their web calls with Return as table on (an API's tables: web_calls' one gate), each with its
+    DuckDB SQL name (`[Orders API].listOrders`), and their columns."""
+
+    async def provide(query: Query) -> Found:
+        found = Found()
+        for b in blades():
+            if not web_calls.is_table(b):
+                continue
+            call = b.get("web_call") or {}
+            api, operation = str(call.get("api") or ""), str(call.get("operation") or "")
+            if not api or not operation:
+                continue
+            place = Place("", "", operation)
+            sql = table_rules.copy_name(api, place, "api")
+            more = {"source": "api", "api": api, "blade": b.get("name"), "place": place.to_json()}
+            found.results.append(
+                Result(
+                    "apis",
+                    operation,
+                    [api],
+                    connection=api,
+                    sql=sql,
+                    detail=f"{call.get('method', '')} {call.get('path', '')}".strip(),
+                    icon="link",
+                    insert=rules.table_insert(sql),
+                    more=more,
+                )
+            )
+            if query.empty:
+                continue
+            for column, typed in dict(call.get("columns") or {}).items():
+                found.results.append(
+                    Result(
+                        "columns",
+                        str(column),
+                        [api, operation],
+                        connection=api,
+                        sql=sql,
+                        type=str(typed) or None,
+                        icon="columns",
+                        insert=rules.column_insert(str(column)),
+                        more=more | {"table": operation},
+                    )
+                )
         return found
 
     return provide

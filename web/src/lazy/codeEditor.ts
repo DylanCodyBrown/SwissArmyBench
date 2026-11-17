@@ -29,9 +29,25 @@ monaco.html.htmlDefaults.setModeConfiguration({
   documentRangeFormattingEdits: false,
 });
 
-export type EditorLanguage = "python" | "sql" | "dax" | "markdown" | "html";
-/** Monaco's own name for a language: its DAX grammar is `msdax` (keywords, functions, 'Table'[Column], [Measure]). */
-const monacoId = (language: EditorLanguage): string => (language === "dax" ? "msdax" : language);
+export type EditorLanguage = "python" | "sql" | "dax" | "markdown" | "html" | "json" | "yaml" | "xml" | "toml";
+/** Monaco's own name for a language: its DAX grammar is `msdax` (keywords, functions, 'Table'[Column], [Measure]);
+ *  TOML is coloured as INI (Structures: the server checks each format and says where an error is). */
+const monacoId = (language: EditorLanguage): string => (language === "dax" ? "msdax" : language === "toml" ? "ini" : language);
+
+// JSON (Structures' text view) is coloured by Monaco's grammar; its language service would need a worker of
+// its own: the server checks the text instead, and says the line of an error.
+monaco.json.jsonDefaults.setModeConfiguration({
+  documentFormattingEdits: false,
+  documentRangeFormattingEdits: false,
+  completionItems: false,
+  hovers: false,
+  documentSymbols: false,
+  tokens: true,
+  colors: false,
+  foldingRanges: true,
+  diagnostics: false,
+  selectionRanges: false,
+});
 
 const THEMES: Record<string, string> = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
 

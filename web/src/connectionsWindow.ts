@@ -61,7 +61,7 @@ import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError } from "./missingPackages";
 import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
-import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
+import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
 
 interface Field {
@@ -168,8 +168,33 @@ interface Card {
   missing: string[];
   catalog_state: { state: string; error?: string } | null;
   calls: Calls;
+  /** What it writes (domain/write_capability.py): its Write starters, or why it is read-only. */
+  writes?: Writes | null;
   /** How it lists and reads its tables; "api": an API's (the APIs page has those, not this page). */
   tables_kind?: string | null;
+}
+
+interface Writes {
+  writable: boolean;
+  starters: string[];
+  how: string;
+  note: string;
+  reason: string;
+  words: string;
+}
+
+/** A small label on a card: Writes, or Read-only (the starters or the reason on hover). */
+function writesLabel(w: Writes | null | undefined): HTMLElement | null {
+  if (!w) return null;
+  return h("span", { class: `connection-writes ${w.writable ? "writable" : "read-only"}`, title: w.words }, w.writable ? "Writes" : "Read-only");
+}
+
+/** A connection's writes in its detail: each Write starter (its name: the Blades page has it), or why not. */
+function writesTerm(w: Writes | null | undefined): HTMLElement[] {
+  if (!w) return [];
+  if (!w.writable) return term("Read-only", w.reason);
+  const said = w.starters.length ? w.starters.join(", ") : w.how;
+  return term("Writes", h("span", { class: "connection-writes-list" }, said, w.note ? h("span", { class: "hint" }, ` (${w.note})`) : ""));
 }
 
 /** A cell, a canvas block or an open grid that uses a connection. */
@@ -535,10 +560,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     if (shownWindow?.dialog === dialog) shownWindow = null;
   });
   let drawing = 0;
-  /** The heading row's actions: Add connection and Add API, on the cards only. */
+  /** The heading row's actions: Add connection, on the cards only (Add API is the APIs page's, 2026-11-17). */
   const listActions = (on: boolean): void => {
     actions.replaceChildren(
-      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts)
+      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts)
     );
   };
   const detailUrl = (name: string): string => urlOf({ at: "detail", type: null, name });
@@ -587,7 +612,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           },
           h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
           h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection])),
-          statusPill(c),
+          h("span", { class: "connection-card-marks" }, statusPill(c), writesLabel(c.writes)),
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
         ),
       );
@@ -609,6 +634,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
             }),
           )
         : h("p", { class: "empty-note" }, "No connections"),
+      // APIs are connections that do not get the connection treatment (the owner, 2026-11-17).
+      h("p", { class: "connections-apis-link muted" }, h("button", { type: "button", class: "link", onclick: () => runArea("apis") }, "APIs are on the APIs page")),
     );
   };
 
@@ -683,6 +710,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       ...config.vault_entries.flatMap((e) => term(e.variable, h("code", {}, e.secret))),
       ...(config.row_limit === 0 ? term("Rows to open", "Every row") : config.row_limit ? term("Rows to open", config.row_limit.toLocaleString()) : []),
       ...(c ? term("In code", h("code", { class: "connection-in-code" }, inCode(c))) : []),
+      ...writesTerm(usage.writes),
     );
     const calls = usage.calls;
     /** After a Test: the status and the calls again, the rest (a Test's rows under it) as it is. */

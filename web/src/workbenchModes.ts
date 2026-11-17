@@ -7,7 +7,7 @@
  *             were the Data panel's, which became the Data Explorer)
  *   Notebook  Outline on the right
  *   Script    Run settings on the right; Run history under it
- *   Data      (data.ipynb) the Cells | Lineage | Dictionary switch is the document's own (workbenchData
+ *   Data      (data.ipynb) the Cells | Lineage | Dictionary switch is the document's own (workbenchDoc
  *             Mode.ts); its Outline as a notebook's
  *
  * The status bar shows the focused document's panels as toggles; a panel turned off in Settings

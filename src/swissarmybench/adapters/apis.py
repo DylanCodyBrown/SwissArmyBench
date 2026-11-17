@@ -11,6 +11,7 @@ services/apis.py the use case).
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
 import urllib.error
@@ -105,7 +106,8 @@ class ApiFiles:
     def write(self, path: str, text: str) -> None:
         """Written whole or not at all (a file beside it, then moved into place)."""
         file = Path(path)
-        handle, temporary = tempfile.mkstemp(prefix=f".{file.stem}-", suffix=".py", dir=file.parent)
+        file.parent.mkdir(parents=True, exist_ok=True)  # an API's own folder in the library
+        handle, temporary = tempfile.mkstemp(prefix=f".{file.stem}-", suffix=file.suffix, dir=file.parent)
         try:
             with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as out:
                 out.write(text)
@@ -125,3 +127,32 @@ class ApiFiles:
             if text:
                 found[file.stem] = text
         return found
+
+
+class ApiLibrary(ApiFiles):
+    """This computer's APIs (the owner, 2026-11-17: "Apis, Connections they live OUTSIDE of the project"):
+    one folder each under the library's apis/ folder (~/.swissarmybench/library/apis/<name>/), holding
+    API_<name>.py, openapi.json (the document as read, or a form's operations written as one) and
+    source.json (where it was read from, when, and the check-for-changes switch). Text only: no
+    secret, no response."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def folder_for(self, name: str) -> str:
+        return str(self.root / name)
+
+    def folders(self) -> list[str]:
+        if not self.root.is_dir():
+            return []
+        return [str(f) for f in sorted(self.root.iterdir(), key=lambda f: f.name.casefold()) if f.is_dir()]
+
+    def find(self, folder: str, pattern: str) -> list[str]:
+        return [str(f) for f in sorted(Path(folder).glob(pattern))]
+
+    def remove(self, folder: str) -> None:
+        """An API's folder, gone (only one inside the library)."""
+        target = Path(folder).resolve()
+        if not target.is_relative_to(self.root.resolve()) or target == self.root.resolve():
+            raise apis.ApiError("Only an API's own folder in the library is removed.")
+        shutil.rmtree(target, ignore_errors=True)

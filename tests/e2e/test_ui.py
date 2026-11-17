@@ -259,6 +259,19 @@ def test_zoom_changes_row_height_and_is_remembered(browser: Browser, orders_url:
     expect(page.locator(".zoom-control output").first).to_have_text("100%")
     page.reload()
     expect(page.locator(".zoom-control output").first).to_have_text("100%")
+    # Ctrl + mouse wheel zooms the app, not the browser (the owner, 2026-11-17); the control is in the
+    # status bar beside Beta.
+    zoom = page.locator(".statusbar .zoom-control output")
+    page.mouse.move(400, 300)
+    page.keyboard.down("Control")
+    page.mouse.wheel(0, -120)
+    page.keyboard.up("Control")
+    expect(zoom).to_have_text("110%")
+    page.keyboard.down("Control")
+    page.mouse.wheel(0, 120)
+    page.keyboard.up("Control")
+    expect(zoom).to_have_text("100%")
+    assert page.evaluate("window.visualViewport ? window.visualViewport.scale : 1") == 1
 
 
 # ===== steps =====
@@ -808,15 +821,15 @@ def test_agent_panel_lives_only_in_the_agent_tab(browser: Browser, orders_url: s
     panel = open_agent(page)
     expect(panel).to_be_visible()
     # One zoom for the page, Visualizations included: it has no zoom of its own, and follows the
-    # Application row's (which stays on every tab).
+    # status bar's (beside Beta: on every page and tab, the owner, 2026-11-17).
     expect(panel.locator(".zoom-control")).to_have_count(0)
     size = "getComputedStyle(document.querySelector('#ai-panel-body')).fontSize"
     before = float(page.evaluate(size).removesuffix("px"))
-    page.locator(".app-row").get_by_role("button", name="Zoom in", exact=True).click()
-    expect(page.locator(".app-row .zoom-control output")).to_have_text("110%")
+    page.locator(".statusbar").get_by_role("button", name="Zoom in", exact=True).click()
+    expect(page.locator(".statusbar .zoom-control output")).to_have_text("110%")
     assert float(page.evaluate(size).removesuffix("px")) == pytest.approx(before * 1.1, rel=0.02)
     page.keyboard.press("Control+0")
-    expect(page.locator(".app-row .zoom-control output")).to_have_text("100%")
+    expect(page.locator(".statusbar .zoom-control output")).to_have_text("100%")
     assert float(page.evaluate(size).removesuffix("px")) == pytest.approx(before, rel=0.02)
     back_to_grid(page, orders_url)
     expect(page.locator("#ai-panel")).to_be_hidden()
@@ -1101,15 +1114,16 @@ def test_keyboard_only_reaches_the_toolbar_and_grid(browser: Browser, orders_url
     assert page.evaluate("document.activeElement.getAttribute('role')") == "tab"
     outline = page.evaluate("getComputedStyle(document.activeElement).outlineStyle")
     assert outline != "none"
-    # Further on, the Application row (above the ribbon): the zoom (Settings, Connections and the blades
-    # page are the rail's while it shows; the tour is the Start page's).
-    for _ in range(30):
-        page.keyboard.press("Tab")
+    # The zoom is in the status bar beside Beta (the owner, 2026-11-17): reachable with the keyboard
+    # (the grid keeps Tab for its cells, so the status bar is reached by Shift+Tab from the top).
+    page.locator(".nav-rail button").first.focus()
+    for _ in range(40):
+        page.keyboard.press("Shift+Tab")
         if page.evaluate("document.activeElement.getAttribute('aria-label')") == "Zoom out":
             break
     else:
-        raise AssertionError("Tab never reached Zoom out")
-    assert page.evaluate("document.activeElement.closest('.app-row') !== null")
+        raise AssertionError("Shift+Tab never reached Zoom out")
+    assert page.evaluate("document.activeElement.closest('.statusbar') !== null")
 
 
 def test_no_column_is_cut_beside_the_row_numbers(

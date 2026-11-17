@@ -74,13 +74,13 @@ export interface CanvasHost {
   lineage?: (page: string, block: string) => void;
   /** A block was selected (null: none): Properties follows. */
   selected?: (block: string | null) => void;
-  /** A starter dropped on the board (from the Data panel's Starters): written into a cell, then placed. */
+  /** A starter dropped on the board (from App mode's Starters panel): written into a cell, then placed. */
   starter?: (name: string, where: { row: number; column: number; insert?: boolean } | undefined) => void;
 }
 
 export type Device = "desktop" | "tablet" | "phone";
 export type Align = "left" | "centre" | "right" | "full";
-/** A starter's drag (the Data panel's Starters gallery): its name. */
+/** A starter's drag (App mode's Starters panel): its name. */
 export const STARTER_DRAG = "application/x-swissarmybench-starter";
 
 export interface CanvasView {

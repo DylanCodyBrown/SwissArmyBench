@@ -27,6 +27,8 @@ import { DROP_TYPE } from "./catalogRail";
 import { queryInNotebook } from "./connectionTree";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { tablePreview } from "./pythonConnectionForm";
+import { openStructures } from "./structuresPage";
+import type { Part } from "./structureTree";
 
 /** A result's drag: {sql, python} (the code for each kind of cell). lazy/codeEditor.ts reads it. */
 export const EXPLORER_DRAG = "application/x-sab-explorer";
@@ -94,7 +96,7 @@ export interface ExplorerHost {
   showGrid: (grid: string, dataset: string) => void;
   /** The Variables page, at a variable. */
   openVariable: (name: string) => void;
-  /** A Structures result: its document opened at that node (SEAM: the trees-apis branch). */
+  /** A Structures result: its document opened at that node (default: the Structures page, here). */
   openStructure?: (result: ExplorerResult) => void;
   /** The search, a filter or the scroll changed (the host keeps it for the window). */
   changed?: (state: ExplorerState) => void;
@@ -160,6 +162,14 @@ export async function openExplorerWindow(state: ExplorerState): Promise<Window |
   }
   opened.focus();
   return opened;
+}
+
+/** A Structures result's document on the Structures page, at its node: an open one by its id, a saved
+ *  file opened first. */
+export async function openStructureAt(r: ExplorerResult): Promise<void> {
+  let id = typeof r.structure === "string" ? r.structure : null;
+  if (!id && typeof r.file === "string") id = (await api<{ id: string }>("/structures/open", "POST", { path: r.file })).id;
+  openStructures(id, Array.isArray(r.parts) ? (r.parts as Part[]) : null);
 }
 
 export function mountExplorer(host: ExplorerHost): Explorer {
@@ -392,11 +402,22 @@ export function mountExplorer(host: ExplorerHost): Explorer {
             searchNow();
           } },
         ];
-      case "structures":
+      case "structures": {
+        const open = host.openStructure ?? ((x: ExplorerResult) => void openStructureAt(x).catch((e: unknown) => toast(errorText(e), "error")));
+        const pointer = String(r.pointer ?? "$");
         return [
-          ...(host.openStructure ? [{ label: "Open at this node", icon: "json", run: () => host.openStructure!(r) }] : []),
-          { label: "Copy path", icon: "copy", run: () => copyText(String(r.pointer ?? [...r.path, r.name].join(".")), "the path") },
+          { label: pointer === "$" ? "Open" : "Open at this node", icon: "json", run: () => open(r) },
+          { label: "Copy path", icon: "copy", title: pointer, run: () => copyText(pointer, pointer) },
         ];
+      }
+      case "apis": {
+        const sql = r.sql ?? r.name;
+        return [
+          { label: "Copy SQL name", icon: "copy", title: sql, run: () => copyText(sql, sql) },
+          ...into,
+          ...(r.sql ? [{ label: "Query in a notebook", icon: "notebook", run: () => queryInNotebook(sql) }] : []),
+        ];
+      }
       case "variables":
         return [
           { label: "Open in Variables", icon: "variables", run: () => host.openVariable(r.name) },

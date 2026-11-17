@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, powerbi, python_connections
+from swissarmybench.domain import dataverse, powerbi, python_connections, write_capability
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
@@ -55,6 +55,7 @@ class ConnectionService:
         labels = {t.id: t.label for t in self._templates}
         order = {"database": 0, "file": 1, "python": 2, "vault": 3}
         found = []
+        writers = self._write_starters()
         for b in self._blades.listing()["blades"]:
             kind = rules.connection_kind(str(b["kind"]), b.get("template"))
             if kind:
@@ -73,6 +74,10 @@ class ConnectionService:
                 more["tables_kind"] = table_rules.tables_kind(
                     saved.kind, saved.template, saved.dialect, saved.catalog_language, saved.tags, saved.code
                 )
+                if kind != "vault":  # what it can write: "Writes: <the starters>" or "Read-only: <why>"
+                    more["writes"] = write_capability.capability(
+                        b.get("template"), writers, more["tables_kind"]
+                    )
                 if kind == "vault":
                     vault = saved
                     entries = vault.vault_mapping.items()
@@ -82,6 +87,11 @@ class ConnectionService:
         found.sort(key=lambda c: (order[c["connection"]], not c.get("pinned"), str(c["name"]).casefold()))
         return {"connections": found}  # each with its code_name (the blades list names them)
 
+    def _write_starters(self) -> list[dict[str, Any]]:
+        """The starter pack's Write starters (each names the connection kinds it writes to)."""
+        families = self._blades.starters()["families"]
+        return [b for f in families if f["family"] == write_capability.WRITE_FAMILY for b in f["blades"]]
+
     def needs_passwords(self, name: str) -> list[str]:
         """The passwords a connection asks for that nothing on this computer gives (names only)."""
         return self._blades.needs_passwords(name)
@@ -89,12 +99,14 @@ class ConnectionService:
     def types(self) -> dict[str, Any]:
         """The starters a connection is made from (databases, files, key vaults), each as its form."""
         out = []
+        writers = self._write_starters()
         for t in self._templates:
             if rules.is_connection(t.kind, t.id):
                 form = rules.form(t.to_json(), self._blades.inspect(t.code, t.id))
                 own = rules.connection_kind(t.kind, t.id) == "python"
                 reads = self._reads(t.code, t.catalog_command, t.read_command) if own else {"reads": []}
-                out.append(form | reads)
+                writes = {} if t.kind == "vault" else {"writes": write_capability.capability(t.id, writers)}
+                out.append(form | reads | writes)
         return {"types": out}
 
     def _reads(self, code: str, tables: str | None, read: str | None) -> dict[str, Any]:

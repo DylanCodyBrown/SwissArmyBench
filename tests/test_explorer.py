@@ -17,7 +17,7 @@ import pytest
 from swissarmybench.cli.commands import REGISTRY
 from swissarmybench.domain import explorer as rules
 from swissarmybench.domain.explorer import Result
-from swissarmybench.services.explorer import Explorer, Found
+from swissarmybench.services.explorer import Explorer, Found, apis_provider
 from tests.conftest import AGENT, AUTH, make_client
 from tests.fake_keyring import memory_keyring
 from tests.test_connection_tables import ok, sqlite_connection
@@ -205,3 +205,73 @@ def test_the_popped_out_window_has_an_address_of_its_own(tmp_path: Path) -> None
         page = client.get("/workbench?panel=explorer")
         assert page.status_code == 200 and "explorer.js" in page.text and "Data Explorer" in page.text
         assert "workbench.js" in client.get("/workbench").text
+
+
+# ===== Structures and APIs (the trees-apis branch's, registered in bootstrap) =====
+
+
+def test_a_structures_keys_by_their_paths() -> None:
+    value = {"orders": [{"customer": {"id": 1, "Full Name": "Ada"}}, {"customer": {"id": 2}, "extra": True}]}
+    found = {p.pointer: p for p in rules.structure_paths(value)}
+    assert list(found) == [
+        "$.orders",
+        "$.orders[].customer",
+        "$.orders[].customer.id",
+        '$.orders[].customer["Full Name"]',
+        "$.orders[].extra",
+    ]
+    assert found["$.orders[].customer.id"].parts == ("orders", 0, "customer", "id")
+    assert found["$.orders[].extra"].parts == ("orders", 1, "extra")
+    assert found["$.orders[].extra"].type == "boolean"
+    assert rules.parent_pointer("$.orders[].customer.id") == "$.orders[].customer"
+    assert rules.parent_pointer("$.orders") == "$"
+    assert len(rules.structure_paths({f"k{i}": i for i in range(50)}, limit=10)) == 10
+
+
+def test_an_apis_table_returning_calls_and_their_columns() -> None:
+    listed = {
+        "api": "Orders API",
+        "operation": "listOrders",
+        "method": "GET",
+        "path": "/orders",
+        "as_table": True,
+        "columns": {"customer_id": "BIGINT", "total": "DOUBLE"},
+    }
+    calls = [
+        {"name": "Orders API listOrders", "web_call": listed},
+        {"name": "Orders API getOrder", "web_call": {"api": "Orders API", "operation": "getOrder"}},
+        {
+            "name": "Orders API pushOrders",
+            "web_call": {
+                "api": "Orders API",
+                "operation": "pushOrders",
+                "as_table": True,
+                "mode": "write rows",
+            },
+        },
+    ]
+    explorer = Explorer(ws=None)  # type: ignore[arg-type]
+    explorer.register("apis", apis_provider(lambda: calls))
+    found = asyncio.run(explorer.search({"q": "order"}))
+    call = next(g for g in found["groups"] if g["kind"] == "apis")["results"]
+    assert [r["name"] for r in call] == ["listOrders"]
+    assert call[0]["sql"] == "[Orders API].listOrders" and call[0]["detail"] == "GET /orders"
+    assert call[0]["insert"]["sql"] == "SELECT * FROM [Orders API].listOrders"
+    columns = asyncio.run(explorer.search({"q": "cust", "kinds": "columns"}))["groups"][0]["results"]
+    assert [(c["name"], c["type"], c["path"]) for c in columns] == [
+        ("customer_id", "BIGINT", ["Orders API", "listOrders"])
+    ]
+
+
+def test_an_open_structures_paths_over_http(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        text = '{"orders": [{"customer": {"id": 1}}]}'
+        opened = ok(client.post("/structures/paste", json={"text": text, "name": "shop"}, headers=AUTH))
+        found = _search(client, q="customer id", kinds="structures")
+        results = found["groups"][0]["results"]
+        assert [(r["name"], r["pointer"], r["parts"]) for r in results] == [
+            ("id", "$.orders[].customer.id", ["orders", 0, "customer", "id"])
+        ]
+        assert results[0]["structure"] == opened["id"] and results[0]["path"][1] == "$.orders[].customer"
+        names = _search(client, kinds="structures")["groups"][0]["results"]
+        assert [r["name"] for r in names] == [opened["name"]]

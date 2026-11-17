@@ -247,3 +247,23 @@ def test_ctrl_k_on_the_grid_page(browser: Browser, server: dict[str, Any], shop:
     expect(dialog.get_by_role("button", name="Open the Data Explorer")).to_be_visible()
     shot(page, "explorer-find-data")
     page.context.close()
+
+
+def test_a_structures_path_opens_at_its_node(browser: Browser, server: dict[str, Any]) -> None:
+    text = '{"plums": [{"grower": {"farm_id": 7}}]}'
+    call(server, "POST", "/structures/paste", {"text": text, "name": "plum crates"})
+    page = workbench(browser, server)
+    open_explorer(page)
+    search(page, "farm_id")
+    found = page.locator(".ex-group[data-kind='structures'] .ex-result").first
+    expect(found.locator(".ex-name")).to_have_text("farm_id")
+    expect(found.locator(".ex-path")).to_have_text("plum crates › $.plums[].grower")
+    expect(found.get_by_role("button", name="Copy path")).to_have_attribute(
+        "title", "$.plums[].grower.farm_id"
+    )
+    found.hover()
+    found.get_by_role("button", name="Open at this node").click()
+    shown = page.locator(".area-page[data-page='structures']")
+    expect(shown).to_be_visible(timeout=20000)
+    expect(shown.get_by_text("$.plums[0].grower.farm_id").first).to_be_visible(timeout=10000)
+    page.context.close()

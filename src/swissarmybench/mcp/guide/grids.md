@@ -28,7 +28,8 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 - Table row: `table_filter`, `table_sort` (up to three keys), `table_group_by`, `table_distinct`,
   `table_clean_text`, `table_matching` (how text compares).
 - Column row: `column_sort` (a header click; stays the last word), `column_keep`, `column_remove`,
-  `column_rename`, `column_bucket` (dates by unit, numbers by edges or width), `column_categorize`.
+  `column_rename`, `column_bucket` (dates by unit, numbers by edges or width), `column_categorize`,
+  `column_unnest` (a LIST column: a row per item; a STRUCT: its fields as `<column>.<field>`; a SQL step).
 - Cells and rows: `cell_keep`, `cell_exclude`, `row_limit`, `row_highlight`, `row_select`. You cannot see
   the user's selection: name the columns and values.
 - Any step: `steps_add(grid, kind, params)` (`steps_kinds` has the vocabulary; indexes count from 0),

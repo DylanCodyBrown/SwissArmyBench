@@ -93,7 +93,7 @@ interface Tried {
 export interface AddApiHost {
   body: HTMLElement;
   foot: HTMLElement;
-  /** Where API_<name>.py goes: an open project's folder (none: the Workbench's own). */
+  /** Where the document chooser starts (the files go in the library: apis/<name>/). */
   folder?: string;
   /** Where its Back goes (nav.backButton). */
   backTo: { label: string; url: string };
@@ -231,7 +231,7 @@ export function showAddApi(host: AddApiHost): void {
       status.replaceChildren(h("p", { class: "hint" }, "Looking…"));
       for (const path of chosen.spec_paths) {
         try {
-          await api<Plan>("/apis/preview", "POST", { spec_url: root + path, folder: host.folder || undefined });
+          await api<Plan>("/apis/preview", "POST", { spec_url: root + path });
           url.value = root + path;
           pick("document");
           useUrl();
@@ -452,15 +452,6 @@ export function showAddApi(host: AddApiHost): void {
     const endpoints = (): Record<string, unknown>[] => cardsOf().map((c) => cardData.get(c)!).filter((c) => c.path()).map((c) => c.sent());
 
     // ===== where the file goes =====
-    const folder = h("input", { type: "text", class: "mono", value: host.folder ?? "", placeholder: "The Workbench's folder", spellcheck: false }) as HTMLInputElement;
-    folder.addEventListener("change", () => later(0));
-    const folderBrowse = button("Browse…", () => {
-      void chooseFile({ title: "Where API_<name>.py goes", mode: "folder", start: folder.value || host.folder }).then((path) => {
-        if (!path) return;
-        folder.value = path;
-        later(0);
-      });
-    }, { icon: "folder" });
 
     // ===== what it would write =====
     const sent = (): Record<string, unknown> | null => {
@@ -478,7 +469,6 @@ export function showAddApi(host: AddApiHost): void {
       } else return null;
       if (named) out.name = name.value.trim();
       if (authTouched || mode === "form") out.auth = auth;
-      if (folder.value.trim()) out.folder = folder.value.trim();
       return out;
     };
     let plan: Plan | null = null;
@@ -621,7 +611,7 @@ export function showAddApi(host: AddApiHost): void {
       ),
       h("section", { class: "add-api-part add-api-auth" }, h("div", { class: "connection-fields" }, field("Sign in", authType)), settingsHost, valuesHost),
       formPart,
-      h("section", { class: "add-api-part" }, field("Save the file in", h("span", { class: "field-row" }, folder, folderBrowse))),
+      // Where the files go is this computer's library (apis/<name>/, 2026-11-17): the preview says it.
       status,
     );
     clear(

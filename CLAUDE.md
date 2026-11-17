@@ -22,7 +22,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   and reads one through one contract, and DuckDB SQL names them by the connection
   (`SELECT * FROM [Finance Captive].model_Report`). A thing with no tables (a key vault) is not a connection.
   Connections, APIs, vaults, blades and variables are this computer's library, shared by every project and
-  made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17).
+  made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17). APIs already live there:
+  `~/.swissarmybench/library/apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json,
+  source.json); an API's tables are its web calls with Return as table on, and it is not on the Connections page.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
@@ -179,6 +181,17 @@ src/swissarmybench/
     api_clients.py       Add API's made file, API_<name>.py: one stdlib class (a method per operation, retries,
                          paging, DataFrames, each auth type's signing), its mark, its methods read back, and
                          the file pasted inline (the exporter)
+    api_explorer.py      the APIs page: an OpenAPI document read for people (each operation's inputs, body and
+                         outputs as schema trees with made-up examples, the named schemas and where each is
+                         used), search across APIs, Refresh's diff, Try it's request and answer (sign-in headers
+                         hidden), a form-made API written as an OpenAPI document
+    web_calls.py         web call blades (an API's one endpoint, through its API blade): their [web_call] header,
+                         Return as table (the one gate to DuckDB SQL), the common shapes found (records,
+                         envelopes, header and rows; the header's types as DuckDB's), DuckDB's conversion,
+                         the code, and the tables contract (table_calls: exactly the switched-on calls)
+    structures.py        Structures: JSON, YAML (the adapter's), XML (no DOCTYPE or entity) and TOML (written
+                         here); paths ($.orders[3], [*]); steps replayed on the original (pick, filter, rename,
+                         remove, set, add, sort, flatten); records for a grid; shapes; a structure's lineage
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
@@ -260,6 +273,9 @@ src/swissarmybench/
                          section's digest and the prompt hook's "context.md changed: ..." line
     session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
                          relationship, a connection, a cell), names and counts only; the filter; Follow
+    write_capability.py  what each connection kind writes (its operations, how) or why it is read-only; the Write
+                         starters each kind has (by their tags); a kind is connection_tables' (TABLE_KINDS), a
+                         database's or file's its template: the Connections page's Writes / Read-only
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
                          this session by kind, a card's status word, the settings it may show (no password)
@@ -278,7 +294,8 @@ src/swissarmybench/
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
-                         cut; the code a result is inserted as (a SQL cell's, a Python cell's). Names only
+                         cut; the code a result is inserted as (a SQL cell's, a Python cell's); a structure's
+                         keys by their paths ($.orders[].customer.id, the parts of one place). Names only
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -319,8 +336,16 @@ src/swissarmybench/
                          session by what was sent, Refresh), the Connections page's tree, Open all of a dataset
     explorer.py          the Data Explorer's search: a provider per source (connections and their loaded catalogs,
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
-                         SEAM register("structures"/"apis") for the trees-apis branch; one failing source skipped
-    apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
+                         Structures' documents and paths and APIs' table-returning web calls registered from
+                         theirs (register("structures"/"apis")); one failing source skipped
+    apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
+                         blade, a web call blade per operation, openapi.json, source.json), inline (the exporter)
+    api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
+                         Structures, its origin the call; Run again), save a web call (Return as table), the
+                         API blade's tables made again, Refresh then apply, rename, delete (the agent's on Allow)
+    structures.py        Structures: open (a file, a paste, New, an API's answer, a kernel's value), the text
+                         view, steps, Open as grid, Save and Save as (the project's structures/), the project's
+                         files and the ones open (project.json), sab.structure's read, references, lineage
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
                          a document moving to another window (handoffs: its state and its kernel)
@@ -390,6 +415,8 @@ src/swissarmybench/
     sab_files.py         a .sab read (every entry checked first, counted as read) and unpacked into a working
                          folder, written atomically (a temporary file, then a replace); recent_projects.json
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
+    structure_files.py   Structures' files (read, written whole), YAML by PyYAML (else the missing-package
+                         answer), records as an Arrow table for Open as grid
     variables.py         the Variables page's files (variables.json shareable, local/variables.json this computer's;
                          the library's later), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets
@@ -405,6 +432,7 @@ src/swissarmybench/
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
+                         structures, api_explorer,
                          connection_swap, variables, connection_colours, connection_tables, explorer). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
@@ -434,13 +462,23 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (113 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
-                         Streamlit), listed apart, found by name, Copy as your own (tests/test_starters*.py)
+  starters/              the built-in starter pack (169 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
+                         Streamlit, Write), listed apart, found by name, Copy as your own (tests/test_starters*.py);
+                         Write: 13 functions (write_to_*: one public typed function a target, for functions.py) and
+                         43 calls (a cell's text: the call only, dry_run=True), for the connections that write
   client/push_client.py  push(), ensure_server()
+  client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
+                         plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
+                         write_sql.py each database's quoting, marks, values, types and transaction (SqlWrite;
+                         SqlServerWrite: sys.columns' types, #temp staging, MERGE WITH (HOLDLOCK), retried whole on
+                         Azure's passing errors), write_dataverse.py ($batch change sets, choice labels, keys).
+                         Standard library only; the statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,
                          a connect) for the Connections page (nothing outside a Workbench kernel)
+  client/structures_client.py sab.structure (a saved structure's value), sab.structure_table (its records as a
+                         DataFrame), sab.show_structure (a dict or list as a Structures tab)
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sab.complete)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
@@ -473,9 +511,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          and Forward are the browser's), layers (a dialog with views of its own, open=<key>:
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
-                         rail.ts is the slim icon rail down the left of every page and window (Grids,
-                         Visualizations, ERD, Notebooks, Scripts, Apps, Blades, Connections, Variables, Session, Settings at the
-                         bottom): a click is a nav.ts move in this tab, and every icon lands on a page (no
+                         rail.ts is the slim icon rail down the left of every page and window, in the order of
+                         the work (the owner, 2026-11-17): Connections, Variables, Grids, ERD, APIs, Structures,
+                         Blades, Notebooks, Scripts, Apps, Visualizations, Session, Settings at the
+                         bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
                          areas (the owner, 2026-11-16); areaPage.ts is a page of the rail's over any page
@@ -510,7 +549,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (catalogPage.ts, static/catalog.html); bladeEditor.ts is the save screen;
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
                          connectionsWindow.ts's forms (a form per type) open in the Connections page;
-                         addApi.ts is its Add API (an OpenAPI document or endpoints, the sign-in, the preview);
+                         addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the
+                         APIs page; apisPage.ts the APIs page (open=apis: cards, search, the explorer, Author a
+                         call, Refresh's diff); structuresPage.ts the Structures page (open=structures: tabs, the
+                         tree and the text, steps, Open as grid, Save, Run again, Lineage) and structureTree.ts
+                         its tree and text view (shared with the APIs page);
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,

@@ -26,12 +26,12 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
-from swissarmybench.domain import connections, notebooks
+from swissarmybench.domain import connections, notebooks, structures
 
 APP_FOLDER: str = ".sab"
 BLADES: str = f"{APP_FOLDER}/blades"
 DASHBOARDS: str = f"{APP_FOLDER}/dashboards"
-KINDS: tuple[str, ...] = ("notebook", "script", "app")
+KINDS: tuple[str, ...] = ("notebook", "script", "app", "structure")  # a structure: structures/<name>.json
 MAX_IMPORT: int = 200  # documents, connections or blades in one import
 # The project's own files the app writes from others: shown, marked, never imported on their own.
 _MADE = re.compile(r"^(data\.py|pages/[^/]+\.py)$")
@@ -43,7 +43,11 @@ class ScopeError(ValueError):
 
 
 def kind_of(path: str) -> str:
-    """notebook, script or app by the file's ending; "" for any other file."""
+    """notebook, script or app by the file's ending, structure for a structures/ file (Structures); ""
+    for any other file."""
+    parts = path.replace("\\", "/").split("/")
+    if len(parts) == 2 and parts[0] == "structures" and structures.format_of(parts[1]):
+        return "structure"
     try:
         return notebooks.kind_of(path)
     except notebooks.NotebookError:
@@ -70,7 +74,7 @@ def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) 
     """The project's notebooks, scripts and apps from its files (path inside it, size, last change), by
     kind then name; `made`: an export the app writes (data.py, pages/*.py)."""
     if kind is not None and kind not in KINDS:
-        raise ScopeError("kind is notebook, script or app.")
+        raise ScopeError("kind is notebook, script, app or structure.")
     found = []
     for relative, size, modified in files:
         if relative.startswith(APP_FOLDER + "/"):

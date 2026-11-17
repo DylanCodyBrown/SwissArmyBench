@@ -285,3 +285,67 @@ def blade_insert(name: str, variable: str | None, kind: str, signature: str | No
     if kind in ("vault", "secret") or not variable:
         return {"python": call}
     return {"python": f"{variable} = {call}"}
+
+
+# ===== a structure's names and paths (Structures: JSON, YAML, XML, TOML) =====
+
+MAX_STRUCTURE_PATHS: int = 2000  # paths one structure gives the search
+_LIST_ITEMS: int = 20  # the items of a list walked for their keys (records share theirs)
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+@dataclass(frozen=True)
+class StructurePath:
+    """One key in a structure: `$.orders[].customer.id` (a list's items as `[]`), the parts of one place
+    that has it (`["orders", 0, "customer", "id"]`, for Open at this node), its key, its value's type."""
+
+    pointer: str
+    parts: tuple[str | int, ...]
+    key: str
+    type: str
+
+
+def _type_of(value: Any) -> str:
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int | float):
+        return "number"
+    if isinstance(value, str):
+        return "text"
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, list):
+        return "list"
+    return "null" if value is None else type(value).__name__
+
+
+def _key_text(key: str) -> str:
+    return f".{key}" if _NAME.fullmatch(key) else "[" + json.dumps(key, ensure_ascii=False) + "]"
+
+
+def structure_paths(value: Any, limit: int = MAX_STRUCTURE_PATHS) -> list[StructurePath]:
+    """Every key of a structure once, by its pointer (a list's items are one: `[]`), in the order met."""
+    seen: dict[str, StructurePath] = {}
+
+    def walk(node: Any, pointer: str, parts: tuple[str | int, ...]) -> None:
+        if len(seen) >= limit:
+            return
+        if isinstance(node, dict):
+            for key, child in node.items():
+                text = str(key)
+                at = pointer + _key_text(text)
+                if at not in seen and len(seen) < limit:
+                    seen[at] = StructurePath(at, (*parts, text), text, _type_of(child))
+                walk(child, at, (*parts, text))
+        elif isinstance(node, list):
+            for index, child in enumerate(node[:_LIST_ITEMS]):
+                walk(child, pointer + "[]", (*parts, index))
+
+    walk(value, "$", ())
+    return list(seen.values())
+
+
+def parent_pointer(pointer: str) -> str:
+    """`$.orders[].customer.id` -> `$.orders[].customer`; `$.orders` -> `$`."""
+    at = max(pointer.rfind("."), pointer.rfind('["'))
+    return pointer[:at] if at > 1 else "$"

@@ -62,7 +62,7 @@ The page has these parts:
 
 ### Getting around
 
-- **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Visualizations**, **ERD**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, **Session**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+- **The rail** down the left of every page and window has an icon for each area, in the order you work: where the data comes from (**Connections**, **Variables**), getting and shaping it (**Grids**, **ERD**), web data (**APIs**, **Structures**), tools (**Blades**), building (**Notebooks**, **Scripts**, **Apps**: the Streamlit canvas), presenting (**Visualizations**), then the log (**Session**), and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
   - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
@@ -422,7 +422,9 @@ their own, run in an IPython kernel on this computer.
   you open it, then beside every document, the data notebook and scripts too; drag its right edge to
   size it). One search box finds data by name as you type: your **connections**, their **tables** and
   **columns** (from each connection's catalog; a table shows its name for DuckDB SQL,
-  `[Shop].customers`), the **tables open in the grid** and their columns, **variables** (by name and
+  `[Shop].customers`), the **tables open in the grid** and their columns, your **Structures** (each key by
+  its path, `$.orders[].customer.id`: **Open at this node**, **Copy path**), your **APIs'** web calls that
+  return a table (by their SQL names) and their columns, **variables** (by name and
   source, never a value) and **blades**. Any case, any part: `cust` finds `customer_id` and
   `CustomerKey`. The results come grouped and counted; the chips keep one kind or a few, the picker one
   connection, and your recent searches wait under the box. A connection whose catalog is not loaded yet
@@ -496,7 +498,7 @@ their own, run in an IPython kernel on this computer.
 
 ## Connections and key vaults
 
-**Connections** on the rail opens the Connections page: a card for each of your databases, files, connections made of your own Python, and key vaults, with its type, a status (**Works**, **Ready**: not used yet, **Needs a password**: one is in none of its places, **Failing**: its last call or its catalog failed) and how many times it has been called this session. **Add connection** (and **Add API**) at the top makes one with a form for its type. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
+**Connections** on the rail opens the Connections page: a card for each of your databases, files, connections made of your own Python, and key vaults, with its type, a status (**Works**, **Ready**: not used yet, **Needs a password**: one is in none of its places, **Failing**: its last call or its catalog failed) and how many times it has been called this session. **Add connection** at the top makes one with a form for its type. APIs are not here: they are on the **APIs** page. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
 
 Click a card for its **detail**:
 
@@ -571,15 +573,15 @@ Click a card for its **detail**:
   - **Environment variables** lists every variable the boxes read (`os.environ["ORDERS_API_KEY"]`, `os.environ.get(...)`, `os.getenv(...)`, `secret(...)`), found as you type. Choose where each comes from: **This computer's environment**, **Saved on this computer**, **A key vault** (pick the vault and its entry) or **A plain value (not a secret)**. Your code is not changed: the values are set as environment variables before it runs, so the same code runs where those names are set some other way, such as an Azure Function's settings. A variable the code needs that has no value says **Not set on this computer**.
   - **Test connection** runs Connect, then List the tables, then reads the first table's first 20 rows and shows them. A saved connection's **Test** shows them under its row.
   - Its catalog, **Open as grid**, the first-rows preview and **Rows to open** work as for a database. In a notebook, `conn = sab.connection("Orders API")` gives what Connect made, and `sab.read("Orders API", "orders")` reads a table with your Read a table box.
-- **Add API** (the Connections window's footer, the Workbench's **+ Table** menu and its palette): a web API made into a ready-to-call Python file and a connection, in one step.
+- **Add API** (the APIs page's heading row): a web API made into blades in this computer's library (see **APIs**, below).
   - First choose how to start: **I have an OpenAPI document** (2.0 or 3.x, JSON; YAML too when your Python has PyYAML: its address and **Read**, **File…**, or **Paste it instead**) or **I'll list the endpoints myself**. Then the form goes in the order you think in: **Name**, **Hosted on** and **Base address**, **Sign in**, **Endpoints**, **Save the file in**.
   - **Endpoints** (when you list them yourself): one card each, with **Method**, **Path** (`/orders/{order_id}`: a word in braces is a path parameter), **Parameters** (`status, limit`), a **Needed** tick per parameter (a path's word is always needed), **Read as a table**, and **Columns to keep** (empty: all). **Try it** reads that endpoint's first few rows before anything is written (a GET read as a table that needs no value); a document's tables each have their own Try button in the list.
   - **Hosted on**: **Azure Function App** (its function key in `x-functions-key`, or Entra ID through an app registration; **Find its OpenAPI** tries where the Azure Functions OpenAPI extension keeps the document), **AWS Lambda** (none, an API key in `x-api-key`, a Cognito JWT, or IAM with Signature Version 4), **Google** (a Firebase ID token, or a Google identity token from a service account key). It fills in the address's pattern and the sign-in; fill in its `<...>` parts.
   - **Sign in**: the document's own scheme first. None, API key (header, query or cookie), bearer, basic, OAuth 2.0 (client credentials; authorization code with PKCE in your browser, its refresh token kept in the keyring; device code; tokens cached until a minute before they run out), JWT (a ready token; a login endpoint, logged in again on a 401; signed here: HS256, or RS256 and ES256 when your Python has `cryptography`), AWS Signature Version 4, Google identity token, Firebase ID token. Under it, a box for each variable the file reads (`ORDERS_API_KEY`): what you type there is used by **Try it**, and on **Add** a key goes to this computer's keyring (empty: this computer's environment).
-  - Before you add, the list shows each operation as the method it becomes (`GET /orders` is `list_orders()`, a table marked **Table**), the environment variables it reads, and where the file goes: beside `data.py` in an open project, else in the Workbench's folder. When the file is there already, each changed operation is marked (**New**, **Changed**, **Removed**) before anything is written; a file Add API did not make is never written over.
-  - **Add** writes `API_<name>.py` and saves the connection, then opens the connection's form: choose where each variable comes from (a key vault, the keyring, a plain value), **Test connection**, **Save**.
+  - Before you add, the list shows each operation as the method it becomes (`GET /orders` is `list_orders()`), the environment variables it reads, and where the files go: this computer's library, `~/.swissarmybench/library/apis/<name>/`, whatever project is open. When the file is there already, each changed operation is marked (**New**, **Changed**, **Removed**) before anything is written; a file Add API did not make is never written over.
+  - **Add** writes `API_<name>.py`, its **API blade** (the client: base address, sign-in, retries, paging) and one **web call blade** per operation (`Orders.list_orders`), with `openapi.json` and `source.json` beside them.
   - `API_<name>.py` is standard library only, so it runs anywhere, an Azure Function included: one documented method per operation, retries on 429 and 5xx, every page read (a next link, a page token, a page number or an offset), and array answers as DataFrames when pandas is there (else lists of dicts). Its secrets are arguments or environment variables, never written in it. In a notebook beside it: `from API_Orders import OrdersApi`, then `OrdersApi().list_orders(status="open")`.
-  - The connection lists the GET operations that answer a table and need no arguments: its catalog, **Open as grid** and a SQL cell (`%%sql Orders`, then `SELECT ... FROM orders`) work as for any connection.
+  - An API's tables are exactly its web calls with **Return as table** on (off until you say so): then a SQL cell (`%%sql Orders`, then `SELECT ... FROM list_orders`) and `sab.read("Orders", "list_orders")` read it.
 - **A key vault** (Azure Key Vault, AWS, Google, HashiCorp, 1Password, a `.env` file, Windows Credential Manager or the macOS Keychain): fill in its address and save. **Every secret in the vault** is on by default: each secret becomes an environment variable under its own name (`SqlPassword` stays `SqlPassword`; `Sql--Password` becomes `Sql__Password`, Azure's convention; `warehouse-password` becomes `warehouse_password`), and a secret added to the vault later is there at the next kernel. Once its address is filled in, the form lists the vault's secrets by name: leave a box empty and the secret keeps its own name (shown faintly), or type a name to map it to that variable. Untick Every secret to choose them instead.
 - **An Azure Key Vault signs in** **As you** (Azure CLI, VS Code or Windows sign-in) or as a
   **Managed identity**, for runs in Azure (a Function App, App Service or VM; fill in a client id for a
@@ -637,6 +639,30 @@ cell, `sab.sql("EDP", ...)`, `sab.read`, `sab.dax`, `sab.blade`, `sab.connection
 these at Trino** changes the name in the ticked cells only, and nothing else (a string that merely holds
 the name stays). An open notebook or script changes in the Workbench, unsaved until you save it; a table's
 own read-only cell follows its table by itself.
+
+## APIs
+
+The rail's **APIs** icon (after the ERD) is every API you added, from this computer's library (never a project's: every project sees every API).
+
+- **Cards**: each API's title, base address, how it signs in (never a secret), its operations, its tables, its calls this session, and where it was read from and when. **Refresh** reads its document again and shows what changed (operations added, removed and changed, with their parameters and fields) before **Apply** writes it. **Check for changes** reads it each time the page opens (only an address you gave). **Rename**, **Copy folder**, **Delete** (the code that uses it is listed first).
+- **Search every API**: one box across every operation's name, method, path, text, tags, parameters and fields; the words are marked where they matched.
+- **The explorer**: an API's operations down the left, grouped by tag, each with its method and path, then its **Schemas**. The right side shows the chosen operation: its description, **Inputs** (each parameter's place, type, whether it is required, its default), its body's schema as a tree beside an example made from it, and **Outputs** (each status: its schema and an example). A table's SQL name has **Copy name for SQL**.
+- **Author a call**: a screen of its own. The inputs come filled with defaults and examples; the body is a tree and its JSON side by side, checked against the schema as you edit (double-click a value or a key in the tree to change it). The sign-in is the API blade's, never shown. **Send** runs the call and opens the answer in **Structures**, with its status, time and headers. **Save as web call** keeps the inputs and body in its web call blade; tick **Return as table** (and where its rows are, `$.items`) to make it one of the API's tables. DuckDB turns the answer into the table: a list of records, an envelope (`data`, `value`, `items`...), or header and rows (`columns` and `rows`, Trino's `columns` with types, a header row first); a list inside a record stays a list column. **The DuckDB query** (under the call, and on its page once it is a table) is the conversion itself: change it and **Save the query**, or **Make it again** from the rows path. A list or struct column it leaves opens up with **Unnest this column** on the column's right-click menu in its grid (a SQL step you can read).
+
+- **Older API connections** (added before APIs were blades) keep working and are listed under the cards; **Make into blades** makes one into this computer's library from the document it was made from (if Add API did not keep it, you pick the file). Nothing changes until you click it.
+
+- **Write rows with this call** (on a POST, PUT, PATCH or DELETE): pick an open table; each request field (the body's, nested ones too, and the parameters) takes a column (matched by name to start with) or a value; a required field left out is named and stops the run. **Dry run** shows the first three requests exactly as they will be sent, the rows and the calls, and sends nothing. **Send** writes them one at a time (or **One call for many rows**, where the API takes a list), slowing down when the API says so. The results open as a grid and in Structures: each row's status, the new id, the error; Retry the failed rows sends only those. **Save as web call** keeps the mapping in a blade.
+
+## Structures
+
+The rail's **Structures** icon (after APIs) is for nested data, as Grids are for tables: JSON, YAML, XML and TOML files, pasted text, an API's answer, or a dict or list from a Workbench kernel (the Variables pane's **Open in Structures**, or `sab.show_structure(x)`).
+
+- Each open structure is a tab. Its **tree** and its **text** sit side by side (or one of them). Click a node to see its path (`$.orders[3].lines`; **Copy path**). **Search** marks the words and unfolds the way to them.
+- **Steps**, as a grid's: **Pick** (the tree becomes that branch), **Filter…** a list on a field, **Sort…**, **Flatten** a list of records (dotted keys), **Add key…**, **Rename key…**, **Set value…**, **Remove**; a double click in the tree sets a value or renames a key. Each step is in the strip (× removes it); **Undo** and **Redo**. The original is never changed until **Save**; while there are steps the text shows their result and is read-only.
+- **Open as grid**: a list of records at any path becomes a table (SQL and the Analyze menu work on it).
+- **Save** writes its file; **Save as** picks JSON, YAML, XML or TOML (TOML has no null: it says so) and goes in the project's `structures/` folder, which is saved in the .sab and opens again with the project. YAML needs PyYAML (the app offers to install it). XML with a DOCTYPE or an entity is refused.
+- An API's answer has **Run again** (the same call, your steps kept), **Return as table…** on a list, and **Lineage**: the call (what was sent, and when), the structure, each step, each grid made from it, and the notebook and script cells that read it.
+- In code: `sab.structure("gates")` is a saved structure's value, `sab.structure_table("payload", "$.orders")` its records as a DataFrame.
 
 ## Variables
 
@@ -795,10 +821,46 @@ version never touches your copy.
   cell, each a piece of HTML, CSS and JavaScript of its own on the page: callout banner, animated KPI
   counter, sortable table, gauge, timeline, and four that send a value back to Python (clickable cards,
   segmented slicer, copy table button, keyboard shortcuts). Nothing is fetched from the internet.
+- **Write** (below: Writing data): a Python cell that writes rows to a connection, a dry run first.
 - For the agent: `blades_starters` lists the pack, `blades_copy` copies one as yours, `blades_snippet`
   gives a snippet's blanks (or its filled text), and `workbench_snippet_insert` puts one in a cell.
 
 ![The blade list's Starters: a line for each family with its count, Streamlit open on its pieces.](images/22-starters.png)
+
+### Writing data: the Write starters
+
+Writes are cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
+for the connections that take writes. Each connection says which: its card on the Connections page reads
+**Writes** or **Read-only** (hover for the starters, or the reason), and its page says it in full. A
+Power BI model is read-only (write its source, then refresh it: Power BI refresh dataset); so are a
+DuckDB file the app opens read-only and the warehouses that load through their own tools (Snowflake,
+BigQuery, Redshift, Databricks), and a key vault.
+
+- **Databases** (SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite, Oracle, Trino, ODBC):
+  append, create table (the rows' types made the database's), replace (every row, in one transaction),
+  upsert (insert, or update where a key matches) and delete (the rows whose keys are the rows' keys).
+  SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
+  passing errors run the whole write again. PostgreSQL uses COPY and ON CONFLICT. Trino writes where the
+  catalog's connector does (Iceberg, Delta Lake, Hive), a statement at a time.
+- **Dataverse** through its Web API (its SQL endpoint is read-only): create, update, upsert (by an
+  alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
+  labels (Won, not 1).
+- **Files**: CSV, Parquet, partitioned Parquet (a folder per value), JSON, an Excel sheet (the
+  workbook's other sheets kept). Excel write table and Excel range as table are listed here too.
+- **APIs**: the APIs page's Write rows with this call.
+
+Drop one onto a Python cell (or **Insert a snippet…**): the form asks for the connection (those of its
+kind first), the rows (an open table, or any DataFrame or DuckDB relation by its name), the target
+table and the key columns. The cell gets the call only, `write_sqlite("Shop", "orders", orders,
+mode="upsert", keys=["order_id"], dry_run=True)`, with the line that fetches the function above it
+(the function itself is the Write family's **Write to SQLite**: Copy as your own to change it). Every
+call ends `dry_run=True`: run it and it says what it would do (the
+target, the rows and their types, the statements, how many rows it would insert, update or delete, the
+first 5 rows) and changes nothing. Set `dry_run=False` and run it again to write: one transaction
+where the database has them (a failure writes nothing and says which batch), the counts and the time at
+the end, and a note if the table changed since the dry run. No password goes in the cell: it signs in
+through the connection's own sign-in. An agent sets `dry_run=False` only after you told it to write,
+in your own words.
 
 ### Every table has its own cell
 

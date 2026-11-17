@@ -314,7 +314,7 @@ export function withMarkerName(line: string, name: string): string {
   return name ? `${found[1]} ${markerWords(name)}` : found[1]!;
 }
 
-// ===== the Streamlit cells pane (the Data panel): every cell that calls Streamlit =====
+// ===== the Streamlit cells pane (App mode's panel): every cell that calls Streamlit =====
 
 export interface PaneCell {
   cell: number;

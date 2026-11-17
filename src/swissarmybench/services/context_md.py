@@ -179,6 +179,7 @@ class ContextMd:
             table_count=total,
             shared=frozenset(shared),
             used_in=tuple(dict.fromkeys(used)),
+            writes=(card.get("writes") or {}).get("writable"),
         )
 
     def _tables(self) -> tuple[rules.TableFacts, ...]:
@@ -302,6 +303,8 @@ class ContextMd:
         folder, _ = self._folder()
         connections = []
         for card in self._connections():
+            if card.get("tables_kind") == "api" and self._apis is not None:
+                continue  # an API: its own section (APIs) has it and its tables
             connections.append(await self._connection(card, folder))
         sab = project.get("path")
         return rules.State(

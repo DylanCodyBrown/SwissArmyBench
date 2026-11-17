@@ -41,7 +41,7 @@
  *              (workbenchCanvas.ts): New app opens one as a tab; any Python cell is dragged onto it (onto
  *              its tab too) or copied and pasted, as a link; Play shows the page live in place
  *   [PROJECT]  a project is a folder that starts with data.ipynb (its export: data.py): New project,
- *              Open project (its files as tabs, and listed in the Data panel), Export data.py
+ *              Open project (its files as tabs, and listed at the Data Explorer's foot), Export data.py
  *   [POP OUT]  a saved document moves into a Workbench window of its own (the group's "…")
  *
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
@@ -78,6 +78,7 @@ import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, noteboo
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
+import { installZoomInput, zoomControl } from "./zoom";
 import { updateCommands, updateMark, versionMark } from "./updates";
 import { claudeCommands, launchButton } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
@@ -156,7 +157,7 @@ let workspaceNames: string[] = []; // the Power BI workspaces
 let datasetNames: string[] = []; // their datasets, as a DAX cell names them: Finance/Sales model
 let bladeNames: string[] = [];
 let codeNames: { name: string; connection: string; kind: string }[] = [];
-let bladeVariables: BladeSummary[] = []; // the blades that are not connections: the Data panel's Variables
+let bladeVariables: BladeSummary[] = []; // the blades that are not connections
 let editingBlade = false;
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
@@ -278,7 +279,7 @@ function drawTablesTool(): void {
 
 const DATA_NOTEBOOK = "data.ipynb";
 const APP_ENDING = ".stapp.json";
-// The Streamlit cells pane (the Data panel): what the server last listed, the canvas its marks are for.
+// The Streamlit cells pane (App mode's panel): what the server last listed, the canvas its marks are for.
 let paneDocuments: PaneDocument[] = [];
 let lastCanvas: Doc | null = null;
 let paneTimer: number | null = null;
@@ -1837,7 +1838,9 @@ function drawControls(): void {
   const scheduled = doc.script ? button(scheduling.has(doc) ? "Running…" : "Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
   if (scheduled) scheduled.disabled = scheduling.has(doc);
   const view = dataViews.get(doc)?.view ?? "cells";
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
+  // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
+  // shouldnt be"): cells are a notebook's.
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -1860,8 +1863,9 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
+installZoomInput();
 const explorerToggle = button("Data Explorer", () => void runCommand("view.explorer").catch((e: Error) => toast(e.message, "error")), { class: "ghost wb-toggle wb-explorer-toggle", pressed: false, title: "Data Explorer (Ctrl+Shift+E)" });
-layout.status.append(versionMark(), explorerToggle, kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
+layout.status.append(versionMark(), explorerToggle, kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -2296,7 +2300,7 @@ function followKind(doc: Doc | null): void {
 }
 
 /** A kind's document in front (the one in front already, else the last opened), in its mode. None
- *  open: that kind's landing page (its address: view=list). Apps: the Data panel and its Streamlit cells
+ *  open: that kind's landing page (its address: view=list). Apps: the canvas's Streamlit cells panel
  *  pane open beside the canvas, the cells to build its page from. */
 function showKind(k: Kind): void {
   if (k === "app") appPanes();
@@ -2862,7 +2866,7 @@ const COMMANDS: Command[] = [
   { id: "group.focusPrevious", group: "Groups", title: "Focus the previous group", when: manyGroups, whyNot: "there is one group", run: () => groups.focusGroup((groups.focusedIndex() - 1 + groups.list().length) % groups.list().length) },
   { id: "tab.moveLeft", group: "Groups", title: "Move the tab left in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), -1) },
   { id: "tab.moveRight", group: "Groups", title: "Move the tab right in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), 1) },
-  // The Data panel: tables, the blades' variables
+  // The open tables and the blades' variables (once the Data panel's; the Data Explorer finds them)
   { id: "data.list", agentOnly: true, group: "Data", title: "The open tables and the blades' variables (the Data Explorer finds more: explorer.search)", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed" }) },
   // The Data Explorer (workbenchExplorer.ts, dataExplorer.ts): its search, its Insert, popping out and back
   { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: async (a) => {
