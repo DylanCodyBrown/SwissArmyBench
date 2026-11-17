@@ -3541,3 +3541,54 @@ name> Install now?"
 - The prompt's dialog takes no history entry (Back does not close it): it is a question, not a place.
 - **Not built here:** the Trino keystore's pyjks (branch trino-keystore): its form says the shape through
   `/blades/inspect` like every other, so it should need nothing more than a feature name, if any.
+
+## Swapping a table's connection (the owner, 2026-11-16; built, branch swap-connection)
+
+The owner's words: "we also need button the the table row to swap a tables connection", "for example my
+local agent created an odbc connection when it shouldnt have", "not I have a trino and an edp", "I deleted
+the edp but need its queries to run on the other", "so I need a option to swap that sql to run on
+trino(non odbc)".
+
+### Built
+- **The Table row's Connection: EDP** (ribbon.ts, swapConnection.ts): it names the table's connection
+  (from its origin, or the project's file for a table waiting to come back) and opens a chooser of the
+  other connections that hold tables. Choosing one reads the table again from it with the SAME steps: the
+  first grid takes the new rows, so the tab, its steps and any other grid stay (services/connection_swap.py).
+  - A catalog table is matched in the other's catalog (domain/connection_swap.py match_place): the name in
+    any case, the schema then the database breaking a tie, and an ODBC database may be Trino's catalog
+    (database matching the other's schema counts). The catalog is loaded first when it is not
+    (CatalogLoading.ready). Not found, or a tie: the other's catalog tree to pick from (the ones of that
+    name first), or Write a query… with a first SELECT in the other's dialect.
+  - A query (a table read by a query on a connection, or the "+" tab's query) opens in the SQL window
+    (`?panel=connsql`, the SQL step's window pattern: as big as the user likes) holding it, then Run on
+    Trino. Only one read runs (SELECT, WITH, VALUES, EVALUATE).
+  - A new kind of table source: a connection's query (origin connection + sql, no place): project.json
+    keeps it (`source` connection with `sql` and no `table`) and a project reads it again by its query.
+  - Its read-only cell follows on its own (the origin changed).
+- **A deleted connection** (startView.ts): a waiting table's strip row (No connection EDP) has **Use
+  another connection…**: every table that used it (waiting or open) moves at once (POST
+  /connections/{name}/move); the queries come back to look over one by one in the SQL window (Review…),
+  or **Run as they are**; tables not found are picked in the same dialog.
+- **The code follows, with a click:** after a swap or a move, the cells that named the old connection
+  (connection_usage's reference finder: `%%sql`, `%%dax`, sab.sql/read/dax/blade/connection), each
+  ticked: **Point these at Trino** rewrites the name only, in the ticked cells (domain/connection_swap.py:
+  ast for Python, the first line for a SQL or DAX cell; `EDP -> orders` and `EDP/Sales model` keep their
+  other words). An open document changes in the Workbench window (doc.repoint: the window's own unsaved
+  text, unsaved until Save, or autosaved); any other's file is written (in a project, its working folder:
+  the .sab follows on Save or Autosave).
+- **Undo:** the toast's, the strip's (a row EDP → Trino with Undo, until put away) and the chooser's: the
+  table's rows and origin as they were (a waiting table waits again). Nothing is deleted.
+- **The agent:** `table_connection`, `table_swap_connection` (answers swapped, pick or review),
+  `table_swap_undo`, `connections_move_tables`, `connections_repoint` (lists without `to`); the index and
+  the connections guide.
+
+### Decisions
+- The undo keeps the old rows in memory (the last swap of each table only), so it works when the old
+  connection is gone.
+- A table's read-only cell and a canvas block are not offered to tick: they follow their table or cell.
+- A document not open in a Workbench window is written directly (outside a project that is its save);
+  open ones change in the window so the user's unsaved text is never overwritten.
+- A query moved with "Run as they are" that fails is listed with the source's words; the table keeps its
+  old connection.
+- The "+" tab's query (DuckDB over the open tables) can be moved onto a connection through the SQL window:
+  it then runs there and becomes a connection's query.

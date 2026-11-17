@@ -648,7 +648,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       ...config.variables.flatMap((v) => term(v.name, v.from === "vault" ? `${v.vault ?? ""} (${v.secret ?? ""})` : v.from)),
       ...(config.vault_all ? term("Secrets", "Every secret, each under its own name") : []),
       ...config.vault_entries.flatMap((e) => term(e.variable, h("code", {}, e.secret))),
-      ...(config.row_limit ? term("Rows to open", config.row_limit.toLocaleString()) : []),
+      ...(config.row_limit === 0 ? term("Rows to open", "Every row") : config.row_limit ? term("Rows to open", config.row_limit.toLocaleString()) : []),
       ...(c ? term("In code", h("code", { class: "connection-in-code" }, inCode(c))) : []),
     );
     const calls = usage.calls;
@@ -1193,7 +1193,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       code,
       catalog: form.catalog,
       // Every secret: only the renamed ones are kept (the rest take their own names each time).
-      ...(form.connection === "database" ? { row_limit: rowLimit.value.trim() ? Number(rowLimit.value) : null } : {}),
+      ...(form.connection === "database" ? { row_limit: allRows.checked ? 0 : rowLimit.value.trim() ? Number(rowLimit.value) : null } : {}),
       ...(isVault
         ? {
             vault_all: every.checked,
@@ -1270,7 +1270,18 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     };
     // A database: how many rows a table opens with as a grid (the grid says when the source has more).
     const rowLimit = h("input", { type: "number", min: 1, step: 1, value: form.row_limit ? String(form.row_limit) : "", placeholder: "10000", "aria-label": "Rows to open" }) as HTMLInputElement;
-    const rowLimitField = form.connection === "database" ? h("label", { class: "field" }, h("span", {}, "Rows to open"), rowLimit) : null;
+    // Load all rows (the owner, 2026-11-16: "a box on the connection to load all rows"): every table opens whole
+    // (row_limit 0); the number box rests.
+    const allRows = h("input", { type: "checkbox", checked: form.row_limit === 0, "aria-label": "Load all rows" }) as HTMLInputElement;
+    const restLimit = (): void => {
+      rowLimit.disabled = allRows.checked;
+    };
+    allRows.addEventListener("change", restLimit);
+    restLimit();
+    const rowLimitField =
+      form.connection === "database"
+        ? h("div", { class: "field row-limit-field" }, h("label", { class: "field" }, h("span", {}, "Rows to open"), rowLimit), h("label", { class: "check" }, allRows, "Load all rows"))
+        : null;
     const passwordsSlot = h("div", {}, drawPasswords() ?? "");
     const installSlot = h("div", {});
     // A driver that is not installed: the prompt in the user's face (missingPackages.ts); after Not now a

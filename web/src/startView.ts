@@ -11,7 +11,7 @@
  *          [GRIDS]    /workspace?view=grids: Grids with no table open while a project is: Open a file,
  *                     Paste, Query (the "+" tab), the project's connections (each its catalog) and the
  *                     catalog, and the project's tables that did not come back, each with its fix
- *          [PROJECT]  the Application row's first group: the project's name (● with unsaved changes),
+ *          [PROJECT]  in the Application row, before Zoom: the project's name (● with unsaved changes),
  *                     Save (Ctrl+S), Save as…, Close, the Autosave switch
  *          [FIXES]    a strip under the tabs, only while a table did not come back: its one click
  *          [ASKED]    a double-click on a .sab with unsaved work open: the page asks
@@ -23,6 +23,7 @@ import { gridList, newQueryTab, onAgentView, setEmptyView, showGridsLanding, sho
 import { answerAsked, autosaveSwitch, baseName, closeProject, fixTable, folderOf, loadProject, mountProject, newProject, onBeforeSave, onProject, openProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, when } from "./projectFile";
 import { openFile } from "./openFile";
 import { tourButton } from "./tour";
+import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
 
 const WORKBENCH = "swissarmybench-workbench";
 let host: HTMLElement;
@@ -65,6 +66,9 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
   // With no table open: the Grids landing while a project is open, else the Start view.
   setEmptyView(() => (projectState().project ? "grids" : "start"));
   mountProject();
+  onConnectionChange(() => {
+    if (lastState) drawFixes(lastState);
+  });
   onProject((state) => {
     drawGroup(state);
     drawFixes(state);
@@ -221,26 +225,40 @@ function drawGroup(state: ProjectState): void {
   if (!project) return clear(group);
   const autosave = autosaveSwitch(project.autosave, (on) => void setAutosave(on).catch((e: Error) => toast(e.message, "error")));
   if (project.autosave_error) autosave.element.title = project.autosave_error;
+  // In the Application row (the owner, 2026-11-16): the project's name, then its tools, before Zoom.
   clear(
     group,
-    h("div", { class: "ribbon-caption" }, h("strong", { class: "project-name", title: project.path ?? project.name }, projectLabel(project))),
-    h(
-      "div",
-      { class: "ribbon-tools" },
-      button("Save", guard(() => saveProject()), { icon: "save", class: "ribbon-btn", title: project.read_only ?? "Save (Ctrl+S)" }),
-      button("Save as…", guard(() => saveProject(true)), { icon: "folder", class: "ribbon-btn", title: "Save as (Ctrl+Shift+S)" }),
-      button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
-      autosave.element,
-    ),
+    h("strong", { class: "project-name", title: project.path ?? project.name }, projectLabel(project)),
+    button("Save", guard(() => saveProject()), { icon: "save", class: "ribbon-btn", title: project.read_only ?? "Save (Ctrl+S)" }),
+    button("Save as…", guard(() => saveProject(true)), { icon: "folder", class: "ribbon-btn", title: "Save as (Ctrl+Shift+S)" }),
+    button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
+    autosave.element,
   );
 }
 
 // ===== tables that did not come back: each with its fix =====
 
+let lastState: ProjectState | null = null;
+
 function drawFixes(state: ProjectState): void {
+  lastState = state;
   const problems = state.project?.problems ?? [];
-  strip.hidden = problems.length === 0 || viewingLanding();
-  clear(strip, ...problems.map((p) => fixRow(p)));
+  const swaps = recentSwaps();
+  strip.hidden = (problems.length === 0 && swaps.length === 0) || viewingLanding();
+  clear(strip, ...problems.map((p) => fixRow(p)), ...swaps.map((s) => swapRow(s)));
+}
+
+/** A table moved to another connection from this page: its Undo stays here until used or put away. */
+function swapRow(done: { table: string; from: string | null; to: string }): HTMLElement {
+  return h(
+    "div",
+    { class: "project-fix swap-done", role: "status", "data-table": done.table },
+    icon("plug"),
+    h("strong", {}, done.table),
+    h("span", { class: "project-fix-message" }, done.from ? `${done.from} → ${done.to}` : done.to),
+    button("Undo", guard(() => undoSwap(done.table)), { icon: "undo", class: "ghost" }),
+    button(`Put away ${done.table}`, () => forgetSwap(done.table), { icon: "close", iconOnly: true, class: "ghost" }),
+  );
 }
 
 function fixRow(problem: Problem): HTMLElement {
@@ -257,6 +275,8 @@ function fixRow(problem: Problem): HTMLElement {
     h("strong", {}, problem.table),
     h("span", { class: "project-fix-message" }, problem.message),
     button(problem.fix.label, guard(() => fixTable(problem, how)), { class: "primary" }),
+    // A deleted connection (the owner, 2026-11-16): every table that used it moves to another at once.
+    problem.fix.kind === "add_connection" && problem.fix.connection ? button("Use another connection…", guard(() => openMoveChooser(problem.fix.connection!)), { icon: "plug" }) : null,
     retry ? button("Try again", guard(() => fixTable(problem, { ...how, retry: true })), { class: "ghost" }) : null,
     problem.fix.kind === "remove" ? null : button(`Remove ${problem.table}`, guard(() => api("/project/fix", "POST", { table: problem.table, remove: true }).then(() => loadProject())), { icon: "close", iconOnly: true, class: "ghost" }),
   );

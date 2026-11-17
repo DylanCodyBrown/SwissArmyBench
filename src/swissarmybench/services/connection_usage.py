@@ -179,7 +179,7 @@ class ConnectionUsage:
             "pack": blade.pack,
         }
 
-    def _references(self, name: str) -> tuple[list[rules.Reference], list[str]]:
+    def references(self, name: str) -> tuple[list[rules.Reference], list[str]]:
         """Every cell and block that uses it in the documents, and the open grids read from it; the
         documents that could not be read."""
         found: list[rules.Reference] = []
@@ -233,7 +233,7 @@ class ConnectionUsage:
             raise NotFound(f"There is no connection called {name}.")
         details = self._connections.details(blade.name)
         card = next((c for c in self._connections.listing()["connections"] if c["name"] == blade.name), None)
-        references, unread = self._references(blade.name)
+        references, unread = self.references(blade.name)
         return {
             **(self._card(card) if card else {"name": blade.name}),
             "configuration": self._configuration(blade, details),

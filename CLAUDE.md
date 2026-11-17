@@ -246,6 +246,9 @@ src/swissarmybench/
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
                          this session by kind, a card's status word, the settings it may show (no password)
+    connection_swap.py   a table's connection swapped: a table matched in another catalog (name in any case,
+                         schema then database; an ODBC database as Trino's catalog), a read query checked, the
+                         code pointed at the new connection (the name only: ast, a %%sql/%%dax line; ticked cells)
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -274,6 +277,9 @@ src/swissarmybench/
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
                          documents: recent, open, the project's: one seam), configuration (never a value),
                          and its calls this session (the app's runs, a Workbench kernel's report; memory only)
+    connection_swap.py   a table read from another connection with its steps kept (matched, picked, or its query
+                         reviewed), every table of a deleted connection moved, the undo (old rows in memory), the
+                         cells repointed (an open document in the Workbench window, else its file)
     apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
@@ -350,7 +356,8 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
-                         projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log). Every route serves
+                         projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
+                         connection_swap). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -506,6 +513,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          landing (/workspace?view=grids: a project open, no table: Open a file, Paste,
                          Query, its connections, its tables to fix), the project's group in the
                          Application row (Save, Save as, Close, Autosave) and the strip of tables to fix;
+                         swapConnection.ts the Table row's Connection: <name> (a table read from another
+                         connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
+                         ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
+                         Point these at <name> (the cells that named the old one, ticked);
                          updates.ts the status bars' "Update available" (Update to X, What's new) and
                          Settings' Check for updates;
                          claudeLaunch.ts the status bars' Launch Claude (one found: straight to it; both: a

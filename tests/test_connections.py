@@ -551,7 +551,7 @@ def sqlite_connection(path: Path, row_limit: int | None = None) -> dict[str, Any
         'conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)\n'
     )
     return {"name": "Shop", "kind": "sql", "template": "sqlite", "dialect": "sqlite", "code": code} | (
-        {"row_limit": row_limit} if row_limit else {}
+        {"row_limit": row_limit} if row_limit is not None else {}
     )
 
 
@@ -580,6 +580,24 @@ def test_a_database_table_opens_as_a_grid_its_first_rows_then_all(client: TestCl
     preview = client.post("/connections/Shop/preview", json={"table": "orders"}, headers=AUTH).json()
     assert preview["columns"] == ["order_id", "region", "ordered"] and len(preview["rows"]) == 30
     assert client.post("/connections/Shop/open", json={}, headers=AUTH).status_code == 400  # name it
+
+
+def test_load_all_rows_on_the_connection_opens_every_table_whole(client: TestClient, tmp_path: Path) -> None:
+    """The owner (2026-11-16): "a box on the connection to load all rows": Rows to open 0 is every row."""
+    database = tmp_path / "shop.sqlite"
+    with sqlite3.connect(database) as made_up:
+        made_up.execute("CREATE TABLE pears (pear_id INTEGER)")
+        made_up.executemany("INSERT INTO pears VALUES (?)", [(i,) for i in range(10_250)])
+    assert client.post("/connections", json=sqlite_connection(database, 0), headers=AUTH).status_code == 200
+    opened = client.post("/connections/Shop/open", json={"table": "pears"}, headers=AUTH)
+    assert opened.status_code == 200, opened.text
+    grid = client.get(f"/grids/{opened.json()['grid']}", headers=AUTH).json()
+    assert grid["row_count"] == 10_250 and grid["opened"] is None  # past the 10,000 default, not cut
+    assert client.get("/connections/Shop", headers=AUTH).json()["row_limit"] == 0  # kept
+    bad = client.post(
+        "/connections", json=sqlite_connection(database, 60_000_000) | {"name": "Bad"}, headers=AUTH
+    )
+    assert bad.status_code == 400 and "0 for every row" in bad.text
 
 
 def test_a_table_open_from_elsewhere_is_not_replaced_by_one_of_the_same_name() -> None:

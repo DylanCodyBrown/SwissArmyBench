@@ -82,6 +82,7 @@ from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connection_colours import ConnectionColours
+from swissarmybench.services.connection_swap import ConnectionSwap
 from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.controllers import Controllers
@@ -165,6 +166,7 @@ class Services:
     script_exports: ScriptExports
     panels: Panels
     session_log: SessionLog
+    connection_swap: ConnectionSwap
     navigation: Navigation
     kind_colours: KindColours
     connection_colours: ConnectionColours
@@ -527,6 +529,21 @@ def bootstrap(
         carry=carry_connections,
         autosave_seconds=settings.autosave_seconds,
     )
+    # A table's connection swapped for another (its steps kept), and the code that named the old one.
+    connection_swap = ConnectionSwap(
+        ws,
+        datasets,
+        connections,
+        catalogs,
+        catalog_loading,
+        sab_projects,
+        connection_usage,
+        table_reader,
+        read_document=documents.read,
+        write_document=lambda path, text: documents.write(path, text, True),
+        open_documents=streamlit.documents,
+        ask_window=lambda command, args: workbench_window.ask(command, args, "app"),
+    )
     project_scope = ProjectScope(
         sab_projects, archive, computer_blades, connections, on_saved=catalog_loading.saved
     )
@@ -633,6 +650,7 @@ def bootstrap(
         table_cells=table_cells,
         panels=Panels(ws),
         session_log=session_log,
+        connection_swap=connection_swap,
         navigation=Navigation(ws),
         script_runs=script_runs,
         kind_colours=kind_colours,

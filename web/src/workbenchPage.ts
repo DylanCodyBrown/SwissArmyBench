@@ -2321,6 +2321,46 @@ const text = (args: Record<string, unknown>, name: string): string | undefined =
   if (typeof value !== "string") throw new Error(`${name} is text.`);
   return value;
 };
+/** A swap's code (connection_swap.py's repoint): the open document's ticked cells name another connection,
+ *  the name only (the server's rules, on the window's own unsaved text); an edit like any other. */
+async function repointDocument(a: Record<string, unknown>): Promise<{ cells: (number | null)[] }> {
+  const path = text(a, "path");
+  const from = text(a, "from");
+  const to = text(a, "to");
+  if (!path || !from || !to) throw new Error("Send path, from and to.");
+  const key = (p: string): string => p.replace(/\\/g, "/").toLowerCase();
+  const doc = docs.find((d) => d.path && key(d.path) === key(path));
+  if (!doc) throw new Error(`${path} is not open here.`);
+  const wanted = Array.isArray(a.cells) ? (a.cells as unknown[]) : null;
+  const done: (number | null)[] = [];
+  if (doc.notebook) {
+    for (const cell of doc.notebook.cells()) {
+      const number = cell.number ?? null;
+      if (number === null || (wanted && !wanted.includes(number)) || (cell.role && cell.role !== "maker")) continue;
+      if ((cell.kind === "sql" || cell.kind === "dax") && cell.connection) {
+        const line = `%%${cell.kind} ${cell.connection}`;
+        const answer = await api<{ text: string }>("/connections/rewrite", "POST", { kind: "line", text: line, from, to });
+        if (answer.text === line) continue;
+        const named = answer.text.replace(/^%%\w+\s+/, "").replace(/^'(.*)'$/, "$1");
+        doc.notebook.setCellConnection(number, named);
+        done.push(number);
+      } else if (cell.kind === "code") {
+        const answer = await api<{ text: string; changed: number }>("/connections/rewrite", "POST", { kind: "python", text: cell.source, from, to });
+        if (!answer.changed) continue;
+        doc.notebook.setSource(number, answer.text);
+        done.push(number);
+      }
+    }
+  } else if (doc.script) {
+    const answer = await api<{ text: string; cells: (number | null)[] }>("/connections/rewrite", "POST", { kind: "script", text: doc.script.text(), from, to, cells: wanted });
+    if (answer.cells.length) doc.script.replaceText(answer.text);
+    done.push(...answer.cells);
+  } else {
+    throw new Error(`${path} is not a notebook or a script.`);
+  }
+  return { cells: done };
+}
+
 /** The front document's tables: a notebook's or a script's. */
 const tablesView = (): NotebookView | ScriptView => {
   const view = current ? viewOf(current) : undefined;
@@ -2434,6 +2474,7 @@ const COMMANDS: Command[] = [
   // Documents
   { id: "documents", agentOnly: true, group: "Documents", title: "What is open", run: () => documents() },
   { id: "doc.read", agentOnly: true, group: "Documents", title: "The front document's text or cells", when: isCode, whyNot: "no notebook or script is in front", run: () => (current?.notebook ? { kind: "notebook", cells: current.notebook.cells() } : { kind: "script", text: script().text() }) },
+  { id: "doc.repoint", agentOnly: true, group: "Documents", title: "Point an open document's cells at another connection (unsaved until Save)", args: "path; from; to; cells: the cells' own numbers (null: a script's main code)", run: (a) => repointDocument(a) },
   { id: "doc.show", group: "Documents", title: "Show a document", args: "index, or path", run: (a) => {
     const at = num(a, "index");
     const path = text(a, "path");

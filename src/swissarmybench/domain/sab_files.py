@@ -128,7 +128,7 @@ class Source:
     def label(self) -> str:
         """Where it comes from, in a word or two: Warehouse · orders, orders.csv, data.ipynb, Pasted."""
         if self.kind == "connection":
-            return " · ".join(filter(None, [self.connection, self.table]))
+            return " · ".join(filter(None, [self.connection, self.table or ("Query" if self.sql else "")]))
         if self.kind == "file":
             return _base(self.path or self.absolute or "")
         if self.kind == "cell":
@@ -256,6 +256,12 @@ def source_of(
         sql = origin.sql if origin.dax else None
         return Source("connection", connection=name, database=database, schema=schema, table=table,
                       sql=sql, dax=origin.dax, whole=whole)  # fmt: skip
+    if origin.kind == "connection" and origin.connection and origin.sql and place is None:
+        # A query of the user's on a connection (a table's connection swapped): read again by its query.
+        # DAX: on the dataset its name holds (Finance/Sales model), kept as the schema.
+        name, _, dataset = origin.connection.partition("/")
+        return Source("connection", connection=name, schema=dataset if origin.dax else "", sql=origin.sql,
+                      dax=origin.dax)  # fmt: skip
     if origin.kind == "query" and origin.sql:
         return Source("query", sql=origin.sql)
     if origin.kind == "python" and kernel_document:
