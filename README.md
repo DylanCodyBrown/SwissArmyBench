@@ -313,6 +313,10 @@ rows are kept only when you tick **Keep its rows**, in `.sab/data/`, which Git i
 The home page is the **Project Explorer**: every project as a card (sortable, a custom order by dragging,
 the types explained), **New project** (name, type, where), **Open project…** (a folder) and the tour.
 **Save** (Ctrl+S; **Autosave** is on by default) and **Copy project to…** are in the Application row.
+**Export outline** (there and in the Workbench's project menu) writes `ARCHITECTURE.md` at the project's
+top and offers its download: the project for someone joining it, the same eight sections every time
+(overview, data sources, data model with an ER diagram, transformations, lineage, deliverables, running it,
+open issues), names and types only, never a row or a value from the data.
 **Import** copies notebooks, scripts and apps in from another project folder or a loose file; connections
 and blades are the library's, shared by every project.
 

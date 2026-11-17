@@ -5005,3 +5005,57 @@ already".
 
 ### Next
 - The images 20-catalog.png and 21-blade-save.png in the user guide are no longer referenced: new screenshots.
+
+## The project's outline: ARCHITECTURE.md (the owner, 2026-11-17; built, branch project-outline)
+
+The owner: "The next logical step here is designing a way to easily export markdown context about a project.
+Like a uniform export that outlines the project from an architectural standpoint". The owner's decisions:
+written as **ARCHITECTURE.md at the project folder's top** (on Export, plus a download); written **for people
+joining the project** (plain words, diagrams, a short summary per section, long lists folded); columns with
+**names and types only** (never a number or value from the data: no row counts, no profiles).
+
+### Built
+- domain/project_outline.py (pure: facts in, text out) and services/project_outline.py (gathers them). The same
+  eight sections in the same order every time; an empty one says "None.": Overview (name, type in its mode's
+  words, purpose = README.md's first paragraph or "Not written yet", the folder as a text tree with each file's
+  role, data.py and pages/*.py marked made), Data sources (each connection and API the project uses: type,
+  sign-in, portability, the variables it needs by name and source, used by), Data model (each table it uses:
+  where it comes from, columns by name and type, the relationships among them; a Mermaid `erDiagram`),
+  Transformations (each table's steps in words and as one DuckDB query; data.ipynb's named cells: makes and
+  reads), Lineage (one Mermaid `flowchart LR`: sources, tables, the named cells, the deliverables), Deliverables
+  (notebooks, scripts, apps with their pages and the cells each block links, saved Visualizations dashboards),
+  Running it (packages, scripts' run settings by variable name and source, a checklist for a Function App or a
+  hosted Streamlit app), Open issues (tables to fix, passwords with no source here, local-only connections,
+  the lint's errors and warnings per document).
+- Deterministic: sorted, no timestamp, no version in its header; ARCHITECTURE.md is never in its own layout. Export
+  writes it through SabArchive.write_state (atomic, only when its bytes change).
+- GET /project/outline (text/markdown), POST /project/outline (writes; {file, path, written, text}); the agent's
+  `project_outline` (`write: true` writes, as Export does; not destructive, no Allow). Export outline in the
+  project's group of the Application row and the Workbench's project menu (`project.outline`); its toast offers
+  Download. New project's README mentions Export outline in one line; the scaffold makes no ARCHITECTURE.md.
+- An app's pages come through services/hooks.py (`app_pages`, filled by the Streamlit extension's
+  `outline_pages`), so the base never names the extension.
+
+### Seams (replaced at merge)
+- A. `UsedTables.used(project: str) -> set[str]` (project = the folder): today ProjectTables: the open tables,
+  .sab/project.json's tables, and the `[Connection].table` names its documents' DuckDB SQL names (SQL cells,
+  and string constants in Python cells; read by sqlglot). The relationship-sets branch's notion replaces it.
+- B. `Portability.verdict(connection: Mapping) -> {"portable": bool | None, "reason": str, "instead": str}`,
+  `connection` = {name, kind, type, template, dialect, sign_in}. Today NotChecked: portable None, "Not checked
+  yet" (no guessing). The drivers branch's rule replaces it; False lists the connection in Open issues and the
+  checklist says "Only works on your machine: <reason>. On a Function App or hosted Streamlit app use <instead>."
+
+### Decisions
+- A table's source query text (a connection's SQL, a "+" tab's) is not written (as context.md); the grid's steps
+  are, as the brief asks: their words (domain/steps.py's describe_step) and the DuckDB query, so a filter's
+  typed value appears there. Rows, counts and profiles never do.
+- Script arguments are counted, never written (their text may be a value).
+- The lint is the app's own small one (domain/intellisense.py), never Ruff, so the count is the same on every
+  computer; the open tables' names are known names.
+- Data files (CSV, Excel) are not in the layout (the project's own files, as sab_files' `packed`); the tables
+  that read them name them.
+
+### Next
+- Wire the two seams to the drivers and relationship-sets branches' rules.
+- A table named only through `sab.sql("Shop", "...")` Python strings in a connection's own dialect is not yet a
+  used table (only DuckDB SQL's `[Connection].table`).

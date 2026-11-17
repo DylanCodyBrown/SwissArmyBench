@@ -11,7 +11,6 @@ SWISSARMYBENCH_GOLDEN_WRITE=1 writes the golden files again (look at the diff be
 
 from __future__ import annotations
 
-import json
 import os
 import sqlite3
 from collections.abc import Iterator, Mapping
@@ -28,6 +27,8 @@ from swissarmybench.domain.context_md import RelationshipFacts
 from swissarmybench_streamlit.domain import streamlit_cells
 from tests.conftest import AUTH, TOKEN, make_client
 from tests.fake_keyring import memory_keyring
+from tests.test_cli import Live, live  # noqa: F401 (the running server)
+from tests.test_cli import run as command
 
 GOLDEN = Path(__file__).parent / "golden" / "project_outline"
 SECRET = "made-up-outline-pa55word"
@@ -322,17 +323,46 @@ def test_the_two_seams_are_replaced_whole(tmp_path: Path) -> None:
         )
 
 
-def test_the_agents_command_reads_and_writes_as_the_user_does(tmp_path: Path) -> None:
-    with make_client(tmp_path) as client:
-        folder = build(client, tmp_path)
-        agent = {**AUTH, "X-Actor": "agent"}
-        text = client.get("/project/outline", headers=agent).text
-        done = ok(client.post("/project/outline", json={}, headers=agent))
-        assert done["written"] is True and (folder / rules.FILE_NAME).read_text(encoding="utf-8") == text
-        log = (
-            (tmp_path / "state" / "audit.log").read_text(encoding="utf-8")
-            if (tmp_path / "state" / "audit.log").exists()
-            else ""
-        )
-        assert "project_outline" in log or log == ""
-    _ = json  # (kept for the golden helper's sake)
+def test_the_agents_command_reads_and_writes_as_the_user_does(live: Live, tmp_path: Path) -> None:  # noqa: F811
+    folder = tmp_path / "Agent's project"
+    command("project_new", path=str(folder))
+    (folder / "README.md").write_text("# A\n\nA made-up project the agent outlines.\n", encoding="utf-8")
+    text = command("project_outline")
+    assert text.startswith("# Agent's project: architecture\n") and "A made-up project the agent" in text
+    assert not (folder / rules.FILE_NAME).exists()  # a read writes nothing
+    done = command("project_outline", write=True)
+    assert done["written"] is True and done["file"] == rules.FILE_NAME and done["text"] == text
+    assert (folder / rules.FILE_NAME).read_text(encoding="utf-8") == text
+    assert command("project_outline", write=True)["written"] is False
+
+
+def test_apis_dashboards_and_app_pages_have_their_lines_and_their_lineage() -> None:
+    api = rules.SourceFacts("Orders API", "api", "OpenAPI", calls=("list_orders",), used_by=("data.ipynb",))
+    table = rules.TableFacts("list_orders", "from connection `Orders API`", "connection", "Orders API", ())
+    board = rules.Deliverable("dashboard", "Weekly", ("list_orders",), ("chart", "note"))
+    app = rules.Deliverable(
+        "app",
+        "sales.stapp.json",
+        (),
+        (),
+        (rules.PageFacts("Home", ("app.ipynb @cell1 (Chart)",)),),
+        ("app.ipynb",),
+    )
+    notebook = rules.Deliverable("notebook", "app.ipynb", ("list_orders",), ("chart",))
+    outline = rules.Outline(
+        rules.Overview("P", "Streamlit app", "Streamlit", "a Streamlit app"),
+        sources=(api,),
+        tables=(table,),
+        deliverables=(notebook, app, board),
+    )
+    text = rules.render(outline)
+    assert "### APIs\n\n- `Orders API`: OpenAPI" in text and "  - Web calls used: `list_orders`" in text
+    assert "- `Weekly`: reads `list_orders`; shows chart, note cards" in text
+    assert "  - Page `Home`: `app.ipynb @cell1 (Chart)`" in text
+    nodes, edges = rules.lineage_graph(outline)
+    ids = {n.label: n.id for n in nodes}
+    assert (ids["Orders API"], ids["list_orders"]) in edges
+    assert (ids["list_orders"], ids["Weekly"]) in edges and (
+        ids["app.ipynb"],
+        ids["sales.stapp.json"],
+    ) in edges

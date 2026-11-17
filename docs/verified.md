@@ -2955,3 +2955,25 @@ after Variables; no "Open a .sab fileâ€¦"; New project's Choose another folderâ€
 folder with its note; the rail's Data opens `open=data`; the Blades page has no Catalog panel.
 
 NOT checked: Windows and macOS desktops, Edge.
+
+## The project's outline (2026-11-17, branch project-outline)
+
+Checked (Chromium on Linux; tests/test_project_outline.py, tests/e2e/test_project_outline_page.py):
+- A made-up project (four of examples/sample_store.py's tables as CSV files inside it with their true
+  relationships, a made-up SQLite connection with a keyring password, a data notebook with named cells and a
+  DuckDB SQL cell naming `[Shop].suppliers`, an app notebook, a script with run settings, a Streamlit canvas)
+  outlines byte-for-byte as tests/golden/project_outline/store_analysis.md; a new project as new_project.md.
+- No planted row value, secret, token or path outside the project is in it; a read writes nothing; Export
+  writes ARCHITECTURE.md, and a second Export changes no byte (written false, the same mtime); the file is not in
+  its own layout, so the next outline is the same.
+- Every section says "None." when it has nothing (the eight, in order); a hostile name stays in code
+  formatting and the title is escaped; long lists fold under <details>; an inactive relationship is dotted.
+- The two seams replaced whole change the tables and the portability words (and Open issues).
+- The agent's `project_outline` returns the markdown, and with write writes the same bytes.
+- In the browser: Export outline in the project's group writes ARCHITECTURE.md, its toast's Download saves the
+  same bytes; a second click says "is up to date"; the Workbench's `project.outline` (through workbench_window)
+  writes it too; the app's Mermaid (lazy/diagram.ts) draws both diagrams of the page's outline and of the golden
+  store outline (an SVG each, no error).
+
+NOT checked: Windows and macOS, Edge; GitHub's own rendering of the Mermaid blocks and <details>; a project with
+APIs or saved dashboards end to end (their lines are covered by the rules only).
