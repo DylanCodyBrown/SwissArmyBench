@@ -149,3 +149,44 @@ what it relied on in docs/verified.md.
 2. Leave the data features' code out of the code apps wheel, or only their dependencies (shared with Lite).
 3. Whether a code app project can also hold Python helpers (scripts that seed Dataverse, for example), or
    stays TypeScript only.
+
+## Revised: pac-first, TypeScript data, the same GUI (the owner, 2026-11-17)
+"pac actually simplifies a ton of this and instead of writing custom code to manage the project we let pac cli
+do the work. We can write commands to get data with it from connected workspaces, we can use Dataverse to get
+the grids and transform the data with typescript. And that becomes our data typescript. The custom connector
+API we get for free, and we actually get a browsable power automate connector list for free with pac to import
+it and its shape in the API explorer. Then we just get a data notebook with SQL and typescript cells for
+testing on the back of duck db (if it's in typescript) right? This seems like a new version of the app and all
+we do is reuse the gui and front end"
+
+This supersedes the sections above where they differ.
+1. **pac is the backend for everything Power Platform.** The app writes no project-management code of its
+   own: every project action is a pac command run as a child process, its output shown and parsed (`pac auth`,
+   `pac code init`, `pac code add-data-source`, `pac code push`, `pac connector create/update`, and whatever
+   current pac offers for listing connectors and connections). Each command is also an agent command (the
+   golden rule), and the Session page shows it. Before building, check Microsoft's current pac reference for
+   which listing commands exist; where pac has none (the full connector catalogue, a connector's OpenAPI
+   shape), read the same environment API pac reads, with the same sign-in, and say so in docs/verified.md.
+2. **Data:** Dataverse through the existing connection (TDS for SQL speed, the Web API where TDS cannot) into
+   **grids**; connectors' data through the generated services, which run only inside the code apps host (its
+   local runner): the riskiest piece, proved first with a spike (one connector, one call, from a notebook
+   cell in the host's context) before the rest is built on it.
+3. **TypeScript is the data language:** transformations in TypeScript; the data notebook (`data.ipynb`) has
+   **SQL cells** (DuckDB) and **TypeScript cells**, run by **Deno's Jupyter kernel** (TypeScript natively, npm
+   packages, no compile step) with DuckDB's official Node package (`@duckdb/node-api`) so both cell kinds share
+   one DuckDB database; its export is `data.ts` (as data.py is today), and the app's pages import from it. The
+   variables/connections/functions/structures modules become `.ts` the same way.
+4. **Connectors in the APIs explorer:** the environment's connector list browsable and searchable there, each
+   connector's shape (operations, inputs, outputs) imported into the explorer; **Add to app** is `pac code
+   add-data-source`. Custom connectors from OpenAPI documents: `pac connector create`.
+5. **A new version that reuses the GUI:** the front end (rail, pages, Workbench, Structures, the APIs explorer,
+   the Data Explorer, Session, Variables, Settings, zoom) is reused as it is. The Python server stays as the
+   shell (security, the live-preview proxy, the agent's tools, context.md, the updater and installers) and
+   calls pac, Node and Deno instead of DuckDB in Python and the IPython kernel. Rewriting the server in
+   TypeScript is not planned: it costs much and changes nothing the user sees.
+6. **Work, revised:** (1) editions as data, shared with Lite; (2) the pac layer (find and install pac, Node,
+   Deno; run, parse and show commands; auth and environments); (3) **the connector spike** (point 2); (4) the
+   Code App project via pac and the live app in a pane; (5) the data notebook on Deno with SQL and TypeScript
+   cells on DuckDB, Dataverse into grids, `data.ts` and the `.ts` modules; (6) connectors and custom
+   connectors in the APIs explorer; (7) TSX previews, TSX blades and TypeScript functions, push and versions.
+   About 6 branches after the library and project folders.
