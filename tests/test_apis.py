@@ -799,7 +799,8 @@ def test_add_api_writes_the_client_and_its_connection_in_one_step(
     operations = ("list_orders", "create_order", "get_order", "list_clients", "list_regions")
     assert set(added.json()["web_calls"]) == {f"Orders.{o}" for o in operations}
     assert (project / "orders_list_orders.blade.py").is_file() and (project / "openapi.json").is_file()
-    assert "Orders" not in {c["name"] for c in client.get("/connections", headers=AUTH).json()["connections"]}
+    listed = client.get("/connections", headers=AUTH).json()["connections"]
+    assert [c["tables_kind"] for c in listed if c["name"] == "Orders"] == ["api"]  # not on the page: an API's
     none_yet = client.post("/connections/Orders/tables", json={}, headers=AGENT)
     assert none_yet.status_code == 400 and "no List the tables" in none_yet.text
 

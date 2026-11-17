@@ -14,6 +14,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_catalog.py        catalogs (a source's names and types)
   routes_blades.py         blades (saved code that loads): the user's alone
   routes_connections.py    connections (database and file blades, seen apart): the user's alone
+  routes_connection_tables.py  a connection's tables: the tree, Open all, DuckDB SQL naming them
   routes_connection_swap.py  a table's connection swapped (its steps kept), every table of a deleted
                            one moved, the code that named it pointed at the new one
   routes_apis.py           Add API: an OpenAPI document or a form made into API_<name>.py and a connection
@@ -76,6 +77,7 @@ from swissarmybench.server import (
     routes_claude,
     routes_connection_colours,
     routes_connection_swap,
+    routes_connection_tables,
     routes_connections,
     routes_controllers,
     routes_datasets,
@@ -203,7 +205,9 @@ def create_app(
         ctx.variables.apply()  # the Variables page's values, in this server's environment
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
+        context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         yield
+        context_md.cancel()
         autosave.cancel()
         pruner.cancel()
         checker.cancel()
@@ -226,6 +230,7 @@ def create_app(
             *routes_catalog.routes(ctx.catalogs),
             *routes_blades.routes(ctx.blades),
             *routes_connection_swap.routes(ctx.connection_swap),
+            *routes_connection_tables.routes(ctx.connection_tables, ctx.blades, ctx.connections),
             *routes_connections.routes(
                 ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
             ),

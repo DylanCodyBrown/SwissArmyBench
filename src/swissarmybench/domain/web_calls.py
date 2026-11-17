@@ -486,13 +486,20 @@ def send_command(source: str) -> str:
 # ===== the tables contract =====
 
 
+def is_table(blade: Mapping[str, Any]) -> bool:
+    """A web call blade with Return as table on (its `[web_call]` header's as_table): the one gate to SQL.
+    A write rows call never is (check_web_call turns it off)."""
+    call = blade.get("web_call")
+    return isinstance(call, Mapping) and call.get("as_table") is True and call.get("mode") != "write rows"
+
+
 def table_calls(blades: Iterable[Mapping[str, Any]], api: str) -> list[dict[str, Any]]:
     """An API's tables: exactly its web call blades with Return as table on. Each with its call, its
     conversion and `needs`: a required input with no value (unreadable bare until it has one)."""
     found = []
     for blade in blades:
         call = blade.get("web_call") or {}
-        if not call.get("as_table") or str(call.get("api") or "").casefold() != api.casefold():
+        if not is_table(blade) or str(call.get("api") or "").casefold() != api.casefold():
             continue
         given = values_of(str(blade.get("code") or ""))
         said = given.get("inputs")

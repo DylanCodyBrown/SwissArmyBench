@@ -72,8 +72,10 @@ def test_the_cards_and_an_operations_inputs_and_outputs(client: TestClient, serv
     assert one["responses"][0]["status"] == "201" and "amount" in one["responses"][0]["schema"]
     get = ok(client.get("/apis/Orders?operation=get_order", headers=AGENT))["operation"]
     assert [(p["name"], p["in"], p["required"]) for p in get["parameters"]] == [("order_id", "path", True)]
-    # The APIs are not on the Connections page (the owner, 2026-11-17): the APIs page is their home.
-    assert ok(client.get("/connections", headers=AUTH))["connections"] == []
+    # The APIs are not on the Connections page (the owner, 2026-11-17): the APIs page is their home. The
+    # list still has the API blade, marked as an API's (the page leaves those out), so SQL names its tables.
+    listed = ok(client.get("/connections", headers=AUTH))["connections"]
+    assert {c["tables_kind"] for c in listed} == {"api"}
 
 
 def test_search_runs_across_every_api_and_operation(client: TestClient, service: Service) -> None:

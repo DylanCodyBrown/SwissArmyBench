@@ -39,8 +39,8 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 
 **Launch Claude** (the sparkle at the right of the status bar, on the grids' page and in the Workbench; also in the command palette) starts Claude with what it needs to know about Swiss Army Bench.
 
-- **Claude Code** opens in your own terminal (Windows Terminal or a new console, Terminal on a Mac, your Linux terminal), in a folder of its own (`~/.swissarmybench/claude/<your project>`). Its CLAUDE.md says what Swiss Army Bench is, how to work it through its tools, and what is open: the project, each table's rows, columns and steps, your connections and documents. No row or value from your tables is written there. Your project's working folder is added, so Claude can read its notebooks and scripts.
-- **Claude Desktop** takes no folder, so Swiss Army Bench adds itself to Desktop's MCP settings (asked once; everything else in that file stays, and a copy is kept first), then starts it. If Desktop was already open, quit it and start it again.
+- **Claude Code** opens in your own terminal (Windows Terminal or a new console, Terminal on a Mac, your Linux terminal), in a folder of its own (`~/.swissarmybench/claude/<your project>`). Its CLAUDE.md says what Swiss Army Bench is and brings in **context.md**, the app's live picture: your connections (and how to name their tables in DuckDB SQL, `[Finance Captive].model_Report`), the open tables with their rows, columns and steps, the ERD's relationships, your variables (names and where each comes from), the project's documents, what each window shows, and the agent's tool guide. Swiss Army Bench keeps context.md current while it runs (a few seconds after any change), and tells Claude at your next prompt which parts changed, so it reads the file again instead of asking the app. No row, cell value, secret or password is written there, and the names in it are marked as data. Your project's working folder is added, so Claude can read its notebooks and scripts.
+- **Claude Desktop** takes no folder, so Swiss Army Bench adds itself to Desktop's MCP settings (asked once; everything else in that file stays, and a copy is kept first), then starts it; the same context.md text reaches it through the app's tools. If Desktop was already open, quit it and start it again.
 - **Both installed:** a small menu asks which. **Neither:** the install commands to copy and the download page; **Choose its file…** if yours is somewhere the search did not look.
 - **Settings, Claude:** which Claude Code and which Claude Desktop (the ones found, or **Other…**), where that Desktop keeps its settings, and **Start Claude Code with bypass permissions** (off unless you turn it on: Claude then runs its tools without asking you each time).
 - Your agent can see which Claude is installed, but never launches one or changes these settings.
@@ -530,11 +530,14 @@ Click a card for its **detail**:
     security role that reads its tables.
   - **Test connection** signs in, counts the tables and shows the first rows of `account`: "It works:
     signed in and found 812 tables."
-  - Its catalog has one schema, **dbo**, and every table by its logical name (`account`), its display
-    name beside it where it says more (`systemuser` **User**); each column has Dataverse's type
-    (String, Money, Lookup, Picklist...) and its display name.
-  - **Open as grid**, the first rows and `sab.read("Sales CRM", "account")` read a table through the
-    Web API: no admin setting is needed. A choice column reads as its labels (**Won**, not 1), a Yes/No
+  - Its tables are listed and read on the environment's read-only **SQL endpoint** (TDS, port 5558):
+    its catalog has one schema, **dbo**, and every table by its logical name (`account`); **Open as
+    grid**, the first rows and `SELECT * FROM [Sales CRM].account` read through it with T-SQL. It needs
+    `pyodbc`, Microsoft's ODBC Driver 18 for SQL Server, and the endpoint turned on: when it is off, the
+    environment's administrator turns on **Enable TDS endpoint** in the Power Platform admin center.
+  - A connection saved before 2026-11-17 reads through the Web API still; its detail has **Web API
+    (switch to the SQL endpoint)**, one click. Through the Web API (`sab.read("Sales CRM", "account")`
+    too) no admin setting is needed. A choice column reads as its labels (**Won**, not 1), a Yes/No
     column as true or false, a lookup as its id with its name in the column beside it
     (`primarycontactid`, `primarycontactidname`), money and dates as numbers and dates. The grid says
     how many rows the table holds.
@@ -664,6 +667,39 @@ something reads, whether or not a project is open. They are this computer's, nev
   vault's entry leaves the secret in the vault.
 - The agent can list them (never a keyring's, a secret's or a vault's value), add and change them, and
   keep a secret in the keyring; it never reads one back. Show is yours only.
+
+### Your connections in DuckDB SQL
+
+A connection is something that exposes tables, and any DuckDB SQL can name them by the connection: the
+**+** tab's query, a notebook's `%%sql` cell with **DuckDB** as its connection, `sab.sql(query)` in Python.
+
+```sql
+SELECT g.Segment, sum(s.Amount) AS amount
+FROM [Finance Captive].Sales AS s
+JOIN [Shop].segments AS g USING (CustomerKey)
+GROUP BY ALL
+```
+
+- **The name.** `[Connection].table`, or `"Connection".table`. A database also takes `.schema.table` and
+  `.database.schema.table`, in any case. A Power BI workspace takes `.table` when only one of its datasets
+  has that table, else `[Finance Captive]."Sales model".Date` (the error names the datasets that have
+  it). A workbook names a sheet, a folder a file (`[Exports].orders` is orders.csv). A name that is not
+  there says what the connection has. A key vault has no tables: it is not a connection.
+- **Every row the query needs.** A query never runs on a table's first rows only. The columns the query
+  uses and its plain filters (`region = 'North'`, `amount > 100`, `IN`, `BETWEEN`, `IS NULL`) are sent to
+  a database, and a `LIMIT` too when nothing else in the query needs more rows; the source counts the
+  rows first. More than 5,000,000 rows from one table is refused with how to narrow it (a `WHERE`), or
+  raise the limit: the `SWISSARMYBENCH_MAX_QUERY_ROWS` environment variable.
+- **Read once a session.** Each table read is kept until you Refresh: the **+** tab's line and a cell's
+  output say how many rows were read, when, and the filters sent; the **+** tab's toast has **Refresh**.
+- **Getting the tables.** A connection's detail on the Connections page lists its datasets (or schemas)
+  and tables with a search: each table has **Open**, **Preview** and **Copy name**
+  (`[Finance Captive].Sales`, ready for SQL); a dataset has **Open all** (each its own grid), **Import its
+  relationships** (Power BI) and **Query in a notebook** (a new `%%sql` cell). The Grids page's
+  connections open the same list.
+- **In a notebook.** A `%%sql` cell whose connection is **DuckDB** shows the connections its query names
+  in its head; typing `[` offers your connections, `[Finance Captive].` its datasets and tables. The
+  kernel's own DataFrames join in by their names.
 
 ## Session: what the agent made
 

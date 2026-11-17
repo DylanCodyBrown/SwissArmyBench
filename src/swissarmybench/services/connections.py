@@ -11,6 +11,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connections as rules
 from swissarmybench.domain import dataverse, powerbi, python_connections
 from swissarmybench.domain import project_scope as scope_rules
@@ -56,8 +57,6 @@ class ConnectionService:
         found = []
         for b in self._blades.listing()["blades"]:
             kind = rules.connection_kind(str(b["kind"]), b.get("template"))
-            if "api" in (b.get("tags") or []):
-                continue  # an API: the APIs page is its home (the owner, 2026-11-17), never this list
             if kind:
                 more: dict[str, Any] = {
                     "connection": kind,
@@ -69,8 +68,13 @@ class ConnectionService:
                 more["needs_password"] = (
                     scope_rules.password_fix(str(b["name"]), missing) if missing else None
                 )
+                saved = self._blades.get(str(b["name"]))
+                # How it lists and reads its tables (domain/connection_tables.py); none for a key vault.
+                more["tables_kind"] = table_rules.tables_kind(
+                    saved.kind, saved.template, saved.dialect, saved.catalog_language, saved.tags, saved.code
+                )
                 if kind == "vault":
-                    vault = self._blades.get(str(b["name"]))
+                    vault = saved
                     entries = vault.vault_mapping.items()
                     more["entries"] = [{"env": env, "secret": secret} for env, secret in entries]
                     more["every"] = vault.vault_all
@@ -345,7 +349,9 @@ class ConnectionService:
         its rows, how many the source holds, the name it opens under and how a notebook reads it again."""
         # Every row: asked for once (the grid's Load all rows) or always (the connection's Load all rows: 0).
         limit = None if every or blade.row_limit == 0 else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
-        reads = dataverse.is_dataverse(blade.dialect)  # Dataverse: through its Web API, not its SQL
+        # Dataverse saved for its Web API reads through it; a Dataverse on its SQL endpoint (the default
+        # since 2026-11-17, the owner: "Dataverse tds is the only method I like here") is a database.
+        reads = _web_api(blade)
         where = (place["database"], place["schema"], place["table"])
         if kind == "python" or reads:
             # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,
@@ -409,7 +415,7 @@ class ConnectionService:
         (services/connection_swap.py)."""
         blade = self._blades.get(name)
         kind = rules.connection_kind(blade.kind, blade.template)
-        if kind != "database" or dataverse.is_dataverse(blade.dialect):
+        if kind != "database" or _web_api(blade):
             raise BladeError(f"{blade.name} does not run SQL: pick one of its tables instead.")
         dax = blade.dialect == powerbi.DIALECT
         given = body if isinstance(body, dict) else {}
@@ -423,6 +429,93 @@ class ConnectionService:
         origin = powerbi.joined_name(blade.name, within) if dax else blade.name
         shown = int(table.num_rows)
         return TableRead("", table, None, shown, shown, origin, sql, dax)
+
+    async def use_sql_endpoint(self, name: str, who: str) -> dict[str, Any]:
+        """A Dataverse connection saved for its Web API moved to its SQL endpoint: its tables listed by the
+        endpoint's catalog and read with T-SQL from now on (the card's "Web API (switch to the SQL
+        endpoint)"). Its code, sign-in and passwords stay as they are."""
+        blade = self._blades.get(name)
+        if not dataverse.is_dataverse(blade.dialect):
+            raise BladeError(f"{blade.name} is not a Dataverse connection.")
+        if not _web_api(blade):
+            return {"name": blade.name, "changed": False}
+        body = blade.to_json() | {"catalog": {"language": "sql", "command": dataverse.SQL_CATALOG}}
+        saved = await self.save(body, blade.name, who)
+        return {"name": saved["name"], "changed": True}
+
+    async def read_for_query(
+        self, name: str, place: dict[str, str], pushed: table_rules.Pushed, most: int
+    ) -> TableRead:
+        """A connection's table read for a DuckDB query (services/connection_tables.py): every row the
+        query needs, never the connection's Rows to open. The columns and filters `pushed` are sent to a
+        SQL source; the source's count (with them) is asked first, and more than `most` rows is refused
+        with how to narrow it. DAX reads the table whole; a Python connection and Dataverse's Web API read
+        at most `most` + 1 rows, refused past `most`; a file is read whole."""
+        blade, kind, full = self._target(name, place)
+        if kind == "file":
+            return await self.read_place(name, place)
+        table_name = full["table"]
+        if not table_name:
+            raise ValueError("Name the table to read.")
+        if kind == "python" or _web_api(blade):
+            asked = pushed.limit if pushed.limit is not None else most + 1
+            answer = await self._blades.read(blade, full, asked, {})
+            table, total = answer["table"], answer.get("total")
+            seen = max(int(table.num_rows), total if isinstance(total, int) else 0)
+            if pushed.limit is None and seen > most:
+                raise BladeError(table_rules.too_many(blade.name, table_name, seen, most, False))
+            again = python_connections.read_call(
+                blade.name, "" if _web_api(blade) else full["schema"], table_name
+            )
+            shown = int(table.num_rows)
+            return TableRead(table_name, table, None, shown, shown, blade.name, code=again)
+        dax = blade.dialect == powerbi.DIALECT
+        within = full["schema"] if dax else ""
+        where = (full["database"], full["schema"], table_name)
+        if dax:  # the whole table, as DAX reads it
+            select = select_sql(blade.dialect, *where, [], None)
+            count: str | None = count_sql(blade.dialect, *where)
+        else:
+            picked = list(pushed.columns)
+            select = table_rules.with_filter(
+                select_sql(blade.dialect, *where, picked, pushed.limit), pushed.where
+            )
+            count = (
+                None
+                if pushed.limit is not None
+                else table_rules.with_filter(count_sql(blade.dialect, *where), pushed.where)
+            )
+        if count is not None:
+            counted = (await self._blades.rows(blade, count, None, {}, within))["table"]
+            values = counted.to_pylist()
+            n = int(next(iter(values[0].values()))) if values and values[0] else 0
+            if n > most:
+                raise BladeError(table_rules.too_many(blade.name, table_name, n, most, bool(pushed.where)))
+        table = (await self._blades.rows(blade, select, None, {}, within))["table"]
+        shown = int(table.num_rows)
+        origin = powerbi.joined_name(blade.name, within)
+        return TableRead(table_name, table, None, shown, shown, origin, select, dax, place=where)
+
+    async def read_place(self, name: str, place: dict[str, str], every: bool = False) -> TableRead:
+        """One of a connection's tables read, not kept (the tables contract's read, services/
+        connection_tables.py): a database's (Power BI's, Dataverse's) or a Python connection's first Rows
+        to open rows (every row with `every`), a file connection's file or sheet whole."""
+        if self._tables is None:
+            raise BladeError("Reading a table needs the datasets.")
+        blade, kind, _ = self._target(name, place)
+        if kind == "file":
+            reached = await self._blades.rows(blade, None, None, {})
+            path, sheet = rules.file_to_open(blade.template, str(reached["path"]), place.get("table", ""))
+            if blade.template == "excel" and sheet is None:
+                sheets = await self._tables.sheets(path)
+                sheet = sheets[0] if sheets else None
+            table = await self._tables.read_file(path, sheet)
+            shown = int(table.num_rows)
+            where = ("", place.get("schema", ""), place.get("table", ""))
+            return TableRead(rules.dataset_name(place.get("table") or blade.name), table, None, shown, shown,
+                             blade.name, place=where)  # fmt: skip
+        full = {k: str(place.get(k) or "") for k in ("database", "schema", "table")}
+        return await self.read_table(blade, kind, full, every, {})
 
     def blade(self, name: str) -> tuple[Blade, str]:
         """A saved connection and its kind (database, file, python, vault)."""
@@ -448,7 +541,7 @@ class ConnectionService:
             return await self._tables.peek(path, sheet, rules.PREVIEW_ROWS)
         if not place["table"]:
             raise ValueError("Name the table to preview.")
-        if kind == "python" or dataverse.is_dataverse(blade.dialect):
+        if kind == "python" or _web_api(blade):
             read = (await self._blades.read(blade, place, rules.PREVIEW_ROWS, body))["table"]
             return {"columns": list(read.column_names), "rows": [list(r.values()) for r in read.to_pylist()]}
         sql = select_sql(
@@ -621,6 +714,13 @@ class Tables(Protocol):
     async def sheets(self, path: str) -> list[str]: ...
 
     async def peek(self, path: str, sheet: str | None, rows: int) -> dict[str, Any]: ...
+
+    async def read_file(self, path: str, sheet: str | None) -> Any: ...
+
+
+def _web_api(blade: Blade) -> bool:
+    """A Dataverse connection saved for its Web API (its catalog from the metadata), not its SQL endpoint."""
+    return dataverse.is_dataverse(blade.dialect) and not dataverse.on_sql_endpoint(blade.catalog_language)
 
 
 def _plain(value: Any) -> Any:

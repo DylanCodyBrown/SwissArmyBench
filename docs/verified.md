@@ -2216,3 +2216,72 @@ NOT checked:
   50 MB document was not tried in a browser), and Edge itself (Chromium only here).
 - Make into blades for older API connections (not built).
 - `sab.structure` outside the app (it reads a file of that name beside the working folder).
+
+## A connection's tables in DuckDB SQL (2026-11-17, branch connection-sql)
+
+- **The rules** (tests/test_connection_tables.py): brackets quote a connection's name only (a list index
+  and a string stay); references found in sqlglot's tree and resolved in any case, a Power BI table two
+  datasets share asking for its dataset, a database name two schemas share asking for its schema, an
+  unknown name suggesting the near one and listing what there is; the rewrite keeps each table's alias; a
+  web call blade is a table only with return_as_table.
+- **Over HTTP** (two SQLite connections and the Power BI stand-in, made-up data): one DuckDB query joining
+  a Power BI dataset's Sales with two SQLite connections' tables (the right totals; the stand-in saw
+  EVALUATE); the second query kept from the session's read (the stand-in not asked again), Refresh reads
+  again; the grid's read-only cell reads `sab.sql(<query>)`; Date shared by two datasets refused with
+  both names, an unknown table listing the tables, a key vault "not a connection"; the agent's same SQL;
+  the tree (datasets, each table's SQL name), Open all of a dataset (4 grids), a kernel's prepare and the
+  Arrow read. **Never a cut table:** 15,000 rows joined (a 10,000-row cut would give other counts), only
+  the used columns sent; `region = 'South' AND order_id > 3000` sent (4,000 rows came back, not 15,000), a
+  LIMIT sent alone and not with GROUP BY, ORDER BY or an unsent `<>`; past the limit (set to 10,000) the
+  table refused with its count and how to narrow it, the narrowed query answered.
+- **Every kind** (tests/test_connection_kinds.py): every starter template has a tables kind or a reason;
+  the 113 built-in starters are none; each kind lists (its tree) and reads (`SELECT count(*) FROM
+  [Kind].<table>` in the "+" tab) on a stand-in: SQLite, the Power BI stand-in, Dataverse's SQL endpoint
+  stood in for at its cursor (a made-up SQLite file reading `SELECT TOP n` and INFORMATION_SCHEMA), the
+  Dataverse Web API stand-in, a Python connection, an API connection (a Python one tagged api), a
+  workbook's sheet, a folder's file by its name without .csv. The endpoint off said plainly (no Web
+  API); a Web API connection's card offers the switch, and after it reads on the SQL endpoint.
+- **In a real kernel** (tests/test_connection_sql_kernel.py): `%%sql -> by_manager` with no connection
+  joins `[Shop].orders` with the kernel's DataFrame, its output saying the read; `sab.sql(query)` the same;
+  an unknown table in the app's words.
+- **In the browser** (Chromium, tests/e2e/test_connection_sql_page.py): the Connections page's tree
+  (search, Preview, Copy name on the clipboard, Open all with its confirm, three grids); a `%%sql` cell on
+  DuckDB completing `[Sh` to `[Shop].` and `ord` to `orders`, its head showing Shop, running to a
+  DataFrame. Pictures: connection-tree.png, sql-cell-names-a-connection.png.
+- **Not checked:** the owner's real Power BI workspace ("Finance Captive") and its 14 model_* tables; a
+  real Dataverse SQL endpoint (TDS, pyodbc, ODBC Driver 18 and the Entra token: stood in for at the cursor
+  only); filters sent to SQL Server, Trino, Snowflake or Oracle (written by sqlglot, run here on SQLite
+  only); very large tables (the count-first and the limit on 15,000 rows, not millions; memory for a
+  multi-million-row read); a Python connection's or the Web API's limit-plus-one read past the limit;
+  Query in a notebook with the Workbench window open (the clipboard path is the one run); connection
+  colours on the cell's head (another branch).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,314 passed, 42 skipped, 2 failed in
+  21 minutes; both were tests of this branch's own changes (the Add API test looked for an API's card on
+  the Connections page, where APIs no longer show; the Dataverse page test loaded its catalog through the
+  form's new SQL endpoint default, which needs pyodbc): fixed, those two files then 4 passed.
+
+## context.md, the app's live picture beside the agent (2026-11-17, branch context-md)
+
+- **Rules** (tests/test_context_md.py): from a made-up state (a PostgreSQL connection and a Power BI
+  workspace with two datasets sharing a Date table, three grids with steps, a relationship, two variables,
+  two documents) the sections in order, the SQL names (`[Warehouse].sales."Order Lines"`,
+  `[Finance Captive]."Sales model".Date`, `[Finance Captive].model_Report`), a failing connection's error,
+  steps in words; no filter value, SQL step text or variable value anywhere (scanned for the made-up
+  value); APIs and Structures only when given; a hostile table and column name stays one code span (no
+  line starts a heading); a catalog capped at 40 tables with the rest's count and catalog_search, a table
+  at 30 columns; over the budget the trims in order (columns, then catalog lists), each with its note, and
+  a last cut within the budget; which sections changed.
+- **The service** (fakes, a stepped clock): a change written once it settled, a notice that changed
+  nothing writes nothing, no notice writes nothing, a burst of changes is one write.
+- **HTTP** (TestClient, the Claude stand-in): Launch Claude writes CLAUDE.md (`@context.md`, the stable
+  header), context.md and the hook with `--folder`; context.md has the table, its step in words, the
+  variable by name and no cell or filter value; `/claude/context` (app_context) and the MCP resource give
+  the file's exact text; a prompt with nothing changed rewrites nothing (same mtime) and says nothing; a
+  table pushed: the folder's hook prints "context.md changed: Open tables" with the path and the file has
+  it; the plugin's hook (no flag) in that folder prints nothing. Two sqlite connections, a loaded catalog
+  and a relationship model from a running app: colours by name, the catalog's tables by SQL name, the
+  other's "catalog not loaded", the ERD's line, no source column names.
+- **Not checked:** a real Claude Code reading `@context.md` at start and re-reading on the hook's line (the
+  import syntax is Claude Code's documented `@path`; not run here); Claude Desktop reading the resource; a
+  Power BI or Dataverse connection's live catalog in the file (the made-up state covers the naming); APIs
+  and Structures (their branch); the file's write load during the browser suite beyond its passing.

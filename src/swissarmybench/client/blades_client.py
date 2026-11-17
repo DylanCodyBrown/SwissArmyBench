@@ -65,6 +65,20 @@ def _call(method: str, path: str, body: bytes | None = None, content_type: str =
         raise RuntimeError(f"Swiss Army Bench refused ({error.code}): {message}") from None
 
 
+def _call_bytes(path: str) -> bytes:
+    """A GET whose answer is bytes (a connection's table as Arrow, for a kernel's DuckDB)."""
+    info = ensure_server()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{info['port']}{path}", headers={"Authorization": f"Bearer {info['token']}"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310 (fixed http://127.0.0.1 URL)
+            return bytes(response.read())
+    except urllib.error.HTTPError as error:
+        message = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"Swiss Army Bench refused ({error.code}): {message}") from None
+
+
 def _quote(name: str) -> str:
     return urllib.parse.quote(name, safe="")
 

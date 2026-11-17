@@ -143,6 +143,9 @@ def test_add_api_from_a_file_and_from_the_form(
     connections = page.locator(".area-page[data-page='connections']")
     expect(connections.locator(".connections-apis-link")).to_be_visible()
     expect(connections.locator(".connection-card[data-connection='Orders']")).to_have_count(0)
+    # An API is not on the Connections page (the owner, 2026-11-17: "APIs are connections but they dont get
+    # the connection treatment here"); its tables are in SQL all the same.
+    assert any(c["name"] == "Orders" for c in call(server, "GET", "/connections")["connections"])
     page.locator(".nav-rail [data-area='apis']").click()
 
     # ===== from the form, with the AWS Lambda preset: every field labelled, Try it, the key kept =====

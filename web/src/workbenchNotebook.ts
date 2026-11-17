@@ -56,12 +56,13 @@
  */
 import { cellConnections, markConnections, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
-import { button, clear, h, type MenuItem, showMenu, toast } from "./dom";
+import { button, clear, h, icon, type MenuItem, showMenu, toast } from "./dom";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
 import { draggedSnippet, type FilledSnippet, fillSnippet, pickSnippet, refusal, SNIPPET_CELL, SNIPPET_DRAG, type SnippetLanguage } from "./starters";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { loadEditors } from "./workbenchConsole";
+import { namedConnections } from "./connectionSql";
 import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
@@ -371,6 +372,14 @@ export function notebookView(
   let presenting = false;
   const dark = (): boolean => theme().endsWith("dark");
   const indexOf = (cell: Cell): number => cells.indexOf(cell);
+  // ----- a DuckDB SQL cell's connections, in its head
+  const namedHosts = new WeakMap<Cell, HTMLElement>();
+  const drawNamed = (cell: Cell): void => {
+    const host = namedHosts.get(cell);
+    if (!host) return;
+    const names = cell.kind === "sql" && !cell.connection ? namedConnections(sourceOf(cell), connections()) : [];
+    host.replaceChildren(...names.map((n) => h("span", { class: "wb-sql-conn", "data-connection": n, title: n }, icon("plug"), n)));
+  };
   // ----- numbers, tables
   let nextNumber = Math.max(hooks.nextCell ?? 1, 1 + Math.max(0, ...initial.map((c) => c.number ?? 0)));
   let tableInfos: TableInfo[] = [];
@@ -816,8 +825,10 @@ export function notebookView(
       setTimeout(() => cell.editor?.layout(), 0);
     }
     cell.connectionPicker.hidden = !hasSource(kind);
+    drawNamed(cell);
     // A SQL cell's connection is not a DAX cell's dataset: one that is not this kind's goes.
-    if (hasSource(kind) && (!cell.connection || !sources(kind).includes(cell.connection))) cell.connection = sources(kind)[0] ?? null;
+    const duck = kind === "sql" && !cell.connection && namedConnections(sourceOf(cell), connections()).length > 0;
+    if (hasSource(kind) && !duck && (!cell.connection || !sources(kind).includes(cell.connection))) cell.connection = sources(kind)[0] ?? null;
     // The box shows the connection the cell runs on (it is drawn again on focus; once showed the
     // %sql_connect placeholder while the cell ran on the first connection).
     if (hasSource(kind)) cell.connectionPicker.dispatchEvent(new Event("focus"));
@@ -998,12 +1009,15 @@ export function notebookView(
       connectionPicker.title = what;
       clear(
         connectionPicker,
-        dax ? (current ? null : h("option", { value: "" }, "")) : h("option", { value: "" }, "(%sql_connect)"),
+        // No connection: DuckDB here, a connection's tables named by the connection ([Finance].Sales).
+        dax ? (current ? null : h("option", { value: "" }, "")) : h("option", { value: "" }, "DuckDB"),
         ...names.map((n) => h("option", { value: n, selected: n === current }, n)),
         ...(current && !names.includes(current) ? [h("option", { value: current, selected: true }, `${current} (not found)`)] : []),
       );
     };
     const more = button("More actions", () => cellMenu(cell, more), { icon: "more", iconOnly: true, class: "ghost" });
+    // A DuckDB cell's connections, as its SQL names them ([Finance Captive].Sales): each in its head.
+    const namedHost = h("span", { class: "wb-sql-named" });
     const hiddenNote = h("button", { type: "button", class: "link wb-output-hidden", onclick: () => toggleOutput(cell) }, "Show output");
     const numberLabel = h("span", { class: "wb-number", title: `Cell ${number}: this number never changes. @cell${number} in a comment links here.` }, `#${number}`);
     // The cell's name, typed in place (or More: Name…). Without one, the area shows only on hover.
@@ -1045,6 +1059,7 @@ export function notebookView(
             count,
             kindPicker,
             connectionPicker,
+            namedHost,
             part,
             flowMark,
             h("span", { class: "spacer" }),
@@ -1114,7 +1129,7 @@ export function notebookView(
       relabel();
       return cell;
     }
-    const sql = sqlCompleter(kernel, () => cell.connection);
+    const sql = sqlCompleter(kernel, () => cell.connection, connections);
     const dax = daxCompleter(() => cell.connection);
     connectionPicker.hidden = !hasSource(data.kind);
     fillConnections();
@@ -1127,7 +1142,10 @@ export function notebookView(
       cell.connection = connectionPicker.value || null;
       changed();
       connectionsSoon();
+      drawNamed(cell);
     });
+    namedHosts.set(cell, namedHost);
+    drawNamed(cell);
     kindPicker.addEventListener("change", () => setKind(cell, kindPicker.value as CellKind));
     if (draggable) {
       // The head drags the cell too, but not from its buttons and pickers.
@@ -1220,6 +1238,7 @@ export function notebookView(
       });
       cell.editor.onChange((change) => {
         edited();
+        drawNamed(cell);
         // The uses line follows the typing, after a short pause (never an undo: that would undo the undo).
         if (!change.undo && !isApp(cell.role)) typedSoon();
         if (cell.role === "transformations") redraw();
@@ -1284,7 +1303,9 @@ export function notebookView(
   };
 
   const insertAt = (at: number, kind: CellKind = "code", source = ""): Cell => {
-    const cell = make({ ...empty(kind, hasSource(kind) ? (sources(kind)[0] ?? null) : null), source }, Math.max(0, Math.min(at, cells.length)));
+    // A SQL cell whose query names a connection's tables ([Finance].Sales) runs in DuckDB: no connection.
+    const duck = kind === "sql" && namedConnections(source, connections()).length > 0;
+    const cell = make({ ...empty(kind, hasSource(kind) && !duck ? (sources(kind)[0] ?? null) : null), source }, Math.max(0, Math.min(at, cells.length)));
     select(cell);
     cell.element.scrollIntoView({ block: "nearest" });
     focusEditor(cell);

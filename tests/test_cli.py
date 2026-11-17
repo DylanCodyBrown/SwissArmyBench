@@ -137,6 +137,9 @@ NOT_COMMANDS = {
     "/connection-colours/uses": "the Workbench's marks: which connections its cells name (the agent reads "
     "a connection's cells with connections_usage)",
     "/workspace/active": "the page reports which tab is in front (page plumbing)",
+    "/connections/sql/prepare": "a Workbench kernel's %%sql asking for the connections' tables its DuckDB "
+    "query names: the agent writes the same SQL with tabs_new_query, steps_run_sql or workbench_run",
+    "/connections/sql/reads/{}": "one read's rows as Arrow for a kernel's DuckDB (the same transport)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",
     "/processes/{}/sync": "the notebook watcher's protocol",
@@ -164,6 +167,7 @@ NOT_COMMANDS = {
     "/project/layout": "a window reports its layout for the next save (page plumbing): project_save keeps it",
     "/claude/launch": "Launch Claude starts a process on the user's computer: the user's click only (an "
     "agent does not start another agent); 403 for the agent. app_claude reads what was found",
+    "/claude/context/prompt": "the prompt hook's question (plumbing): app_context reads context.md itself",
     "/variables/reveal": "Show on the Variables page: a keyring secret's value, the user's click only; 403 "
     "for the agent (no answer the app gives it holds a password's value). variables_list reads the rest",
     "/session-log/follow": "Follow the agent is the user's switch (an agent that could turn it off could "
@@ -612,7 +616,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # Structures and APIs (2026-11-17) added 18: Structures' open, show, steps, edit, Open as grid, save,
     # lineage, close (8, and a variable sent there through workbench_to_grid); the APIs page's list,
     # describe, search, call, save a web call (Return as table), refresh and apply, rename, delete (9).
-    assert size < 73_000, f"the tool list is {size} characters"
+    # Connections' tables in DuckDB SQL (2026-11-17) added four: a connection's tree, Open all of a
+    # dataset, the session's reads and their Refresh (1,000 characters).
+    # context.md (2026-11-17) added one, app_context (app_claude's context option went to it).
+    assert size < 74_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

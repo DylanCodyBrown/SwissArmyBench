@@ -163,9 +163,11 @@ def guide_text(topic: str | None = None) -> str:
 @command(
     "guide",
     "Read first: the index of the app and its tools; topic gives one topic's detail.",
-    opt("topic", "One of: " + ", ".join(GUIDE_TOPICS) + "."),
+    opt("topic", "One of: " + ", ".join(GUIDE_TOPICS) + "; or context: the live context.md."),
 )
 def guide(a: dict[str, Any]) -> Any:
+    if str(a.get("topic") or "").strip().lower() == "context":
+        return api.call("GET", "/claude/context")
     return guide_text(a.get("topic"))
 
 
@@ -310,7 +312,10 @@ def paste(a: dict[str, Any]) -> Any:
     "New table from a query (the + tab): one SELECT over the open tables, each read as its grid shows it. "
     "Opens a grid on the result.",
     req("name", "Name of the new dataset."),
-    req("sql", "One SELECT (DuckDB dialect). Name open datasets as tables."),
+    req(
+        "sql",
+        "One SELECT (DuckDB dialect). Name open datasets as tables. Name a connection's table as [Connection].table ([Connection].dataset.table, .schema.table).",
+    ),
     opt("replace", "Rebuild a table an earlier query made (the tab's Run again).", "bool"),
 )
 def build_from_query(a: dict[str, Any]) -> Any:
@@ -476,7 +481,10 @@ def selection_stats(a: dict[str, Any]) -> Any:
     "CREATE TABLE <name> AS SELECT ... pins the result as a new dataset with its own grid. `grid` is this "
     "grid's view (after its steps); any open table by its name reads that table's rows as loaded.",
     req("grid", "Grid id: the view `grid` means in the SQL."),
-    req("sql", "One SELECT, or CREATE TABLE name AS SELECT ..."),
+    req(
+        "sql",
+        "One SELECT, or CREATE TABLE name AS SELECT ... Name a connection's table as [Connection].table ([Connection].dataset.table, .schema.table).",
+    ),
     opt("upto", "While editing step N, `grid` is the table entering that step.", "int"),
     values=True,
 )
@@ -2382,6 +2390,53 @@ def connections_open_table(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "connections_tables",
+    "A connection's tables as the Connections page's tree: its datasets (Power BI) or schemas, each table "
+    "with its name for DuckDB SQL ([Finance Captive].Sales). Loads the catalog first when needed.",
+    req("name", "The connection's name."),
+)
+def connections_tables(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/connections/{_q(a['name'])}/tree")
+
+
+@command(
+    "connections_open_dataset",
+    "Open every table of one dataset (Power BI) or schema of a connection, each as its own grid",
+    req("name", "The connection's name."),
+    req("dataset", "The dataset or schema."),
+)
+def connections_open_dataset(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/open-dataset", {"dataset": a["dataset"]})
+
+
+@command(
+    "connections_dataverse_sql_endpoint",
+    "Move a Dataverse connection saved for its Web API to its SQL endpoint: its tables listed and read there",
+    req("name", "The Dataverse connection's name."),
+)
+def connections_dataverse_sql_endpoint(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/sql-endpoint")
+
+
+@command(
+    "connections_sql_reads",
+    "The connections' tables DuckDB SQL read this session: connection, table, rows, when read",
+)
+def connections_sql_reads(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/connections/sql/reads")
+
+
+@command(
+    "connections_sql_refresh",
+    "Drop this session's reads of connections' tables (one connection's, or all): the next query reads again",
+    opt("connection", "Only this connection's reads."),
+)
+def connections_sql_refresh(a: dict[str, Any]) -> Any:
+    body = {"connection": a["connection"]} if a.get("connection") else {}
+    return api.call("POST", "/connections/sql/refresh", body)
+
+
+@command(
     "connections_preview_table",
     "A connection's table's first 50 rows (nothing is kept)",
     *_TABLE_ARGS,
@@ -3327,15 +3382,21 @@ def app_autostart(a: dict[str, Any]) -> Any:
 
 @command(
     "app_claude",
-    "Which Claude Code and Claude Desktop this computer has (Launch Claude); `context`: what is open, as markdown",
-    opt("context", "true: the summary of what is open now (names, counts, types, steps; no values).", "bool"),
+    "Which Claude Code and Claude Desktop this computer has (Launch Claude)",
     opt("refresh", "true: look for Claude again.", "bool"),
 )
 def app_claude(a: dict[str, Any]) -> Any:
     # Reading only: launching Claude and choosing which one is launched are the user's (403 for the agent).
-    if a.get("context"):
-        return api.call("GET", "/claude/context")
     return api.call("GET", "/claude?refresh=1" if a.get("refresh") else "/claude")
+
+
+@command(
+    "app_context",
+    "context.md: connections (their SQL names), open tables, the ERD, variables, documents, windows, the guide",
+)
+def app_context(a: dict[str, Any]) -> Any:
+    # The same text as Launch Claude's folder's context.md and the resource swissarmybench://context.
+    return api.call("GET", "/claude/context")
 
 
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")

@@ -337,6 +337,10 @@ class Workbench:
         """The document a kernel was started for (None: not known, or no kernel)."""
         return self._documents_of.get(kernel_id) if kernel_id else None
 
+    def running_documents(self) -> list[str]:
+        """The documents a running kernel was started for (context.md's Windows)."""
+        return sorted({d for k, d in self._documents_of.items() if k in self._running and d})
+
     def kernel_count(self) -> int:
         """How many kernels are running (the question before an update)."""
         return len(self._running)
