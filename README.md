@@ -793,8 +793,9 @@ The agent has `app_update_check` and `app_update` (which waits for your Allow).
 ## Extensions
 
 Swiss Army Bench is the base; **extensions** plug into it (Plans/editions.plan.md). The rail's
-**Extensions** page lists them: **Streamlit** is preinstalled (it comes with every install), **Accounting**
-and **Power Apps** are coming. An available extension installs with one click: the app stops, the update's
+**Extensions** page lists them: **Streamlit** is preinstalled (it comes with every install); **Accounting**
+(an Excel workbook from a Python automation, statements and invoices) and **Power Apps** (code apps) are
+available. An available extension installs with one click: the app stops, the update's
 helper runs `uv tool install --force "swissarmybench[server]==<this version>" --with <the extension's
 wheel>` (the wheel from the GitHub release of this exact version), and the app starts again; Remove is the
 same without it. An update of the base keeps each installed extension (`--with` its wheel at the new

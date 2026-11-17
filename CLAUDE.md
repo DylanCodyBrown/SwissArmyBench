@@ -44,7 +44,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   Read "edition" in this rule as "extension": its code is backend and manifest only. **Today (the owner,
   2026-11-17: "It's not an edition now it's the streamlit extension. Preinstalled"):** the app is **Swiss Army
   Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
-  Extensions page lists the extensions (Streamlit preinstalled, Accounting and Power Apps coming). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
+  Extensions page lists the extensions (Streamlit preinstalled; Accounting and Power Apps available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
@@ -316,7 +316,7 @@ src/swissarmybench/
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
                          update's plan (uv tool install --force, each installed extension `--with`), the tray's menu
-    extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps coming), statuses
+    extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps available), statuses
                          (preinstalled, available, installed, coming), an entry point's description read loosely,
                          the wheel on this version's GitHub release, Install's and Remove's plan
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
