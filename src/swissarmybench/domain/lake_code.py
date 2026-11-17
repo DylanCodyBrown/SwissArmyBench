@@ -513,7 +513,7 @@ def arrow_table(rows):
     raise LakeError(f"Write a DataFrame, an Arrow table or a DuckDB relation, not a {type(rows).__name__}.")
 
 
-SHORTEST_VACUUM_HOURS = 168  # seven days: what Delta keeps for readers and time travel
+_SHORTEST_VACUUM_HOURS = 168  # seven days: what Delta keeps for readers and time travel
 
 
 class LakeWrites:
@@ -609,13 +609,13 @@ class LakeWrites:
         self._changed(path)
         return {"added": int(done.get("numFilesAdded", 0)), "removed": int(done.get("numFilesRemoved", 0))}
 
-    def vacuum_delta(self, path, retention_hours=SHORTEST_VACUUM_HOURS, dry_run=True, allow_shorter=False):
+    def vacuum_delta(self, path, retention_hours=_SHORTEST_VACUUM_HOURS, dry_run=True, allow_shorter=False):
         """Files no version within the retention period reads, deleted (a dry run lists them). Less than
         seven days is refused unless `allow_shorter` (it breaks time travel and readers still reading)."""
         hours = int(retention_hours)
-        if hours < SHORTEST_VACUUM_HOURS and not allow_shorter:
+        if hours < _SHORTEST_VACUUM_HOURS and not allow_shorter:
             raise LakeError(
-                f"A vacuum keeps at least {SHORTEST_VACUUM_HOURS} hours (7 days) of files: {hours} hours would "
+                f"A vacuum keeps at least {_SHORTEST_VACUUM_HOURS} hours (7 days) of files: {hours} hours would "
                 "break time travel and readers still reading. Set allow_shorter=True in the cell to do it anyway.")
         files = self.delta_table(path).vacuum(retention_hours=hours, dry_run=bool(dry_run),
                                               enforce_retention_duration=not allow_shorter)

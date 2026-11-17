@@ -919,8 +919,8 @@ def _detect(code: str) -> list[_Found]:
             target, value = statement.targets[0], statement.value
         elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
             target, value = statement.target, statement.value
-        else:
-            continue
+        if not isinstance(statement, ast.Assign | ast.AnnAssign) or getattr(target, "id", "").startswith("_"):
+            continue  # not one value's assignment, or a private constant (the code's own, never a setting)
         mapped = certificate_files.env_default(value)
         if isinstance(target, ast.Name) and mapped is not None:
             word = certificate_files.plain_name(target.id, KEYWORDS)

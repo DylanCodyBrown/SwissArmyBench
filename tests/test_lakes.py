@@ -552,3 +552,14 @@ def test_the_write_starters_dry_run_then_write_to_the_stand_ins(
     assert "delete 2 rows" in str(
         write_delta("Lake", "lake/orders", mode="delete", condition="region = 'North'")
     )
+
+
+def test_a_private_constant_is_never_a_forms_setting() -> None:
+    """The lakes' shared code's _SHORTEST_VACUUM_HOURS showed on the SharePoint form (2026-11-17): a name that
+    starts with an underscore is the code's own."""
+    from swissarmybench.domain.blades import detect_settings
+
+    names = [
+        s.key for s in detect_settings("_KEEP_HOURS = 168\nSITE = 'https://madeup.example/sites/team'\n")
+    ]
+    assert names == ["SITE"]
