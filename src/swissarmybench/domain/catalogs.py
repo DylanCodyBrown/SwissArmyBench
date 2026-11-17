@@ -35,6 +35,13 @@ DIALECTS: tuple[str, ...] = (
     "trino",
     "dax",  # a Power BI workspace: each dataset (semantic model) a schema; its language is DAX
     "dataverse",  # a Dataverse environment: its SQL endpoint's T-SQL, every table in one schema (dbo)
+    # Lakes and SharePoint (domain/lakes.py): tables the connection's own code lists and reads; a lake's
+    # %%sql is DuckDB's (every table a view), a Fabric SQL endpoint's T-SQL
+    "onelake",
+    "datalake",
+    "delta",
+    "sharepoint",
+    "sharepoint_docs",
     "other",
 )
 _DIALECT_ALIASES: dict[str, str] = {

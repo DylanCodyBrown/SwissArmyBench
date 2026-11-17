@@ -29,6 +29,7 @@ STARTERS = "Swiss Army Bench starters"
 FAMILIES: tuple[str, ...] = (
     "Power BI",
     "Dataverse",
+    "SharePoint",
     "Excel",
     "Files",
     "DAX",

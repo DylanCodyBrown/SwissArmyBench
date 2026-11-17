@@ -14,7 +14,7 @@ to install them.
 
 from __future__ import annotations
 
-from swissarmybench.domain import dataverse, keystores
+from swissarmybench.domain import dataverse, keystores, lakes, sharepoint
 from swissarmybench.domain.blades import Template
 
 # ===== catalog queries =====
@@ -807,6 +807,34 @@ conn = pyodbc.connect("DSN=my_data_source")""",
     ),
 )
 
+# Lakes and SharePoint (domain/lakes.py): tables the connection's own code lists and reads (its catalog
+# `conn.catalog()`, its read lakes.READ), each its own dialect; one sign-in (domain/entra.py).
+
+
+def _lake(id: str, sign_ins: tuple[tuple[str, str, str], ...], note: str = "") -> Template:
+    return Template(
+        id,
+        lakes.LABELS[id],
+        lakes.GROUP,
+        "sql",
+        sign_ins[0][2],
+        "conn",
+        id,
+        "python",
+        lakes.CATALOG,
+        note=note,
+        sign_ins=sign_ins,
+    )
+
+
+LAKES: tuple[Template, ...] = (
+    _lake(lakes.ONELAKE, lakes.ONELAKE_SIGN_INS),
+    _lake(lakes.DATALAKE, lakes.DATALAKE_SIGN_INS),
+    _lake(lakes.DELTA, lakes.DELTA_SIGN_INS),
+    _lake(lakes.SHAREPOINT, sharepoint.LISTS_SIGN_INS),
+    _lake(lakes.SHAREPOINT_DOCS, sharepoint.DOCS_SIGN_INS),
+)
+
 FILES: tuple[Template, ...] = (
     Template(
         "csv",
@@ -1204,5 +1232,5 @@ def analyze(df: pd.DataFrame) -> dict:
     ),
 )
 
-TEMPLATES: tuple[Template, ...] = (*DATABASES, *FILES, *PYTHON, *VAULTS, *OTHER, *ANALYSES)
+TEMPLATES: tuple[Template, ...] = (*DATABASES, *LAKES, *FILES, *PYTHON, *VAULTS, *OTHER, *ANALYSES)
 BY_ID: dict[str, Template] = {t.id: t for t in TEMPLATES}

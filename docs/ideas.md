@@ -3935,6 +3935,105 @@ treatment here", "they are not really connections, UNLESS they return a table".
 - The Workbench's right-click (notebook cells and the Scripts IDE): **Insert a blade…** and **Insert a function…**, each a searchable picker with its form for placeholders. Analyses stay in the Analyze menu; an API's endpoints are web calls on the APIs page; connections are connections.
 - The rail's Blades page keeps the word, with Blades and Functions shown apart. The renames in the UI, the guide and the agent's commands (functions_list, functions_insert beside blades_*) come with the data notebook change (functions.py).
 
+## Lakes and SharePoint as connections (the owner, 2026-11-17; built, branch lakes-sharepoint)
+
+The owner's words: "OneLake, Data Lake and SharePoint as connections, each exposing tables DuckDB can query,
+by the rule we just set. Yes do this." / "Delta lake as well" / "SharePoint should be for the things we can
+convert to tables for the grid" / "There can be a generic SharePoint connection type for retrieving
+documents" / "Those documents could be csvs, or an Excel file which we could turn into a table" / "My only
+SharePoint connection is graph via ropc though" / "All should be mapable to env vars" / "writes are meant
+to be handled with blades and cells in notebooks".
+
+### Built
+- **Five kinds**, each a starter with its own form, card, icon and sign-ins (server/blade_templates.py
+  LAKES), in the Connections page's own group **Lakes and SharePoint**: `onelake` (a Fabric lakehouse's
+  Delta tables under Tables/ and its CSV and Parquet files under Files/, through the OneLake DFS endpoint;
+  a warehouse by T-SQL on its SQL endpoint, TDS 1433, the Entra token beside the connection string),
+  `datalake` (an ADLS Gen2 container and folder: Parquet, CSV, JSON files, Delta folders, hive-partitioned
+  folders and a job's part files, one table each), `delta` (every folder holding a _delta_log under a root:
+  a folder here, abfss://, s3://, to a depth), `sharepoint` (a site's lists, only lists), `sharepoint_docs`
+  (each library's file index, and its tabular documents: CSV, Parquet, JSON lines, each workbook's sheets
+  and named tables).
+- **One contract**: they are database connections (kind sql, each its own dialect) whose catalog and read
+  are the connection's own code (`catalog = conn.catalog()`, `conn.rows(table, schema=..., limit=...,
+  columns=..., filters=..., frame=...)`, domain/lakes.py READ), as Dataverse's Web API was. TABLE_KINDS has
+  the five; tests/test_connection_kinds.py stands each one in.
+- **One implementation each** (all text, domain/): domain/entra.py (the sign-in: as you, managed identity,
+  an app registration whose secret is a vault's, and ROPC with or without the client secret), domain/
+  lake_code.py (the stores: a folder here, ADLS Gen2/OneLake through the DFS API with a token, a SAS or an
+  account key that signs a one-hour read-only SAS here, S3 through DuckDB's httpfs; a Delta table's log;
+  the one reader; the writes), domain/sharepoint.py (one Graph client for both SharePoint kinds).
+- **Reading a Delta table**: DuckDB's `delta_scan` where it works (a folder here; abfss:// with the azure
+  extension and an access-token secret made in that Python's DuckDB, never written down), else the
+  deltalake package when it is installed, else the table's log read here (the last checkpoint, then each
+  commit) and its active files read with DuckDB's `read_parquet` over HTTPS with the token as a header of a
+  DuckDB secret scoped to the storage's address (a partition's values as columns; a filter on a partition
+  column reads only its files). Each read says which (`read_with` in the query's answer: "DuckDB's
+  delta_scan", "its Delta log, read here, and DuckDB's read_parquet", "Microsoft Graph ($filter sent)").
+  A table with deletion vectors or column mapping, read without delta_scan, asks for deltalake (the
+  missing-package prompt).
+- **Names** (domain/connection_tables.py PATH_KINDS): a table's folders, then its name:
+  `[Lake].sales.orders`, `[Fabric].Files.raw."regions.csv"` (or `.regions`), `[Team Docs].Documents.Finance.
+  "Budget 2026.xlsx".Summary`. The last parts are enough when they name one table; the whole path, then an
+  exact spelling, wins a tie; an ambiguous one names its candidates. **Time travel**: `[Lake].sales.
+  "orders@v12"`, `"orders@2026-11-01"` (that day's end) or `@2026-11-01T09:30`; quoted so any SQL reads it,
+  and an unquoted `orders@v12` after a connection's name is quoted for you. A kind with no versions says so.
+  context.md's naming rules say all of this.
+- **Filters sent**: a query's plain conditions go to these kinds as (column, op, value) (`Pushed.filters`):
+  a lake applies them in its DuckDB (DuckDB's own pushdown; a partition's files pruned first), SharePoint
+  sends them as Graph's `$filter` with `$select` (with the Prefer header; a filter Graph refuses, a column
+  not indexed, is applied by DuckDB instead). DuckDB applies every filter again. No silent truncation: the
+  query limit counts as for every kind.
+- **The tree** shows each table's words: a Delta table's version, size and partition columns ("Delta v1 ·
+  3.2 KB · partitioned by region"), a file's format, file count and size, a sheet or named table.
+- **SharePoint lists**: columns typed by their definitions (choice and text as text, number and currency as
+  DOUBLE, dateTime as TIMESTAMP, boolean); a lookup and a person as their display text with `<column>_id`
+  (texts read once from the target list and the User Information List). Paging by @odata.nextLink.
+- **SharePoint documents**: read into memory only, never written to disk, kept by the file's eTag (an
+  unchanged file is downloaded once in that Python); a workbook's sheets and named tables read from its
+  XML (stdlib); `header_row` is the connection's setting. Other documents are the **SharePoint** family of
+  starters (list files, a document as a table, download into a folder, upload a DataFrame or a file with a
+  dry run, a Word or PDF document's text).
+- **ROPC** (the owner's own SharePoint sign-in), offered first for SharePoint: MSAL's
+  acquire_token_by_username_password when msal is installed, else the same POST with the standard library.
+  Entra's codes in plain words (AADSTS50126, 50076/50079 MFA, 7000218, 65001 naming the Graph permissions).
+  The token is in memory only (refreshed five minutes before it runs out). Offered to OneLake and Data
+  Lake only if the owner asks.
+- **Every setting from an environment variable**: domain/certificate_files.py TOP_LEVEL names the five
+  kinds' settings (and Dataverse's tenant and client ids); each field offers "From an environment
+  variable" with a suggested name (SHAREPOINT_TENANT_ID, DATALAKE_ACCOUNT, DELTA_LAKE_ROOT...), written as
+  `os.environ.get("NAME", "<this computer's value>")`; blades.env_settings lists them (export, Run
+  settings, the Variables page's uses, context.md). A password's environment variable is offered as
+  SHAREPOINT_PASSWORD etc.
+- **%%sql**: a lake's cursor is its own DuckDB with every table a view (sales.orders); OneLake's with a SQL
+  endpoint is T-SQL there; SharePoint has none (it says so).
+- **Writes** (the connection's code: LakeWrites, SharePointLists.create/update/delete): a Delta table
+  appended, overwritten or merged by keys (deltalake's merge), a delete by a condition, optimize/compact
+  and vacuum (each with a dry run; vacuum refuses under 168 hours unless allow_shorter=True in the cell),
+  a Parquet or CSV file put through the DFS API (create, append, flush) or a temporary file replaced here;
+  dry runs count by DuckDB on the table as it is (matches by key, rows a condition hits). SharePoint list
+  items by $batch (20 a request), each 429 retried after its Retry-After; an update by id or a key column.
+- **The Write starters** (the Write family's shape: one typed function a target, and call snippets with
+  dry_run=True): **Write to a Delta table** (Delta append, overwrite, merge, delete, optimize, vacuum),
+  **Write to a lake file** (Lake Parquet file, Lake CSV file), **Write to a SharePoint list** (SharePoint
+  list create, update, delete). domain/write_capability.py marks onelake, datalake, delta and sharepoint
+  writable, sharepoint_docs read-only (its documents: the SharePoint upload file starter).
+- **The one reusable rule for environment variables**: domain/certificate_files.py `mappable(setting)`
+  (with `plain_name(identifier, keywords)` and TOP_LEVEL): every settings read, write and the form's choice
+  ask it; SQL Server's fields (branch sql-server) can join TOP_LEVEL or ENV_MAPPABLE the same way.
+
+### Decisions
+- The five are database connections with their own dialects, not a new connection kind: every page and
+  command that knows a database knows them (forms, sign-ins, passwords, Test, the tree, the agent's
+  commands); what is theirs is their dialect's own read (domain/lakes.py read_by_code).
+- Dataverse's sign-in code was not changed: entra.py is a new copy shared by the five (one
+  SWISSARMYBENCH_LOGIN_URL for the stand-in), to keep the Dataverse branch's merges simple.
+- Remote Parquet and CSV are read with DuckDB's httpfs and the token as a header (one way for the stand-in
+  and Azure), not the azure extension; Delta tries the azure extension's delta_scan first in the real world.
+- deltalake, msal, pypdf are imported only when used (importlib), so a connection does not ask for them up
+  front; azure-identity is the "As you" sign-in's own import (the missing-package prompt).
+- The constants of the connections' code are one tuple line (not settings the form would show).
+- The library is optional in a document's name; the index table is named by the library's display name.
 ## Writing data: Write blades for the connections that write (the owner, 2026-11-17; built, branch write-blades)
 
 The owner: "Also writes are meant to be handled with blades and cells in notebooks. So really go through

@@ -198,7 +198,73 @@ def folder(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     return "orders", 3  # orders.csv, by its name without its suffix
 
 
+def _lake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """The lake and SharePoint stand-in (tests/lake_standins.py), running for this test."""
+    from tests import lake_standins
+
+    lake_standins.make_lake(tmp_path / "storage")
+    running = lake_standins.StandIn(tmp_path / "storage").start()
+    for name, value in running.environment().items():
+        monkeypatch.setenv(name, value)
+    STOPS.append(running.stop)
+    return lake_standins
+
+
+def _lake_kind(template: str, code: str, client: TestClient, secrets: dict[str, str] | None = None) -> None:
+    body: dict[str, Any] = {"name": "Kind", "kind": "sql", "template": template, "dialect": template}
+    body |= {"code": code, "variable": "conn", "catalog": BY_ID[template].to_json()["catalog"]}
+    ok(client.post("/connections", json=body | ({"secrets": secrets} if secrets else {}), headers=AUTH))
+
+
+def onelake(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, int]:
+    from tests.test_lakes import onelake_code
+
+    _lake(tmp_path, monkeypatch)
+    _lake_kind("onelake", onelake_code(), client)
+    return "orders", 5
+
+
+def datalake(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, int]:
+    from tests.test_lakes import datalake_code
+
+    made = _lake(tmp_path, monkeypatch)
+    _lake_kind("datalake", datalake_code(), client, {"client secret": made.SECRET})
+    return "returns", 2
+
+
+def delta(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, int]:
+    from tests.test_lakes import way
+
+    made = _lake(tmp_path, monkeypatch)
+    root = tmp_path / "storage" / made.ACCOUNT / made.CONTAINER
+    _lake_kind(
+        "delta", way("delta", "A folder on this computer").replace('r"C:\\lake"', f'r"{root}"'), client
+    )
+    return "lake.orders", 5
+
+
+def sharepoint_lists(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, int]:
+    from tests.test_lakes import sharepoint_code
+
+    made = _lake(tmp_path, monkeypatch)
+    _lake_kind("sharepoint", sharepoint_code(), client, {"password": made.PASSWORD})
+    return "Tasks", 10
+
+
+def sharepoint_docs(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, int]:
+    from tests.test_lakes import sharepoint_code
+
+    made = _lake(tmp_path, monkeypatch)
+    _lake_kind("sharepoint_docs", sharepoint_code("sharepoint_docs"), client, {"password": made.PASSWORD})
+    return "Documents", 5
+
+
 STOOD_IN: dict[str, Callable[..., tuple[str, int]]] = {
+    "onelake": onelake,
+    "datalake": datalake,
+    "delta": delta,
+    "sharepoint": sharepoint_lists,
+    "sharepoint_docs": sharepoint_docs,
     "database": database,
     "powerbi": powerbi,
     "dataverse": dataverse_sql,

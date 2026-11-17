@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, powerbi, python_connections, write_capability
+from swissarmybench.domain import dataverse, lakes, powerbi, python_connections, write_capability
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
@@ -363,7 +363,7 @@ class ConnectionService:
         limit = None if every or blade.row_limit == 0 else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
         # Dataverse saved for its Web API reads through it; a Dataverse on its SQL endpoint (the default
         # since 2026-11-17, the owner: "Dataverse tds is the only method I like here") is a database.
-        reads = _web_api(blade)
+        reads = _web_api(blade) or lakes.is_kind(blade.dialect)
         where = (place["database"], place["schema"], place["table"])
         if kind == "python" or reads:
             # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,
@@ -376,10 +376,12 @@ class ConnectionService:
                 if limit is not None and isinstance(total, int) and total > shown
                 else None
             )
-            schema = "" if reads else place["schema"]  # Dataverse's one schema needs no naming
+            schema = "" if _web_api(blade) else place["schema"]  # Dataverse's one schema needs no naming
             again = python_connections.read_call(blade.name, schema, place["table"])
-            dataset = self._grid_name(rules.dataset_name(place["table"]), blade.name)
-            return TableRead(dataset, table, opened, shown, total, blade.name, code=again, place=where)
+            # A sheet of a workbook (Budget.xlsx/Summary) opens under its own name.
+            dataset = self._grid_name(rules.dataset_name(place["table"].rsplit("/", 1)[-1]), blade.name)
+            return TableRead(dataset, table, opened, shown, total, blade.name, code=again, place=where,
+                             how=str(answer.get("read_with") or ""))  # fmt: skip
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
         count = (
             None if every else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
@@ -469,18 +471,25 @@ class ConnectionService:
         table_name = full["table"]
         if not table_name:
             raise ValueError("Name the table to read.")
-        if kind == "python" or _web_api(blade):
+        own = lakes.is_kind(blade.dialect)
+        if kind == "python" or _web_api(blade) or own:
             asked = pushed.limit if pushed.limit is not None else most + 1
-            answer = await self._blades.read(blade, full, asked, {})
+            # A lake's or SharePoint's own read takes the query's columns and filters (DuckDB's pushdown,
+            # Graph's $select and $filter); DuckDB applies the filters again.
+            sent = (pushed.columns, pushed.filters) if own else ((), ())
+            answer = await self._blades.read(blade, full, asked, {}, *sent)
             table, total = answer["table"], answer.get("total")
             seen = max(int(table.num_rows), total if isinstance(total, int) else 0)
             if pushed.limit is None and seen > most:
-                raise BladeError(table_rules.too_many(blade.name, table_name, seen, most, False))
+                raise BladeError(
+                    table_rules.too_many(blade.name, table_name, seen, most, bool(pushed.filters))
+                )
             again = python_connections.read_call(
                 blade.name, "" if _web_api(blade) else full["schema"], table_name
             )
             shown = int(table.num_rows)
-            return TableRead(table_name, table, None, shown, shown, blade.name, code=again)
+            how = str(answer.get("read_with") or "")
+            return TableRead(table_name, table, None, shown, shown, blade.name, code=again, how=how)
         dax = blade.dialect == powerbi.DIALECT
         within = full["schema"] if dax else ""
         where = (full["database"], full["schema"], table_name)
@@ -553,7 +562,7 @@ class ConnectionService:
             return await self._tables.peek(path, sheet, rules.PREVIEW_ROWS)
         if not place["table"]:
             raise ValueError("Name the table to preview.")
-        if kind == "python" or _web_api(blade):
+        if kind == "python" or _web_api(blade) or lakes.is_kind(blade.dialect):
             read = (await self._blades.read(blade, place, rules.PREVIEW_ROWS, body))["table"]
             return {"columns": list(read.column_names), "rows": [list(r.values()) for r in read.to_pylist()]}
         sql = select_sql(
@@ -692,6 +701,7 @@ class TableRead:
     dax: bool = False
     code: str = ""  # the Python that reads it again (a connection with no SQL)
     place: tuple[str, str, str] | None = None
+    how: str = ""  # how the connection's own code read it (a lake's: delta_scan, deltalake, its log...)
 
 
 class RelationshipModels(Protocol):

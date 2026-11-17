@@ -60,6 +60,26 @@ WRITABLE: dict[str, Writable] = {
     "folder": Writable(
         ("create", "replace", "append"), "files in the folder, partitioned Parquet among them"
     ),
+    # Lakes and SharePoint (domain/lakes.py): the connection's own code writes (domain/lake_code.py
+    # LakeWrites, domain/sharepoint.py SharePointLists).
+    "delta": Writable(
+        ("append", "replace", "upsert", "delete", "optimize", "vacuum"),
+        "a Delta commit a write (the deltalake package): merge by keys, delete by a condition",
+        "vacuum keeps 7 days unless the cell says otherwise",
+    ),
+    "onelake": Writable(
+        ("append", "replace", "upsert", "delete", "create"),
+        "a lakehouse's Delta tables (the deltalake package) and its Files/ (Parquet, CSV)",
+        "a warehouse is written with T-SQL in its own tools",
+    ),
+    "datalake": Writable(
+        ("append", "replace", "upsert", "delete", "create"),
+        "its Delta tables (the deltalake package), and Parquet or CSV files through the ADLS Gen2 API",
+    ),
+    "sharepoint": Writable(
+        ("create", "update", "delete"),
+        "Microsoft Graph's $batch, retried on 429 (a list has no transaction)",
+    ),
 }
 
 _LOADERS = (
@@ -81,6 +101,7 @@ READ_ONLY: dict[str, str] = {
     "access": "the app reads Access files; it has no write starters for it",
     "python": "a connection made of your own Python reads tables: write in a cell of your own code",
     "api": "an API writes through the APIs page's Write rows with this call",
+    "sharepoint_docs": "its tables are its documents: upload a file with the SharePoint upload file starter",
 }
 # The tables kinds whose writes are their template's (a database's engine, a file's format); every other
 # tables kind is one kind here. dataverse_web is the same Dataverse (its Web API writes either way).

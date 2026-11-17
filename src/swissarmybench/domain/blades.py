@@ -725,7 +725,7 @@ class Setting:
     env: str | None = None
 
     def to_json(self) -> dict[str, Any]:
-        mappable = {"env": self.env} if self.name in certificate_files.ENV_MAPPABLE else {}
+        mappable = {"env": self.env} if certificate_files.mappable(self.name) else {}
         return mappable | {
             "id": self.id,
             "name": self.name,
@@ -923,8 +923,8 @@ def _detect(code: str) -> list[_Found]:
             continue
         mapped = certificate_files.env_default(value)
         if isinstance(target, ast.Name) and mapped is not None:
-            word = KEYWORDS.get(target.id.casefold())
-            if word in certificate_files.ENV_MAPPABLE:
+            word = certificate_files.plain_name(target.id, KEYWORDS)
+            if certificate_files.mappable(word):
                 add_env(value, mapped[0], mapped[1], word, target.id, "name")
             continue
         literal = _literal(value)
@@ -932,7 +932,7 @@ def _detect(code: str) -> list[_Found]:
             literal = literal or _flag(value, KEYWORDS.get(target.id.casefold()))
         if isinstance(target, ast.Name) and literal is not None:
             # A known setting's own word first (verify = r"...pem" is a certificate file, not any path).
-            known = KEYWORDS.get(target.id.casefold())
+            known = certificate_files.plain_name(target.id, KEYWORDS)
             name = (
                 known
                 if known
@@ -946,7 +946,7 @@ def _detect(code: str) -> list[_Found]:
             for keyword in node.keywords:
                 word = KEYWORDS.get(keyword.arg.casefold()) if keyword.arg else None
                 mapped = certificate_files.env_default(keyword.value)
-                if keyword.arg and word in certificate_files.ENV_MAPPABLE and mapped is not None:
+                if keyword.arg and certificate_files.mappable(word) and mapped is not None:
                     add_env(keyword.value, mapped[0], mapped[1], word, keyword.arg, "keyword")
                     continue
                 literal = _literal(keyword.value) or _flag(keyword.value, word)

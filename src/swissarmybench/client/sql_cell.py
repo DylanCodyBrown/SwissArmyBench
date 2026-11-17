@@ -74,7 +74,7 @@ from typing import Any
 
 from swissarmybench.client import blades_client, connection_use, standalone
 from swissarmybench.client.push_client import ServerNotRunningError
-from swissarmybench.domain import dataverse
+from swissarmybench.domain import dataverse, lakes
 from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
@@ -411,6 +411,10 @@ def open_connection(name: str, fresh: bool = True) -> Connection:
     elif dataverse.is_dataverse(record.get("dialect")) and _runs_sql(value):
         made = "a Dataverse environment: SQL on its read-only SQL endpoint (T-SQL, SELECT only)"
         found = Connection(label, "database", value, made, language="dataverse")
+    elif lakes.is_kind(record.get("dialect")) and _runs_sql(value):
+        # A lake: DuckDB SQL in its own DuckDB, every table a view (sales.orders); a Fabric SQL endpoint's
+        # T-SQL; SharePoint has no SQL of its own (its cursor says so).
+        found = Connection(label, "database", value, lakes.cell_words(str(record.get("dialect"))))
     elif _runs_sql(value):
         made = f"{type(value).__module__.split('.')[0]} connection"
         found = Connection(label, "database", value, made + _language(record.get("dialect")))
@@ -754,6 +758,8 @@ def listing() -> list[tuple[str, str]]:
             what = f"a Power BI workspace: a DAX cell names a dataset, %%dax {c['name']}/<dataset>"
         elif c.get("connection") == "database" and dataverse.is_dataverse(c.get("dialect")):
             what = f"a Dataverse environment (T-SQL on its SQL endpoint; sab.read({c['name']!r}, table))"
+        elif c.get("connection") == "database" and lakes.is_kind(c.get("dialect")):
+            what = f"{lakes.cell_words(str(c.get('dialect')))}; sab.read({c['name']!r}, table)"
         elif c.get("connection") == "database":
             what = "database" + _language(c.get("dialect"))
         else:

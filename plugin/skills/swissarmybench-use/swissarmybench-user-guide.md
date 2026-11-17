@@ -516,6 +516,32 @@ Click a card for its **detail**:
   - A connection saved before this, for one dataset, still works: it shows as one dataset called **Model**, and a DAX cell names the connection alone.
   - Power BI gives at most 100,000 rows or 1,000,000 values (rows times columns) for one query. An answer that reaches that is refused with a message: ask for fewer rows or columns, or summarize in DAX.
   - What the tenant needs: the admin setting **Dataset Execute Queries REST API** on, service principals allowed to use the Power BI APIs (for an app registration, which must also be a member of the workspace), and Read and Build permission on each dataset.
+- **Lakes and SharePoint** (their own group on the Connections page): five kinds whose tables their own
+  code lists and reads, each signed in one of the same ways (**As you**, **Managed identity**, **App
+  registration, its secret from a key vault**; SharePoint first offers **Username and password (ROPC)**,
+  with or without the app's client secret). Every setting (tenant, client id, username, site, account,
+  container, workspace, root...) may come **From an environment variable** (the form suggests a name,
+  `SHAREPOINT_TENANT_ID`; this computer's value is its default), so a function app runs the exported code
+  with only its application settings. Passwords and secrets come from the keyring, a key vault or an
+  environment variable, never the connection's file.
+  - **Microsoft Fabric OneLake:** a workspace and an item. A lakehouse's Delta tables (`Tables/`) and its
+    CSV and Parquet files (`Files/`) are its tables (`[Fabric].orders`, `[Fabric].Files.raw.regions`); a
+    warehouse's are read with T-SQL on its **SQL endpoint** (pyodbc and ODBC Driver 18).
+  - **Azure Data Lake Storage:** an account, a container and a folder. Its Parquet, CSV and JSON files,
+    Delta folders, hive-partitioned folders (`day=2026-11-01/...`) and a job's part files are one table
+    each. It also signs in with the **account key** or a **SAS token** from a key vault.
+  - **Delta Lake:** a root (a folder here, `abfss://...`, or `s3://...` with an access key or a profile);
+    every folder holding a `_delta_log` to a depth is a table, named by its folders (`[Lake].sales.orders`).
+    A version or a time: `[Lake].sales."orders@v12"`, `[Lake].sales."orders@2026-11-01"`.
+  - **SharePoint lists:** a site's lists (only lists), typed by their columns; a lookup or a person reads
+    as its text with `<column>_id` beside it.
+  - **SharePoint documents:** each library's file index (`[Team Docs].Documents WHERE extension =
+    'xlsx'`), and its CSV, Parquet and JSON-lines files and each workbook's sheets and named tables
+    (`[Team Docs].Documents.Finance."Budget 2026.xlsx".Summary`). Read into memory, never to disk; an
+    unchanged file is downloaded once. Other documents: the **SharePoint** starters download, upload and
+    read them (a Word or PDF document's text).
+  - The tree shows a Delta table's version, size and partition columns. A read says how it was made:
+    DuckDB's `delta_scan`, the deltalake package, or the table's Delta log read here with `read_parquet`.
 - **Dataverse:** one connection reaches a Dataverse environment's tables. Fill in its **Address**
   (`https://<name>.crm.dynamics.com`: Power Apps, Settings, Session details), then choose how to sign in:
   - **As you** (the first choice): the Azure command line's sign-in (`az login`), else Microsoft's
