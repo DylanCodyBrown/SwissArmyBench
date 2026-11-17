@@ -2,8 +2,8 @@
 .gitignore, README.md), save writes .sab/ (an unchanged save changes no byte), close and open again with
 everything back (a CSV table with two steps, a SQLite connection's table, a pasted table ticked and not,
 a Visualizations card, the relationships); a folder made a project around its files (nothing written
-over); Keep its rows into .sab/data/ (ignored by Git); Copy project to; an old .sab imported into a
-folder (and a hostile one refused); recent projects as folders; a missing connection or file says how to
+over); Keep its rows into .sab/data/ (ignored by Git); Copy project to; no way left to import an old .sab
+file (the owner, 2026-11-17); recent projects as folders; a missing connection or file says how to
 fix it; no secret is ever written; the agent's save asks only when it keeps rows. Made-up data only."""
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ import shutil
 import sqlite3
 import threading
 import time
-import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -126,14 +125,6 @@ def state_files(folder: Path) -> dict[str, bytes]:
 
 def manifest_of(folder: Path) -> dict[str, Any]:
     return dict(json.loads((folder / ".sab" / "project.json").read_text(encoding="utf-8")))
-
-
-def old_sab(path: Path, entries: dict[str, bytes | str]) -> Path:
-    """An old .sab file (a zip) as the app wrote one before projects were folders (made up)."""
-    with zipfile.ZipFile(path, "w") as out:
-        for name, body in entries.items():
-            out.writestr(name, body)
-    return path
 
 
 def test_a_project_folder_is_made_saved_closed_and_opened_with_everything_back(tmp_path: Path) -> None:
@@ -305,80 +296,6 @@ def test_copy_project_to_another_folder_rows_only_on_a_tick(tmp_path: Path) -> N
         assert str(tmp_path / "whole") in recent and str(source) in recent
 
 
-def test_an_old_sab_is_imported_into_a_folder_and_a_hostile_one_refused(tmp_path: Path) -> None:
-    csv, _ = made_up_files(tmp_path)
-    manifest = {
-        "swissarmybench": "project",
-        "format": 1,
-        "app_version": "0.0.16",
-        "name": "legacy",
-        "saved": "2026-11-16T10:00:00+00:00",
-        "tables": [
-            {
-                "name": "orders",
-                "source": {"kind": "file", "path": "work/orders.csv", "absolute": str(csv)},
-                "grids": [{"steps": STEPS, "settings": {}}],
-            },
-        ],
-        "visualizations": "visualizations/visualizations.json",
-        "model": "model.tang",
-        "autosave": False,
-    }
-    cards = {
-        "name": "legacy",
-        "versions": [{"cards": [{"kind": "note", "title": "Old note", "body": "Made up."}]}],
-    }
-    tang = {"swissarmybench": "tang", "format": 1, "name": "current", "tables": [], "relationships": []}
-    sab = old_sab(
-        tmp_path / "legacy.sab",
-        {
-            "project.json": json.dumps(manifest),
-            "data.ipynb": notebooks.write_notebook([notebooks.Cell("code", "x = 1")]),
-            "visualizations/visualizations.json": json.dumps(cards),
-            "model.tang": json.dumps(tang),
-            ".sab/dashboards/q1.json": json.dumps({"name": "q1", "versions": []}),
-        },
-    )
-    with make_client(tmp_path) as client:
-        asked = ok(client.post("/project/open", json={"path": str(sab)}, headers=AUTH))
-        assert asked["sab"] == str(sab) and asked["project"] is None
-        target = tmp_path / "legacy-folder"
-        done = ok(
-            client.post("/project/import-sab", json={"path": str(sab), "folder": str(target)}, headers=AUTH)
-        )
-        assert done["imported"] == str(target) and done["project"]["folder"] == str(target)
-        assert (target / "data.ipynb").is_file() and not (target / "project.json").exists()
-        assert (target / ".sab" / "visualizations.json").is_file() and (
-            target / ".sab" / "model.json"
-        ).is_file()
-        assert (target / ".sab" / "visualizations" / "q1.json").is_file() and (
-            target / ".gitignore"
-        ).is_file()
-        assert manifest_of(target)["autosave"] is True
-        grids = ok(client.get("/grids", headers=AUTH))["grids"]
-        assert [g["dataset"] for g in grids] == ["orders"]
-        assert len(ok(client.get(f"/grids/{grids[0]['grid']}", headers=AUTH))["steps"]) == 2
-        assert [c["title"] for c in ok(client.get("/cards", headers=AUTH))["cards"]] == ["Old note"]
-        # Into a folder that holds something: refused, nothing written.
-        busy = client.post(
-            "/project/import-sab",
-            json={"path": str(sab), "folder": str(target), "discard": True},
-            headers=AUTH,
-        )
-        assert busy.status_code == 409
-        # A hostile .sab: an entry outside the project. Refused before anything is written.
-        hostile = old_sab(
-            tmp_path / "hostile.sab", {"project.json": json.dumps(manifest), "../escape.py": "x = 1"}
-        )
-        bad = client.post(
-            "/project/import-sab",
-            json={"path": str(hostile), "folder": str(tmp_path / "h"), "discard": True},
-            headers=AUTH,
-        )
-        assert bad.status_code == 400 and "outside the project" in bad.text
-        assert not (tmp_path / "h").exists() and not (tmp_path / "escape.py").exists()
-
-
 def test_no_secret_token_or_password_is_ever_written(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         build_project(client, tmp_path)
@@ -544,3 +461,50 @@ def test_swissarmybench_open_a_folder_asks_the_running_app_and_shows_its_page(
     monkeypatch.setattr(command, "post_json", lambda info, route, body: {"page": True})
     assert command.open_project(str(target), tmp_path / "server.json") == 0 and len(opened) == 1
     assert command.open_project(str(tmp_path / "gone"), tmp_path / "server.json") == 1
+
+
+def test_swissarmybench_open_an_old_sab_file_says_one_line_and_starts_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The .sab conversion is removed (the owner, 2026-11-17): `swissarmybench open x.sab` answers in one
+    plain line, there or not, and neither starts the app nor asks it anything."""
+    from swissarmybench.server import __main__ as command
+
+    old = tmp_path / "legacy.sab"
+    old.write_bytes(b"PK made up")
+    called: list[str] = []
+
+    def note(what: str) -> Any:
+        def noted(*args: Any, **kwargs: Any) -> Any:
+            called.append(what)
+            return None
+
+        return noted
+
+    for name in ("running_server", "start_in_background", "post_json"):
+        monkeypatch.setattr(command, name, note(name))
+    for target in (old, tmp_path / "gone.SAB"):
+        assert command.open_project(str(target), tmp_path / "server.json") == 1
+        said = capsys.readouterr()
+        lines = (said.out + said.err).strip().splitlines()
+        assert lines == [f"{target.name}: this version opens project folders only."]
+    assert called == []
+
+
+def test_no_route_or_command_imports_an_old_sab_file(tmp_path: Path) -> None:
+    """Neither the server's routes nor the agent's commands offer an old .sab's import any more."""
+    from swissarmybench.cli.commands import REGISTRY
+
+    with make_client(tmp_path) as client:
+        paths = [str(getattr(r, "path", "")) for r in client.app.routes]  # type: ignore[attr-defined]
+        assert "/project/open" in paths
+        assert not [p for p in paths if "sab" in p.lower()]
+        gone = client.post("/project/import-sab", json={"path": str(tmp_path / "x.sab")}, headers=AUTH)
+        assert gone.status_code in (404, 405)
+        old = tmp_path / "legacy.sab"
+        old.write_bytes(b"PK made up")
+        answer = client.post("/project/open", json={"path": str(old)}, headers=AUTH)
+        assert answer.status_code == 400 and "folder" in answer.text and not (tmp_path / "legacy").exists()
+    for name, spec in REGISTRY.items():
+        said = f"{name} {spec}".lower()
+        assert "import_sab" not in said and "import-sab" not in said and "a .sab" not in said, name

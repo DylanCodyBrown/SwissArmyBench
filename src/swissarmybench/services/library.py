@@ -7,7 +7,7 @@ open.
   folder      Settings' Library folder: point it at another folder (a clone of a team's repository) or back
               at the default. It changes every store at once, so the agent's waits for the user's Allow
   migration   this computer's stores from before the library, moved in once at start (said once on the page);
-              a project's own blades (an older .sab) copied in when it opens: the same skipped, a different
+              an older project's own .sab/blades copied in when it opens: the same skipped, a different
               one kept as "<name> from <project>", said in a notice; the working folder's copy then goes,
               so the project's next save leaves it out
   notices     what the page says once (memory only): taken by the page, read by the agent

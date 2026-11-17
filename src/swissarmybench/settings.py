@@ -187,12 +187,10 @@ class Settings:
     beta_slow_seconds: float = 2.0
     beta_log_days: int = 7
     beta_log_bytes: int = 20 * MIB
-    # An old .sab project file imported into a folder (domain/sab_files.py): the largest file read, how many
-    # entries it may hold, and how much it may unpack to (its rows' Parquet included), each entry counted as
-    # it is read; and a project folder's .sab/ files read at most that.
-    max_project_file_bytes: int = 4 * GIB
+    # A project folder (adapters/sab_files.py): the most files listed as its own, and the largest of its
+    # .sab/ files (or a file imported into it) read.
     max_project_entries: int = 5_000
-    max_project_unpacked_bytes: int = 8 * GIB
+    max_project_read_bytes: int = 8 * GIB
     # Autosave (the project's switch): how often it looks; a change saves once it has settled for a look.
     autosave_seconds: float = 2.0
     # context.md (services/context_md.py), Launch Claude's folder's live picture: its size at most (trimmed in

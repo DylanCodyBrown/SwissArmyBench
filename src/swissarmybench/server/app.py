@@ -25,7 +25,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_lineage.py        a cell's or a canvas block's lineage, back to the data, with each step's value
   routes_projects.py       projects: a new one, its files, Export data.py
-  routes_sab_projects.py   a project is a folder: new, open, save, copy, an old .sab imported, close, a fix
+  routes_sab_projects.py   a project is a folder: new, open, save, copy, close, a fix
   routes_project_explorer.py  the Project Explorer: every project as a card, sorted, the types explained
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_script_export.py  Export as one Python script: a notebook or script as one .py

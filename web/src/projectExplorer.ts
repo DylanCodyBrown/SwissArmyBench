@@ -21,7 +21,7 @@
 import { api, onNotice } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
-import { baseName, copyProject, importSab, newProject, openProject, type ProjectState, when } from "./projectFile";
+import { baseName, copyProject, newProject, openProject, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
 
 export interface ProjectCard {
@@ -35,7 +35,6 @@ export interface ProjectCard {
   open: boolean;
   in_folder: boolean;
   missing: boolean;
-  sab?: boolean;
   needs?: { extension: string; name: string };
   counts: { notebooks?: number; scripts?: number; apps?: number; tables?: number };
   git: { repository: boolean; branch: string | null } | null;
@@ -167,7 +166,6 @@ function header(read: Listing, empty: boolean): HTMLElement {
       { class: "start-actions" },
       button("New project", () => create(), { icon: "plus", class: "start-action primary-action" }),
       button("Open project…", guard(() => openProject().then((s) => opened(s))), { icon: "folder", class: "start-action" }),
-      button("Open a .sab file…", guard(() => importSab().then((s) => opened(s))), { icon: "project", class: "start-action" }),
     ),
     empty ? null : h("div", { class: "explorer-tools" }, search, types, h("label", { class: "explorer-sort-label" }, h("span", {}, "Sort"), sort), direction),
   );
@@ -218,10 +216,10 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
     tabindex: "0",
     "aria-label": c.name,
   });
-  const openIt = guard(() => (c.sab ? importSab(c.path) : openProject(c.path)).then((s) => opened(s)));
+  const openIt = guard(() => openProject(c.path).then((s) => opened(s)));
   const meta: (HTMLElement | null)[] = [];
   if (c.missing) {
-    meta.push(h("p", { class: "explorer-missing" }, c.sab ? "An old .sab file" : "Moved or deleted"));
+    meta.push(h("p", { class: "explorer-missing" }, "Moved or deleted"));
   } else {
     meta.push(
       h("p", { class: "explorer-counts" }, counts(c)),
@@ -260,11 +258,11 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
   );
   element.addEventListener("click", (e) => {
     if ((e.target as Element).closest("button, a, input, select")) return;
-    if (!c.missing || c.sab) openIt();
+    if (!c.missing) openIt();
   });
   element.addEventListener("keydown", (e) => {
     if (e.target !== element) return;
-    if (e.key === "Enter" && (!c.missing || c.sab)) openIt();
+    if (e.key === "Enter" && !c.missing) openIt();
   });
   // Custom order: drag a card onto another (any sort turns into Custom).
   element.addEventListener("dragstart", (e) => {
@@ -317,7 +315,7 @@ function menuButton(c: ProjectCard, read: Listing, openIt: () => void): HTMLElem
   const move = (by: number): void => guard(() => api("/projects/sort", "POST", { move: c.path, by }).then(() => refreshExplorer()))();
   if (c.missing) {
     menu.append(
-      ...(c.sab ? [item("Import…", openIt)] : [item("Locate…", guard(() => locate(c)))]),
+      item("Locate…", guard(() => locate(c))),
       item("Remove from list", guard(() => remove(c))),
     );
   } else {

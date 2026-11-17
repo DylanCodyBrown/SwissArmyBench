@@ -10,7 +10,7 @@
   grid       a list of records at any path as a grid (a table in DuckDB), its origin the structure and path
   save       to its file, or Save as (JSON, YAML, XML, TOML) into the open project's structures/ folder
              (else the Workbench's own folder); nothing is written outside Save
-  project    the project's structures/ files are its own: listed, packed into the .sab (domain/sab_files.py),
+  project    the project's structures/ files are its own: listed with the project (domain/sab_files.py),
              and the ones open when it was saved open again with it
   use        `sab.structure("gates")` answers the saved file's value; where code names it (the references)
 

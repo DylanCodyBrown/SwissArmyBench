@@ -642,6 +642,7 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # Projects as folders and the Project Explorer (2026-11-17) added eight, took one (project_save_as):
     # project_copy, project_import_sab, projects_list, projects_sort, project_rename,
     # project_remove_from_list, projects_folder_set, project_types (2,500 characters).
+    # The .sab conversion removed (2026-11-17) took one: project_import_sab.
     assert size < 79_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema

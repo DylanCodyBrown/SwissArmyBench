@@ -875,7 +875,7 @@ class Models:
         return self.model.to_json()
 
     async def replace(self, model: Model) -> None:
-        """The current model is `model` (a .sab project opened or closed): every page redraws."""
+        """The current model is `model` (a project opened or closed): every page redraws."""
         self.model = model
         self._told()
         await self.ws.live.broadcast({"type": "relationships_updated"})

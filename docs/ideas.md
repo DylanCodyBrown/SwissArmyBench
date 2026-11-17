@@ -4631,6 +4631,11 @@ already a folder, and the scaffold was a folder anyway.
   absolute path, no link, sizes), its manifest, Visualizations, model, rows and dashboards placed in
   `.sab/`. The installers stop registering .sab and take an earlier registration away (Windows HKCU, the
   Linux MIME type and desktop entry); `server/sab-file.*` stay for that release.
+- The .sab conversion removed (the owner, 2026-11-17): Open a .sab file…, `project_import_sab`,
+  `/project/import-sab`, a .sab as an import source, the zip reader, `server/sab-file.*` and
+  `max_project_file_bytes` are gone; `swissarmybench open x.sab` says "x.sab: this version opens project
+  folders only." and starts nothing; the installers still take an earlier .sab registration away; an older
+  project folder's `.sab/blades` are still adopted into the library (branch remove-sab-import).
 - **The Project Explorer** (the home page, replacing the Start view): every project in the projects folder
   (Settings: Projects folder, `projects.json`; default `~/Swiss Army Bench Projects`) and every one opened
   from elsewhere (recent_projects.json, folders). A card: name, type (its colour and picture; an off
@@ -4663,7 +4668,8 @@ already a folder, and the scaffold was a folder anyway.
   Finder's Trash (osascript), the freedesktop Trash on Linux; never a plain delete. No new dependency.
 
 ### Next
-- The release after: remove the .sab import, the zip reader, `server/sab-file.*`, OLD_* names.
+- The release after: remove the OLD_* names (the .sab import, the zip reader and `server/sab-file.*`
+  went on 2026-11-17).
 
 
 ## The Streamlit extension: preinstalled, a package of its own (the owner, 2026-11-17; built, branch ext-streamlit)

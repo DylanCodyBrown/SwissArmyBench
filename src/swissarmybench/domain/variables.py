@@ -3,7 +3,7 @@ vairables, that we actually need a workspace Variable page for the rail to help 
 variables"; "should be able to add new local env variables from the page easily and browse what is there
 and for variables that are not from the key vault you can see their current values"). This computer's,
 whether or not a project is open (the owner, 2026-11-17: connections, vaults, APIs and blades are this
-computer's library, projects name them), and never in a .sab.
+computer's library, projects name them), and never in a project.
 
   defined   this computer's own variables: a name and where its value is kept, `value` (a plain value)
             or `keyring` (this computer's keyring, under the name)

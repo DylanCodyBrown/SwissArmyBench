@@ -176,8 +176,8 @@ const ICONS: Record<string, string> = {
   runTo: '<path d="M5 4v16M9 5l10 7-10 7z"/>',
   reset: '<path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.7L3 8"/><path d="M3 3v5h5"/>',
   wiring: '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6c7 0 3 12 10 12"/><path d="M14 15l3 3-3 3"/>',
-  // ----- projects as one .sab file (startView.ts, projectFile.ts) -----
-  // A project: a page with its corner folded, the app's cross on it (the .sab file's own icon, small).
+  // ----- projects (projectFile.ts, projectImport.ts) -----
+  // A project: a page with its corner folded, the app's cross on it.
   project: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 10v6M9 13h6"/>',
   // The rail's areas (rail.ts, 2026-11-16; Settings is the cog, Notebooks, Scripts and Apps their documents'
   // icons): Visualizations' cards, the ERD's two tables and their join, a blade, a plug; Grids: a grid's tabs.

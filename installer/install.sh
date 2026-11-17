@@ -107,8 +107,8 @@ exe="${bin_dir:-$HOME/.local/bin}/swissarmybench"
 [ -x "$exe" ] || exe="$HOME/.local/bin/swissarmybench"
 
 # 6. A project is a folder now (2026-11-17): .sab files are no longer registered. An earlier install's
-#    registration (a MIME type, its desktop entry) is taken away, for this user (XDG); the icon files stay in
-#    the package for one release. An old .sab is imported with Open a .sab file… (or swissarmybench open).
+#    registration (a MIME type, its desktop entry) is taken away, for this user (XDG), so an old machine is
+#    left clean.
 if [ "$(uname -s)" = "Linux" ]; then
   data="${XDG_DATA_HOME:-$HOME/.local/share}"
   if [ -f "$data/mime/packages/swissarmybench-project.xml" ] || [ -f "$data/applications/swissarmybench-project.desktop" ]; then

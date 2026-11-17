@@ -141,7 +141,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
-    "projects": "Projects as one .sab file: open, save, the recent ones, tables that need a fix",
+    "projects": "Projects as folders: open, save, the recent ones, tables that need a fix",
     "library": "The library: connections, APIs, vaults, blades, tangs, variables as a Git repository's files",
     "accounting": "Accounting (an extension): the Excel canvas, Play, workbook.py, templates, statements",
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
@@ -3700,9 +3700,9 @@ def project_documents(a: dict[str, Any]) -> Any:
 
 @command(
     "project_import",
-    "Copy into the open project from another .sab, a project folder, a loose file or this computer's saved "
+    "Copy into the open project from another project folder, a loose file or this computer's saved "
     'connections and blades ("computer"); list: what it offers',
-    req("source", 'A .sab, a folder, a notebook, script or app, or "computer".'),
+    req("source", 'A project folder, a notebook, script or app, or "computer".'),
     opt("documents", "Paths there to copy.", "json"),
     opt("connections", "Connection names to copy.", "json"),
     opt("blades", "Blade names to copy.", "json"),
@@ -3751,18 +3751,6 @@ def project_copy(a: dict[str, Any]) -> Any:
     return api.call(
         "POST", "/project/copy", {k: a[k] for k in ("path", "data", "folder") if a.get(k) is not None}
     )
-
-
-@command(
-    "project_import_sab",
-    "An old .sab file into a folder (each entry checked), then opened",
-    req("path", "The .sab file."),
-    opt("folder", "A new or empty folder (default: the projects folder)."),
-    opt("discard", "true: let the open project's unsaved changes go.", "bool"),
-)
-def project_import_sab(a: dict[str, Any]) -> Any:
-    keys = ("path", "folder", "discard")
-    return api.call("POST", "/project/import-sab", {k: a[k] for k in keys if a.get(k) is not None})
 
 
 @command(

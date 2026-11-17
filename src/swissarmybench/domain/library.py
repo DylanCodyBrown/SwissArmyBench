@@ -15,7 +15,7 @@ repository, shared by every project.
               connection's password names where it comes from
   variables   variables.toml holds each variable's name and source (and a shareable plain value);
               local/variables.toml the plain values marked this computer only
-  migration   a project's own blades (an older .sab) copied in: the same text skipped, a different one
+  migration   an older project's own .sab/blades copied in: the same text skipped, a different one
               kept as "<name> from <project>" (a blade's name has no brackets) and said
 
 Pure rules: no I/O, no clock.
@@ -202,8 +202,8 @@ def computer_migration_words(moved: dict[str, int], backup: str) -> str:
 
 
 def saved_json(data: Any) -> Blade | None:
-    """A blade from the JSON the app saved before the library (~/.swissarmybench/blades, a .sab's
-    .sab/blades): its record, or None when it is not one."""
+    """A blade from the JSON the app saved before the library (~/.swissarmybench/blades, an older
+    project's .sab/blades): its record, or None when it is not one."""
     if not isinstance(data, dict) or not isinstance(data.get("name"), str):
         return None
     catalog = data.get("catalog") or {}

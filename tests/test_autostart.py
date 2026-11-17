@@ -226,10 +226,9 @@ def test_the_windows_installer_takes_away_an_earlier_sab_registration() -> None:
     assert '$Classes = "HKCU:\\Software\\Classes"' in text and "HKLM" not in text  # no administrator
     assert "UnregisterProjectFiles" in text and 'Remove-Item -Path "$Classes\\$ProgId"' in text
     assert 'SetKey "$Classes\\.sab"' not in text
-    # The icon files stay in the package for the old association's one release.
+    # The .sab conversion is removed (2026-11-17): its file icons with it.
     server = ROOT / "src" / "swissarmybench" / "server"
-    assert (server / "sab-file.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"
-    assert "<svg" in (server / "sab-file.svg").read_text()
+    assert not (server / "sab-file.ico").exists() and not (server / "sab-file.svg").exists()
 
 
 def test_the_unix_installer_takes_away_an_earlier_sab_registration() -> None:

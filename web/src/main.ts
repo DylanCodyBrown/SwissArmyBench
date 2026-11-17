@@ -317,7 +317,7 @@ async function start(): Promise<void> {
     // The browser tab names the place in front (the table, Visualizations, the ERD); the tab bar names them all.
     drawTitle();
   });
-  // A project as one .sab file (startView.ts): the Start view, the project's name and Save, Save as, Close and
+  // A project folder (startView.ts): the Start view, the project's name and Save, Save as, Close and
   // Autosave IN the Application row (the owner, 2026-11-16: "i want the save save as close and autosave on the
   // application row"), and the strip of tables that need a fix under the tabs.
   const projectGroup = h("div", { class: "project-group", role: "group", "aria-label": "Project", hidden: true });

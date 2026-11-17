@@ -1,15 +1,15 @@
 """What belongs to the open project (the owner, 2026-11-16: "now objects are project scoped any notebooks
 scripts or apps will have to be imported from another project"). Pure rules, no I/O.
 
-  app data    the project's own definitions beside its files, in its working folder's `.sab/` folder (and
-              the same entries in the .sab): its connections and blades (`.sab/blades/<name>.json`, the
+  app data    the project's own definitions beside its files, in its working folder's `.sab/` folder: its
+              connections and blades (`.sab/blades/<name>.json`, the
               blade store's own files: names, code and where each password comes from, never a value)
               and its saved Visualizations dashboards (`.sab/dashboards/<name>.json`)
   documents   the project's notebooks, scripts and apps: its files by their ending, the made ones marked
               (data.py and pages/*.py are exports of data.ipynb and the canvas); a notebook's role: the
               data notebook (data.ipynb), one an app's canvas links a cell of, or a plain one (each has an
               icon of its own, 2026-11-16)
-  import      a copy into the project: a document from another project (a .sab or a project folder) or a
+  import      a copy into the project: a document from another project (its folder) or a
               loose file, a connection or blade from another project or from this computer's saved ones.
               A name the project has already is never overwritten: a document gets the next free name
               ("analysis 2.ipynb"), a connection or blade is skipped and said
@@ -227,9 +227,8 @@ def blade_record(file: str, raw: bytes) -> dict[str, Any] | None:
 
 
 def name_of(where: str) -> str:
-    """A place's name as a project's (its file without .sab, or its folder's name)."""
-    last = where.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
-    return last[: -len(".sab")] if last.lower().endswith(".sab") else last
+    """A place's name as a project's (its folder's or its file's name)."""
+    return where.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
 
 
 def password_fix(connection: str, missing: list[str]) -> dict[str, Any]:

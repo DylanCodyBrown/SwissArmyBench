@@ -121,8 +121,8 @@ class Projects:
             raise ProjectError("tables is a list of open tables' names.")
         cells, following = await self._table_cells(tables)
         if not rows:
-            # A .sab's working copy (services/sab_projects.py): a pasted table's rows stay in its grid
-            # (and go into the file only on a tick), never written out in its read-only cell.
+            # A project folder (services/sab_projects.py): a pasted table's rows stay in its grid
+            # (and go into .sab/data/ only on a tick), never written out in its read-only cell.
             plain = rules.without_rows([DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells])
             for cell, kept in zip(cells, plain, strict=True):
                 cell.source = kept.source
@@ -189,8 +189,8 @@ class Projects:
         return self._opened(folder, remember)
 
     def _opened(self, folder: str, remember: bool = True) -> dict[str, Any]:
-        """The project's files; each among the Workbench's recent ones (not a .sab's working copy's:
-        the .sab is the recent one, services/sab_projects.py)."""
+        """The project's files; each among the Workbench's recent ones (unless `remember` is off: the
+        project's folder is the recent one, services/sab_projects.py)."""
         listed = self._listing(folder)
         listed["type"] = self.type_of(folder)
         for path in listed["files"] if remember else []:
@@ -209,7 +209,7 @@ class Projects:
             raise NotFound(f"{listed['folder']} is not a project: it has no data.ipynb.")
         self.ws.audit.write(who, "open_project", listed["folder"])
         self.opened = str(listed["folder"])
-        # A .sab's working copy is listed, not remembered: the .sab is the recent one ("remember": false).
+        # A project folder opened by sab_projects is listed, not remembered ("remember": false).
         return self._opened(folder, remember=not (isinstance(body, dict) and body.get("remember") is False))
 
     def type_of(self, folder: str | None) -> str:

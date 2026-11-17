@@ -544,12 +544,8 @@ def bootstrap(
         approvals=approvals,
         scaffold=_scaffold_of,
     )
-    # A project is a folder: its .sab/ state written beside its files; an old .sab read for the import.
-    archive = SabArchive(
-        settings.max_project_file_bytes,
-        settings.max_project_entries,
-        settings.max_project_unpacked_bytes,
-    )
+    # A project is a folder: its .sab/ state written beside its files.
+    archive = SabArchive(settings.max_project_entries, settings.max_project_read_bytes)
 
     async def use_project(folder: str | None) -> None:
         """The open project's saved dashboards (its .sab/visualizations), or this computer's with none open.

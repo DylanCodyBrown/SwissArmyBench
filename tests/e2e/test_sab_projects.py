@@ -3,7 +3,7 @@
 cards (a missing one with Remove from list), a reload keeps the view, Home brings it back; Open project…
 picks a folder; Save clears the unsaved mark; saving the open work makes it a project and asks "Keep its
 rows" for a pasted table; New project from a beginner's type card, then its Grids; the sort and a dragged
-custom order kept after a reload; the empty state; Open a .sab file… imports an old one into a folder;
+custom order kept after a reload; the empty state; no Open a .sab file… (the conversion removed);
 the tour is offered on the Start page only; a notebook imported from another project in the Workbench.
 Screenshots light and dark when SAB_SHOTS is set. Made-up data only."""
 
@@ -13,7 +13,6 @@ import json
 import os
 import re
 import shutil
-import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -301,45 +300,12 @@ def test_saving_the_open_work_makes_a_project_and_asks_to_keep_a_pasted_tables_r
     page.context.close()
 
 
-def test_open_a_sab_file_imports_it_into_a_folder(
-    browser: Browser, server: dict[str, Any], fresh: Path
-) -> None:
-    manifest = {
-        "swissarmybench": "project",
-        "format": 1,
-        "name": "legacy",
-        "tables": [
-            {
-                "name": "orders",
-                "source": {"kind": "file", "path": "orders.csv", "absolute": str(fresh / "orders.csv")},
-                "grids": [{"steps": [STEP], "settings": {}}],
-            },
-        ],
-    }
-    with zipfile.ZipFile(fresh / "legacy.sab", "w") as out:
-        out.writestr("project.json", json.dumps(manifest))
-        out.writestr(
-            "data.ipynb", json.dumps({"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5})
-        )
+def test_the_start_view_offers_no_old_sab_file_import(browser: Browser, server: dict[str, Any]) -> None:
+    """The .sab conversion is removed (the owner, 2026-11-17): the Start view opens folders only."""
     page = home(browser, server, "?view=start")
-    page.locator("#start-view").get_by_role("button", name="Open a .sab file…").click()
-    chooser = page.locator("dialog.file-chooser")
-    where = chooser.get_by_role("textbox", name="Folder")
-    where.fill(str(fresh))
-    where.press("Enter")
-    chooser.locator(".file-row.file", has_text="legacy.sab").click()
-    # Then: the folder it becomes.
-    expect(chooser).to_have_count(1)
-    where = page.locator("dialog.file-chooser").get_by_role("textbox", name="Folder")
-    where.fill(str(fresh))
-    where.press("Enter")
-    expect(where).to_have_value(str(fresh))
-    page.locator("dialog.file-chooser").get_by_label("File name").fill("legacy-folder")
-    page.locator("dialog.file-chooser").get_by_role("button", name="Save here").click()
-    expect(page.locator(".project-group .project-name")).to_have_text("legacy-folder", timeout=20000)
-    expect(page.locator(".tab-item[data-grid]")).to_have_count(1)
-    assert (fresh / "legacy-folder" / ".sab" / "project.json").is_file()
-    assert (fresh / "legacy-folder" / "data.ipynb").is_file()
+    actions = page.locator("#start-view .start-actions")
+    expect(actions.get_by_role("button", name="Open project…")).to_be_visible()
+    expect(page.get_by_role("button", name="Open a .sab file…")).to_have_count(0)
     page.context.close()
 
 

@@ -165,7 +165,7 @@ class LibraryFolder:
             to = to.with_name(f"{to.name}-{os.getpid()}")
         shutil.move(str(old), str(to))
 
-    # ===== a project's own blades (an older .sab) =====
+    # ===== a project's own blades (an older project folder's .sab/blades) =====
 
     @staticmethod
     def project_blades(folder: str) -> list[Blade]:
@@ -175,8 +175,7 @@ class LibraryFolder:
 
     @staticmethod
     def drop_project_blades(folder: str) -> None:
-        """The working folder's .sab/blades, gone once its items are in the library: the next save leaves
-        it out (the .sab on disk keeps it until then, so an older app still opens it)."""
+        """The project folder's .sab/blades, gone once its items are in the library."""
         shutil.rmtree(Path(folder) / PROJECT_BLADES, ignore_errors=True)
 
 

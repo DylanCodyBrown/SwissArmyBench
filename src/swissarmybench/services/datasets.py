@@ -65,7 +65,7 @@ class DatasetService:
         self.renamed: list[Callable[[str, str], Awaitable[None]]] = []
         # Where each table came from, for the load its Workbench cell starts with (table_cells.py).
         self.origins = Origins()
-        # Who wants to know a table arrived (its name and grid): a .sab project's steps waiting for it.
+        # Who wants to know a table arrived (its name and grid): a project's steps waiting for it.
         self.stored: list[Callable[[str, str], Awaitable[None]]] = []
         # A query's tables named through a connection, read first (services/connection_tables.py).
         self.connection_sql: ConnectionSql | None = None

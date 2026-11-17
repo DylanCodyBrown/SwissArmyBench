@@ -19,16 +19,12 @@ source, so its rows are kept only when ticked. A connection is named, never embe
 password is ever written. Fields this version does not know are kept when saved again; a project of a
 newer format opens read-only.
 
-The .sab file (a zip; 2026-11-16 to 2026-11-17) is read for one release as an import: every entry checked
-(no `..`, no absolute path, no drive, no link, sizes), unpacked into a folder the user picked and turned
-into `.sab/` and files (`converted`).
-
   sources    where each table came from (Origin) as the project says it: a connection with its table or
              query, a file (relative to the project when it sits inside or beside it), the notebook that
              makes it, a "+" tab's query, or pasted/pushed with rows true or false
   manifest   .sab/project.json read (leniently: unknown fields kept; a type-only file read as a project
              with no tables yet) and written (stable)
-  entries    a .sab zip entry's name checked: no `..`, no absolute path, no drive, no link; sizes capped
+  entries    a path inside the project checked: no `..`, no absolute path, no drive, no control character
   packed     which of a folder's files are the project's own documents (code and text, never data)
   scaffold   .sab/.gitignore, the project's .gitignore and README.md (written only when absent)
   fixes      a table that could not come back: its state and the one click that fixes it
@@ -40,7 +36,7 @@ import json
 import ntpath
 import posixpath
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -51,28 +47,21 @@ from swissarmybench.domain.table_cells import Origin
 FORMAT: int = 1
 MARK_KEY: str = "swissarmybench"
 MARK: str = "project"
-SUFFIX: str = ".sab"
 APP_FOLDER: str = ".sab"
-MANIFEST: str = "project.json"  # an old .sab's entry, and the name inside .sab/
+MANIFEST: str = "project.json"  # its name inside .sab/
 MANIFEST_PATH: str = f"{APP_FOLDER}/{MANIFEST}"
 MODEL_PATH: str = f"{APP_FOLDER}/model.json"
 VISUALIZATIONS_PATH: str = f"{APP_FOLDER}/visualizations.json"
 DASHBOARDS_FOLDER: str = f"{APP_FOLDER}/visualizations"  # the saved dashboards
 OLD_DASHBOARDS_FOLDER: str = f"{APP_FOLDER}/dashboards"  # before projects were folders: moved on open
 DATA_FOLDER: str = f"{APP_FOLDER}/data"
-# An old .sab's own entries (read for one release, as an import).
-MODEL: str = "model.tang"
-VISUALIZATIONS: str = "visualizations/visualizations.json"
-# The Sandbox's entry and manifest key before it became Visualizations (the owner, 2026-11-16): read for
-# one release, never written.
-OLD_SANDBOX: str = "sandbox/sandbox.json"
 ROWS_FOLDER: str = DATA_FOLDER
 STRUCTURES_FOLDER: str = "structures"
 MAX_NAME: int = 100
 MAX_ENTRY_NAME: int = 400
 MAX_TABLES: int = 200
 
-# The project's own files that go into the file: code, text, settings and the app's pictures. A data
+# The project's own files: code, text, settings and the app's pictures. A data
 # file (CSV, Excel, Parquet, JSON) would carry rows: its table keeps its path instead.
 PACKED_SUFFIXES: frozenset[str] = frozenset(
     {
@@ -108,11 +97,11 @@ class Source:
     sql: str | None = None  # a connection's query (DAX on a Power BI dataset), or a "+" tab's
     dax: bool = False
     whole: bool = True  # a connection's table: every row (else its first rows, as it was opened)
-    path: str | None = None  # a file: relative to the .sab when it sits nearby, else absolute
+    path: str | None = None  # a file: relative to the project when it sits inside it, else absolute
     absolute: str | None = None  # a file: where it was when saved (tried when the relative one is gone)
     sheet: str | None = None
     notebook: str | None = None  # the project notebook that makes it, relative to the project
-    rows: bool = False  # pasted or pushed: its rows are in the file (data/<table>.parquet)
+    rows: bool = False  # pasted or pushed: its rows are kept (.sab/data/<table>.parquet)
     extra: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
@@ -233,7 +222,7 @@ def near(path: str, folder: str | None) -> str | None:
 
 
 def candidates(source: Source, folder: str | None) -> list[str]:
-    """Where a file source may be now: beside the .sab (its relative path) first, then where it was."""
+    """Where a file source may be now: in the project (its relative path) first, then where it was."""
     found: list[str] = []
     if source.path:
         rules = _flavour(source.path)
@@ -359,12 +348,6 @@ def check_name(name: Any) -> str:
     return said
 
 
-def name_of_file(path: str) -> str:
-    """A project's name from its file's: sales.sab -> sales."""
-    stem = _base(path)
-    return stem[: -len(SUFFIX)] if stem.lower().endswith(SUFFIX) else stem
-
-
 def _mapping(raw: Any) -> dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
@@ -466,39 +449,6 @@ def write_manifest(manifest: Manifest) -> str:
     return json.dumps(body, indent=1, ensure_ascii=False, sort_keys=True, default=str) + "\n"
 
 
-def converted(manifest: Manifest, found: Mapping[str, str]) -> Manifest:
-    """An old .sab's manifest as a project folder's: its Visualizations, model and rows at their places in
-    .sab/ (`found`: each old entry's new path, for the ones that were in the file)."""
-    tables = tuple(
-        replace(t, rows_file=found.get(t.rows_file)) if t.rows_file else t for t in manifest.tables
-    )
-    return replace(
-        manifest,
-        tables=tables,
-        visualizations=VISUALIZATIONS_PATH if manifest.visualizations in found else None,
-        model=MODEL_PATH if manifest.model in found else None,
-        autosave=True,
-    )
-
-
-def old_entry_place(entry: str, manifest: Manifest) -> str | None:
-    """Where an old .sab's own entry goes in the project folder (None: a project file, at its own path; ""
-    for the manifest, written new). Rows, Visualizations and the model into .sab/; its saved dashboards
-    into .sab/visualizations/; its own blades kept at .sab/blades (the library takes them in on open)."""
-    if entry == MANIFEST:
-        return ""
-    if entry == manifest.visualizations:
-        return VISUALIZATIONS_PATH
-    if entry == manifest.model:
-        return MODEL_PATH
-    rows = {t.rows_file for t in manifest.tables if t.rows_file}
-    if entry in rows:
-        return f"{DATA_FOLDER}/{posixpath.basename(entry)}"
-    if entry.startswith(OLD_DASHBOARDS_FOLDER + "/"):
-        return f"{DASHBOARDS_FOLDER}/{posixpath.basename(entry)}"
-    return None
-
-
 def carried(earlier: Manifest | None, name: str, table: TableEntry) -> TableEntry:
     """A table as it goes into the file again: what the earlier file kept of it that this version does
     not know (its own and its source's fields) goes back in."""
@@ -511,59 +461,27 @@ def carried(earlier: Manifest | None, name: str, table: TableEntry) -> TableEntr
     return replace(table, source=source, extra=dict(before.extra) | dict(table.extra))
 
 
-# ===== zip entries: checked before anything is unpacked =====
+# ===== paths inside the project =====
 
 
 def check_entry(name: str) -> str:
-    """A zip entry's name as a path inside the project: forward slashes, no `..`, no absolute path, no
+    """A path inside the project: forward slashes, no `..`, no absolute path, no
     drive, no control character. Refused in words otherwise."""
     if not isinstance(name, str) or not name or len(name) > MAX_ENTRY_NAME or _CONTROL.search(name):
-        raise SabError("The file holds an entry with a name that is not a plain path.")
+        raise SabError("The project names a file with a name that is not a plain path.")
     if "\\" in name or name.startswith("/") or _DRIVE.match(name):
-        raise SabError(f"The file holds an entry outside the project ({name[:80]}): it was not opened.")
+        raise SabError(f"The project names a file outside it ({name[:80]}).")
     parts = name.rstrip("/").split("/")
     if any(part in ("", ".", "..") for part in parts):
-        raise SabError(f"The file holds an entry outside the project ({name[:80]}): it was not opened.")
+        raise SabError(f"The project names a file outside it ({name[:80]}).")
     return "/".join(parts)
-
-
-@dataclass(frozen=True)
-class EntryInfo:
-    name: str
-    size: int  # as the zip says (the reader counts again as it reads)
-    link: bool  # a symbolic link (by its mode bits)
-    folder: bool
-
-
-def check_entries(entries: Sequence[EntryInfo], max_entries: int, max_total: int, max_entry: int) -> None:
-    """Every entry's name and the sizes, before anything is written: refused in words."""
-    if len(entries) > max_entries:
-        raise SabError(f"The file holds over {max_entries:,} entries: it was not opened.")
-    total = 0
-    seen: set[str] = set()
-    for entry in entries:
-        name = check_entry(entry.name)
-        if entry.link:
-            raise SabError(f"The file holds a link ({name[:80]}): it was not opened.")
-        if entry.folder:
-            continue
-        if name.casefold() in seen:
-            raise SabError(f"The file holds {name[:80]} twice: it was not opened.")
-        seen.add(name.casefold())
-        if entry.size > max_entry:
-            raise SabError(f"{name[:80]} is too large to open ({entry.size:,} bytes).")
-        total += entry.size
-        if total > max_total:
-            raise SabError(f"The file unpacks to over {max_total:,} bytes: it was not opened.")
-    if MANIFEST not in seen:
-        raise SabError("This file is not a project (it has no project.json).")
 
 
 # ===== which files go in =====
 
 
 def packed(relative: str) -> bool:
-    """A working folder's file that goes into the .sab (its path inside the project, forward slashes)."""
+    """A folder's file that is the project's own document (its path inside the project, forward slashes)."""
     parts = relative.split("/")
     if any(p in SKIPPED_FOLDERS or (p.startswith(".") and p != ".streamlit") for p in parts[:-1]):
         return False
@@ -609,7 +527,7 @@ def fix_for(table: str, source: Source, problem: str) -> dict[str, Any]:
             table, problem, f"Made by {name}", "open_notebook", f"Open {name}", notebook=source.notebook
         )
     if problem == "no_rows":
-        return _fix(table, problem, "Its rows were not kept in the file", "remove", "Remove")
+        return _fix(table, problem, "Its rows were not kept", "remove", "Remove")
     return _fix(table, "failed", problem[:300], "retry", "Try again")
 
 

@@ -2,7 +2,7 @@
 
 A local server on 127.0.0.1: the user's tables in live grids; DuckDB SQL transforms.
 Workflow: data -> a Workbench notebook or script -> a deliverable (Streamlit app, workbook, code app).
-A project is one .sab file; connections, APIs, vaults, blades, variables: the library.
+A project is a folder; connections, APIs, vaults, blades, variables: the library.
 
 ## Start
 1. `app_context`: connections, tables, ERD, variables. `agent_context`: the grid in front.

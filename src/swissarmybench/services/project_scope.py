@@ -4,8 +4,8 @@ domain/project_scope.py).
 
   documents   the open project's notebooks, scripts and apps (the Workbench's Notebooks, Scripts and Apps
               pages list them)
-  sources     what another place offers to import: a .sab, a project's folder, a loose notebook, script or
-              app (an older project's own connections and blades among them)
+  sources     what another place offers to import: a project's folder, a loose notebook, script or app (an
+              older project's own connections and blades among them)
   import      documents copied into the open project (a name it has gets the next free one); connections
               and blades into the library (Plans/library.plan.md: shared by every project; the same one
               skipped, a different one of that name kept as "<name> from <project>", and said). A
@@ -24,14 +24,14 @@ from typing import Any, Protocol
 from swissarmybench.domain import project_scope as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.library import saved_json
-from swissarmybench.domain.sab_files import SUFFIX, SabError
+from swissarmybench.domain.sab_files import SabError
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.workspace import NotFound, Refused
 
 
 class ScopeFiles(Protocol):
-    """The .sab files and working folders (adapters/sab_files.py)."""
+    """Project folders and loose files (adapters/sab_files.py)."""
 
     def full(self, path: str) -> str: ...
 
@@ -44,10 +44,6 @@ class ScopeFiles(Protocol):
     def app_files(self, folder: str) -> list[tuple[str, int, float]]: ...
 
     def read_file(self, folder: str, relative: str) -> bytes: ...
-
-    def entry_names(self, path: str) -> list[str]: ...
-
-    def read_entries(self, path: str, names: list[str]) -> dict[str, bytes]: ...
 
     def read_loose(self, path: str) -> bytes: ...
 
@@ -117,13 +113,13 @@ class ProjectScope:
     # ===== what a place offers =====
 
     def _place(self, raw: Any) -> tuple[str, str]:
-        """(kind, where): sab, folder or file, and its whole path."""
+        """(kind, where): folder or file, and its whole path."""
         if raw == "computer":
             raise ValueError(
                 "This computer's connections and blades are the library's: every project has them."
             )
         if not isinstance(raw, str) or not raw.strip():
-            raise ValueError('Send {"from": a .sab, a project\'s folder, or a notebook, script or app}.')
+            raise ValueError('Send {"from": a project\'s folder, or a notebook, script or app}.')
         try:
             full = self._files.full(raw.strip())
         except FileNotFoundError as error:
@@ -132,11 +128,9 @@ class ProjectScope:
             return "folder", full
         if not self._files.exists(full):
             raise NotFound(f"{full} is not there.")
-        if full.lower().endswith(SUFFIX):
-            return "sab", full
         if rules.kind_of(full):
             return "file", full
-        raise ValueError("Import from a .sab, a project's folder, or a notebook, script or app.")
+        raise ValueError("Import from a project's folder, or a notebook, script or app.")
 
     def _offered(
         self, kind: str, where: str
@@ -148,14 +142,9 @@ class ProjectScope:
                 [],
                 {},
             )
-        if kind == "folder":
-            documents = rules.documents(self._files.files(where))
-            names = [n for n, _, _ in self._files.app_files(where) if rules.blade_entry(n)]
-            raw = {n: self._files.read_file(where, n) for n in names}
-        else:
-            entries = self._files.entry_names(where)
-            documents = rules.documents((n, 0, 0.0) for n in entries)
-            raw = self._files.read_entries(where, [n for n in entries if rules.blade_entry(n)])
+        documents = rules.documents(self._files.files(where))
+        names = [n for n, _, _ in self._files.app_files(where) if rules.blade_entry(n)]
+        raw = {n: self._files.read_file(where, n) for n in names}
         listed = [{"path": d["path"], "kind": d["kind"], "made": d["made"]} for d in documents]
         return listed, self._records(raw), raw
 
@@ -165,7 +154,7 @@ class ProjectScope:
         return sorted(found, key=lambda r: str(r["name"]).casefold())
 
     async def sources(self, body: Any) -> dict[str, Any]:
-        """What a place offers to import: {"from": a .sab, a folder or a file}."""
+        """What a place offers to import: {"from": a folder or a file}."""
         raw = body.get("from") if isinstance(body, dict) else None
         kind, where = self._place(raw)
         try:
@@ -257,11 +246,7 @@ class ProjectScope:
             copied.append({"from": where, "path": relative, "full": full})
         else:
             paths = rules.pick([d["path"] for d in offered], documents, "document") if documents else []
-            bodies = (
-                self._files.read_entries(where, paths)
-                if kind == "sab"
-                else {p: self._files.read_file(where, p) for p in paths}
-            )
+            bodies = {p: self._files.read_file(where, p) for p in paths}
             for path in paths:
                 relative = rules.free_name(path, taken)
                 taken.append(relative)

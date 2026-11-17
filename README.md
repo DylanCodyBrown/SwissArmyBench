@@ -193,7 +193,7 @@ pages' titles, the menus (Send to Visualizations) and the help. The old names wo
 `sab.sandbox(...)` (a DeprecationWarning; write `sab.visualizations(...)`), the agent's `sandbox_*` commands
 (each runs its `visualizations_*` one, by `sab` and by an MCP call; only the new names are listed),
 `app_navigate` to `sandbox` or `diagram`, `app_snapshot` of `sandbox`, the addresses `?view=sandbox` and
-`?view=diagram` (each replaced by the new word), and a .sab saved with a `sandbox/` entry.
+`?view=diagram` (each replaced by the new word), and a `.sab/project.json` saved with a `sandbox` key.
 
 ## Install it: one package, two installs
 
@@ -301,27 +301,27 @@ bar and keeps a cookie of its own (HttpOnly, SameSite=Strict, good until the ser
 or a bookmark of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to open the app
 from its tray or with `swissarmybench open`.
 
-## Projects: one .sab file
+## Projects: a folder
 
-A project is one file, `name.sab` (a zip inside): its notebooks, scripts and app canvases, the open tables
-with where each came from and its steps, Visualizations, the relationships and the windows' layout. Open
-it on any computer: each table is read again from its source (a connection by name, never a password;
-a file beside the .sab first), and one that cannot come back offers its fix (Add connection, Find
-orders.csv). A pasted or pushed table's rows go in only when you tick **Keep its rows in the file**.
-The home page's **Start** view lists your recent projects (`recent_projects.json` in the state folder:
-paths and times only) and has **New project** (saved first, where you say, then Autosave on or off, then
-the project's Grids), **Open project…** and the tour. Everything is the project's own: its notebooks,
-scripts and apps, its connections and blades (by name and where each password comes from, never the
-password: each computer keeps its own) and its saved dashboards. **Import** copies them in from another
-project, or a connection or blade from the ones saved on this computer.
+A project is a folder: its notebooks, scripts, apps and structures are ordinary files at its top, so it can
+be a Git repository and shared like one. The app's own state is a hidden `.sab/` folder beside them
+(`project.json`: each table's source and steps, the tabs and windows; Visualizations and its saved
+dashboards; the relationships), plain JSON that reads well in a diff. Open it on any computer: each table
+is read again from its source (a connection by name, never a password; a file inside the project first),
+and one that cannot come back offers its fix (Add connection, Find orders.csv). A pasted or pushed table's
+rows are kept only when you tick **Keep its rows**, in `.sab/data/`, which Git ignores.
+The home page is the **Project Explorer**: every project as a card (sortable, a custom order by dragging,
+the types explained), **New project** (name, type, where), **Open project…** (a folder) and the tour.
+**Save** (Ctrl+S; **Autosave** is on by default) and **Copy project to…** are in the Application row.
+**Import** copies notebooks, scripts and apps in from another project folder or a loose file; connections
+and blades are the library's, shared by every project.
 
 ```powershell
-swissarmybench open "C:\Users\me\Documents\sales.sab"   # starts the app when it is not running
+swissarmybench open "C:\Users\me\Documents\sales"   # a project's folder; starts the app when it is not running
 ```
 
-The installers register `.sab` for you: on Windows for your user only (HKCU\Software\Classes, its
-icon, `swissarmybench open "%1"`), on a Linux desktop as an XDG MIME type and desktop entry. On macOS,
-open one with `swissarmybench open`.
+The single-file `.sab` project of 0.0.17 is not read any more: `swissarmybench open sales.sab` says so in
+one line, and the installers take away an earlier `.sab` file registration.
 
 ## The Workbench
 

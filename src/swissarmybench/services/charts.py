@@ -574,7 +574,7 @@ class Cards:
         frozen = sum(1 for c in self._cards.values() if _on_a_grid(c) and c["grid"] is None)
         return {"name": name, "version": number, "cards": len(self._cards), "live": live, "as_saved": frozen}
 
-    # ===== Visualizations in a .sab project (services/sab_projects.py) =====
+    # ===== Visualizations in a project (services/sab_projects.py) =====
 
     def snapshot(self) -> tuple[list[Card], bool]:
         """Visualizations as a project file keeps it: each card's text, size and place, and its theme. What a

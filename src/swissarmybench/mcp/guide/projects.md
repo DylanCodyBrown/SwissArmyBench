@@ -33,15 +33,13 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
 - `project_copy(path, data?)`: Copy project to a new or empty folder; `data=true` copies `.sab/data/`
   too, and then waits for the user's Allow.
 - `project_close(discard?)`: its tables, Visualizations and relationships close; the folder stays.
-- `project_import_sab(path, folder?)`: an old .sab file (one release) unpacked into a folder, each entry
-  checked, turned into `.sab/` and files, then opened.
 - Nothing runs code on open: a table made by a notebook comes back when that notebook runs.
 - A project of a newer format opens read-only: say so; it cannot be saved here.
 
 ## Everything is the project's own
 - Its notebooks, scripts and apps: `project_documents(kind?)`. A document from elsewhere is copied in
   with `project_import(source=<file>)`; `project_import(source, list=true)` shows what another project
-  folder or an old .sab offers.
+  folder offers.
 - Connections, APIs, blades and variables are the library's (every project has them); its saved
   Visualizations dashboards are the project's.
 - Never a password in a project: a connection's password comes from each computer's keyring,

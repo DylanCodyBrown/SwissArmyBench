@@ -96,7 +96,7 @@ import { type Descriptions, type DictionaryTable, described, drawDictionary, dra
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
 import { activeMode, canvasAnywhere, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
-import { closeProject, copyProject, importSab, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
+import { closeProject, copyProject, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
@@ -614,13 +614,11 @@ function projectEntries(): MenuEntry[] {
       .map((m) => ({ label: `New ${m.name} project…`, icon: "plus", title: `Its deliverable: ${m.deliverable}`, run: guarded(() => newProject(undefined, undefined, [], false, false, m.type)) })),
     { label: "Open project…", icon: "folder", run: guarded(() => openProject()) },
     { label: "Export data.py", icon: "export", disabled: !open, title: open ? "Written again from data.ipynb" : "No project is open", run: guarded(exportData) },
-    null,
-    { label: "Open a .sab file…", icon: "project", title: "An old project file, made a folder", run: guarded(() => importSab()) },
-    ...(sabOpen() ? [{ label: "Copy project to…", icon: "copy", run: guarded(() => copyProject()) }, { label: "Close project", icon: "close", run: guarded(() => closeProject()) }] : []),
+    ...(sabOpen() ? [null, { label: "Copy project to…", icon: "copy", run: guarded(() => copyProject()) }, { label: "Close project", icon: "close", run: guarded(() => closeProject()) }] : []),
   ];
 }
 
-// ----- a project as one .sab file (projectFile.ts): its documents open here, its layout is kept, and
+// ----- a project folder (projectFile.ts): its documents open here, its layout is kept, and
 // Save covers it (the owner, 2026-11-16) -----
 
 const SAB_KEY = "workbench-sab";
@@ -713,7 +711,7 @@ async function saveFront(as = false): Promise<unknown> {
   return done;
 }
 
-/** The project's documents with unsaved changes, saved (the server asks before it writes the .sab). */
+/** The project's documents with unsaved changes, saved (the server asks before it writes .sab/). */
 async function saveProjectDocuments(folder: string | undefined): Promise<{ saved: number }> {
   let saved = 0;
   for (const doc of docs.filter((d) => d.dirty && inFolder(d.path, folder ?? projectState().project?.folder ?? null))) {
@@ -1861,7 +1859,7 @@ function drawTop(): void {
   topNew.dataset.kind = topKind();
   clear(topName, h("span", { class: "wb-name-text" }, doc?.title ?? "Workbench"), doc?.dirty ? h("span", { class: "wb-name-dot", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes" }) : null);
   topName.title = doc?.path ?? doc?.title ?? "";
-  // The open .sab project's name, with its unsaved mark (●): its menu saves, saves as, closes.
+  // The open project's name, with its unsaved mark (●): its menu saves, saves as, closes.
   const opened = projectState().project;
   topProject.hidden = !opened;
   const label = topProject.querySelector(".btn-label");
@@ -2428,7 +2426,7 @@ function remember(): void {
   if (rememberTimer === null)
     rememberTimer = window.setTimeout(() => {
       rememberNow();
-      void reportSab(); // the open .sab project keeps this window's documents and groups for its next save
+      void reportSab(); // the open project keeps this window's documents and groups for its next save
     }, 800);
 }
 
@@ -2728,7 +2726,6 @@ const COMMANDS: Command[] = [
   { id: "project.save", group: "Project", title: "Save the project (its .sab/ state)", when: sabOpen, whyNot: "no project is open", run: () => saveProject() },
   { id: "project.saveAs", group: "Project", title: "Copy the project to another folder…", when: sabOpen, whyNot: "no project is open", run: () => copyProject() },
   { id: "project.close", group: "Project", title: "Close the project", when: sabOpen, whyNot: "no project file is open", run: () => closeProject() },
-  { id: "project.openFile", group: "Project", title: "Open a .sab file… (an old project file, made a folder)", args: "path: the .sab (without it, the file chooser opens)", run: (a) => importSab(text(a, "path")) },
   { id: "project.saveDocuments", agentOnly: true, group: "Project", title: "Save the project's documents that have unsaved changes", args: "folder: the project's folder", run: (a) => saveProjectDocuments(text(a, "folder")) },
   { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current, true) },
   { id: "file.exportScript", group: "File", title: "Export as one Python script…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "script", text(a, "path"), from.agent) },
@@ -3347,7 +3344,7 @@ void Promise.all([
     const k = handed || wanted ? null : codeKindOf(here.get("kind"));
     if (k && here.get("view") === "list") showLanding(k);
     else if (k && !docs.some((d) => docKindOf(d) === k)) showKind(k);
-    // The open .sab project: its documents here (once), its name and unsaved mark in the top row.
+    // The open project: its documents here (once), its name and unsaved mark in the top row.
     onProject((state) => void followProject(state).catch((e: Error) => toast(e.message, "error")));
     onBeforeSave(reportSab);
     mountProject();

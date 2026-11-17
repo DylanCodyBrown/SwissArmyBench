@@ -128,7 +128,7 @@ terminal (it starts the app when it is not running).
 - **The project's own:** its documents, tables and grids, Structures, Visualizations and its saved
   dashboards. Your connections, APIs, key vaults, blades and variables are your **library** (below), and
   every project has them. In the Workbench, **In this project…** lists its documents, and **Import…**
-  copies notebooks, scripts or apps in from another project (its folder, or an old .sab) or a single file.
+  copies notebooks, scripts or apps in from another project (its folder) or a single file.
 - **Passwords stay on each computer.** A connection names where its password comes from (your keyring,
   an environment variable, a key vault). Opened where that is not set, it says **Needs a password** with
   **Set the password**, and its tables wait with the same fix, then **Try again**.
@@ -137,14 +137,14 @@ terminal (it starts the app when it is not running).
   code on open: a table a notebook makes comes back when you run that notebook. **A table that cannot
   come back** shows in a strip under the tabs with one click that fixes it: **Add connection
   Warehouse**, **Find orders.csv**, **Open data.ipynb**, then **Try again**; or **Remove**.
-- **An old .sab file** (a project from before projects were folders): **Open a .sab file…** asks for the
-  folder it becomes, unpacks it there (every entry checked) and opens it. This works for one release;
-  the installer no longer registers .sab files.
+- **An old .sab file** (a single-file project from 0.0.17) is not opened any more: a project is a folder.
+  `swissarmybench open sales.sab` says so in one line; the installer takes away an earlier .sab
+  registration.
 - A project saved by a newer version opens read-only and says so.
 - **The agent** does the same: `projects_list`, `projects_sort`, `project_types`, `project_new`,
   `project_open`, `project_save` (it waits for your Allow only when it would keep a table's rows),
   `project_copy`, `project_rename`, `project_remove_from_list`, `projects_folder_set` (your Allow),
-  `project_import_sab`, `project_close`, `project_table_fix`, `project_autosave`, `project_documents`,
+  `project_close`, `project_table_fix`, `project_autosave`, `project_documents`,
   `project_import`. Show in folder and Delete are yours only.
 
 ### Tables: open, closed and in Python

@@ -11,8 +11,7 @@ domain/connection_swap.py).
            each as in swap; the queries reviewed one by one, or run as they are
   undo     the table as it was before its last swap: its rows and its origin (or waiting again)
   repoint  the cells that name the old connection pointed at the new one: an open document in the
-           Workbench window (unsaved until Save, or autosaved), any other's file (in a project, its working
-           folder: the .sab follows on Save)
+           Workbench window (unsaved until Save, or autosaved), any other's file (in a project, its folder)
 
 Nothing is ever deleted: the old rows are kept for the undo until the next swap of that table (memory only).
 """

@@ -240,7 +240,6 @@ class DocumentFacts:
 class State:
     version: str
     project: str | None = None
-    sab_file: str | None = None  # (before projects were folders: the .sab file's name; no longer set)
     folder: str | None = None  # the project's folder: the project itself
     connections: tuple[ConnectionFacts, ...] = ()
     apis: tuple[ApiFacts, ...] | None = None  # None: the APIs page is not in this build
@@ -267,8 +266,6 @@ def _project(s: State) -> list[str]:
     if not s.project:
         return ["No project is open: the tables, connections and documents are this computer's."]
     lines = [f"- Project: {code(s.project)}"]
-    if s.sab_file:
-        lines.append(f"- Saved as {code(s.sab_file)}")
     if s.folder:
         lines.append(
             f"- Its folder (the project: notebooks, scripts, apps; the app's own in .sab/): {code(s.folder)}"

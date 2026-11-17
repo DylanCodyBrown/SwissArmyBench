@@ -15,8 +15,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
   (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
   answer for one release: `sab.sandbox` (a warning), `sandbox_*` (cli/commands.py OLD_NAMES: run, never
-  listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a .sab's `sandbox/`
-  entry. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
+  listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
+  `sandbox` key. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -108,7 +108,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at).
-  **Variables (the owner, 2026-11-16/17):** the library's, never in a .sab: `variables.toml` (names, sources,
+  **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs.
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
@@ -127,17 +127,16 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   when its bytes change. Rows only on the user's "Keep its rows" tick, into `.sab/data/` (Git-ignored);
   the agent's save or Copy project to with rows waits for the user's Allow. Copy project to copies the
   folder (`.sab/data/` on a tick). `recent_projects.json` holds the projects' folder paths and times only;
-  `projects.json` the Project Explorer's projects folder, sort, custom order and hidden ones. **The .sab
-  file, one release:** Open a .sab file… imports an old one into a folder the user picks (every entry
-  checked); the installers no longer register .sab and take an earlier registration away; the icon files
-  (server/sab-file.*) and the safe reader stay until the next release removes them.
+  `projects.json` the Project Explorer's projects folder, sort, custom order and hidden ones. The old
+  single .sab file is not read any more (its conversion removed, the owner, 2026-11-17: `swissarmybench open
+  x.sab` says so in one line); the installers take an earlier .sab registration away.
   **The library (the owner, 2026-11-17; Plans/library.plan.md):** connections, APIs, vaults, blades, tangs,
   variables and connection colours live outside every project, in one folder of text files made to be a Git
   repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
   `library.json` keeps the path): `connections/`, `vaults/`, `blades/<name>.blade.py`, `apis/<name>/`,
   `tangs/`, `variables.toml`, `colours.toml`, `local/` (this computer only, git-ignored), README.md and
   .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
-  nothing changes no byte. Never a secret, token, password or row in it (nor in a .sab): a connection names
+  nothing changes no byte. Never a secret, token, password or row in it (nor in a project): a connection names
   where its password comes from (keyring, environment, vault), resolved on each computer by its name; a
   clone asks for each missing one. This computer's older stores (blades/*.json, variables.json, colours.toml,
   tangs/) moved in once at start (the old files in `backup/before-library-<date>/`, said once on the page);
@@ -284,8 +283,8 @@ src/swissarmybench/
                          tabs, the windows' layout, autosave; sorted, no timestamp; unknown fields kept, a
                          newer format read-only, a type-only file a project with no tables), .sab/'s paths,
                          sources from origins (a file relative to the project), the scaffold's .gitignore and
-                         README, which files are the project's own; an old .sab's entries checked (no `..`,
-                         no absolute path, no link, sizes) and where each goes (converted); a table's fix
+                         README, which files are the project's own; a path inside the project checked (no
+                         `..`, no absolute path, no drive); a table's fix
     project_explorer.py  the Project Explorer: projects.json read, each project's card (type, counts, Git
                          branch from .git/HEAD, times, missing, an off extension's "needs"), the sorts and the
                          custom order (moved left and right), the filters, the types explained for beginners
@@ -446,7 +445,7 @@ src/swissarmybench/
                          .sab/ written), open (a folder; a plain one made a project on request; each table
                          read again with its steps; Visualizations, model, layout), save (.sab/, only changed
                          bytes; rows only on a tick, the agent's on the user's Allow), autosave (on by default,
-                         once a change settles), Copy project to, an old .sab imported into a folder, close,
+                         once a change settles), Copy project to, close,
                          the recent list, a table's fix; unsaved changes worked out, not tracked; each open,
                          new and close points the dashboards at the project (scope); an older project's own
                          blades into the library as it opens (adopt)
@@ -456,8 +455,8 @@ src/swissarmybench/
                          name) the user's only
     library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
                          once, an older project's blades taken in (the same skipped, `<name> from <project>`)
-    project_scope.py     the open project's documents, and import: documents from another project folder, an
-                         old .sab or a loose file into the project; an older project's connections and blades
+    project_scope.py     the open project's documents, and import: documents from another project folder or a
+                         loose file into the project; an older project's connections and blades
                          into the library (services/library.py's take)
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
@@ -492,8 +491,7 @@ src/swissarmybench/
                          SWISSARMYBENCH_EXTENSIONS (tests and development only)
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     sab_files.py         a project folder's .sab/ files (written atomically, only when their bytes change),
-                         the scaffold's Git files, its documents listed, Copy project to; an old .sab read
-                         (every entry checked first, counted as read) and unpacked into an empty folder;
+                         the scaffold's Git files, its documents listed, Copy project to;
                          recent_projects.json (folders)
     project_explorer.py  projects.json, the projects folder scanned, a project's facts (.git/HEAD read as text,
                          never git run), Show in folder (the file manager), the system's trash, a rename
@@ -525,7 +523,6 @@ src/swissarmybench/
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
                          (start [--background], stop, status, open [folder], tray, autostart on|off|status)
-    sab-file.ico, .svg   the old .sab file's icon (one release: the installers take its registration away)
     tray.py              the tray icon (pystray, Pillow): its menu (domain/updates.py's model), the left
                          click, the server started and watched (restarted 3 times in 5 minutes at most)
     autostart.py         start at sign-in: a Startup shortcut (Windows), a LaunchAgent (macOS), an XDG
@@ -708,12 +705,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
                          (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
                          for the types explained, where; save, Keep its rows asked once; Copy project to…;
-                         Open a .sab file…; close; a table's fix; the ● mark); projectTypes.ts the types for
+                         close; a table's fix; the ● mark); projectTypes.ts the types for
                          beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
                          the home page's Project Explorer (cards, sort and dragged custom order, filters, the
                          types strip, the empty state, a card's menu; Settings' Projects folder);
                          projectImport.ts the import dialog (documents, connections, blades: from another
-                         project folder, an old .sab, a file, this computer);
+                         project folder, a file, this computer);
                          startView.ts the home page's Start view (/workspace?view=start: the Project Explorer,
                          the tour: offered here only; Home brings it), the Grids
                          landing (/workspace?view=grids: a project open, no table: Open a file, Paste,

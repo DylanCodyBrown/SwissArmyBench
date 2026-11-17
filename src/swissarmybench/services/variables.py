@@ -1,7 +1,7 @@
 """The Variables page (domain/variables.py): every variable this computer gives or something reads, where
 each comes from and what uses it; add, change, rename and remove this computer's own.
 
-  scope     this computer's, whether or not a project is open, never in a .sab (the owner, 2026-11-17: the
+  scope     this computer's, whether or not a project is open, never in a project (the owner, 2026-11-17: the
             library of connections, vaults, APIs and blades is the computer's); two files, the shareable
             one and this computer's local values (adapters/variables.py VariableFiles); a project opened
             or closed changes the connections that read them (rescope: the page told)

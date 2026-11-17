@@ -68,7 +68,6 @@ def _state(**more: Any) -> State:
     base: dict[str, Any] = {
         "version": "9.9.9",
         "project": "Q3 close",
-        "sab_file": "Q3.sab",
         "folder": "/work/sab-1/Q3",
         "connections": (warehouse, finance),
         "tables": (

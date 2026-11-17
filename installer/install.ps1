@@ -151,8 +151,7 @@ if ($Bin) { $Exe = Join-Path $Bin "swissarmybench.exe" }
 if (-not $Exe -or -not (Test-Path $Exe)) { $Exe = Join-Path $LocalBin "swissarmybench.exe" }
 
 # 6. A project is a folder now (2026-11-17): .sab files are no longer registered. An earlier install's
-#    registration for this user (HKCU\Software\Classes) is taken away; the icon files stay in the package for
-#    one release. An old .sab is imported with Open a .sab file… (or swissarmybench open).
+#    registration for this user (HKCU\Software\Classes) is taken away, so an old machine is left clean.
 function UnregisterProjectFiles {
     $Classes = "HKCU:\Software\Classes"
     $ProgId = "SwissArmyBench.Project"

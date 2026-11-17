@@ -140,7 +140,7 @@ class Workbench:
         # The Workbench window that started each kernel, and since when that window has been gone.
         self._owner: dict[str, str] = {}
         self._gone_since: dict[str, float] = {}
-        # The document each kernel was started for (a table it sends was made there: a .sab project
+        # The document each kernel was started for (a table it sends was made there: a project
         # says so, services/sab_projects.py).
         self._documents_of: dict[str, str] = {}
         # Documents moving between Workbench windows, by their one-time id (memory only).

@@ -19,8 +19,6 @@ domain/sab_files.py). For the home page, the Workbench window and the agent alik
             settles, quietly
   copy      Copy project to: the folder copied elsewhere (saved first; .sab/data/ only on a tick, and the
             agent's with rows waits for the user's Allow)
-  import    an old .sab file (one release): unpacked into a folder the user picks, every entry checked,
-            turned into .sab/ and files, then opened
   close     the tables, Visualizations and the model closed
   scope     the open project's saved dashboards are its own (.sab/visualizations/): each open, new and
             close tells the stores (scope). Connections, APIs, vaults, blades and variables are the
@@ -63,7 +61,7 @@ AUTOSAVE: str = "autosave"  # who a quiet save is, in the audit log
 
 
 class Archive(Protocol):
-    """A project's folder on disk and an old .sab read safely (adapters/sab_files.py)."""
+    """A project's folder on disk (adapters/sab_files.py)."""
 
     def full(self, path: str) -> str: ...
 
@@ -74,8 +72,6 @@ class Archive(Protocol):
     def folder_of(self, path: str) -> str: ...
 
     def is_folder(self, path: str) -> bool: ...
-
-    def manifest(self, path: str) -> str: ...
 
     def read_state(self, folder: str, relative: str) -> bytes | None: ...
 
@@ -96,8 +92,6 @@ class Archive(Protocol):
     def empty_folder(self, path: str) -> str: ...
 
     def copy_project(self, source: str, target: str, data: bool) -> str: ...
-
-    def unpack_into(self, path: str, folder: str, place: Callable[[str], str | None]) -> dict[str, str]: ...
 
 
 class Recent(Protocol):
@@ -355,8 +349,8 @@ class SabProjects:
         projects folder by default)}."""
         path = body.get("path")
         if isinstance(path, str) and path.strip():
-            if path.strip().lower().endswith(rules.SUFFIX):
-                raise ValueError("A project is a folder now: name a folder, not a .sab file.")
+            if path.strip().lower().endswith(".sab"):  # the single-file project of 0.0.17
+                raise ValueError("A project is a folder: name a folder, not a .sab file.")
             return self._full(path)
         name = body.get("name")
         if not isinstance(name, str) or not name.strip():
@@ -424,7 +418,7 @@ class SabProjects:
         """Open a project: {"path": its folder, "make"?, "discard"?, "ask"?}. With unsaved work open it
         asks first: Conflict, or (ask: another program asked) the page asks the user. {"cancel": true}:
         that question goes. A folder that is not a project is answered `not_a_project` (make: true
-        makes it one around what is there); an old .sab file is answered `sab` (import it)."""
+        makes it one around what is there)."""
         body = body if isinstance(body, dict) else {}
         if body.get("cancel") is True:
             self._asked = None
@@ -435,15 +429,8 @@ class SabProjects:
             raise ValueError('Send {"path": the project\'s folder}.')
         full = self._full(path)
         if not self._archive.is_folder(full):
-            if self._archive.exists(full) and full.lower().endswith(rules.SUFFIX):
-                if body.get("ask") is True:  # a double-click on an old .sab: the page offers its import
-                    self._asked = full
-                    await self._changed()
-                    return self.state() | {"sab": full, "asked": full, "page": self.ws.live.page_open()}
-                return self.state() | {
-                    "sab": full,
-                    "message": "An old .sab file: import it into a folder (project_import_sab).",
-                }
+            if self._archive.exists(full):
+                raise ValueError(f"{full} is a file: open a project's folder.")
             raise NotFound(f"{full} is not a folder.")
         names = await asyncio.to_thread(self._archive.top_names, full)
         if not rules.is_project(names) and body.get("make") is not True:
@@ -901,47 +888,6 @@ class SabProjects:
         self.ws.audit.write(who, "copy_project", done, data=data)
         await self._changed()
         return {"copied": done, "from": source, "data": data}
-
-    async def import_sab(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """An old .sab file into a folder (one release): {"path": the .sab, "folder"?: a new or empty
-        folder (default: the projects folder, named for the file), "discard"?}. Every entry checked, its
-        files unpacked, its project.json, Visualizations, model and kept rows into .sab/; then opened."""
-        body = body if isinstance(body, dict) else {}
-        path = body.get("path")
-        if not isinstance(path, str) or not path.strip():
-            raise ValueError('Send {"path": the .sab file, "folder"?: where its project goes}.')
-        full = self._full(path)
-        if not self._archive.exists(full):
-            raise NotFound(f"{full} is not there.")
-        folder = body.get("folder")
-        if isinstance(folder, str) and folder.strip():
-            target = self._full(folder)
-        else:
-            target = self._target({"name": rules.check_name(rules.name_of_file(full))})
-        try:
-            manifest, read_only = rules.read_manifest(await asyncio.to_thread(self._archive.manifest, full))
-        except FileNotFoundError as error:
-            raise NotFound(str(error)) from None
-        except rules.SabError as error:
-            raise ValueError(str(error)) from None
-        if read_only:
-            raise Refused(read_only)
-        self._check_discard(body)
-        try:
-            found = await asyncio.to_thread(
-                self._archive.unpack_into, full, target, lambda entry: rules.old_entry_place(entry, manifest)
-            )
-        except FileExistsError as error:
-            raise Conflict(str(error)) from None
-        except rules.SabError as error:
-            raise ValueError(str(error)) from None
-        fresh = rules.converted(manifest, found)
-        text = rules.write_manifest(replace(fresh, app_version=self._version))
-        await asyncio.to_thread(self._archive.write_state, target, rules.MANIFEST_PATH, text.encode("utf-8"))
-        await asyncio.to_thread(self._archive.ensure_ignored, target, _base(target))
-        self.ws.audit.write(who, "import_sab", target, entries=len(found))
-        opened = await self.open({"path": target, "discard": True}, who)
-        return opened | {"imported": target, "from": full}
 
     # ===== close, the layout, the recent list =====
 

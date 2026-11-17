@@ -1,17 +1,14 @@
 """A project folder on disk (domain/sab_files.py has the rules; services/sab_projects.py the use cases):
-its .sab/ state written only when its bytes change, its documents listed, a copy, an old .sab file read
-safely and unpacked into a folder (the import), and the recent projects' list.
+its .sab/ state written only when its bytes change, its documents listed, a copy, and the recent projects'
+list.
 
   state     .sab/project.json, visualizations.json, model.json, data/<table>.parquet: each written
             atomically (a temporary file beside it, then one replace), and only when its bytes differ
   files     the project's own documents (code and text: never data, never .sab/, no environments)
   copy      Copy project to: the folder copied (.sab/data/ only on a tick; caches and environments left)
-  import    an old .sab: every entry checked before anything is written (names, links, sizes; domain
-            rules), then unpacked into an empty folder; each entry counted again as it is read, so a zip
-            that lies about its sizes stops at the cap
   recent    recent_projects.json in the state folder: folder paths and times only
 
-Nothing here is written but at the user's word (Save, Autosave, New project, Copy project to, the import)
+Nothing here is written but at the user's word (Save, Autosave, New project, Copy project to, Import)
 or the agent's (its own, with the user's Allow when rows are kept).
 """
 
@@ -22,10 +19,6 @@ import json
 import os
 import secrets
 import shutil
-import stat
-import zipfile
-import zlib
-from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -42,37 +35,19 @@ from swissarmybench.domain.sab_files import (
     MANIFEST_PATH,
     OLD_DASHBOARDS_FOLDER,
     README_FILE,
-    EntryInfo,
     SabError,
-    check_entries,
     check_entry,
     packed,
     readme,
 )
 
-CHUNK: int = 1024 * 1024
 MAX_RECENT: int = 100
 
 
-class _Sink:
-    """An entry read into memory (an import's few small files)."""
-
-    def __init__(self) -> None:
-        self.data = bytearray()
-
-    def write(self, chunk: bytes) -> None:
-        self.data += chunk
-
-
-def _is_link(info: zipfile.ZipInfo) -> bool:
-    return stat.S_ISLNK(info.external_attr >> 16)
-
-
 class SabArchive:
-    """A project's folder on disk, and an old .sab file read safely (the import)."""
+    """A project's folder on disk. `max_entries`: the most files listed; `max_total`: the largest read."""
 
-    def __init__(self, max_file_bytes: int, max_entries: int, max_total: int) -> None:
-        self.max_file_bytes = max_file_bytes
+    def __init__(self, max_entries: int, max_total: int) -> None:
         self.max_entries = max_entries
         self.max_total = max_total
 
@@ -113,61 +88,8 @@ class SabArchive:
     def folder_of(path: str) -> str:
         return str(Path(path).expanduser().resolve().parent)
 
-    # ===== open =====
-
-    def _zip(self, path: str) -> zipfile.ZipFile:
-        file = Path(path).expanduser()
-        if not file.is_file():
-            raise FileNotFoundError(f"{file} is not there.")
-        if file.stat().st_size > self.max_file_bytes:
-            raise SabError(
-                f"{file.name} is over {self.max_file_bytes // (1024 * 1024):,} MB: too large to open."
-            )
-        try:
-            return zipfile.ZipFile(file)
-        except (zipfile.BadZipFile, OSError):
-            raise SabError(f"{file.name} is not a project file (it is not a zip).") from None
-
-    def _checked(self, archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
-        infos = archive.infolist()
-        check_entries(
-            [EntryInfo(i.filename, i.file_size, _is_link(i), i.is_dir()) for i in infos],
-            self.max_entries,
-            self.max_total,
-            self.max_total,
-        )
-        return [i for i in infos if not i.is_dir()]
-
-    def _read(self, archive: zipfile.ZipFile, info: zipfile.ZipInfo, out: Any, budget: list[int]) -> None:
-        """One entry, counted as it is read: past its stated size or the whole budget, it stops."""
-        seen = 0
-        try:
-            with archive.open(info) as source:
-                while chunk := source.read(CHUNK):
-                    seen += len(chunk)
-                    budget[0] -= len(chunk)
-                    if seen > info.file_size or budget[0] < 0:
-                        raise SabError(
-                            f"{info.filename[:80]} unpacks to more than it says: it was not opened."
-                        )
-                    out.write(chunk)
-        except (zipfile.BadZipFile, zlib.error, EOFError):
-            raise SabError(f"{info.filename[:80]} is damaged in this file: it was not opened.") from None
-
-    def manifest(self, path: str) -> str:
-        """project.json's text, every entry checked first."""
-        with self._zip(path) as archive:
-            self._checked(archive)
-            info = archive.getinfo("project.json")
-            if info.file_size > 50 * 1024 * 1024:
-                raise SabError("Its project.json is too large to read.")
-            try:
-                return archive.read(info).decode("utf-8-sig")
-            except (zipfile.BadZipFile, zlib.error, EOFError, UnicodeDecodeError):
-                raise SabError("Its project.json is damaged: it was not opened.") from None
-
     def files(self, folder: str) -> list[tuple[str, int, float]]:
-        """The working folder's files that go into the .sab: path inside it, size, last change."""
+        """The project's own files in its folder: path inside it, size, last change."""
         root = Path(folder)
         found: list[tuple[str, int, float]] = []
         if not root.is_dir():
@@ -210,29 +132,10 @@ class SabArchive:
                 break
         return found
 
-    # ===== another project's entries, for an import =====
-
-    def entry_names(self, path: str) -> list[str]:
-        """Every file entry of a .sab (each one checked first)."""
-        with self._zip(path) as archive:
-            return [check_entry(i.filename) for i in self._checked(archive)]
-
-    def read_entries(self, path: str, names: Sequence[str]) -> dict[str, bytes]:
-        """Some entries of a .sab, each counted as it is read (a zip that lies about its sizes stops)."""
-        wanted = set(names)
-        found: dict[str, bytes] = {}
-        with self._zip(path) as archive:
-            budget = [self.max_total]
-            for info in self._checked(archive):
-                entry = check_entry(info.filename)
-                if entry in wanted:
-                    sink = _Sink()
-                    self._read(archive, info, sink, budget)
-                    found[entry] = bytes(sink.data)
-        return found
+    # ===== another project's files, for an import =====
 
     def read_loose(self, path: str) -> bytes:
-        """A file outside the project (a notebook to import), at most the largest entry a .sab takes."""
+        """A file outside the project (a notebook to import), at most the largest file read."""
         file = Path(path).expanduser()
         if not file.is_file():
             raise FileNotFoundError(f"{file} is not there.")
@@ -406,32 +309,6 @@ class SabArchive:
         shutil.copytree(root, into, symlinks=True, ignore=ignored)
         return str(into)
 
-    # ===== an old .sab file imported into a folder =====
-
-    def unpack_into(self, path: str, folder: str, place: Callable[[str], str | None]) -> dict[str, str]:
-        """Every entry of an old .sab (each checked first) into `folder` (made, or empty): a project file at
-        its own path, the app's own entries where `place` says ("": not written, the manifest). Each old
-        entry's new path."""
-        target = Path(self.empty_folder(folder))
-        found: dict[str, str] = {}
-        try:
-            with self._zip(path) as archive:
-                budget = [self.max_total]
-                for info in self._checked(archive):
-                    entry = check_entry(info.filename)
-                    where = place(entry)
-                    if where == "":
-                        continue
-                    out = self._inside(str(target), where or entry)
-                    out.parent.mkdir(parents=True, exist_ok=True)
-                    with open(out, "wb") as sink:
-                        self._read(archive, info, sink, budget)
-                    found[entry] = where or entry
-        except BaseException:
-            shutil.rmtree(target, ignore_errors=True)
-            raise
-        return found
-
 
 class RecentProjects:
     """recent_projects.json in the state folder: the projects opened (their folders), paths and times only.
@@ -468,11 +345,8 @@ class RecentProjects:
         os.replace(partial, self._file)
 
     def all(self) -> list[dict[str, Any]]:
-        """Each one with whether its folder is still there (an old .sab file: `sab`, to import)."""
-        return [
-            r | {"exists": SabArchive.is_folder(r["path"]), "sab": SabArchive.exists(r["path"])}
-            for r in self._read()
-        ]
+        """Each one with whether its folder is still there."""
+        return [r | {"exists": SabArchive.is_folder(r["path"])} for r in self._read()]
 
     def replace(self, old: str, new: str) -> bool:
         """A project moved or renamed: its entry follows (Locate…, Rename)."""

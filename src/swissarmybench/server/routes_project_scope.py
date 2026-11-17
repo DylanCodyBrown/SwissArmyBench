@@ -2,7 +2,7 @@
 Workbench's Notebooks, Scripts and Apps pages, the import dialog and the agent (the golden rule).
 
 GET  /project/documents       ?kind=notebook|script|app: the open project's documents
-POST /project/import/sources  {"from": a .sab, a project's folder, a file, or "computer"}: what it offers
+POST /project/import/sources  {"from": a project's folder, a file, or "computer"}: what it offers
 POST /project/import          {"from", "documents"?, "connections"?, "blades"?}: copies into the project
 """
 

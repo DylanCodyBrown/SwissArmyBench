@@ -114,8 +114,6 @@ class ProjectExplorer:
             card = rules.card(
                 path, facts, kinds, off, float(said["opened"]) if said else None, current, path in inside
             )
-            if said and said.get("sab"):
-                card["sab"] = True  # an old .sab file: Import… makes it a folder
             cards.append(card)
         return cards
 

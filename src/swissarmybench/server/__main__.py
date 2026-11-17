@@ -98,7 +98,7 @@ def main() -> None:
     parser.add_argument(
         "switch",
         nargs="?",
-        help="autostart: on, off or status; open: a project's folder (or an old .sab file to import).",
+        help="autostart: on, off or status; open: a project's folder.",
     )
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the page when it starts.")
@@ -174,11 +174,18 @@ def open_page(path: Path | None = None) -> bool:
     return True
 
 
+OLD_SAB_FILE: str = "{name}: this version opens project folders only."
+
+
 def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
-    """`swissarmybench open <a project's folder>` (or an old .sab file, whose import the page offers): the
-    app started in the background when it is not running, the project opened in it (the page asks first
-    when unsaved work would be lost), and the home window shown when none is open."""
+    """`swissarmybench open <a project's folder>`: the app started in the background when it is not
+    running, the project opened in it (the page asks first when unsaved work would be lost), and the home
+    window shown when none is open. An old single-file project (.sab) is answered in one line, and nothing
+    starts."""
     file = Path(target).expanduser()
+    if file.name.lower().endswith(".sab"):
+        print(OLD_SAB_FILE.format(name=file.name), file=sys.stderr)
+        return 1
     if not file.exists():
         print(f"{file} is not there.", file=sys.stderr)
         return 1

@@ -293,7 +293,16 @@ def test_the_agents_commands(tmp_path: Path, client: TestClient) -> None:
     from swissarmybench.cli import commands
 
     names = set(commands.REGISTRY)
-    assert {"projects_list", "projects_sort", "project_new", "project_open", "project_rename",
-            "project_remove_from_list", "project_copy", "projects_folder_set", "project_types",
-            "project_import_sab"} <= names  # fmt: skip
+    assert {
+        "projects_list",
+        "projects_sort",
+        "project_new",
+        "project_open",
+        "project_rename",
+        "project_remove_from_list",
+        "project_copy",
+        "projects_folder_set",
+        "project_types",
+    } <= names
+    assert "project_import_sab" not in names  # the .sab conversion removed (2026-11-17)
     assert not {n for n in names if "delete" in n and n.startswith("project")}  # Delete is the user's

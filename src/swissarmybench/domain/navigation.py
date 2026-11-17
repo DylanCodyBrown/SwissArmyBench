@@ -22,7 +22,7 @@ WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench")
 # rail click goes there (web/src/rail.ts). A window that does not show the area brings forward the one
 # that does (the home window for the grids, Visualizations and the ERD; the Workbench for notebooks,
 # scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids; home
-# (the mark) is the Start view (projects as one .sab file, 2026-11-16), a place of its own.
+# (the mark) is the Start view (the Project Explorer), a place of its own.
 AREAS: tuple[str, ...] = (
     # In the order of the work (the owner, 2026-11-17): where data comes from, getting and shaping it, web
     # data, tools, building, presenting, the log; Settings at the bottom.

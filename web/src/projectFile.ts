@@ -12,12 +12,10 @@
  *          [SAVE]     Save (Ctrl+S) -> POST /project/save (.sab/; a pasted table's "Keep its rows" asked
  *                     once); Copy project to… -> a new folder -> POST /project/copy
  *          [AUTOSAVE] the project group's switch -> POST /project/autosave (on by default)
- *          [IMPORT]   Open a .sab file… (one release) -> the .sab, then the folder it goes into -> POST
- *                     /project/import-sab
  *          [CLOSE]    Close project -> POST /project/close
  *          [FIX]      a table that did not come back -> its one click: Add connection, Find <file>,
  *                     Open <notebook>, Remove, Try again -> POST /project/fix
- *          [ASKED]    another program asked to open a project (or an old .sab) while unsaved work is open
+ *          [ASKED]    another program asked to open a project while unsaved work is open
  */
 import { api, ApiError, onNotice, type Notice } from "./api";
 import { button, h, openDialog, toast } from "./dom";
@@ -68,7 +66,6 @@ export interface RecentProject {
   path: string;
   opened: number;
   exists: boolean;
-  sab?: boolean;
 }
 
 export interface ProjectState {
@@ -163,16 +160,15 @@ async function withQuestion(path: string, body: Record<string, unknown>, questio
   }
 }
 
-type Opened = ProjectState & { not_a_project?: string; sab?: string };
+type Opened = ProjectState & { not_a_project?: string };
 
 /** Open project…: a folder (the file chooser when no path is given). A plain folder: made a project around
- *  its files when the user says so; an old .sab file: imported into a folder. */
+ *  its files when the user says so. */
 export async function openProject(path?: string): Promise<ProjectState | null> {
   const chosen = path ?? (await chooseFile({ title: "Open project", mode: "folder", start: state.recent.find((r) => r.exists)?.path }));
   if (!chosen) return null;
   let opened = (await withQuestion("/project/open", { path: chosen }, `Let them go and open ${baseName(chosen)}?`)) as Opened | null;
   if (!opened) return null;
-  if (opened.sab) return importSab(opened.sab);
   if (opened.not_a_project) {
     if (!confirm(`${baseName(opened.not_a_project)} is not a project yet.\n\nMake this folder a project? Nothing in it is written over.`)) return null;
     opened = (await withQuestion("/project/open", { path: chosen, make: true }, `Let them go and open ${baseName(chosen)}?`)) as Opened | null;
@@ -268,21 +264,6 @@ async function chooseNewProject(preset?: ProjectType): Promise<Record<string, un
     foot.append(button("Cancel", () => finish(null), { class: "ghost" }), button("Create", create, { icon: "plus", class: "primary" }));
     name.focus();
   });
-}
-
-/** Open a .sab file… (one release): an old project file unpacked into a folder the user picks (each entry
- *  checked by the server), then opened as a project folder. */
-export async function importSab(path?: string): Promise<ProjectState | null> {
-  const file = path ?? (await chooseFile({ title: "Open a .sab file", mode: "file", suffixes: [".sab"] }));
-  if (!file) return null;
-  const stem = baseName(file).replace(/\.sab$/i, "");
-  const listed = await api<{ folder: string }>("/projects/types").catch(() => ({ folder: "" }));
-  const target = await chooseFile({ title: `${baseName(file)}: the folder it becomes`, mode: "save", start: listed.folder || folderOf(file), name: stem });
-  if (!target) return null;
-  const done = await withQuestion("/project/import-sab", { path: file, folder: target }, `Let them go and open ${stem}?`);
-  if (!done) return null;
-  toast(`${stem} is a folder now: ${target}`);
-  return loadProject();
 }
 
 /** An Autosave switch (a checkbox in the switch role). */
@@ -420,18 +401,11 @@ export async function fixTable(problem: Problem, how: { addConnection: (name: st
   if (still) toast(still.message, "error");
 }
 
-/** Another program asked to open a project (`swissarmybench open`) while unsaved work is open: ask once.
- *  An old .sab file: its import. */
+/** Another program asked to open a project (`swissarmybench open`) while unsaved work is open: ask once. */
 export async function answerAsked(): Promise<void> {
   const asked = state.asked;
   if (!asked || askedShown === asked) return;
   askedShown = asked;
-  if (/\.sab$/i.test(asked)) {
-    await api("/project/open", "POST", { cancel: true });
-    await importSab(asked).catch((e: Error) => toast(e.message, "error"));
-    askedShown = null;
-    return;
-  }
   const lost = wouldLose() ?? "There are unsaved changes.";
   if (confirm(`${lost}\n\nLet them go and open ${baseName(asked)}?`)) {
     await api("/project/open", "POST", { path: asked, discard: true });
