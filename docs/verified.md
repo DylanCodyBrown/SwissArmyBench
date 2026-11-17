@@ -2357,3 +2357,47 @@ NOT checked:
   an ODBC source; a real Dataverse $batch (its multipart answer, alternate keys defined in a real
   environment, the 429 limits); MySQL itself
   (MariaDB stands in); a write in a notebook's own environment with the missing-package prompt.
+
+## The editors' intelligence: completion, parameter info, quick info, the lint (2026-11-17, branch intellisense)
+
+- **Rules** (tests/test_intellisense.py): Google, NumPy and reST docstrings give each parameter its
+  words, returns and raises; IPython's lines (`%time`, `!ls`, `x = !ls`, `name?`) are Python of the same
+  lines and a cell magic's cell is not Python; the app's names inside strings for sab.connection, sab.sql,
+  sab.read, sab.dax, sab.blade, sab.structure, os.environ[...], .get, os.getenv, secret, %%sql and a
+  table's `["…"]`; the lint: a syntax error's place, undefined names knowing earlier cells, the kernel's
+  and builtins, a star import said once, unused imports faded with their removal (a whole line or one
+  name), f-strings, `== None` with its fix, a bare except; the fixes: an import (a project module's, a
+  common alias, the standard library), the Variables page's definition, the close name; an import joins
+  its module's line or goes after the imports (a blank line before code); SQL by sqlglot (brackets read
+  as names; T-SQL's own) and DuckDB's error placed; a project module's public names; the ranking (scope,
+  project, app, library; the recent first; each label once); a call's required arguments as tab stops.
+- **The use case** (tests/test_intellisense_service.py, real Jedi): the member list's documentation and
+  snippet for a function in an earlier cell; `sab.` without its layers; each string source; an open
+  table's columns after `orders.` and the connections' code names; a functions.py name with its import,
+  none when imported, Jedi reading the project's modules (`from functions import wr`); parameter info's
+  active parameter by position (0, 1) and by keyword (`mode=` is 3), its span and words; the hover; the
+  lint across cells (an import a later cell uses is used) and magics; Ruff in a made-up environment
+  (the folder's ruff.toml applied, its own E402 joining the app's F401 and E711 with their fixes) when
+  Ruff is on this computer; without Ruff the Ruff answer's missing-package shape; DuckDB and sqlglot
+  for SQL cells; a superseded request skipped; a notebook on disk checked cell by cell; over HTTP with
+  a real kernel: Jedi's Interpreter on the live DataFrame (rain_mm), the hover's type and shape, the lint
+  knowing the kernel's names, a method's parameter info; the agent's problems (reported, read, a file
+  checked, cleared).
+- **In the browser** (Chromium, tests/e2e/test_intellisense_page.py): `write_` shows the member list with
+  the documentation panel open beside it (the docstring, each parameter's words); `write_sqlite(` shows
+  parameter info with `connection: str` bold and its words, `,` moves the bold to `table: str`; hovering
+  the name shows its quick info; in a script a typo and a missing `pd` get red squiggles within three
+  seconds and the status bar says 2 errors, its list goes to the place, Ctrl+. offers Add import pandas
+  as pd and adds it, the count drops to 1 error, and the server's problems (what the agent reads) say
+  F821 alone. The Workbench's own browser tests (completion from the catalog and the kernel, the
+  console, scripts) and the connection-SQL page's still pass.
+- **Not checked:** pyflakes (not installed here: its path is untested), a Ruff install from the Problems
+  list into a real environment, Jedi's Environment for another Python (a notebook's own environment; the
+  app's Python was used throughout), a big library's first look inside the one-second budget on a slow
+  computer (the page asks once more), signature overloads shown with up and down (no overloaded function
+  in the tests), Windows paths in the Ruff folder choice.
+- **The whole suite** (Chromium): 3,697 passed, 44 skipped, 11 failed under load. Run alone, five of
+  those passed (the beta export, the Streamlit export's Allow, the rail, the Workbench's landing pages,
+  the database forms) and six failed the same way on the branch's base (ec0d298, run alone with the same
+  Chromium): the narrow window's sideways scroll, the agent's snapshot, the Application row, a script's
+  HTML cell, the Power BI workspace and the swap's code following: not this branch's.
