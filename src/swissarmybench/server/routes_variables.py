@@ -1,9 +1,9 @@
-"""The Variables page (services/variables.py): the project's variables, where each comes from, what uses it.
+"""The Variables page (services/variables.py): this computer's variables, where each comes from, its uses.
 
 GET    /variables              ?search=&source=: every variable; plain values only            variables_list
-PUT    /variables              {"name", "value", "from": "value"|"keyring"}: add or change    variables_set
+PUT    /variables              {"name", "value", "from", "local"}: add or change           variables_set
 POST   /variables/rename       {"name", "to"}: renamed, connections and Run settings with it  variables_rename
-DELETE /variables/{name}       the project's variable, or a key vault's entry                 variables_remove
+DELETE /variables/{name}       a variable of this computer, or a key vault's entry       variables_remove
 POST   /variables/reveal       {"name"}: Show (the user's only: 403 for the agent)
 """
 

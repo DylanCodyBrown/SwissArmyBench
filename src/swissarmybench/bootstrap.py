@@ -41,7 +41,6 @@ from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
-from swissarmybench.adapters.variables import ProcessEnvironment, VariableKeyring
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
@@ -53,6 +52,7 @@ from swissarmybench.adapters.state_files import (
 )
 from swissarmybench.adapters.streamlit_files import AppFiles
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
+from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain import projects as project_rules
@@ -327,7 +327,7 @@ def bootstrap(
 
     # ===== the beta log: errors, slow requests, processes, page errors and notes, redacted =====
     # (written only where the audit log is; beta mode on or off is beta.json, SWISSARMYBENCH_BETA wins)
-    # Read each time: a project's keyring variables join the environment while it is open.
+    # Read each time: the Variables page's values join the environment as they are added.
     beta = BetaLog(
         ws,
         BetaFiles(state_dir / "logs" if audit_log else None, settings.beta_log_bytes, settings.beta_log_days),
@@ -484,7 +484,6 @@ def bootstrap(
         app = Path(folder) / APP_FOLDER if folder else None
         blade_store.use(app / "blades" if app else settings.blades_dir, keep_secrets=app is not None)
         dashboards.folder = app / "dashboards" if app else state_dir / "dashboards"
-        variables_file.path = app / "variables" / "variables.json" if app else computer_variables
         await catalog_loading.rescope()
         await variables.rescope()
         await live.broadcast({"type": "blades_changed"})
@@ -546,10 +545,12 @@ def bootstrap(
     project_scope = ProjectScope(
         sab_projects, archive, computer_blades, connections, on_saved=catalog_loading.saved
     )
-    # The Variables page: the project's own variables (its .sab/variables), else this computer's; their
-    # values given to this server's environment, so what it runs and starts reads them at once.
-    computer_variables = state_dir / "variables.json" if audit_log else None
-    variables_file = JsonFile(computer_variables)
+    # The Variables page: this computer's variables (never a project's): the shareable file and the local
+    # values; their values given to this server's environment, so what it runs and starts reads them.
+    variables_file = VariableFiles(
+        state_dir / "variables.json" if audit_log else None,
+        state_dir / "local" / "variables.json" if audit_log else None,
+    )
 
     async def save_variable_blade(data: dict[str, Any], previous: str, who: str) -> Any:
         saved = await blades.save(data, previous, who)
@@ -567,9 +568,7 @@ def bootstrap(
         read=documents.read,
         run_settings=script_runs,
         kernels=workbench.kernel_count,
-        project=lambda: (sab_projects.state().get("project") or {}).get("name"),
     )
-    variables.apply()
 
     async def open_work() -> dict[str, Any]:
         """What is open (the tray's menu) and what an update would lose: the tables, the Workbench

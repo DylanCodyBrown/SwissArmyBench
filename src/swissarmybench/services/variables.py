@@ -1,9 +1,10 @@
-"""The Variables page (domain/variables.py): every variable the project gives or something reads, where each
-comes from and what uses it; add, change, rename and remove the project's own.
+"""The Variables page (domain/variables.py): every variable this computer gives or something reads, where
+each comes from and what uses it; add, change, rename and remove this computer's own.
 
-  scope     the open project's variables (its working folder's .sab/variables/variables.json, so they go
-            into its .sab), else this computer's (the state folder's variables.json); each open, new and
-            close points the file at the project (rescope) and gives its values to the server's processes
+  scope     this computer's, whether or not a project is open, never in a .sab (the owner, 2026-11-17: the
+            library of connections, vaults, APIs and blades is the computer's); two files, the shareable
+            one and this computer's local values (adapters/variables.py VariableFiles); a project opened
+            or closed changes the connections that read them (rescope: the page told)
   at once   a change is given to this server's environment straight away: a connection's next run, a
             scheduled script and a Workbench kernel started from now on read it; a running kernel keeps the
             environment it started with (the answer counts them: a restart picks the change up)
@@ -26,15 +27,15 @@ AGENT_REFUSED = "A secret's value is shown to the user only (Show on the Variabl
 
 
 class Kept(Protocol):
-    """The variables file (adapters/state_files.py JsonFile)."""
+    """The shareable file and the local one (adapters/variables.py VariableFiles)."""
 
-    def read(self) -> Any: ...
+    def read(self) -> tuple[Any, Any]: ...
 
-    def write(self, data: Any) -> None: ...
+    def write(self, shared: Any, local: Any) -> None: ...
 
 
 class Secrets(Protocol):
-    """This computer's keyring, for the project's keyring variables (adapters/variables.py)."""
+    """This computer's keyring, for the keyring variables (adapters/variables.py)."""
 
     def get(self, name: str) -> str | None: ...
 
@@ -81,7 +82,6 @@ class Variables:
         read: Callable[[str], tuple[str, str, float]],
         run_settings: RunSettings,
         kernels: Callable[[], int] = lambda: 0,
-        project: Callable[[], str | None] = lambda: None,
     ) -> None:
         self.ws = ws
         self._kept = kept
@@ -93,12 +93,14 @@ class Variables:
         self._read = read
         self._run_settings = run_settings
         self._kernels = kernels
-        self._project = project
 
-    # ===== the project's own =====
+    # ===== this computer's own =====
 
     def _defined(self) -> list[rules.Defined]:
-        return rules.read_defined(self._kept.read())
+        return rules.read_defined(*self._kept.read())
+
+    def _write(self, defined: list[rules.Defined]) -> None:
+        self._kept.write(rules.shared_json(defined), rules.local_json(defined))
 
     def _keyring(self, names: list[str]) -> dict[str, str]:
         """The keyring variables' values found on this computer (none when it has no keyring)."""
@@ -113,13 +115,17 @@ class Variables:
         return found
 
     def apply(self) -> None:
-        """The project's values given to this server's environment (and so to what it starts)."""
+        """The variables' values given to this server's environment (and so to what it starts)."""
         defined = self._defined()
         keyring = self._keyring([d.name for d in defined if d.origin == "keyring"])
         self._environment.apply(rules.applied(defined, keyring))
 
+    def release(self) -> None:
+        """The server stopping: its environment as it was before (no value outlives it)."""
+        self._environment.apply({})
+
     async def rescope(self) -> None:
-        """The project opened, made or closed: its variables now (the file already points at it)."""
+        """A project opened, made or closed: its connections read variables too (the page told)."""
         self.apply()
         await self.ws.live.broadcast({"type": "variables_changed"})
 
@@ -147,7 +153,7 @@ class Variables:
                 continue
             try:
                 status = self._blades.secret_status(blade)
-            except Exception:  # noqa: BLE001 (no keyring here: nothing saved)
+            except Exception:
                 status = {}
             python = blade.template == PYTHON_TEMPLATE
             out.append(
@@ -155,7 +161,9 @@ class Variables:
                     blade.name,
                     secrets=tuple(blade.secrets),
                     saved=frozenset(s for s, ok in status.items() if ok),
-                    files=tuple((m["variable"], m["setting"], m["default"]) for m in env_settings(blade.code)),
+                    files=tuple(
+                        (m["variable"], m["setting"], m["default"]) for m in env_settings(blade.code)
+                    ),
                     reads=tuple(r.name for r in blade.env_reads) if python else (),
                     sources=dict(blade.variables),
                     read_only=read_only,
@@ -193,7 +201,6 @@ class Variables:
         return {
             "variables": rules.shown(found, environ, search, source),
             "every_vault": every,
-            "project": self._project(),
             "kernels": self._kernels(),
         }
 
@@ -229,7 +236,7 @@ class Variables:
                 raise rules.VariableError(f"This computer's keyring did not keep it: {error}") from None
         if made.origin == "value" and was is not None and was.origin == "keyring":
             self._forget(made.name)
-        self._kept.write(rules.defined_json(kept))
+        self._write(kept)
         await self._changed(who, "change_variable" if was else "add_variable", made.name, kept=made.origin)
         return {"variable": self._one(made.name), "kernels": self._kernels()}
 
@@ -240,7 +247,7 @@ class Variables:
             pass
 
     async def rename(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"name", "to"}: the project's variable, or a key vault's entry, renamed; each connection that
+        """{"name", "to"}: this computer's variable, or a key vault's entry, renamed; each connection that
         reads it changed to the new name (its code, a Python connection's mapping) and each script's Run
         settings; the notebooks and scripts that still read the old name listed (never edited here)."""
         found, _ = self._collect()
@@ -253,7 +260,7 @@ class Variables:
                 if value is not None:
                     self._secrets.set(to, value)
                     self._forget(old)
-            self._kept.write(rules.defined_json(defined))
+            self._write(defined)
         changed: list[str] = []
         for blade in self._blades.all():
             if blade.pack or blade.kind == "snippet":
@@ -274,17 +281,15 @@ class Variables:
                         data[part]["command"], n = rules.rename_in_code(data[part]["command"], old, to)
                         touched = touched or n > 0
                 if old in blade.variables:
-                    data["variables"] = [{**v, "name": to} if v["name"] == old else v for v in data["variables"]]
+                    data["variables"] = [
+                        {**v, "name": to} if v["name"] == old else v for v in data["variables"]
+                    ]
                     touched = True
             if touched:
                 await self._save_blade(data, blade.name, who)
                 changed.append(blade.name)
         scripts = self._run_settings.rename_variable(old, to)
-        still = [
-            u.to_json()
-            for u in variable.uses
-            if u.kind in ("notebook", "script")
-        ]
+        still = [u.to_json() for u in variable.uses if u.kind in ("notebook", "script")]
         await self._changed(who, "rename_variable", old, to=to)
         return {
             "variable": self._one(to),
@@ -295,12 +300,12 @@ class Variables:
         }
 
     async def remove(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"name"}: the project's variable (its keyring value forgotten), or a key vault's entry (the
+        """{"name"}: this computer's variable (its keyring value forgotten), or a key vault's entry (the
         secret stays in the vault). What still reads it is answered."""
         found, _ = self._collect()
         variable = rules.check_remove(found, body)
         if variable.defined is not None:
-            self._kept.write(rules.defined_json(rules.removed(self._defined(), variable.name)))
+            self._write(rules.removed(self._defined(), variable.name))
             if variable.defined.origin == "keyring":
                 self._forget(variable.name)
         else:
@@ -329,7 +334,9 @@ class Variables:
         elif variable.source == "keyring":
             value = self._keyring([variable.name]).get(variable.name)
         elif variable.source in ("env", "value"):
-            value = variable.value if variable.source == "value" else self._environment.base().get(variable.name)
+            value = (
+                variable.value if variable.source == "value" else self._environment.base().get(variable.name)
+            )
         else:
             value = None
         if value is None:

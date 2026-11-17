@@ -31,7 +31,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
-  routes_variables.py      the Variables page: the project's variables, their sources and uses
+  routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
@@ -194,6 +194,7 @@ def create_app(
         # The update check: at start, then every six hours (nothing with the switch off or no feeds).
         checker = asyncio.create_task(ctx.updates.run_forever())
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
+        ctx.variables.apply()  # the Variables page's values, in this server's environment
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         yield
@@ -203,6 +204,7 @@ def create_app(
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         await ctx.sab_projects.stop()  # nor an open .sab's working folder
+        ctx.variables.release()  # the environment as it was
         workers.close()
         ctx.beta.stopped()
 

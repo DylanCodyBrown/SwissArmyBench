@@ -95,7 +95,7 @@ class ScriptRuns:
         return {path: rules.read_settings(raw).variables for path, raw in self._all().items()}
 
     def rename_variable(self, old: str, new: str) -> list[str]:
-        """A variable renamed on the Variables page: each script's Run settings follow; the scripts changed."""
+        """A variable renamed on the Variables page: each script's Run settings follow; those changed."""
         kept = self._all()
         changed = []
         for path, raw in kept.items():

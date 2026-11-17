@@ -1,15 +1,21 @@
 """The Variables page (the owner, 2026-11-16: "after Imported my keyvault and it made a ton on local
 vairables, that we actually need a workspace Variable page for the rail to help manage project
 variables"; "should be able to add new local env variables from the page easily and browse what is there
-and for variables that are not from the key vault you can see their current values").
+and for variables that are not from the key vault you can see their current values"). This computer's,
+whether or not a project is open (the owner, 2026-11-17: connections, vaults, APIs and blades are this
+computer's library, projects name them), and never in a .sab.
 
-  defined   the project's own variables (with no project open: this computer's): a name and where its
-            value is kept, `value` (a plain value, kept in the project's .sab/variables/variables.json, so it
-            travels with the .sab) or `keyring` (this computer's keyring, under the name: only the name is
-            kept in the project, so another computer is asked for its own value)
+  defined   this computer's own variables: a name and where its value is kept, `value` (a plain value)
+            or `keyring` (this computer's keyring, under the name)
+  shared    what could be shared with other users (Plans/library.plan.md: the library's variables.toml):
+            each variable's name and source, and a plain value's value unless it is "this computer only";
+            never a secret's value
+  local     this computer only: the values of the plain variables marked so (a local path, a machine's
+            own setting); the keyring's values are not here either, they stay in the keyring
   sources   where a variable's value comes from, the first that has it: a key vault's secret (the vault
-            and the secret's name, never its value), the project's own definition, a connection that keeps
-            it (its keyring, a Python connection's plain value), this computer's environment; else missing
+            and the secret's name, never its value), this computer's own definition, a connection that
+            keeps it (its keyring, a Python connection's plain value), this computer's environment; else
+            missing
   uses      what reads it: connections (a password, a certificate or keystore file, a Python connection's
             code), notebooks and scripts (`os.environ[...]`, `.get`, `getenv`, `secret(...)`, read with
             ast), scripts' Run settings
@@ -24,7 +30,6 @@ Pure rules: no I/O, no clock.
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -36,7 +41,7 @@ from swissarmybench.domain.python_connections import env_reads, looks_secret
 from swissarmybench.domain.script_runs import source_words
 
 FORMAT: int = 1
-ORIGINS: tuple[str, ...] = ("value", "keyring")  # where the project keeps one of its own
+ORIGINS: tuple[str, ...] = ("value", "keyring")  # where this computer keeps one of its own
 SOURCES: tuple[str, ...] = ("vault", "value", "keyring", "env", "missing")
 SOURCE_WORDS: dict[str, str] = {
     "vault": "Key vault",
@@ -54,7 +59,7 @@ class VariableError(ValueError):
     """A variable that cannot be added, changed, renamed or removed as asked (why, in words)."""
 
 
-# ===== the project's own variables =====
+# ===== this computer's own variables =====
 
 
 @dataclass(frozen=True)
@@ -62,9 +67,14 @@ class Defined:
     name: str
     origin: str  # value or keyring
     value: str = ""  # a plain value's (a keyring's is never here)
+    local: bool = False  # a plain value kept on this computer only (never shared)
 
-    def to_json(self) -> dict[str, str]:
-        return {"name": self.name, "from": self.origin} | ({"value": self.value} if self.origin == "value" else {})
+    def shared_json(self) -> dict[str, str]:
+        """What may be shared: the name and the source; a plain value's value unless it is local."""
+        out = {"name": self.name, "from": self.origin}
+        if self.origin == "value":
+            out |= {"local": "yes"} if self.local else {"value": self.value}
+        return out
 
 
 def check_name(name: Any) -> str:
@@ -81,9 +91,12 @@ def check_value(name: str, value: Any) -> str:
     return value
 
 
-def read_defined(raw: Any) -> list[Defined]:
-    """The variables file as kept: anything unreadable is left out (never a reason not to start)."""
-    rows = raw.get("variables") if isinstance(raw, dict) else None
+def read_defined(shared: Any, local: Any = None) -> list[Defined]:
+    """The shared file and this computer's local values, as kept: anything unreadable is left out (never
+    a reason not to start). A local variable with no value on this computer reads as an empty value."""
+    rows = shared.get("variables") if isinstance(shared, dict) else None
+    here = local.get("values") if isinstance(local, dict) else None
+    here = here if isinstance(here, dict) else {}
     found: dict[str, Defined] = {}
     for row in rows if isinstance(rows, list) else []:
         if not isinstance(row, dict):
@@ -91,21 +104,25 @@ def read_defined(raw: Any) -> list[Defined]:
         name, origin = row.get("name"), row.get("from")
         if not isinstance(name, str) or not _NAME.match(name) or origin not in ORIGINS or name in found:
             continue
-        value = row.get("value") if origin == "value" else ""
+        is_local = origin == "value" and row.get("local") in ("yes", True)
+        value = (here.get(name, "") if is_local else row.get("value", "")) if origin == "value" else ""
         if not isinstance(value, str) or len(value) > MAX_VALUE:
             continue
-        found[name] = Defined(name, str(origin), value)
+        found[name] = Defined(name, str(origin), value, is_local)
         if len(found) >= MAX_VARIABLES:
             break
     return list(found.values())
 
 
-def defined_json(defined: Iterable[Defined]) -> dict[str, Any]:
-    return {"format": FORMAT, "variables": [d.to_json() for d in sorted(defined, key=lambda d: d.name)]}
+def shared_json(defined: Iterable[Defined]) -> dict[str, Any]:
+    """The shareable file: names and sources, sorted, so a save that changes nothing changes no byte."""
+    return {"format": FORMAT, "variables": [d.shared_json() for d in sorted(defined, key=lambda d: d.name)]}
 
 
-def defined_text(defined: Iterable[Defined]) -> str:
-    return json.dumps(defined_json(defined), indent=1) + "\n"
+def local_json(defined: Iterable[Defined]) -> dict[str, Any]:
+    """This computer only: the local plain values (never shared, never a keyring's value)."""
+    kept = {d.name: d.value for d in sorted(defined, key=lambda d: d.name) if d.origin == "value" and d.local}
+    return {"format": FORMAT, "values": kept}
 
 
 def put(
@@ -113,7 +130,8 @@ def put(
     body: Any,
     vault_of: Mapping[str, str],
 ) -> tuple[list[Defined], Defined, str | None]:
-    """Add a variable or change one: `{"name", "value", "from": "value" | "keyring"}`. The new list, the
+    """Add a variable or change one: `{"name", "value", "from": "value" | "keyring", "local": bool}` (local:
+    a plain value kept on this computer only, never shared). The new list, the
     definition, and the value to keep in the keyring (None: none, or keep the one there: a keyring
     variable changed with no value). `vault_of`: the names a key vault gives (variable -> vault)."""
     if not isinstance(body, dict):
@@ -121,21 +139,24 @@ def put(
     name = check_name(body.get("name"))
     origin = body.get("from") or ("keyring" if looks_secret(name) else "value")
     if origin not in ORIGINS:
-        raise VariableError('A variable is kept "from" value (in the project) or keyring (this computer).')
+        raise VariableError('A variable is kept "from" value (a plain value) or keyring (a secret).')
     before = next((d for d in defined if d.name == name), None)
     if before is None and name in vault_of:
         raise VariableError(f"{name} comes from {vault_of[name]}: rename it there, or choose another name.")
     if before is None and len(defined) >= MAX_VARIABLES:
-        raise VariableError(f"A project keeps at most {MAX_VARIABLES} variables.")
+        raise VariableError(f"This computer keeps at most {MAX_VARIABLES} variables.")
     value = body.get("value")
     if origin == "value":
         plain = check_value(name, "" if value is None else value)
         if looks_secret(name):
             raise VariableError(
-                f"{name} reads like a secret: a plain value is kept as it is, in the project. Keep it in "
+                f"{name} reads like a secret: a plain value is kept as it is, in a file. Keep it in "
                 "this computer's keyring."
             )
-        made = Defined(name, "value", plain)
+        local = body.get("local", before.local if before is not None else False)
+        if not isinstance(local, bool):
+            raise VariableError('"local" is true (this computer only) or false.')
+        made = Defined(name, "value", plain, local)
         secret: str | None = None
     else:
         if value is None or value == "":
@@ -150,7 +171,7 @@ def put(
 
 
 def renamed(defined: Sequence[Defined], old: str, new: str) -> list[Defined]:
-    return [Defined(new, d.origin, d.value) if d.name == old else d for d in defined]
+    return [Defined(new, d.origin, d.value, d.local) if d.name == old else d for d in defined]
 
 
 def removed(defined: Sequence[Defined], name: str) -> list[Defined]:
@@ -228,6 +249,7 @@ def document_uses(path: str, title: str, text: str) -> dict[str, list[Use]]:
     """The variables a notebook's or a script's Python reads, each with its cell (and a script's line)."""
     kind = notebooks.kind_of(path) if path.lower().endswith((".ipynb", ".py")) else ""
     found: dict[str, list[Use]] = {}
+    pieces: list[tuple[int | None, str, str | None]]
     if kind == "notebook":
         try:
             cells, _ = notebooks.read_document(text)
@@ -293,7 +315,7 @@ class Variable:
             "words": SOURCE_WORDS[self.source],
             "set": self.set,
             "secret": self.secret,
-            # Kept by the project (with no project open: this computer's list): changed here.
+            # Kept by this computer's own list: changed here.
             "editable": self.defined is not None,
             "renamable": self.defined is not None or (self.source == "vault" and not self.vault_read_only),
             "uses": [u.to_json() for u in self.uses],
@@ -304,8 +326,9 @@ class Variable:
             out["owner"] = self.owner
         if self.defined is not None:
             out["kept"] = self.defined.origin
+            out["local"] = self.defined.local
             if self.name in environ and self.source != "vault":
-                out["replaces_env"] = True  # this computer's own value is set aside while it is open
+                out["replaces_env"] = True  # the environment's own value is set aside for this one
         if self.default is not None and self.source == "missing":
             out["default"] = self.default
         if self.source == "value":
@@ -325,9 +348,9 @@ def listing(
     environ: Mapping[str, str],
     keyring_saved: Iterable[str],
 ) -> tuple[list[Variable], list[str]]:
-    """Every variable the project gives or something reads, by name; and the vaults that load every
+    """Every variable this computer gives or something reads, by name; and the vaults that load every
     secret they hold (their names come only when they run). `environ`: this computer's own environment
-    (before the project's values were given to it); `keyring_saved`: the keyring variables with a value
+    (before its variables' values were given to it); `keyring_saved`: the keyring variables with a value
     on this computer."""
     found: dict[str, Variable] = {}
     saved = set(keyring_saved)
@@ -352,9 +375,9 @@ def listing(
         if v.source == "missing":
             v.source = d.origin
             v.value = d.value if d.origin == "value" else None
-            v.set = d.origin == "value" or d.name in saved
-            if d.origin == "keyring" and not v.set:
-                v.source = "missing"  # named in the project, not saved on this computer
+            v.set = (d.origin == "value" and (not d.local or d.value != "")) or d.name in saved
+            if not v.set:
+                v.source = "missing"  # named; its value not on this computer (its keyring, its local file)
     for c in connections:
         if c.vault:
             continue
@@ -408,7 +431,9 @@ def listing(
     return sorted(found.values(), key=lambda v: v.name.casefold()), every
 
 
-def shown(variables: Iterable[Variable], environ: Mapping[str, str], search: Any = None, source: Any = None) -> list[dict[str, Any]]:
+def shown(
+    variables: Iterable[Variable], environ: Mapping[str, str], search: Any = None, source: Any = None
+) -> list[dict[str, Any]]:
     """The list as answered: searched (a name, a vault, a connection or a document that uses it) and
     kept to one source when asked."""
     if source not in (None, "") and source not in SOURCES:
@@ -464,7 +489,9 @@ def check_rename(variables: Sequence[Variable], body: Any) -> tuple[Variable, st
         raise VariableError(f"{to} is a variable already.")
     if v.defined is None and not (v.source == "vault" and not v.vault_read_only):
         where = v.owner or v.vault or "this computer's environment"
-        raise VariableError(f"{v.name} is not the project's: it comes from {where}. Rename it there.")
+        raise VariableError(
+            f"{v.name} is not one of this computer's own: it comes from {where}. Rename it there."
+        )
     return v, to
 
 
@@ -473,5 +500,5 @@ def check_remove(variables: Sequence[Variable], body: Any) -> Variable:
     v = find(variables, name)
     if v.defined is None and not (v.source == "vault" and not v.vault_read_only):
         where = v.owner or v.vault or "this computer's environment"
-        raise VariableError(f"{v.name} is not the project's: it comes from {where}.")
+        raise VariableError(f"{v.name} is not one of this computer's own: it comes from {where}.")
     return v
