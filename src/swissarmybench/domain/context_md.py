@@ -131,6 +131,9 @@ class ConnectionFacts:
     table_count: int = 0
     shared: frozenset[str] = frozenset()  # table names several datasets share (casefolded)
     used_in: tuple[str, ...] = ()  # the project's documents and the open grids that use it
+    writes: bool | None = (
+        None  # its Write starters write to it, or it is read-only (domain/write_capability.py)
+    )
 
     @property
     def naming(self) -> str:
@@ -262,6 +265,8 @@ def _connection(c: ConnectionFacts, trims: set[str]) -> list[str]:
     head = f"- {code(c.name)} ({what}); status {c.status}"
     if c.colour:
         head += f"; colour {c.colour}"
+    if c.writes is not None:
+        head += '; writes (`guide(topic="writing")`)' if c.writes else "; read-only"
     lines = [head]
     if c.status == "failing" and c.error:
         lines.append(f"  - last error: {code(c.error)}")

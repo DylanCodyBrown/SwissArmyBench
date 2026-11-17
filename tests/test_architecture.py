@@ -60,7 +60,6 @@ CLIENT_MODULES = (
     "swissarmybench.client.writes",
     "swissarmybench.client.write_sql",
     "swissarmybench.client.write_dataverse",
-    "swissarmybench.client.write_powerbi",
     "swissarmybench.cli",
     "swissarmybench.cli.api",
     "swissarmybench.cli.commands",

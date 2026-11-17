@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQL Server delete"
 # kind = "snippet"
-# description = "Delete a SQL Server or Azure SQL table's rows by key (dry run first)"
+# description = "Delete SQL Server or Azure SQL rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "sqlserver", "azuresql"]
 # family = "Write"
 # language = "python"

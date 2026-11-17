@@ -2,7 +2,7 @@
 # format = 1
 # name = "Trino create table"
 # kind = "snippet"
-# description = "A new Trino table from the rows, its types from DuckDB (dry run first)"
+# description = "A new Trino table from the rows (dry run first; writes on the user's word)"
 # tags = ["write", "trino"]
 # family = "Write"
 # language = "python"

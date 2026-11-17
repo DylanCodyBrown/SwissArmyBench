@@ -2,7 +2,7 @@
 # format = 1
 # name = "Dataverse delete"
 # kind = "snippet"
-# description = "Delete a Dataverse table's records whose keys are in the rows (dry run first)"
+# description = "Delete Dataverse records by key (dry run first; writes on the user's word)"
 # tags = ["write", "dataverse"]
 # family = "Write"
 # language = "python"

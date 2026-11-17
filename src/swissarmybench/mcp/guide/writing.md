@@ -5,12 +5,12 @@ notebook cell. Its settings come first, then the statements written out, then th
 
 ## Which connections write
 - `connections_list` gives each connection's `writes`: "Writes: <its Write starters>" or
-  "Read-only: <why>". Never write to a read-only one. A Power BI model is read-only (write its source,
-  then refresh it); its push datasets take rows. Dataverse writes through its Web API (its SQL endpoint
+  "Read-only: <why>". Never write to a read-only one. Power BI is read-only (write its source, then
+  refresh it). Dataverse writes through its Web API (its SQL endpoint
   is read-only). Trino writes where the catalog's connector does.
 - `blades_starters`: the Write family. SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite,
   Oracle, Trino and ODBC (append, create table, replace, upsert, delete); Dataverse (create, update,
-  upsert, delete); Power BI (create push dataset, push rows); files (CSV, Parquet, partitioned Parquet,
+  upsert, delete); files (CSV, Parquet, partitioned Parquet,
   JSON, an Excel sheet). Excel's writers and Power BI's refreshes are listed there too.
 - Writing to an API: the APIs page's Write rows with this call.
 

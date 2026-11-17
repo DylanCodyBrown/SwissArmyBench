@@ -2,7 +2,7 @@
 # format = 1
 # name = "Write CSV file"
 # kind = "snippet"
-# description = "The rows written to a CSV file (dry run first)"
+# description = "The rows written to a CSV file (dry run first; writes on the user's word)"
 # tags = ["write", "files", "csv", "folder"]
 # family = "Write"
 # language = "python"

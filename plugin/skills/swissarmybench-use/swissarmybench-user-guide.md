@@ -793,9 +793,9 @@ version never touches your copy.
 Writes are cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
 for the connections that take writes. Each connection says which: its card on the Connections page reads
 **Writes** or **Read-only** (hover for the starters, or the reason), and its page says it in full. A
-Power BI model is read-only (write its source, then refresh it: Power BI refresh dataset); a key vault, a
+Power BI model is read-only (write its source, then refresh it: Power BI refresh dataset); so are a
 DuckDB file the app opens read-only and the warehouses that load through their own tools (Snowflake,
-BigQuery, Redshift, Databricks) are too.
+BigQuery, Redshift, Databricks), and a key vault.
 
 - **Databases** (SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite, Oracle, Trino, ODBC):
   append, create table (the rows' types made the database's), replace (every row, in one transaction),
@@ -806,7 +806,6 @@ BigQuery, Redshift, Databricks) are too.
 - **Dataverse** through its Web API (its SQL endpoint is read-only): create, update, upsert (by an
   alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
   labels (Won, not 1).
-- **Power BI push datasets**: create one from the rows' columns, push rows (or replace them).
 - **Files**: CSV, Parquet, partitioned Parquet (a folder per value), JSON, an Excel sheet (the
   workbook's other sheets kept). Excel write table and Excel range as table are listed here too.
 - **APIs**: the APIs page's Write rows with this call.

@@ -2,7 +2,7 @@
 # format = 1
 # name = "MySQL replace"
 # kind = "snippet"
-# description = "Replace every row of a MySQL table with the rows (dry run first)"
+# description = "Replace every row of a MySQL table (dry run first; writes on the user's word)"
 # tags = ["write", "mysql", "mariadb"]
 # family = "Write"
 # language = "python"

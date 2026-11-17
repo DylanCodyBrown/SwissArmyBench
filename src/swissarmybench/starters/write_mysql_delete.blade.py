@@ -2,7 +2,7 @@
 # format = 1
 # name = "MySQL delete"
 # kind = "snippet"
-# description = "Delete a MySQL table's rows whose keys are in the rows (dry run first)"
+# description = "Delete MySQL rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "mysql", "mariadb"]
 # family = "Write"
 # language = "python"

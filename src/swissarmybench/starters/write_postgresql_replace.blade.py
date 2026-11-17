@@ -2,7 +2,7 @@
 # format = 1
 # name = "PostgreSQL replace"
 # kind = "snippet"
-# description = "Replace every row of a PostgreSQL table with the rows (dry run first)"
+# description = "Replace every row of a PostgreSQL table (dry run first; writes on the user's word)"
 # tags = ["write", "postgres"]
 # family = "Write"
 # language = "python"

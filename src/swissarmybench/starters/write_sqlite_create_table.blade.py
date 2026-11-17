@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQLite create table"
 # kind = "snippet"
-# description = "A new SQLite table from the rows, its types from DuckDB (dry run first)"
+# description = "A new SQLite table from the rows (dry run first; writes on the user's word)"
 # tags = ["write", "sqlite"]
 # family = "Write"
 # language = "python"

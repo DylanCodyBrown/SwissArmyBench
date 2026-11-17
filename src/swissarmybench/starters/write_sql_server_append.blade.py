@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQL Server append"
 # kind = "snippet"
-# description = "Add rows to a SQL Server or Azure SQL table (dry run first)"
+# description = "Add rows to a SQL Server or Azure SQL table (dry run first; writes on the user's word)"
 # tags = ["write", "sqlserver", "azuresql"]
 # family = "Write"
 # language = "python"

@@ -1,10 +1,13 @@
 """What each connection kind can write (docs/ideas.md, "Writing data"; the owner, 2026-11-17: "Write
 blades should be geared towards our connection types. Most of our connections don't support it").
 
-Every connection kind the app has (its form's template: server/blade_templates.py) is either
-**writable** (with the operations its Write starters do, and how) or **read-only** (with the reason in
-plain words). The Connections page's cards and the agent's connection description say it: "Writes:
-<the starters>" or "Read-only: <why>", so nobody, the agent included, tries to write where it cannot.
+Every connection kind the app has is either **writable** (with the operations its Write starters do,
+and how) or **read-only** (with the reason in plain words). A kind is the way the connection lists and
+reads its tables (domain/connection_tables.py's TABLE_KINDS: a database, Power BI, Dataverse, your own
+Python, an API, a file, a folder) and, for a database or a file, its form's template
+(server/blade_templates.py): SQL Server writes, Snowflake is read-only here, a CSV file writes.
+The Connections page's cards, the agent's connection description and context.md say it: "Writes: <the
+starters>" or "Read-only: <why>", so nobody, the agent included, tries to write where it cannot.
 
 A Write starter (the starter pack's Write family) names the kinds it writes to among its tags; the
 tests hold the two together: every writable kind has a starter, every starter names a writable kind,
@@ -16,6 +19,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+from swissarmybench.domain.connection_tables import TABLE_KINDS
 
 WRITE_FAMILY: str = "Write"
 
@@ -48,11 +53,6 @@ WRITABLE: dict[str, Writable] = {
         ("create", "update", "upsert", "delete"),
         "the Web API's $batch change sets (its SQL endpoint is read-only)",
     ),
-    "powerbi": Writable(
-        ("create", "append", "replace"),
-        "push datasets only",
-        "a model (semantic model) is read-only: write its source, then refresh it",
-    ),
     "csv": Writable(("create", "replace"), "a new file, then put in its place"),
     "excel": Writable(("create", "replace", "append"), "a sheet written, the workbook's other sheets kept"),
     "parquet": Writable(("create", "replace"), "a new file, then put in its place"),
@@ -66,6 +66,7 @@ _LOADERS = (
     "a warehouse takes rows through its own bulk loads (its stage or storage), not from a notebook's rows"
 )
 READ_ONLY: dict[str, str] = {
+    "powerbi": "a semantic model takes no rows: write its source, then refresh it (Power BI refresh dataset)",
     "duckdb": "the connection opens the file read-only: DuckDB lets one program write a file at a time",
     "snowflake": _LOADERS,
     "bigquery": _LOADERS,
@@ -78,15 +79,43 @@ READ_ONLY: dict[str, str] = {
     "vertica": "the app reads Vertica; it has no write starters for it",
     "sybase": "the app reads SAP ASE; it has no write starters for it",
     "access": "the app reads Access files; it has no write starters for it",
-    "python": "a connection made of your own Python reads tables; an API added with Add API writes through "
-    "the APIs page's Write rows with this call",
+    "python": "a connection made of your own Python reads tables: write in a cell of your own code",
+    "api": "an API writes through the APIs page's Write rows with this call",
 }
+# The tables kinds whose writes are their template's (a database's engine, a file's format); every other
+# tables kind is one kind here. dataverse_web is the same Dataverse (its Web API writes either way).
+BY_TEMPLATE: frozenset[str] = frozenset({"database", "file"})
+_SAME: dict[str, str] = {"dataverse_web": "dataverse"}
 
 
-def capability(template: str | None, starters: Iterable[Mapping[str, Any]] = ()) -> dict[str, Any]:
+def kind_of(tables_kind: str | None, template: str | None) -> str:
+    """The key a connection's writes are found by: its template for a database or a file (and when the
+    tables kind is not known, as for a form), else its tables kind."""
+    if tables_kind is None or tables_kind in BY_TEMPLATE:
+        return str(template or "")
+    return _SAME.get(tables_kind, tables_kind)
+
+
+def tables_kinds_covered() -> dict[str, str]:
+    """Each of connection_tables' kinds and how its writes are decided: "template", "writable",
+    "read-only", or "" (not decided: the tests refuse that)."""
+    out: dict[str, str] = {}
+    for kind in TABLE_KINDS:
+        key = kind_of(kind, None)
+        if kind in BY_TEMPLATE:
+            out[kind] = "template"
+        else:
+            out[kind] = "writable" if key in WRITABLE else "read-only" if key in READ_ONLY else ""
+    return out
+
+
+def capability(
+    template: str | None, starters: Iterable[Mapping[str, Any]] = (), tables_kind: str | None = None
+) -> dict[str, Any]:
     """A connection kind's writes: {"writable", "operations", "how", "note", "starters" (the Write
-    starters' names for it), "reason" (read-only: why), "words"} ("Writes: ..." or "Read-only: ...")."""
-    key = str(template or "")
+    starters' names for it), "reason" (read-only: why), "words"} ("Writes: ..." or "Read-only: ...").
+    `tables_kind` is connection_tables.tables_kind's answer (None for a form: its template decides)."""
+    key = kind_of(tables_kind, template)
     found = WRITABLE.get(key)
     if found is None:
         reason = READ_ONLY.get(key, "the app has no write starters for this kind of connection")

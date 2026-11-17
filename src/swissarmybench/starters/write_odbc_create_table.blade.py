@@ -2,7 +2,7 @@
 # format = 1
 # name = "ODBC create table"
 # kind = "snippet"
-# description = "A new ODBC table from the rows, its types from DuckDB (dry run first)"
+# description = "A new ODBC table from the rows (dry run first; writes on the user's word)"
 # tags = ["write", "odbc"]
 # family = "Write"
 # language = "python"

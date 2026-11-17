@@ -2,7 +2,7 @@
 # format = 1
 # name = "Oracle create table"
 # kind = "snippet"
-# description = "A new Oracle table from the rows, its types from DuckDB (dry run first)"
+# description = "A new Oracle table from the rows (dry run first; writes on the user's word)"
 # tags = ["write", "oracle"]
 # family = "Write"
 # language = "python"

@@ -2,7 +2,7 @@
 # format = 1
 # name = "Dataverse create"
 # kind = "snippet"
-# description = "Each row a new record in a Dataverse table (dry run first)"
+# description = "Each row a new record in a Dataverse table (dry run first; writes on the user's word)"
 # tags = ["write", "dataverse"]
 # family = "Write"
 # language = "python"

@@ -1,7 +1,7 @@
 """What every Write starter shares (docs/ideas.md, "Writing data", the owner, 2026-11-17: "writes are
 meant to be handled with blades and cells in notebooks"): the rows, the dry run's plan and the write's
-counts. Each target's own helper builds on it (client/write_sql.py, write_dataverse.py,
-write_powerbi.py); the statements and calls themselves stay written out in each blade's cell.
+counts. Each target's own helper builds on it (client/write_sql.py, write_dataverse.py); the statements
+and calls themselves stay written out in each blade's cell.
 
     rows      the rows to write (a DataFrame of any kind, an Arrow table, a DuckDB relation), staged in a
               DuckDB of their own: their columns and types, counts, keys and batches are DuckDB SQL

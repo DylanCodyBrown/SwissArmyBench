@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQL Server replace"
 # kind = "snippet"
-# description = "Replace every row of a SQL Server or Azure SQL table (dry run first)"
+# description = "Replace a SQL Server or Azure SQL table's rows (dry run first; writes on the user's word)"
 # tags = ["write", "sqlserver", "azuresql"]
 # family = "Write"
 # language = "python"

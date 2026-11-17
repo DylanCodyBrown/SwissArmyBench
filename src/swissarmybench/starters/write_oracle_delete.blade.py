@@ -2,7 +2,7 @@
 # format = 1
 # name = "Oracle delete"
 # kind = "snippet"
-# description = "Delete a Oracle table's rows whose keys are in the rows (dry run first)"
+# description = "Delete Oracle rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "oracle"]
 # family = "Write"
 # language = "python"

@@ -2257,9 +2257,11 @@ drags; code of more than one line is pasted, one typed value):
 
 ## Writing data: the Write starters (2026-11-17, branch write-blades)
 
-- **Every starter** (tests/test_starters_write.py): the 45 Write starters read, fill from their form's
-  values, parse as Python, put `dry_run` first and the report last, and list their packages (DuckDB and
-  each driver). Every connection kind is writable or read-only with a reason; every writable kind has a
+- **Every starter** (tests/test_starters_write.py): the 43 Write starters read, fill from their form's
+  values, say the agent's rule in their description, parse as Python, put `dry_run` first and the report last, and list their packages (DuckDB and
+  each driver). Every connection kind is writable or read-only with a reason, and every one of
+  connection_tables' tables kinds is writable, read-only (Power BI, your own Python, an API) or decided by
+  its template (a database, a file); every writable kind has a
   starter, every starter names writable kinds only, a read-only kind has none. `/connections`,
   `/connections/usage`, a connection's detail and `/connections/types` carry `writes`; the Write family
   lists Excel's writers and Power BI's refreshes too (`also`); a starter's form offers the connections of
@@ -2288,13 +2290,10 @@ drags; code of more than one line is pasted, one typed value):
   If-Match, 429): create with choice labels sent as numbers (Retail -> 19), a throttled $batch sent
   again; upsert counted 201/200; update refusing keys that are not records; delete of the found keys
   only; a refused change set rolled back and named, the batch before it written.
-- **Power BI** (tests/powerbi_standin.py, now with push datasets): a push dataset made from the rows'
-  columns (DateTime, String, Double, Int64), rows pushed, a throttled push sent again, replace clearing
-  the table first, a model refused (write its source, then refresh it), an existing dataset refused.
 - **Files**: CSV, Parquet, partitioned Parquet (a folder per region; "add" beside the old files), JSON
   and an Excel sheet (the workbook's other sheets kept, rows added below) written and read back; an
   existing file refused unless replaced.
-- **In the browser** (Chromium, tests/e2e/test_write_starters_page.py): the Write family (49 with the
+- **In the browser** (Chromium, tests/e2e/test_write_starters_page.py): the Write family (47 with the
   cross-listed four) in the Workbench's blade list; SQLite upsert dragged into a cell, its form giving the
   SQLite connection first and order_id as the key; the cell run in the Workbench's kernel as a dry run
   (nothing written, "update 1 row, insert 2 rows"), then with dry_run = False (written); the Connections
@@ -2304,5 +2303,5 @@ drags; code of more than one line is pasted, one typed value):
   permissions, temp-table collation conflicts on a real server); a real Trino MERGE on Iceberg or Delta
   Lake; Oracle (no driver or server here: its MERGE from dual and DELETE-based replace are untested);
   an ODBC source; a real Dataverse $batch (its multipart answer, alternate keys defined in a real
-  environment, the 429 limits); a real Power BI push dataset (its row limits and retention); MySQL itself
+  environment, the 429 limits); MySQL itself
   (MariaDB stands in); a write in a notebook's own environment with the missing-package prompt.

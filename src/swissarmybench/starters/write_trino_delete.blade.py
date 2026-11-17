@@ -2,7 +2,7 @@
 # format = 1
 # name = "Trino delete"
 # kind = "snippet"
-# description = "Delete a Trino table's rows whose keys are in the rows (dry run first)"
+# description = "Delete Trino rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "trino"]
 # family = "Write"
 # language = "python"

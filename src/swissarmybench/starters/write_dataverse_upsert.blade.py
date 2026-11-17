@@ -2,7 +2,7 @@
 # format = 1
 # name = "Dataverse upsert"
 # kind = "snippet"
-# description = "Make or update a Dataverse table's records by key (dry run first)"
+# description = "Upsert Dataverse records by key (dry run first; writes on the user's word)"
 # tags = ["write", "dataverse"]
 # family = "Write"
 # language = "python"

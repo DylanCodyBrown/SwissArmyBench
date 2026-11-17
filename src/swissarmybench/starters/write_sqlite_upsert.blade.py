@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQLite upsert"
 # kind = "snippet"
-# description = "Insert rows into a SQLite table, or update them by key (dry run first)"
+# description = "Upsert SQLite rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "sqlite"]
 # family = "Write"
 # language = "python"

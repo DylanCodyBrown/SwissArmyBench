@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQLite replace"
 # kind = "snippet"
-# description = "Replace every row of a SQLite table with the rows (dry run first)"
+# description = "Replace every row of a SQLite table (dry run first; writes on the user's word)"
 # tags = ["write", "sqlite"]
 # family = "Write"
 # language = "python"

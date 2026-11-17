@@ -2,7 +2,7 @@
 # format = 1
 # name = "PostgreSQL append"
 # kind = "snippet"
-# description = "Add rows to a PostgreSQL table (dry run first)"
+# description = "Add rows to a PostgreSQL table (dry run first; writes on the user's word)"
 # tags = ["write", "postgres"]
 # family = "Write"
 # language = "python"

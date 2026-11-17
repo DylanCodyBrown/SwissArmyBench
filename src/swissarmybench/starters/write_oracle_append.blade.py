@@ -2,7 +2,7 @@
 # format = 1
 # name = "Oracle append"
 # kind = "snippet"
-# description = "Add rows to a Oracle table (dry run first)"
+# description = "Add rows to an Oracle table (dry run first; writes on the user's word)"
 # tags = ["write", "oracle"]
 # family = "Write"
 # language = "python"

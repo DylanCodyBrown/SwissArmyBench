@@ -2,7 +2,7 @@
 # format = 1
 # name = "MySQL create table"
 # kind = "snippet"
-# description = "A new MySQL table from the rows, its types from DuckDB (dry run first)"
+# description = "A new MySQL table from the rows (dry run first; writes on the user's word)"
 # tags = ["write", "mysql", "mariadb"]
 # family = "Write"
 # language = "python"

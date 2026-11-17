@@ -2,7 +2,7 @@
 # format = 1
 # name = "ODBC append"
 # kind = "snippet"
-# description = "Add rows to a ODBC table (dry run first)"
+# description = "Add rows to an ODBC table (dry run first; writes on the user's word)"
 # tags = ["write", "odbc"]
 # family = "Write"
 # language = "python"

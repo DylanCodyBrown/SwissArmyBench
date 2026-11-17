@@ -3838,26 +3838,28 @@ no SQL writes layer: every write is a blade, explicit in its cell.
 
 Built:
 - **What each kind writes** (domain/write_capability.py): every connection kind the app has is writable
-  (its operations and how) or read-only (why, in plain words). Writable: SQL Server, Azure SQL,
+  (its operations and how) or read-only (why, in plain words). A kind is connection_tables' tables kind
+  (TABLE_KINDS: database, powerbi, dataverse, dataverse_web, python, api, file, folder), and for a
+  database or a file its form's template; a test holds every tables kind to writable, read-only or "by
+  its template". Writable: SQL Server, Azure SQL,
   PostgreSQL, MySQL, MariaDB, Oracle, SQLite (the read-only connection's file opened again to write),
-  Trino (by its connector), ODBC, Dataverse (the Web API; TDS is read-only), Power BI (push datasets
-  only; a model is read-only, refresh is its action), CSV, Excel, Parquet, JSON and folder files.
-  Read-only: DuckDB (opened read-only), Snowflake, BigQuery, Redshift, Databricks (their own bulk
-  loads), Db2, Teradata, ClickHouse, SAP HANA, Vertica, SAP ASE, Access, your own Python (an API added
-  with Add API writes through the APIs page). The Connections page's card shows Writes or Read-only (the
+  Trino (by its connector), ODBC, Dataverse (the Web API; TDS is read-only, whichever way the connection reads),
+  CSV, Excel, Parquet, JSON and folder files.
+  Read-only: Power BI (refresh is its action: write the source, then refresh), DuckDB (opened read-only), Snowflake, BigQuery, Redshift, Databricks (their own bulk
+  loads), Db2, Teradata, ClickHouse, SAP HANA, Vertica, SAP ASE, Access, your own Python, an API (the APIs page's
+  Write rows with this call, branch trees-apis). The Connections page's card shows Writes or Read-only (the
   starters or the reason on hover), its detail the words; `connections_list`, `connections_overview`,
   `connections_types` carry `writes` for the agent. Tests: every writable kind has a Write starter, every
   starter names writable kinds only, a read-only kind has none.
-- **The Write family** (45 starters, src/swissarmybench/starters/write_*.blade.py): Python snippets (a
+- **The Write family** (43 starters, src/swissarmybench/starters/write_*.blade.py): Python snippets (a
   new snippet language, `python`, for a Python cell; a new placeholder kind, `connection`, offered from
   the saved connections, those of the snippet's kind first). Databases: append, create table, replace,
   upsert, delete for SQL Server, PostgreSQL, MySQL/MariaDB, SQLite, Oracle and Trino; ODBC without upsert
-  (no one statement every driver takes). Dataverse: create, update, upsert, delete. Power BI: create push
-  dataset, push rows. Files: CSV, Parquet, partitioned Parquet, JSON, Excel sheet. Listed in Write too:
+  (no one statement every driver takes). Dataverse: create, update, upsert, delete. Files: CSV, Parquet, partitioned Parquet, JSON, Excel sheet. Listed in Write too:
   Excel write table, Excel range as table, Power BI refresh dataset, Power BI refresh and wait (`also`).
 - **The same shape in every cell**: `dry_run = True` the first setting (it checks, counts what it can
   count cheaply, says the statements, shows 5 rows, changes nothing); one transaction where the target
-  has them (a failure rolls back and names its batch and rows; Trino, a push dataset and Dataverse's
+  has them (a failure rolls back and names its batch and rows; Trino and Dataverse's
   change sets say what was written before it); counts and time at the end, and a difference from the
   last dry run said; the connection's own sign-in (`sab.connection`), never a secret in the cell; its
   packages imported at the top (the missing-package prompt installs them into the notebook's
@@ -3865,7 +3867,7 @@ Built:
   after the user said to write, in their own words, in this conversation.
 - **A shared helper per target, the statements in the cell** (client/writes.py: the rows staged in a
   DuckDB of their own, the report; write_sql.py: each database's quoting, marks, values and types;
-  write_dataverse.py; write_powerbi.py). Standard library only (the plain client's rule): DuckDB and the
+  write_dataverse.py). Standard library only (the plain client's rule): DuckDB and the
   driver come from the cell's own Python.
 - **SQL Server and Azure SQL, made robust** (SqlServerWrite): the target's types from sys.columns size
   every value (setinputsizes: varchar stays varchar, nvarchar Unicode, decimals their precision and
@@ -3889,3 +3891,8 @@ Decisions:
 - Dataverse's atomicity is a change set (up to 1,000 rows): a batch_size of up to 1,000 is one
   transaction; a larger write says which batches went in before a refusal.
 - No `set`/`where` translation for any target: an update by condition is a SQL cell's own statement.
+- Power BI is read-only (the owner's example, 2026-11-17: "Power BI read-only (refresh is the action)"):
+  the push-dataset starters an earlier pass made were removed, so a read-only kind has no Write starter.
+  Its refreshes stay listed in the Write family (`also`): after the source is written, refresh the model.
+- No API write starter and no pointer starter: an API's read-only reason says "the APIs page's Write rows
+  with this call", on its card and to the agent.

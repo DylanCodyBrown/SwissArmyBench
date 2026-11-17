@@ -75,7 +75,9 @@ class ConnectionService:
                     saved.kind, saved.template, saved.dialect, saved.catalog_language, saved.tags, saved.code
                 )
                 if kind != "vault":  # what it can write: "Writes: <the starters>" or "Read-only: <why>"
-                    more["writes"] = write_capability.capability(b.get("template"), writers)
+                    more["writes"] = write_capability.capability(
+                        b.get("template"), writers, more["tables_kind"]
+                    )
                 if kind == "vault":
                     vault = saved
                     entries = vault.vault_mapping.items()

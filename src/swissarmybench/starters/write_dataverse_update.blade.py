@@ -2,7 +2,7 @@
 # format = 1
 # name = "Dataverse update"
 # kind = "snippet"
-# description = "Update a Dataverse table's records from the rows, by key (dry run first)"
+# description = "Update Dataverse records by key (dry run first; writes on the user's word)"
 # tags = ["write", "dataverse"]
 # family = "Write"
 # language = "python"

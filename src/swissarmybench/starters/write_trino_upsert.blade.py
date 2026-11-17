@@ -2,7 +2,7 @@
 # format = 1
 # name = "Trino upsert"
 # kind = "snippet"
-# description = "Insert rows into a Trino table, or update them by key (dry run first)"
+# description = "Upsert Trino rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "trino"]
 # family = "Write"
 # language = "python"

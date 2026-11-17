@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQLite append"
 # kind = "snippet"
-# description = "Add rows to a SQLite table (dry run first)"
+# description = "Add rows to a SQLite table (dry run first; writes on the user's word)"
 # tags = ["write", "sqlite"]
 # family = "Write"
 # language = "python"

@@ -2,7 +2,7 @@
 # format = 1
 # name = "Trino append"
 # kind = "snippet"
-# description = "Add rows to a Trino table (dry run first)"
+# description = "Add rows to a Trino table (dry run first; writes on the user's word)"
 # tags = ["write", "trino"]
 # family = "Write"
 # language = "python"

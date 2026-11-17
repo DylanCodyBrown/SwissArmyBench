@@ -2,7 +2,7 @@
 # format = 1
 # name = "ODBC delete"
 # kind = "snippet"
-# description = "Delete a ODBC table's rows whose keys are in the rows (dry run first)"
+# description = "Delete ODBC rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "odbc"]
 # family = "Write"
 # language = "python"

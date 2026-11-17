@@ -2,7 +2,7 @@
 # format = 1
 # name = "Oracle upsert"
 # kind = "snippet"
-# description = "Insert rows into a Oracle table, or update them by key (dry run first)"
+# description = "Upsert Oracle rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "oracle"]
 # family = "Write"
 # language = "python"

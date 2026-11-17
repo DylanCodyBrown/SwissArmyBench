@@ -71,7 +71,7 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     cells = workbench.locator(".wb-cell")
     expect(cells.nth(1).locator(".monaco-editor")).to_be_visible(timeout=20000)
     listed = blades(workbench)
-    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write49", timeout=20000)
+    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write47", timeout=20000)
     family(listed, "Write")
     upsert = listed.locator(".starter-item", has_text="SQLite upsert")
     expect(upsert.locator(".blade-kind")).to_have_text("Python")
@@ -87,7 +87,11 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     form.get_by_role("button", name="Insert").click()
     expect(form).to_have_count(0)
     source = window(server, "doc.read")["cells"][1]["source"]
-    assert source.startswith("# SQLite upsert:") and 'connection = "Shop"' in source and "rows = orders" in source
+    assert (
+        source.startswith("# SQLite upsert:")
+        and 'connection = "Shop"' in source
+        and "rows = orders" in source
+    )
     if workbench.locator(".wb-flyout:not([hidden])").count():
         workbench.get_by_role("button", name="Add a blade").click()  # the blade list folded away
     window(server, "run.primary")
@@ -116,12 +120,16 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     workbench.close()
 
 
-def test_the_connections_page_says_writes_or_read_only(browser: Browser, server: dict[str, Any], shop: Path) -> None:
+def test_the_connections_page_says_writes_or_read_only(
+    browser: Browser, server: dict[str, Any], shop: Path
+) -> None:
     page = browser.new_context(viewport={"width": 1300, "height": 900}, device_scale_factor=2).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workspace?open=connections#token={server['token']}")
     shop_card = page.locator(".connection-card", has_text="Shop")
     expect(shop_card.locator(".connection-writes")).to_have_text("Writes", timeout=20000)
-    assert (shop_card.locator(".connection-writes").get_attribute("title") or "").startswith("Writes: SQLite append")
+    assert (shop_card.locator(".connection-writes").get_attribute("title") or "").startswith(
+        "Writes: SQLite append"
+    )
     planning = page.locator(".connection-card", has_text="Planning").locator(".connection-writes")
     expect(planning).to_have_text("Read-only")
     assert "opens the file read-only" in (planning.get_attribute("title") or "")
@@ -129,7 +137,9 @@ def test_the_connections_page_says_writes_or_read_only(browser: Browser, server:
     shop_card.click()
     detail = page.locator(".connection-config")
     expect(detail.locator("dt", has_text="Writes")).to_be_visible(timeout=20000)
-    expect(detail).to_contain_text("SQLite append, SQLite create table, SQLite delete, SQLite replace, SQLite upsert")
+    expect(detail).to_contain_text(
+        "SQLite append, SQLite create table, SQLite delete, SQLite replace, SQLite upsert"
+    )
     shot(page, "6-a-connections-writes")
     wait_until(lambda: True)
     page.close()

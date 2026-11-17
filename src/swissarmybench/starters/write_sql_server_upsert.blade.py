@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQL Server upsert"
 # kind = "snippet"
-# description = "Insert or update rows of a SQL Server or Azure SQL table by key (dry run first)"
+# description = "Upsert SQL Server or Azure SQL rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "sqlserver", "azuresql"]
 # family = "Write"
 # language = "python"

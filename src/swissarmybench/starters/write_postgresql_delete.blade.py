@@ -2,7 +2,7 @@
 # format = 1
 # name = "PostgreSQL delete"
 # kind = "snippet"
-# description = "Delete a PostgreSQL table's rows whose keys are in the rows (dry run first)"
+# description = "Delete PostgreSQL rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "postgres"]
 # family = "Write"
 # language = "python"

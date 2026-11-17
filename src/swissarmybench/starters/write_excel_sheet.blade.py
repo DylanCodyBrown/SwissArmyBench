@@ -2,7 +2,7 @@
 # format = 1
 # name = "Write Excel sheet"
 # kind = "snippet"
-# description = "The rows written to a workbook's sheet; its other sheets kept (dry run first)"
+# description = "The rows as a workbook's sheet, others kept (dry run first; writes on the user's word)"
 # tags = ["write", "files", "excel", "folder"]
 # family = "Write"
 # language = "python"

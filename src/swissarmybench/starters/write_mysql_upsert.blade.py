@@ -2,7 +2,7 @@
 # format = 1
 # name = "MySQL upsert"
 # kind = "snippet"
-# description = "Insert rows into a MySQL table, or update them by key (dry run first)"
+# description = "Upsert MySQL rows by key (dry run first; writes on the user's word)"
 # tags = ["write", "mysql", "mariadb"]
 # family = "Write"
 # language = "python"

@@ -2,7 +2,7 @@
 # format = 1
 # name = "Trino replace"
 # kind = "snippet"
-# description = "Replace every row of a Trino table with the rows (dry run first)"
+# description = "Replace every row of a Trino table (dry run first; writes on the user's word)"
 # tags = ["write", "trino"]
 # family = "Write"
 # language = "python"

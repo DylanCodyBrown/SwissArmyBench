@@ -127,10 +127,10 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # The one-script export holds the exported script's own text (its lines are the lines the user reads).
 "src/swissarmybench/domain/script_export.py" = ["E501"]
 "src/swissarmybench/domain/script_runtime.py" = ["E501"]
-"tests/test_script_export.py" = ["E501"]
+"tests/test_script_export.py" = ["E501"]  # the made-up cells and the lines a script holds, as written
 # The Write starters' statements as the databases are sent them (whole T-SQL and SQL lines), the
 # messages matched as said, and a test's own folder read back by DuckDB.
-"tests/test_starters_write.py" = ["E501", "RUF043", "S608", "RUF012"]  # the made-up cells and the lines a script holds, as written
+"tests/test_starters_write.py" = ["E501", "RUF043", "S608", "RUF012"]
 "src/swissarmybench/services/grids.py" = ["S608"]
 "src/swissarmybench/services/agent.py" = ["S608"]
 "src/swissarmybench/services/export.py" = ["S608"]
@@ -138,7 +138,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # through _literal(); the cell's own SQL is the user's, run as they wrote it.
 "src/swissarmybench/client/sql_cell.py" = ["S608"]
 # The Write starters' helpers build each database's statements by design: every name through name()
-# or quote(), every value a bound parameter; the target's own address in urlopen (Dataverse, Power BI).
+# or quote(), every value a bound parameter; the target's own address in urlopen (Dataverse).
 "src/swissarmybench/client/write*.py" = ["S608", "S310"]
 # Developer scripts: they run fixed local tools (git, npm, uv, VS Code) with our own arguments,
 # set up sys.path before importing, and hold long command lines.

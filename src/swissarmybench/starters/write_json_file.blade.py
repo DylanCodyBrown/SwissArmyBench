@@ -2,7 +2,7 @@
 # format = 1
 # name = "Write JSON file"
 # kind = "snippet"
-# description = "The rows written to a JSON file (dry run first)"
+# description = "The rows written to a JSON file (dry run first; writes on the user's word)"
 # tags = ["write", "files", "json", "folder"]
 # family = "Write"
 # language = "python"

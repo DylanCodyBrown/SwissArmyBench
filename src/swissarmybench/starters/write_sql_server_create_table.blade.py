@@ -2,7 +2,7 @@
 # format = 1
 # name = "SQL Server create table"
 # kind = "snippet"
-# description = "A new SQL Server or Azure SQL table from the rows (dry run first)"
+# description = "A new SQL Server or Azure SQL table (dry run first; writes on the user's word)"
 # tags = ["write", "sqlserver", "azuresql"]
 # family = "Write"
 # language = "python"

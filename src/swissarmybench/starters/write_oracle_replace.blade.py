@@ -2,7 +2,7 @@
 # format = 1
 # name = "Oracle replace"
 # kind = "snippet"
-# description = "Replace every row of a Oracle table with the rows (dry run first)"
+# description = "Replace every row of an Oracle table (dry run first; writes on the user's word)"
 # tags = ["write", "oracle"]
 # family = "Write"
 # language = "python"

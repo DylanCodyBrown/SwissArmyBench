@@ -1,12 +1,12 @@
 """The starter pack's Write family (docs/ideas.md, "Writing data"; the owner, 2026-11-17: "writes are meant
 to be handled with blades and cells in notebooks"): each Write starter is a Python snippet dropped into a
 cell, its settings first (a dry run that changes nothing), then the statements written out and a helper
-(client/writes.py, write_sql.py, write_dataverse.py, write_powerbi.py) for the rows, the transaction and
+(client/writes.py, write_sql.py, write_dataverse.py) for the rows, the transaction and
 the counts.
 
 Run here against SQLite, PostgreSQL and MariaDB (the test bed, tools/testbed: skipped when it is not up),
-SQL Server's T-SQL against a stand-in driver that records every call, Dataverse and Power BI against their
-stand-ins (tests/dataverse_standin.py, tests/powerbi_standin.py), and files written and read back. Made-up
+SQL Server's T-SQL against a stand-in driver that records every call, Dataverse against its
+stand-in (tests/dataverse_standin.py), and files written and read back. Made-up
 data only."""
 
 from __future__ import annotations
@@ -31,10 +31,11 @@ from swissarmybench.client import write_sql
 from swissarmybench.client.writes import WriteError
 from swissarmybench.domain import dataverse, write_capability
 from swissarmybench.domain.blades import needed, read_blade
+from swissarmybench.domain.connection_tables import TABLE_KINDS
 from swissarmybench.domain.connections import connection_kind
 from swissarmybench.domain.snippets import fill, placeholders
-from swissarmybench.server.blade_templates import POWERBI_VAULT, TEMPLATES
-from tests import dataverse_standin, powerbi_standin
+from swissarmybench.server.blade_templates import TEMPLATES
+from tests import dataverse_standin
 from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
@@ -86,13 +87,13 @@ def connection(monkeypatch: pytest.MonkeyPatch) -> Callable[[Callable[[], Any]],
 # ===== every Write starter =====
 
 
-def test_the_write_family_is_45_starters_each_a_python_snippet() -> None:
+def test_the_write_family_is_43_starters_each_a_python_snippet() -> None:
     blades = [read_blade(p.read_text(encoding="utf-8")) for p in WRITERS]
-    assert len(blades) == 45
+    assert len(blades) == 43
     assert {b["family"] for b in blades} == {"Write"}
     assert {b["language"] for b in blades} == {"python"} and {b["kind"] for b in blades} == {"snippet"}
     for blade in blades:
-        assert "dry run first" in blade["description"]
+        assert blade["description"].endswith("(dry run first; writes on the user's word)")
         assert (
             "An agent sets dry_run = False only after you said to write, in your own words" in blade["code"]
         )
@@ -134,15 +135,38 @@ def test_a_write_starter_fills_parses_and_lists_its_packages(path: Path) -> None
 
 def test_every_connection_kind_is_writable_or_read_only_with_its_reason() -> None:
     kinds = {t.id for t in TEMPLATES if connection_kind(t.kind, t.id) not in (None, "vault")}
-    assert kinds == set(write_capability.WRITABLE) | set(write_capability.READ_ONLY)
+    assert kinds | {"api"} == set(write_capability.WRITABLE) | set(
+        write_capability.READ_ONLY
+    )  # api: a tables kind
     assert not set(write_capability.WRITABLE) & set(write_capability.READ_ONLY)
-    assert write_capability.capability("powerbi")["note"].startswith("a model (semantic model) is read-only")
+    power_bi = write_capability.capability("powerbi", tables_kind="powerbi")
+    assert power_bi["writable"] is False and "refresh it" in power_bi["reason"]  # refresh is its action
     assert write_capability.capability("dataverse")["how"].endswith("(its SQL endpoint is read-only)")
     assert "connector" in write_capability.capability("trino")["note"]
     duck = write_capability.capability("duckdb")
     assert duck["writable"] is False and duck["words"].startswith(
         "Read-only: the connection opens the file read-only"
     )
+
+
+def test_every_kind_of_connection_tables_is_writable_read_only_or_decided_by_its_template() -> None:
+    covered = write_capability.tables_kinds_covered()
+    assert set(covered) == set(TABLE_KINDS) and "" not in covered.values()
+    assert covered == {
+        "database": "template",
+        "powerbi": "read-only",
+        "dataverse": "writable",
+        "dataverse_web": "writable",  # the Web API writes whichever way it reads
+        "python": "read-only",
+        "api": "read-only",
+        "file": "template",
+        "folder": "writable",
+    }
+    api = write_capability.capability("python", tables_kind="api")
+    assert api["words"] == "Read-only: an API writes through the APIs page's Write rows with this call"
+    assert write_capability.capability("dataverse", tables_kind="dataverse_web")["writable"] is True
+    assert write_capability.capability("postgres", tables_kind="database")["writable"] is True
+    assert write_capability.capability(None, tables_kind="database")["writable"] is False  # code of its own
 
 
 def test_every_writable_kind_has_a_starter_and_every_starter_names_writable_kinds_only() -> None:
@@ -344,7 +368,7 @@ def test_a_duckdb_relation_and_an_arrow_table_are_rows_too(shop: Path) -> None:
 # ===== PostgreSQL and MariaDB: the test bed's databases =====
 
 
-def testbed() -> dict[str, Any]:
+def bed_state() -> dict[str, Any]:
     from tools.testbed import testbed as bed
 
     state = bed.read_state()
@@ -357,7 +381,7 @@ def test_postgresql_writes_through_copy_on_conflict_and_one_transaction(
     connection: Callable[[Callable[[], Any]], list[str]],
 ) -> None:
     psycopg = pytest.importorskip("psycopg")
-    pg = testbed()["postgres"]
+    pg = bed_state()["postgres"]
     owner = f"host={pg['data']} port={pg['port']} dbname=shop user=postgres"  # the socket: trusted
     try:
         with psycopg.connect(owner, autocommit=True) as admin:
@@ -413,7 +437,7 @@ def test_mariadb_writes_with_on_duplicate_key_update(
     connection: Callable[[Callable[[], Any]], list[str]],
 ) -> None:
     pymysql = pytest.importorskip("pymysql", reason="MariaDB's test needs pymysql in the test environment")
-    maria = testbed().get("mariadb") or {}
+    maria = bed_state().get("mariadb") or {}
     if "port" not in maria:
         pytest.skip("The test bed's MariaDB is not up.")
     try:
@@ -891,63 +915,6 @@ def test_dataverse_a_refused_change_set_is_rolled_back_and_named(crm: dataverse_
     assert "the 2 rows before it were written" in said
     assert [b["applied"] for b in crm.batches] == [True, False]
     assert "AC-4003" not in accounts(crm) and "AC-4002" in accounts(crm)
-
-
-# ===== Power BI: push datasets =====
-
-
-@pytest.fixture
-def workspace(
-    monkeypatch: pytest.MonkeyPatch, connection: Callable[[Callable[[], Any]], list[str]]
-) -> Iterator[powerbi_standin.StandIn]:
-    running = powerbi_standin.StandIn().start()
-    for name, value in running.environment().items():
-        monkeypatch.setenv(name, value)
-    secrets = {
-        "tenant id": powerbi_standin.TENANT,
-        "client id": powerbi_standin.CLIENT,
-        "client secret": powerbi_standin.SECRET,
-    }
-    conn, _ = run_code(
-        POWERBI_VAULT.replace("my-workspace-id", powerbi_standin.WORKSPACE), "conn", secrets, "Finance"
-    )
-    connection(lambda: conn)
-    yield running
-    running.stop()
-
-
-def test_power_bi_makes_a_push_dataset_from_the_rows_and_pushes_them(
-    workspace: powerbi_standin.StandIn,
-) -> None:
-    sales = pd.DataFrame({"day": pd.to_datetime(["2026-01-02", "2026-01-03"]), "region": ["North", "South"],
-                          "amount": [10.5, 20.0], "units": [1, 2]})  # fmt: skip
-    values = {"connection": "Finance", "dataset": "Sales push", "target": "Sales"}
-    dry = run(cell("write_power_bi_create_push_dataset", dry_run=True, **values), orders=sales)
-    assert (
-        "day (DateTime), region (String), amount (Double), units (Int64)" in str(dry) and workspace.push == {}
-    )
-    done = run(cell("write_power_bi_create_push_dataset", dry_run=False, **values), orders=sales)
-    assert done.counts == {"inserted": 2}
-    (dataset,) = workspace.push.values()
-    assert dataset["name"] == "Sales push" and dataset["rows"]["Sales"][0] == {
-        "day": "2026-01-02T00:00:00",
-        "region": "North",
-        "amount": 10.5,
-        "units": 1,
-    }
-    workspace.push_throttle = 1  # a push asked to wait goes again
-    more = run(cell("write_power_bi_push_rows", dry_run=False, **values), orders=sales)
-    assert more.counts == {"inserted": 2} and len(dataset["rows"]["Sales"]) == 4
-    replace = cell("write_power_bi_push_rows", dry_run=False, **values).replace(
-        "replace = False", "replace = True"
-    )
-    run(replace, orders=sales.head(1))
-    assert len(dataset["rows"]["Sales"]) == 1
-    model = values | {"dataset": "Sales model"}
-    with pytest.raises(WriteError, match="Sales model is a model, not a push dataset: .* refresh it"):
-        run(cell("write_power_bi_push_rows", dry_run=True, **model), orders=sales)
-    with pytest.raises(WriteError, match="has a dataset Sales push already"):
-        run(cell("write_power_bi_create_push_dataset", dry_run=True, **values), orders=sales)
 
 
 # ===== files: written beside the target, then put in its place =====

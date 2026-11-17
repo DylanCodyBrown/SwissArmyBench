@@ -2,7 +2,7 @@
 # format = 1
 # name = "Write partitioned Parquet"
 # kind = "snippet"
-# description = "The rows written to a folder of Parquet files, by partition columns (dry run first)"
+# description = "The rows as Parquet files, a folder per value (dry run first; writes on the user's word)"
 # tags = ["write", "files", "folder"]
 # family = "Write"
 # language = "python"
