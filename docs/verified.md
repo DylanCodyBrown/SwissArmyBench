@@ -2682,3 +2682,24 @@ Whole suite with Chromium (2026-11-17, branch ext-powerapps): 3,880 passed, 45 s
 fixed). The intellisense pair (test_client_install: adapters/intellisense.py starts a process;
 test_tool_sweep: workbench_problems answers 500 for a path that is not there) are untouched by this branch.
 test_sandbox_pages, test_table_cells_page and test_workbench_page's SQL cell passed alone (load).
+
+## Extensions: one-click Install and Remove from the released app (2026-11-17, 0.0.17)
+
+Checked on Linux in a container, as a user would run it: `uv tool install "swissarmybench[server]==0.0.17"`
+from PyPI into its own tool folder and home, `swissarmybench start --background`, then the Extensions page's
+routes (the buttons' calls) against that running app.
+
+- Power Apps: Remove (asked first, then confirmed) restarted the app with Power Apps available; Install
+  restarted it in about 10 seconds with Power Apps installed and `/powerapps/project` answering 200, no
+  failure note. Accounting's Install then kept Power Apps: the tool holds swissarmybench,
+  swissarmybench-accounting and swissarmybench-powerapps 0.0.17, and `/app/modes` lists bi, accounting and
+  codeapp.
+- Found and fixed on the way: 0.0.15's helper let uv fetch the wheel from the GitHub release, refused with
+  401 on the release's download redirect (in this proxied network; curl and Python's urllib fetch it), so
+  0.0.16 downloads the wheel itself and hands uv the file. 0.0.16 and 0.0.17's first try then failed with
+  "no version of swissarmybench[server]==X" within a couple of minutes of the version reaching PyPI; 0.0.17
+  adds `--refresh-package swissarmybench`, and the same Install minutes later worked. Right after a release
+  the index can still lag: the app then starts as it was and says why (Install again a little later).
+
+NOT checked: Windows and macOS installs (the installers' own jobs run on Linux and Windows in release.yml;
+Install from the page was not run there), the tray's menu during Install, and Edge.
