@@ -554,6 +554,6 @@ def too_many(connection: str, table: str, count: int, limit: int, filtered: bool
     what = " with the filters sent" if filtered else ""
     return (
         f"[{connection}].{table} has {count:,} rows{what}: a query reads at most {limit:,} rows from a "
-        "connection's table, never its first rows only. Add a WHERE that narrows it, or raise the limit in "
-        "Settings."
+        "connection's table, never its first rows only. Add a WHERE that narrows it, or raise the limit: "
+        "the SWISSARMYBENCH_MAX_QUERY_ROWS setting (an environment variable), then start the app again."
     )

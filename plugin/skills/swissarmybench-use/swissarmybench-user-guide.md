@@ -530,11 +530,14 @@ Click a card for its **detail**:
     security role that reads its tables.
   - **Test connection** signs in, counts the tables and shows the first rows of `account`: "It works:
     signed in and found 812 tables."
-  - Its catalog has one schema, **dbo**, and every table by its logical name (`account`), its display
-    name beside it where it says more (`systemuser` **User**); each column has Dataverse's type
-    (String, Money, Lookup, Picklist...) and its display name.
-  - **Open as grid**, the first rows and `sab.read("Sales CRM", "account")` read a table through the
-    Web API: no admin setting is needed. A choice column reads as its labels (**Won**, not 1), a Yes/No
+  - Its tables are listed and read on the environment's read-only **SQL endpoint** (TDS, port 5558):
+    its catalog has one schema, **dbo**, and every table by its logical name (`account`); **Open as
+    grid**, the first rows and `SELECT * FROM [Sales CRM].account` read through it with T-SQL. It needs
+    `pyodbc`, Microsoft's ODBC Driver 18 for SQL Server, and the endpoint turned on: when it is off, the
+    environment's administrator turns on **Enable TDS endpoint** in the Power Platform admin center.
+  - A connection saved before 2026-11-17 reads through the Web API still; its detail has **Web API
+    (switch to the SQL endpoint)**, one click. Through the Web API (`sab.read("Sales CRM", "account")`
+    too) no admin setting is needed. A choice column reads as its labels (**Won**, not 1), a Yes/No
     column as true or false, a lookup as its id with its name in the column beside it
     (`primarycontactid`, `primarycontactidname`), money and dates as numbers and dates. The grid says
     how many rows the table holds.
@@ -601,6 +604,39 @@ cell, `sab.sql("EDP", ...)`, `sab.read`, `sab.dax`, `sab.blade`, `sab.connection
 these at Trino** changes the name in the ticked cells only, and nothing else (a string that merely holds
 the name stays). An open notebook or script changes in the Workbench, unsaved until you save it; a table's
 own read-only cell follows its table by itself.
+
+### Your connections in DuckDB SQL
+
+A connection is something that exposes tables, and any DuckDB SQL can name them by the connection: the
+**+** tab's query, a notebook's `%%sql` cell with **DuckDB** as its connection, `sab.sql(query)` in Python.
+
+```sql
+SELECT g.Segment, sum(s.Amount) AS amount
+FROM [Finance Captive].Sales AS s
+JOIN [Shop].segments AS g USING (CustomerKey)
+GROUP BY ALL
+```
+
+- **The name.** `[Connection].table`, or `"Connection".table`. A database also takes `.schema.table` and
+  `.database.schema.table`, in any case. A Power BI workspace takes `.table` when only one of its datasets
+  has that table, else `[Finance Captive]."Sales model".Date` (the error names the datasets that have
+  it). A workbook names a sheet, a folder a file (`[Exports].orders` is orders.csv). A name that is not
+  there says what the connection has. A key vault has no tables: it is not a connection.
+- **Every row the query needs.** A query never runs on a table's first rows only. The columns the query
+  uses and its plain filters (`region = 'North'`, `amount > 100`, `IN`, `BETWEEN`, `IS NULL`) are sent to
+  a database, and a `LIMIT` too when nothing else in the query needs more rows; the source counts the
+  rows first. More than 5,000,000 rows from one table is refused with how to narrow it (a `WHERE`), or
+  raise the limit: the `SWISSARMYBENCH_MAX_QUERY_ROWS` environment variable.
+- **Read once a session.** Each table read is kept until you Refresh: the **+** tab's line and a cell's
+  output say how many rows were read, when, and the filters sent; the **+** tab's toast has **Refresh**.
+- **Getting the tables.** A connection's detail on the Connections page lists its datasets (or schemas)
+  and tables with a search: each table has **Open**, **Preview** and **Copy name**
+  (`[Finance Captive].Sales`, ready for SQL); a dataset has **Open all** (each its own grid), **Import its
+  relationships** (Power BI) and **Query in a notebook** (a new `%%sql` cell). The Grids page's
+  connections open the same list.
+- **In a notebook.** A `%%sql` cell whose connection is **DuckDB** shows the connections its query names
+  in its head; typing `[` offers your connections, `[Finance Captive].` its datasets and tables. The
+  kernel's own DataFrames join in by their names.
 
 ## Session: what the agent made
 

@@ -8,7 +8,8 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 ## Start
 1. `agent_context`: the grid in front of the user, its columns and steps; the other open tables.
 2. `tabs_list` (grid ids), `datasets_list`, `table_profile`, then `row_read(format="csv")`.
-3. `steps_run_sql`: one DuckDB SELECT; `grid` is that grid's view, other tables by name.
+3. `steps_run_sql`: one DuckDB SELECT; `grid` is that grid's view, other tables by name, a
+   connection's as `[Finance].Sales` (`connections_tables`).
 4. `agent_events` waits for what the user does next; `agent_inbox` is what they sent you.
 
 ## Tools by prefix (the app's area)
@@ -45,8 +46,7 @@ No prefix: `guide`, `commands`, `health`.
   VS Code's Open Swiss Army Bench; `health` checks.
 - A bug report: `app_beta_notes` (what the user said), then `app_beta_log(kind="error")`.
 - Prefer steps on the user's grid to copies. Give the table, filter and row count behind a number.
-- `workbench_export_script` (format script or notebook): a document as one self-contained file that
-  runs anywhere; code only (no rows, no passwords), so it asks nothing.
+- `workbench_export_script`: a document as one self-contained file; code only, so it asks nothing.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, blades, workbench, streamlit,

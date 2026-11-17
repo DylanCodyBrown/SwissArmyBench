@@ -296,3 +296,11 @@ def test_past_the_limit_a_table_is_refused_with_how_to_narrow_it(tmp_path: Path)
         )
         narrowed = ok(query(client, "some", "SELECT count(*) FROM [Big].orders WHERE region = 'South'"))
         assert rows(client, narrowed["grid"]) == [[5_000]]
+
+
+def test_the_sql_box_names_a_connections_table_too(client: TestClient, tmp_path: Path) -> None:
+    shop(client, tmp_path)
+    made = ok(query(client, "gold", "SELECT * FROM [Shop].segments WHERE Segment = 'Gold'"))
+    sql = "SELECT count(*) AS n FROM grid JOIN [Shop Two].targets t USING (Segment)"
+    answer = ok(client.post(f"/grids/{made['grid']}/sql", json={"sql": sql}, headers=AGENT))
+    assert answer["rows"] == [[4]] and answer["connection_reads"][0]["connection"] == "Shop Two"
