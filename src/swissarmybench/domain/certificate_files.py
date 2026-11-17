@@ -28,8 +28,8 @@ from typing import Any, TypeGuard
 # domain/lakes.py; Dataverse's and Power BI's tenant and client ids too): their plain names. Each may come
 # from an environment variable (the owner, 2026-11-17: "All should be mapable to env vars").
 TOP_LEVEL: dict[str, str] = {
-    "tenant_id": "tenant",
-    "client_id": "client id",
+    "tenant_id": "tenant_id",  # as Dataverse and Power BI name them (the form: Tenant id, Client id)
+    "client_id": "client_id",
     "managed_client_id": "managed identity client id",
     "username": "username",
     "site_url": "site",

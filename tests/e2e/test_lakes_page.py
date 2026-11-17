@@ -105,15 +105,15 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
         ("Site", "site_url", SITE),
         ("Client id", "client_id", made_up.CLIENT),
         ("Username", "username", made_up.USERNAME),
-        ("Tenant", "tenant_id", made_up.TENANT),
+        ("Tenant id", "tenant_id", made_up.TENANT),
     ):
         box = dialog.get_by_role("textbox", name=label, exact=True)
         box.fill(value)
         box.press("Tab")
         expect(code).to_have_value(re.compile(re.escape(f'{key} = "{value}"')))
     # The tenant from an environment variable, its name suggested, this computer's value its default.
-    dialog.get_by_role("combobox", name="Tenant from").select_option("env")
-    expect(dialog.get_by_role("textbox", name="Tenant variable")).to_have_value("SHAREPOINT_TENANT_ID")
+    dialog.get_by_role("combobox", name="Tenant id from").select_option("env")
+    expect(dialog.get_by_role("textbox", name="Tenant id variable")).to_have_value("SHAREPOINT_TENANT_ID")
     expect(code).to_have_value(
         re.compile(re.escape(f'tenant_id = os.environ.get("SHAREPOINT_TENANT_ID", "{made_up.TENANT}")'))
     )

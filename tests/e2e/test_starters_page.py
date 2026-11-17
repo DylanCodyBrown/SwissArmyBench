@@ -126,6 +126,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
         [
             "Power BI13",
             "Dataverse2",
+            "SharePoint5",
             "Excel12",
             "Files3",
             "DAX11",
@@ -135,7 +136,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
             "Controllers5",
             "Text and layout9",
             "Components9",
-            "Write60",
+            "Write74",  # the lakes' and SharePoint's 14 (branch lakes-sharepoint)
         ]
     )
     expect(listed.locator(".starter-item")).to_have_count(0)

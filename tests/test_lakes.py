@@ -147,7 +147,7 @@ def test_the_five_kinds_are_connection_types_with_their_own_sign_ins(client: Tes
     # No password in any starter: a secret("...") names where it comes from.
     assert 'password = secret("password")' in sharepoint.LISTS
     fields = {f["name"] for f in types["sharepoint"]["fields"]}
-    assert {"tenant", "client id", "username", "site"} <= fields
+    assert {"tenant_id", "client_id", "username", "site"} <= fields
 
 
 # ===== each kind through the contract, by name in DuckDB SQL =====
@@ -382,15 +382,15 @@ def test_every_setting_maps_to_an_environment_variable_and_reads_back(client: Te
         client.post("/blades/inspect", json={"code": code, "template": "sharepoint"}, headers=AUTH)
     )
     fields = {s["name"]: s for s in inspected["settings"]}
-    assert {n: fields[n]["suggested_env"] for n in ("tenant", "client id", "username", "site")} == {
-        "tenant": "SHAREPOINT_TENANT_ID",
-        "client id": "SHAREPOINT_CLIENT_ID",
+    assert {n: fields[n]["suggested_env"] for n in ("tenant_id", "client_id", "username", "site")} == {
+        "tenant_id": "SHAREPOINT_TENANT_ID",
+        "client_id": "SHAREPOINT_CLIENT_ID",
         "username": "SHAREPOINT_USERNAME",
         "site": "SHAREPOINT_SITE_URL",
     }
     pairs = (
-        ("tenant", made_up.TENANT),
-        ("client id", made_up.CLIENT),
+        ("tenant_id", made_up.TENANT),
+        ("client_id", made_up.CLIENT),
         ("username", made_up.USERNAME),
         ("site", SITE),
     )
@@ -402,7 +402,7 @@ def test_every_setting_maps_to_an_environment_variable_and_reads_back(client: Te
     assert f'username = os.environ.get("SHAREPOINT_USERNAME", "{made_up.USERNAME}")' in mapped
     # Read back into the form: each field says its variable, its value this computer's default.
     back = {s["name"]: s for s in filled_in["settings"]}
-    assert (back["tenant"]["env"], back["tenant"]["value"]) == ("SHAREPOINT_TENANT_ID", made_up.TENANT)
+    assert (back["tenant_id"]["env"], back["tenant_id"]["value"]) == ("SHAREPOINT_TENANT_ID", made_up.TENANT)
     # The mappings as the export, Run settings and the Variables page read them.
     from swissarmybench.domain.blades import env_settings
 

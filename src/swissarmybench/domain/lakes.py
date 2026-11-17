@@ -122,8 +122,8 @@ ENV_PREFIX: dict[str, str] = {
     SHAREPOINT_DOCS: "SHAREPOINT",
 }
 _ENV_WORDS: dict[str, str] = {
-    "tenant": "TENANT_ID",
-    "client id": "CLIENT_ID",
+    "tenant_id": "TENANT_ID",
+    "client_id": "CLIENT_ID",
     "username": "USERNAME",
     "site": "SITE_URL",
     "workspace": "WORKSPACE",
