@@ -102,6 +102,7 @@ def test_the_library_in_the_page(browser: Browser, own_server: dict[str, Any]) -
     notice = page.locator(".toast", has_text="Your connections and blades now live in your library folder")
     expect(notice).to_be_visible(timeout=10000)
     expect(notice).to_contain_text("2 connections and blades")
+    expect(page.locator(".ag-cell", has_text="North").first).to_be_visible()
     shot(page, "library-moved-notice")
     assert (library / "vaults" / "team_vault.blade.py").is_file()
     assert (library / "connections" / "warehouse.blade.py").is_file()
