@@ -2399,3 +2399,9 @@ NOT checked:
   an ODBC source; a real Dataverse $batch (its multipart answer, alternate keys defined in a real
   environment, the 429 limits); MySQL itself
   (MariaDB stands in); a write in a notebook's own environment with the missing-package prompt.
+- **After merging the main line (f96b8f9)** the whole suite (Chromium): 3,633 passed, 44 skipped, 9 failed
+  and 1 error. Alone, four of those passed (Visualizations' pages, Show the math, a table cell's maker, the
+  Workbench's agent test: load). The other six fail the same on f96b8f9 itself (run from its own tree):
+  a script's HTML cell (+ Cell gone from scripts), the Power BI page, a deleted connection's tables, the
+  agent snapshot, the narrow window and the Application row's Zoom (zoom moved to the status bars). None
+  of them touch the Data Explorer.
