@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from swissarmybench.client.completion import complete
     from swissarmybench.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
     from swissarmybench.client.sql_cell import dax, sql
+    from swissarmybench.client.structures_client import show_structure, structure, structure_table
     from swissarmybench.client.visualizations_client import sandbox as sandbox  # the old name, one release
     from swissarmybench.client.visualizations_client import visualizations
     from swissarmybench.client.watcher import start as watch
@@ -53,7 +54,10 @@ __all__ = [
     "load",
     "push",
     "read",
+    "show_structure",
     "sql",
+    "structure",
+    "structure_table",
     "unwatch",
     "visualizations",
     "watch",
@@ -77,6 +81,10 @@ _LAZY: dict[str, tuple[str, str]] = {
     # The old name, one release (renamed.py): a DeprecationWarning, then the same call.
     "sandbox": ("swissarmybench.client.visualizations_client", "sandbox"),
     "complete": ("swissarmybench.client.completion", "complete"),
+    # Structures (JSON, YAML, XML, TOML): a saved one's value, its records as a table, a value shown.
+    "structure": ("swissarmybench.client.structures_client", "structure"),
+    "structure_table": ("swissarmybench.client.structures_client", "structure_table"),
+    "show_structure": ("swissarmybench.client.structures_client", "show_structure"),
     "DatasetTooLargeError": ("swissarmybench.client.push_client", "DatasetTooLargeError"),
     "ServerNotRunningError": ("swissarmybench.client.push_client", "ServerNotRunningError"),
     "watch": ("swissarmybench.client.watcher", "start"),

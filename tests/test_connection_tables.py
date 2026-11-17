@@ -137,9 +137,17 @@ def test_references_resolve_by_name_in_any_case_and_a_shared_one_names_its_datas
 
 
 def test_a_web_call_blade_is_a_table_only_with_return_as_table() -> None:
-    assert ct.web_call_table({"kind": "web_call", "return_as_table": True})
-    assert not ct.web_call_table({"kind": "web_call", "return_as_table": False})
-    assert not ct.web_call_table({"kind": "web_call"})
+    call = {"api": "Orders", "operation": "list_orders", "method": "GET", "path": "/orders"}
+    assert ct.web_call_table({"web_call": call | {"as_table": True}})
+    assert not ct.web_call_table({"web_call": call | {"as_table": False}})
+    assert not ct.web_call_table({"web_call": call})
+    assert not ct.web_call_table({"web_call": call | {"as_table": True, "mode": "write rows"}})
+    assert not ct.web_call_table({"kind": "other"})
+    # The API blade is the connection its tables are read through; a web call blade is one of its tables.
+    assert ct.is_api(["api"], "")
+    assert not ct.is_api(["api", "web call"], "")
+    assert ct.tables_kind("other", "python", tags=["api"]) == "api"
+    assert ct.tables_kind("other", "python", tags=["finance"]) == "python"
 
 
 # ===== on the server =====

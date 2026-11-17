@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import certificate_files, python_connections, snippets
+from swissarmybench.domain import certificate_files, python_connections, snippets, web_calls
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
@@ -378,6 +378,8 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
             "[read]  # Read a table: conn, schema, table, limit (None: every row) -> its rows",
             f"command = {_toml_string(str(read['command']), multiline=True)}",
         ]
+    if kind == "other" and isinstance(blade.get("web_call"), dict) and blade["web_call"]:
+        lines += web_calls.header_lines(blade["web_call"])  # an API's one endpoint, Return as table
     if kind == "other" and blade.get("variables"):
         lines += ["", "[variables]  # environment variable = where its value comes from (no secret's value)"]
         for row in blade["variables"]:
@@ -504,6 +506,7 @@ def read_blade(text: str) -> dict[str, Any]:
                     'The [variables] table reads NAME = { from = "vault", vault = "...", secret = "..." }.'
                 )
             blade["variables"] = [{"name": name, **source} for name, source in variables.items()]
+        blade |= {"web_call": header["web_call"]} if isinstance(header.get("web_call"), dict) else {}
         vault = header.get("vault", {} if header.get("vault_all") is True else None)
         if kind == "vault":
             if not isinstance(vault, dict) or not all(isinstance(v, str) for v in vault.values()):
@@ -1183,6 +1186,7 @@ class Blade:
     # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit, Components), kept on
     # a copy.
     family: str = ""
+    web_call: dict[str, Any] = field(default_factory=dict)  # a web call blade's (domain/web_calls.py)
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
     pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace
     created_at: float = 0.0
@@ -1245,6 +1249,7 @@ class Blade:
             "language": self.language,
             "cell_name": self.cell_name,
             "family": self.family,
+            "web_call": dict(self.web_call) or None,
             "path": self.path,
             "pack": self.pack,
             "source": self.source,
@@ -1421,6 +1426,8 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
                 except BladeCodeError as error:
                     raise BladeError(str(error)) from None
             blade.catalog_language, blade.catalog_command = language, command
+    if kind == "other" and data.get("web_call"):  # a WebCallError is a ValueError: said as one
+        blade.web_call = web_calls.check_web_call(data["web_call"])
     if kind == "other" and blade.template == python_connections.TEMPLATE:
         blade.row_limit = _row_limit(data)
         try:  # its Read a table box, and where each variable its three boxes read comes from

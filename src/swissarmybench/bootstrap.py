@@ -26,7 +26,7 @@ from swissarmybench import __version__
 from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
-from swissarmybench.adapters.apis import ApiFiles, SpecSource
+from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
@@ -52,6 +52,8 @@ from swissarmybench.adapters.state_files import (
     is_own_file,
 )
 from swissarmybench.adapters.streamlit_files import AppFiles
+from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
+from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
 from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
@@ -63,6 +65,7 @@ from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
+from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.autostart import Autostart
@@ -77,6 +80,7 @@ from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.api_explorer import Explorer as ApiExplorer
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
@@ -115,6 +119,7 @@ from swissarmybench.services.session_log import Heard, SessionLog
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.streamlit import StreamlitApps
+from swissarmybench.services.structures import Structures
 from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
@@ -152,6 +157,8 @@ class Services:
     connections: ConnectionService
     connection_usage: ConnectionUsage
     apis: Apis
+    structures: Structures
+    api_explorer: ApiExplorer
     catalog_loading: CatalogLoading
     connection_tables: ConnectionTablesService
     folders: Folders
@@ -238,6 +245,7 @@ def bootstrap(
     )
     blade_store = BladeStore(
         settings.blades_dir,
+        library=state_dir / "library",
         folders_file=state_dir / "blade_folders.json",
         pins_file=state_dir / "blade_pins.json",
         packs=pack_files.blade_dirs,
@@ -473,8 +481,16 @@ def bootstrap(
         environ=os.environ,
         now=time.time,
     )
-    # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
-    apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
+    # Add API: this computer's library (apis/<name>/): API_<name>.py, its API blade and web call blades.
+    apis = Apis(
+        ws,
+        ApiFiles(),
+        SpecSource(),
+        connections,
+        ApiLibrary(state_dir / "library" / "apis"),
+        blades,
+        now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+    )
     workbench_window = WorkbenchWindow(ws)
     dashboards = DashboardFiles(state_dir / "dashboards")
     cards = Cards(ws, dashboards, ThemeFiles(state_dir / "themes"))
@@ -506,6 +522,10 @@ def bootstrap(
         await catalog_loading.rescope()
         await variables.rescope()
         await live.broadcast({"type": "blades_changed"})
+        if structures_ready:
+            await structures_ready[0].project_changed(folder)  # the closed project's structures go with it
+
+    structures_ready: list[Structures] = []  # set once built (below): use_project is made before it
 
     def carry_connections(folder: str, names: list[str]) -> None:
         """A new project's open tables' connections, copied in from this computer's (and the vaults
@@ -546,6 +566,41 @@ def bootstrap(
         carry=carry_connections,
         autosave_seconds=settings.autosave_seconds,
     )
+    # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
+    structures = Structures(
+        ws,
+        StructureFiles(),
+        StructureCodecs(),
+        datasets,
+        rows_to_table,
+        project_folder=lambda: sab_projects.current.folder if sab_projects.current else None,
+        default_folder=documents.made_default_folder,
+        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        read_document=documents.read,
+    )
+    structures_ready.append(structures)
+    # The APIs page: the library's APIs explored; a call sent opens in Structures, its origin the call.
+    api_explorer = ApiExplorer(
+        ws,
+        apis,
+        ApiLibrary(state_dir / "library" / "apis"),
+        SpecSource(),
+        blades,
+        connections,
+        connection_usage,
+        structures,
+        approvals,
+        now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+        to_thread=asyncio.to_thread,
+        reader=table_reader,
+    )
+    structures.rerun = api_explorer.run_again
+    blades.web_call_saved.append(api_explorer.tables_changed)
+    structures.grid_steps = lambda table: (
+        describe_steps(grid.steps) if (grid := ws.grids.first_for(table)) is not None else []
+    )
+    sab_projects.manifest_extras.append(lambda: {"structures": {"open": structures.open_paths()}})
+    sab_projects.opened.append(structures.project_changed)
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
     # What a connection is: its tables, listed and read one way for every kind; DuckDB SQL names them.
     connection_tables = ConnectionTablesService(
@@ -708,7 +763,8 @@ def bootstrap(
             "blades": live.catalog_open(),
         },
         changes=lambda: live.changes,
-        # SEAM (trees-apis): apis=api_explorer.listing, structures=structures.listing once that branch merges.
+        apis=api_explorer.listing,
+        structures=structures.listing,
     )
     claude = Claude(
         ws,
@@ -748,6 +804,8 @@ def bootstrap(
         connections=connections,
         connection_usage=connection_usage,
         apis=apis,
+        structures=structures,
+        api_explorer=api_explorer,
         catalog_loading=catalog_loading,
         connection_tables=connection_tables,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),

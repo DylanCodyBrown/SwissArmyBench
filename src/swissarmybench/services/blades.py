@@ -18,6 +18,7 @@ import base64
 import binascii
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import replace
 from typing import Any, Protocol
 
 from swissarmybench.domain import blades as rules
@@ -120,6 +121,9 @@ class BladeService:
         self._packages = packages
         # Run a blade in a child process: "catalog", "test" or "analysis" (server/blade_runner.py).
         self._run_blade = run_blade
+        # A web call blade saved (its Return as table, its inputs): its API's tables are made again
+        # (services/api_explorer.py), by the API's name.
+        self.web_call_saved: list[Callable[[str], Awaitable[None]]] = []
         self._install_packages = install_packages
         # Swiss Army Bench's own Python (where Refresh runs), and the environment suggestions come from.
         self._python = python
@@ -159,6 +163,7 @@ class BladeService:
             "pinned": blade.name.casefold() in favourites,
             "source": blade.source,
             "family": blade.family,
+            "web_call": dict(blade.web_call) or None,
             "language": blade.language,
             "pack": blade.pack,
             "path": blade.path,
@@ -303,6 +308,9 @@ class BladeService:
             self._blades.set_secrets(blade.name, body["secrets"])
         self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
         await self.ws.live.broadcast({"type": "blades_changed"})
+        if blade.web_call.get("api"):
+            for told in self.web_call_saved:
+                await told(str(blade.web_call["api"]))
         return self.summary(blade)
 
     async def remove(self, name: str, who: str = "user") -> dict[str, Any]:
@@ -402,6 +410,14 @@ class BladeService:
         values = {k: v for k, v in (typed or {}).items() if v}
         more = {"place": dict(place), "limit": limit, "secrets": values}
         return await self._run_blade(blade, "read", self._typed_values(blade, data), more)
+
+    async def run_read(self, blade: Blade, command: str, table: str, body: Any) -> dict[str, Any]:
+        """A saved connection's Connect, then `command` in place of its Read a table (`table` given as
+        the table's name), in a child process as Refresh is: the APIs page's Try it (one operation
+        called through the API's own file, its secrets resolved as the connection resolves them)."""
+        typed = self._typed_values(blade, body)
+        tried = replace(blade, read_command=command)
+        return await self._run_blade(tried, "read", typed, {"place": {"table": table}, "limit": 1})
 
     async def rows(
         self, blade: Blade, sql: str | None, count: str | None, body: Any, dataset: str = ""

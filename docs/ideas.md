@@ -3745,6 +3745,109 @@ Open: entries about a grid (not a connection) on the Session page are not colour
 a removed connection's line stays in colours.toml (it returns if the name comes back).
 
 
+## Structures and the APIs page (the owner, 2026-11-17; built, branch trees-apis)
+
+The owner's words:
+- "when an API returns data or a payload or you need to author a Json, Yaml, Xml or other type of data
+  structure, we need a place to visualize them differently like a pretty place to render it that
+  functions like the grids, where you can transform and save json configurations as well as view returned
+  payloads from apis."
+- "no see you can have json, yaml, and xml that is not a part of an api, they could be used for gates,
+  mapping, and other various things within an application unrelated to APIS"
+- "I also feel like we need to move the Api feature to its own rail Icon ... so I can easily browse and
+  explore Apis that are set up and see thier input and output structures"
+- "Apis need thier own page so they can be imported managed, refreshed when the api changes and
+  searchable" (an explorer like Django REST Framework's browsable API: built as our own design)
+- "Apis, Connections they live OUTSIDE of the project, I dont wanna have to go hunt an api every project."
+- "APIS and web calls will be built by using blades"; "they are not really connections, UNLESS they return
+  a table"; "APIs are connections but they dont get the connection treatment here".
+- "so we need an option on web call blade to return as table. This is the gate for making it querable
+  from DuckDB"; "alright just let duckdb to the conversion then"; most of his APIs are "header and rows".
+- "We should be able from the ApI page to quickly open a screen, Author an API call using an apis payload,
+  then the results will show up in the structure page retaining their lineage"
+- "rearrange the rail to make since. In order of workflow."
+
+### Built
+- **Structures** (the name is the owner's; "Trees" was refused): JSON, YAML, XML, TOML as documents (tabs),
+  a tree and its text side by side, steps replayed on the original (Pick, Filter, Rename, Remove, Set, Add,
+  Sort, Flatten; undo, redo, the strip), Open as grid at any path, Save / Save as. The project's own
+  `structures/` folder goes into the .sab, and the structures open at Save open again with the project
+  (project.json `structures.open`). `sab.structure`, `sab.structure_table`, `sab.show_structure`; the
+  Variables pane's Open in Structures; references (the connection finder's, with Structures' own calls).
+- **APIs page**: cards (base address, sign-in type, operations, tables, calls, source and when it was
+  read), one search across every API and operation (words marked), the explorer (operations by tag with
+  method badges; description as markdown drawn as DOM, no HTML; inputs; body and outputs as schema trees
+  with made-up examples; Schemas, each with where it is used), Author a call (a screen of its own: inputs
+  prefilled, the body in a tree and its JSON, checked against the schema as it is typed), Send (the answer
+  in Structures with its status, time, headers), Save as web call, Refresh (the diff, then Apply), Check
+  for changes, Rename, Delete (the code that uses it first; the agent's waits for the user's Allow).
+- **APIs as blades in this computer's library**: Add API writes `~/.swissarmybench/library/apis/<name>/`:
+  `API_<name>.py` (the made client, its signing code kept), the **API blade** (`Orders`: the client, its
+  secrets' sources named, never a value), one **web call blade** per operation (`Orders.list_orders`: its
+  inputs and body are its settings; its code calls through `sab.blade("Orders")`), `openapi.json` (the
+  document as read; a form-made API's operations written as one) and `source.json` (where it was read
+  from, when, the switch). The blade store reads that folder like a blade folder, whatever project is
+  open; a .sab never carries an API.
+- **Return as table** (off by default) is the one gate to DuckDB SQL: an API's tables are exactly its web
+  calls with it on (`web_calls.table_calls`, the contract for the connection-sql work), read through the
+  API blade's own List the tables and Read a table boxes, made again whenever a web call is saved. DuckDB
+  converts: the pages read go to `response` (one row per page, its JSON in `page`); records are unnested
+  (`unnest(r, recursive := true)` flattens nested objects; a list inside a record stays a LIST); header and
+  rows are projected by position with the header's types (`DUCKDB_TYPES`) winning. The conversion is SQL in
+  the blade's header, editable. A required input with no value: the table says `(needs <name> (<where>))`.
+- **Lineage**: a structure's origin is its call (API, operation, the inputs and body sent: a sign-in input
+  hidden; when; status), then each step, then each grid made from it with the grid's own steps, drawn with
+  domain/lineage.py's Mermaid. Run again sends the same call and keeps the steps. A grid made from it has
+  origin `structure` (its table cell loads it with `sab.structure_table(...)` once the structure is saved).
+- **Write rows with this call** (the owner: "Most writes happen via api anyway"): on a POST, PUT, PATCH or
+  DELETE, an open table's (or a Structures list's) columns mapped onto the request's fields (matched by
+  name, case and `_`/`-` ignored; nested body fields; a constant instead; a required field unmapped named
+  and blocking), a dry run first (the first three requests exactly, the rows, the calls: nothing sent),
+  then one call per row or batched (the body an array), one at a time, 429s paced by Retry-After (the API
+  blade's retries). The results: one row per input row (its key columns, status, the answer's id or a
+  chosen field, the error, the time) as a structure and a grid; Retry the failed rows sends only those;
+  the lineage is the input table, the call, the results. Saved as a web call blade in mode "write rows"
+  (its mapping in the header's `[web_call.mapping]`); in a cell: settings, the table, `dry_run = True`, one
+  call (`api.write_rows`). The agent's `apis_write_rows` dry-runs by default; sending follows the guide's
+  rule (only after the user said to write, in their own words).
+- **The rail**, in the order of the work: Connections, Variables (where the data comes from), Grids, ERD
+  (getting and shaping it), APIs, Structures (web data), Blades (tools), Notebooks, Scripts, Apps
+  (building), Visualizations (presenting), Session (the log); Settings at the bottom. The Connections page
+  lost Add API and its API cards: a line links to the APIs page.
+
+### Decisions
+- One page code constant per name (`STRUCTURES`, `APIS`); commands, files and the client are named after
+  them, so a rename is one pass.
+- XML: ElementTree with a DOCTYPE or an entity declaration refused outright (no defusedxml here).
+  Attributes are `@name`, text beside children `#text`, a repeated child a list.
+- TOML is written here (standard library: tables, arrays of tables, inline values); a null or a list at the
+  top cannot be TOML, and Save as says so (save as JSON or YAML) rather than changing the data.
+- YAML through PyYAML only when this Python has it: the one missing-package answer otherwise.
+- The text view is the steps' result, read-only while there are steps (edits there would have no place
+  in the steps); edits in the tree are steps. Text edits with no steps replace the original.
+- Check for changes is a request the user configured to their own API (an address they gave), on the
+  page's opening or Refresh only: not the app's update check, and never in the background.
+- Older API connections (API_<name>.py beside a project, before the library) keep working and are listed
+  on the APIs page as older; **Make into blades** (on the user's click, or `apis_make_into_blades`) reads
+  the document again from the address it was made from or an openapi.json beside it (else the user picks
+  the file), makes the library's API blade and web calls under the same connection name (its variables'
+  sources kept), and leaves the old file where it is.
+- The API blade still loads the made client (`API_<name>.py`, now in the API's library folder beside its
+  blades: the signing code reused as the owner said) rather than holding it inline; the explorer reads the
+  client's mark there. Inlining it into the API blade's own code is open.
+- Header-and-rows with no types in the header come out as text (DuckDB's own detection is not run on a
+  position projection); the header's types, when given, are cast with TRY_CAST.
+- **Unnest this column** (built after the merge): a LIST or STRUCT column's right-click in its grid, and
+  `column_unnest`, adds a SQL step the user can read and change (a list: a row per item, an empty or blank
+  list kept as a blank row; a struct: its fields as `<column>.<field>`, never clashing with a column).
+- The conversion is shown and edited: "The DuckDB query" on an operation that is a table (Save the query,
+  Make it again), in Author a call while Return as table is on, and in Return as table…'s dialog.
+- The lineage runs on to the notebook and script cells that read the structure by name (sab.structure;
+  sab.structure_table after its last grid).
+- After the merge with connection-sql: the API blade stays in `/connections` marked `tables_kind: "api"` (so
+  DuckDB SQL names its tables); the Connections page and the Grids landing leave those out, and context.md
+  lists an API in its own APIs section, not under Connections.
+
 ## A connection's tables in DuckDB SQL (the owner, 2026-11-17; built, branch connection-sql)
 
 The owner's words, after his agent imported a Power BI dataset's relationships (14 model_* tables) from

@@ -183,6 +183,17 @@ def routes(
         except Exception as error:
             return error_response(error)
 
+    async def unnest(request: Request) -> Response:
+        """Unnest this column: a LIST or STRUCT column opened up by a SQL step."""
+        try:
+            grid, info = grids.find(request.path_params["grid_id"])
+            body = await read_json(request)
+            return json_response(await grids.unnest(grid, info, body, actor(request)))
+        except StepError as error:
+            return Response(str(error), status_code=400)
+        except Exception as error:
+            return error_response(error)
+
     # ===== SQL box (plan sections 6 and 10) =====
 
     async def run_sql(request: Request) -> Response:
@@ -283,6 +294,7 @@ def routes(
         Route("/grids/{grid_id}/steps", put_steps, methods=["POST"]),
         Route("/grids/{grid_id}/step-ops", step_op, methods=["POST"]),
         Route("/grids/{grid_id}/header-sort", header_sort, methods=["POST"]),
+        Route("/grids/{grid_id}/unnest", unnest, methods=["POST"]),
         Route("/grids/{grid_id}/sql", run_sql, methods=["POST"]),
         Route("/grids/{grid_id}/cancel", cancel, methods=["POST"]),
         Route("/grids/{grid_id}/selection-stats", selection_stats, methods=["POST"]),

@@ -72,8 +72,14 @@ class BladeStore:
         pins_file: Path | None = None,
         packs: Callable[[], list[tuple[Path, str]]] | None = None,
         starters: Path | None = None,
+        library: Path | None = None,
     ) -> None:
         self.folder = folder
+        # This computer's library (~/.swissarmybench/library): an API's blades (its API blade and its web
+        # call blades) are files in its apis/<name>/ folder, read like a blade folder's and written back
+        # into their own files, whether or not a project is open (the owner, 2026-11-17: "Apis,
+        # Connections they live OUTSIDE of the project").
+        self.library = library
         self.folders_file = folders_file
         # Installed packs' blades folders, with each pack's label: read-only blades from a marketplace.
         self._packs = packs or (lambda: [])
@@ -137,6 +143,7 @@ class BladeStore:
             language=str(data.get("language") or ""),
             cell_name=str(data.get("cell_name") or ""),
             family=str(data.get("family") or ""),
+            web_call=dict(data.get("web_call") or {}) if isinstance(data.get("web_call"), dict) else {},
             created_at=float(data.get("created_at", 0)),
             updated_at=float(data.get("updated_at", 0)),
         )
@@ -239,8 +246,10 @@ class BladeStore:
         found: list[Blade] = []
         problems: list[dict[str, str]] = []
         skip = {"__pycache__", "node_modules", "site-packages", "venv", "env", "build", "dist"}
-        for entry in self.folders():
-            root = Path(entry["path"])
+        roots = [Path(entry["path"]) for entry in self.folders()]
+        if self.library is not None:
+            roots.append(self.library)
+        for root in roots:
             if not root.is_dir():
                 continue
             looked = 0
@@ -391,6 +400,8 @@ class BladeStore:
                     raise BladeError(f"A blade named {taken.name!r} already exists. Pick another name.")
             if previous is None and isinstance(data, dict) and data.get("folder"):
                 blade.path = str(self._new_file(str(data["folder"]), blade.name))
+            if previous is None and isinstance(data, dict) and data.get("library_folder"):
+                blade.path = str(self._library_file(str(data["library_folder"]), blade.name))
             self._write(blade)
             if renamed and previous is not None:
                 for secret in previous.secrets:
@@ -412,9 +423,33 @@ class BladeStore:
             raise BladeError(f"{path} already exists. Pick another name, or edit that blade.")
         return path
 
+    def _library_file(self, folder: str, name: str) -> Path:
+        """A new blade's file in the library (apis/Orders): inside it, never over another file."""
+        if self.library is None:
+            raise BladeError("This app has no library folder.")
+        target = (self.library / folder).resolve()
+        if not target.is_relative_to(self.library.resolve()):
+            raise BladeError("A library blade's folder is inside the library.")
+        target.mkdir(parents=True, exist_ok=True)
+        path = target / file_name(name)
+        if path.exists():
+            raise BladeError(f"{path.name} is in {folder} already: pick another name.")
+        return path
+
+    def in_library(self, blade: Blade) -> bool:
+        if self.library is None or not blade.path:
+            return False
+        return Path(blade.path).resolve().is_relative_to(self.library.resolve())
+
     def remove(self, name: str) -> None:
         with self._lock:
             blade = self.get(name)
+            if self.in_library(blade):
+                for secret in blade.secrets:
+                    self._delete_secret(blade.name, secret)
+                Path(blade.path or "").unlink(missing_ok=True)
+                self._seen.pop(str(blade.path), None)
+                return
             if blade.pack == rules.STARTERS:
                 raise BladeError(f"{blade.name} is a starter: it comes with the app and stays.")
             if blade.pack:

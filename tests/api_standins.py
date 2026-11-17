@@ -100,6 +100,9 @@ class Service:
         self.codes: dict[str, str] = {}  # an authorization code -> its PKCE challenge
         self.device_polls = 0
         self.flaky = 0
+        self.throttle = 0  # 429s to answer a POST /v1/orders first
+        self.posted: list[float] = []  # when each POST /v1/orders came
+        self.counter_orders = 0
         self.seen: list[dict[str, Any]] = []  # each API request: path and headers (the tests look)
         self.logins = 0
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
@@ -514,7 +517,21 @@ class Service:
                     more = {"nextToken": f"p{start // 10 + 1}"} if start + 10 < len(rows) else {}
                     return self._answer(200, {"items": page, **more})
                 if path == "/v1/orders" and method == "POST":
-                    return self._answer(201, {"order_id": 1000, **json.loads(body or b"{}")})
+                    # Write rows (2026-11-17): a list is a batch; a negative amount is refused; `throttle`
+                    # answers 429 (Retry-After: 1) that many times first.
+                    service.posted.append(time.monotonic())
+                    if service.throttle > 0:
+                        service.throttle -= 1
+                        return self._answer(429, {"error": "slow down"}, {"Retry-After": "1"})
+                    sent = json.loads(body or b"{}")
+                    if isinstance(sent, list):
+                        made = [{"order_id": 1000 + n, **one} for n, one in enumerate(sent)]
+                        return self._answer(201, made)
+                    if isinstance(sent.get("amount"), int | float) and sent["amount"] < 0:
+                        return self._answer(422, {"error": "amount must be positive"})
+                    made_id = 1000 + service.counter_orders  # 1000, then 1001...
+                    service.counter_orders += 1
+                    return self._answer(201, {"order_id": made_id, **sent})
                 if path.startswith("/v1/orders/"):
                     found = [o for o in ORDERS if str(o["order_id"]) == path.rsplit("/", 1)[1]]
                     return (

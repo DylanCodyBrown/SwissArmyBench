@@ -174,6 +174,10 @@ const ICONS: Record<string, string> = {
   sandbox: '<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/>',
   diagram: '<rect x="2.5" y="3" width="9" height="7.5" rx="1.5"/><rect x="12.5" y="13.5" width="9" height="7.5" rx="1.5"/><path d="M2.5 6.2h9M12.5 16.7h9M11.5 8.3h2.5a2 2 0 012 2v3.2"/>',
   blade: '<path d="M2.5 14.5h12a3 3 0 010 6h-12a3 3 0 010-6z"/><path d="M11 14.5L20.5 4c1.2 4.2-.6 8.3-4.4 10.5"/><circle cx="5.5" cy="17.5" r=".6"/>',
+  // The APIs page's (rail.ts): a request and its answer, two arrows between two ends.
+  apis: '<path d="M4 8h12l-3-3M20 16H8l3 3"/><circle cx="19" cy="8" r="1.5"/><circle cx="5" cy="16" r="1.5"/>',
+  // The Structures page's: a small branching tree, a root and three leaves.
+  structures: '<circle cx="6" cy="5" r="2"/><path d="M6 7v12M6 12h5M6 19h5"/><rect x="12" y="9.5" width="8" height="5" rx="1.2"/><rect x="12" y="16.5" width="8" height="5" rx="1.2"/><path d="M8 5h4"/><rect x="12" y="2.5" width="8" height="5" rx="1.2"/>',
   plug: '<path d="M9 3v4.5M15 3v4.5M6 7.5h12v3.5a6 6 0 01-12 0zM12 17v4"/>',
   // The Session page (2026-11-16): a log, a dot for each thing made.
   // The Variables page's (rail.ts): braces round an x.

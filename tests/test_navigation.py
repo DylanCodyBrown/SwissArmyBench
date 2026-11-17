@@ -56,16 +56,18 @@ def test_each_window_names_the_places_it_has() -> None:
 
 def test_every_rail_area_is_a_place_from_every_window() -> None:
     """The rail (2026-11-16): each area, in the rail's order, from each window, as a rail click goes."""
-    assert rules.AREAS == (
+    assert rules.AREAS == (  # in the order of the work (the owner, 2026-11-17)
+        "connections",
+        "variables",
         "grids",
-        "visualizations",
         "erd",
+        "apis",
+        "structures",
+        "blades",
         "notebooks",
         "scripts",
         "apps",
-        "blades",
-        "connections",
-        "variables",
+        "visualizations",
         "session",
         "settings",
     )
@@ -91,9 +93,13 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     ("window", "to", "words"),
     [
         ("tray", "home", "window is one of home, catalog, workbench"),
-        ("home", "", "to is where to go: home, grids, visualizations, erd"),
+        ("home", "", "to is where to go: home, connections, variables, grids, erd"),
         ("home", None, "to is where to go"),
-        ("home", "kitchen", "The home window cannot go to 'kitchen'. It can go to: home, grids"),
+        (
+            "home",
+            "kitchen",
+            "The home window cannot go to 'kitchen'. It can go to: home, connections, variables, grids",
+        ),
         ("workbench", "query", "The workbench window cannot go to 'query'"),
         ("catalog", "grid:g1", "The catalog window cannot go to 'grid:g1'"),
         ("home", "grid:", "cannot go to 'grid:'"),

@@ -43,26 +43,36 @@ import { type Kind, loadKindColours } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
 import { onUnseen } from "./sessionPage";
+import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
+import { STRUCTURES } from "./structuresPage"; // the Structures page's layer, the same
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { openMenu } from "./workbenchMenu";
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "settings";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "settings";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
 const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
+  // In the order of the work (the owner, 2026-11-17: "rearrange the rail to make since. In order of
+  // workflow"): where the data comes from, getting and shaping it, web data, tools, building, presenting,
+  // then the log.
+  { area: "connections", name: "Connections", icon: "plug" },
+  { area: "variables", name: "Variables", icon: "variables" }, // this computer's variables (variablesPage.ts)
   { area: "grids", name: "Grids", icon: "grids" },
-  { area: "visualizations", name: "Visualizations", icon: "sandbox" },
   { area: "erd", name: "ERD", icon: "diagram" },
+  { area: "apis", name: APIS, icon: "apis" }, // the library's APIs, their explorer (apisPage.ts)
+  { area: "structures", name: STRUCTURES, icon: "structures" }, // nested data as documents (structuresPage.ts)
+  { area: "blades", name: "Blades", icon: "blade" },
   { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   { area: "apps", name: "Apps", icon: "page", kind: "app" },
-  { area: "blades", name: "Blades", icon: "blade" },
-  { area: "connections", name: "Connections", icon: "plug" },
-  { area: "variables", name: "Variables", icon: "variables" }, // this computer's variables (variablesPage.ts)
+  { area: "visualizations", name: "Visualizations", icon: "sandbox" },
   { area: "session", name: "Session", icon: "session" }, // what the agent made this session (sessionPage.ts)
   { area: "settings", name: "Settings", icon: "cog" },
 ];
+/** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
+const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures"];
+const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
 const areaOfKind = (kind: string | null): Area | null => AREAS.find((a) => a.kind === kind)?.area ?? null;
@@ -75,7 +85,7 @@ let items: HTMLButtonElement[] = [];
 /** The area the address names on this page (null: none, a Workbench with no document of a kind). */
 function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
-  if (open === "settings" || open === "connections" || open === "session" || open === "variables") return open;
+  if (isLayer(open)) return open;
   if (kind === "catalog") return "blades";
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
   const view = kind === "home" ? url.searchParams.get("view") : null;
@@ -88,7 +98,7 @@ function currentArea(url: URL): Area | null {
 /** A home window opened for `area`: the area in its address. */
 function arrivalUrl(area: Area): string {
   if (area === "visualizations" || area === "erd") return `${HOME_URL}?view=${area}`;
-  if (area === "settings" || area === "connections" || area === "session" || area === "variables") return `${HOME_URL}?open=${area}`;
+  if (isLayer(area)) return `${HOME_URL}?open=${area}`;
   return HOME_URL;
 }
 
@@ -133,7 +143,7 @@ export function goArea(area: Area, newWindow = false): void {
     visit(withParams({ ...LAYER_OFF, view: area === "grids" ? null : area }, HOME_URL));
     return;
   }
-  if ((area === "settings" || area === "connections" || area === "session" || area === "variables") && hasLayer(area)) {
+  if (isLayer(area) && hasLayer(area)) {
     openLayer(area);
     return;
   }

@@ -174,6 +174,7 @@ NOT_COMMANDS = {
     "work unseen); 403 for the agent. app_session reads it",
     "/connections/rewrite": "the Workbench window's helper for its open documents: connections_repoint does"
     " the whole",
+    "/structures/saved": "sab.structure's read of a saved file (the client's): structures_show reads one",
     "/connections/{}/used": "a Workbench kernel's count of a call (plumbing): connections_usage reads it",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
@@ -612,10 +613,13 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # every table of a connection moved, and its cells listed or pointed at another (1,500 characters).
     # The Variables page (2026-11-17) added four: list, set (add or change), rename, remove.
     # Connection colours (2026-11-17) added one, connections_colours: read them, set one.
+    # Structures and APIs (2026-11-17) added 18: Structures' open, show, steps, edit, Open as grid, save,
+    # lineage, close (8, and a variable sent there through workbench_to_grid); the APIs page's list,
+    # describe, search, call, save a web call (Return as table), refresh and apply, rename, delete (9).
     # Connections' tables in DuckDB SQL (2026-11-17) added four: a connection's tree, Open all of a
     # dataset, the session's reads and their Refresh (1,000 characters).
     # context.md (2026-11-17) added one, app_context (app_claude's context option went to it).
-    assert size < 69_000, f"the tool list is {size} characters"
+    assert size < 74_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}
