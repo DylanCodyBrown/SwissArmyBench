@@ -17,7 +17,8 @@ from starlette.testclient import TestClient
 
 from swissarmybench.client import blades_client
 from swissarmybench.domain import blade_tables
-from swissarmybench.domain.blades import read_blade, with_header
+from swissarmybench.domain.blade_tables import with_header
+from swissarmybench.domain.blades import read_blade
 from swissarmybench.server.blade_templates import TEMPLATES
 from tests.conftest import AGENT, AUTH, make_client
 from tests.fake_keyring import memory_keyring

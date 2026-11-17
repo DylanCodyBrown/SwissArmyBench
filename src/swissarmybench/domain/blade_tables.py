@@ -22,7 +22,15 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from swissarmybench.domain.blades import TABLE_NAME_RULE, Template, check_table_name
+from swissarmybench.domain.blades import (
+    HEADER_TYPE,
+    TABLE_NAME_RULE,
+    PortableError,
+    Template,
+    check_table_name,
+    header_block,
+    header_span,
+)
 from swissarmybench.domain.blades import BladeError as _BladeError
 from swissarmybench.domain.connections import connection_kind
 
@@ -78,6 +86,21 @@ def check_name(
     if key in {t.casefold() for t in open_tables}:
         return NameCheck(name, False, f"{name} is already a table")
     return NameCheck(name, True, AVAILABLE)
+
+
+def with_header(text: str, blade: Mapping[str, object]) -> str:
+    """`text` (a blade's file) with its header written again from `blade` (its JSON): the lines before the
+    header and every byte after it (the code, its line ends included) as they were. A blade's code is edited
+    in its file, never by the app (the owner, 2026-11-17)."""
+    lines = text.splitlines(keepends=True)
+    span = header_span([line.rstrip("\r\n") for line in lines])
+    if span is None:
+        raise PortableError(f"This file has no {HEADER_TYPE} header to change.")
+    start, end = span
+    newline = "\r\n" if lines[start].endswith("\r\n") else "\n"
+    return (
+        "".join(lines[:start]) + newline.join(header_block(dict(blade))) + newline + "".join(lines[end + 1 :])
+    )
 
 
 def listing_for(

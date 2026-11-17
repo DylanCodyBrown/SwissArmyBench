@@ -55,6 +55,8 @@ class Store(Protocol):
 
     def text_of(self, blade: Blade) -> str: ...
 
+    def listed(self, blade: Blade) -> Blade: ...
+
     def copy_secrets(self, source: str, target: str) -> None: ...
 
 
@@ -158,7 +160,7 @@ class Library:
                 self._store.adopt(blade)
                 added.append(blade.name)
                 taken.append(blade.name)
-            elif own.path or own.pack or self._store.text_of(own) == self._store.text_of(blade):
+            elif own.path or own.pack or self._store.text_of(own) == self._store.text_of(self._store.listed(blade)):
                 skipped.append(blade.name)  # the same one (or a folder's or a pack's of that name)
             else:
                 old, new = blade.name, rules.migrated_name(blade.name, project, taken)

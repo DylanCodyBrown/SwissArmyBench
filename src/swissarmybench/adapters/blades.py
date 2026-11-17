@@ -35,6 +35,7 @@ from typing import Any
 
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import library
+from swissarmybench.domain.blade_tables import with_header
 from swissarmybench.domain.blades import (
     Blade,
     BladeError,
@@ -42,7 +43,6 @@ from swissarmybench.domain.blades import (
     file_name,
     is_blade,
     read_blade,
-    with_header,
     write_blade,
 )
 from swissarmybench.renamed import env
@@ -362,7 +362,7 @@ class BladeStore:
         """A saved blade's file in the library (None: not a saved one)."""
         return self._saved_paths().get(name.casefold())
 
-    def _listed(self, blade: Blade) -> Blade:
+    def listed(self, blade: Blade) -> Blade:
         """The blade, a connection with no listing query given its starter's (nothing is written)."""
         if blade.has_catalog or self._listing is None:
             return blade
@@ -377,16 +377,16 @@ class BladeStore:
         by_name: dict[str, Blade] = {}
         for blade in [*self._saved(), *self._scan()]:
             by_name.setdefault(blade.name.casefold(), blade)
-        return sorted((self._listed(b) for b in by_name.values()), key=lambda b: b.name.casefold())
+        return sorted((self.listed(b) for b in by_name.values()), key=lambda b: b.name.casefold())
 
     def get(self, name: str) -> Blade:
         path = self._saved_paths().get(name.casefold())
         blade = self._cached(path) if path is not None else None
         if blade is not None:
-            return self._listed(blade)
+            return self.listed(blade)
         for found in [*self._scan(), *self.starters()]:
             if found.name.casefold() == name.casefold():
-                return self._listed(found)
+                return self.listed(found)
         raise KeyError(name)
 
     def file_of(self, name: str) -> Path | None:

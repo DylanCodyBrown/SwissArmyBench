@@ -205,9 +205,11 @@ src/swissarmybench/
     powerbi.py           a Power BI workspace: a dataset's name with its connection (Finance/Sales model),
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
+    blade_templates.py   Template: a starter connection's or blade's code and listing query (re-exported by blades.py)
     blade_tables.py      a table blade's own table name (names_table; the live check's answers: available, a table,
                          a connection, another blade's table, not a valid name), a connection's listing query from
-                         its starter (listing_for), New blade's choices
+                         its starter (listing_for), New blade's choices, a file's header rewritten (with_header:
+                         the code's bytes untouched)
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,

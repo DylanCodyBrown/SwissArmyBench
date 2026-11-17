@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
+from swissarmybench.domain.blade_templates import Template as Template
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
@@ -392,14 +393,26 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
     return lines
 
 
+def header_block(blade: dict[str, Any]) -> list[str]:
+    """The blade's header as its file's lines, from its opening line to its closing one."""
+    lines = "\n".join(_header_lines(blade)).split("\n")
+    return ["# /// " + HEADER_TYPE, *("# " + line if line else "#" for line in lines), _CLOSE]
+
+
+def header_span(lines: list[str]) -> tuple[int, int] | None:
+    """Where a file's header opens and closes (its lines without their line ends), or None."""
+    start = _header_start(lines)
+    end = (
+        None if start is None else next((i for i in range(start + 1, len(lines)) if lines[i] == _CLOSE), None)
+    )
+    return None if start is None or end is None else (start, end)
+
+
 def write_blade(blade: dict[str, Any]) -> str:
     """The blade as its portable file. `blade` is a saved blade's JSON (its `to_json()`)."""
     if blade.get("secrets") and isinstance(blade["secrets"], dict):
         raise PortableError("A portable blade never holds secret values, only their names.")
-    header = ["# /// " + HEADER_TYPE]
-    for line in "\n".join(_header_lines(blade)).split("\n"):
-        header.append("# " + line if line else "#")
-    header.append(_CLOSE)
+    header = header_block(blade)
     code = "" if blade.get("kind") == "secret" else str(blade.get("code", ""))
     if blade.get("kind") == "snippet":
         code = snippets.file_body(code)
@@ -532,25 +545,7 @@ def read_blade(text: str) -> dict[str, Any]:
     return blade
 
 
-def with_header(text: str, blade: dict[str, Any]) -> str:
-    """`text` (a blade's file) with its header written again from `blade` (its JSON): the lines before the
-    header and every byte after it (the code, its line ends included) as they were. A blade's code is edited
-    in its file, never by the app (the owner, 2026-11-17)."""
-    lines = text.splitlines(keepends=True)
-    bare = [line.rstrip("\r\n") for line in lines]
-    start = _header_start(bare)
-    end = None if start is None else next((i for i in range(start + 1, len(bare)) if bare[i] == _CLOSE), None)
-    if start is None or end is None:
-        raise PortableError(f"This file has no {HEADER_TYPE} header to change.")
-    newline = "\r\n" if lines[start].endswith("\r\n") else "\n"
-    header = ["# /// " + HEADER_TYPE]
-    for line in "\n".join(_header_lines(blade)).split("\n"):
-        header.append("# " + line if line else "#")
-    header.append(_CLOSE)
-    return "".join(lines[:start]) + newline.join(header) + newline + "".join(lines[end + 1 :])
-
-
-# A blade's table name: a dataset's name (domain/datasets.py NAME_PATTERN), so it opens as a grid as it is.
+# A blade's table name: a dataset's name (domain/datasets.py), so it opens as a grid as it is.
 _TABLE_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 TABLE_NAME_RULE: str = "use 1 to 64 letters, digits, '_' or '-'"
 
@@ -1223,9 +1218,7 @@ class Blade:
     # a copy.
     family: str = ""
     web_call: dict[str, Any] = field(default_factory=dict)  # a web call blade's (domain/web_calls.py)
-    # The name of the table its result is (`table = "..."` in its header; domain/blade_tables.py): "" for
-    # the name its code makes.
-    table: str = ""
+    table: str = ""  # its result's table name (domain/blade_tables.py); "": the name its code makes
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
     pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace
     created_at: float = 0.0
@@ -1493,50 +1486,3 @@ def _row_limit(data: dict[str, Any]) -> int | None:
     if int(limit) != EVERY_ROW and not 1 <= int(limit) <= 50_000_000:
         raise BladeError("Rows to open is between 1 and 50,000,000, or 0 for every row.")
     return int(limit)
-
-
-# ===== a starter =====
-# A starting point the user edits on the save screen (the starters themselves: server/blade_templates.py).
-
-
-@dataclass(frozen=True)
-class Template:
-    id: str
-    label: str
-    group: str  # "Databases", "Files", "Vaults", "Other"
-    kind: str  # "sql", "other", "vault" or "analysis"
-    code: str
-    variable: str
-    dialect: str = "other"
-    catalog_language: str | None = None  # "sql" or "python"
-    catalog_command: str | None = None
-    vault_mapping: tuple[tuple[str, str], ...] = ()  # (environment variable, secret name) examples
-    note: str = ""
-    # Ways to sign in, each its own code (the form's Sign in): (label, a text only that code holds, code).
-    # The first is `code`.
-    sign_ins: tuple[tuple[str, str, str], ...] = ()
-    # Where the form first offers its passwords from: "vault" (a key vault), else saved on this computer.
-    secrets_from: str = ""
-    # A connection from the user's own Python: its Read a table box.
-    read_command: str | None = None
-
-    def to_json(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "group": self.group,
-            "kind": self.kind,
-            "dialect": self.dialect,
-            "code": self.code,
-            "variable": self.variable,
-            "catalog": (
-                {"language": self.catalog_language, "command": self.catalog_command}
-                if self.catalog_language and self.catalog_command
-                else None
-            ),
-            "vault_mapping": [{"env": e, "secret": s} for e, s in self.vault_mapping],
-            "note": self.note,
-            "sign_ins": [{"label": label, "mark": mark, "code": code} for label, mark, code in self.sign_ins],
-            "secrets_from": self.secrets_from,
-            "read": {"command": self.read_command} if self.read_command else None,
-        }
