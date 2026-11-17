@@ -322,3 +322,238 @@ def rewrite(text: str, names: Iterable[str], targets: Mapping[tuple[str, ...], s
 
 def target_name(number: int) -> str:
     return f"{PREFIX}{number}"
+
+
+# ===== work sent to the source (2026-11-17: a query never runs on a cut table) =====
+#
+# A connection's table named in a query is read whole, every row the query needs: never the connection's
+# Rows to open (that limit is for opening a grid). What can be sent to the source is: the columns the
+# query uses, and the WHERE conditions that touch only that table (a plain comparison of a column with
+# a value), in the source's own SQL; DuckDB applies them again, so a source that compares text without
+# case only reads more. A LIMIT goes too, only when nothing else in the query needs more rows.
+
+# The dialects a filter is written in (sqlglot's names); any other is read without one.
+_FILTER_DIALECTS: dict[str, str] = {
+    "sqlserver": "tsql",
+    "dataverse": "tsql",
+    "postgres": "postgres",
+    "mysql": "mysql",
+    "sqlite": "sqlite",
+    "duckdb": "duckdb",
+    "snowflake": "snowflake",
+    "oracle": "oracle",
+    "trino": "trino",
+}
+_COMPARE = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE)
+_DATES = {"DATE", "TIMESTAMP", "DATETIME"}
+
+
+@dataclass(frozen=True)
+class Pushed:
+    """What a read sends to its source: the columns (none: every one), a WHERE in the source's SQL, the
+    same as DuckDB wrote it (for the answer), and a LIMIT (None: every row)."""
+
+    columns: tuple[str, ...] = ()
+    where: str = ""
+    said: str = ""
+    limit: int | None = None
+
+    def key(self) -> str:
+        return f"{','.join(self.columns)}|{self.where}|{self.limit}"
+
+    def to_json(self) -> dict[str, object]:
+        return {"columns": list(self.columns), "filters": self.said, "limit": self.limit}
+
+
+def _occurrences(root: Any, ref: Reference, names: Mapping[str, str]) -> list[exp.Table]:
+    found = []
+    for table in root.find_all(exp.Table):
+        named = _named(table, names)
+        if named is not None and named.key == ref.key:
+            found.append(table)
+    return found
+
+
+def _alias(table: exp.Table, ref: Reference) -> str:
+    return str(table.alias or ref.parts[-1]).casefold()
+
+
+def _value(node: Any) -> str | None:
+    """A plain value's kind: "text", "number", "date", or None (not a plain value)."""
+    if isinstance(node, exp.Literal):
+        return "text" if node.is_string else "number"
+    if isinstance(node, exp.Neg) and isinstance(node.this, exp.Literal) and not node.this.is_string:
+        return "number"
+    if (
+        isinstance(node, exp.Cast)
+        and isinstance(node.this, exp.Literal)
+        and node.this.is_string
+        and node.to.this.name.upper() in _DATES
+    ):
+        return "date"
+    return None
+
+
+def _plain_condition(node: Any) -> bool:
+    """A comparison of one column with plain values: col = 1, col IN ('a', 'b'), col BETWEEN 1 AND 3,
+    col IS NULL. Text only with = and IN (a source that compares text without case, or orders it
+    another way, would leave rows out for <, > or <>)."""
+    if isinstance(node, exp.Paren):
+        return _plain_condition(node.this)
+    if isinstance(node, exp.Is):
+        return isinstance(node.this, exp.Column) and isinstance(node.expression, exp.Null)
+    if isinstance(node, exp.Not) and isinstance(node.this, exp.Is):
+        return _plain_condition(node.this)
+    if isinstance(node, exp.In):
+        kinds = {_value(v) for v in node.expressions}
+        return (
+            isinstance(node.this, exp.Column)
+            and bool(node.expressions)
+            and None not in kinds
+            and not node.args.get("query")
+        )
+    if isinstance(node, exp.Between):
+        kinds = {_value(node.args.get("low")), _value(node.args.get("high"))}
+        return isinstance(node.this, exp.Column) and None not in kinds and "text" not in kinds
+    if isinstance(node, _COMPARE):
+        left, right = node.this, node.expression
+        if isinstance(right, exp.Column) and not isinstance(left, exp.Column):
+            left, right = right, left
+        kind = _value(right)
+        if not isinstance(left, exp.Column) or kind is None:
+            return False
+        return kind != "text" or isinstance(node, exp.EQ)
+    return False
+
+
+def _conditions(root: exp.Select) -> list[Any]:
+    where = root.args.get("where")
+    if where is None:
+        return []
+    if isinstance(where.this, exp.And):
+        return list(where.this.flatten())
+    return [where.this]
+
+
+def pushdown(text: str, names: Iterable[str], ref: Reference, known: Sequence[str], dialect: str) -> Pushed:
+    """What a read of `ref` can send to its source, for this query (brackets already quoted): `known`,
+    the table's columns as its catalog spells them (none: every column is read); `dialect`, the source's
+    (catalogs.normalize_dialect's word; DAX and others: the columns at most)."""
+    by_name = {n.casefold(): n for n in names}
+    root = _parse(text)
+    found = _occurrences(root, ref, by_name)
+    if not found or not isinstance(root, exp.Select):
+        return Pushed()
+    tables = list(root.find_all(exp.Table))
+    single = len(tables) == 1 and not root.args.get("joins") and not root.args.get("with_")
+    aliases = {_alias(t, ref) for t in found}
+    spelled = {c.casefold(): c for c in known}
+    # The columns: every one the query names for this table (unqualified ones too, when they are its).
+    wanted: list[str] = []
+    every = not spelled
+    for column in root.find_all(exp.Column):
+        qualifier = column.table.casefold()
+        if isinstance(column.this, exp.Star):
+            every = every or qualifier in aliases
+            continue
+        if qualifier and qualifier not in aliases:
+            continue
+        if column.name.casefold() not in spelled:
+            # A name the catalog does not know: its own, or a column alias. Read every column when it
+            # could be this table's.
+            every = every or bool(qualifier) or single
+            continue
+        wanted.append(spelled[column.name.casefold()])
+    for join in root.args.get("joins") or []:
+        # USING (region) names its columns as words, not columns; NATURAL names none: every column.
+        if str(join.args.get("method") or "").upper() == "NATURAL" or "NATURAL" in join.sql().upper()[:20]:
+            every = True
+        for word in join.args.get("using") or []:
+            name = getattr(word, "name", "") or str(word)
+            if name.casefold() in spelled:
+                wanted.append(spelled[name.casefold()])
+    # Read in a subquery or a CTE (where its columns could be named any way): every column.
+    direct = {id(j.this) for j in root.args.get("joins") or []}
+    source = root.args.get("from_") or root.args.get("from")
+    if source is not None:
+        direct.add(id(source.this))
+    every = every or any(id(t) not in direct for t in found)
+    every = every or any(isinstance(e, exp.Star) for q in root.find_all(exp.Select) for e in q.expressions)
+    if every:
+        columns: tuple[str, ...] = ()
+    else:
+        columns = tuple(dict.fromkeys(wanted)) or (known[0],)
+    target = _FILTER_DIALECTS.get(dialect)
+    if target is None or len(found) != 1 or not _filterable(root, found[0]):
+        return Pushed(columns)
+    alias = _alias(found[0], ref)
+    conditions = _conditions(root)
+    sent: list[Any] = []
+    for condition in conditions:
+        cols = list(condition.find_all(exp.Column))
+        mine = all(c.table.casefold() == alias or (not c.table and single) for c in cols)
+        if mine and cols and _plain_condition(condition) and all(c.name.casefold() in spelled for c in cols):
+            sent.append(condition)
+    said = " AND ".join(c.sql(dialect="duckdb") for c in sent)
+    written: list[str] = []
+    for condition in sent:
+        copied = condition.copy()
+        for c in list(copied.find_all(exp.Column)):
+            c.replace(exp.column(exp.to_identifier(spelled[c.name.casefold()], quoted=True)))
+        written.append(copied.sql(dialect=target))
+    limit = _safe_limit(root, single, len(sent) == len(conditions))
+    return Pushed(columns, " AND ".join(f"({w})" for w in written), said, limit)
+
+
+def _filterable(root: exp.Select, table: exp.Table) -> bool:
+    """Whether the query's WHERE may be sent to this table's read: it is the FROM table with only inner or
+    left joins after it, or an inner-joined one (a left or full join's other side keeps its rows)."""
+    joins = list(root.args.get("joins") or [])
+    sides = [str(j.args.get("side") or "").upper() for j in joins]
+    kinds = [str(j.args.get("kind") or "").upper() for j in joins]
+    if any(k not in ("", "INNER") for k in kinds):
+        return False
+    source = root.args.get("from_") or root.args.get("from")
+    if source is not None and source.this is table:
+        return all(side in ("", "LEFT") for side in sides)
+    for join, side in zip(joins, sides, strict=True):
+        if join.this is table:
+            return side == "" and all(s in ("", "LEFT") for s in sides)
+    return False
+
+
+def _safe_limit(root: exp.Select, single: bool, all_sent: bool) -> int | None:
+    """The query's LIMIT, when sending it reads every row the query needs: one table, no join, group,
+    distinct, order, window or aggregate, and every condition sent."""
+    limit = root.args.get("limit")
+    if not single or not all_sent or limit is None or root.args.get("offset"):
+        return None
+    if any(root.args.get(k) for k in ("group", "having", "distinct", "order", "qualify")):
+        return None
+    if root.find(exp.Window, exp.AggFunc) is not None:
+        return None
+    value = limit.expression if isinstance(limit, exp.Limit) else None
+    if isinstance(value, exp.Literal) and not value.is_string and str(value.this).isdigit():
+        return int(value.this)
+    return None
+
+
+def with_filter(select: str, where: str) -> str:
+    """A source SELECT (catalogs.select_sql) with its WHERE, before its LIMIT or FETCH FIRST."""
+    if not where:
+        return select
+    for tail in ("\nLIMIT ", "\nFETCH FIRST "):
+        if tail in select:
+            head, _, rest = select.rpartition(tail)
+            return f"{head}\nWHERE {where}{tail}{rest}"
+    return f"{select}\nWHERE {where}"
+
+
+def too_many(connection: str, table: str, count: int, limit: int, filtered: bool) -> str:
+    """Why a table is not read into a query: more rows than the limit."""
+    what = " with the filters sent" if filtered else ""
+    return (
+        f"[{connection}].{table} has {count:,} rows{what}: a query reads at most {limit:,} rows from a "
+        "connection's table, never its first rows only. Add a WHERE that narrows it, or raise the limit in "
+        "Settings."
+    )

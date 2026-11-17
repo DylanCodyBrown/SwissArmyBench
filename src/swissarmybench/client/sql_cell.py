@@ -547,6 +547,18 @@ def _arrow(read_id: str) -> Any:
     return ipc.open_stream(blades_client._call_bytes(f"/connections/sql/reads/{read_id}")).read_all()
 
 
+def read_words(read: dict[str, Any]) -> str:
+    """One connection table's read, in words: `[Shop].orders: 3 rows, read 14:02:07 (filters sent: ...)`."""
+    sent = read.get("sent") or {}
+    more = [f"filters sent: {sent['filters']}"] if sent.get("filters") else []
+    if sent.get("limit") is not None:
+        more.append(f"LIMIT {sent['limit']} sent")
+    kept = ", kept from earlier this session" if read.get("cached") else ""
+    said = f" ({'; '.join(more)})" if more else ""
+    when = str(read.get("read_at", ""))[11:]
+    return f"{read.get('as')}: {int(read.get('rows') or 0):,} rows, read {when}{kept}{said}"
+
+
 def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
     """`query` in DuckDB in this Python: the tables of `namespace` (a DataFrame by its variable's name)
     and any connection's tables named by the connection, read by the app. A DataFrame (or rows)."""
@@ -572,6 +584,7 @@ def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
     registered: list[str] = []
     try:
         for read in reads:
+            print(read_words(read))  # what was read, when, and what the source was sent
             con.register(str(read["name"]), _arrow(str(read["id"])))
             registered.append(str(read["name"]))
             connection_use.report(str(read["connection"]), "query")

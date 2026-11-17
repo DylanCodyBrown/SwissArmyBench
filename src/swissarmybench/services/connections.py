@@ -430,6 +430,59 @@ class ConnectionService:
         saved = await self.save(body, blade.name, who)
         return {"name": saved["name"], "changed": True}
 
+    async def read_for_query(
+        self, name: str, place: dict[str, str], pushed: table_rules.Pushed, most: int
+    ) -> TableRead:
+        """A connection's table read for a DuckDB query (services/connection_tables.py): every row the
+        query needs, never the connection's Rows to open. The columns and filters `pushed` are sent to a
+        SQL source; the source's count (with them) is asked first, and more than `most` rows is refused
+        with how to narrow it. DAX reads the table whole; a Python connection and Dataverse's Web API read
+        at most `most` + 1 rows, refused past `most`; a file is read whole."""
+        blade, kind, full = self._target(name, place)
+        if kind == "file":
+            return await self.read_place(name, place)
+        table_name = full["table"]
+        if not table_name:
+            raise ValueError("Name the table to read.")
+        if kind == "python" or _web_api(blade):
+            asked = pushed.limit if pushed.limit is not None else most + 1
+            answer = await self._blades.read(blade, full, asked, {})
+            table, total = answer["table"], answer.get("total")
+            seen = max(int(table.num_rows), total if isinstance(total, int) else 0)
+            if pushed.limit is None and seen > most:
+                raise BladeError(table_rules.too_many(blade.name, table_name, seen, most, False))
+            again = python_connections.read_call(
+                blade.name, "" if _web_api(blade) else full["schema"], table_name
+            )
+            shown = int(table.num_rows)
+            return TableRead(table_name, table, None, shown, shown, blade.name, code=again)
+        dax = blade.dialect == powerbi.DIALECT
+        within = full["schema"] if dax else ""
+        where = (full["database"], full["schema"], table_name)
+        if dax:  # the whole table, as DAX reads it
+            select = select_sql(blade.dialect, *where, [], None)
+            count: str | None = count_sql(blade.dialect, *where)
+        else:
+            picked = list(pushed.columns)
+            select = table_rules.with_filter(
+                select_sql(blade.dialect, *where, picked, pushed.limit), pushed.where
+            )
+            count = (
+                None
+                if pushed.limit is not None
+                else table_rules.with_filter(count_sql(blade.dialect, *where), pushed.where)
+            )
+        if count is not None:
+            counted = (await self._blades.rows(blade, count, None, {}, within))["table"]
+            values = counted.to_pylist()
+            n = int(next(iter(values[0].values()))) if values and values[0] else 0
+            if n > most:
+                raise BladeError(table_rules.too_many(blade.name, table_name, n, most, bool(pushed.where)))
+        table = (await self._blades.rows(blade, select, None, {}, within))["table"]
+        shown = int(table.num_rows)
+        origin = powerbi.joined_name(blade.name, within)
+        return TableRead(table_name, table, None, shown, shown, origin, select, dax, place=where)
+
     async def read_place(self, name: str, place: dict[str, str], every: bool = False) -> TableRead:
         """One of a connection's tables read, not kept (the tables contract's read, services/
         connection_tables.py): a database's (Power BI's, Dataverse's) or a Python connection's first Rows

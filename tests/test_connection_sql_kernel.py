@@ -59,14 +59,15 @@ def test_a_cell_with_no_connection_names_a_connections_table(live: Live, tmp_pat
             "SELECT m.manager, sum(o.amount) AS amount FROM [Shop].orders o "
             "JOIN managers m USING (region) GROUP BY ALL ORDER BY 1"
         )
-        assert said(cell)[0]
+        ok, text = said(cell)
+        assert ok and "[Shop].orders: 3 rows, read " in text, text
         ok, text = said("print(by_manager.values.tolist())")
         assert ok and text.strip() == "[['Ann', 13.0], ['Bo', 7.0]]", text
         ok, text = said(
             "import swissarmybench as sab\n"
             "print(len(sab.sql('SELECT * FROM \"Shop\".main.orders JOIN managers USING (region)')))"
         )
-        assert ok and text.strip() == "3", text
+        assert ok and text.strip().splitlines()[-1] == "3", text
         ok, text = said("%%sql\nSELECT * FROM [Shop].invoices")
         assert "Shop has no table invoices" in text and "orders" in text, (ok, text)
     finally:

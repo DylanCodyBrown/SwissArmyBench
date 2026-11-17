@@ -18,7 +18,7 @@ from starlette.testclient import TestClient
 from swissarmybench.domain import connection_tables as ct
 from swissarmybench.domain.connection_swap import Place
 from tests import powerbi_standin as made_up
-from tests.conftest import AGENT, AUTH
+from tests.conftest import AGENT, AUTH, make_client
 from tests.fake_keyring import memory_keyring
 from tests.test_powerbi import NOT_TO_BE_SEEN, saved_connection
 
@@ -234,3 +234,65 @@ def test_the_tree_open_all_and_a_kernel_read(
     assert table.num_rows == 3 and "Product Name" in table.column_names
     plain = ok(client.post("/connections/sql/prepare", json={"sql": "SELECT 1"}, headers=AUTH))
     assert plain == {"sql": "SELECT 1", "tables": []}
+
+
+# ===== never a cut table (2026-11-17): every row the query needs, work sent to the source =====
+
+
+def big(client: TestClient, tmp_path: Path) -> None:
+    """Big: 15,000 made-up orders, more than the 10,000 rows a grid opens with."""
+    orders = [(i, "North" if i % 3 else "South", 1.0) for i in range(1, 15_001)]
+    sqlite_connection(
+        client, tmp_path, "Big", {"orders": ("order_id INTEGER, region TEXT, amount REAL", orders)}
+    )
+
+
+def test_a_query_reads_every_row_it_needs_never_the_first_rows_only(
+    client: TestClient, tmp_path: Path
+) -> None:
+    big(client, tmp_path)
+    shop(client, tmp_path)
+    sql = (
+        "SELECT g.Segment, count(*) AS n, sum(o.amount) AS amount FROM [Big].orders o "
+        "JOIN [Shop].segments g ON g.CustomerKey = o.order_id % 8 + 1 GROUP BY ALL ORDER BY 1"
+    )
+    made = ok(query(client, "by_segment", sql))
+    assert [r[1] for r in rows(client, made["grid"])] == [7_500, 7_500]  # a 10,000-row cut would say less
+    read = made["connection_reads"][0]
+    assert read["rows"] == 15_000 and read["cut"] is False
+    assert read["sent"]["columns"] == ["amount", "order_id"]  # only the columns the query uses
+
+
+def test_a_filter_and_a_safe_limit_go_to_the_source(client: TestClient, tmp_path: Path) -> None:
+    big(client, tmp_path)
+    sql = "SELECT count(*) FROM [Big].orders WHERE region = 'South' AND order_id > 3000"
+    filtered = ok(query(client, "south", sql))
+    read = filtered["connection_reads"][0]
+    assert read["sent"]["filters"] == "region = 'South' AND order_id > 3000"
+    assert read["rows"] == 4_000  # the source sent only those rows
+    assert rows(client, filtered["grid"]) == [[4_000]]
+    # A LIMIT goes too when nothing else needs more rows ...
+    first = ok(query(client, "first", "SELECT * FROM [Big].orders WHERE region = 'North' LIMIT 5"))
+    assert first["connection_reads"][0]["sent"]["limit"] == 5 and first["connection_reads"][0]["rows"] == 5
+    # ... and not when the query groups, orders or filters on what the source was not sent.
+    for at, sql in enumerate(
+        (
+            "SELECT region, count(*) FROM [Big].orders GROUP BY ALL LIMIT 1",
+            "SELECT * FROM [Big].orders ORDER BY amount DESC LIMIT 1",
+            "SELECT * FROM [Big].orders WHERE region <> 'North' LIMIT 1",
+        )
+    ):
+        whole = ok(query(client, f"whole_{at}", sql))["connection_reads"][0]
+        assert whole["sent"]["limit"] is None and whole["rows"] > 1, sql
+
+
+def test_past_the_limit_a_table_is_refused_with_how_to_narrow_it(tmp_path: Path) -> None:
+    with make_client(tmp_path, max_connection_query_rows=10_000) as client:
+        big(client, tmp_path)
+        refused = query(client, "all", "SELECT count(*) FROM [Big].orders")
+        assert refused.status_code == 400
+        assert (
+            "[Big].orders has 15,000 rows" in refused.text and "Add a WHERE that narrows it" in refused.text
+        )
+        narrowed = ok(query(client, "some", "SELECT count(*) FROM [Big].orders WHERE region = 'South'"))
+        assert rows(client, narrowed["grid"]) == [[5_000]]

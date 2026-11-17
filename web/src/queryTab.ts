@@ -32,13 +32,13 @@ interface Built {
   version: number;
   rows: number;
   /** The connections' tables the query named ([Finance Captive].Sales), each read once a session. */
-  connection_reads?: { connection: string; as: string; rows: number; cut: boolean; read_at: string; cached: boolean }[];
+  connection_reads?: { connection: string; as: string; rows: number; cut: boolean; read_at: string; cached: boolean; sent?: { filters: string; limit: number | null } }[];
 }
 
 /** Where the connections' tables came from and when, for the tray's status line. */
 function readsText(built: Built): string {
   const reads = built.connection_reads ?? [];
-  return reads.map((r) => ` ${r.as}: ${formatCount(r.rows)}${r.cut ? " (its first rows)" : ""}, read ${r.read_at.slice(11)}.`).join("");
+  return reads.map((r) => ` ${r.as}: ${formatCount(r.rows)} rows, read ${r.read_at.slice(11)}${r.sent?.filters ? ` (filters sent: ${r.sent.filters})` : ""}.`).join("");
 }
 
 /** Refresh: the connections' tables are read again on the next Run. */

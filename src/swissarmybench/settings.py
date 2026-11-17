@@ -144,6 +144,10 @@ class Settings:
     max_cell_chars: int = 500
     # Excel's sheet limit: the SQL box shows a result as large as a worksheet can hold.
     max_sql_rows: int = EXCEL_MAX_ROWS
+    # A connection's table named in a DuckDB query is read whole (every row the query needs, never its
+    # first rows only): above this many rows (counted at the source, with the filters sent) it is refused,
+    # with how to narrow it (domain/connection_tables.py too_many).
+    max_connection_query_rows: int = 5_000_000
     max_chart_points: int = 5_000
     # An analysis blade gets the grid's rows as a DataFrame in a child process: up to this many.
     max_analysis_rows: int = 2_000_000

@@ -21,6 +21,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as rules
 from swissarmybench.domain.blades import BladeError
+from swissarmybench.domain.catalogs import normalize_dialect
 from swissarmybench.domain.connection_swap import Place
 from swissarmybench.services.connections import ConnectionService, TableRead
 from swissarmybench.services.ports import BACKGROUND
@@ -36,6 +37,10 @@ class Places(Protocol):
     async def places(self, name: str) -> list[tuple[str, str, str]] | None: ...
 
     async def shared_tables(self, name: str) -> set[str]: ...
+
+    async def columns(
+        self, name: str, schema: str, table: str | None, database: str | None
+    ) -> dict[str, Any]: ...
 
 
 class Loading(Protocol):
@@ -53,13 +58,14 @@ class Kept:
     place: Place
     read: TableRead
     read_at: float
-    uses: int = 0
+    pushed: rules.Pushed = field(default_factory=rules.Pushed)
 
     def to_json(self, cached: bool) -> dict[str, Any]:
         return {
             "id": self.id,
             "connection": self.connection,
             "place": self.place.to_json(),
+            "sent": self.pushed.to_json(),  # its columns, filters and LIMIT, as the source was asked
             "rows": self.read.shown,
             "total": self.read.total,
             "cut": isinstance(self.read.total, int) and self.read.total > self.read.shown,
@@ -92,7 +98,7 @@ class ConnectionTables:
         self._connections = connections
         self._catalogs = catalogs
         self._loading = loading
-        self._kept: OrderedDict[tuple[str, str, str, str, bool], Kept] = OrderedDict()
+        self._kept: OrderedDict[tuple[str, str, str, str, str], Kept] = OrderedDict()
         self._by_id: dict[str, Kept] = {}
         self._lock = asyncio.Lock()
         self._next = 0
@@ -131,26 +137,30 @@ class ConnectionTables:
             )
         return [Place(*p) for p in found]
 
-    async def read(self, name: str, place: Place, every: bool = False) -> tuple[Kept, bool]:
-        """One table read (the connection's Rows to open; `every`: all its rows), or the session's read of
-        it: the read, and whether it was kept from before."""
+    async def read(self, name: str, place: Place, pushed: rules.Pushed | None = None) -> tuple[Kept, bool]:
+        """One table read for a query: every row it needs, with what was sent to the source (`pushed`: its
+        columns, filters, a safe LIMIT), or the session's read of it by the same request to the source:
+        the read, and whether it was kept from before. Never the connection's first rows only: past the
+        query limit (settings) it is refused, with how to narrow it."""
         saved, _ = self.kind(name)
+        sent = pushed or rules.Pushed()
         key = (
             saved.casefold(),
             place.database.casefold(),
             place.schema.casefold(),
             place.table.casefold(),
-            every,
+            sent.key(),
         )
         async with self._lock:
             kept = self._kept.get(key)
             if kept is not None:
                 self._kept.move_to_end(key)
                 return kept, True
-        read = await self._connections.read_place(saved, place.to_json(), every)
+        most = self.ws.settings.max_connection_query_rows
+        read = await self._connections.read_for_query(saved, place.to_json(), sent, most)
         async with self._lock:
             self._next += 1
-            kept = Kept(f"r{self._next}", saved, place, read, time.time())
+            kept = Kept(f"r{self._next}", saved, place, read, time.time(), sent)
             self._kept[key] = kept
             self._by_id[kept.id] = kept
             while len(self._kept) > MAX_KEPT:
@@ -202,7 +212,15 @@ class ConnectionTables:
         for number, ref in enumerate(found):
             _, kind = self.kind(ref.connection)
             place = rules.resolve(ref.connection, kind, ref.parts, await self.places(ref.connection))
-            kept, cached = await self.read(ref.connection, place)
+            known = await self._known(ref.connection, place)
+            # Columns and filters go to a SQL source only (DAX, Python, files and the Web API read whole).
+            sql_source = kind in ("database", "dataverse")
+            pushed = (
+                rules.pushdown(quoted, names, ref, known, self._dialect(ref.connection))
+                if sql_source
+                else rules.Pushed()
+            )
+            kept, cached = await self.read(ref.connection, place, pushed)
             target = rules.target_name(number)
             targets[ref.key] = target
             prepared.tables[target] = kept.read.table
@@ -212,6 +230,22 @@ class ConnectionTables:
             )
         prepared.sql = rules.rewrite(quoted, names, targets)
         return prepared
+
+    async def _known(self, name: str, place: Place) -> list[str]:
+        """The table's columns as its catalog spells them (none known: every column is read)."""
+        try:
+            found = await self._catalogs.columns(name, place.schema, place.table, place.database or None)
+        except (KeyError, LookupError, ValueError):
+            return []
+        return [
+            str(c["column"])
+            for c in found.get("columns", [])
+            if c.get("column") and "measure" not in str(c.get("type") or "")
+        ]
+
+    def _dialect(self, name: str) -> str:
+        blade, _ = self._connections.blade(name)
+        return normalize_dialect(blade.dialect)
 
     # ===== the Connections page's tree =====
 
