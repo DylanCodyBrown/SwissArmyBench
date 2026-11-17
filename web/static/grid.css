@@ -10513,3 +10513,129 @@ g.follow-pulse > path:first-of-type {
 .row-limit-field > label.check {
   padding-bottom: 8px;
 }
+
+/* ===== A table's connection swapped (swapConnection.ts, the owner 2026-11-16): the chooser, the other
+   connection's tables to pick, the cells to point at the new one. ===== */
+.swap-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 340px;
+}
+
+.swap-current,
+.swap-was {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.swap-current .icon-svg,
+.swap-was .icon-svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.swap-current.missing .icon-svg,
+.swap-was .icon-svg {
+  color: var(--warn);
+}
+
+.swap-missing {
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.swap-others,
+.swap-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.swap-others .swap-other {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.swap-tree,
+.swap-tables {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swap-tables {
+  padding-left: 20px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.swap-review,
+.swap-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.swap-review p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.swap-repoint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 520px;
+}
+
+.swap-ref {
+  display: grid;
+  grid-template-columns: auto auto auto auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.swap-ref:hover {
+  background: var(--row-hover);
+}
+
+.swap-ref .icon-svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.swap-ref-cell,
+.swap-ref-name {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.swap-ref code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.project-fix.swap-done > .icon-svg {
+  color: var(--accent);
+}

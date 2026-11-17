@@ -23,6 +23,7 @@ import { gridList, newQueryTab, onAgentView, setEmptyView, showGridsLanding, sho
 import { answerAsked, autosaveSwitch, baseName, closeProject, fixTable, folderOf, loadProject, mountProject, newProject, onBeforeSave, onProject, openProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, when } from "./projectFile";
 import { openFile } from "./openFile";
 import { tourButton } from "./tour";
+import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
 
 const WORKBENCH = "swissarmybench-workbench";
 let host: HTMLElement;
@@ -65,6 +66,9 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
   // With no table open: the Grids landing while a project is open, else the Start view.
   setEmptyView(() => (projectState().project ? "grids" : "start"));
   mountProject();
+  onConnectionChange(() => {
+    if (lastState) drawFixes(lastState);
+  });
   onProject((state) => {
     drawGroup(state);
     drawFixes(state);
@@ -234,10 +238,27 @@ function drawGroup(state: ProjectState): void {
 
 // ===== tables that did not come back: each with its fix =====
 
+let lastState: ProjectState | null = null;
+
 function drawFixes(state: ProjectState): void {
+  lastState = state;
   const problems = state.project?.problems ?? [];
-  strip.hidden = problems.length === 0 || viewingLanding();
-  clear(strip, ...problems.map((p) => fixRow(p)));
+  const swaps = recentSwaps();
+  strip.hidden = (problems.length === 0 && swaps.length === 0) || viewingLanding();
+  clear(strip, ...problems.map((p) => fixRow(p)), ...swaps.map((s) => swapRow(s)));
+}
+
+/** A table moved to another connection from this page: its Undo stays here until used or put away. */
+function swapRow(done: { table: string; from: string | null; to: string }): HTMLElement {
+  return h(
+    "div",
+    { class: "project-fix swap-done", role: "status", "data-table": done.table },
+    icon("plug"),
+    h("strong", {}, done.table),
+    h("span", { class: "project-fix-message" }, done.from ? `${done.from} → ${done.to}` : done.to),
+    button("Undo", guard(() => undoSwap(done.table)), { icon: "undo", class: "ghost" }),
+    button(`Put away ${done.table}`, () => forgetSwap(done.table), { icon: "close", iconOnly: true, class: "ghost" }),
+  );
 }
 
 function fixRow(problem: Problem): HTMLElement {
@@ -254,6 +275,8 @@ function fixRow(problem: Problem): HTMLElement {
     h("strong", {}, problem.table),
     h("span", { class: "project-fix-message" }, problem.message),
     button(problem.fix.label, guard(() => fixTable(problem, how)), { class: "primary" }),
+    // A deleted connection (the owner, 2026-11-16): every table that used it moves to another at once.
+    problem.fix.kind === "add_connection" && problem.fix.connection ? button("Use another connection…", guard(() => openMoveChooser(problem.fix.connection!)), { icon: "plug" }) : null,
     retry ? button("Try again", guard(() => fixTable(problem, { ...how, retry: true })), { class: "ghost" }) : null,
     problem.fix.kind === "remove" ? null : button(`Remove ${problem.table}`, guard(() => api("/project/fix", "POST", { table: problem.table, remove: true }).then(() => loadProject())), { icon: "close", iconOnly: true, class: "ghost" }),
   );

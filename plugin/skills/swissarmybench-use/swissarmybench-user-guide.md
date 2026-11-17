@@ -577,6 +577,31 @@ Click a card for its **detail**:
 
 A connection's catalog (its tables and columns, for the Workbench's catalog tree and the SQL cell's suggestions) loads in the background: when you save the connection, when Swiss Army Bench starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
 
+### Swapping a table's connection
+
+A table read from one connection can be read from another with its transformations kept: the Table row's
+**Connection: EDP** (it names the table's connection) lists your other connections. Pick one and the table
+is read again from it, in the same tab with the same steps:
+
+- **A catalog table** is found in the other connection's catalog by its name in any case; the schema, then
+  the database, breaks a tie (an ODBC connection's database can be Trino's catalog). Not found, or found
+  twice: the other connection's tables are listed to pick from (a schema opens to its tables), or **Write
+  a query…** opens a window with a first query for it.
+- **A query** opens in a window of its own, as big as you like, so you can look it over first (ODBC and
+  native Trino can name tables differently), then **Run on Trino**.
+- **Undo** is in the toast, on the strip under the tabs, and in the Connection dialog: the table comes
+  back with its rows as they were. Nothing is deleted.
+
+**A deleted connection.** A project whose tables came from a connection that is gone shows each one on the
+strip (No connection EDP). **Use another connection…** moves every table that used it at once; queries
+are looked over one by one in the query window, or **Run as they are**.
+
+**The code follows.** After a swap, the cells that named the old connection are listed (a `%%sql EDP`
+cell, `sab.sql("EDP", ...)`, `sab.read`, `sab.dax`, `sab.blade`, `sab.connection`), each ticked: **Point
+these at Trino** changes the name in the ticked cells only, and nothing else (a string that merely holds
+the name stays). An open notebook or script changes in the Workbench, unsaved until you save it; a table's
+own read-only cell follows its table by itself.
+
 ## Session: what the agent made
 
 The rail's **Session** icon (after Connections) is this session's log of what the agent made or changed: a grid opened, a step added or removed, a card on Visualizations, a relationship on the ERD, a connection or blade saved, a notebook's cell, an export (and your Allow), a project saved. Each line says when, what in plain words, and where (the area); click it to go to that thing (the grid, the card, the relationship, the connection, the notebook at its cell). It fills in live as the agent works, newest first.

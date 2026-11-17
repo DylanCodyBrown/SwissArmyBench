@@ -286,6 +286,8 @@ export interface NotebookView {
   indexOfNumber: (number: number) => number;
   /** Put this text in the user's cell numbered `number` (a thin cell's move to data.ipynb). */
   setSource: (number: number, source: string) => void;
+  /** A SQL or DAX cell of the user's (by its number) run on another connection (a swap's code). */
+  setCellConnection: (number: number, name: string) => void;
   /** A new named Python cell at the end (data.ipynb's cell for a moved model); its number. */
   appendNamed: (source: string, name: string) => number;
   /** Insert a snippet, filled with `values` (the agent's): into the cell numbered `number`, else the
@@ -2031,6 +2033,13 @@ export function notebookView(
       drawPiece(cell);
       edited();
       typedSoon();
+    },
+    setCellConnection: (number, name) => {
+      const cell = byNumber(number);
+      if (!cell || isApp(cell.role) || !hasSource(cell.kind)) throw new Error(`This notebook has no SQL or DAX cell ${number} of yours.`);
+      cell.connection = name || null;
+      cell.connectionPicker.dispatchEvent(new Event("focus")); // drawn again, with this one picked
+      edited();
     },
     appendNamed: (source, name) => {
       const cell = insertAt(cells.length, "code", source);

@@ -63,6 +63,7 @@ import { pastedToast } from "./renameTable";
 import { mountStepsPanel } from "./stepsPanel";
 import { editStep } from "./stepForms";
 import { mountStepsStrip } from "./stepsStrip";
+import { mountConnectionSqlWindow } from "./swapConnection";
 import { setGridZoom, stepZoom } from "./theme";
 
 const panelParam = new URLSearchParams(location.search).get("panel");
@@ -256,6 +257,11 @@ async function start(): Promise<void> {
     window: popout ? "steps" : keysWindow ? "keys" : sqlWindow ? "sql" : "main",
     tabs: () => [`front:${document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid"}`, ...Array.from(document.querySelectorAll(".tabs-row [role=tab]"), () => "tab")],
   });
+  if (panelParam === "connsql") {
+    // A table's query, moved to another connection: looked over in a window of its own, then run there.
+    await mountConnectionSqlWindow();
+    return;
+  }
   if (popout || keysWindow || sqlWindow) {
     mountNav(popout || sqlWindow ? "steps" : "keys");
     if (keysWindow) mountNavRail("keys"); // the areas: Grids brings the home window forward

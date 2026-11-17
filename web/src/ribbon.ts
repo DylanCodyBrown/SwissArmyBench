@@ -32,6 +32,7 @@ import { onSplitChange, splitPair } from "./panes";
 import { openTableProfile } from "./profileView";
 import { openRelationships } from "./relationshipsDialog";
 import { state } from "./state";
+import { connectionLabel, onConnectionChange, openConnectionChooser } from "./swapConnection";
 import { editStep } from "./stepForms";
 import { matchingSummary, openTextMatching } from "./textMatching";
 import { gridZoom, onThemeChange, stepZoom } from "./theme";
@@ -53,6 +54,7 @@ export function mountRibbon(element: HTMLElement, openColumnProfile: (column: st
   onCompareChange(render);
   onSplitChange(render);
   onThemeChange(render); // a theme or zoom step can change what the rows draw
+  onConnectionChange(render); // the table's connection, once known or swapped
   render();
   // A window resize can make a row wrap (or room to spare): fold again, on width changes only.
   let width = 0;
@@ -173,6 +175,8 @@ function render(): void {
       tool("Key Finder", "zoom", () => openKeyFinderWindow(), { title: "Find likely join keys" }),
       tool("Relationships", "crown", () => openRelationships(), { title: "Keys and joins" }),
       tool("Export", "export", () => openExport()),
+      // The table's connection, and another to read it from with the same steps (the owner, 2026-11-16).
+      tool(connectionLabel(state.info.dataset), "plug", () => void openConnectionChooser(state.info!.dataset), { title: "Read this table from another connection" }),
     ),
     stepsRow ? group("Transformations", "", stepsRow) : null,
     group(
