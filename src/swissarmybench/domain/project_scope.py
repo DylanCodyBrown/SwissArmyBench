@@ -225,6 +225,12 @@ def blade_record(file: str, raw: bytes) -> dict[str, Any] | None:
     }
 
 
+def name_of(where: str) -> str:
+    """A place's name as a project's (its file without .sab, or its folder's name)."""
+    last = where.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    return last[: -len(".sab")] if last.lower().endswith(".sab") else last
+
+
 def password_fix(connection: str, missing: list[str]) -> dict[str, Any]:
     """What the page shows for a connection with no password source here, and the click that fixes it."""
     return {

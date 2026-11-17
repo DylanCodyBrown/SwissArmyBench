@@ -15,8 +15,11 @@ the Workbench window and the agent alike.
             agent's save waits for the user's Allow when it would write rows. Never a password
   close     the tables, Visualizations and the model closed, the temporary working folder removed
   autosave  the user's switch, kept in project.json: on, a save a short while after each change, quietly
-  scope     the open project's connections, blades and saved dashboards are its own (its working folder's
-            .sab folder, domain/project_scope.py): each open, new and close tells the stores (scope)
+  scope     the open project's saved dashboards are its own (its working folder's .sab folder,
+            domain/project_scope.py): each open, new and close tells the stores (scope). Connections, APIs,
+            vaults, blades and variables are the library's (Plans/library.plan.md), whatever is open: an
+            older project's own .sab/blades go into the library as it opens (adopt), and its next save
+            leaves them out
   recent    the projects opened and saved, with their files' state (recent_projects.json)
 
 Whether there are unsaved changes is worked out, not tracked: what a save would write (the tables, their
@@ -152,7 +155,7 @@ class SabProjects:
         kernel_document: Callable[[str | None], str | None] = lambda kernel: None,
         ask_workbench: Callable[[str, dict[str, Any]], Awaitable[Any]] | None = None,
         scope: Callable[[str | None], Awaitable[None]] | None = None,
-        carry: Callable[[str, list[str]], None] = lambda folder, names: None,
+        adopt: Callable[[str, str], dict[str, Any]] = lambda folder, name: {},
         autosave_seconds: float = 2.0,
     ) -> None:
         self.ws = ws
@@ -172,8 +175,8 @@ class SabProjects:
         # The stores that follow the open project (its connections, blades, dashboards): its working
         # folder, or None (this computer's own, with no project open).
         self._scope = scope
-        # The open tables' connections copied into a new project from this computer's (folder, names).
-        self._carry = carry
+        # An older project's own connections and blades (.sab/blades) moved into the library (folder, name).
+        self._adopt_blades = adopt
         self._autosave_seconds = autosave_seconds
         self._settling: str | None = None  # autosave: what a save would write, as last seen
         self.current: Current | None = None
@@ -325,6 +328,12 @@ class SabProjects:
         self.current = None
         await self._rescope()
 
+    async def _library_from(self, folder: str, name: str) -> None:
+        """A project's own connections and blades (from before the library) moved into it; said once."""
+        done = await asyncio.to_thread(self._adopt_blades, folder, name)
+        if done.get("words"):
+            await self.ws.live.broadcast({"type": "library_notice", "kind": "project", "text": done["words"]})
+
     async def _rescope(self) -> None:
         """The stores follow the open project (or this computer's, with none open)."""
         if self._scope is not None:
@@ -335,8 +344,8 @@ class SabProjects:
     async def new(self, body: Any, who: str = "user") -> dict[str, Any]:
         """New project: {"path": where its .sab goes, "autosave"?, "discard"?}. It is saved there at once:
         a project is never without its file. With a project open that has unsaved changes, asks first
-        (Conflict). The tables open now (with no project) go into it: its data.ipynb starts with them,
-        their connections copied in from this computer's."""
+        (Conflict). The tables open now (with no project) go into it: its data.ipynb starts with them
+        (their connections are the library's)."""
         body = body if isinstance(body, dict) else {}
         path = body.get("path")
         if not isinstance(path, str) or not path.strip():
@@ -361,7 +370,6 @@ class SabProjects:
     async def _make(self, name: str, app: bool, who: str) -> None:
         """A project of its own in a new working folder (not saved yet: new and save write it)."""
         async with self._busy:
-            loose = [self._datasets.origins.get(info.name).connection for info in self.ws.store.all()]
             if self.current is not None:
                 await self._clear(who)
             root, folder = await asyncio.to_thread(self._archive.new_folder, name)
@@ -374,10 +382,6 @@ class SabProjects:
                     remember=False,
                     rows=False,
                 )
-                # The open tables' connections come with them: the project holds its own from now on.
-                names = sorted({c.split("/", 1)[0] for c in loose if c}, key=str.casefold)
-                if names:
-                    await asyncio.to_thread(self._carry, str(made["folder"]), names)
             except BaseException:
                 await asyncio.to_thread(self._archive.remove, root)
                 raise
@@ -440,7 +444,9 @@ class SabProjects:
                 serial=self._serial,
                 autosave=manifest.autosave,
             )
-            await self._rescope()  # its own connections, before its tables are read from them
+            # An older project's own connections: into the library, before its tables are read from them.
+            await self._library_from(folder, self.current.name)
+            await self._rescope()
             sab_folder = self._archive.folder_of(full)
             ordered = sorted(
                 manifest.tables, key=lambda t: t.source.kind == "query"
@@ -479,6 +485,7 @@ class SabProjects:
         listed = self._projects.open({"folder": folder}, who)
         self._serial += 1
         self.current = Current(name=str(listed["name"]), folder=str(listed["folder"]), serial=self._serial)
+        await self._library_from(self.current.folder, self.current.name)
         await self._rescope()
         self.current.saved_key = self._key()
         await self._changed()
@@ -727,7 +734,7 @@ class SabProjects:
         finally:
             current.path = before
         files = await asyncio.to_thread(self._archive.files, current.folder)
-        files += await asyncio.to_thread(self._archive.app_files, current.folder)  # connections, blades
+        files += await asyncio.to_thread(self._archive.app_files, current.folder)  # saved dashboards
         entries: list[tuple[str, bytes | str]] = []
         for relative, _, _ in files:
             raw = await asyncio.to_thread(self._archive.read_file, current.folder, relative)

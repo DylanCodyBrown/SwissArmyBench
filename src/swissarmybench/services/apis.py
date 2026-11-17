@@ -265,7 +265,7 @@ class Apis:
         if plan.taken:
             raise Conflict(plan.taken)
         answer = plan.to_json()
-        self._files.write(plan.path, plan.text)
+        self._library.write(plan.path, plan.text)  # the library's apis/<name>/
         tables = len(plan.spec.tables())
         count = len(plan.spec.operations)
         description = f"{plan.names.file}: {count} operations, {tables} table{'' if tables == 1 else 's'}"

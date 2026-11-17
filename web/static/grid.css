@@ -12306,3 +12306,68 @@ dialog.find-data .dialog-body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* The Variables page's key vaults (variablesPage.ts): a card each, its detail the Connections page's. */
+.variables-vaults h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.variables-vaults h2 .icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.variables-vaults h2 .count {
+  padding: 0 7px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 11px;
+}
+
+.variables-vault-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.variables-vault-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.variables-vault-card:hover {
+  border-color: var(--accent);
+}
+
+.variables-vault-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Settings' Library (library.ts). */
+.library-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}

@@ -302,15 +302,20 @@ class ModelFiles:
         state_dir: Path,
         shared: Callable[[], list[str]] | None = None,
         packs: Callable[[], list[tuple[Path, str]]] | None = None,
+        library: Callable[[], Path] | None = None,
+        made: Callable[[], object] | None = None,
     ) -> None:
         self.state_dir = state_dir
+        self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
+        # The library's tangs/ (Plans/library.plan.md): where a saved tang goes; the state folder's before.
+        self._library = library
         self._shared = shared or (lambda: [])
         # Installed packs' tangs folders (adapters/packs.py): read-only tangs from a marketplace.
         self._packs = packs or (lambda: [])
 
     @property
     def mine(self) -> Path:
-        return self.state_dir / "tangs"
+        return self._library() / "tangs" if self._library else self.state_dir / "tangs"
 
     def folders(self) -> list[str]:
         return [str(folder) for folder, _ in self._folders()]
@@ -392,6 +397,8 @@ class ModelFiles:
             if chosen is None:
                 raise ValueError("Save into your own tangs or one of the shared folders (the blade folders).")
             target = chosen
+        if folder is None:
+            self._made()
         target.mkdir(parents=True, exist_ok=True)
         path = target / tang_file_name(model.name)
         path.write_text(write_tang(model), encoding="utf-8")

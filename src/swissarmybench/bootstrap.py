@@ -39,6 +39,7 @@ from swissarmybench.adapters.datasets import DatasetStore
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import listing as folder_listing
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
+from swissarmybench.adapters.library import LibraryFolder
 from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.projects import ProjectFiles
@@ -61,6 +62,7 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import context_md as context_rules
+from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade, env_settings
@@ -107,6 +109,7 @@ from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.kind_colours import KindColours
+from swissarmybench.services.library import Library
 from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
@@ -193,6 +196,7 @@ class Services:
     navigation: Navigation
     kind_colours: KindColours
     connection_colours: ConnectionColours
+    library: Library
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
@@ -250,9 +254,13 @@ def bootstrap(
         shared=lambda: [f["path"] for f in blade_store.folders() if f["exists"]],
         environ=os.environ,
     )
+    # The library (Plans/library.plan.md): this computer's connections, APIs, vaults, blades, tangs, variables
+    # and colours, in one folder made to be a Git repository, whatever project is open; Settings points it
+    # elsewhere (library.json: the path only). README.md and .gitignore made on first use.
+    library_folder = LibraryFolder(settings.library_dir, state_dir / "library.json" if audit_log else None)
     blade_store = BladeStore(
-        settings.blades_dir,
-        library=state_dir / "library",
+        library_folder.root,
+        made=library_folder.ensure,
         folders_file=state_dir / "blade_folders.json",
         pins_file=state_dir / "blade_pins.json",
         packs=pack_files.blade_dirs,
@@ -412,6 +420,8 @@ def bootstrap(
             state_dir,
             shared=lambda: [f["path"] for f in blade_store.folders() if f["exists"]],
             packs=pack_files.tang_dirs,
+            library=lambda: library_folder.root,
+            made=library_folder.ensure,
         ),
     )
     datasets.renamed.append(models.rename_table)
@@ -459,12 +469,15 @@ def bootstrap(
         kernel_stopped=streamlit.kernel_stopped,
     )
     kind_colours = KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None))
-    # Each connection's colour: this computer's colours.toml (the library's later, by its path), the same
-    # in every project; never one of the rail's (the kind colours, the accent).
+    # Each connection's colour: the library's colours.toml, the same in every project; never one of the
+    # rail's (the kind colours, the accent).
     connection_colours = ConnectionColours(
         ws,
         blades,
-        ColoursFile(state_dir / "colours.toml" if audit_log else None),
+        ColoursFile(
+            (lambda: library_folder.root / library_rules.COLOURS_FILE) if audit_log else None,
+            library_folder.ensure,
+        ),
         kind_colours.chosen,
     )
     connections = ConnectionService(
@@ -488,13 +501,14 @@ def bootstrap(
         environ=os.environ,
         now=time.time,
     )
-    # Add API: this computer's library (apis/<name>/): API_<name>.py, its API blade and web call blades.
+    # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
+    api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
     apis = Apis(
         ws,
         ApiFiles(),
         SpecSource(),
         connections,
-        ApiLibrary(state_dir / "library" / "apis"),
+        api_library,
         blades,
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
     )
@@ -516,15 +530,11 @@ def bootstrap(
         settings.max_project_unpacked_bytes,
         settings.project_temp_dir,
     )
-    # This computer's saved connections and blades (the ones saved before projects held their own): the
-    # blades in use while no project is open, and a place to import from.
-    computer_blades = BladeStore(settings.blades_dir)
 
     async def use_project(folder: str | None) -> None:
-        """The stores follow the open project: its own connections, blades and saved dashboards (in its
-        working folder's .sab folder), or this computer's with none open. Catalogs follow its connections."""
+        """The open project's saved dashboards (in its working folder's .sab folder), or this computer's with
+        none open. Connections, APIs, vaults, blades and variables are the library's, whatever is open."""
         app = Path(folder) / APP_FOLDER if folder else None
-        blade_store.use(app / "blades" if app else settings.blades_dir, keep_secrets=app is not None)
         dashboards.folder = app / "dashboards" if app else state_dir / "dashboards"
         await catalog_loading.rescope()
         await variables.rescope()
@@ -534,25 +544,15 @@ def bootstrap(
 
     structures_ready: list[Structures] = []  # set once built (below): use_project is made before it
 
-    def carry_connections(folder: str, names: list[str]) -> None:
-        """A new project's open tables' connections, copied in from this computer's (and the vaults
-        their passwords come from)."""
-        wanted: dict[str, Blade] = {}
-        for name in names:
-            try:
-                blade = computer_blades.get(name)
-            except KeyError:
-                continue
-            if blade.path or blade.pack:
-                continue  # a blade folder's or a pack's: read-only libraries, there in every project
-            wanted[blade.name.casefold()] = blade
-            vaults, _ = computer_blades.providers(blade)
-            wanted |= {v.name.casefold(): v for v in vaults if not v.path and not v.pack}
-        files = dict(computer_blades.saved_files())
-        for blade in wanted.values():
-            file = BladeStore.file_name(blade.name)
-            if file in files:
-                archive.write_into(folder, f"{APP_FOLDER}/blades/{file}", files[file])
+    async def library_moved() -> None:
+        """Settings' Library folder changed: every store reads the new folder (the pages told)."""
+        blade_store.use(library_folder.root)
+        await catalog_loading.rescope()
+        await variables.rescope()
+        await live.broadcast({"type": "blades_changed"})
+        await live.broadcast({"type": "connection_colours_changed"} | connection_colours.get())
+
+    library = Library(ws, library_folder, blade_store, approvals, library_moved)
 
     sab_projects = SabProjects(
         ws,
@@ -570,7 +570,7 @@ def bootstrap(
         kernel_document=workbench.document_of,
         ask_workbench=lambda command, args: workbench_window.ask(command, args, "app"),
         scope=use_project,
-        carry=carry_connections,
+        adopt=library.adopt_project,
         autosave_seconds=settings.autosave_seconds,
     )
     # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
@@ -590,7 +590,7 @@ def bootstrap(
     api_explorer = ApiExplorer(
         ws,
         apis,
-        ApiLibrary(state_dir / "library" / "apis"),
+        api_library,
         SpecSource(),
         blades,
         connections,
@@ -628,15 +628,18 @@ def bootstrap(
         open_documents=streamlit.documents,
         ask_window=lambda command, args: workbench_window.ask(command, args, "app"),
     )
-    project_scope = ProjectScope(
-        sab_projects, archive, computer_blades, connections, on_saved=catalog_loading.saved
-    )
+    project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
     # The Variables page: this computer's variables (never a project's): the shareable file and the local
     # values; their values given to this server's environment, so what it runs and starts reads them.
     variables_file = VariableFiles(
-        state_dir / "variables.json" if audit_log else None,
-        state_dir / "local" / "variables.json" if audit_log else None,
+        (lambda: library_folder.root) if audit_log else None, library_folder.ensure
     )
+    if audit_log:
+        # Once: this computer's stores from before the library, written as library files (said on the page).
+        moved = library_folder.migrate(
+            state_dir, blade_store, variables_file, datetime.now(UTC).date().isoformat()
+        )
+        library.notice("computer", library_rules.computer_migration_words(moved["moved"], moved["backup"]))
 
     async def save_variable_blade(data: dict[str, Any], previous: str, who: str) -> Any:
         saved = await blades.save(data, previous, who)
@@ -872,6 +875,7 @@ def bootstrap(
         models=models,
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),
+        library=library,
         keys=KeyFinder(ws),
         compares=compares,
         tie_out=TieOut(compares),

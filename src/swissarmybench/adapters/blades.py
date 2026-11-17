@@ -1,4 +1,6 @@
-"""Saved blades: one JSON file each under ~/.swissarmybench/blades/, secrets in the operating system's vault.
+"""Saved blades: one portable file each in the library (Plans/library.plan.md; ~/.swissarmybench/library by
+default, Settings' Library folder elsewhere): connections/, vaults/ and blades/<name>.blade.py, whether or not
+a project is open. Secrets in the operating system's vault, never in a file.
 
 Four kinds (plan decisions 14-15b):
 - `sql`: code that makes a database connection, with its dialect, and usually a catalog command.
@@ -22,17 +24,17 @@ value. A blade's code is the user's: the routes never show it to the agent.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import re
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from swissarmybench.domain import blades as rules
+from swissarmybench.domain import library
 from swissarmybench.domain.blades import (
     Blade,
     BladeError,
@@ -55,12 +57,6 @@ def parse_blade(data: Any, previous: Blade | None = None) -> Blade:
     return rules.parse_blade(data, previous, time.time())
 
 
-def _file_name(name: str) -> str:
-    key = name.casefold()
-    readable = re.sub(r"[^a-z0-9_-]+", "_", key).strip("_")[:40] or "blade"
-    return f"{readable}-{hashlib.sha256(key.encode()).hexdigest()[:8]}.json"
-
-
 class BladeStore:
     """The saved blades, and the blades in the user's blade folders. Every method is quick file work; call
     them off the event loop when it matters."""
@@ -72,14 +68,14 @@ class BladeStore:
         pins_file: Path | None = None,
         packs: Callable[[], list[tuple[Path, str]]] | None = None,
         starters: Path | None = None,
-        library: Path | None = None,
+        made: Callable[[], object] | None = None,
     ) -> None:
+        # The library (Plans/library.plan.md): saved blades are its connections/, vaults/ and blades/ files;
+        # an API's blades (its API blade, its web call blades) are files in its apis/<name>/ folder, read like
+        # a blade folder's and written back into their own files. Whether or not a project is open (the
+        # owner, 2026-11-17: "Apis, Connections they live OUTSIDE of the project").
         self.folder = folder
-        # This computer's library (~/.swissarmybench/library): an API's blades (its API blade and its web
-        # call blades) are files in its apis/<name>/ folder, read like a blade folder's and written back
-        # into their own files, whether or not a project is open (the owner, 2026-11-17: "Apis,
-        # Connections they live OUTSIDE of the project").
-        self.library = library
+        self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
         self.folders_file = folders_file
         # Installed packs' blades folders, with each pack's label: read-only blades from a marketplace.
         self._packs = packs or (lambda: [])
@@ -88,78 +84,95 @@ class BladeStore:
         self.starters_folder = starters
         # Favourites: this person's own, so kept on this computer, never in a blade's file.
         self.pins_file = pins_file
-        self._lock = threading.Lock()
-        # A folder blade's file -> (its modification time and size, what it held): files are read again
-        # only when they change.
+        self._lock = threading.RLock()
+        # A blade file -> (its modification time and size, what it held): files are read again only when
+        # they change.
         self._seen: dict[str, tuple[tuple[int, int], Blade | None, str | None]] = {}
         self.problems: list[dict[str, str]] = []  # files with a blade header that could not be read
-        # With a project open its own connections and blades are saved in its working folder (.sab/blades);
-        # their passwords stay this computer's, shared by name with its other projects: a removal or a
-        # rename there leaves them (keep_secrets).
-        self.keep_secrets = False
 
-    def use(self, folder: Path, keep_secrets: bool) -> None:
-        """Save and read the saved blades in `folder` from now on: the open project's, or this computer's."""
+    @property
+    def library(self) -> Path:
+        return self.folder
+
+    def use(self, folder: Path) -> None:
+        """Save and read the library in `folder` from now on (Settings' Library folder)."""
         with self._lock:
             self.folder = folder
-            self.keep_secrets = keep_secrets
 
     # ===== files =====
 
-    def _path(self, name: str) -> Path:
-        return self.folder / _file_name(name)
+    def _saved_paths(self) -> dict[str, Path]:
+        """Each saved blade's file in the library, by its name (ignoring case): the first file of a name."""
+        found: dict[str, Path] = {}
+        for sub in library.BLADE_FOLDERS:
+            root = self.folder / sub
+            for path in sorted(root.glob(f"*{rules.SUFFIX}")) if root.is_dir() else []:
+                blade = self._cached(path)
+                if blade is not None:
+                    found.setdefault(blade.name.casefold(), path)
+        return found
 
-    def _read(self, path: Path) -> Blade | None:
+    def _cached(self, path: Path) -> Blade | None:
+        """The blade in a library file (read again only when it changed), as a saved blade (no path)."""
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            stat = path.stat()
+        except OSError:
+            return None
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        cached = self._seen.get(str(path))
+        if cached is None or cached[0] != stamp:
+            cached = (stamp, *self._load_file(path, stat.st_size, is_blade, read_blade))
+            self._seen[str(path)] = cached
+        if cached[1] is None:
+            return None
+        return replace(cached[1], path=None)
+
+    @staticmethod
+    def read_json(path: Path) -> Blade | None:
+        """A blade saved as JSON (before the library: ~/.swissarmybench/blades, a project's .sab/blades)."""
+        try:
+            return BladeStore.from_json(json.loads(path.read_text(encoding="utf-8")))
         except (OSError, ValueError):
             return None
-        if not isinstance(data, dict) or not isinstance(data.get("name"), str):
-            return None
-        catalog = data.get("catalog") or {}
-        return Blade(
-            name=data["name"],
-            kind=data.get("kind", "other"),
-            code=data.get("code", ""),
-            variable=data.get("variable"),
-            dialect=data.get("dialect", "other"),
-            catalog_language=catalog.get("language"),
-            catalog_command=catalog.get("command"),
-            vault_mapping={
-                r["env"]: r["secret"] for r in data.get("vault_mapping", []) if isinstance(r, dict)
-            },
-            vault_all=data.get("vault_all") is True,
-            row_limit=data["row_limit"] if isinstance(data.get("row_limit"), int) else None,
-            read_command=(data.get("read") or {}).get("command"),
-            variables={
-                str(r["name"]): {k: str(v) for k, v in r.items() if k != "name"}
-                for r in data.get("variables", [])
-                if isinstance(r, dict) and "name" in r
-            },
-            env_names=list(data.get("env_names", [])),
-            template=data.get("template"),
-            description=str(data.get("description") or ""),
-            tags=[str(t) for t in data.get("tags", []) if isinstance(t, str)],
-            language=str(data.get("language") or ""),
-            cell_name=str(data.get("cell_name") or ""),
-            family=str(data.get("family") or ""),
-            web_call=dict(data.get("web_call") or {}) if isinstance(data.get("web_call"), dict) else {},
-            created_at=float(data.get("created_at", 0)),
-            updated_at=float(data.get("updated_at", 0)),
-        )
 
-    def _write(self, blade: Blade) -> None:
+    @staticmethod
+    def from_json(data: Any) -> Blade | None:
+        return library.saved_json(data)
+
+    @staticmethod
+    def text_of(blade: Blade) -> str:
+        """A saved blade's file: its portable text (the same blade, the same bytes)."""
+        return write_blade(blade.to_json())
+
+    def _write(self, blade: Blade, was: Path | None = None) -> Path:
+        """A saved blade into its library file (vaults/, connections/ or blades/); a folder blade into its own
+        file. Nothing is written when the file already reads the same."""
         if blade.path:
             self._write_file(blade)
-            return
-        self.folder.mkdir(parents=True, exist_ok=True)
-        path = self._path(blade.name)
-        temporary = path.with_suffix(".tmp")
-        # Only this user may read it: a blade's code can name servers and accounts.
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(blade.to_json(), handle, indent=2)
-        os.replace(temporary, path)
+            return Path(blade.path)
+        root = self.folder / library.folder_for(blade.kind, blade.template)
+        paths = self._saved_paths()
+        own = paths.get(blade.name.casefold()) if was is None else was
+        target = own if own is not None and own.parent == root else None
+        if target is None:
+            taken = {p.name.casefold() for p in paths.values()}
+            stem = file_name(blade.name).removesuffix(rules.SUFFIX)
+            target, number = root / file_name(blade.name), 2
+            while target.name.casefold() in taken or target.exists():
+                target, number = root / f"{stem}-{number}{rules.SUFFIX}", number + 1
+        text = self.text_of(blade)
+        if not (target.is_file() and target.read_text(encoding="utf-8") == text):
+            self._made()
+            root.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_name(target.name + ".tmp")
+            # Only this user may read it: a blade's code can name servers and accounts.
+            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+            os.replace(temporary, target)
+        if own is not None and own != target:
+            own.unlink(missing_ok=True)  # it changed kind (a connection now a vault): its old file goes
+        return target
 
     @staticmethod
     def _write_file(blade: Blade) -> None:
@@ -247,8 +260,7 @@ class BladeStore:
         problems: list[dict[str, str]] = []
         skip = {"__pycache__", "node_modules", "site-packages", "venv", "env", "build", "dist"}
         roots = [Path(entry["path"]) for entry in self.folders()]
-        if self.library is not None:
-            roots.append(self.library)
+        roots.append(self.folder / library.APIS)  # each API's own folder: its API blade, its web calls
         for root in roots:
             if not root.is_dir():
                 continue
@@ -334,26 +346,12 @@ class BladeStore:
 
     # ===== the blades =====
 
-    def saved_files(self, folder: Path | None = None) -> list[tuple[str, bytes]]:
-        """The saved blades' files as they are (file name, JSON): `folder`'s, or the ones in use."""
-        root = folder or self.folder
-        found: list[tuple[str, bytes]] = []
-        for path in sorted(root.glob("*.json")) if root.is_dir() else []:
-            try:
-                found.append((path.name, path.read_bytes()))
-            except OSError:
-                continue
-        return found
-
-    @staticmethod
-    def file_name(name: str) -> str:
-        """The file a saved blade of that name is kept in."""
-        return _file_name(name)
-
     def _saved(self) -> list[Blade]:
-        if not self.folder.is_dir():
-            return []
-        return [b for b in (self._read(p) for p in self.folder.glob("*.json")) if b is not None]
+        return [b for p in self._saved_paths().values() if (b := self._cached(p)) is not None]
+
+    def saved_file(self, name: str) -> Path | None:
+        """A saved blade's file in the library (None: not a saved one)."""
+        return self._saved_paths().get(name.casefold())
 
     def all(self) -> list[Blade]:
         """Saved blades, folder blades and pack blades; a saved blade comes first when two share a
@@ -364,8 +362,9 @@ class BladeStore:
         return sorted(by_name.values(), key=lambda b: b.name.casefold())
 
     def get(self, name: str) -> Blade:
-        blade = self._read(self._path(name))
-        if blade is not None and blade.name.casefold() == name.casefold():
+        path = self._saved_paths().get(name.casefold())
+        blade = self._cached(path) if path is not None else None
+        if blade is not None:
             return blade
         for found in [*self._scan(), *self.starters()]:
             if found.name.casefold() == name.casefold():
@@ -402,17 +401,23 @@ class BladeStore:
                 blade.path = str(self._new_file(str(data["folder"]), blade.name))
             if previous is None and isinstance(data, dict) and data.get("library_folder"):
                 blade.path = str(self._library_file(str(data["library_folder"]), blade.name))
-            self._write(blade)
+            old = self.saved_file(previous.name) if previous is not None and not previous.path else None
+            written = self._write(blade, None if renamed else old)
             if renamed and previous is not None:
                 for secret in previous.secrets:
                     value = self._secret(previous.name, secret)
                     if value is not None and secret in blade.secrets:
                         self._set_secret(blade.name, secret, value)
-                    if not self.keep_secrets:
-                        self._delete_secret(previous.name, secret)
-                if not previous.path:
-                    self._path(previous.name).unlink(missing_ok=True)
+                    self._delete_secret(previous.name, secret)
+                if old is not None and old != written:
+                    old.unlink(missing_ok=True)
             return blade
+
+    def adopt(self, blade: Blade) -> Path:
+        """A blade from before the library (a JSON store, a project's own) written as its library file, as
+        it is (its secrets stay in the keyring under its name)."""
+        with self._lock:
+            return self._write(replace(blade, path=None, pack=None))
 
     def _new_file(self, folder: str, name: str) -> Path:
         listed = {os.path.normcase(os.path.abspath(f["path"])) for f in self.folders()}
@@ -425,11 +430,10 @@ class BladeStore:
 
     def _library_file(self, folder: str, name: str) -> Path:
         """A new blade's file in the library (apis/Orders): inside it, never over another file."""
-        if self.library is None:
-            raise BladeError("This app has no library folder.")
         target = (self.library / folder).resolve()
         if not target.is_relative_to(self.library.resolve()):
             raise BladeError("A library blade's folder is inside the library.")
+        self._made()
         target.mkdir(parents=True, exist_ok=True)
         path = target / file_name(name)
         if path.exists():
@@ -437,7 +441,7 @@ class BladeStore:
         return path
 
     def in_library(self, blade: Blade) -> bool:
-        if self.library is None or not blade.path:
+        if not blade.path:
             return False
         return Path(blade.path).resolve().is_relative_to(self.library.resolve())
 
@@ -462,10 +466,12 @@ class BladeStore:
                     f"{blade.name} is a file in your blade folder ({blade.path}). Delete or move the file "
                     "there to remove it."
                 )
-            if not self.keep_secrets:
-                for secret in blade.secrets:
-                    self._delete_secret(blade.name, secret)
-            self._path(blade.name).unlink(missing_ok=True)
+            for secret in blade.secrets:
+                self._delete_secret(blade.name, secret)
+            path = self.saved_file(blade.name)
+            if path is not None:
+                path.unlink(missing_ok=True)
+                self._seen.pop(str(path), None)
 
     # ===== secrets, in the operating system's vault =====
 
@@ -511,6 +517,18 @@ class BladeStore:
                 return
             except Exception:  # noqa: S112 (keyring raises PasswordDeleteError for one never set)
                 continue
+
+    def copy_secrets(self, source: str, target: str) -> None:
+        """A blade kept under a new name (a project's, beside the library's own): the values saved under the
+        old name, saved under the new one too (none here: nothing to copy)."""
+        try:
+            blade = self.get(target)
+            for secret in blade.secrets:
+                value = self._secret(source, secret)
+                if value is not None:
+                    self._set_secret(blade.name, secret, value)
+        except (KeyError, VaultUnavailableError):
+            return
 
     def secret_status(self, name: str | Blade) -> dict[str, bool]:
         """Each secret the blade's code asks for, and whether a value is saved (never the value)."""

@@ -593,7 +593,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     }
     let found: Card[];
     try {
-      found = withoutApis((await api<{ connections: Card[] }>("/connections/usage")).connections);
+      // Key vaults are the Variables page's (a thing with no tables is not a connection: the owner, 2026-11-17).
+      found = withoutApis((await api<{ connections: Card[] }>("/connections/usage")).connections).filter((c) => c.connection !== "vault");
     } catch (e) {
       if (mine !== drawing) return;
       clear(foot);
@@ -632,7 +633,6 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       [LAKE_GROUP, (c) => LAKE_KINDS.has(c.tables_kind ?? "")],
       ["Files", (c) => c.connection === "file"],
       ["Your own code", (c) => c.connection === "python"],
-      ["Key vaults", (c) => c.connection === "vault"],
     ];
     clear(
       body,
@@ -821,8 +821,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     };
     const group = (title: string, belongs: (t: Form) => boolean): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter(belongs).map(tile))];
     const of = (kind: Form["connection"]) => (t: Form): boolean => t.connection === kind && t.group !== LAKE_GROUP;
-    // From a password's New vault: only vaults, and Back returns to that connection.
-    clear(body, ...(then ? [] : [...group("Databases", of("database")), ...group(LAKE_GROUP, (t) => t.group === LAKE_GROUP), ...group("Files", of("file")), ...group("Your own code", of("python"))]), ...group("Key vaults", of("vault")));
+    // From a password's New vault: only vaults, and Back returns to that connection. Otherwise no vaults:
+    // they are added on the Variables page.
+    clear(body, ...(then ? group("Key vaults", of("vault")) : [...group("Databases", of("database")), ...group(LAKE_GROUP, (t) => t.group === LAKE_GROUP), ...group("Files", of("file")), ...group("Your own code", of("python"))]));
     foot.append(then ? button("Back", () => void then(null), { icon: "back" }) : backButton("Connections", urlOf(LIST)));
   };
 

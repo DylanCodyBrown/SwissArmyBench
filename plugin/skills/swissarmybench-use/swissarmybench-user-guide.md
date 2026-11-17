@@ -88,13 +88,13 @@ OneDrive; a double-click opens it (the installer registers .sab files for you; o
   itself). The switch stays in the project's group of the Application row, to turn it on or off later.
   Then you are in the project's **Grids**: with no table yet, **Open a file…**, **Paste**, **Query**,
   your project's connections (each opens its catalog), **Catalog** and **Add connection**.
-- **Everything is the project's own:** its notebooks, scripts and apps; its connections and blades;
-  its saved Visualizations dashboards. Another project sees none of them. In the Workbench, **In this
-  project…** lists its documents, and **Import…** copies notebooks, scripts or apps in from another
-  project (a .sab or a project folder) or a single file; opening a file from outside the project copies
-  it in too. **Import…** in Connections, and **Import from a project** on the blades page, copy a
-  connection or blade from another project or from **This computer** (the ones you saved before
-  projects held their own).
+- **The project's own:** its notebooks, scripts and apps, its tables and grids, Structures, Visualizations
+  and its saved dashboards. Another project sees none of them. Your connections, APIs, key vaults, blades
+  and variables are not a project's: they are **your library** (below), and every project has them. In
+  the Workbench, **In this project…** lists its documents, and **Import…** copies notebooks, scripts or
+  apps in from another project (a .sab or a project folder) or a single file; opening a file from outside
+  the project copies it in too. **Import…** in Connections, and **Import from a project** on the blades
+  page, copy an older project's own connections and blades into your library.
 - **Passwords stay on each computer.** A connection in the project names where its password comes
   from (your keyring, an environment variable, a key vault), never the password itself. Opened on a
   computer where that is not set, the connection says **Needs a password** with **Set the password**,
@@ -517,7 +517,7 @@ their own, run in an IPython kernel on this computer.
 
 ## Connections and key vaults
 
-**Connections** on the rail opens the Connections page: a card for each of your databases, files, connections made of your own Python, and key vaults, with its type, a status (**Works**, **Ready**: not used yet, **Needs a password**: one is in none of its places, **Failing**: its last call or its catalog failed) and how many times it has been called this session. **Add connection** at the top makes one with a form for its type. APIs are not here: they are on the **APIs** page. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
+**Connections** on the rail opens the Connections page: a card for each of your databases, files and connections made of your own Python (key vaults are on the **Variables** page), with its type, a status (**Works**, **Ready**: not used yet, **Needs a password**: one is in none of its places, **Failing**: its last call or its catalog failed) and how many times it has been called this session. **Add connection** at the top makes one with a form for its type. APIs are not here: they are on the **APIs** page. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
 
 Click a card for its **detail**:
 
@@ -709,10 +709,39 @@ The rail's **Structures** icon (after APIs) is for nested data, as Grids are for
 - An API's answer has **Run again** (the same call, your steps kept), **Return as table…** on a list, and **Lineage**: the call (what was sent, and when), the structure, each step, each grid made from it, and the notebook and script cells that read it.
 - In code: `sab.structure("gates")` is a saved structure's value, `sab.structure_table("payload", "$.orders")` its records as a DataFrame.
 
+## Your library
+
+Your connections, APIs, key vaults, blades, relationship sets (tangs), variables and connection colours
+live outside every project, so you never hunt for an API again in a new project. They are one folder of
+text files, your **library**, made to be a Git repository you can share with your team.
+
+- **Where it is:** Settings, **Library**, shows the folder (`~/.swissarmybench/library` to begin with)
+  and how many connections, key vaults, APIs, blades and tangs are in it. **Change…** points it at
+  another folder, such as your clone of a team's library; **Default** goes back. Everything follows at
+  once: every page shows the new folder's items.
+- **What is in it:** `connections/`, `vaults/` and `blades/` (one `.blade.py` file each), `apis/<name>/`
+  (an API's client, its blades and its OpenAPI document), `tangs/`, `variables.toml` (each variable's name
+  and where its value comes from), `colours.toml` (each connection's colour), a `README.md` and a
+  `.gitignore`. Saving something writes its one file; saving it again unchanged changes nothing, so Git
+  shows only what you changed.
+- **What never goes in:** passwords and secrets, tokens, rows of data. Secrets stay in this computer's
+  keyring. Values you marked **This computer only** go in `local/`, which the `.gitignore` leaves out.
+- **Sharing it:** commit and push the folder with your own Git tools (Swiss Army Bench never runs Git). A
+  teammate clones it and points Settings' Library at the clone: the same connections, APIs and blades
+  appear, and each connection says **Needs a password** until they set theirs; variables kept on your
+  computer only are **Not set** there until they set them.
+- **Moving in:** the first time this version starts, the connections, blades, variables, colours and tangs
+  you had move into the library once (the old files are kept in a dated backup folder beside them), and
+  the page says so. Opening an older project that kept its own connections and blades copies them into
+  your library: one that is already there is skipped, and one that differs is kept as
+  **&lt;name&gt; from &lt;project&gt;**, and the page says which. The project's next save leaves them out.
+
 ## Variables
 
 The rail's **Variables** icon (after Connections) is every environment variable this computer gives or
-something reads, whether or not a project is open. They are this computer's, never kept in a .sab.
+something reads, whether or not a project is open. They are your library's (`variables.toml`), never kept
+in a .sab. **Key vaults** are here too: a card for each, and **Add key vault** (a key vault holds no
+tables, so it is not on the Connections page). Click a vault's card for its detail and **Edit**.
 
 - **Grouped by where the value comes from**: Key vault (the vault and the secret's name, never its value),
   Plain value (shown), Keyring (dots and **Show**), Environment (this computer's own; shown, unless it

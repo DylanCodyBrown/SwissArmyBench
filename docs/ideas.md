@@ -4263,3 +4263,63 @@ debugger on them.
 ### Next
 - Unused variables and redefinitions without pyflakes or Ruff; the run order for a
   notebook's cells before; go to definition, references and rename (the Scripts IDE brief).
+
+## The library: connections, APIs, vaults, blades and variables outside any project (the owner, 2026-11-17; built, branch library)
+
+The owner: "Apis, Connections they live OUTSIDE of the project, I dont wanna have to go hunt an api every
+project." / "so they become a library of connections" / "and apis" / "that library is the thing I wanted
+to push to a github repo so it can be shared as a code base with fellow users later". Blades go in it too.
+Plans/library.plan.md. This replaces "Project scope: everything is the project's own" (2026-11-16) for
+connections, APIs, vaults, blades and variables; projects keep their documents, tables, grids, Structures,
+Visualizations, model and saved dashboards.
+
+### Built
+- **The folder** (adapters/library.py LibraryFolder, domain/library.py): `~/.swissarmybench/library`, or the
+  folder Settings' **Library** names (library.json: the path only). `connections/`, `vaults/`,
+  `blades/<name>.blade.py`, `apis/<name>/`, `tangs/<name>.tang`, `variables.toml`, `colours.toml`, `local/`;
+  README.md and .gitignore (`local/`, `*.tmp`, `*.part`) written on the first write into it, never over the
+  user's own.
+- **Every store reads and writes there, project open or not:** the blade store writes each saved blade as
+  its portable file (the `# /// swissarmybench-blade` header) in vaults/, connections/ or blades/ by what
+  it is (domain/library.py folder_for, on connection_kind), and reads them back (cached by modification
+  time and size); a kind change moves the file; a rename writes the new file and removes the old. The
+  Variables page's two files are TOML (variables.toml sorted by name: `[variables.NAME] from = "value"`;
+  local/variables.toml `[values]`); colours.toml, the APIs' apis/ and the tangs follow the folder by a
+  callable, so changing it is one call (bootstrap's library_moved).
+- **Stable:** a file is written only when its text changes (the blade's text has no timestamps: its times
+  are the file's), so a save that changes nothing changes no byte and no modification time.
+- **Never a secret:** secrets stay in the keyring under `blade/<name>/<secret>` and `variable/<NAME>`.
+- **Key vaults on the Variables page** (a thing with no tables is not a connection): a card each and
+  **Add key vault** (a vault type's form, the Connections page's, as before: its detail, Edit and Test are
+  unchanged). The Connections page lists no vaults and offers no vault types, except from a password's
+  **New vault**, which still makes one in place.
+- **Migration, once, said:** at start, this computer's older stores (state folder's blades/*.json,
+  variables.json and local/variables.json, colours.toml, tangs/) are written as library files (a name
+  the library has already stays as it is) and the old files moved to `backup/before-library-<date>/`; the
+  page says it once (POST /library/notices, taken at page load). An older project's own `.sab/blades`
+  are copied in when it opens (services/library.py take): the same text skipped, a different one kept as
+  **`<name> from <project>`** (a blade name has no brackets, so not `<name> (from <project>)`), its keyring
+  values copied to the new name; the notice (`library_notice`) lists them; the working folder's copy is
+  removed, so the next save leaves `.sab/blades` out. An older app still opens the new file (it finds no
+  blades of the project's own).
+- **Import** of connections and blades from another project goes into the library the same way (no
+  project needs to be open for it); the import dialog's **This computer** source is gone (the library is
+  this computer's).
+- **A clone on another computer:** pointed at by Settings' Library, it opens with the same connections,
+  vaults, blades, APIs, variables and colours; each connection's missing password is "Needs a password"
+  with **Set the password** (the existing fix); a local variable is empty until set there; a keyring
+  variable is Not set.
+- **The agent:** `library_info` (the folder, counts, Git or not, what stays local, what never goes in, the
+  notices), `library_set_folder` (waits for the user's Allow: every store changes), the area `library` and
+  the guide topic `library`; the existing connection, blade, variable, API and tang commands act on the
+  library. The app never runs git.
+
+### Decisions
+- Saved blades are portable `.blade.py` files, not JSON: they diff well and are the format blade folders
+  and packs already use, so a library can be turned into a pack.
+- Per-item "switched off on this computer" in local/ was not built (nothing switches library items off
+  yet); local/ holds the local variable values.
+- Several libraries at once (yours plus a team's, read-only) is not built: one library at a time, and blade
+  folders and packs stay read-only extras as before.
+- The library's README and .gitignore are written on the first write, not at start, so a server that never
+  saves anything writes nothing.

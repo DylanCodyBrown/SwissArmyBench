@@ -135,13 +135,14 @@ GUIDE_TOPICS: dict[str, str] = {
     "grids": "Grids and steps: data in, reading, the ribbon, steps, SQL, the page",
     "analyze": "Analyze and Visualizations: the analyses, cards, dashboards, themes",
     "relationships": "Keys and relationships: the finder, tangs, the ERD, compare and tie-out",
-    "connections": "Connections and catalogs: databases, files, Power BI, your own Python, key vaults",
+    "connections": "Connections and catalogs: databases, files, Power BI, your own Python; key vaults, variables",
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
     "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
     "projects": "Projects as one .sab file: open, save, the recent ones, tables that need a fix",
+    "library": "The library: connections, APIs, vaults, blades, tangs, variables as a Git repository's files",
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
 }
@@ -3486,6 +3487,23 @@ def app_autostart(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "library_info",
+    "The library: its folder (a Git repository's working copy), what is in it, what stays on this computer",
+)
+def library_info(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/library")
+
+
+@command(
+    "library_set_folder",
+    "Point the library at another folder (a clone of a team's library) or back at the default; waits for Allow",
+    opt("folder", "The folder's whole path; none: the default (~/.swissarmybench/library)."),
+)
+def library_set_folder(a: dict[str, Any]) -> Any:
+    return api.call("PUT", "/library", {"folder": a.get("folder")}, timeout=200)
+
+
+@command(
     "app_claude",
     "Which Claude Code and Claude Desktop this computer has (Launch Claude)",
     opt("refresh", "true: look for Claude again.", "bool"),
@@ -4484,6 +4502,10 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("blades", "Blades: the user's saved code that loads from outside Python"),
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
     ("variables", "Variables page: this computer's variables, their sources and uses"),
+    (
+        "library",
+        "The library: the folder of connections, APIs, vaults, blades and variables (a Git repository)",
+    ),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),

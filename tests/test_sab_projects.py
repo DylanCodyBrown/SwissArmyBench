@@ -7,6 +7,7 @@ Made-up data only."""
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import threading
 import time
@@ -231,10 +232,11 @@ def test_a_missing_connection_or_file_gives_the_table_its_fix(tmp_path: Path) ->
         made = build_project(client, tmp_path)
         ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
         assert project(client)["project"]["name"] == "moved"
-    # Another computer: its keyring has no password for Shop (the project brings the connection, never
-    # its password), and the CSV moved away.
+    # Another computer: the library cloned there (Plans/library.plan.md: the connection comes with it,
+    # never its password, so its keyring has none for Shop), and the CSV moved away.
     moved = made["csv"].with_name("orders_moved.csv")
     made["csv"].rename(moved)
+    shutil.copytree(tmp_path / "first" / "state" / "library", tmp_path / "second" / "state" / "library")
     with memory_keyring(), make_client(tmp_path / "second") as client:
         opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
         problems = {p["table"]: p for p in opened["problems"]}
@@ -265,7 +267,7 @@ def test_a_project_without_its_connection_offers_to_add_it(tmp_path: Path) -> No
     with make_client(tmp_path / "first") as client:
         build_project(client, tmp_path)
         ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
-    # A file written by hand (or an older version): the connection is not in it.
+    # Another computer whose library has no Shop (and a file written by hand: nothing of its own either).
     inside = entries(target)
     with zipfile.ZipFile(target, "w") as out:
         for name, body in inside.items():

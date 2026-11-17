@@ -16,14 +16,17 @@
  *             secret). Edit, Rename (connections and Run settings follow; the cells still reading the
  *             old name listed) and Remove (what uses it shown first) on this computer's own.
  *   [SHOW]    a keyring secret's value on the user's click only (the server refuses the agent).
+ *   [VAULTS]  the key vaults (the owner, 2026-11-17: a thing with no tables is not a connection): a card
+ *             each (its detail and form are the Connections page's), Add key vault (a vault type's form).
  *   [PAGE]    a page of the rail's over any page (areaPage.ts), in the address as open=variables.
  *
  * ROUTING: GET/PUT /variables  ·  POST /variables/rename, /variables/reveal  ·  DELETE /variables/{name}
+ *          GET /connections (the vaults), /connections/types (Add key vault)
  *          notice variables_changed
  */
 import { api, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { openReference } from "./connectionsWindow";
+import { connectionIcon, openReference } from "./connectionsWindow";
 import { append, button, h, icon, toast } from "./dom";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 
@@ -115,8 +118,60 @@ function drawVariables(): void {
   const formSlot = h("div", { class: "variables-form-slot" });
   const list = h("div", { class: "variables-list", "aria-live": "polite" });
   const add = button("Add variable", () => showForm(null), { icon: "plus", class: "primary variables-add" });
-  actions.replaceChildren(search, add);
-  body.append(formSlot, chips, list);
+  const addVault = button("Add key vault", () => void showVaultTypes(), { icon: "key", class: "variables-add-vault" });
+  actions.replaceChildren(search, addVault, add);
+  const vaults = h("section", { class: "variables-vaults", "aria-label": "Key vaults" });
+  body.append(formSlot, vaults, chips, list);
+
+  // ----- the key vaults: each one's detail and form are the Connections page's -----
+  const openVault = (name: string): void => visit(withParams({ open: "connections", at: "detail", type: null, name }));
+  const loadVaults = async (): Promise<void> => {
+    let found: { name: string; connection: string; template?: string | null; type?: string | null }[];
+    try {
+      found = (await api<{ connections: typeof found }>("/connections")).connections.filter((c) => c.connection === "vault");
+    } catch {
+      return;
+    }
+    vaults.replaceChildren(
+      ...(found.length
+        ? [
+            h("h2", {}, icon("key"), "Key vaults", h("span", { class: "count" }, String(found.length))),
+            h(
+              "ul",
+              { class: "variables-vault-cards" },
+              ...found.map((v) =>
+                h(
+                  "li",
+                  {},
+                  h(
+                    "button",
+                    { type: "button", class: "variables-vault-card", "data-vault": v.name, onclick: () => openVault(v.name) },
+                    icon(connectionIcon(v.template, "vault")),
+                    h("strong", {}, v.name),
+                    h("span", { class: "muted" }, v.type ?? "Key vault"),
+                  ),
+                ),
+              ),
+            ),
+          ]
+        : []),
+    );
+  };
+  const showVaultTypes = async (): Promise<void> => {
+    try {
+      const types = (await api<{ types: { id: string; label: string; connection: string }[] }>("/connections/types")).types.filter((t) => t.connection === "vault");
+      formSlot.replaceChildren(
+        h(
+          "div",
+          { class: "variables-form variables-vault-types", role: "group", "aria-label": "Add key vault" },
+          ...types.map((t) => button(t.label, () => visit(withParams({ open: "connections", at: "form", type: t.id, name: null })), { icon: connectionIcon(t.id, "vault"), class: "connection-type fam-vault" })),
+          button("Cancel", closeForm),
+        ),
+      );
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
 
   const load = async (): Promise<void> => {
     try {
@@ -127,7 +182,10 @@ function drawVariables(): void {
     }
     draw();
   };
-  reload = () => void load();
+  reload = () => {
+    void load();
+    void loadVaults();
+  };
 
   const draw = (): void => {
     if (!element.open) return;
@@ -352,4 +410,5 @@ function drawVariables(): void {
   });
   draw();
   void load();
+  void loadVaults();
 }

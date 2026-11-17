@@ -1,9 +1,9 @@
 """What belongs to the open project (services/project_scope.py, services/sab_projects.py; the owner,
 2026-11-16): a new project is saved first; autosave saves after a change, and not when off; notebooks,
-scripts, apps, connections, blades and saved dashboards are each project's own; importing copies them in
-(from another .sab, a project folder, a loose file, or this computer's saved connections); a .sab never
-holds a password, whether it comes from the keyring, a vault or an environment variable. Made-up data
-only."""
+scripts, apps and saved dashboards are each project's own, while connections and blades are the library's
+(Plans/library.plan.md, 2026-11-17: every project has them); importing copies documents in and an older
+project's connections and blades into the library; a .sab never holds a password, whether it comes from
+the keyring, a vault or an environment variable. Made-up data only."""
 
 from __future__ import annotations
 
@@ -204,9 +204,10 @@ def test_a_notebooks_kind_inside_a_project_and_outside_one() -> None:
 # ===== scope =====
 
 
-def test_a_second_project_sees_none_of_the_firsts_own(tmp_path: Path) -> None:
+def test_documents_and_dashboards_are_each_projects_own_connections_and_blades_the_librarys(
+    tmp_path: Path,
+) -> None:
     with make_client(tmp_path) as client:
-        before = {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}
         first = tmp_path / "first.sab"
         made = ok(client.post("/project/new", json={"path": str(first)}, headers=AUTH))["project"]
         Path(made["folder"], "analysis.ipynb").write_text(notebook("print(1)"), encoding="utf-8")
@@ -225,27 +226,35 @@ def test_a_second_project_sees_none_of_the_firsts_own(tmp_path: Path) -> None:
         assert client.get("/project/documents?kind=sheet", headers=AUTH).status_code == 400
         ok(client.post("/project/save", json={}, headers=AUTH))
         inside = entries(first)
-        assert any(n.startswith(".sab/blades/") for n in inside)
+        assert not any(n.startswith(".sab/blades/") for n in inside)  # the library's, never the file's
         assert any(n.startswith(".sab/dashboards/") for n in inside)
 
         second = tmp_path / "second.sab"
         ok(client.post("/project/new", json={"path": str(second)}, headers=AUTH))
         names = {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}
-        assert "Warehouse" not in names and "Typed" not in names
-        assert ok(client.get("/connections", headers=AUTH))["connections"] == []
+        assert {"Warehouse", "Typed"} <= names  # every project has the library
+        assert [c["name"] for c in ok(client.get("/connections", headers=AUTH))["connections"]] == [
+            "Warehouse"
+        ]
         assert ok(client.get("/dashboards", headers=AUTH))["dashboards"] == []
         listed = ok(client.get("/project/documents", headers=AUTH))["documents"]
         assert "analysis.ipynb" not in {d["path"] for d in listed}
 
-        # The first again: its own are back, from its file.
+        # The first again: its dashboards are back, from its file.
         ok(client.post("/project/open", json={"path": str(first)}, headers=AUTH))
-        names = {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}
-        assert {"Warehouse", "Typed"} <= names
         assert [d["name"] for d in ok(client.get("/dashboards", headers=AUTH))["dashboards"]] == ["Quarter"]
-        # No project: this computer's own, as before projects held them.
         ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
-        assert {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]} == before
+        assert {"Warehouse", "Typed"} <= {
+            b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]
+        }
         assert ok(client.get("/project/documents", headers=AUTH)) == {"project": None, "documents": []}
+
+
+def _with_own_blades(path: Path, blades: list[dict[str, Any]]) -> None:
+    """An older app's .sab: its own connections and blades in .sab/blades (added to a saved file)."""
+    with zipfile.ZipFile(path, "a") as archive:
+        for i, blade in enumerate(blades):
+            archive.writestr(f".sab/blades/blade-{i}.json", json.dumps(blade))
 
 
 # ===== import =====
@@ -253,19 +262,16 @@ def test_a_second_project_sees_none_of_the_firsts_own(tmp_path: Path) -> None:
 
 def test_import_copies_documents_connections_and_blades(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
-        # This computer's saved connection (made before projects held their own).
-        ok(client.post("/connections", json=warehouse("Old warehouse"), headers=AUTH))
         source = tmp_path / "source.sab"
         made = ok(client.post("/project/new", json={"path": str(source)}, headers=AUTH))["project"]
         Path(made["folder"], "analysis.ipynb").write_text(notebook("print('made up')"), encoding="utf-8")
         Path(made["folder"], "load.py").write_text("print('load')\n", encoding="utf-8")
-        ok(client.post("/connections", json=warehouse(), headers=AUTH))
-        ok(
-            client.post(
-                "/blades", json={"name": "Typed", "kind": "secret", "env_names": ["API_KEY"]}, headers=AUTH
-            )
-        )
         ok(client.post("/project/save", json={}, headers=AUTH))
+        ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
+        # An older app's project: its own connection and blade in the file.
+        shop = warehouse() | {"variable": "conn", "catalog": None}
+        shop.pop("secrets")
+        _with_own_blades(source, [shop, {"name": "Typed", "kind": "secret", "env_names": ["API_KEY"]}])
 
         target = tmp_path / "target.sab"
         made = ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))["project"]
@@ -296,29 +302,22 @@ def test_import_copies_documents_connections_and_blades(tmp_path: Path) -> None:
         assert [d["path"] for d in done["documents"]] == ["analysis 2.ipynb", "load.py"]
         assert "made up" in Path(folder, "analysis 2.ipynb").read_text(encoding="utf-8")
         assert "mine" in Path(folder, "analysis.ipynb").read_text(encoding="utf-8")
-        assert done["connections"] == ["Warehouse"] and done["needs_password"] == {}
+        # Into the library: its password is this computer's keyring's, by the connection's name (none yet).
+        assert done["connections"] == ["Warehouse"] and done["needs_password"]["Warehouse"]["missing"] == [
+            "password"
+        ]
         assert "Warehouse" in {c["name"] for c in ok(client.get("/connections", headers=AUTH))["connections"]}
-        # A name the project has is never overwritten: skipped, and said.
+        # The same one again: skipped, and said (never overwritten).
         again = ok(
             client.post(
                 "/project/import", json={"from": str(source), "connections": ["Warehouse"]}, headers=AUTH
             )
         )
         assert again["connections"] == [] and again["skipped"] == ["Warehouse"]
-
-        # This computer's saved ones.
-        computer = ok(client.post("/project/import/sources", json={"from": "computer"}, headers=AUTH))
-        assert [c["name"] for c in computer["connections"]] == ["Old warehouse"] and computer[
-            "documents"
-        ] == []
-        ok(
-            client.post(
-                "/project/import", json={"from": "computer", "connections": ["old warehouse"]}, headers=AUTH
-            )
+        # "This computer" is no place to import from: its connections are the library's.
+        assert (
+            client.post("/project/import/sources", json={"from": "computer"}, headers=AUTH).status_code == 400
         )
-        assert "Old warehouse" in {
-            c["name"] for c in ok(client.get("/connections", headers=AUTH))["connections"]
-        }
 
         # A loose notebook from outside: a copy into the project (the original stays where it is).
         loose = tmp_path / "loose.ipynb"
@@ -391,17 +390,9 @@ def test_no_password_is_ever_in_the_file_whatever_its_source(
         everything = b"".join(entries(target).values())
         for value in (KEYRING_SECRET, VAULT_SECRET, ENV_SECRET):
             assert value.encode() not in everything and value.encode() not in raw, value
-        assert len([n for n in entries(target) if n.startswith(".sab/blades/")]) == 4
-    # Another computer, with none of those: each says so, with its fix.
+        assert [n for n in entries(target) if n.startswith(".sab/blades/")] == []
+        library = b"".join(p.read_bytes() for p in (tmp_path / "state" / "library").rglob("*") if p.is_file())
+        for value in (KEYRING_SECRET, VAULT_SECRET, ENV_SECRET):
+            assert value.encode() not in library, value
     monkeypatch.delenv("WAREHOUSE_ENV_PASSWORD")
-    with memory_keyring(), make_client(tmp_path / "other") as client:
-        ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))
-        listed = {c["name"]: c for c in ok(client.get("/connections", headers=AUTH))["connections"]}
-        assert listed["Warehouse"]["needs_password"]["missing"] == ["password"]
-        assert listed["Environment"]["needs_password"]["fix"] == {
-            "kind": "password",
-            "label": "Set the password",
-            "connection": "Environment",
-        }
-        assert listed["Vaulted"]["needs_password"] is None  # its vault came with the project
     assert os.environ.get("WAREHOUSE_ENV_PASSWORD") is None
