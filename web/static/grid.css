@@ -12366,3 +12366,304 @@ dialog.find-data .dialog-body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ===== The Code App page (codeAppPage.ts: the Power Apps extension's plug-in) and a code app's file in the
+   Workbench (workbenchCodeFile.ts) ===== */
+.ca-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.ca-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.ca-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ca-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.ca-tool svg {
+  width: 14px;
+  height: 14px;
+}
+.ca-tool.ok svg {
+  color: var(--ok);
+}
+.ca-tool.missing {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.ca-tool.missing svg {
+  color: var(--warn);
+}
+.ca-tool.later {
+  color: var(--muted);
+}
+.ca-account,
+.ca-env {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.ca-account svg,
+.ca-env svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+.ca-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.ca-tab {
+  padding: 7px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ca-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+  font-weight: 600;
+}
+.ca-tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ca-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.ca-panel h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.ca-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ca-section-head h2 {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ca-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: baseline;
+}
+.ca-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.ca-table th,
+.ca-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.ca-table td svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  color: var(--muted);
+}
+.ca-files,
+.ca-files ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ca-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ca-file svg,
+.ca-folder summary svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.ca-folder summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.ca-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ca-search {
+  flex: 1 1 260px;
+}
+.ca-in-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ok);
+}
+.ca-in-app svg {
+  width: 13px;
+  height: 13px;
+}
+.ca-method code {
+  font-size: 13px;
+}
+.ca-live-frame {
+  width: 100%;
+  min-height: 420px;
+  height: 55vh;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.ca-live-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 200px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.ca-live-empty svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+.ca-output {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--raised);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.ca-output:empty {
+  display: none;
+}
+.ca-commands {
+  margin: 0;
+}
+.ca-pushed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ca-pushed svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ok);
+}
+.ca-runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ca-run summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.ca-run summary svg {
+  width: 14px;
+  height: 14px;
+}
+.ca-run.ok summary svg {
+  color: var(--ok);
+}
+.ca-run.failed summary svg {
+  color: var(--error);
+}
+.ca-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.ca-row {
+  display: flex;
+  gap: 6px;
+}
+.ca-row input {
+  flex: 1;
+}
+.ca-file-text pre {
+  max-height: 280px;
+  overflow: auto;
+  font-size: 12px;
+  background: var(--raised);
+  padding: 8px;
+  border-radius: 6px;
+}
+.ca-this {
+  font-weight: 600;
+}
+.starter-every-row {
+  padding: 2px 10px;
+}
+.wb-gbody:has(> .wb-doc-body.kind-codefile) {
+  overflow: hidden;
+}
+.wb-doc-body.kind-codefile {
+  height: 100%;
+}
+.wb-codefile {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.wb-codefile-head {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.wb-codefile-editor {
+  flex: 1;
+  min-height: 0;
+}

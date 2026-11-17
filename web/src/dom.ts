@@ -188,6 +188,11 @@ const ICONS: Record<string, string> = {
   // The Structures page's: a small branching tree, a root and three leaves.
   structures: '<circle cx="6" cy="5" r="2"/><path d="M6 7v12M6 12h5M6 19h5"/><rect x="12" y="9.5" width="8" height="5" rx="1.2"/><rect x="12" y="16.5" width="8" height="5" rx="1.2"/><path d="M8 5h4"/><rect x="12" y="2.5" width="8" height="5" rx="1.2"/>',
   plug: '<path d="M9 3v4.5M15 3v4.5M6 7.5h12v3.5a6 6 0 01-12 0zM12 17v4"/>',
+  // The Code App page's (the Power Apps extension's): a window with code's angle brackets in it.
+  codeapp: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18M9.5 11.5 7 14l2.5 2.5M14.5 11.5 17 14l-2.5 2.5"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
   // The Session page (2026-11-16): a log, a dot for each thing made.
   // The Variables page's (rail.ts): braces round an x.
   variables: '<path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2-1 3-3 3"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/>',

@@ -9,7 +9,9 @@
 import * as monaco from "monaco-editor";
 
 (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
-  getWorker: () => new Worker("/static/build/editor.worker.js", { type: "module" }),
+  // TypeScript and TSX (a code app's files) have Monaco's own language service, in a worker of its own.
+  getWorker: (_id: string, label: string) =>
+    new Worker(label === "typescript" || label === "javascript" ? "/static/build/ts.worker.js" : "/static/build/editor.worker.js", { type: "module" }),
 };
 
 // HTML is coloured by Monaco's own grammar (the tags, and the CSS and JavaScript inside them). Its
@@ -29,10 +31,45 @@ monaco.html.htmlDefaults.setModeConfiguration({
   documentRangeFormattingEdits: false,
 });
 
-export type EditorLanguage = "python" | "sql" | "dax" | "markdown" | "html" | "json" | "yaml" | "xml" | "toml";
+export type EditorLanguage = "python" | "sql" | "dax" | "markdown" | "html" | "json" | "yaml" | "xml" | "toml" | "typescript" | "tsx" | "javascript" | "css" | "plaintext";
 /** Monaco's own name for a language: its DAX grammar is `msdax` (keywords, functions, 'Table'[Column], [Measure]);
  *  TOML is coloured as INI (Structures: the server checks each format and says where an error is). */
-const monacoId = (language: EditorLanguage): string => (language === "dax" ? "msdax" : language === "toml" ? "ini" : language);
+const monacoId = (language: EditorLanguage): string => (language === "dax" ? "msdax" : language === "toml" ? "ini" : language === "tsx" ? "typescript" : language);
+
+// ===== TypeScript: a code app's files (the Power Apps extension's), with Monaco's own language service =====
+
+let typescriptReady = false;
+const projectLibs = new Map<string, monaco.IDisposable>();
+
+/** The language service set for a code app (React's JSX, modern modules), and the project's own files known
+ *  to it (its generated models and services, its other modules), so imports between them resolve and the
+ *  member lists, parameter info and hovers are the project's. Packages under node_modules are not read: a
+ *  "cannot find module" for them is not shown. */
+export function typescriptProject(files: { path: string; text: string }[]): void {
+  const ts = monaco.typescript;
+  if (!typescriptReady) {
+    typescriptReady = true;
+    ts.typescriptDefaults.setCompilerOptions({
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeJs,
+      jsx: ts.JsxEmit.ReactJSX,
+      allowNonTsExtensions: true,
+      allowJs: true,
+      esModuleInterop: true,
+      strict: true,
+      skipLibCheck: true,
+    });
+    // 2307/2792: a package not read here; 7016: its types; 2875: JSX's runtime package; 17004: JSX flag; 7026: JSX's element types (React's own types are in node_modules).
+    ts.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false, diagnosticCodesToIgnore: [2307, 2792, 7016, 2875, 17004, 7026] });
+    ts.typescriptDefaults.setEagerModelSync(true);
+  }
+  for (const file of files) {
+    const uri = `file:///${file.path.replace(/^\/+/, "")}`;
+    projectLibs.get(uri)?.dispose();
+    projectLibs.set(uri, ts.typescriptDefaults.addExtraLib(file.text, uri));
+  }
+}
 
 // JSON (Structures' text view) is coloured by Monaco's grammar; its language service would need a worker of
 // its own: the server checks the text instead, and says the line of an error.
@@ -614,6 +651,9 @@ export interface CodeEditorOptions {
   actions?: { id: string; label: string; run: (line: number) => void }[];
   /** Parameter info, quick info and the lint as you type (workbenchIntel.ts). */
   intel?: Intel;
+  /** The file's path in its project (a code app's src/App.tsx): its model's address, so TypeScript reads
+   *  it as .ts or .tsx and resolves its imports. */
+  path?: string;
 }
 
 /** Beta mode's "Leave a note…" in the editor's own right-click menu. The page (betaNotes.ts, another
@@ -685,9 +725,12 @@ function ownDrops(editor: monaco.editor.IStandaloneCodeEditor): void {
 }
 
 export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions): CodeEditor {
+  // A project file's model has its own address (a .tsx file is read as TSX); else Monaco names one.
+  const uri = options.path ? monaco.Uri.parse(`file:///${options.path.replace(/^\/+/, "")}`) : null;
+  if (uri) monaco.editor.getModel(uri)?.dispose();
+  const ownModel = uri ? monaco.editor.createModel(options.value, monacoId(options.language), uri) : null;
   const editor = monaco.editor.create(host, {
-    value: options.value,
-    language: monacoId(options.language),
+    ...(ownModel ? { model: ownModel } : { value: options.value, language: monacoId(options.language) }),
     theme: THEMES[options.theme] ?? "vs",
     automaticLayout: !options.grow,
     minimap: { enabled: false },

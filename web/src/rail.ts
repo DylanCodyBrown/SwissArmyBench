@@ -45,14 +45,15 @@ import { loadPanels, onPanels } from "./panels";
 import { onUnseen } from "./sessionPage";
 import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
 import { STRUCTURES } from "./structuresPage"; // the Structures page's layer, the same
+import { CODE_APP, codeAppOn } from "./codeAppPage"; // the Power Apps extension's page (a plug-in: shown while it is on)
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { openMenu } from "./workbenchMenu";
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "settings";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "codeapp" | "settings";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
-const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
+const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () => Promise<boolean> }[] = [
   // In the order of the work (the owner, 2026-11-17: "rearrange the rail to make since. In order of
   // workflow"): where the data comes from, getting and shaping it, web data, tools, building, presenting,
   // then the log.
@@ -63,6 +64,8 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
   { area: "apis", name: APIS, icon: "apis" }, // the library's APIs, their explorer (apisPage.ts)
   { area: "structures", name: STRUCTURES, icon: "structures" }, // nested data as documents (structuresPage.ts)
   { area: "blades", name: "Blades", icon: "blade" },
+  // An extension's area: its plug-in says whether it is on here (hidden until it says so).
+  { area: "codeapp", name: CODE_APP, icon: "codeapp", plugin: codeAppOn },
   { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   { area: "apps", name: "Apps", icon: "page", kind: "app" },
@@ -71,7 +74,7 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind }[] = [
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
-const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures"];
+const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "codeapp"];
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
@@ -169,12 +172,13 @@ function draw(url: URL): void {
 }
 
 function onKey(e: KeyboardEvent): void {
-  const at = items.indexOf(e.target as HTMLButtonElement);
+  const shown = items.filter((i) => !i.hidden);
+  const at = shown.indexOf(e.target as HTMLButtonElement);
   if (at < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
-  const to = { ArrowDown: at + 1, ArrowRight: at + 1, ArrowUp: at - 1, ArrowLeft: at - 1, Home: 0, End: items.length - 1 }[e.key];
+  const to = { ArrowDown: at + 1, ArrowRight: at + 1, ArrowUp: at - 1, ArrowLeft: at - 1, Home: 0, End: shown.length - 1 }[e.key];
   if (to === undefined) return;
   e.preventDefault();
-  const next = items[(to + items.length) % items.length]!;
+  const next = shown[(to + shown.length) % shown.length]!;
   for (const item of items) item.tabIndex = item === next ? 0 : -1;
   next.focus();
 }
@@ -198,6 +202,10 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
     // The name, on hover and on focus (a `title` would show the same words a second time).
     h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name),
   );
+  if (area.plugin) {
+    element.hidden = true;
+    void area.plugin().then((on) => (element.hidden = !on));
+  }
   {
     // A middle click: a new window too (its mousedown would start the browser's autoscroll).
     element.addEventListener("mousedown", (e) => {

@@ -4333,3 +4333,101 @@ debugger on them.
 ### Next
 - Unused variables and redefinitions without pyflakes or Ruff; the run order for a
   notebook's cells before; go to definition, references and rename (the Scripts IDE brief).
+
+## The Power Apps extension, phase 1: code apps with Microsoft's own command lines (the owner, 2026-11-17; built, branch ext-powerapps)
+
+The owner: "pac actually simplifies a ton of this and instead of writing custom code to manage the project we
+let pac cli do the work ... The custom connector API we get for free, and we actually get a browsable power
+automate connector list for free with pac to import it and its shape in the API explorer." "Powerapps edition
+and accounting edition are where I can get the most value"; "Build the other two extensions in parallel".
+And on modes: "for a code app it's typescript react, and additional cell types with blades for typescript".
+
+**Built:** `extensions/powerapps/` (`swissarmybench-powerapps`, the base's version, entry point
+`powerapps = "swissarmybench_powerapps.extension"`, project type `codeapp`), its own layers (domain:
+cli_lines, tools, project, connectors; services: powerapps; adapters: runner, files, environment_api;
+server: routes; commands; five TypeScript and React starters). The front end's plug-ins in the shared
+`web/`: the rail's **Code App** area and page (codeAppPage.ts), a code app's file in the Workbench's editor
+(workbenchCodeFile.ts, Monaco's own TypeScript service: its worker `ts.worker.js` is built now).
+
+**Decisions:**
+1. **The docs moved past the plan: `pa`, not `pac code`.** Microsoft's code apps documentation (2026-11-10)
+   builds code apps with the npm **Power Apps CLI** (`pa`, `@microsoft/power-apps-cli`, Node.js 22 or later);
+   `pac code` is "(Preview) ... will be deprecated". So the app runs `pa` for the app (sign-in, init, data
+   sources, connectors and connections, push, the code apps list) and `pac` for what `pa` does not do: the
+   environments list (`pac env list`), its sign-in profiles, custom connectors (`pac connector create`), and
+   a connector's definition's token (`pac auth token`). Both are "the Power Platform tools" on the page.
+2. **New code app = Microsoft's quickstart, step for step:** `npx degit
+   github:microsoft/PowerAppsCodeApps/templates/vite <folder>`, `npm install`, `pa app init --display-name
+   --environment-id`; `.sab/project.json` records `{"type": "codeapp"}` (the Accounting branch's project
+   type file), and the open code app is the open project (`projects.opened`), so the base's mode follows it.
+3. **Every value on a command line is checked:** one line, no leading dash, and never anything that looks
+   like a secret (a `password=`, a JWT, a long run of key characters): refused before anything runs. Sign-in
+   is the CLIs' own browser sign-in; their tokens stay in their own stores. `pac auth token`'s output is read
+   in memory for one request and never streamed, kept, logged or shown.
+4. **Every run** (its words only, never a value twice: "pa app init", "npm run build") streams to the page
+   (`powerapps_output`), is kept for the session (`powerapps_runs`), and goes to the audit log, so the
+   Session page says "Ran pa app push (done)". stdin is closed: a command that would prompt fails at once.
+5. **Missing tools** are the base's missing-package answer (422, `python: "tool"`, this system's install
+   command): winget, brew or apt for Node.js, `npm install --global @microsoft/power-apps-cli`, `dotnet tool
+   install --global Microsoft.PowerApps.CLI.Tool`; a `sudo` or piped command is the user's to run (said, not
+   run). Installing waits for the user's Allow when the agent asks. Deno is listed as phase 2 and blocks
+   nothing; .NET shows only while pac is missing.
+6. **Connectors in the APIs explorer's model:** `pa connector list --json` lists them; one's shape is its
+   Swagger 2.0 read by `domain/api_explorer.explore` (the same operations, inputs, outputs, schemas and
+   made-up examples), read-only (no Author a call, no Return as table), its internal operations left out, each
+   operation's `operation_id` (the generated service's method, `ContosotasksService.ListTasks`). The
+   definition comes from the code app's own `.power/schemas/` (the CLI's download), else from the
+   environment's connectivity service the CLI itself reads (`connectivity/connectors/<name>?api-version=1`,
+   `properties.swagger`) with pac's sign-in. **Add to app** = `pa app add data-source` with the chosen
+   connection. The Code App page draws the explorer itself (the APIs page's classes and its `mountTree`);
+   apisPage.ts is not changed.
+7. **Run live** = the template's dev server (`npm run dev -- --port <free> --strictPort --host 127.0.0.1
+   --base /powerapps/live/<key>/`), passed through this server exactly as Streamlit's live pages
+   (`streamlit_proxy.routes` now takes a prefix), so the pane's address carries its own secret and the page's
+   frame policy stays `frame-src 'self'`; the frame is sandboxed without our origin. Local Play (where
+   connectors answer: inside make.powerapps.com, in the user's own browser profile) is the dev server's
+   printed play address, else the one the CLI builds. Without the Power Apps Vite plugin, Run live says to
+   use `pa app run` in a terminal.
+8. **Push** = `npm run build`, then `pa app push` (the docs' two steps); the link it prints is the app's.
+   The agent's push waits for Allow; a dry run says what would run. **Versions:** the CLI lists no versions of
+   an app: Versions shows `pa app list` (this app marked) and this session's pushes.
+9. **Custom connectors** from an API on the APIs page (`ApiExplorer.document_of`): `apiDefinition.swagger.json`
+   (OpenAPI 3 converted to Swagger 2.0: servers to host/basePath/schemes, requestBody to a body parameter,
+   components to definitions, `nullable` to `x-nullable`) and `apiProperties.json` (the sign-in mapped: none,
+   API key, Basic, a bearer token as an API key in Authorization, OAuth 2.0's authorization code flow as an
+   `oAuthSetting` with an empty client id; the others said plainly); a dry run shows both; then written in the
+   app's `connectors/<api>/` and `pac connector create` (or update with a connector id). No secret in either.
+10. **The code app mode, as data** (the Accounting branch's shape, `MODE` in the extension module, read by
+    `extensions.mode_of`/`services/modes.py`; this branch takes that base code as the Accounting branch has
+    it): canvases `components` (TSX previews, phase 2), families TypeScript, React, Connectors, languages
+    typescript and tsx, cell kinds typescript and tsx, tools `powerapps_`, export push. Read by the front end
+    without naming the type: the Workbench's New makes a file in the mode's first language when it is not
+    Python ("New TypeScript file"), "+ Cell" lists the mode's cell kinds it cannot run as "(coming)", the
+    Blades page lists the mode's families first (the others behind "Every family").
+11. **Snippets in TypeScript and TSX** (`domain/snippets.py`): a value is written for where it stands (a
+    string: escaped; a template literal: `${` escaped too; bare: a TypeScript name, never a reserved word).
+12. **An extension's other seams** (beside the Accounting branch's routes, commands and areas): `STARTERS`
+    (its starter blades), `SECRET_PATHS` (its live pages' secret paths, for the guard), `SESSION_RULES` (its
+    Session page words) and `stop(services)` (its processes end with the server).
+
+**The connector spike (plan section 5): a connector's generated service cannot be called from outside the
+app's own page.** Read in the Power Apps client library (`@microsoft/power-apps` 1.6.0, its
+`DefaultPowerAppsBridge` and `RuntimeDataClient`): every data call asks the host for a token
+(`AppIdentityServicePlugin.getAppAccessTokenAsync`) and sends its HTTP request through the host
+(`AppHttpClientPlugin.sendHttpAsync`), over a `MessageChannel` it opens with `window.parent.postMessage`
+and an anti-CSRF token the host hands back. With no Power Apps host as the page's parent (a notebook cell
+in Deno or Node, or our pane), the calls wait for an answer that never comes. So TypeScript notebook cells
+cannot call connectors directly. Routes left for phase 2, not built: (a) a small bridge component inside the
+running app (Local Play) that takes requests from the bench and calls the services there, in the user's
+browser, signed in; (b) Dataverse alone from the notebook through the existing Dataverse connection (the
+Web API or TDS), which needs no host. Not checked against a running host (no tenant here).
+
+**Phase 2, not now:** the data notebook's TypeScript and TSX cells on Deno's Jupyter kernel with DuckDB's
+Node package (`@duckdb/node-api`) sharing one DuckDB with the SQL cells; `data.ts` as data.py is today;
+TSX previews (the `components` canvas) with sample props from made-up data or a table's first rows; TSX
+blades bound to Dataverse; TypeScript functions; the bridge above; canvas apps (`.msapp` source, Power Fx
+IntelliSense, `pac canvas` or what current pac uses).
+
+**Open:** app_navigate does not know the `codeapp` area (navigation's AREAS is the base's list; the agent
+works through the `powerapps_` tools); Settings' Extensions section (the extensions branch) and this
+extension's Install there come with that branch's merge.

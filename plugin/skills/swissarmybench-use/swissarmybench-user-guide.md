@@ -1439,6 +1439,22 @@ linear `.ipynb`, for a scheduler that runs notebooks. The name starts as the doc
 - **The agent** exports too: `workbench_export_script` (`format` notebook for the notebook), and the
   window's palette commands `file.exportScript` and `file.exportNotebook`.
 
+## Power Apps (an extension)
+
+With the Power Apps extension installed, the rail has a **Code App** page: Power Apps code apps (React and TypeScript apps that run in Power Platform), built with Microsoft's own command lines. Without it, nothing of this shows.
+
+- **The tools:** the strip at the top says which are here: Node.js (22 or later), npm, the Power Apps CLI (`pa`) and the Power Platform CLI (`pac`), each with its version. A missing one has **Install** (this computer's own command; one that needs your password is shown for you to run in a terminal). Deno is for a later version's TypeScript cells.
+- **Sign in:** **Sign in** opens your browser's sign-in (`pa auth login`); the strip then says who you are.
+- **New code app:** a name, an environment (from `pac env list`) and a folder. The app copies Microsoft's template, installs its packages and runs `pa app init`; it is then the open project, and the app works in the code app's mode: **New** in Scripts makes a TypeScript file, the blades list shows the TypeScript, React and Connectors starters first (**Every family** shows the rest), and "+ Cell" lists TypeScript and TSX cells as coming. **Open code app…** opens a folder that has `power.config.json`; **Close** goes back.
+- **Project:** the app's data sources (Dataverse tables and connectors; **Remove**), **Add a Dataverse table** (its logical name), its generated models and services and its files: a click opens one in the Workbench's editor, with TypeScript's own member lists, parameter info, hovers and errors as you type. Ctrl+S saves it.
+- **Connectors:** the environment's connectors, searchable. Click one to see its operations, each with its inputs and outputs (as on the APIs page) and its method in the app (`ContosotasksService.ListTasks(…)`). **Add to app** asks which of its connections to use (and, for a connector with tables, the dataset and table).
+- **Run live:** the app's dev server, shown in the page and reloading as you save. **Local Play** opens it inside Power Apps in your browser, where its connectors answer (they do not answer in the page's pane). **Stop** ends it; it ends with the app too.
+- **Push:** what it will run (`npm run build`, then `pa app push`), **Push**, and the app's link. **Versions** lists the environment's code apps and this session's pushes.
+- **Custom connector:** pick an API from the APIs page; **Show its files** shows the connector's two files (its sign-in mapped, never a secret: a key, a password or an OAuth client's secret is typed in Power Platform); **Make the connector** writes them in the app's `connectors` folder and runs `pac connector create`.
+- **Runs:** every `pa`, `pac` and `npm` run this session, with its output as it came. The Session page lists them too.
+- **Code apps switched off:** an environment's administrator turns them on (Power Platform admin center: the environment's Settings, Product, Features, Power Apps code apps); the app says so when a command is refused for it.
+- **The agent** does all of this with its `powerapps_` tools; its Push, its custom connector and its installs wait for your Allow.
+
 ## Code to your Python
 
 **Copy code** (on any analysis result) copies the analysis as Python to the clipboard, its imports first. Paste it into Jupyter or any Python; nothing runs until you run it.

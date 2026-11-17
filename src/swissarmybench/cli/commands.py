@@ -144,6 +144,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "projects": "Projects as one .sab file: open, save, the recent ones, tables that need a fix",
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
+    "powerapps": "Power Apps (an extension): code apps with pa and pac, sources, connectors, Run live, Push",
 }
 
 
