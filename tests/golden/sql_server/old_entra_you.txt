@@ -1,0 +1,753 @@
+import importlib
+import json
+import os
+import platform
+import re
+import struct
+import sys
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from azure.identity import (
+    AzureCliCredential,
+    ChainedTokenCredential,
+    InteractiveBrowserCredential,
+    VisualStudioCodeCredential,
+)
+
+def token_struct(token):
+    """An access token as the ODBC driver takes it: its length, then the token in UTF-16-LE."""
+    sent = token.encode("utf-16-le")
+    return struct.pack(f"<I{len(sent)}s", len(sent), sent)
+
+
+class SqlServerError(RuntimeError):
+    """SQL Server, Azure SQL or the driver refused: what it means and the fix, then the driver's words."""
+
+
+ERRORS = json.loads('{"18456": ["The server refused the sign-in (login failed).", "Check the user name and password, or that this sign-in has a login on the server and a user in the database. The server\'s error log names the reason (its state: 5 an unknown user, 8 a wrong password, 38 a database it may not open, 58 a server that takes Windows sign-ins only)."], "18452": ["The server does not trust this Windows sign-in (it is from another domain).", "Sign in with a SQL login or Microsoft Entra, or from a computer in the server\'s domain."], "18470": ["The login is disabled.", "Ask the server\'s administrator to enable it."], "18488": ["The password has expired.", "Change it, then sign in again."], "4060": ["The server cannot open the database this sign-in asked for.", "Check the database\'s name, and that this sign-in has a user in it."], "40532": ["Azure SQL cannot open the server the sign-in named.", "Check the server\'s name (my-server.database.windows.net) and the user name."], "40615": ["Azure SQL\'s firewall refused this computer{address}.", "Add the address in the Azure portal: the server\'s Networking page, Firewall rules (or Add your client IPv4 address); or reach the server through a private endpoint."], "40613": ["The database is not available yet: a serverless database that was paused is resuming, or the database is being moved.", "Wait a minute and try again (the connection waits for it by itself first)."], "40197": ["Azure SQL was busy moving the database.", "Try again: it passes by itself."], "40501": ["Azure SQL is busy.", "Try again in a few seconds."], "49918": ["Azure SQL has too many requests in progress.", "Try again in a few seconds."], "49919": ["Azure SQL has too many requests for this subscription.", "Try again in a few seconds."], "49920": ["Azure SQL has too many operations in progress.", "Try again in a few seconds."], "10928": ["The database reached its limit of sessions or workers.", "Try again, or scale it up."], "10929": ["The database is too busy for this request now.", "Try again in a few seconds."], "4221": ["A read replica is catching up.", "Try again in a few seconds."], "229": ["This sign-in may not read that object.", "Ask for SELECT on it (or the db_datareader role) in this database."], "208": ["The server has no table or view by that name here.", "Check the schema and the name."], "207": ["The table has no column by that name.", "Check the column\'s name."], "1205": ["The statement was chosen as a deadlock\'s victim.", "Run it again."], "3906": ["The database is read-only here: the connection asked for a read replica (Read-only intent).", "Untick Read-only intent for this connection, or write with a Write starter (it asks for the primary)."], "33155": ["Microsoft Entra refused the sign-in for this database.", "Add the identity as a user: CREATE USER [name] FROM EXTERNAL PROVIDER."], "certificate": ["The server\'s certificate is not one this computer trusts (ODBC Driver 18 encrypts by default).", "Tick Trust server certificate (a server with a self-signed certificate, on your own network), or install the server\'s certificate authority on this computer."], "IM002": ["The ODBC driver named is not installed on this computer.", "Install Microsoft\'s ODBC Driver 18 for SQL Server: {install}"], "not found": ["The server could not be reached: no server by that name answered.", "Check the server\'s name and port (or the instance: server\\\\instance, with SQL Server Browser running), that it takes TCP connections, and the network (a VPN)."], "HYT00": ["The server did not answer in time.", "Check the server\'s name and the network; raise the login timeout for a slow link."], "kerberos": ["Windows sign-in found no Kerberos ticket on this computer.", "Run kinit user@REALM first (Linux, macOS), or sign in another way."]}')
+TRANSIENT = set(['10053', '10054', '10060', '10928', '10929', '233', '40197', '40501', '40613', '4221', '49918', '49919', '49920', '64'])
+TRANSIENT_STATES = {"08S01", "08S02"}
+INSTALL = json.loads('{"Windows": "winget install --id Microsoft.msodbcsql.18", "Darwin": "brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release && HOMEBREW_ACCEPT_EULA=Y brew install msodbcsql18", "Linux": "add Microsoft\'s package repository (learn.microsoft.com: Install the Microsoft ODBC driver for SQL Server (Linux)), then: sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 (or: sudo ACCEPT_EULA=Y dnf install -y msodbcsql18); or pip install mssql-python, which needs none"}')
+_NUMBER = re.compile(r"\((\d{2,5})\)")
+_STATE = re.compile(r"^\[?([0-9A-Z]{5})\]?")
+_UDT = {"geography", "geometry", "hierarchyid"}
+_PLAIN_READ = re.compile(
+    r"^\s*SELECT\s+(?P<top>TOP\s*\(?\s*\d+\s*\)?\s+)?(?P<columns>\*|\[(?:[^\]]|\]\])+\](?:\s*,\s*\[(?:[^\]]|\]\])+\])*)"
+    r"\s+FROM\s+(?P<object>(?:\[(?:[^\]]|\]\])+\]\.){0,2}\[(?:[^\]]|\]\])+\])(?P<rest>\s+WHERE\s.*)?\s*;?\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def error_key(message):
+    """Which entry of ERRORS an error's text is: its number, its words, then its SQLSTATE."""
+    text = message or ""
+    for number in _NUMBER.findall(text):
+        if number in ERRORS:
+            return number
+    lowered = text.lower()
+    if "certificate" in lowered and ("not trusted" in lowered or "verify failed" in lowered):
+        return "certificate"
+    if "kerberos" in lowered or ("gss" in lowered and "credential" in lowered):
+        return "kerberos"
+    if (
+        "could not open a connection" in lowered
+        or "server was not found" in lowered
+        or "server is not found" in lowered
+        or "name or service not known" in lowered
+        or "no such host" in lowered
+        or "(11001)" in lowered
+    ):
+        return "not found"
+    found = _STATE.match(text.strip())
+    if found and found.group(1) in ERRORS:
+        return found.group(1)
+    if "login timeout" in lowered or "timeout expired" in lowered:
+        return "HYT00"
+    return None
+
+
+def explain(message):
+    """The error in plain words with its fix, or as it is."""
+    key = error_key(message)
+    if key is None:
+        return message
+    words, fix = ERRORS[key]
+    address = re.search(r"IP address '([^']+)'", message or "")
+    named = f" (its address, {address.group(1)}, is not allowed)" if address else ""
+    words = words.replace("{address}", named)
+    fix = fix.replace("{install}", INSTALL.get(platform.system(), INSTALL["Linux"]))
+    return f"{words} {fix}"
+
+
+def said(error):
+    """A driver error's own words: (SQLSTATE, message) for pyodbc, else its text."""
+    args = [str(a) for a in getattr(error, "args", ())]
+    return " ".join(args) if args else str(error)
+
+
+def passing(error):
+    """Whether an error passes by itself: Azure's transient numbers, a dropped connection."""
+    args = [str(a) for a in getattr(error, "args", ())]
+    if args and args[0] in TRANSIENT_STATES:
+        return True
+    return bool(set(_NUMBER.findall(said(error))) & TRANSIENT)
+
+
+def resuming(error):
+    return "(40613)" in said(error)
+
+
+def braced(value):
+    """A value as a connection string holds it: in braces when it has ; or a brace (} doubled)."""
+    text = str(value)
+    if re.search(r"[;{}=\s]", text) or text != text.strip():
+        return "{" + text.replace("}", "}}") + "}"
+    return text
+
+
+def password(value):
+    """PWD= with the password always in braces (a } in it doubled)."""
+    return "PWD={" + str(value or "").replace("}", "}}") + "}"
+
+
+def arrow_type(pa, kind, size, precision, scale, values):
+    """A column's Arrow type: from the driver's description (its Python type, size, precision and
+    scale), and its values where the description cannot tell (a time zone)."""
+    import datetime as dt
+    import decimal
+    import uuid
+
+    if kind is bool:
+        return pa.bool_()
+    if kind is int:
+        return {3: pa.uint8(), 5: pa.int16(), 10: pa.int32()}.get(precision or 0, pa.int64())
+    if kind is float:
+        return pa.float32() if (precision or 53) <= 24 else pa.float64()
+    if kind is decimal.Decimal:
+        p = int(precision or 38)
+        return pa.decimal128(min(max(p, 1), 38), max(0, min(int(scale or 0), p)))
+    if kind is dt.datetime or kind is dt.datetime.__name__:
+        zoned = any(getattr(v, "tzinfo", None) is not None for v in values if v is not None)
+        return pa.timestamp("us", tz="UTC") if zoned else pa.timestamp("us")
+    if kind is dt.date:
+        return pa.date32()
+    if kind is dt.time:
+        return pa.time64("us")
+    if kind in (bytes, bytearray, memoryview):
+        return pa.binary()
+    if kind is uuid.UUID:
+        return pa.string()
+    if any(getattr(v, "tzinfo", None) is not None for v in values if isinstance(v, dt.datetime)):
+        return pa.timestamp("us", tz="UTC")  # a datetimeoffset the driver described as text
+    return pa.string()
+
+
+def arrow_values(values, kind):
+    """The values as Arrow takes them for their type: an id as its text, a zoned time in UTC."""
+    import datetime as dt
+    import uuid
+
+    out = []
+    for v in values:
+        if isinstance(v, uuid.UUID):
+            v = str(v)
+        elif isinstance(v, dt.datetime) and v.tzinfo is not None:
+            v = v.astimezone(dt.timezone.utc)
+        elif isinstance(v, (bytearray, memoryview)):
+            v = bytes(v)
+        out.append(v)
+    return out
+
+
+def offset_time(raw):
+    """A datetimeoffset as the ODBC driver sends it (SQL_SS_TIMESTAMPOFFSET): an aware datetime."""
+    import datetime as dt
+
+    year, month, day, hour, minute, second, nanos, tz_hour, tz_minute = struct.unpack("<6hI2h", raw)
+    zone = dt.timezone(dt.timedelta(hours=tz_hour, minutes=tz_minute))
+    return dt.datetime(year, month, day, hour, minute, second, nanos // 1000, zone)
+
+
+def as_text(raw):
+    """A value the driver cannot read (sql_variant, a CLR type) as text: its bytes, as hex."""
+    if raw is None:
+        return None
+    try:
+        return raw.decode("utf-16-le")
+    except UnicodeDecodeError:
+        return "0x" + raw.hex()
+
+
+def plain_read(sql, columns):
+    """A plain read of one table (SELECT [TOP n] * or [a], [b] FROM [s].[t] [WHERE ...]) with each column
+    the driver cannot read written as text: geography, geometry, hierarchyid by .ToString(), sql_variant
+    by CAST. `columns`: the table's (name, type) from sys.columns. None when nothing needs it."""
+    found = _PLAIN_READ.match(sql or "")
+    if not found:
+        return None
+    kinds = {name.lower(): kind.lower() for name, kind in columns}
+    if not any(k in _UDT or k == "sql_variant" for k in kinds.values()):
+        return None
+    if found.group("columns") == "*":
+        wanted = [name for name, _ in columns]
+    else:
+        named = re.findall(r"\[(?:[^\]]|\]\])+\]", found.group("columns"))
+        wanted = [c.strip()[1:-1].replace("]]", "]") for c in named]
+
+    def one(name):
+        quoted = "[" + name.replace("]", "]]") + "]"
+        kind = kinds.get(name.lower(), "")
+        if kind in _UDT:
+            return f"{quoted}.ToString() AS {quoted}"
+        if kind == "sql_variant":
+            return f"CAST({quoted} AS nvarchar(4000)) AS {quoted}"
+        return quoted
+
+    top = found.group("top") or ""
+    picked = ", ".join(one(c) for c in wanted)
+    return f"SELECT {top}{picked} FROM {found.group('object')}{found.group('rest') or ''}"
+
+
+def is_read(sql):
+    """A statement that only reads (SELECT, WITH): safe to run again on a new connection."""
+    text = re.sub(r"^\s*(--[^\n]*\n\s*|/\*.*?\*/\s*)*", "", sql or "", flags=re.S)
+    return bool(re.match(r"(SELECT|WITH)\b", text, re.I)) and not re.search(r"\bINTO\b", text, re.I)
+
+
+def managed_identity_token(client_id):
+    """The managed identity's token for Azure SQL (Azure's own local request), and when it runs out."""
+    query = {"resource": "https://database.windows.net/"}
+    if client_id:
+        query["client_id"] = client_id
+    endpoint, header = os.environ.get("IDENTITY_ENDPOINT"), os.environ.get("IDENTITY_HEADER")
+    if endpoint and header:  # a Function App or App Service
+        address = f"{endpoint}?api-version=2019-08-01&{urllib.parse.urlencode(query)}"
+        headers, wait = {"X-IDENTITY-HEADER": header}, 30
+    else:  # a virtual machine: its metadata service
+        address = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&"
+        address += urllib.parse.urlencode(query)
+        headers, wait = {"Metadata": "true"}, 2
+    request = urllib.request.Request(address, None, headers)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # a local address: no proxy
+    try:
+        with opener.open(request, timeout=wait) as answer:
+            found = json.loads(answer.read())
+    except Exception as error:
+        raise SqlServerError(
+            f"The managed identity's sign-in failed ({error}). It works only inside Azure (a Function App, "
+            "App Service or VM) with an identity switched on."
+        ) from None
+    return found["access_token"], float(found.get("expires_on") or time.time() + 3600)
+
+
+def app_secret_token(tenant_id, client_id, client_secret):
+    """An app registration's token (Microsoft's client credentials request), and when it runs out."""
+    login = os.environ.get("SQLSERVER_LOGIN_URL", "https://login.microsoftonline.com")
+    form = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": "https://database.windows.net/.default",
+    }
+    sent = urllib.parse.urlencode(form).encode()
+    request = urllib.request.Request(f"{login}/{tenant_id}/oauth2/v2.0/token", sent)
+    try:
+        with urllib.request.urlopen(request, timeout=60) as answer:
+            found = json.loads(answer.read())
+    except urllib.error.HTTPError as refused:
+        body = refused.read().decode("utf-8", "replace")
+        try:
+            body = json.loads(body).get("error_description") or body
+        except ValueError:
+            pass
+        first = str(body).strip().splitlines()[0] if str(body).strip() else ""
+        raise SqlServerError(
+            f"Microsoft Entra refused the app registration ({refused.code}): {first} Check the tenant, the "
+            "client id and the client secret."
+        ) from None
+    return found["access_token"], time.time() + int(found.get("expires_in", 3600))
+
+
+class Cursor:
+    """The driver's cursor, with a statement's errors in plain words, a read run again on a passing
+    error, and an interrupt sent to the server (SQLCancel). Everything else is the driver's own."""
+
+    def __init__(self, conn, inner):
+        object.__setattr__(self, "_conn", conn)
+        object.__setattr__(self, "_inner", inner)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    def __setattr__(self, name, value):
+        setattr(self._inner, name, value)  # fast_executemany and the like are the driver's
+
+    def __iter__(self):
+        return iter(self._inner)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._inner.close()
+
+    def _waited(self, run):
+        """`run` while the caller waits: an interrupt meanwhile cancels the statement on the server."""
+        done, failed = threading.Event(), []
+
+        def work():
+            try:
+                run()
+            except BaseException as error:  # noqa: BLE001 (handed to the caller)
+                failed.append(error)
+            finally:
+                done.set()
+
+        worker = threading.Thread(target=work, daemon=True, name="sqlserver-statement")
+        worker.start()
+        try:
+            while not done.wait(0.1):
+                pass
+        except KeyboardInterrupt:
+            try:
+                self._inner.cancel()  # SQLCancel: the server stops the statement
+            finally:
+                done.wait(10)
+            raise
+        if failed:
+            raise failed[0]
+
+    def execute(self, sql, *params):
+        conn = self._conn
+        rewritten = conn._readable(sql) if not params else None
+        statement = rewritten or sql
+        for attempt in range(1, conn.TRIES + 1):
+            try:
+                self._waited(lambda: self._inner.execute(statement, *params))
+                return self
+            except KeyboardInterrupt:
+                raise
+            except Exception as error:
+                if passing(error) and is_read(statement) and attempt < conn.TRIES:
+                    conn._note(f"Try {attempt} met a passing error: read again on a new connection.")
+                    conn.sleep(min(2 ** (attempt - 1), 16))
+                    conn._reopen()
+                    object.__setattr__(self, "_inner", conn._raw.cursor())
+                    continue
+                raise conn._plain(error) from None
+        return self
+
+    def executemany(self, sql, rows):
+        try:
+            self._waited(lambda: self._inner.executemany(sql, rows))
+        except KeyboardInterrupt:
+            raise
+        except Exception as error:
+            raise self._conn._plain(error) from None
+        return self
+
+
+class SqlServer:
+    """A SQL Server or Azure SQL database, signed in its own way (see the starter's code below it).
+
+        conn.cursor()             the driver's cursor (pyodbc or mssql-python), errors in plain words
+        conn.read_arrow(sql)      every row of a query as an Arrow table, each column typed exactly
+        conn.about()              the driver, the sign-in, the server's version and edition, collation
+        conn.for_writes()         the same connection without read-only intent (the Write starters')
+        conn.raw                  the driver's own connection
+    """
+
+    dbms = "sqlserver"  # the Write starters know it by this (client/write_sql.py detect)
+    TRIES = 5
+    RESUME_SECONDS = 60
+    BATCH_ROWS = 50_000
+    sleep = staticmethod(time.sleep)
+    clock = staticmethod(time.monotonic)
+
+    def __init__(
+        self,
+        server,
+        database="",
+        sign_in="",
+        user="",
+        password=None,
+        token=None,
+        credential=None,
+        client_id="",
+        tenant_id="",
+        client_secret=None,
+        driver="ODBC Driver 18 for SQL Server",
+        port=1433,
+        instance="",
+        encrypt="mandatory",
+        trust_server_certificate=False,
+        host_name_in_certificate="",
+        read_only_intent=False,
+        multi_subnet_failover=False,
+        login_timeout=45,
+        query_timeout=0,
+    ):
+        self.settings = {k: v for k, v in locals().items() if k != "self"}
+        self.sign_in = sign_in
+        self.notes = []
+        self._raw = None
+        self._token = ("", 0.0)
+        self._columns = {}
+        self._chosen = None
+        self.connect()  # signs in now: Test means it
+
+    # ===== which driver =====
+
+    def driver(self):
+        """("pyodbc", "ODBC Driver 18 for SQL Server") or ("mssql-python", ""): the chosen one, else the
+        newest ODBC driver installed, else mssql-python; none: the install command for this system."""
+        if self._chosen:
+            return self._chosen
+        wanted = str(self.settings["driver"] or "auto").strip()
+        if wanted.lower() in ("mssql-python", "mssql_python"):
+            self._chosen = ("mssql-python", "")
+            return self._chosen
+        try:
+            import pyodbc
+        except ImportError:
+            pyodbc = None
+        installed = list(pyodbc.drivers()) if pyodbc is not None else []
+        if wanted.lower() != "auto":
+            if wanted not in installed:
+                raise SqlServerError(
+                    f"The ODBC driver {wanted!r} is not installed here "
+                    f"(installed: {', '.join(installed) or 'none'}). "
+                    + explain("[IM002]")
+                )
+            self._chosen = ("pyodbc", wanted)
+            return self._chosen
+        for name in ("ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server"):
+            if name in installed:
+                self._chosen = ("pyodbc", name)
+                return self._chosen
+        try:
+            importlib.import_module("mssql_python")  # Microsoft's driver: no ODBC driver needed
+            self._chosen = ("mssql-python", "")
+            return self._chosen
+        except ImportError:
+            pass
+        others = [d for d in installed if "SQL Server" in d]
+        if others:
+            self._chosen = ("pyodbc", others[-1])
+            return self._chosen
+        if pyodbc is None:
+            raise SqlServerError(
+                "SQL Server needs pyodbc in this Python: pip install pyodbc. " + explain("[IM002]")
+            )
+        raise SqlServerError(explain("[IM002]"))
+
+    # ===== the connection string and the sign-in =====
+
+    def connection_string(self):
+        s = self.settings
+        kind, odbc = self.driver()
+        server = str(s["server"]).strip()
+        if s["instance"] and "\\" not in server:
+            server = f"{server}\\{s['instance']}"
+        elif "," not in server and "\\" not in server and s["port"] and int(s["port"]) != 1433:
+            server = f"{server},{int(s['port'])}"
+        parts = [] if kind == "mssql-python" else [f"Driver={{{odbc}}}"]
+        parts += [f"Server={braced(server)}"]
+        if s["database"]:
+            parts.append(f"Database={braced(s['database'])}")
+        encrypt = str(s["encrypt"] or "mandatory").strip().lower()
+        old = "17" in odbc or "13" in odbc or odbc == "SQL Server"
+        if old:
+            if encrypt == "strict":
+                raise SqlServerError(
+                    "Encrypt=strict needs ODBC Driver 18 for SQL Server (this computer has 17)."
+                )
+            encrypt = "no" if encrypt in ("optional", "no", "false") else "yes"
+        parts.append(f"Encrypt={encrypt}")
+        if encrypt != "strict":
+            parts.append(f"TrustServerCertificate={'yes' if s['trust_server_certificate'] else 'no'}")
+        if s["host_name_in_certificate"]:
+            parts.append(f"HostNameInCertificate={braced(s['host_name_in_certificate'])}")
+        if s["read_only_intent"]:
+            parts.append("ApplicationIntent=ReadOnly")
+        if s["multi_subnet_failover"]:
+            parts.append("MultiSubnetFailover=Yes")
+        parts.append("ConnectRetryCount=3")  # an idle connection that dropped is reconnected by the driver
+        way = self.sign_in
+        if way == "sql_login":
+            parts += [f"UID={braced(s['user'])}", password(s["password"])]
+        elif way == "windows":
+            parts.append("Trusted_Connection=yes")
+        elif way == "entra_password":
+            parts += ["Authentication=ActiveDirectoryPassword", f"UID={braced(s['user'])}"]
+            parts.append(password(s["password"]))
+        elif way == "entra_default":
+            parts.append("Authentication=ActiveDirectoryDefault")
+            if s["user"]:
+                parts.append(f"UID={braced(s['user'])}")
+        elif way == "entra_integrated":
+            parts.append("Authentication=ActiveDirectoryIntegrated")
+        return ";".join(parts) + ";"
+
+    def access_token(self):
+        """The Entra token, taken again when it has five minutes or less to run."""
+        token, expires = self._token
+        if not token or time.time() > expires - 300:
+            s = self.settings
+            if self.sign_in == "managed_identity":
+                self._token = managed_identity_token(s["client_id"])
+            elif self.sign_in == "app_secret":
+                self._token = app_secret_token(s["tenant_id"], s["client_id"], s["client_secret"])
+            elif s["credential"] is not None:
+                found = s["credential"].get_token("https://database.windows.net/.default")
+                self._token = (found.token, float(found.expires_on))
+            elif callable(s["token"]):
+                self._token = tuple(s["token"]())
+            else:
+                raise SqlServerError(f"The sign-in {self.sign_in!r} needs a token or a credential.")
+        return self._token[0]
+
+    def uses_token(self):
+        return self.sign_in in ("entra_you", "managed_identity", "app_secret", "app_certificate", "token")
+
+    def _open(self):
+        kind, _ = self.driver()
+        text = self.connection_string()
+        # 1256: SQL_COPT_SS_ACCESS_TOKEN, the token beside the connection string
+        attrs = {1256: token_struct(self.access_token())} if self.uses_token() else {}
+        timeout = int(self.settings["login_timeout"] or 0)
+        if kind == "mssql-python":
+            mssql_python = importlib.import_module("mssql_python")  # optional: imported by name
+            try:
+                raw = mssql_python.connect(text, attrs_before=attrs or None, timeout=timeout)
+            except TypeError:  # an older mssql-python
+                raw = mssql_python.connect(text)
+        else:
+            import pyodbc
+
+            raw = pyodbc.connect(text, attrs_before=attrs or None, timeout=timeout)
+            raw.add_output_converter(-155, offset_time)  # datetimeoffset, kept with its offset
+            raw.add_output_converter(-151, as_text)  # a CLR type outside a plain read
+            raw.add_output_converter(-150, as_text)  # sql_variant outside a plain read
+        if self.settings["query_timeout"]:
+            try:
+                raw.timeout = int(self.settings["query_timeout"])
+            except (AttributeError, TypeError):
+                pass
+        return raw
+
+    def connect(self):
+        """Signed in, a passing error tried again (a paused serverless database waited for, said as it
+        goes); any other refusal in plain words."""
+        started = self.clock()
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                self._raw = self._open()
+                return self
+            except SqlServerError:
+                raise
+            except Exception as error:
+                waited = self.clock() - started
+                if resuming(error) and waited < self.RESUME_SECONDS:
+                    self._note(f"The database is resuming (it was paused): waiting, {int(waited)} s so far.")
+                    self.sleep(min(2 ** (attempt - 1), 16, max(1, self.RESUME_SECONDS - waited)))
+                    continue
+                if passing(error) and not resuming(error) and attempt < self.TRIES:
+                    self._note(f"Try {attempt} met a passing error: signing in again.")
+                    self.sleep(min(2 ** (attempt - 1), 16))
+                    continue
+                raise self._plain(error) from None
+
+    def _note(self, words):
+        self.notes.append(words)
+        print(words, file=sys.stderr, flush=True)
+
+    def _plain(self, error):
+        """The driver's error with its meaning and fix first, of the driver's own class (so code that
+        catches pyodbc.Error still does) and its SQLSTATE first (the Write starters read it)."""
+        text = said(error)
+        words = explain(text)
+        if words == text:
+            return error
+        args = getattr(error, "args", ())
+        state = str(args[0]) if len(args) > 1 else ""
+        try:
+            return type(error)(state, f"{words} [{text}]") if state else type(error)(f"{words} [{text}]")
+        except Exception:
+            return SqlServerError(f"{words} [{text}]")
+
+    def _reopen(self):
+        self.close()
+        self.connect()
+
+    @property
+    def raw(self):
+        self._fresh()
+        return self._raw
+
+    def _fresh(self):
+        """Connected, with a token that has time to run: a closed connection or an old token, a new one."""
+        if self._raw is None or (self.uses_token() and time.time() > self._token[1] - 300):
+            self._reopen()
+
+    # ===== shaped like the driver's connection =====
+
+    def cursor(self):
+        self._fresh()
+        return Cursor(self, self._raw.cursor())
+
+    def commit(self):
+        self._raw.commit()
+
+    def rollback(self):
+        self._raw.rollback()
+
+    def close(self):
+        if self._raw is not None:
+            try:
+                self._raw.close()
+            except Exception:  # noqa: S110 (already closed, or the connection dropped)
+                pass
+            self._raw = None
+
+    def __getattr__(self, name):
+        if name.startswith("_") or name == "settings":
+            raise AttributeError(name)
+        return getattr(self.raw, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def for_writes(self):
+        """This connection for a write: read-only intent goes (a read replica refuses writes)."""
+        if not self.settings["read_only_intent"]:
+            return self
+        settings = dict(self.settings)
+        settings["read_only_intent"] = False
+        return SqlServer(**settings)
+
+    # ===== reads =====
+
+    def _readable(self, sql):
+        """A plain read of one table rewritten so the driver can read every column (plain_read)."""
+        found = _PLAIN_READ.match(sql or "")
+        if not found:
+            return None
+        name = found.group("object")
+        if name not in self._columns:
+            cursor = self._raw.cursor()
+            try:
+                cursor.execute(
+                    "SELECT c.name, t.name FROM sys.columns AS c JOIN sys.types AS t ON t.user_type_id = "
+                    "c.user_type_id WHERE c.object_id = OBJECT_ID(?) ORDER BY c.column_id",
+                    name,
+                )
+                self._columns[name] = [(str(r[0]), str(r[1])) for r in cursor.fetchall()]
+            except Exception:
+                self._columns[name] = []
+            finally:
+                cursor.close()
+        return plain_read(sql, self._columns[name])
+
+    def read_arrow(self, sql, batch_rows=None):
+        """Every row the query answers as an Arrow table, fetched in batches; each column's type from
+        the driver's description (arrow_type). A column whose values do not fit its type is text."""
+        pa = importlib.import_module("pyarrow")  # the app's own Python has it
+
+        cursor = self.cursor()
+        try:
+            cursor.execute(sql)
+            if cursor.description is None:
+                raise SqlServerError("The statement returned no rows to read.")
+            described = list(cursor.description)
+            names = [str(d[0]) for d in described]
+            types, chunks = None, [[] for _ in names]
+            while True:
+                rows = cursor.fetchmany(batch_rows or self.BATCH_ROWS)
+                if not rows:
+                    break
+                columns = list(zip(*rows))
+                if types is None:
+                    types = [
+                        arrow_type(pa, d[1], d[3], d[4], d[5], columns[i]) for i, d in enumerate(described)
+                    ]
+                for i, values in enumerate(columns):
+                    values = arrow_values(values, described[i][1])
+                    try:
+                        chunks[i].append(pa.array(values, types[i]))
+                    except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError, TypeError, ValueError):
+                        types[i] = pa.string()
+                        chunks[i] = [c.cast(pa.string()) for c in chunks[i]]
+                        text = [None if v is None else str(v) for v in values]
+                        chunks[i].append(pa.array(text, pa.string()))
+            if types is None:
+                types = [arrow_type(pa, d[1], d[3], d[4], d[5], ()) for d in described]
+            arrays = [pa.chunked_array(chunks[i], types[i]) for i in range(len(names))]
+            return pa.Table.from_arrays(arrays, names=names)
+        finally:
+            cursor.close()
+
+    def about(self):
+        """What the card says: the driver, the sign-in, the server's version and edition, and its
+        collation (a case-sensitive one matters for joins in DuckDB). Names and words only."""
+        kind, odbc = self.driver()
+        found = {"driver": odbc or kind, "sign_in": self.sign_in}
+        cursor = self.raw.cursor()
+        try:
+            cursor.execute(
+                "SELECT @@VERSION, CAST(SERVERPROPERTY('Edition') AS nvarchar(128)), "
+                "CAST(DATABASEPROPERTYEX(DB_NAME(), 'Collation') AS nvarchar(128)), "
+                "CAST(DATABASEPROPERTYEX(DB_NAME(), 'ServiceObjective') AS nvarchar(128))"
+            )
+            version, edition, collation, objective = cursor.fetchone()
+            found["version"] = str(version or "").splitlines()[0].strip()
+            found["edition"] = str(edition or "")
+            if objective:
+                found["service_objective"] = str(objective)
+            if collation:
+                found["collation"] = str(collation)
+                found["case_sensitive"] = "_CS_" in f"{collation}_" or str(collation).endswith("_BIN2")
+        except Exception:  # noqa: S110 (a server that will not say: the card says less)
+            pass
+        finally:
+            cursor.close()
+        return found
+
+    def tested(self, rows=20):
+        """Test connection's answer: signed in, and what the server is (about)."""
+        return {"found": "signed in", "about": self.about(), "notes": list(self.notes)}
+
+
+# Signed in as you: the Azure command line (az login), Visual Studio Code, else a browser window.
+tenant_id = ""  # empty: your own tenant
+credential = ChainedTokenCredential(
+    AzureCliCredential(tenant_id=tenant_id or None),
+    VisualStudioCodeCredential(tenant_id=tenant_id or None),
+    InteractiveBrowserCredential(tenant_id=tenant_id or None),
+)
+
+conn = SqlServer(
+    server="sql01.shop.local",
+    database="sales",
+    sign_in="entra_you",
+    credential=credential,
+    driver="ODBC Driver 18 for SQL Server",  # or "ODBC Driver 18 for SQL Server", "ODBC Driver 17 ...", "mssql-python"
+    port=1433,
+    instance="",  # a named instance (server\instance): its name
+    encrypt="mandatory",  # mandatory, optional or strict
+    trust_server_certificate=False,
+    host_name_in_certificate="",
+    read_only_intent=True,  # reads ask for a read replica where there is one (writes do not)
+    multi_subnet_failover=False,
+    login_timeout=45,
+    query_timeout=0,  # seconds; 0: no limit
+)

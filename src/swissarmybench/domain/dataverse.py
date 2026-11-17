@@ -14,14 +14,18 @@ Function's timer) as it is:
   as the SQL endpoint names it), each table with its display name, each column with its type and
   display name (CATALOG);
 - SQL: `conn.cursor()` on the read-only SQL endpoint (TDS, `<org>.crm.dynamics.com,5558`) through
-  pyodbc and Microsoft's ODBC Driver 18, signed in with the same Entra token (as the SQL Server
-  connection's Microsoft Entra sign-in does, but with the token itself). `%%sql <connection>` and
-  `sab.sql` use it. When an environment's endpoint is off, the error says so in plain words
-  (TDS_OFF) and the error panel offers the read instead;
-- three ways to sign in (the form's Sign in): as you (azure-identity's DefaultAzureCredential: the
-  Azure command line's sign-in, else a browser window; in Azure, the app's managed identity), a
-  managed identity (the standard library's request, for an Azure Function), or an app registration
-  whose client secret is a key vault's secret, never typed into the app (secrets_from VAULT_ONLY).
+  python-tds (`pytds`: pure Python, no driver installed, so it runs on an Azure Function App or a hosted
+  Streamlit app as it is; the owner, 2026-11-17: "odbc does not work on function apps" / "We need both
+  Python-TDS for Dataverse and mssql for azure and sql server connections"), encrypted by pyOpenSSL
+  against certifi's certificate authorities, signed in with the same Entra token (Entra's federated
+  authentication: `access_token_callable`). `%%sql <connection>` and `sab.sql` use it. When an
+  environment's endpoint is off, the error says so in plain words (TDS_OFF) and the error panel offers
+  the read instead;
+- three ways to sign in (the form's Sign in): an app registration whose client secret is a key vault's
+  secret, never typed into the app (secrets_from VAULT_ONLY; the starter's own: it runs here and in
+  Azure alike), a managed identity (the standard library's request, for an Azure Function), or as you
+  (azure-identity's DefaultAzureCredential: the Azure command line's sign-in, else a browser window;
+  this machine's only, domain/portability.py).
 
 Two environment variables move the sign-in elsewhere (in the tests, to a stand-in on this computer):
 DATAVERSE_LOGIN_URL (Microsoft's sign-in), and the managed identity's own IDENTITY_ENDPOINT and
@@ -33,8 +37,6 @@ This file is the text and a few rules about it. Pure: no I/O.
 from __future__ import annotations
 
 import re
-
-from swissarmybench.domain.sql_server import TOKEN_CODE
 
 TEMPLATE: str = "dataverse"
 DIALECT: str = "dataverse"
@@ -96,7 +98,6 @@ def _text(value: str) -> str:
 _IMPORTS = """import json
 import os
 import re
-import struct
 import time
 import urllib.error
 import urllib.parse
@@ -167,8 +168,7 @@ def sign_in(scope):
     return answer["access_token"], time.time() + int(answer.get("expires_in", 3600))
 '''
 
-_CONNECTION = (
-    r'''
+_CONNECTION = r'''
 
 class DataverseError(RuntimeError):
     """The sign-in or Dataverse refused. The message is its own words, and what usually causes it."""
@@ -308,28 +308,59 @@ def frame_of(rows, names):
     return pd.DataFrame.from_records(rows, columns=names)
 
 
-def sql_connection_string(address):
-    """The SQL endpoint's ODBC connection string: the environment's host, port 5558, encrypted. No user
-    and no password in it: the token goes beside it (SQL_COPT_SS_ACCESS_TOKEN)."""
+def sql_settings(address):
+    """The SQL endpoint as python-tds takes it: the environment's host, port 5558, encrypted (TLS, its
+    host checked), read-only work in autocommit. No user and no password: the token is handed over
+    when it signs in (access_token_callable)."""
     host = urllib.parse.urlsplit(address).hostname
-    return (
-        "Driver={ODBC Driver 18 for SQL Server};"
-        + f"Server={host},{Dataverse.SQL_PORT};"
-        + "Encrypt=yes;"
-        + "TrustServerCertificate=no;"
-    )
+    return {
+        "server": host,
+        "port": Dataverse.SQL_PORT,
+        "validate_host": True,
+        "autocommit": True,
+        "login_timeout": 30,
+    }
 
-'''  # noqa: S608 (code: its SQL is quoted where it is made)
-    + TOKEN_CODE
-    + r'''
+
+def sql_connect(address, token):
+    """The SQL endpoint signed in with the Entra token (`token`: a function giving it): python-tds over
+    TLS, against certifi's certificate authorities. A missing package: the import's own error (the
+    app's Install prompt)."""
+    import certifi
+    import OpenSSL  # noqa: F401 (pyOpenSSL: python-tds encrypts with it)
+    import pytds
+
+    return pytds.connect(cafile=certifi.where(), access_token_callable=token, **sql_settings(address))
+
+
+def marks(sql, parameters):
+    """A statement with ? marks (as every other connection takes them) in python-tds's own: %s, and a
+    literal % doubled. Marks inside quotes and brackets stay."""
+    if not parameters:
+        return sql
+    out, quote = [], ""
+    for ch in sql:
+        if quote:
+            out.append(ch)
+            if ch == quote:
+                quote = ""
+        elif ch in ("'", '"', "["):
+            quote = "]" if ch == "[" else ch
+            out.append(ch)
+        elif ch == "?":
+            out.append("%s")
+        elif ch == "%":
+            out.append("%%")
+        else:
+            out.append(ch)
+    return "".join(out)
+
 
 def sql_words(error):
     """A refusal from the SQL endpoint in plain words."""
     said = str(error)
     if re.search(r"TDS.{0,80}(disabled|not enabled|turned off)|endpoint.{0,20}disabled", said, re.I | re.S):
         return Dataverse.TDS_OFF
-    if re.search(r"IM002|Can't open lib|Data source name not found", said):
-        return "Dataverse's SQL endpoint needs Microsoft's ODBC Driver 18 for SQL Server on this computer."
     first = said.strip().splitlines()[0] if said.strip() else type(error).__name__
     return f"Dataverse's SQL endpoint refused: {first[:400]}"
 
@@ -349,8 +380,10 @@ class SqlCursor:
         return self.inner.rowcount
 
     def execute(self, sql, *parameters):
+        if len(parameters) == 1 and isinstance(parameters[0], (list, tuple)):
+            parameters = tuple(parameters[0])  # execute(sql, [a, b]) as well as execute(sql, a, b)
         try:
-            self.inner.execute(sql, *parameters)
+            self.inner.execute(marks(sql, parameters), tuple(parameters))
         except Exception as error:  # the driver's own error class
             raise DataverseError(sql_words(error)) from None
         return self
@@ -376,8 +409,8 @@ class Dataverse:
         conn.read("account")              its rows (a DataFrame), each choice column as its labels
         conn.read("account", columns=["name", "revenue"], filter="revenue gt 100000", limit=50)
         conn.fetch("<fetch>...</fetch>")  a FetchXML query's rows
-        conn.cursor()                     SQL (SELECT only) on the SQL endpoint, port 5558: pyodbc and
-                                          Microsoft's ODBC Driver 18, signed in with the same token
+        conn.cursor()                     SQL (SELECT only) on the SQL endpoint, port 5558: python-tds
+                                          (pure Python), signed in with the same token
         conn.url, conn.access_token()     for any other Web API request (conn.api is its root)
     """
 
@@ -600,11 +633,10 @@ class Dataverse:
     def cursor(self):
         """A cursor on the SQL endpoint (T-SQL, SELECT only), connected on first use."""
         if self.sql is None:
-            import pyodbc
-
-            attrs = {1256: token_struct(self.access_token())}  # 1256: SQL_COPT_SS_ACCESS_TOKEN
             try:
-                self.sql = pyodbc.connect(sql_connection_string(self.url), attrs_before=attrs)
+                self.sql = sql_connect(self.url, self.access_token)
+            except ImportError:
+                raise
             except Exception as error:  # the driver's own error class
                 raise DataverseError(sql_words(error)) from None
         return SqlCursor(self.sql.cursor())
@@ -616,7 +648,6 @@ class Dataverse:
 
 
 conn = Dataverse(url, sign_in)'''
-)
 
 
 def _code(sign_in: str, imports: str = "") -> str:
@@ -627,9 +658,12 @@ YOU: str = _code(_YOU, "\nfrom azure.identity import DefaultAzureCredential\n")
 MANAGED: str = _code(_MANAGED)
 APP: str = _code(_APP)
 
-# The form's Sign in: (label, a text only that way's code holds, its code). As you comes first.
+# The form's Sign in: (label, a text only that way's code holds, its code). The app registration comes
+# first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as you, this machine's
+# only, comes last (the owner, 2026-11-17: "we want to advise against any connectors that only work
+# locally"). A saved connection keeps its own code.
 SIGN_INS: tuple[tuple[str, str, str], ...] = (
-    ("As you (Azure command line or browser)", "DefaultAzureCredential", YOU),
-    ("Managed identity (in Azure: a Function App, App Service or VM)", "IDENTITY_HEADER", MANAGED),
     ("App registration, its secret from a key vault", 'client_secret = secret("client secret")', APP),
+    ("Managed identity (in Azure: a Function App, App Service or VM)", "IDENTITY_HEADER", MANAGED),
+    ("As you (Azure command line or browser)", "DefaultAzureCredential", YOU),
 )

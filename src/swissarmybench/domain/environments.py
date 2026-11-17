@@ -50,7 +50,9 @@ LIBRARIES: tuple[Library, ...] = (
     Library("openpyxl", "openpyxl", "Files", "", "reads and writes .xlsx"),
     Library("xlsxwriter", "XlsxWriter", "Files", "", "writes formatted .xlsx"),
     Library("sqlalchemy", "SQLAlchemy", "Databases", "import sqlalchemy as sa", "any database, one way"),
-    Library("pyodbc", "pyodbc", "Databases", "", "SQL Server, Access, any ODBC"),
+    Library("mssql-python", "mssql-python", "Databases", "", "SQL Server, Azure SQL (no ODBC driver)"),
+    Library("python-tds", "python-tds", "Databases", "", "Dataverse's SQL endpoint (pure Python)"),
+    Library("pyodbc", "pyodbc", "Databases", "", "Access, any ODBC (needs a driver installed)"),
     Library("psycopg[binary]", "psycopg", "Databases", "", "PostgreSQL, Redshift"),
     Library("pymysql", "PyMySQL", "Databases", "", "MySQL, MariaDB"),
     Library("oracledb", "oracledb", "Databases", "", "Oracle"),
@@ -64,7 +66,7 @@ PRESETS: dict[str, tuple[str, ...]] = {
     "Data analysis": ("pandas", "numpy", "pyarrow", "duckdb", "matplotlib", "openpyxl"),
     "Charts": ("pandas", "matplotlib", "seaborn", "plotly"),
     "Statistics and models": ("pandas", "numpy", "scipy", "statsmodels", "scikit-learn", "matplotlib"),
-    "Databases": ("pandas", "sqlalchemy", "pyodbc", "psycopg[binary]"),
+    "Databases": ("pandas", "sqlalchemy", "mssql-python", "psycopg[binary]"),
     "Just the basics": ("pandas",),
 }
 # Always installed: the kernel the Workbench runs code in.

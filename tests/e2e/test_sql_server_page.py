@@ -17,7 +17,7 @@ from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.domain import sql_server
 from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
-from tests.test_sql_server import PYODBC_SAID, _stand_in
+from tests.test_sql_server import MSSQL_SAID, _stand_in
 
 SHOTS = Path(os.environ.get("SAB_SHOTS") or tempfile.mkdtemp(prefix="sab-sqlserver-shots-"))
 
@@ -90,7 +90,7 @@ def test_a_failing_card_says_why_and_import_relationships_fills_the_model(
     orders_url: str,
     server: dict[str, Any],
 ) -> None:
-    words = sql_server.explain(PYODBC_SAID["40615"])
+    words = sql_server.explain(MSSQL_SAID["40615"])
     call(server, "POST", "/connections", _stand_in("Shop warehouse", fail=words))
     call(server, "POST", "/connections", _stand_in("Sales warehouse"))
     try:
@@ -104,7 +104,7 @@ def test_a_failing_card_says_why_and_import_relationships_fills_the_model(
         expect(failing.locator(".connection-status")).to_have_text("Failing")
         expect(failing.locator(".connection-status")).to_have_attribute("title", re.compile("203.0.113.7"))
         works = dialog.locator(".connection-card[data-connection='Sales warehouse']")
-        expect(works.locator(".connection-card-about")).to_contain_text("ODBC Driver 18 for SQL Server")
+        expect(works.locator(".connection-card-about")).to_contain_text("mssql-python")
         shot(page, "sql-server-cards")
         failing.click()
         expect(dialog.locator(".connection-error")).to_contain_text("Networking")

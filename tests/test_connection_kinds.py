@@ -115,9 +115,19 @@ def powerbi(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     return '"Sales model".Product', 3
 
 
+def _dataverse_web_standin(monkeypatch: pytest.MonkeyPatch) -> str:
+    """The Web API stand-in a Dataverse connection signs in at (its token then goes to python-tds)."""
+    running = dataverse_standin.StandIn().start()
+    for name, value in running.environment().items():
+        monkeypatch.setenv(name, value)
+    STOPS.append(running.stop)
+    return str(running.url)
+
+
 def dataverse_sql(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, int]:
     body = {"name": "Kind", "kind": "sql", "template": "dataverse", "dialect": "dataverse"}
-    body |= {"code": dataverse_tds_standin.code(tmp_path), "variable": "conn"}
+    address = _dataverse_web_standin(monkeypatch)
+    body |= {"code": dataverse_tds_standin.code(tmp_path, address), "variable": "conn"}
     body |= {"catalog": BY_ID["dataverse"].to_json()["catalog"]}
     ok(client.post("/connections", json=body, headers=AUTH))
     return "account", len(dataverse_tds_standin.ACCOUNTS)
@@ -305,10 +315,13 @@ def test_each_kind_lists_and_reads_a_table_through_the_contract(
     assert made["connection_reads"][0]["connection"] == "Kind"
 
 
-def test_a_dataverse_endpoint_that_is_off_is_said_plainly(client: TestClient, tmp_path: Path) -> None:
+def test_a_dataverse_endpoint_that_is_off_is_said_plainly(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stops: None
+) -> None:
     body = {"name": "CRM", "kind": "sql", "template": "dataverse", "dialect": "dataverse", "variable": "conn"}
+    address = _dataverse_web_standin(monkeypatch)
     body |= {
-        "code": dataverse_tds_standin.code(tmp_path, off=True),
+        "code": dataverse_tds_standin.code(tmp_path, address, off=True),
         "catalog": BY_ID["dataverse"].to_json()["catalog"],
     }
     ok(client.post("/connections", json=body, headers=AUTH))

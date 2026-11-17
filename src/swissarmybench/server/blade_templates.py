@@ -140,12 +140,11 @@ def _db(
 # SQL Server and Azure SQL (domain/sql_server.py): a SqlServer object signed in one of eight ways (the
 # form's Sign in), its drivers found, its errors in plain words, its passing errors tried again, its reads
 # typed exactly, its catalog from the system views.
-SQLSERVER_WINDOWS = sql_server.code("windows")
-AZURE_YOU = sql_server.code("entra_you", sql_server.AZURE_SERVER)
-_SQLSERVER_NOTE = (
-    "Needs pyodbc and Microsoft's ODBC Driver 18 (or 17) for SQL Server, or Microsoft's mssql-python "
-    "(no ODBC driver)."
-)
+# Microsoft's mssql-python only (nothing else installed); each starts with a sign-in that runs on an Azure
+# Function App or a hosted Streamlit app as well as here (the owner, 2026-11-17).
+SQLSERVER_LOGIN = sql_server.code("sql_login")
+AZURE_APP = sql_server.code("app_secret", sql_server.AZURE_SERVER)
+_SQLSERVER_NOTE = "Needs Microsoft's mssql-python (pip install mssql-python): no ODBC driver."
 
 
 # ===== a Power BI workspace: its datasets (semantic models), read with DAX =====
@@ -495,7 +494,7 @@ DATABASES: tuple[Template, ...] = (
         "sqlserver",
         "SQL Server",
         "sqlserver",
-        SQLSERVER_WINDOWS,
+        SQLSERVER_LOGIN,
         sql_server.CATALOG,
         _SQLSERVER_NOTE,
         sign_ins=sql_server.sign_ins("sqlserver"),
@@ -504,7 +503,7 @@ DATABASES: tuple[Template, ...] = (
         "azuresql",
         "Azure SQL Database / Synapse",
         "sqlserver",
-        AZURE_YOU,
+        AZURE_APP,
         sql_server.CATALOG,
         _SQLSERVER_NOTE,
         sign_ins=sql_server.sign_ins("azuresql"),
@@ -772,7 +771,7 @@ conn = pyodbc.connect("DSN=my_data_source")""",
         dataverse.TEMPLATE,
         "Dataverse",
         dataverse.DIALECT,
-        dataverse.YOU,
+        dataverse.APP,
         dataverse.SQL_CATALOG,
         "",
         language="sql",

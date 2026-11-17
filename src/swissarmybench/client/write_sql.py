@@ -13,7 +13,8 @@
 
 It knows each database by its driver: PostgreSQL (psycopg), SQLite (sqlite3: the connection opens
 read-only, so the same file is opened again to write), MySQL and MariaDB (pymysql, mariadb), SQL Server
-and Azure SQL (pyodbc, told apart from any other ODBC source by the driver's own answer), Oracle
+and Azure SQL (Microsoft's mssql-python; an older connection's pyodbc, told apart from any other ODBC
+source by the driver's own answer), Oracle
 (oracledb) and Trino (trino: no transactions on most connectors, so each statement stands by itself).
 For each: how it quotes a name (a plain one written the way it reads one unquoted, so Region finds a
 column made as region), its parameter marks, how it takes a value, the types a new table gets from the
@@ -240,7 +241,7 @@ ENGINES: dict[str, Engine] = {
                 "This sign-in may not write this table: an admin grants INSERT, UPDATE...",
             ),
         ),
-        drivers=("pyodbc",),
+        drivers=("mssql_python", "pyodbc"),
     ),
     "oracle": Engine(
         "oracle",
@@ -348,7 +349,8 @@ def for_writes(conn: Any) -> Any:
 
 
 def detect(conn: Any) -> Engine:
-    """The database a connection is, by its driver (pyodbc: by the source's own answer)."""
+    """The database a connection is, by its driver (mssql-python: SQL Server; pyodbc: by the source's
+    own answer)."""
     if getattr(conn, "dbms", None) == "sqlserver":  # the SQL Server connection's own (domain/sql_server.py)
         return ENGINES["sqlserver"]
     top = type(conn).__module__.split(".")[0]
@@ -692,19 +694,43 @@ TRANSIENT_SOCKETS: frozenset[str] = frozenset({"10053", "10054", "10060"})
 TRIES: int = 4
 SQLSERVER_PARAMETERS: int = 2100  # the most parameters one statement takes
 SQLSERVER_VALUES_ROWS: int = 1000  # the most rows one VALUES list takes
-BATCH_BYTES: int = 16_000_000  # about this much of values in one fast_executemany batch
+BATCH_BYTES: int = 16_000_000  # about this much of values in one executemany batch
 STAGE: str = "#sab_stage"
 STAGED_KEYS: str = "#sab_keys"
 
 
+# mssql-python says the server's words without the number: the same errors by their words (lower case).
+TRANSIENT_WORDS: tuple[str, ...] = (
+    "not currently available",  # 40613
+    "the service has encountered an error processing your request",  # 40197
+    "the service is currently busy",  # 40501
+    "not enough resources to process request",  # 49918
+    "too many create or update operations in progress",  # 49919
+    "too many operations in progress for subscription",  # 49920
+    "the server is currently too busy",  # 10929
+    "limit for the database is",  # 10928
+    "login to read-secondary failed",  # 4221
+    "deadlocked on lock",  # 1205
+    "communication link failure",  # 08S01
+    "error code 0x2745",  # 10053
+    "error code 0x2746",  # 10054
+    "error code 0x274c",  # 10060
+)
+
+
 def transient(error: BaseException) -> bool:
     """Whether a SQL Server error passes by itself, so the transaction is run again: Azure's
-    reconfiguration, busy and throttling errors, a deadlock, a dropped connection."""
+    reconfiguration, busy and throttling errors, a deadlock, a dropped connection (by its SQLSTATE, its
+    number, or, as mssql-python says them, its words)."""
     args = [str(a) for a in getattr(error, "args", ())]
     if args and args[0] in TRANSIENT_STATES:
         return True
-    numbers = set(re.findall(r"(?<!\d)(\d{4,5})(?!\d)", " ".join(args) or str(error)))
-    return bool(numbers & (TRANSIENT_ERRORS | TRANSIENT_SOCKETS))
+    text = " ".join(args) or str(error)
+    numbers = set(re.findall(r"(?<!\d)(\d{4,5})(?!\d)", text))
+    if numbers & (TRANSIENT_ERRORS | TRANSIENT_SOCKETS):
+        return True
+    lowered = text.lower()
+    return any(w in lowered for w in TRANSIENT_WORDS)
 
 
 @dataclass(frozen=True)
@@ -738,15 +764,17 @@ class Column:
 
 
 class SqlServerWrite(SqlWrite):
-    """A write to SQL Server or Azure SQL (pyodbc), made robust (the owner, 2026-11-17: "SQL server and
-    azure SQL are two things I use alot so make them robust"):
+    """A write to SQL Server or Azure SQL (Microsoft's mssql-python), made robust (the owner, 2026-11-17:
+    "SQL server and azure SQL are two things I use alot so make them robust"):
 
       types      read from the target (sys.columns): the rows are staged in a #temp table of exactly
-                 those types, and pyodbc is told each text column's and decimal's size (setinputsizes),
+                 those types, and the driver is told each text column's and decimal's size (setinputsizes),
                  so varchar stays varchar, nvarchar Unicode, a decimal its precision and scale; NaN and
                  NaT are NULL; an id is a uniqueidentifier's text; a zoned time a datetimeoffset's
-      inserts    fast_executemany (one round trip a batch), batches sized by the rows' width; without
-                 it (fast = False), multi-row VALUES under 2,100 parameters and 1,000 rows a statement
+      inserts    executemany with the parameters bound as arrays (mssql-python's own: one round trip a
+                 batch; an older pyodbc connection's fast_executemany), batches sized by the rows' width;
+                 without it (fast = False), multi-row VALUES under 2,100 parameters and 1,000 rows a
+                 statement
       upserts    staged, then one MERGE ... WITH (HOLDLOCK); where MERGE is refused, UPDATE then
                  INSERT; all in one transaction. No keys given: the target's primary key (none: refused)
       identity   SET IDENTITY_INSERT only when the rows carry the identity column and identity_insert
@@ -774,7 +802,7 @@ class SqlServerWrite(SqlWrite):
         self._target: list[Column] | None = None
         super().__init__(connection, target, what, rows, dry_run, batch_size, engine)
         self.identity_insert = bool(identity_insert)
-        self.fast = True  # fast_executemany; False: rows in multi-row VALUES statements
+        self.fast = True  # executemany as arrays; False: rows in multi-row VALUES statements
 
     # ===== the target, as sys.columns says it =====
 
@@ -857,11 +885,20 @@ class SqlServerWrite(SqlWrite):
             return value.isoformat(sep=" ")  # a datetimeoffset takes it as text: the instant, with its offset
         return super()._value(value)
 
+    def driver(self) -> Any:
+        """The connection's driver module (mssql-python, or an older connection's pyodbc): its SQL type
+        numbers for setinputsizes. None when neither is loaded."""
+        raw = getattr(self.conn, "raw", self.conn)
+        top = type(raw).__module__.split(".")[0]
+        if top in ("mssql_python", "pyodbc"):
+            return sys.modules.get(top)
+        return sys.modules.get("mssql_python") or sys.modules.get("pyodbc")
+
     def input_sizes(self, names: Sequence[str]) -> list[Any]:
-        """pyodbc's size for each column (setinputsizes): text by the target's own type and length, a
-        decimal by its precision and scale, a datetime2 by its scale, varbinary by its length; None:
-        pyodbc's own choice."""
-        pyodbc = sys.modules.get("pyodbc")
+        """The driver's size for each column (setinputsizes): text by the target's own type and length,
+        a decimal by its precision and scale, a datetime2 by its scale, varbinary by its length; None:
+        the driver's own choice."""
+        pyodbc = self.driver()
         sizes: list[Any] = []
         for name in names:
             column = self.column(name)
@@ -879,7 +916,37 @@ class SqlServerWrite(SqlWrite):
                 sizes.append((getattr(pyodbc, "SQL_VARBINARY", -3), size, 0))
             else:  # bit, uniqueidentifier (its text), datetimeoffset (its text, the zone kept), ints
                 sizes.append(None)
+        if pyodbc is not None and pyodbc.__name__ == "mssql_python" and None in sizes:
+            # mssql-python takes a type for every parameter or for none (no None among them)
+            plain = [self._mssql_size(pyodbc, self.column(n)) for n in names]
+            sizes = [given or other for given, other in zip(sizes, plain, strict=True)]
+            if None in sizes:
+                return []
         return sizes
+
+    @staticmethod
+    def _mssql_size(driver: Any, column: Column) -> Any:
+        """mssql-python's type for a column input_sizes leaves to the driver (None: one it cannot say)."""
+        kind = column.type.lower()
+        named = {
+            "bit": ("SQL_BIT", 1, 0),
+            "tinyint": ("SQL_TINYINT", 3, 0),
+            "smallint": ("SQL_SMALLINT", 5, 0),
+            "int": ("SQL_INTEGER", 10, 0),
+            "bigint": ("SQL_BIGINT", 19, 0),
+            "real": ("SQL_REAL", 24, 0),
+            "float": ("SQL_DOUBLE", 53, 0),
+            "money": ("SQL_DECIMAL", 19, 4),
+            "smallmoney": ("SQL_DECIMAL", 10, 4),
+            "date": ("SQL_TYPE_DATE", 10, 0),
+            "datetime": ("SQL_TYPE_TIMESTAMP", 23, 3),
+            "smalldatetime": ("SQL_TYPE_TIMESTAMP", 16, 0),
+            "uniqueidentifier": ("SQL_WVARCHAR", 36, 0),  # its text
+            "datetimeoffset": ("SQL_WVARCHAR", 40, 0),  # its text, the zone kept
+        }.get(kind)
+        if named is None or getattr(driver, named[0], None) is None:
+            return None
+        return (getattr(driver, named[0]), named[1], named[2])
 
     def rows_a_batch(self, names: Sequence[str]) -> int:
         """Rows in one batch: batch_size, fewer for wide rows; in multi-row VALUES, under 2,100
@@ -898,10 +965,18 @@ class SqlServerWrite(SqlWrite):
         columns = self.names(picked)
         batches = rows.batches(list(names or rows.names), self.rows_a_batch(picked), self._value, distinct)
         if self.fast:
-            self.cursor.fast_executemany = True  # one round trip a batch
-            self.cursor.setinputsizes(self.input_sizes(picked))
+            if type(getattr(self.conn, "raw", self.conn)).__module__.split(".")[0] == "pyodbc":
+                self.cursor.fast_executemany = True  # an older connection's: one round trip a batch
+            sizes = self.input_sizes(picked)
+            if any(sizes):
+                self.cursor.setinputsizes(sizes)
             sql = f"INSERT INTO {table} ({columns}) VALUES ({self.marks(len(picked))})"
-            return each_batch(batches, lambda batch: self.cursor.executemany(sql, batch))
+            try:
+                return each_batch(batches, lambda batch: self.cursor.executemany(sql, batch))
+            finally:
+                driver = self.driver()
+                if any(sizes) and driver is not None and driver.__name__ == "mssql_python":
+                    self.cursor.setinputsizes([])  # mssql-python keeps them for the next statements
 
         def run(batch: list[Any]) -> None:
             groups = ", ".join(f"({self.marks(len(picked), i * len(picked))})" for i in range(len(batch)))

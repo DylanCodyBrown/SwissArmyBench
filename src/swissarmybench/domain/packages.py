@@ -24,6 +24,9 @@ PIP_NAMES: dict[str, str] = {
     "pyodbc": "pyodbc",
     "pymssql": "pymssql",
     "mssql_python": "mssql-python",
+    "pytds": "python-tds",  # Dataverse's SQL endpoint (domain/dataverse.py)
+    "OpenSSL": "pyOpenSSL",  # python-tds encrypts with it
+    "certifi": "certifi",
     "psycopg": "psycopg[binary]",
     "psycopg2": "psycopg2-binary",
     "pg8000": "pg8000",

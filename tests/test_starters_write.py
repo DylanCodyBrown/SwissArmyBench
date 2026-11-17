@@ -150,7 +150,7 @@ def test_a_write_function_is_one_typed_public_function_and_nothing_runs_on_impor
             )
             if isinstance(statement, ast.Expr):
                 assert isinstance(statement.value, ast.Constant)  # the docstring
-    for driver in ("pyodbc", "oracledb", "trino", "psycopg", "pymysql", "openpyxl"):
+    for driver in ("mssql_python", "pyodbc", "oracledb", "trino", "psycopg", "pymysql", "openpyxl"):
         try:
             __import__(driver)
         except ImportError:  # not in the test environment: a stand-in, so the code can be loaded
@@ -180,7 +180,7 @@ def test_a_write_starter_is_the_call_only_and_its_function_lists_its_packages(pa
         assert "duckdb" in packages, blade["name"]  # the rows are staged in DuckDB
     drivers = {
         "postgres": "psycopg",
-        "sqlserver": "pyodbc",
+        "sqlserver": "mssql-python",
         "oracle": "oracledb",
         "trino": "trino",
         "odbc": "pyodbc",
@@ -553,10 +553,15 @@ class FakeOdbcError(Exception):
     """pyodbc's Error: (SQLSTATE, message)."""
 
 
+class FakeMssqlError(Exception):
+    """mssql-python's Error: one text, the server's words without the number."""
+
+
 class FakeCursor:
     def __init__(self, conn: FakeSqlServer) -> None:
         self.conn = conn
-        self.fast_executemany = False
+        if FakeSqlServer.__module__ == "pyodbc":
+            self.fast_executemany = False  # pyodbc's own (mssql-python binds arrays by itself)
         self.description: list[tuple[str]] | None = None
         self._rows: list[tuple[Any, ...]] = []
 
@@ -567,7 +572,7 @@ class FakeCursor:
         return self
 
     def executemany(self, sql: str, batch: list[tuple[Any, ...]]) -> None:
-        self.conn.log.append(("executemany", sql, list(batch), self.fast_executemany))
+        self.conn.log.append(("executemany", sql, list(batch), getattr(self, "fast_executemany", None)))
         self.conn.fail("executemany", sql)
         if sql.startswith("INSERT INTO #sab_stage") or sql.startswith("INSERT INTO #sab_keys"):
             self.conn.staged += len(batch)
@@ -580,7 +585,7 @@ class FakeCursor:
 
 
 class FakeSqlServer:
-    """pyodbc's connection to SQL Server, stood in for: sys.columns, the primary key and triggers of a
+    """mssql-python's (or an older connection's pyodbc's) connection to SQL Server, stood in for: sys.columns, the primary key and triggers of a
     made-up dbo.orders; every statement kept; `failures` makes the next matching calls fail."""
 
     COLUMNS = [
@@ -638,22 +643,52 @@ class FakeSqlServer:
         return []
 
 
-FakeSqlServer.__module__ = "pyodbc"  # the driver it stands in for, as the helper tells drivers apart
+# The SQL types each driver names (ODBC's numbers: the same in both).
+SQL_TYPES = {
+    "SQL_WVARCHAR": -9,
+    "SQL_VARCHAR": 12,
+    "SQL_DECIMAL": 3,
+    "SQL_TYPE_TIMESTAMP": 93,
+    "SQL_VARBINARY": -3,
+    "SQL_INTEGER": 4,
+    "SQL_BIT": -7,
+    "SQL_BIGINT": -5,
+    "SQL_SMALLINT": 5,
+    "SQL_TINYINT": -6,
+    "SQL_REAL": 7,
+    "SQL_DOUBLE": 8,
+    "SQL_TYPE_DATE": 91,
+}
 
 
-@pytest.fixture
+@pytest.fixture(params=["mssql_python", "pyodbc"])
 def sql_server(
-    monkeypatch: pytest.MonkeyPatch, connection: Callable[[Callable[[], Any]], list[str]]
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+    connection: Callable[[Callable[[], Any]], list[str]],
 ) -> dict[str, Any]:
-    fake = types.ModuleType("pyodbc")
+    """A SQL Server connection on mssql-python (today's), or on pyodbc (a connection saved before)."""
+    driver = str(request.param)
+    fake = types.ModuleType(driver)
     fake.SQL_DBMS_NAME = 17  # type: ignore[attr-defined]
-    fake.SQL_WVARCHAR, fake.SQL_VARCHAR, fake.SQL_DECIMAL = -9, 12, 3  # type: ignore[attr-defined]
+    for name, number in SQL_TYPES.items():
+        setattr(fake, name, number)
     fake.paramstyle = "qmark"  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "pyodbc", fake)
+    monkeypatch.setitem(sys.modules, driver, fake)
+    if driver == "pyodbc":  # the starter itself needs mssql-python (installed beside it)
+        monkeypatch.setitem(sys.modules, "mssql_python", types.ModuleType("mssql_python"))
+    monkeypatch.setattr(FakeSqlServer, "__module__", driver)  # as the helper tells drivers apart
     monkeypatch.setattr("time.sleep", lambda seconds: None)
-    world: dict[str, Any] = {}
+    world: dict[str, Any] = {"driver": driver}
     connection(lambda: FakeSqlServer(world))
     return world
+
+
+def said(world: dict[str, Any], state: str, mssql: str, odbc: str) -> Exception:
+    """An error as the world's driver says it: mssql-python's words, pyodbc's (SQLSTATE, text (number))."""
+    if world["driver"] == "pyodbc":
+        return FakeOdbcError(state, odbc)
+    return FakeMssqlError(mssql)
 
 
 ROWS = pd.DataFrame(
@@ -709,9 +744,14 @@ def test_sql_server_upsert_stages_the_rows_in_the_targets_types_then_merges_with
         "WHEN NOT MATCHED BY TARGET THEN INSERT ([order_id], [region], [code], [amount]) VALUES (s.[order_id], s.[region], s.[code], s.[amount]);"
     )
     staged = next(c for c in calls(sql_server, "executemany") if c[1].startswith("INSERT INTO #sab_stage"))
-    assert staged[3] is True  # fast_executemany
     assert staged[2][1] == (2, "South", "B2", None)  # NaN is NULL
-    assert calls(sql_server, "setinputsizes")[-1][1] == [None, (-9, 40, 0), (12, 10, 0), (3, 12, 2)]
+    if sql_server["driver"] == "pyodbc":
+        assert staged[3] is True  # fast_executemany
+        assert calls(sql_server, "setinputsizes")[-1][1] == [None, (-9, 40, 0), (12, 10, 0), (3, 12, 2)]
+    else:  # mssql-python binds arrays by itself, and takes a type for every parameter or none
+        assert staged[3] is None
+        assert calls(sql_server, "setinputsizes")[-2][1] == [(4, 10, 0), (-9, 40, 0), (12, 10, 0), (3, 12, 2)]
+        assert calls(sql_server, "setinputsizes")[-1][1] == []  # then cleared for the next statements
     assert sql_server["log"][-1] == ("commit",)
 
 
@@ -741,8 +781,12 @@ def test_sql_server_sends_each_value_in_the_targets_exact_type(sql_server: dict[
     )
     text = cell("write_sql_server_append", dry_run=False, target="dbo.events")
     assert run(text, orders=rows).counts == {"inserted": 2}
-    sizes = calls(sql_server, "setinputsizes")[-1][1]
-    assert sizes == [None, (93, 27, 7), None, None, (-3, 0, 0), (3, 18, 4)]
+    if sql_server["driver"] == "pyodbc":
+        sizes = calls(sql_server, "setinputsizes")[-1][1]
+        assert sizes == [None, (93, 27, 7), None, None, (-3, 0, 0), (3, 18, 4)]
+    else:
+        sizes = calls(sql_server, "setinputsizes")[-2][1]
+        assert sizes == [(-9, 36, 0), (93, 27, 7), (-9, 40, 0), (-7, 1, 0), (-3, 0, 0), (3, 18, 4)]
     (insert,) = [c for c in calls(sql_server, "executemany") if c[1].startswith("INSERT INTO [dbo].[events]")]
     first, second = insert[2]
     assert first[0] == "00000000-0000-0000-0000-000000000001" and first[3] is True and first[4] == b"\x00\x01"
@@ -755,10 +799,19 @@ def test_sql_server_sends_each_value_in_the_targets_exact_type(sql_server: dict[
 def test_sql_server_runs_the_whole_transaction_again_on_azures_passing_errors(
     sql_server: dict[str, Any],
 ) -> None:
-    passing = FakeOdbcError(
-        "08S01", "[Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (10054)"
+    passing = said(
+        sql_server,
+        "08S01",
+        "Driver Error: Communication link failure; DDBC Error: [Microsoft]TCP Provider: Error code 0x2746",
+        "[Microsoft][ODBC Driver 18 for SQL Server]Communication link failure (10054)",
     )
-    busy = FakeOdbcError("42000", "Database 'shop' on server 'made-up' is not currently available (40613)")
+    busy = said(
+        sql_server,
+        "42000",
+        "Driver Error: General error; DDBC Error: [Microsoft][SQL Server]Database 'shop' on server "
+        "'made-up' is not currently available. Please retry the connection later.",
+        "Database 'shop' on server 'made-up' is not currently available (40613)",
+    )
     sql_server["failures"] = [("executemany", "INSERT INTO #sab_stage", passing), ("execute", "MERGE", busy)]
     text = cell("write_sql_server_upsert", dry_run=False, target="dbo.orders", **{"key column": "order_id"})
     done = run(text, orders=ROWS)
@@ -775,6 +828,18 @@ def test_sql_server_runs_the_whole_transaction_again_on_azures_passing_errors(
         FakeOdbcError("40001", "Transaction (Process ID 61) was deadlocked ... (1205)")
     )
     assert not write_sql.transient(FakeOdbcError("23000", "Violation of PRIMARY KEY constraint (2627)"))
+    assert write_sql.transient(
+        FakeMssqlError(
+            "Driver Error: Serialization failure; DDBC Error: [Microsoft][SQL Server]Transaction "
+            "(Process ID 61) was deadlocked on lock resources with another process"
+        )
+    )
+    assert not write_sql.transient(
+        FakeMssqlError(
+            "Driver Error: Integrity constraint violation; DDBC Error: [Microsoft][SQL Server]"
+            "Violation of PRIMARY KEY constraint 'PK_orders'."
+        )
+    )
 
 
 def test_sql_server_falls_back_to_update_then_insert_when_merge_is_refused(

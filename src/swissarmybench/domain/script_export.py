@@ -995,10 +995,11 @@ def _shared(made: Plan) -> _Shared:
     requirements = runtime.requirements_of(scan, made.extra)
     for module, _ in made.clients:  # travels inline: not a package to install
         requirements.pop(module, None)
-    if "run_sql(" not in all_text and not any(
-        "pyodbc" in p.code for p in pieces if not dataverse.is_dataverse(p.dialect)
-    ):
-        requirements.pop("pyodbc", None)  # Dataverse's SQL endpoint, and no SQL runs on it
+    for module in ("pytds", "OpenSSL", "certifi"):  # Dataverse's SQL endpoint (python-tds), no SQL on it
+        if "run_sql(" not in all_text and not any(
+            module in p.code for p in pieces if not dataverse.is_dataverse(p.dialect)
+        ):
+            requirements.pop(module, None)
     listing = "\n".join(f"    {m!r}: {r!r}," for m, r in requirements.items())
     requirements_text = (
         "# ===== REQUIREMENTS: what it needs installed (checked before anything of them is imported) =====\n"
