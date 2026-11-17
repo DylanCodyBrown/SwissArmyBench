@@ -22,7 +22,7 @@ a variable by its name.
   file.openCell` opens a reference's cell.
 
 ## Variables (the rail's Variables page)
-- This computer's, whether or not a project is open; never in a .sab. Connections, notebooks, scripts
+- This computer's, whether or not a project is open; never in a project. Connections, notebooks, scripts
   and Workbench kernels read them as environment variables (a running kernel: at its next start).
 - `variables_list(search, source)`: each variable's source (`vault`: the vault and secret name; `value`:
   a plain value, shown; `keyring`; `env`: this computer's environment, its value shown unless it reads

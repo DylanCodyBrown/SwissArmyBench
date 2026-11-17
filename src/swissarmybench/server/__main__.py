@@ -4,7 +4,7 @@
     uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
     uv run swissarmybench status          is one running, and where
     uv run swissarmybench open            open the running app's page in the browser
-    uv run swissarmybench open sales.sab  open a project (starting the app when it is not running)
+    uv run swissarmybench open ~/sales    open a project folder (starting the app when it is not running)
     uv run swissarmybench stop            ask the running one to shut down
     uv run swissarmybench tray            the tray icon (`start` starts it too, unless --no-tray)
     uv run swissarmybench autostart on    start at sign-in (the tray, which starts the server); off, status
@@ -96,7 +96,9 @@ def main() -> None:
         choices=["start", "stop", "status", "open", "tray", "autostart"],
     )
     parser.add_argument(
-        "switch", nargs="?", help="autostart: on, off or status; open: a project's .sab file (or folder)."
+        "switch",
+        nargs="?",
+        help="autostart: on, off or status; open: a project's folder (or an old .sab file to import).",
     )
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
     parser.add_argument("--no-browser", action="store_true", help="Do not open the page when it starts.")
@@ -173,9 +175,9 @@ def open_page(path: Path | None = None) -> bool:
 
 
 def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
-    """`swissarmybench open sales.sab` (a double-click on a .sab runs it): the app started in the background
-    when it is not running, the project opened in it (the page asks first when unsaved work would be lost),
-    and the home window shown when none is open."""
+    """`swissarmybench open <a project's folder>` (or an old .sab file, whose import the page offers): the
+    app started in the background when it is not running, the project opened in it (the page asks first
+    when unsaved work would be lost), and the home window shown when none is open."""
     file = Path(target).expanduser()
     if not file.exists():
         print(f"{file} is not there.", file=sys.stderr)

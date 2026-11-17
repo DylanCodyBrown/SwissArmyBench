@@ -7,8 +7,8 @@ password.
 
 ## What waits for the user's Allow
 - `table_export` (a grid to the export folder), `streamlit_export` (an app with the tables' rows),
-  `project_new` or `streamlit_save_as` when data.ipynb would hold a pasted table's rows, and
-  `project_save` when it keeps a table's rows in the .sab (keep_rows).
+  `streamlit_save_as` when data.ipynb would hold a pasted table's rows, and
+  `project_save` when it keeps a table's rows in .sab/data/ (keep_rows), `project_copy` with data.
 - The user sees what, where and which tables; Deny, closing the prompt or no answer in 3 minutes
   writes nothing. `agent_approvals` lists what is waiting; `agent_events` reports approval_resolved.
   Only the user answers. Say what you asked for and why.

@@ -31,13 +31,13 @@ drives the cells on the same page that read it.
   so it waits for the user's Allow.
 - `streamlit_save_as`: the project as one zip (data.py, pages/*.py, sources; no rows, no secrets).
 
-## Project folders (a folder that starts with the data; one .sab file: guide projects)
+## Project folders (a folder that starts with the data: guide projects)
 - data.ipynb: each table's cell (its load and its grid steps as DuckDB SQL) and the user's own cells.
   data.py is its export, never edited by hand; pages and other notebooks start `from data import ...`.
-- `project_new(folder, name)`: data.ipynb, data.py, a canvas, notebooks. `project_files`,
+- `project_new(name, app=true)`: a project folder (data.ipynb, data.py, a canvas, notebooks), opened. `project_files`,
   `project_export_data` (data.py again), `workbench_project_open` (its files as tabs).
 - A pasted table has no source to read again: data.py gets a marked stub. When data.ipynb would hold
-  pasted rows, `project_new` and `streamlit_save_as` wait for the user's Allow.
+  pasted rows, `streamlit_save_as` waits for the user's Allow (`project_new` keeps rows out of it).
 
 ## App mode
 - `streamlit_page_settings` (title, icon, layout wide or centered, logo, theme colours: written into the

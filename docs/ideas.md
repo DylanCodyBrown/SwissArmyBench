@@ -4602,3 +4602,65 @@ IntelliSense, `pac canvas` or what current pac uses).
 **Open:** app_navigate does not know the `codeapp` area (navigation's AREAS is the base's list; the agent
 works through the `powerapps_` tools); Settings' Extensions section (the extensions branch) and this
 extension's Install there come with that branch's merge.
+
+## Projects are folders, and the home page is the Project Explorer (the owner, 2026-11-17; built, branch project-folders)
+
+The owner: "I think we need to just consider entire folders projects and take out the .sab" / "that way we
+can share entire projects in git repos nativly", then "Yes build it with projects as folders" / "Make the
+project page sortable by card with explanations of project types for beginners". This **reverses** "Projects
+as one .sab file" (2026-11-16): a folder is what Git, VS Code and Jupyter already understand, the library is
+already a folder, and the scaffold was a folder anyway.
+
+### Built
+- **A project is a folder.** Its documents are ordinary files at its top; the app's state is `.sab/`:
+  `project.json` (format, type, tables with sources and steps, tabs, windows, autosave; sorted keys, no
+  timestamp, no name: the folder's is the project's), `visualizations.json` (Visualizations as left),
+  `visualizations/` (saved dashboards; an older `.sab/dashboards` is moved once on open), `model.json`,
+  `data/<table>.parquet` only on "Keep its rows". Each file is written only when its bytes change, so a
+  save that changes nothing changes nothing in Git. No zip, no working folder in the temporary folder.
+- **Data stays out of Git by default:** `.sab/.gitignore` (`data/`, the app's own) and the scaffold's
+  `.gitignore` (`.sab/data/`, written only when the project has none), and a README that says why and how
+  to commit data on purpose.
+- **New** (a name, a type, the projects folder or Choose another folder…; scaffolded, opened, saved at
+  once; Autosave on by default), **Open** (a folder; a plain folder answers `not_a_project`, and "Make this
+  folder a project?" scaffolds around it, never writing over a file; a folder with data.ipynb and no .sab/
+  opens as is), **Save**, **Copy project to…** (rows only on a tick; the agent's with rows on Allow),
+  **Close**. The ● mark is still worked out against what .sab/ would hold.
+- **Old .sab files, one release:** Open a .sab file… (and `swissarmybench open x.sab`, a double-click's
+  command) imports one into a folder the user picks: every entry checked by the old reader (no `..`, no
+  absolute path, no link, sizes), its manifest, Visualizations, model, rows and dashboards placed in
+  `.sab/`. The installers stop registering .sab and take an earlier registration away (Windows HKCU, the
+  Linux MIME type and desktop entry); `server/sab-file.*` stay for that release.
+- **The Project Explorer** (the home page, replacing the Start view): every project in the projects folder
+  (Settings: Projects folder, `projects.json`; default `~/Swiss Army Bench Projects`) and every one opened
+  from elsewhere (recent_projects.json, folders). A card: name, type (its colour and picture; an off
+  extension's "Needs the Accounting extension" with Install), last opened, last changed, created, folder
+  (short, whole on hover), counts, Git (a repository, its branch from `.git/HEAD`, never running git), Open
+  on click; a menu: Open, Show in folder, Copy project to…, Rename, Move left/right, Remove from list,
+  Delete… (to the system's trash on the typed name). Sort by Last opened, Name, Type, Last changed,
+  Created, or Custom (drag; kept in projects.json); a type filter and a search box. Missing projects last,
+  with Locate… and Remove from list.
+- **Types for beginners:** "What kind of project?" cards on the page and behind New project's "?": plain
+  words (title, for whom, what you get, an example) from each mode (`BASE_MODE` and each extension's
+  `MODE`: `title`, `for_whom`, `explain`, `example`), a small picture drawn by us, Create. Put away once
+  read (remembered). With no projects: the cards large, "Create your first project".
+- **The agent:** project_new (name/type/folder), project_open (make), project_save, project_copy,
+  project_import_sab, projects_list, projects_sort, project_rename, project_remove_from_list,
+  projects_folder_set (waits for Allow), project_types. Show in folder and Delete are the user's own.
+
+### Decisions
+- **Design principle 7.1 is overridden here, on the owner's explicit ask:** the type cards explain in
+  sentences. Nowhere else.
+- **The Streamlit app type** is the base's words for now (`STREAMLIT_KIND`: a base project with its app's
+  canvas, `make: {"type": "bi", "app": true}`); a mode of type `streamlit` (the Streamlit extension's, branch
+  ext-streamlit) replaces it automatically. A base project with a canvas is shown as a Streamlit app.
+- An Analysis project starts without a canvas (`app` defaults to true only for the Streamlit type).
+- `project_new` no longer writes a pasted table's rows into data.ipynb (rows stay out by default), so it
+  asks nothing; `/projects` (the scaffold alone) stays for the extensions' own New.
+- Rename renames the folder (never the open project's); Remove from list hides a projects-folder project
+  (projects.json `hidden`) and never touches a file.
+- Delete moves to the system's trash: Windows' Recycle Bin (SHFileOperationW with FOF_ALLOWUNDO), the
+  Finder's Trash (osascript), the freedesktop Trash on Linux; never a plain delete. No new dependency.
+
+### Next
+- The release after: remove the .sab import, the zip reader, `server/sab-file.*`, OLD_* names.

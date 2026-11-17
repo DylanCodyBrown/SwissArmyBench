@@ -7,7 +7,7 @@
 #   sh install.sh ./swissarmybench-__VERSION__-py3-none-any.whl  # or install a wheel you downloaded
 #   sh install.sh [wheel] --no-autostart --no-start             # install only
 #
-# At the end it registers .sab project files (Linux desktops: a double-click opens one), turns on start at sign-in (the tray, which starts the server), starts the app in the
+# At the end it takes away an earlier .sab registration (a project is a folder now), turns on start at sign-in (the tray, which starts the server), starts the app in the
 # background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
 set -eu
 
@@ -80,39 +80,18 @@ bin_dir=$(uv tool dir --bin 2>/dev/null || true)
 exe="${bin_dir:-$HOME/.local/bin}/swissarmybench"
 [ -x "$exe" ] || exe="$HOME/.local/bin/swissarmybench"
 
-# 6. .sab project files open with Swiss Army Bench on a Linux desktop: a MIME type, its icon and a desktop
-#    entry that runs `swissarmybench open <file>`, for this user (XDG). macOS: open them with that command.
-if [ "$(uname -s)" = "Linux" ] && [ -x "$exe" ]; then
+# 6. A project is a folder now (2026-11-17): .sab files are no longer registered. An earlier install's
+#    registration (a MIME type, its desktop entry) is taken away, for this user (XDG); the icon files stay in
+#    the package for one release. An old .sab is imported with Open a .sab file… (or swissarmybench open).
+if [ "$(uname -s)" = "Linux" ]; then
   data="${XDG_DATA_HOME:-$HOME/.local/share}"
-  mkdir -p "$data/mime/packages" "$data/applications" "$data/icons/hicolor/scalable/mimetypes"
-  cat > "$data/mime/packages/swissarmybench-project.xml" <<'XML'
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-  <mime-type type="application/x-swissarmybench-project">
-    <comment>Swiss Army Bench project</comment>
-    <icon name="application-x-swissarmybench-project"/>
-    <glob pattern="*.sab"/>
-  </mime-type>
-</mime-info>
-XML
-  cat > "$data/applications/swissarmybench-project.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Swiss Army Bench
-Exec="$exe" open %f
-MimeType=application/x-swissarmybench-project;
-Icon=application-x-swissarmybench-project
-NoDisplay=true
-Terminal=false
-DESKTOP
-  tool_dir=$(uv tool dir 2>/dev/null || true)
-  for icon in "$tool_dir"/swissarmybench/lib/python*/site-packages/swissarmybench/server/sab-file.svg; do
-    [ -f "$icon" ] && cp "$icon" "$data/icons/hicolor/scalable/mimetypes/application-x-swissarmybench-project.svg"
-  done
-  update-mime-database "$data/mime" >/dev/null 2>&1 || true
-  update-desktop-database "$data/applications" >/dev/null 2>&1 || true
-  xdg-mime default swissarmybench-project.desktop application/x-swissarmybench-project >/dev/null 2>&1 || true
-  say "Project files (.sab) open with Swiss Army Bench."
+  if [ -f "$data/mime/packages/swissarmybench-project.xml" ] || [ -f "$data/applications/swissarmybench-project.desktop" ]; then
+    rm -f "$data/mime/packages/swissarmybench-project.xml" "$data/applications/swissarmybench-project.desktop" \
+      "$data/icons/hicolor/scalable/mimetypes/application-x-swissarmybench-project.svg"
+    update-mime-database "$data/mime" >/dev/null 2>&1 || true
+    update-desktop-database "$data/applications" >/dev/null 2>&1 || true
+    say "Project files (.sab) are no longer registered: a project is a folder now."
+  fi
 fi
 if [ -x "$exe" ]; then
   if [ "$autostart" = 1 ] && "$exe" autostart on >/dev/null 2>&1; then

@@ -2703,3 +2703,33 @@ routes (the buttons' calls) against that running app.
 
 NOT checked: Windows and macOS installs (the installers' own jobs run on Linux and Windows in release.yml;
 Install from the page was not run there), the tray's menu during Install, and Edge.
+
+## Projects as folders and the Project Explorer (2026-11-17, branch project-folders)
+
+Checked:
+- New project scaffolds a folder (data.ipynb, data.py, .gitignore with `.sab/data/`, README.md,
+  `.sab/project.json`, `.sab/.gitignore`), opens it and saves at once; a save that changes nothing changes
+  no byte (same bytes and the same modification times); close and open bring the tables back with their
+  steps, Visualizations and the relationships; Autosave (on by default) writes `.sab/project.json` once a
+  change settles, off keeps it still (tests/test_sab_projects.py, test_project_scope.py).
+- A folder made a project around its files writes nothing over (.gitignore, README.md, notes kept); a
+  folder with data.ipynb and no .sab/ opens; Keep its rows writes `.sab/data/<table>.parquet` and an
+  untick removes it; Copy project to (rows and caches left unless ticked); an old .sab imported (its
+  Visualizations, model, steps, dashboards placed) and a hostile one (`../`) refused before anything is
+  written; recent projects are folders; no secret, token or password in any written file.
+- The Project Explorer: cards from a made-up projects folder (types, counts, the branch from a made-up
+  `.git/HEAD`, a detached head), every sort and the custom order kept across a restart, filters, a moved
+  project located, rename, remove from list (files kept), Show in folder and Delete refused to the agent,
+  Delete to the freedesktop Trash on the typed name, the projects folder changed by the agent only on
+  Allow, the types explained (the base's two, Accounting's when on) (tests/test_project_explorer.py).
+- Browser (Chromium): the cards, a missing card removed, opening one, Home back to it; sort change and a
+  dragged order kept after a reload, Move right; the empty state and New project from a beginner's card
+  (the "?" explanations, the projects folder named); Open project… with the folder chooser; Save clears
+  the ●; saving loose work makes a project and asks Keep its rows; Open a .sab file… imports into a
+  folder; the tour on the Start page only; a notebook imported from another project folder
+  (tests/e2e/test_sab_projects.py). Screenshots light and dark.
+
+Not checked:
+- The Windows Recycle Bin and macOS Finder trash paths, and Show in folder on a real desktop (no such
+  desktop here; the freedesktop Trash was checked).
+- The installers' unregistration on a real Windows or Linux desktop (checked as text only).

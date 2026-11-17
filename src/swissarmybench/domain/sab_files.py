@@ -44,9 +44,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from swissarmybench.domain import approvals, notebooks, structures
+from swissarmybench.domain import notebooks, structures
 from swissarmybench.domain import projects as project_rules
-from swissarmybench.domain.projects import DataCell
 from swissarmybench.domain.table_cells import Origin
 
 FORMAT: int = 1
@@ -336,11 +335,6 @@ class Manifest:
     def table(self, name: str) -> TableEntry | None:
         return next((t for t in self.tables if t.name == name), None)
 
-    def special(self) -> set[str]:
-        """The entries that are not the project's own files: the manifest, Visualizations, the model, rows."""
-        named = {MANIFEST, *(t.rows_file for t in self.tables if t.rows_file)}
-        return named | {n for n in (self.visualizations, self.model) if n}
-
 
 _KNOWN = {
     "format",
@@ -369,10 +363,6 @@ def name_of_file(path: str) -> str:
     """A project's name from its file's: sales.sab -> sales."""
     stem = _base(path)
     return stem[: -len(SUFFIX)] if stem.lower().endswith(SUFFIX) else stem
-
-
-def with_suffix(path: str) -> str:
-    return path if path.lower().endswith(SUFFIX) else path + SUFFIX
 
 
 def _mapping(raw: Any) -> dict[str, Any]:
@@ -588,36 +578,6 @@ def packed(relative: str) -> bool:
     if parts[0] == STRUCTURES_FOLDER and len(parts) == 2 and structures.format_of(name):
         return True
     return posixpath.splitext(lowered)[1] in PACKED_SUFFIXES
-
-
-def rows_entry(table: str, taken: Iterable[str]) -> str:
-    """data/<table>.parquet, or a name beside it when the project has a file of that name."""
-    used = {t.casefold() for t in taken}
-    name = f"{ROWS_FOLDER}/{table}.parquet"
-    n = 2
-    while name.casefold() in used:
-        name = f"{ROWS_FOLDER}/{table}-{n}.parquet"
-        n += 1
-    return name
-
-
-def for_the_file(path: str, text: str) -> str:
-    """A notebook or script as it goes into the .sab: its outputs dropped (they show rows) and a pasted
-    table's rows written out in its read-only cell taken out: rows go in only on a tick, as Parquet."""
-    kind = _kind(path)
-    if kind == "script":
-        return project_rules.script_without_rows(text)
-    if kind != "notebook":
-        return text
-    cells, following = notebooks.read_document(text)
-    kept = project_rules.without_rows([DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells])
-    for cell, data in zip(cells, kept, strict=True):
-        cell.source = data.source
-        cell.outputs = []
-        cell.execution_count = None
-        if cell.approved is not None:
-            cell.approved = approvals.without_rows(cell.approved)
-    return notebooks.write_notebook(cells, next_number=following)
 
 
 # ===== a table that could not come back: its state and its fix =====

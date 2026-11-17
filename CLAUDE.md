@@ -61,7 +61,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   too, through the MCP, with no prompts.** A new user action gets its command in `cli/commands.py`
   (so an MCP tool) in the same change. The only exceptions: the agent cannot answer its own approval
   requests, and no answer the app gives it holds a password's value (`/blades/{name}/python` stays
-  refused). Code the agent runs in a Workbench kernel can read what that Python can, which the owner
+  refused), and a project's Delete (to the trash) and Show in folder are the user's own (the owner,
+  2026-11-17: "the agent cannot delete"). Code the agent runs in a Workbench kernel can read what that Python can, which the owner
   accepted; `tests/test_cli.py` NOT_COMMANDS lists the routes without a command and why.
 - **The original plan:** [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md).
   Follow its section 0 working agreements: typed Python, tests first for semantics, ask before
@@ -99,7 +100,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   token buys once: HttpOnly, SameSite=Strict, a per-start secret, our own Origin on unsafe methods;
   `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
-  and the one-time move into it), the audit log and, in beta mode,
+  and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
+  project's scaffold, `.sab/data/` only on the user's tick), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
   **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
@@ -116,12 +118,19 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   as data) is rewritten while the app runs, atomically and only when its text changes (2026-11-17); `claude.json` keeps the chosen installs and the bypass switch, and a Claude
   Desktop install's claude_desktop_config.json gets the `swissarmybench` server (asked once, a dated
   backup first, nothing else changed, no token).
-  **Projects as one .sab file (the owner, 2026-11-16):** a .sab is written on Save, on New project (where
-  the user named, at once), by Autosave when the user turned it on, and by the Autosave switch itself
-  (project.json only); the agent's save waits for the user's Allow when it keeps a table's rows. An open
-  one is unpacked into a working folder in the system's temporary folder, removed when it closes or the
-  server stops; `recent_projects.json` holds the recent projects' paths and times only. A project keeps its
-  documents, tables, grids, Structures, Visualizations, model and saved dashboards (`.sab/dashboards`).
+  **A project is a folder (the owner, 2026-11-17: "consider entire folders projects and take out the
+  .sab" / "share entire projects in git repos nativly"; it reverses 2026-11-16's one .sab file):** its
+  documents are ordinary files at its top, written by their own Save; the app's state is the project
+  folder's `.sab/` (project.json: sorted, no timestamp; visualizations.json and visualizations/ (saved
+  dashboards); model.json), written on Save, on New project (scaffolded where the user named, .gitignore
+  and README.md only when absent), by Autosave (on by default) and by the Autosave switch, each file only
+  when its bytes change. Rows only on the user's "Keep its rows" tick, into `.sab/data/` (Git-ignored);
+  the agent's save or Copy project to with rows waits for the user's Allow. Copy project to copies the
+  folder (`.sab/data/` on a tick). `recent_projects.json` holds the projects' folder paths and times only;
+  `projects.json` the Project Explorer's projects folder, sort, custom order and hidden ones. **The .sab
+  file, one release:** Open a .sab file… imports an old one into a folder the user picks (every entry
+  checked); the installers no longer register .sab and take an earlier registration away; the icon files
+  (server/sab-file.*) and the safe reader stay until the next release removes them.
   **The library (the owner, 2026-11-17; Plans/library.plan.md):** connections, APIs, vaults, blades, tangs,
   variables and connection colours live outside every project, in one folder of text files made to be a Git
   repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
@@ -277,13 +286,17 @@ src/swissarmybench/
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
     project_scope.py     what is the open project's own: its documents (by kind; data.py and pages/*.py
-                         marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/dashboards (and an older one's .sab/blades), an import's free names and
+                         marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/visualizations (and an older one's .sab/blades), an import's free names and
                          picks, a connection's passwords with no source on this computer and the fix
-    sab_files.py         a project as one .sab file (a zip): project.json (each table's source and grids'
-                         steps, the tabs, the windows' layout, autosave; unknown fields kept, a newer format read-only),
-                         sources from origins (a file relative to the .sab), zip entries checked (no `..`,
-                         no absolute path, no link, sizes), which files go in (code and text, never data),
-                         notebooks without outputs, a table's fix when it cannot come back
+    sab_files.py         a project is a folder: .sab/project.json (each table's source and grids' steps, the
+                         tabs, the windows' layout, autosave; sorted, no timestamp; unknown fields kept, a
+                         newer format read-only, a type-only file a project with no tables), .sab/'s paths,
+                         sources from origins (a file relative to the project), the scaffold's .gitignore and
+                         README, which files are the project's own; an old .sab's entries checked (no `..`,
+                         no absolute path, no link, sizes) and where each goes (converted); a table's fix
+    project_explorer.py  the Project Explorer: projects.json read, each project's card (type, counts, Git
+                         branch from .git/HEAD, times, missing, an off extension's "needs"), the sorts and the
+                         custom order (moved left and right), the filters, the types explained for beginners
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name); where a SQL error points
@@ -444,16 +457,22 @@ src/swissarmybench/
     controllers.py       a canvas page's controllers: the check, Test this page (the page written so each
                          block records its error, AppTest in the app's Python), a thin cell's move plan
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
-    sab_projects.py      a project as one .sab: new (saved first, where the user named), open (each table read
-                         again with its steps; Visualizations, model, layout), save (rows only on a tick; the
-                         agent's with them on the user's Allow), autosave (a quiet save once a change
-                         settles), close, the recent list, a table's fix; unsaved changes worked out, not
-                         tracked; each open, new and close points the dashboards at the project (scope); an
-                         older project's own blades into the library as it opens (adopt)
+    sab_projects.py      a project is a folder: new (scaffolded in the projects folder or where named, opened,
+                         .sab/ written), open (a folder; a plain one made a project on request; each table
+                         read again with its steps; Visualizations, model, layout), save (.sab/, only changed
+                         bytes; rows only on a tick, the agent's on the user's Allow), autosave (on by default,
+                         once a change settles), Copy project to, an old .sab imported into a folder, close,
+                         the recent list, a table's fix; unsaved changes worked out, not tracked; each open,
+                         new and close points the dashboards at the project (scope); an older project's own
+                         blades into the library as it opens (adopt)
+    project_explorer.py  the Project Explorer: the cards (the projects folder's and every one opened), sort and
+                         custom order (projects.json), the projects folder (the agent's on Allow), rename,
+                         remove from the list, locate; Show in folder and Delete (to the trash, on its typed
+                         name) the user's only
     library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
                          once, an older project's blades taken in (the same skipped, `<name> from <project>`)
-    project_scope.py     the open project's documents, and import: documents from another .sab, a project
-                         folder or a loose file into the project; an older project's connections and blades
+    project_scope.py     the open project's documents, and import: documents from another project folder, an
+                         old .sab or a loose file into the project; an older project's connections and blades
                          into the library (services/library.py's take)
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
@@ -488,8 +507,12 @@ src/swissarmybench/
                          SWISSARMYBENCH_EXTENSIONS (tests and development only)
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
-    sab_files.py         a .sab read (every entry checked first, counted as read) and unpacked into a working
-                         folder, written atomically (a temporary file, then a replace); recent_projects.json
+    sab_files.py         a project folder's .sab/ files (written atomically, only when their bytes change),
+                         the scaffold's Git files, its documents listed, Copy project to; an old .sab read
+                         (every entry checked first, counted as read) and unpacked into an empty folder;
+                         recent_projects.json (folders)
+    project_explorer.py  projects.json, the projects folder scanned, a project's facts (.git/HEAD read as text,
+                         never git run), Show in folder (the file manager), the system's trash, a rename
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
     structure_files.py   Structures' files (read, written whole), YAML by PyYAML (else the missing-package
                          answer), records as an Arrow table for Open as grid
@@ -510,14 +533,15 @@ src/swissarmybench/
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
-                         structures, api_explorer, intellisense,
+                         structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, explorer, library). Every route serves
-                         the agent too (the golden rule) but answering approvals and /blades/{name}/python
+                         the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
+                         project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
-                         (start [--background], stop, status, open [file.sab], tray, autostart on|off|status)
-    sab-file.ico, .svg   the .sab file's icon (the installers register .sab: `swissarmybench open <file>`)
+                         (start [--background], stop, status, open [folder], tray, autostart on|off|status)
+    sab-file.ico, .svg   the old .sab file's icon (one release: the installers take its registration away)
     tray.py              the tray icon (pystray, Pillow): its menu (domain/updates.py's model), the left
                          click, the server started and watched (restarted 3 times in 5 minutes at most)
     autostart.py         start at sign-in: a Startup shortcut (Windows), a LaunchAgent (macOS), an XDG
@@ -699,15 +723,20 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
                          notebook's kind (in a project data.ipynb the data notebook, any other an app notebook;
                          outside one plain: notebookRole, kindIcon);
-                         projectFile.ts a project as one .sab, shared by the home page and the Workbench
-                         (open, new: saved first, then Autosave; save with Keep its rows in the file, close,
-                         a table's fix, the ● mark); projectImport.ts the import dialog (documents,
-                         connections, blades: from another .sab, a project folder, a file, this computer);
-                         startView.ts the home page's Start view (/workspace?view=start: New project, Open
-                         project…, recent projects, the tour: offered here only; Home brings it), the Grids
+                         projectFile.ts a project as a folder, shared by the home page and the Workbench
+                         (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
+                         for the types explained, where; save, Keep its rows asked once; Copy project to…;
+                         Open a .sab file…; close; a table's fix; the ● mark); projectTypes.ts the types for
+                         beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
+                         the home page's Project Explorer (cards, sort and dragged custom order, filters, the
+                         types strip, the empty state, a card's menu; Settings' Projects folder);
+                         projectImport.ts the import dialog (documents, connections, blades: from another
+                         project folder, an old .sab, a file, this computer);
+                         startView.ts the home page's Start view (/workspace?view=start: the Project Explorer,
+                         the tour: offered here only; Home brings it), the Grids
                          landing (/workspace?view=grids: a project open, no table: Open a file, Paste,
                          Query, its connections, its tables to fix), the project's group in the
-                         Application row (Save, Save as, Close, Autosave) and the strip of tables to fix;
+                         Application row (Save, Copy to…, Close, Autosave) and the strip of tables to fix;
                          connectionColours.ts each connection's colour worn by whatever names it
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
                          swatch and palette; panes.ts groups the home page's tabs by connection;

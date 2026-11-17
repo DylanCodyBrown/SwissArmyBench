@@ -25,6 +25,7 @@
 import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
 import { librarySection } from "./library";
+import { projectsFolderSection } from "./projectExplorer";
 import { claudeSection } from "./claudeLaunch";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, toast } from "./dom";
@@ -159,6 +160,7 @@ function drawSettings(): void {
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     librarySection(),
+    projectsFolderSection(),
     panelsSection(),
     kindColoursSection(),
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.

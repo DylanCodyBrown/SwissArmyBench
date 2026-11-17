@@ -15,7 +15,6 @@ import pyarrow as pa
 import pytest
 
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
-from swissarmybench.domain import notebooks
 from swissarmybench.domain import sab_files as rules
 from swissarmybench.domain.sab_files import EntryInfo, GridEntry, Manifest, SabError, Source, TableEntry
 from swissarmybench.domain.table_cells import Origin
@@ -62,7 +61,6 @@ def test_project_json_round_trips() -> None:
     assert read_only is None
     assert again == replace(manifest, name="Project", saved="")
     assert rules.write_manifest(again) == text
-    assert again.special() == {"project.json", "data/pasted_1.parquet", rules.VISUALIZATIONS, rules.MODEL}
     assert [t.source.label() for t in again.tables] == [
         "orders.csv",
         "Warehouse · customers",
@@ -98,7 +96,7 @@ def test_a_file_saved_before_the_sandbox_was_renamed_reads_its_cards() -> None:
     del raw["visualizations"]
     raw["sandbox"] = rules.OLD_SANDBOX
     read, _ = rules.read_manifest(json.dumps(raw))
-    assert read.visualizations == rules.OLD_SANDBOX and rules.OLD_SANDBOX in read.special()
+    assert read.visualizations == rules.OLD_SANDBOX
     written = json.loads(rules.write_manifest(read))
     assert "sandbox" not in written and written["visualizations"] == rules.OLD_SANDBOX
 
@@ -246,14 +244,6 @@ def test_a_table_that_did_not_come_back_has_one_click_that_fixes_it() -> None:
     )
     assert rules.fix_for("p", Source("pasted"), "no_rows")["fix"]["kind"] == "remove"
     assert rules.fix_for("p", Source("pasted"), "The server said no")["fix"]["label"] == "Try again"
-
-
-def test_a_notebook_goes_in_without_its_outputs() -> None:
-    cell = notebooks.Cell("code", "print(orders)")
-    cell.outputs = [{"output_type": "stream", "name": "stdout", "text": "order_id 1 North"}]
-    cell.execution_count = 3
-    text = rules.for_the_file("data.ipynb", notebooks.write_notebook([cell]))
-    assert "North" not in text and "print(orders)" in text
 
 
 def test_a_type_only_project_json_is_a_project_with_no_tables_yet() -> None:

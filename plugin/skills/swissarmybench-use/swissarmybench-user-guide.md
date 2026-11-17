@@ -78,58 +78,74 @@ The page has these parts:
   - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
-- **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
+- **The mark** (the red square at the top left of every page and window) takes you home: the Project Explorer (see Projects: a folder, below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the Settings and Connections pages, a connection's detail and its forms, a kind's page of documents, a table in the catalog, the blade editor. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
 - **Reload** (F5 on the grid page) keeps what you were looking at, Visualizations, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**, **Catalog › Warehouse › sales › orders**.
 - **The browser tab** names the place: the table's name, "Visualizations", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
 
-### Projects (.sab)
+### Projects: a folder
 
-A project is one file, **name.sab**: its notebooks, scripts and Streamlit canvases, the open tables
-with their steps, Visualizations, the relationships and where your windows were. Email it, put it on
-OneDrive; a double-click opens it (the installer registers .sab files for you; or run
-`swissarmybench open sales.sab`, which starts the app when it is not running).
+A project is a **folder**: its notebooks, scripts, apps and structures are ordinary files you can open in
+any editor, and the whole folder can be a Git repository (share it, review it, branch it). The app keeps
+its own state beside them in a hidden **.sab** folder (plain text that reads well in a diff): the open
+tables with where each came from and its steps, Visualizations and its saved dashboards, the
+relationships, and where your windows were. Run `swissarmybench open <folder>` to open one from a
+terminal (it starts the app when it is not running).
 
-- **The Start view** (the mark, or Alt+Home, brings it; it shows when no project is open): **New
-  project**, **Open project…** (the file chooser, .sab files), your recent projects (name, folder,
-  when; a click opens one, a missing one says so, with Remove from the list), and **Tour** (the
-  one-minute tour of every word; this is the only place it is offered).
-- **New project** asks first where its file goes (a name and a folder) and saves it there, then offers
-  **Autosave**, a switch: on, the project saves itself a moment after each change (the ● clears by
-  itself). The switch stays in the project's group of the Application row, to turn it on or off later.
-  Then you are in the project's **Grids**: with no table yet, **Open a file…**, **Paste**, **Query**,
-  your project's connections (each opens its catalog), **Catalog** and **Add connection**.
-- **The project's own:** its notebooks, scripts and apps, its tables and grids, Structures, Visualizations
-  and its saved dashboards. Another project sees none of them. Your connections, APIs, key vaults, blades
-  and variables are not a project's: they are **your library** (below), and every project has them. In
-  the Workbench, **In this project…** lists its documents, and **Import…** copies notebooks, scripts or
-  apps in from another project (a .sab or a project folder) or a single file; opening a file from outside
-  the project copies it in too. **Import…** in Connections, and **Import from a project** on the blades
-  page, copy an older project's own connections and blades into your library.
-- **Passwords stay on each computer.** A connection in the project names where its password comes
-  from (your keyring, an environment variable, a key vault), never the password itself. Opened on a
-  computer where that is not set, the connection says **Needs a password** with **Set the password**,
-  and its tables wait with the same fix, then **Try again**.
-- **The tables come back from where they came from:** a connection (by its name: your passwords stay
-  in your keyring), a file (found beside the .sab first, so a folder that moved still works), the
-  notebook that makes it, or a "+" tab's query. Their steps come back with them. Nothing runs code on
-  open: a table a notebook makes comes back when you run that notebook.
-- **A table that cannot come back** (a connection this computer does not have, a file that moved)
-  shows in a strip under the tabs with one click that fixes it: **Add connection Warehouse**, **Find
-  orders.csv**, **Open data.ipynb**, then **Try again**; or **Remove**.
-- **Rows only on a tick.** A pasted or pushed table has no source to read again: **Save as…** lists
-  each one with **Keep its rows in the file** (off unless you tick it). Notebook outputs never go into
-  the file; no password, token or secret ever does.
-- **Save** (Ctrl+S, the project's group at the top of the Application row, or the Workbench's top row)
-  writes the .sab again; tables open with no project are saved as a new one (it asks where). A ● after
-  the project's name means it has unsaved changes. Opening another project asks first only then.
-- A project folder (data.ipynb, data.py: see The Workbench: Projects) still opens; the Workbench's
-  **…** menu has **Save as .sab…** to make it one file.
-- A .sab saved by a newer version opens read-only and says so.
-- **The agent** does the same: `project_open`, `project_save` (it waits for your Allow only when it
-  would keep a table's rows), `project_save_as`, `project_recent`, `project_new`, `project_close`,
-  `project_table_fix`, `project_autosave`, `project_documents`, `project_import`.
+- **The home page is the Project Explorer** (the mark, or Alt+Home, brings it): every project in one
+  place, as cards: the ones in your **projects folder** (Settings: **Projects folder**; by default
+  *Swiss Army Bench Projects* in your home folder) and every project you opened from elsewhere. Each card
+  shows its name, its type (Analysis, Streamlit app, or an extension's: *Needs the Accounting extension*
+  with **Install** when it is not installed), when you last opened and changed it, its folder (hover
+  for the whole path), what it holds, and its Git branch when it is a repository. A click opens it; its
+  **⋯** menu has Open, **Show in folder**, **Copy project to…**, **Rename**, **Move left/right**,
+  **Remove from list** (no file is touched) and **Delete…** (its folder goes to the trash once you type
+  its name). A project that moved says so, with **Locate…**.
+- **Sort** by Last opened, Name, Type, Last changed or Created (the arrow flips the order), or **Custom**:
+  drag the cards into your own order. **All types** and **Search projects** (a name, a folder, a
+  notebook's name) narrow the cards. The page remembers your sort.
+- **What kind of project?** New here? A card for each type says in plain words what you make, who it is
+  for, what files you get and an example, with **Create**. **Put away** hides it (remembered); the **?**
+  in New project brings it back. With no project yet, the type cards are the page: **Create your first
+  project**.
+- **New project** asks its name and type and makes its folder in the projects folder (**Choose another
+  folder…** for elsewhere): data.ipynb (with the tables open now), data.py, a canvas for a Streamlit app,
+  a `.gitignore` and a README. It opens at once, its **Grids** first: **Open a file…**, **Paste**,
+  **Query**, your connections, **Catalog** and **Add connection**.
+- **Open project…** picks a folder. A folder that is not a project yet asks **Make this folder a
+  project?**: yes adds data.ipynb and the app's .sab folder around what is there, never writing over a
+  file.
+- **Save** (Ctrl+S) writes the project's .sab folder (your notebooks and scripts are saved by their own
+  Save); a ● after the project's name means unsaved changes. **Autosave** is on for a new project: the
+  .sab folder keeps itself current a moment after each change; its switch is in the project's group of
+  the Application row. A save that changes nothing changes no file. **Copy to…** (Ctrl+Shift+S) copies
+  the whole folder somewhere new.
+- **Rows only on a tick, and never into Git by default.** A pasted or pushed table has no source to read
+  again: the first Save asks **Keep its rows** for each one (off unless you tick it). Kept rows go into
+  `.sab/data/`, which the project's `.gitignore` leaves out: data is sensitive. Remove that line to
+  commit them on purpose. No password, token or secret is ever written.
+- **The project's own:** its documents, tables and grids, Structures, Visualizations and its saved
+  dashboards. Your connections, APIs, key vaults, blades and variables are your **library** (below), and
+  every project has them. In the Workbench, **In this project…** lists its documents, and **Import…**
+  copies notebooks, scripts or apps in from another project (its folder, or an old .sab) or a single file.
+- **Passwords stay on each computer.** A connection names where its password comes from (your keyring,
+  an environment variable, a key vault). Opened where that is not set, it says **Needs a password** with
+  **Set the password**, and its tables wait with the same fix, then **Try again**.
+- **The tables come back from where they came from:** a connection (by its name), a file (found inside
+  the project first), the notebook that makes it, or a "+" tab's query, with their steps. Nothing runs
+  code on open: a table a notebook makes comes back when you run that notebook. **A table that cannot
+  come back** shows in a strip under the tabs with one click that fixes it: **Add connection
+  Warehouse**, **Find orders.csv**, **Open data.ipynb**, then **Try again**; or **Remove**.
+- **An old .sab file** (a project from before projects were folders): **Open a .sab file…** asks for the
+  folder it becomes, unpacks it there (every entry checked) and opens it. This works for one release;
+  the installer no longer registers .sab files.
+- A project saved by a newer version opens read-only and says so.
+- **The agent** does the same: `projects_list`, `projects_sort`, `project_types`, `project_new`,
+  `project_open`, `project_save` (it waits for your Allow only when it would keep a table's rows),
+  `project_copy`, `project_rename`, `project_remove_from_list`, `projects_folder_set` (your Allow),
+  `project_import_sab`, `project_close`, `project_table_fix`, `project_autosave`, `project_documents`,
+  `project_import`. Show in folder and Delete are yours only.
 
 ### Tables: open, closed and in Python
 
@@ -721,7 +737,7 @@ The rail's **Structures** icon (after APIs) is for nested data, as Grids are for
 - Each open structure is a tab. Its **tree** and its **text** sit side by side (or one of them). Click a node to see its path (`$.orders[3].lines`; **Copy path**). **Search** marks the words and unfolds the way to them.
 - **Steps**, as a grid's: **Pick** (the tree becomes that branch), **Filter…** a list on a field, **Sort…**, **Flatten** a list of records (dotted keys), **Add key…**, **Rename key…**, **Set value…**, **Remove**; a double click in the tree sets a value or renames a key. Each step is in the strip (× removes it); **Undo** and **Redo**. The original is never changed until **Save**; while there are steps the text shows their result and is read-only.
 - **Open as grid**: a list of records at any path becomes a table (SQL and the Analyze menu work on it).
-- **Save** writes its file; **Save as** picks JSON, YAML, XML or TOML (TOML has no null: it says so) and goes in the project's `structures/` folder, which is saved in the .sab and opens again with the project. YAML needs PyYAML (the app offers to install it). XML with a DOCTYPE or an entity is refused.
+- **Save** writes its file; **Save as** picks JSON, YAML, XML or TOML (TOML has no null: it says so) and goes in the project's `structures/` folder, which is the project's own and opens again with it. YAML needs PyYAML (the app offers to install it). XML with a DOCTYPE or an entity is refused.
 - An API's answer has **Run again** (the same call, your steps kept), **Return as table…** on a list, and **Lineage**: the call (what was sent, and when), the structure, each step, each grid made from it, and the notebook and script cells that read it.
 - In code: `sab.structure("gates")` is a saved structure's value, `sab.structure_table("payload", "$.orders")` its records as a DataFrame.
 
@@ -756,7 +772,7 @@ text files, your **library**, made to be a Git repository you can share with you
 
 The rail's **Variables** icon (after Connections) is every environment variable this computer gives or
 something reads, whether or not a project is open. They are your library's (`variables.toml`), never kept
-in a .sab. **Key vaults** are here too: a card for each, and **Add key vault** (a key vault holds no
+in a project. **Key vaults** are here too: a card for each, and **Add key vault** (a key vault holds no
 tables, so it is not on the Connections page). Click a vault's card for its detail and **Edit**.
 
 - **Grouped by where the value comes from**: Key vault (the vault and the secret's name, never its value),

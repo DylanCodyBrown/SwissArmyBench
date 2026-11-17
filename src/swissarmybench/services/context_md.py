@@ -306,11 +306,9 @@ class ContextMd:
             if card.get("tables_kind") == "api" and self._apis is not None:
                 continue  # an API: its own section (APIs) has it and its tables
             connections.append(await self._connection(card, folder))
-        sab = project.get("path")
         return rules.State(
             version=self._version,
             project=project.get("name"),
-            sab_file=_file_name(str(sab)) if sab else None,
             folder=folder,
             connections=tuple(connections),
             apis=self._apis_facts(),

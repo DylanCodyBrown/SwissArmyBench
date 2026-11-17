@@ -6,7 +6,7 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1 .\swissarmybench-__VERSION__-py3-none-any.whl
 #   ... -NoAutostart -NoStart        install only: no start at sign-in, and not started now
 #
-# At the end it registers .sab project files for this user (a double-click opens one), turns on start at
+# At the end it takes away an earlier .sab registration (a project is a folder now), turns on start at
 # sign-in (the tray, which starts the server), starts the app in the background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
 param([string]$Wheel = "", [switch]$NoStart, [switch]$NoAutostart)
 
@@ -129,35 +129,21 @@ $Bin = (ToolBin) | Select-Object -First 1
 if ($Bin) { $Exe = Join-Path $Bin "swissarmybench.exe" }
 if (-not $Exe -or -not (Test-Path $Exe)) { $Exe = Join-Path $LocalBin "swissarmybench.exe" }
 
-# 6. .sab project files open with Swiss Army Bench: a double-click runs `swissarmybench open "<file>"`. For this
-#    user only (HKCU\Software\Classes: no administrator), with the project file's icon from the installed copy.
-function SetKey([string]$Key, [string]$Value) {
-    if (-not (Test-Path $Key)) { New-Item -Path $Key -Force | Out-Null }
-    Set-Item -Path $Key -Value $Value
-}
-function RegisterProjectFiles([string]$Program) {
+# 6. A project is a folder now (2026-11-17): .sab files are no longer registered. An earlier install's
+#    registration for this user (HKCU\Software\Classes) is taken away; the icon files stay in the package for
+#    one release. An old .sab is imported with Open a .sab file… (or swissarmybench open).
+function UnregisterProjectFiles {
     $Classes = "HKCU:\Software\Classes"
     $ProgId = "SwissArmyBench.Project"
-    $Icon = $Program
-    $tools = ToolDir
-    if ($tools) {
-        $found = Join-Path $tools "swissarmybench\Lib\site-packages\swissarmybench\server\sab-file.ico"
-        if (Test-Path $found) { $Icon = $found }
+    $had = (Test-Path "$Classes\$ProgId")
+    if ((Test-Path "$Classes\.sab") -and ((Get-Item -Path "$Classes\.sab").GetValue("") -eq $ProgId)) {
+        Remove-Item -Path "$Classes\.sab" -Recurse -Force
     }
-    SetKey "$Classes\.sab" $ProgId
-    SetKey "$Classes\$ProgId" "Swiss Army Bench project"
-    SetKey "$Classes\$ProgId\DefaultIcon" "`"$Icon`",0"
-    SetKey "$Classes\$ProgId\shell\open\command" "`"$Program`" open `"%1`""
-    # Explorer redraws the files' icons now rather than at the next sign-in.
-    try {
-        Add-Type -Namespace SwissArmyBench -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int e, int f, System.IntPtr a, System.IntPtr b);'
-        [SwissArmyBench.Shell]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
-    } catch { }
+    if ($had) { Remove-Item -Path "$Classes\$ProgId" -Recurse -Force }
+    return $had
 }
-if (Test-Path $Exe) {
-    try { RegisterProjectFiles $Exe; Write-Host "Project files (.sab) open with Swiss Army Bench." }
-    catch { Write-Host "Project files (.sab) could not be registered: open them with swissarmybench open <file>." }
-}
+try { if (UnregisterProjectFiles) { Write-Host "Project files (.sab) are no longer registered: a project is a folder now." } }
+catch { }
 if (Test-Path $Exe) {
     if (-not $NoAutostart -and -not $BuildMachine -and $env:SWISSARMYBENCH_NO_AUTOSTART -ne "1") {
         Quiet { & $Exe autostart on }

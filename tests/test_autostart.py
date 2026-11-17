@@ -219,25 +219,21 @@ def test_a_status_line_is_on_or_off() -> None:
     assert json.dumps(Autostart("linux", home=Path("/nowhere"), environ={}).to_json())
 
 
-def test_the_windows_installer_registers_sab_files_for_this_user_only() -> None:
-    """A double-click on a .sab opens the project (the owner, 2026-11-16). The registry commands it writes,
-    as text: Windows' registry is not here to run them against."""
+def test_the_windows_installer_takes_away_an_earlier_sab_registration() -> None:
+    """A project is a folder now (the owner, 2026-11-17): .sab files are no longer registered, and an earlier
+    install's registration for this user is taken away. The registry commands, as text."""
     text = (ROOT / "installer" / "install.ps1").read_text()
     assert '$Classes = "HKCU:\\Software\\Classes"' in text and "HKLM" not in text  # no administrator
-    assert '$ProgId = "SwissArmyBench.Project"' in text
-    assert 'SetKey "$Classes\\.sab" $ProgId' in text
-    assert 'SetKey "$Classes\\$ProgId\\DefaultIcon" "`"$Icon`",0"' in text
-    assert 'SetKey "$Classes\\$ProgId\\shell\\open\\command" "`"$Program`" open `"%1`""' in text
-    assert "swissarmybench\\server\\sab-file.ico" in text
-    assert text.index("RegisterProjectFiles $Exe") < text.index("start --background")
-    # The icon it points at ships in the package (and the Linux desktop's).
+    assert "UnregisterProjectFiles" in text and 'Remove-Item -Path "$Classes\\$ProgId"' in text
+    assert 'SetKey "$Classes\\.sab"' not in text
+    # The icon files stay in the package for the old association's one release.
     server = ROOT / "src" / "swissarmybench" / "server"
     assert (server / "sab-file.ico").read_bytes()[:4] == b"\x00\x00\x01\x00"
     assert "<svg" in (server / "sab-file.svg").read_text()
 
 
-def test_the_unix_installer_registers_sab_files_on_a_linux_desktop() -> None:
+def test_the_unix_installer_takes_away_an_earlier_sab_registration() -> None:
     text = (ROOT / "installer" / "install.sh").read_text()
-    assert '<glob pattern="*.sab"/>' in text and "application/x-swissarmybench-project" in text
-    assert 'Exec="$exe" open %f' in text
-    assert "xdg-mime default swissarmybench-project.desktop" in text
+    assert '<glob pattern="*.sab"/>' not in text and "xdg-mime default" not in text
+    assert 'rm -f "$data/mime/packages/swissarmybench-project.xml"' in text
+

@@ -205,7 +205,7 @@ class Claude:
         return Context(
             self._version,
             project.get("name"),
-            project.get("path"),
+            None,  # a project is its folder (2026-11-17): no file of its own
             project.get("folder"),
             tables,
             connections,

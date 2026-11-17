@@ -240,8 +240,8 @@ class DocumentFacts:
 class State:
     version: str
     project: str | None = None
-    sab_file: str | None = None  # the .sab file's name (not its path)
-    folder: str | None = None  # the project's working folder (its own)
+    sab_file: str | None = None  # (before projects were folders: the .sab file's name; no longer set)
+    folder: str | None = None  # the project's folder: the project itself
     connections: tuple[ConnectionFacts, ...] = ()
     apis: tuple[ApiFacts, ...] | None = None  # None: the APIs page is not in this build
     tables: tuple[TableFacts, ...] = ()
@@ -270,7 +270,9 @@ def _project(s: State) -> list[str]:
     if s.sab_file:
         lines.append(f"- Saved as {code(s.sab_file)}")
     if s.folder:
-        lines.append(f"- Its working folder (notebooks, scripts, apps): {code(s.folder)}")
+        lines.append(
+            f"- Its folder (the project: notebooks, scripts, apps; the app's own in .sab/): {code(s.folder)}"
+        )
     return lines
 
 

@@ -605,7 +605,9 @@ def context_markdown(context: Context) -> str:
         if context.sab_path:
             lines.append(f"  - saved as `{context.sab_path}`")
         if context.folder:
-            lines.append(f"  - working folder (its notebooks, scripts and apps): `{context.folder}`")
+            lines.append(
+                f"  - its folder (the project: notebooks, scripts, apps; .sab/ the app's): `{context.folder}`"
+            )
     else:
         lines.append("- No project is open (the tables and documents are this computer's).")
     lines.append("")
@@ -651,8 +653,9 @@ def claude_md(version: str) -> str:
 
 You were started from Swiss Army Bench's **Launch Claude**. Swiss Army Bench is running on this computer
 (127.0.0.1 only): the user's tables in live grids, notebooks and scripts in its Workbench, Streamlit apps on
-a canvas, a project as one .sab file. You work it through the `swissarmybench` MCP server: its tools are
-every action the user has. The app writes this folder; keep nothing here.
+a canvas, a project as a folder (its files, the app's state in .sab/). You work it through the
+`swissarmybench` MCP server: its tools are every action the user has. The app writes this folder; keep
+nothing here.
 
 - **context.md** (below) is the app's live picture: its connections and how to name their tables in DuckDB
   SQL, the open tables, the ERD, the variables, the documents and the tool guide. The app keeps it

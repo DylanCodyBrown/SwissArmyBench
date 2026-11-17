@@ -384,3 +384,33 @@ async function install(extension: string): Promise<void> {
 }
 
 export { baseName };
+
+/** Settings' Projects folder: where New project puts projects (the Project Explorer lists its projects). */
+export function projectsFolderSection(): HTMLElement {
+  const body = h("div", { class: "projects-folder-settings" });
+  const draw = async (): Promise<void> => {
+    let read: { folder: string; default_folder: string };
+    try {
+      read = await api<Listing>("/projects/explorer?q=");
+    } catch (e) {
+      body.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
+      return;
+    }
+    const use = (body_: Record<string, unknown>): void =>
+      void api("/projects/folder", "POST", body_).then(
+        () => void draw(),
+        (e: Error) => toast(e.message, "error"),
+      );
+    body.replaceChildren(
+      h("p", { class: "library-folder" }, h("code", { class: "mono" }, read.folder)),
+      h(
+        "div",
+        { class: "row" },
+        button("Change…", () => void chooseFile({ title: "The projects folder", mode: "folder", start: read.folder }).then((f) => f && use({ folder: f })), { icon: "folder" }),
+        read.folder === read.default_folder ? null : button("Default", () => use({ default: true }), { class: "ghost", title: read.default_folder }),
+      ),
+    );
+  };
+  void draw();
+  return h("fieldset", { class: "fieldset projects-folder-fieldset" }, h("legend", {}, icon("project"), "Projects folder"), body);
+}
