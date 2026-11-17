@@ -1367,6 +1367,23 @@ table.small td.num {
   }
 }
 
+/* Every status bar, as its window narrows (design principle 3.6: the words of the last buttons fold to icons
+   rather than the row wrapping or cutting off): Launch Claude keeps its icon, the app's name gives way to its
+   version (the full name stays in the tooltip). */
+@media (max-width: 1500px) {
+  .statusbar .claude-launch-label,
+  .wb-status .claude-launch-label,
+  .statusbar .credit {
+    display: none;
+  }
+}
+
+@media (max-width: 1360px) {
+  .version-mark .version-name {
+    display: none;
+  }
+}
+
 .meter {
   display: inline-flex;
   align-items: center;

@@ -78,8 +78,9 @@ export function versionMark(): HTMLElement {
   const draw = (): void => {
     const s = state;
     const name = s?.name ?? "Swiss Army Bench";
-    mark.textContent = s?.current ? `${name} ${s.current}` : name;
-    mark.title = s?.available && s.version ? `${s.version} is out` : "";
+    // The name folds away first when the bar runs out of room (design principle 3.6); the version stays.
+    mark.replaceChildren(h("span", { class: "version-name" }, name), s?.current ? ` ${s.current}` : "");
+    mark.title = [name + (s?.current ? ` ${s.current}` : ""), s?.available && s.version ? `${s.version} is out` : ""].filter(Boolean).join(": ");
   };
   onUpdates(draw);
   void loadUpdates().then(draw);
