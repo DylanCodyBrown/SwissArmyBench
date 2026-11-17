@@ -10845,3 +10845,196 @@ g.follow-pulse > path:first-of-type {
 .project-fix.swap-done > .icon-svg {
   color: var(--accent);
 }
+
+/* ===== CONNECTION COLOURS (connectionColours.ts): a stripe, an edge or a dot, never a background ===== */
+/* --conn-a is the first connection's colour as this theme shows it (made readable by the server), --conn-b
+   the second's (a cell that uses two wears two marks). The rail's colours are never offered. */
+.conn-dot {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--conn-a, var(--border-strong));
+}
+
+.conn-swatch {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--conn-a, var(--surface));
+  cursor: pointer;
+}
+
+.conn-swatch:focus-visible,
+.conn-palette-swatch:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.conn-palette {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.conn-palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  gap: 6px;
+}
+
+.conn-palette .conn-palette-swatch,
+.conn-palette .conn-palette-swatch:hover,
+.conn-palette .conn-palette-swatch:focus-visible {
+  display: block;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.conn-palette .conn-palette-swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+
+.conn-palette-other {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.conn-palette-other input {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  background: none;
+}
+
+/* The Connections page: the card's edge is its colour; the swatch sits in its corner. */
+.connection-card-item {
+  position: relative;
+}
+
+.connection-card-item > .conn-swatch {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+}
+
+.connection-card.conn-worn,
+.connection-card.conn-worn:hover {
+  border-left: 4px solid var(--conn-a);
+}
+
+.connection-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+
+.connection-ref.conn-worn {
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+
+/* The home page's tabs: a table read from a connection wears its colour along its foot; the row gathers
+   them in a group per connection (its dot and name as the head; a click folds it). */
+.tab-item.conn-worn {
+  box-shadow: inset 0 -3px 0 var(--conn-a);
+}
+
+.tab-item.active.conn-worn {
+  box-shadow: inset 0 2px 0 var(--accent), inset 0 -3px 0 var(--conn-a);
+}
+
+.tab-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+
+.tab-group:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.tab-group-head {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.tab-group-head:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+
+.tab-group-head:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+}
+
+.tab-group-count {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The Workbench: a cell that names a connection wears a stripe at its left (two connections: two). */
+.conn-cell.conn-worn {
+  box-shadow: inset 4px 0 0 var(--conn-a);
+}
+
+.conn-cell.conn-worn.conn-two {
+  box-shadow: inset 4px 0 0 var(--conn-a), inset 8px 0 0 var(--conn-b);
+}
+
+/* A row (the Data panel's tables, the Session page's entries): a stripe too. */
+.conn-row.conn-worn {
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+
+@media (forced-colors: active) {
+  .conn-dot,
+  .conn-swatch,
+  .conn-palette-swatch {
+    forced-color-adjust: none;
+  }
+}
+
+/* A canvas block whose cell names a connection: a stripe along its top (its left edge is its kind's). */
+.conn-block.conn-worn {
+  box-shadow: inset 0 4px 0 var(--conn-a);
+}
+
+.conn-block.conn-worn.conn-two {
+  background-image: linear-gradient(to right, var(--conn-a) 50%, var(--conn-b) 50%);
+  background-repeat: no-repeat;
+  background-size: 100% 4px;
+  box-shadow: none;
+}

@@ -38,6 +38,8 @@ export interface DataTable {
   source: string;
   /** python, file, dropped, paste, connection, query or unknown. */
   origin: string;
+  /** The connection it was read from (it wears that connection's colour). */
+  connection?: string | null;
   steps: number;
 }
 
@@ -254,8 +256,9 @@ export function mountDataPanel(host: DataPanelHost): DataPanel {
             "button",
             {
               type: "button",
-              class: "wb-data-card",
+              class: "wb-data-card conn-row",
               title: `Go to ${t.name}'s cell`,
+              ...(t.connection ? { "data-connections": t.connection } : {}),
               draggable: "true",
               onclick: () => host.goToTable(t.name),
               ondragstart: (event: DragEvent) => {

@@ -33,6 +33,7 @@ from swissarmybench.adapters.blades import BladeStore
 from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
+from swissarmybench.adapters.connection_colours import ColoursFile
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, open_database
 from swissarmybench.adapters.datasets import DatasetStore
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
@@ -82,6 +83,7 @@ from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.codegen import CodeService
+from swissarmybench.services.connection_colours import ConnectionColours
 from swissarmybench.services.connection_swap import ConnectionSwap
 from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
@@ -171,6 +173,7 @@ class Services:
     connection_swap: ConnectionSwap
     navigation: Navigation
     kind_colours: KindColours
+    connection_colours: ConnectionColours
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
@@ -434,6 +437,15 @@ def bootstrap(
         vault_environment=vault_environment,
         kernel_stopped=streamlit.kernel_stopped,
     )
+    kind_colours = KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None))
+    # Each connection's colour: this computer's colours.toml (the library's later, by its path), the same
+    # in every project; never one of the rail's (the kind colours, the accent).
+    connection_colours = ConnectionColours(
+        ws,
+        blades,
+        ColoursFile(state_dir / "colours.toml" if audit_log else None),
+        kind_colours.chosen,
+    )
     connections = ConnectionService(
         blades,
         TEMPLATES,
@@ -442,6 +454,7 @@ def bootstrap(
         tables=ConnectionTables(datasets),
         models=models,
         catalogs=catalogs,
+        colours=connection_colours,
     )
     # The Connections page: each connection's references, configuration and calls this session.
     connection_usage = ConnectionUsage(
@@ -641,7 +654,7 @@ def bootstrap(
         settings=settings,
         ws=ws,
         datasets=datasets,
-        grids=GridService(ws),
+        grids=GridService(ws, datasets.origins.get),
         profiles=Profiles(ws),
         analysis=Analysis(ws, verifier),
         regression=Regression(ws),
@@ -676,7 +689,8 @@ def bootstrap(
         connection_swap=connection_swap,
         navigation=Navigation(ws),
         script_runs=script_runs,
-        kind_colours=KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None)),
+        kind_colours=kind_colours,
+        connection_colours=connection_colours,
         beta=beta,
         updates=updates,
         claude=claude,

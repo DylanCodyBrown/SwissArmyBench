@@ -31,6 +31,7 @@ class ConnectionService:
         tables: Tables | None = None,
         models: RelationshipModels | None = None,
         catalogs: LoadedCatalogs | None = None,
+        colours: Colours | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -43,6 +44,9 @@ class ConnectionService:
         self._models = models
         # A Power BI workspace's loaded catalog: its datasets, and the table names several of them hold.
         self._catalogs = catalogs
+        # Connection colours (services/connection_colours.py): a new connection's next free one, and a
+        # colour sent with one checked against the rail's.
+        self._colours = colours
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -137,6 +141,7 @@ class ConnectionService:
                 "name": blade.name,
                 "description": blade.description,
                 "tags": blade.tags,
+                "colour": self._colours.colour_of(blade.name) if self._colours is not None else None,
                 "summary": self._blades.summary(blade),
             }
         )
@@ -165,7 +170,15 @@ class ConnectionService:
 
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         self._check(body)
+        sent = None
+        if isinstance(body, dict) and "colour" in body:
+            body = dict(body)
+            raw = body.pop("colour")
+            sent = self._colours.check(raw) if self._colours is not None and raw is not None else None
         saved = await self._blades.save(body, previous, who)
+        if self._colours is not None:
+            # This computer's colours.toml: a new connection's next free colour, a renamed one's kept.
+            self._colours.saved(str(saved["name"]), previous, sent)
         self._on_saved(str(saved["name"]))  # its catalog loads itself, in the background
         return saved
 
@@ -540,6 +553,14 @@ class ConnectionService:
                 else ""
             ),
         }
+
+
+class Colours(Protocol):
+    def check(self, colour: Any) -> str | None: ...
+
+    def saved(self, name: str, previous: str | None, sent: str | None) -> None: ...
+
+    def colour_of(self, name: str) -> str | None: ...
 
 
 class LoadedCatalogs(Protocol):

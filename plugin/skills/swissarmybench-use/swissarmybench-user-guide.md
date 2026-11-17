@@ -577,6 +577,26 @@ Click a card for its **detail**:
 
 A connection's catalog (its tables and columns, for the Workbench's catalog tree and the SQL cell's suggestions) loads in the background: when you save the connection, when Swiss Army Bench starts, and the first time you use it in a SQL cell. The Connections window shows **loading catalog…** while it loads and **catalog not loaded** if it failed (hover for why); a catalog that loaded says nothing. A connection that signs in with MFA is never loaded at start-up, so no sign-in window appears out of nowhere: it loads the first time you use it. **Refresh catalog** reads it again after the database changes.
 
+### Connection colours
+
+Every connection has a colour, and everything tied to it wears that colour as a stripe or a dot (never a
+background, so text stays readable): its card on the Connections page, the grid tabs of the tables read
+from it, the notebook and script cells that use it (`%%sql Warehouse`, `%%dax`, `sab.sql`, `sab.read`,
+`sab.dax`, `sab.blade`, `sab.connection`; a cell that uses two connections wears two stripes), a table's
+read-only cell, the Streamlit canvas blocks whose cells use it, the Data panel's tables and the Session
+page's entries about it.
+
+- **Choosing one:** the round swatch on its card, or beside **Colour** on its detail. Pick from the eight
+  colours, **Other…** for any colour, or **Next free**. A new connection is given the next free colour.
+- **The rail's colours stay the rail's:** the kind colours (app violet, notebook blue, script green, as you
+  set them in Settings), the red of the rail and amber (out of date) are refused, with the reason.
+- **The same in every project:** a colour belongs to the connection on this computer (kept in
+  `colours.toml` in the state folder, one line per connection), not to a project.
+- **Tabs grouped by connection:** once a table from a connection is open, the home page's tabs gather in a
+  group per connection (its dot and name as the head), with files, pasted, Python and query tables in
+  groups of their own. Click a head to fold its group (the tab in front stays); drag a head to move the
+  whole group; the arrow keys and dragging tabs work as before.
+
 ### Swapping a table's connection
 
 A table read from one connection can be read from another with its transformations kept: the Table row's

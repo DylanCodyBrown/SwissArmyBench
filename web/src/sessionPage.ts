@@ -293,7 +293,13 @@ function entryRow(e: Entry): HTMLElement {
   const what = h("span", { class: "session-what" }, e.what);
   return h(
     "li",
-    { class: `session-entry by-${e.actor}`, "data-entry": String(e.id), "data-action": e.action },
+    {
+      class: `session-entry conn-row by-${e.actor}`,
+      "data-entry": String(e.id),
+      "data-action": e.action,
+      // An entry about a connection wears its colour (connectionColours.ts).
+      ...(e.target?.place === "connection" && e.target.name ? { "data-connections": e.target.name } : {}),
+    },
     h("time", { class: "session-time", datetime: e.time }, timeWord(e.time)),
     h("span", { class: "session-area", title: area }, icon(AREA_ICONS[e.area] ?? "grids"), h("span", {}, area)),
     e.target

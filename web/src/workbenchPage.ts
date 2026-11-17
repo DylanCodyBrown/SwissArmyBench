@@ -69,6 +69,7 @@ import { appMark, back, canGoBack, forward, go, goHome, mountNav, setTitle, star
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
+import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, projectOpen, setProjectFolder } from "./kindColours";
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
@@ -246,7 +247,7 @@ function refreshTablesSoon(): void {
     void fetchTables().then(
       (found) => {
         tables = found;
-        data.setTables(found.map((t) => ({ name: t.name, variable: t.variable, rows: t.rows ?? 0, source: t.source ?? "", origin: t.origin, steps: t.steps })));
+        data.setTables(found.map((t) => ({ name: t.name, variable: t.variable, rows: t.rows ?? 0, source: t.source ?? "", origin: t.origin, connection: t.connection ?? null, steps: t.steps })));
         assignTables();
       },
       () => undefined, // the server is away: the cells stay as they are
@@ -2995,6 +2996,7 @@ onPanels(() => {
   drawStatus();
 });
 
+watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
 void Promise.all([
   loadPanels(),
   loadKindColours(),

@@ -31,13 +31,14 @@
  *          [PREVIEW BANNER] per pane -> state.setPreview(null)
  *          [EMPTY STATE]    -> read-only, when no grid is open
  */
-import { api, token, useGrid } from "./api";
+import { api, onNotice, token, useGrid } from "./api";
 import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
 import { openMenuButton } from "./openMenu";
 import { go, LAYER_PARAMS, layerShown, type Move, setTitle } from "./nav";
 import { renameInPlace } from "./renameTable";
+import { connectionColour, onConnectionColours } from "./connectionColours";
 import { PageState, activate } from "./state";
 
 export interface Context {
@@ -354,11 +355,163 @@ export function renameContexts(from: string, to: string): void {
     ctx.pane?.querySelector(".grid-host")?.setAttribute("aria-label", `Data grid: ${to}`);
     if (ctx.state.info) void ctx.state.load().catch(() => undefined);
   }
+  refreshSources();
   render();
+}
+
+// ===== tab groups by connection (the owner, 2026-11-16: "tab groups from the grid based on connections") =====
+// Where each table came from (GET /grids' origin). A table read from a connection is in that connection's
+// group (its colour and name as the head); pasted, pushed, file and query tables are in a group of their own
+// kind. The heads show only when a connection's table is open: with none, the row is as it always was.
+// The order is kept: `order` is normalized so each group's tabs sit together where its first tab was, and
+// the keys and drags walk `order`, so they keep working within and across groups.
+interface Source {
+  kind: string;
+  connection: string | null;
+}
+const sources = new Map<string, Source>();
+let sourcesAsked = false;
+
+function groupKey(id: string): string {
+  const s = sources.get(contexts.get(id)?.dataset ?? "");
+  if (s?.connection) return `c:${s.connection.toLocaleLowerCase()}`;
+  const kind = s?.kind ?? "unknown";
+  return `k:${kind === "dropped" ? "file" : kind}`;
+}
+
+const KIND_WORDS: Record<string, string> = { file: "Files", python: "Python", paste: "Pasted", query: "Queries", unknown: "Other" };
+
+function groupName(key: string, first: string): string {
+  if (key.startsWith("c:")) {
+    const named = sources.get(contexts.get(first)?.dataset ?? "")?.connection ?? key.slice(2);
+    return connectionColour(named)?.name ?? named;
+  }
+  return KIND_WORDS[key.slice(2)] ?? "Other";
+}
+
+function grouped(): boolean {
+  return order.some((id) => groupKey(id).startsWith("c:"));
+}
+
+/** `order` with each group's tabs together, the groups in the order of their first tab. */
+function normalize(): void {
+  if (!grouped()) return;
+  const keys: string[] = [];
+  const members = new Map<string, string[]>();
+  for (const id of order) {
+    const key = groupKey(id);
+    if (!members.has(key)) {
+      keys.push(key);
+      members.set(key, []);
+    }
+    members.get(key)!.push(id);
+  }
+  order = keys.flatMap((k) => members.get(k)!);
+}
+
+/** Ask the server where the open tables came from (after tabs open, or a table's connection swaps). */
+export function refreshSources(): void {
+  if (sourcesAsked) return;
+  sourcesAsked = true;
+  setTimeout(() => {
+    void api<{ grids: { dataset: string; origin?: Source }[] }>("/grids")
+      .then(({ grids }) => {
+        sources.clear();
+        for (const g of grids) if (g.origin) sources.set(g.dataset, g.origin);
+        if (!order.length) return;
+        normalize();
+        render();
+      })
+      .catch(() => undefined)
+      .finally(() => (sourcesAsked = false));
+  }, 30);
+}
+// Never before the tabs are loaded: render() remembers the order, and an empty one would replace the saved.
+onConnectionColours(() => {
+  if (order.length) render();
+});
+onNotice((notice) => {
+  if (notice.type === "table_connection" || notice.type === "dataset_updated" || notice.type === "dataset_renamed" || notice.type === "project_changed") refreshSources();
+});
+
+const collapsedGroups = new Set<string>(((): string[] => {
+  try {
+    return JSON.parse(recall("workspace.collapsedGroups") ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+})());
+
+function toggleGroup(key: string): void {
+  if (collapsedGroups.has(key)) collapsedGroups.delete(key);
+  else collapsedGroups.add(key);
+  remember("workspace.collapsedGroups", JSON.stringify([...collapsedGroups]));
+  render();
+}
+
+/** Move a whole group's tabs before `before` (a tab of another group; null: to the end). */
+function moveGroup(key: string, before: string | null): void {
+  const mine = order.filter((id) => groupKey(id) === key);
+  if (before && mine.includes(before)) return;
+  order = order.filter((id) => !mine.includes(id));
+  const at = before ? order.indexOf(before) : -1;
+  order.splice(at < 0 ? order.length : at, 0, ...mine);
+  remember("workspace.order", JSON.stringify(order));
+  render();
+}
+
+let draggingGroup: string | null = null;
+
+/** The tabs as the row shows them: in groups with heads when a connection's table is open. */
+function arrange(tabs: Map<string, HTMLElement>): HTMLElement[] {
+  if (!grouped()) return order.map((id) => tabs.get(id)!);
+  const out: HTMLElement[] = [];
+  let i = 0;
+  while (i < order.length) {
+    const key = groupKey(order[i]!);
+    const members: string[] = [];
+    while (i < order.length && groupKey(order[i]!) === key) members.push(order[i++]!);
+    const name = groupName(key, members[0]!);
+    const collapsed = collapsedGroups.has(key);
+    const connection = key.startsWith("c:") ? name : null;
+    const head = h(
+      "button",
+      {
+        type: "button",
+        class: "tab-group-head",
+        draggable: "true",
+        "aria-expanded": String(!collapsed),
+        title: collapsed ? `Show ${name}'s tables` : `Fold ${name}'s tables`,
+        onclick: () => toggleGroup(key),
+        ondragstart: (e: DragEvent) => { draggingGroup = key; e.dataTransfer?.setData("text/plain", key); },
+        ondragend: () => { draggingGroup = null; },
+        ondragover: (e: DragEvent) => { if (draggingGroup || dragging) e.preventDefault(); },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          if (draggingGroup) moveGroup(draggingGroup, members[0]!);
+          else if (dragging) moveTab(dragging, members[0]!);
+        },
+      },
+      connection ? h("span", { class: "conn-dot", "data-connections": connection, "aria-hidden": "true" }) : null,
+      h("span", { class: "tab-group-name" }, name),
+      collapsed ? h("span", { class: "tab-group-count" }, String(members.length)) : null,
+    );
+    const shown = members.filter((id) => !collapsed || (id === activeId && view === "grid"));
+    out.push(
+      h(
+        "div",
+        { class: `tab-group ${collapsed ? "collapsed" : ""}`, role: "group", "aria-label": name, "data-group": key, ...(connection ? { "data-connections": connection } : {}) },
+        head,
+        ...shown.map((id) => tabs.get(id)!),
+      ),
+    );
+  }
+  return out;
 }
 
 export function addGrid(id: string, dataset: string): void {
   if (contexts.has(id)) return;
+  if (!sources.has(dataset)) refreshSources();
   contexts.set(id, { id, dataset, state: new PageState(id), view: null, pane: null });
   order.push(id);
   render();
@@ -590,6 +743,7 @@ function moveTab(from: string, before: string | null): void {
   order = order.filter((o) => o !== from);
   const at = before ? order.indexOf(before) : -1;
   order.splice(at < 0 ? order.length : at, 0, from);
+  normalize();
   remember("workspace.order", JSON.stringify(order));
   render();
 }
@@ -597,62 +751,12 @@ function moveTab(from: string, before: string | null): void {
 function render(): void {
   if (!tabRow) return;
   remember("workspace.order", JSON.stringify(order));
+  const tabs = new Map<string, HTMLElement>();
+  for (const id of order) tabs.set(id, tabFor(id));
   clear(
     tabRow,
     // Visualizations, the ERD and the Workbench are the rail's (rail.ts, the owner, 2026-11-16): only grids here.
-    ...order.map((id) => {
-      const selected = id === activeId && view === "grid";
-      const inSplit = split?.includes(id) ?? false;
-      const el = h(
-        "div",
-        {
-          class: `tab-item ${selected ? "active" : ""} ${inSplit ? "in-split" : ""}`,
-          "data-grid": id,
-          role: "tab",
-          tabindex: selected ? "0" : "-1",
-          "aria-selected": String(selected),
-          draggable: "true",
-          title: contexts.get(id)!.dataset,
-          onclick: (e: MouseEvent) => {
-            // The second click of a double-click renames: the first one's redraw replaced this tab,
-            // so the browser sends no dblclick to the new one.
-            const name = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".tab-label");
-            if (e.detail === 2 && name && (e.target as HTMLElement).closest(".tab-label")) {
-              renameInPlace(name, contexts.get(id)!.dataset);
-              return;
-            }
-            if (id === activeId && view === "grid") {
-              activations += 1; // already in front: nothing to redraw, but a tab still loading loses
-              return;
-            }
-            showGridView();
-            void activateGrid(id);
-          },
-          onauxclick: (e: MouseEvent) => { if (e.button === 1) void closeGrid(id); },
-          oncontextmenu: (e: MouseEvent) => tabMenu(id, e),
-          onkeydown: (e: KeyboardEvent) => onTabKey(e, id),
-          ondragstart: (e: DragEvent) => { dragging = id; e.dataTransfer?.setData("text/plain", id); },
-          ondragend: () => { dragging = null; delete panesHost.dataset.drop; },
-          ondragover: (e: DragEvent) => {
-            e.preventDefault();
-            el.classList.toggle("drop-before", edge(e, el));
-            el.classList.toggle("drop-split", !edge(e, el));
-          },
-          ondragleave: () => el.classList.remove("drop-before", "drop-split"),
-          ondrop: (e: DragEvent) => {
-            e.preventDefault();
-            el.classList.remove("drop-before", "drop-split");
-            if (!dragging) return;
-            if (edge(e, el)) moveTab(dragging, id);
-            else void splitWith(dragging, id, "right");
-          },
-        },
-        inSplit ? h("span", { class: "split-mark", "aria-label": "side by side" }, "◫") : null,
-        h("span", { class: "tab-label", title: "Double-click to rename the table" }, label(id)),
-        closeButton(id, selected),
-      );
-      return el;
-    }),
+    ...arrange(tabs),
     draft ? draftTab(draft.name) : null,
     button("New table from a query", () => void newQueryTab(), { icon: "plus", iconOnly: true, class: "ghost tab-new" }),
     openFileButton(),
@@ -660,7 +764,11 @@ function render(): void {
     h("div", {
       class: "tab-end",
       ondragover: (e: DragEvent) => e.preventDefault(),
-      ondrop: (e: DragEvent) => { e.preventDefault(); if (dragging) moveTab(dragging, null); },
+      ondrop: (e: DragEvent) => {
+        e.preventDefault();
+        if (draggingGroup) moveGroup(draggingGroup, null);
+        else if (dragging) moveTab(dragging, null);
+      },
     }),
   );
   panesHost.querySelector(".workspace-empty")?.remove();
@@ -673,6 +781,63 @@ function render(): void {
       ),
     );
   }
+}
+
+/** One grid's tab (it wears its table's connection's colour). */
+function tabFor(id: string): HTMLElement {
+  const selected = id === activeId && view === "grid";
+  const inSplit = split?.includes(id) ?? false;
+  const el = h(
+    "div",
+    {
+      class: `tab-item ${selected ? "active" : ""} ${inSplit ? "in-split" : ""}`,
+      "data-grid": id,
+      role: "tab",
+      tabindex: selected ? "0" : "-1",
+      "aria-selected": String(selected),
+      draggable: "true",
+      title: contexts.get(id)!.dataset,
+      onclick: (e: MouseEvent) => {
+        // The second click of a double-click renames: the first one's redraw replaced this tab,
+        // so the browser sends no dblclick to the new one.
+        const name = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(".tab-label");
+        if (e.detail === 2 && name && (e.target as HTMLElement).closest(".tab-label")) {
+          renameInPlace(name, contexts.get(id)!.dataset);
+          return;
+        }
+        if (id === activeId && view === "grid") {
+          activations += 1; // already in front: nothing to redraw, but a tab still loading loses
+          return;
+        }
+        showGridView();
+        void activateGrid(id);
+      },
+      onauxclick: (e: MouseEvent) => { if (e.button === 1) void closeGrid(id); },
+      oncontextmenu: (e: MouseEvent) => tabMenu(id, e),
+      onkeydown: (e: KeyboardEvent) => onTabKey(e, id),
+      ondragstart: (e: DragEvent) => { dragging = id; e.dataTransfer?.setData("text/plain", id); },
+      ondragend: () => { dragging = null; delete panesHost.dataset.drop; },
+      ondragover: (e: DragEvent) => {
+        e.preventDefault();
+        el.classList.toggle("drop-before", edge(e, el));
+        el.classList.toggle("drop-split", !edge(e, el));
+      },
+      ondragleave: () => el.classList.remove("drop-before", "drop-split"),
+      ondrop: (e: DragEvent) => {
+        e.preventDefault();
+        el.classList.remove("drop-before", "drop-split");
+        if (!dragging) return;
+        if (edge(e, el)) moveTab(dragging, id);
+        else void splitWith(dragging, id, "right");
+      },
+    },
+    inSplit ? h("span", { class: "split-mark", "aria-label": "side by side" }, "◫") : null,
+    h("span", { class: "tab-label", title: "Double-click to rename the table" }, label(id)),
+    closeButton(id, selected),
+  );
+  const connection = sources.get(contexts.get(id)!.dataset)?.connection;
+  if (connection) el.dataset.connections = connection;
+  return el;
 }
 
 /** The draft tab: after the grid tabs, named for the table its query will build. */

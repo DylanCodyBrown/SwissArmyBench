@@ -14,6 +14,10 @@ a variable by its name.
   type, settings, sign-in, each password's source (keyring, vault, environment, missing) by name, never
   a value; `calls`: by kind (catalog, query, read, test, connect), the last one. Calls count what runs
   through the app and Workbench kernels, not the user's own Jupyter.
+- `connections_colours`: each connection's colour (this computer's: the same in every project) and the
+  palette; `connections_colours(name, colour)` sets one (`#rrggbb`; null: the next free one). The rail's
+  colours (the kind colours, the red accent) and amber are refused. Its grid tabs, cells, canvas blocks
+  and Session entries wear it as a stripe; the home page's tabs are grouped by connection.
 - `app_navigate(to="connection:<name>")` shows that detail to the user; `workbench_window
   file.openCell` opens a reference's cell.
 

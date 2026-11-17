@@ -58,6 +58,7 @@ import { chooseFile } from "./fileChooser";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError } from "./missingPackages";
+import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
 import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
@@ -265,7 +266,7 @@ export async function openReference(ref: Reference): Promise<void> {
 
 /** A reference as the detail lists it: the document's icon, its name and cell, how it names the
  *  connection, the line. */
-function referenceItem(ref: Reference): HTMLElement {
+function referenceItem(ref: Reference, connection: string): HTMLElement {
   const where = ref.kind === "grid" ? "an open grid" : ref.kind === "app" ? `${ref.page ?? "a page"} · ${ref.line}` : ref.cell ? `@cell${ref.cell}${ref.name ? ` ${ref.name}` : ""}` : "main code";
   return h(
     "li",
@@ -276,6 +277,7 @@ function referenceItem(ref: Reference): HTMLElement {
         type: "button",
         class: `connection-ref km-${ref.kind === "grid" ? "plain" : ref.kind}`,
         "data-kind": ref.kind,
+        "data-connections": connection, // it wears the connection's colour
         title: ref.document || ref.title,
         onclick: () => void openReference(ref).catch((e: Error) => toast(e.message, "error")),
       },
@@ -542,13 +544,16 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const card = (c: Card): HTMLElement =>
       h(
         "li",
-        {},
+        { class: "connection-card-item" },
+        // Its colour (connectionColours.ts): the card's edge, and the swatch that chooses it.
+        c.connection === "vault" ? null : colourPicker(c.name),
         h(
           "a",
           {
             class: `connection-card fam-${c.connection} st-${c.status}`,
             href: detailUrl(c.name),
             "data-connection": c.name,
+            ...(c.connection === "vault" ? {} : { "data-connections": c.name }),
             onclick: (e: MouseEvent) => {
               if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return; // a new tab, as links do
               e.preventDefault();
@@ -608,11 +613,13 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const config = usage.configuration;
     const readOnly = c?.source === "pack";
     const path = encodeURIComponent(name);
+    const swatch = config.kind === "vault" ? null : colourPicker(name);
     setHeading(name, " ", statusPill(usage));
     const tested = h("div", { class: "connection-result connection-tested", role: "status" });
     const tools = h(
       "div",
       { class: "connection-detail-tools", role: "toolbar", "aria-label": "Connection" },
+      swatch ? h("span", { class: "connection-colour" }, swatch, "Colour") : null,
       c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(name), { icon: "rows", class: "primary" }) : null,
       readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
       button("Test", () => void testSaved(name, c && (c.connection === "python" || c.dialect === "dataverse") ? tested : undefined).then(refreshCalls), { icon: "play" }),
@@ -634,7 +641,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       "section",
       { class: "connection-section connection-used", "aria-label": "Used in" },
       h("h2", {}, icon("link"), "Used in", h("span", { class: "count" }, String(refs.length))),
-      refs.length ? h("ul", { class: "connection-refs" }, ...refs.map(referenceItem)) : h("p", { class: "empty-note" }, "No references"),
+      refs.length ? h("ul", { class: "connection-refs" }, ...refs.map((r) => referenceItem(r, name))) : h("p", { class: "empty-note" }, "No references"),
     );
     // Its configuration: never a password's value.
     const configuration = h(

@@ -30,6 +30,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
+  routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
@@ -70,6 +71,7 @@ from swissarmybench.server import (
     routes_cards,
     routes_catalog,
     routes_claude,
+    routes_connection_colours,
     routes_connection_swap,
     routes_connections,
     routes_controllers,
@@ -237,6 +239,7 @@ def create_app(
             *routes_panels.routes(ctx.panels),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
+            *routes_connection_colours.routes(ctx.connection_colours),
             *routes_session_log.routes(ctx.session_log),
             *routes_variables.routes(ctx.variables),
             *routes_script_runs.routes(ctx.script_runs),

@@ -8,9 +8,11 @@ door looks up first (`find`), so a missing grid is the first thing a caller hear
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
+from swissarmybench.domain.connection_usage import connection_named
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.grids import POS, Grid, combine_stats, selection_scope, stats_sql
 from swissarmybench.domain.steps import (
@@ -22,6 +24,7 @@ from swissarmybench.domain.steps import (
     steps_from_json,
     with_header_sort,
 )
+from swissarmybench.domain.table_cells import Origin
 from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.workspace import NotFound, Workspace
 
@@ -38,8 +41,16 @@ def truncate(rows: list[list[Any]], limit: int) -> list[list[int]]:
 
 
 class GridService:
-    def __init__(self, ws: Workspace) -> None:
+    def __init__(self, ws: Workspace, origin_of: Callable[[str], Origin] | None = None) -> None:
         self.ws = ws
+        # Where each open table came from (services/table_cells.py Origins): the home page's tab row
+        # gathers the tabs by it (a group per connection; files, Python and pasted tables apart).
+        self._origin_of = origin_of or (lambda name: Origin())
+
+    def _source(self, dataset: str) -> dict[str, Any]:
+        origin = self._origin_of(dataset)
+        named = origin.connection if origin.kind == "connection" and origin.connection else None
+        return {"kind": origin.kind, "connection": connection_named(named) if named else None}
 
     def find(self, grid_id: str) -> tuple[Grid, DatasetInfo]:
         return self.ws.grid_and_info(grid_id)
@@ -54,6 +65,7 @@ class GridService:
                     "grid": g.id,
                     "dataset": g.dataset,
                     "steps": len(g.steps),
+                    "origin": self._source(g.dataset),
                     "url": ws.addresses.grid(g, with_token=who != "agent"),
                 }
                 for g in ws.grids.all()

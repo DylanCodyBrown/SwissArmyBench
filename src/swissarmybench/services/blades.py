@@ -130,6 +130,10 @@ class BladeService:
     def get(self, name: str) -> Blade:
         return self._blades.get(name)
 
+    def everything(self) -> list[Blade]:
+        """Every blade: saved, in a blade folder, in a pack."""
+        return self._blades.all()
+
     def summary(
         self, blade: Blade, everything: list[Blade] | None = None, pinned: set[str] | None = None
     ) -> dict[str, Any]:

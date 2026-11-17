@@ -59,6 +59,11 @@ def _base(named: str) -> str:
     return named.split(" -> ")[0].split("/")[0].strip()
 
 
+def connection_named(named: str) -> str:
+    """The connection's own name in a table's origin or a cell's words (Finance/Sales model -> Finance)."""
+    return _base(named)
+
+
 @dataclass(frozen=True)
 class Use:
     """One use inside a piece of code: how it is written and its line."""
@@ -139,15 +144,14 @@ def _named(call: ast.Call) -> str | None:
     return None
 
 
-def python_uses(code: str, connection: str) -> list[Use]:
-    """Where Python code names `connection` in a call of the client's (ast: never in a comment or in
-    another string)."""
+def _python_calls(code: str) -> list[tuple[int, int, str, str]]:
+    """Every call of the client's that names a connection: (line, column, how, the connection's name),
+    in the code's order (ast: never in a comment or in another string)."""
     tree = _python_tree(code)
     if tree is None:
         return []
     modules, functions = _aliases(tree)
-    lines = code.split("\n")
-    found: list[tuple[int, int, Use]] = []
+    found: list[tuple[int, int, str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -158,10 +162,34 @@ def python_uses(code: str, connection: str) -> list[Use]:
         elif isinstance(func, ast.Name):
             word = functions.get(func.id)
         named = _named(node) if word else None
-        if word and named is not None and same_name(_base(named), connection):
-            line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""
-            found.append((node.lineno, node.col_offset, Use(_NAMED_FIRST[word], _short(line))))
-    return [use for _, _, use in sorted(found, key=lambda f: (f[0], f[1]))]
+        if word and named is not None and _base(named):
+            found.append((node.lineno, node.col_offset, _NAMED_FIRST[word], _base(named)))
+    return sorted(found, key=lambda f: (f[0], f[1]))
+
+
+def python_uses(code: str, connection: str) -> list[Use]:
+    """Where Python code names `connection` in a call of the client's (ast: never in a comment or in
+    another string)."""
+    lines = code.split("\n")
+    return [
+        Use(how, _short(lines[line - 1] if 0 < line <= len(lines) else ""))
+        for line, _, how, named in _python_calls(code)
+        if same_name(named, connection)
+    ]
+
+
+def cell_connections(kind: str, source: str, named: str | None) -> list[str]:
+    """The connections a cell names, each once, in its order (connection colours: a cell wears each
+    one's mark): a SQL or DAX cell's by its first line, Python's by the client's calls."""
+    if kind in ("sql", "dax"):
+        return [_base(named)] if named and _base(named) else []
+    if kind != "code":
+        return []
+    out: list[str] = []
+    for _, _, _, name in _python_calls(source):
+        if not any(same_name(name, seen) for seen in out):
+            out.append(name)
+    return out
 
 
 def cell_uses(kind: str, source: str, named: str | None, connection: str) -> list[Use]:
