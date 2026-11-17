@@ -32,12 +32,12 @@ CATALOG = (*rules.CATALOG, LEDGER)
 # ===== the catalog and discovery =====
 
 
-def test_the_base_catalog_has_streamlit_preinstalled_and_two_coming() -> None:
+def test_the_base_catalog_has_streamlit_preinstalled_and_two_available() -> None:
     listed = {e["id"]: e for e in rules.listed(rules.CATALOG, {}, "1.2.3")}
     assert list(listed) == ["streamlit", "accounting", "powerapps"]
     assert listed["streamlit"]["status"] == "preinstalled" and listed["streamlit"]["version"] == "1.2.3"
-    assert listed["accounting"]["status"] == listed["powerapps"]["status"] == "coming"
-    assert listed["powerapps"]["version"] is None and listed["accounting"]["description"]
+    assert listed["accounting"]["status"] == listed["powerapps"]["status"] == "available"
+    assert listed["powerapps"]["version"] == "1.2.3" and listed["accounting"]["description"]
     assert all(e["status"] in rules.STATUSES for e in listed.values())
 
 
@@ -236,7 +236,6 @@ def test_what_cannot_be_installed_or_removed_is_said_plainly() -> None:
     service = made(Fakes(), {"ledger": Found("ledger", "1.2.3")})
     for body, words in (
         ({"id": "streamlit"}, "comes with every install"),
-        ({"id": "accounting"}, "coming"),
         ({"id": "ledger"}, "installed already"),
     ):
         with pytest.raises(Conflict, match=words):
@@ -251,7 +250,7 @@ def test_what_cannot_be_installed_or_removed_is_said_plainly() -> None:
 
 def test_a_development_checkout_says_what_to_run_and_does_nothing() -> None:
     fakes = Fakes(installable=False)
-    with pytest.raises(Conflict, match=r"development checkout.*uv pip install sab-ledger"):
+    with pytest.raises(Conflict, match=r"development checkout.*uv pip install -e extensions/ledger"):
         asyncio.run(made(fakes).install({"id": "ledger"}, "user"))
     assert fakes.changes == [] and fakes.stopped == []
     assert made(fakes).state()["installable"] is False
@@ -295,9 +294,29 @@ def test_the_agents_install_and_remove_wait_for_the_users_allow() -> None:
 def test_the_routes_list_and_refuse_in_a_development_checkout(tmp_path: Path) -> None:
     with make_client(tmp_path, update_feeds=()) as client:
         said = client.get("/extensions", headers=AUTH).json()
-        assert [e["status"] for e in said["extensions"]] == ["preinstalled", "coming", "coming"]
+        assert [e["status"] for e in said["extensions"]] == ["preinstalled", "available", "available"]
         assert said["installable"] is False and said["changing"] is None
         refused = client.post("/extensions/install", headers=AGENT, json={"id": "accounting"})
-        assert refused.status_code == 409 and "coming" in refused.text
+        assert refused.status_code == 409 and "development checkout" in refused.text
+        assert "uv pip install -e extensions/accounting" in refused.text
         assert client.post("/extensions/remove", headers=AUTH, json={"id": "nope"}).status_code == 404
         assert client.get("/extensions").status_code == 401  # the token, as on every route
+
+
+def test_every_extension_package_is_on_the_bases_version() -> None:
+    """Released together: each extension's pyproject, its dependency on the base and its __version__."""
+    import re
+    import tomllib
+
+    root = Path(__file__).resolve().parents[1]
+    base = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    folders = sorted(p.parent for p in (root / "extensions").glob("*/pyproject.toml"))
+    assert [f.name for f in folders] == ["accounting", "powerapps"]
+    for folder in folders:
+        own = tomllib.loads((folder / "pyproject.toml").read_text())["project"]
+        assert own["version"] == base, folder.name
+        assert f"swissarmybench[server]=={base}" in own["dependencies"], folder.name
+        init = next((folder / "src").glob("*/__init__.py")).read_text()
+        assert re.search(rf'__version__(: str)? = "{re.escape(base)}"', init), folder.name
+        package = own["name"]
+        assert package in {e.package for e in rules.CATALOG}, package

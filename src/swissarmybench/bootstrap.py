@@ -22,7 +22,8 @@ from typing import Any
 
 import duckdb
 
-from swissarmybench import __version__, extensions
+from swissarmybench import __version__
+from swissarmybench import extensions as extension_modules
 from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
@@ -212,7 +213,7 @@ class Services:
     # The project modes (the open project's type to its working set) and the extensions that are on
     # (swissarmybench/extensions.py): each one's routes are mounted beside the base's (server/app.py).
     modes: Modes
-    extensions: list[Any]
+    switched_on: list[Any]  # the extensions' own modules, each one switched on here
 
 
 def usage_documents(
@@ -240,7 +241,7 @@ def usage_documents(
 
 def _scaffold_of(project_type: str) -> Any:
     """The scaffold of the extension whose mode is this project type (None: none is on here)."""
-    for module in extensions.enabled():
+    for module in extension_modules.enabled():
         if (getattr(module, "MODE", None) or {}).get("type") == project_type:
             return getattr(module, "scaffold", None)
     return None
@@ -256,7 +257,7 @@ def bootstrap(
     """Build everything for a server listening on 127.0.0.1:`port` that accepts `token`."""
     settings = settings or Settings()
     state_dir, export_dir = settings.state_dir, settings.export_dir
-    on_extensions = extensions.enabled()
+    on_extensions = extension_modules.enabled()
 
     # ===== the adapters =====
     connection = open_database(settings.duckdb_memory_limit)
@@ -920,11 +921,11 @@ def bootstrap(
         table_cells=table_cells,
         panels=Panels(ws),
         modes=Modes(
-            extensions.modes,
+            extension_modules.modes,
             lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
             projects.type_of,
         ),
-        extensions=on_extensions,
+        switched_on=on_extensions,
         session_log=session_log,
         variables=variables,
         explorer=explorer,

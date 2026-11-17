@@ -65,15 +65,15 @@ CATALOG: tuple[Extension, ...] = (
         "Accounting",
         "An Excel workbook built by a repeatable Python automation; cession statements and invoices.",
         ("The Accounting project", "The Excel canvas", "Statements and invoices from templates"),
-        "coming",
+        "available",
         "swissarmybench-accounting",
     ),
     Extension(
         "powerapps",
         "Power Apps",
-        "Power Apps code apps: Dataverse into grids, the code app project, Run live and push.",
-        ("The code app project", "Dataverse and connectors", "TSX previews"),
-        "coming",
+        "Power Apps code apps: a code app project, its data sources and connectors, Run live and push.",
+        ("The code app project", "Dataverse and connectors", "Run live and push", "Custom connectors"),
+        "available",
         "swissarmybench-powerapps",
     ),
 )
@@ -230,7 +230,7 @@ def development_words(ext: Extension) -> str:
     """What a development checkout runs instead of Install (it is not a uv tool)."""
     return (
         f"This copy is a development checkout, not the installed app: install {ext.package} into its "
-        f"environment yourself (uv pip install {ext.package}), or run SWISSARMYBENCH_EXTENSIONS={ext.id} "
+        f"environment yourself (uv pip install -e extensions/{ext.id}), or run SWISSARMYBENCH_EXTENSIONS={ext.id} "
         "to treat it as installed."
     )
 

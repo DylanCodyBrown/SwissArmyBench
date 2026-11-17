@@ -65,11 +65,11 @@ def test_the_rail_has_extensions_above_settings_and_its_page_shows_each_kind(
     expect(streamlit.locator(".extension-status")).to_have_text("Preinstalled")
     expect(streamlit.locator(".extension-version")).to_have_text(__version__)
     expect(streamlit.locator("button")).to_have_count(0)
-    for coming in ("accounting", "powerapps"):
-        card = page.locator(f".extension-card[data-extension='{coming}']")
-        expect(card.locator(".extension-status")).to_have_text("Coming")
-        expect(card).to_have_attribute("aria-disabled", "true")
-        expect(card.locator("button")).to_have_count(0)
+    for available in ("accounting", "powerapps"):
+        card = page.locator(f".extension-card[data-extension='{available}']")
+        expect(card.locator(".extension-status")).to_have_text("Available")
+        expect(card.locator(".extension-version")).to_have_text(__version__)
+        expect(card.get_by_role("button", name="Install")).to_be_visible()
     expect(page.locator(".nav-rail [data-area='extensions']")).to_have_attribute("aria-current", "page")
     # The version mark's tooltip lists the installed extensions.
     expect(page.locator(".statusbar .version-mark")).to_have_attribute(

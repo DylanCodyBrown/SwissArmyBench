@@ -146,8 +146,8 @@ def create_app(
     session_secret = secrets.token_urlsafe(32)
     # Each extension that is on: its live pages' secret paths (the guard lets them through, the route checks
     # the secret) and its Session page words.
-    secret_paths = tuple(p for extension in ctx.extensions for p in getattr(extension, "SECRET_PATHS", ()))
-    for extension in ctx.extensions:
+    secret_paths = tuple(p for extension in ctx.switched_on for p in getattr(extension, "SECRET_PATHS", ()))
+    for extension in ctx.switched_on:
         session_log_rules.RULES.update(getattr(extension, "SESSION_RULES", None) or {})
 
     async def session(request: Request) -> Response:
@@ -232,7 +232,7 @@ def create_app(
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         await ctx.sab_projects.stop()  # nor an open .sab's working folder
-        for extension in ctx.extensions:  # nor an extension's processes (a code app's dev server)
+        for extension in ctx.switched_on:  # nor an extension's processes (a code app's dev server)
             stop = getattr(extension, "stop", None)
             if callable(stop):
                 await stop(ctx)
@@ -273,7 +273,7 @@ def create_app(
             *routes_panels.routes(ctx.panels),
             *routes_modes.routes(ctx.modes),
             # Each extension that is on: its routes, given the services (its own are built from them).
-            *(route for extension in ctx.extensions for route in extension.routes(ctx)),
+            *(route for extension in ctx.switched_on for route in extension.routes(ctx)),
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
