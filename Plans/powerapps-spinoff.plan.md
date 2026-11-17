@@ -1,4 +1,12 @@
-# Spin-off: Swiss Army Bench Power Apps Edition, in a repository of its own
+# Swiss Army Bench Power Apps Edition: the hand-over
+
+**Changed (the owner, 2026-11-17): the edition lives in THIS repository, with a separate install command**
+("I wouldn't mind including the edition right in this repo and a separated install command"), behind the
+front-end and back-end boundary of section 8a, now a rule in CLAUDE.md: **editions never modify the front end.**
+Read "the new repository" below as "the edition's backend, `src/swissarmybench/editions/powerapps/`, in this
+repository"; section 2's clone steps and section 8's parity steps 1 and 3 are not needed (one front end, one
+repository). Its install: `install-powerapps.ps1` / `install-powerapps.sh` installing `swissarmybench-powerapps`
+(built from this repository, the shared front end inside), released with the Streamlit Edition.
 
 Status: **ready to start** (the owner, 2026-11-17: "Write a spin off plan with all of the app design notes in the
 context so that I can start up a new git repo just for the power apps edition. Is there anything you suggest

@@ -25,6 +25,20 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17). APIs already live there:
   `~/.swissarmybench/library/apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json,
   source.json); an API's tables are its web calls with Return as table on, and it is not on the Connections page.
+- **The front end and the back end (the owner, 2026-11-17): "set a boundary on what is front end and what is back
+  end ... a rule that we can never modify the front end of this app" / "including the edition right in this repo and
+  a separated install command".** **Editions never modify the front end.** The front end (`web/`) is one, shared
+  by every edition: it draws what the backend's manifest (`GET /app/manifest`: rail areas, pages, commands,
+  connection kinds and their forms as data, cell kinds, languages, Settings, starters, context.md's sections) and
+  its OpenAPI routes say exists, and it never names an edition or asks which one it is. An edition is backend only:
+  the shared core in `src/swissarmybench/` plus `src/swissarmybench/editions/<edition>/` (Python and its manifest,
+  never a `.ts`, `.tsx`, `.css` or `.html`). A front-end change is its own change, made for every edition, only on
+  the owner's word, never as part of edition work. Tests enforce it (no edition names in `web/`; no front-end files
+  under `editions/`; each edition's manifest and routes against the shared schema). Editions: **Swiss Army Bench
+  Streamlit Edition** (`swissarmybench`, today's app) and **Swiss Army Bench Power Apps Edition**
+  (`swissarmybench-powerapps`, its own install command; Plans/powerapps-spinoff.plan.md), both from this
+  repository. Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
+  continues as before; from then on, the rule holds.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
