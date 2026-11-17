@@ -80,6 +80,7 @@ from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
+from swissarmybench.server.text_process import run_text
 from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services import explorer as explorer_providers
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
@@ -807,7 +808,7 @@ def bootstrap(
         kernel_intel.answer,
         JediWorld(),
         ProjectModules(),
-        Linters(),
+        Linters(run_text),
         kernel_of=workbench.kernel_or_none,
         project_folder=lambda: (sab_projects.state().get("project") or {}).get("folder"),
         blades=lambda: blades.listing()["blades"],

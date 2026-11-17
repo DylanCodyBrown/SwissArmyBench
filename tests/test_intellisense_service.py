@@ -20,6 +20,7 @@ from starlette.testclient import TestClient
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain.datasets import Column
+from swissarmybench.server.text_process import run_text
 from swissarmybench.services.intellisense import Intellisense
 from tests.conftest import AGENT, AUTH, make_client
 
@@ -226,7 +227,7 @@ def test_ruff_in_the_documents_environment_adds_its_rules(tmp_path: Path) -> Non
     os.symlink(sys.executable, env / "python")
     os.symlink(RUFF, env / "ruff")  # type: ignore[arg-type]
     (tmp_path / "ruff.toml").write_text('[lint]\nselect = ["E4", "E7", "E9", "F"]\n', encoding="utf-8")
-    intel = service(tmp_path, Linters())
+    intel = service(tmp_path, Linters(run_text))
     text = "import os\nx = 1\nif x == None:\n    pass\nimport json\n"
     found = asyncio.run(intel.lint({"text": text, "python": str(env / "python")}))
     assert found["ruff"] == {"used": True} and found["checker"] == "ruff"

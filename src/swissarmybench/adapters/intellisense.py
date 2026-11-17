@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -101,7 +101,10 @@ class Linters:
     """pyflakes (when the app's Python has it), Ruff (when the document's environment has it) and
     DuckDB's parser."""
 
-    def __init__(self) -> None:
+    def __init__(self, run_text: Callable[..., tuple[int, str] | None] | None = None) -> None:
+        # Starting a process is server/'s (server/text_process.py run_text, handed in by bootstrap.py);
+        # without one (a test's stand-in), no process runs and Ruff is simply not there.
+        self._run: Callable[..., tuple[int, str] | None] = run_text or (lambda *a, **k: None)
         # Each Python's Ruff, and when it was looked for (one not there is looked for again a minute on:
         # it may have been installed since).
         self._ruff: dict[str, tuple[float, str | None]] = {}
@@ -149,17 +152,12 @@ class Linters:
                 found = candidate
                 break
         if found is None and os.path.isfile(python):
-            try:
-                done = subprocess.run(  # noqa: S603 (the document's Python, asked one fixed question)
-                    [python, "-I", "-c", "from ruff.__main__ import find_ruff_bin; print(find_ruff_bin())"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                path = done.stdout.strip()
-                found = path if done.returncode == 0 and path and os.path.isfile(path) else None
-            except (OSError, subprocess.SubprocessError):
-                found = None
+            answer = self._run(
+                [python, "-I", "-c", "from ruff.__main__ import find_ruff_bin; print(find_ruff_bin())"],
+                timeout=10,
+            )
+            path = answer[1].strip() if answer else ""
+            found = path if answer and answer[0] == 0 and path and os.path.isfile(path) else None
         self._ruff[python] = (time.monotonic(), found)
         return found
 
@@ -169,28 +167,21 @@ class Linters:
         None: it failed."""
         cwd = folder if folder and os.path.isdir(folder) else None
         own = [] if cwd else ["--isolated"]
+        answer = self._run(
+            [
+                *(command, "check", "--output-format", "json", "--no-cache", "--exit-zero"),
+                *own,
+                *("--stdin-filename", "cell.py", "-"),
+            ],
+            stdin=text,
+            timeout=_RUFF_SECONDS,
+            cwd=cwd,
+        )
+        if answer is None:
+            return None
         try:
-            done = subprocess.run(  # noqa: S603 (that Python's own ruff, with a fixed command)
-                [
-                    command,
-                    "check",
-                    "--output-format",
-                    "json",
-                    "--no-cache",
-                    "--exit-zero",
-                    *own,
-                    "--stdin-filename",
-                    "cell.py",
-                    "-",
-                ],
-                input=text,
-                capture_output=True,
-                text=True,
-                timeout=_RUFF_SECONDS,
-                cwd=cwd,
-            )
-            found = json.loads(done.stdout or "[]")
-        except (OSError, subprocess.SubprocessError, ValueError):
+            found = json.loads(answer[1] or "[]")
+        except ValueError:
             return None
         return found if isinstance(found, list) else None
 

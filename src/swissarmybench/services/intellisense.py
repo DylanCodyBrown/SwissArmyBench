@@ -31,7 +31,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import intellisense as rules
 from swissarmybench.domain.packages import missing_packages
-from swissarmybench.services.workspace import Workspace
+from swissarmybench.services.workspace import NotFound, Workspace
 
 BUDGET_SECONDS: float = 1.0
 KERNEL_SECONDS: float = 0.6
@@ -637,7 +637,10 @@ class Intellisense:
     async def problems(self, path: str | None = None, who: str = "agent") -> dict[str, Any]:
         """Every open document's problems as its editors show them; with `path`, that file checked now."""
         if path:
-            text = self._read_file(path)
+            try:
+                text = self._read_file(path)
+            except OSError as error:  # not there, or not a file: said plainly (404), never a server error
+                raise NotFound(str(error)[:300]) from None
             body = {"text": text, "notebook": False, "path": path, "language": "python"}
             if path.endswith(".ipynb"):
                 return self._notebook_problems(path, text)
