@@ -3934,3 +3934,87 @@ treatment here", "they are not really connections, UNLESS they return a table".
 - **Blade**: text dropped straight into a cell (the snippets: DAX, HTML, Markdown, Streamlit, Python).
 - The Workbench's right-click (notebook cells and the Scripts IDE): **Insert a blade…** and **Insert a function…**, each a searchable picker with its form for placeholders. Analyses stay in the Analyze menu; an API's endpoints are web calls on the APIs page; connections are connections.
 - The rail's Blades page keeps the word, with Blades and Functions shown apart. The renames in the UI, the guide and the agent's commands (functions_list, functions_insert beside blades_*) come with the data notebook change (functions.py).
+
+## Writing data: Write blades for the connections that write (the owner, 2026-11-17; built, branch write-blades)
+
+The owner: "Also writes are meant to be handled with blades and cells in notebooks. So really go through
+and create a set of blades that can write to each of our data sources that can be quickly copied into a
+cell". Then, the same day: "Write blades should be geared towards our connection types. Most of our
+connections don't support it"; "SQL server and azure SQL are two things I use alot so make them robust";
+"Most writes happen via api anyway" (API writes moved to the APIs page's Write rows with this call,
+branch trees-apis); and, of an idea to compile INSERT/UPDATE/DELETE written in SQL into writes: "it sound
+like a lot to get wrong with the write back an we should just build all of those as blades". So there is
+no SQL writes layer: every write is a blade, explicit in its cell.
+
+Built:
+- **What each kind writes** (domain/write_capability.py): every connection kind the app has is writable
+  (its operations and how) or read-only (why, in plain words). A kind is connection_tables' tables kind
+  (TABLE_KINDS: database, powerbi, dataverse, dataverse_web, python, api, file, folder), and for a
+  database or a file its form's template; a test holds every tables kind to writable, read-only or "by
+  its template". Writable: SQL Server, Azure SQL,
+  PostgreSQL, MySQL, MariaDB, Oracle, SQLite (the read-only connection's file opened again to write),
+  Trino (by its connector), ODBC, Dataverse (the Web API; TDS is read-only, whichever way the connection reads),
+  CSV, Excel, Parquet, JSON and folder files.
+  Read-only: Power BI (refresh is its action: write the source, then refresh), DuckDB (opened read-only), Snowflake, BigQuery, Redshift, Databricks (their own bulk
+  loads), Db2, Teradata, ClickHouse, SAP HANA, Vertica, SAP ASE, Access, your own Python, an API (the APIs page's
+  Write rows with this call, branch trees-apis). The Connections page's card shows Writes or Read-only (the
+  starters or the reason on hover), its detail the words; `connections_list`, `connections_overview`,
+  `connections_types` carry `writes` for the agent. Tests: every writable kind has a Write starter, every
+  starter names writable kinds only, a read-only kind has none.
+- **The Write family** (56 starters, src/swissarmybench/starters/write_*.blade.py): 13 functions, one
+  a target (`write_to_*.blade.py`: Write to SQL Server, Write to SQLite, ... Write to an Excel sheet), and
+  43 calls, one an operation (SQLite upsert, ...): Python snippets (a new snippet language, `python`, for a Python cell; a new placeholder kind, `connection`, offered from
+  the saved connections, those of the snippet's kind first). Databases: append, create table, replace,
+  upsert, delete for SQL Server, PostgreSQL, MySQL/MariaDB, SQLite, Oracle and Trino; ODBC without upsert
+  (no one statement every driver takes). Dataverse: create, update, upsert, delete. Files: CSV, Parquet, partitioned Parquet, JSON, Excel sheet. Listed in Write too:
+  Excel write table, Excel range as table, Power BI refresh dataset, Power BI refresh and wait (`also`).
+- **A function a target, a call a cell** (the owner, 2026-11-17: function blades will be written into the
+  project's functions.py and a cell gets only the call: "the only thing inserted into the notebook is
+  Importexcel() not the entire blade"). Each Write function is ONE public function with a typed
+  signature (`write_sql_server(connection: str, table: str, rows: Any, mode: str = "append", keys:
+  Sequence[str] = (), batch_size: int = 1000, identity_insert: bool = False, dry_run: bool = True) ->
+  SqlServerWrite`), private helpers (`_upsert`, a mode each), its imports and constants: nothing runs on
+  import, so it drops into functions.py as it is (a test holds every one to that). A Write starter's text
+  is the call only, its placeholders filled by the form and `dry_run=True` its last argument. Until
+  functions.py exists the call is reached as the Excel starters are, one line before it:
+  `write_sqlite = sab.blade("Write to SQLite")`; **the functions.py branch replaces that line** (an
+  import from functions.py, or nothing). The Connections page's "Writes:" lists the calls.
+- **The same shape in every write**: `dry_run=True` the default (it checks, counts what it can
+  count cheaply, says the statements, shows 5 rows, changes nothing); one transaction where the target
+  has them (a failure rolls back and names its batch and rows; Trino and Dataverse's
+  change sets say what was written before it); counts and time at the end, and a difference from the
+  last dry run said; the connection's own sign-in (`sab.connection`), never a secret in the cell; its
+  packages imported at the function's top (the missing-package prompt installs them into the notebook's
+  environment). The agent's rule is in the calls, the functions' docstrings, every description and in `guide(topic="writing")`: dry_run False only
+  after the user said to write, in their own words, in this conversation.
+- **A shared helper per target, the statements in the function** (client/writes.py: the rows staged in a
+  DuckDB of their own, the report; write_sql.py: each database's quoting, marks, values and types;
+  write_dataverse.py). Standard library only (the plain client's rule): DuckDB and the
+  driver come from the cell's own Python.
+- **SQL Server and Azure SQL, made robust** (SqlServerWrite): the target's types from sys.columns size
+  every value (setinputsizes: varchar stays varchar, nvarchar Unicode, decimals their precision and
+  scale; NaN and NaT NULL); fast_executemany, batches sized by row width, multi-row VALUES under 2,100
+  parameters without it; upsert and delete staged in a #temp table of the target's types (COLLATE
+  DATABASE_DEFAULT), then one MERGE ... WITH (HOLDLOCK), or UPDATE then INSERT where MERGE is refused
+  (a savepoint, the same transaction); keys default to the primary key (none: refused); IDENTITY_INSERT
+  only when the rows carry the identity column and identity_insert is chosen; computed columns refused;
+  enabled triggers said in the dry run; the dry run's counts from one COUNT join against the staged keys;
+  Azure's passing errors (40613, 40197, 40501, 49918, 10928, 10929, 4221), a deadlock (1205) and a
+  dropped connection (08S01, 10053, 10054) run the whole transaction again on a fresh connection after
+  1, 2, 4 seconds.
+
+Decisions:
+- One starter per source and kind of write, not one generic writer: the cell is what the user reads and
+  changes, so the statement is in it. The helpers hold only what the starters of one target share.
+- MySQL and Oracle replace with DELETE, not TRUNCATE (theirs commits by itself); their CREATE TABLE
+  commits by itself, so a failed create drops the table again.
+- A dry run reads only (SQL Server's stages keys in tempdb, rolled back). Counts it cannot get cheaply
+  are said as uncounted (more than 200,000 keys).
+- Dataverse's atomicity is a change set (up to 1,000 rows): a batch_size of up to 1,000 is one
+  transaction; a larger write says which batches went in before a refusal.
+- No `set`/`where` translation for any target: an update by condition is a SQL cell's own statement.
+- Power BI is read-only (the owner's example, 2026-11-17: "Power BI read-only (refresh is the action)"):
+  the push-dataset starters an earlier pass made were removed, so a read-only kind has no Write starter.
+  Its refreshes stay listed in the Write family (`also`): after the source is written, refresh the model.
+- No API write starter and no pointer starter: an API's read-only reason says "the APIs page's Write rows
+  with this call", on its card and to the agent.

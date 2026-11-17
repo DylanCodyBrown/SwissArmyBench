@@ -51,5 +51,5 @@ No prefix: `guide`, `commands`, `health`.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
-  streamlit, projects, privacy. Each is also the resource `swissarmybench://guide/<topic>`.
+  streamlit, projects, writing, privacy. Also the resource `swissarmybench://guide/<topic>`.
 - `commands(match="word")`: every tool's exact arguments.

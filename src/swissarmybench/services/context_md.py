@@ -179,6 +179,7 @@ class ContextMd:
             table_count=total,
             shared=frozenset(shared),
             used_in=tuple(dict.fromkeys(used)),
+            writes=(card.get("writes") or {}).get("writable"),
         )
 
     def _tables(self) -> tuple[rules.TableFacts, ...]:

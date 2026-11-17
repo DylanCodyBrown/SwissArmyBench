@@ -1411,7 +1411,8 @@ export function notebookView(
     const filled = await fillSnippet(snippet.name, cell?.kind === "dax" ? cell.connection : null);
     if (!filled) return;
     const kind = SNIPPET_CELL[filled.language];
-    const own = !cell || (filled.language === "streamlit" && sourceOf(cell).trim());
+    // A Streamlit piece or a Python snippet (a Write starter) is a whole cell: a cell of its own below one that holds code.
+    const own = !cell || ((filled.language === "streamlit" || filled.language === "python") && sourceOf(cell).trim());
     const target = own ? insertAt(cell ? indexOf(cell) + 1 : cells.length, kind) : cell;
     putSnippet(target, filled, own ? undefined : x, own ? undefined : y);
   };
@@ -1436,7 +1437,7 @@ export function notebookView(
       const no = refusal(filled.language, cell.kind);
       if (no) throw new Error(no);
     }
-    if (!cell || cell.kind !== kind || isApp(cell.role) || (number === undefined && filled.language === "streamlit" && sourceOf(cell).trim())) {
+    if (!cell || cell.kind !== kind || isApp(cell.role) || (number === undefined && (filled.language === "streamlit" || filled.language === "python") && sourceOf(cell).trim())) {
       cell = insertAt(selected ? indexOf(selected) + 1 : cells.length, kind);
     }
     putSnippet(cell, filled);

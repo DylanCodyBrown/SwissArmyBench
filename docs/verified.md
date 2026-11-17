@@ -2297,3 +2297,63 @@ NOT checked:
   import syntax is Claude Code's documented `@path`; not run here); Claude Desktop reading the resource; a
   Power BI or Dataverse connection's live catalog in the file (the made-up state covers the naming); APIs
   and Structures (their branch); the file's write load during the browser suite beyond its passing.
+
+## Writing data: the Write starters (2026-11-17, branch write-blades)
+
+- **Every starter** (tests/test_starters_write.py): the 13 Write functions are each one public function
+  with a typed signature (dry_run True by default), private helpers, imports and constants only, and load
+  without running anything; the 43 calls are the call only (`sab.blade` line, then the call, dry_run=True
+  its last argument), each naming a function whose tags cover its own; every write test runs the call
+  with its function's code in place of the `sab.blade` line (as functions.py will hold it). The calls read, fill from their form's
+  values, say the agent's rule in their description, parse as Python, and their functions list their packages (DuckDB and
+  each driver). Every connection kind is writable or read-only with a reason, and every one of
+  connection_tables' tables kinds is writable, read-only (Power BI, your own Python, an API) or decided by
+  its template (a database, a file); every writable kind has a
+  starter, every starter names writable kinds only, a read-only kind has none. `/connections`,
+  `/connections/usage`, a connection's detail and `/connections/types` carry `writes`; the Write family
+  lists Excel's writers and Power BI's refreshes too (`also`); a starter's form offers the connections of
+  its kind first.
+- **SQLite** (a read-only connection, as the form makes it: the file opened again to write): a dry run
+  writes nothing and says the target, rows, types, statements, counts and 5 rows; append, upsert,
+  delete, replace and create table give the right rows and counts; a failing second batch rolls the
+  first back and is named; a table changed since the dry run is said; wrong columns, shared keys, a
+  connection of another kind and a table that is there already are refused in words; a DuckDB relation
+  and an Arrow table are rows.
+- **PostgreSQL 16 and MariaDB** (the test bed, tools/testbed, with pymysql in the test environment):
+  create table (the rows' types made PostgreSQL's; Region found as region), COPY, ON CONFLICT and ON
+  DUPLICATE KEY UPDATE upserts with their dry-run counts, a failed batch rolled back, delete, replace.
+- **SQL Server and Azure SQL** against a stand-in pyodbc that records every call (no SQL Server here):
+  the #temp stage's CREATE in the target's own types (nvarchar(40), varchar(10), decimal(12,2), COLLATE
+  DATABASE_DEFAULT), setinputsizes (SQL_WVARCHAR 40, SQL_VARCHAR 10, SQL_DECIMAL 12,2), fast_executemany,
+  NaN as NULL, the MERGE ... WITH (HOLDLOCK) text, a dry run's COUNT join and rollback; a dropped
+  connection (08S01, 10054) and 40613 each running the whole transaction again on a fresh connection
+  (rollback, rollback, commit); MERGE refused -> UPDATE then INSERT after a savepoint; keys from the
+  primary key, none refused; the identity column refused unless chosen, then IDENTITY_INSERT ON and OFF;
+  a computed column refused; multi-row VALUES under 2,100 parameters (524 rows of 4); a delete by a join
+  on the staged, distinct keys; exact types: a uniqueidentifier's text, datetime2 sized (93, 27, 7) so its
+  fractions stay, a datetimeoffset as text with its offset (the same instant: DuckDB holds zoned times as
+  instants, so the offset sent is the session's, not the row's own), bit, varbinary(max) sized (-3, 0),
+  NaN and NaT as NULL.
+- **Trino** against a stand-in driver: MERGE a batch at a time (VALUES of 2 rows), no commit or
+  rollback; a connector without MERGE refused in Trino's words with the hint and "nothing was written".
+- **Dataverse** (tests/dataverse_standin.py, now with $batch change sets, upsert by an alternate key,
+  If-Match, 429): create with choice labels sent as numbers (Retail -> 19), a throttled $batch sent
+  again; upsert counted 201/200; update refusing keys that are not records; delete of the found keys
+  only; a refused change set rolled back and named, the batch before it written.
+- **Files**: CSV, Parquet, partitioned Parquet (a folder per region; "add" beside the old files), JSON
+  and an Excel sheet (the workbook's other sheets kept, rows added below) written and read back; an
+  existing file refused unless replaced.
+- **In the browser** (Chromium, tests/e2e/test_write_starters_page.py): the Write family (60 with the
+  cross-listed four) in the Workbench's blade list; SQLite upsert dragged into a cell (the call only, `write_sqlite = sab.blade("Write to SQLite")` above
+  it), its form giving the SQLite connection first and order_id as the key; the cell run in the Workbench's kernel (the
+  function fetched by sab.blade from the starter pack) as a dry run
+  (nothing written, "update 1 row, insert 2 rows"), then with dry_run=False (written); the Connections
+  page's cards reading Writes and Read-only, the detail listing the starters.
+- **Not checked:** a real SQL Server or Azure SQL (fast_executemany with setinputsizes on real types,
+  MERGE's locking under load, Azure's transient errors as they really arrive, IDENTITY_INSERT
+  permissions, temp-table collation conflicts on a real server, datetime2's seventh digit and a
+  datetimeoffset's text through the real ODBC driver, the 2,100-parameter path on a real wide table); a real Trino MERGE on Iceberg or Delta
+  Lake; Oracle (no driver or server here: its MERGE from dual and DELETE-based replace are untested);
+  an ODBC source; a real Dataverse $batch (its multipart answer, alternate keys defined in a real
+  environment, the 429 limits); MySQL itself
+  (MariaDB stands in); a write in a notebook's own environment with the missing-package prompt.

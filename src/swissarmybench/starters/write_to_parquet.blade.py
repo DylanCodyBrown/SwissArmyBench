@@ -1,0 +1,42 @@
+# /// swissarmybench-blade
+# format = 1
+# name = "Write to Parquet"
+# kind = "other"
+# description = "The rows written to a Parquet file (dry run first; writes on the user's word)"
+# tags = ["write", "files", "parquet", "folder"]
+# family = "Write"
+# variable = "write_parquet"
+# ///
+"""Parquet file: the rows written to one Parquet file (zstd).
+
+    write_parquet = sab.blade("Write to Parquet")  # the project's functions.py will hold it
+
+Dry run first: dry_run=True (the default) only says what it would do and changes nothing;
+dry_run=False writes. An agent sets dry_run=False only after the user said to write, in their own
+words, in this conversation. Returns the write's report.
+
+Written to a new file beside the target, then put in its place: a failure leaves the old file as it was.
+The rows are written by DuckDB's COPY.
+"""
+
+from pathlib import Path
+from typing import Any
+
+import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
+
+from swissarmybench.client.writes import FileWrite
+
+
+def write_parquet(
+    path: str | Path,
+    rows: Any,
+    overwrite: bool = False,
+    dry_run: bool = True,
+) -> FileWrite:
+    """The rows written to one Parquet file (zstd)."""
+    w = FileWrite(path, "parquet", rows, dry_run=dry_run, overwrite=overwrite)
+    copy = "COPY sab_rows TO '{file}' (FORMAT parquet, COMPRESSION zstd)"
+    w.would(w.statement(copy), written=w.need_rows().count)
+    if not dry_run:
+        w.done(written=w.copy(copy))
+    return w

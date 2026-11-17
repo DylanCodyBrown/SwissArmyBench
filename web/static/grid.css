@@ -9772,6 +9772,27 @@ body.has-rail .area-page {
   font-size: 13px;
 }
 
+/* A card's status and what it writes, side by side (domain/write_capability.py). */
+.connection-card-marks {
+  display: inline-flex;
+  grid-area: status;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.connection-writes {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.connection-writes.read-only {
+  padding: 0 6px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+
 /* ----- a connection's detail ----- */
 .connection-detail-top {
   display: flex;

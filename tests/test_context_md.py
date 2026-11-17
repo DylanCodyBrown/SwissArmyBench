@@ -149,6 +149,14 @@ def test_apis_and_structures_show_once_built() -> None:
     assert "## Structures" in text and "`config` (json, object)" in text
 
 
+def test_a_connection_says_whether_it_writes() -> None:
+    shop = ConnectionFacts("Shop", "database", "SQLite", writes=True)
+    model = ConnectionFacts("Finance", "database", "Power BI workspace", template="powerbi", writes=False)
+    text = rules.render(_state(connections=(shop, model)), 24_000).text
+    assert '- `Shop` (SQLite); status ready; writes (`guide(topic="writing")`)' in text
+    assert "- `Finance` (Power BI workspace); status ready; read-only" in text
+
+
 def test_a_hostile_name_stays_in_code_formatting() -> None:
     state = _state(tables=(TableFacts(HOSTILE, 1, ((HOSTILE, "VARCHAR"),)),))
     text = rules.render(state, 24_000).text

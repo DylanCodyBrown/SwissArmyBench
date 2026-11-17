@@ -41,6 +41,7 @@ from swissarmybench.domain.connections import code_names, connection_kind, opens
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.packages import blade_feature, connection_feature, missing_packages
+from swissarmybench.domain.packs import CROSS_LISTED
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.workspace import Workspace
@@ -625,6 +626,12 @@ class BladeService:
                     "placeholders": [p.to_json() for p in snippets.placeholders(blade.code)],
                 }
             families.setdefault(blade.family or "Other", []).append(entry)
+        # A starter listed in another family too (Excel's writers in Write), marked `also`.
+        for family, names in CROSS_LISTED.items():
+            listed = {e["name"].casefold(): e for found in families.values() for e in found}
+            for name in names:
+                if name.casefold() in listed and family in families:
+                    families[family].append(listed[name.casefold()] | {"also": True})
         return {
             "pack": rules.STARTERS,
             "families": [{"family": name, "blades": found} for name, found in families.items()],
@@ -658,6 +665,8 @@ class BladeService:
         options: dict[str, Any] = (
             await self._dataset_options(dataset or "") if blade.language == "dax" else self._table_options()
         )
+        if any(p.kind == "connection" for p in snippets.placeholders(blade.code)):
+            options["connections"] = self._connection_options(blade.tags)
         return {
             "name": blade.name,
             "language": blade.language,
@@ -687,6 +696,16 @@ class BladeService:
         streamlit = blade.language == "streamlit"
         named = snippets.cell_name(blade.cell_name, given, blade.name) if streamlit else None
         return {"name": blade.name, "language": blade.language, "text": text, "cell_name": named}
+
+    def _connection_options(self, tags: Sequence[str]) -> list[str]:
+        """The saved connections' names (not key vaults), those of the snippet's own kind first (a Write
+        starter names its kinds among its tags: postgres, sqlserver...)."""
+        found = []
+        for b in self._blades.all():
+            kind = connection_kind(b.kind, b.template)
+            if kind and kind != "vault":
+                found.append((b.template not in tags, b.name.casefold(), b.name))
+        return [name for _, _, name in sorted(found)]
 
     def _table_options(self) -> dict[str, Any]:
         """The open tables, by their names in code, each with its columns."""
