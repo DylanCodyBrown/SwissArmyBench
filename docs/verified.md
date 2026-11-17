@@ -2944,3 +2944,14 @@ NOT checked: a Power BI workspace and a SQL Server connection on the page (Impor
 offered by rule, unit-tested; the request is the Connections page's own), Edge, a real drag between two
 windows (Playwright carries the drag's data across instead), narrow windows (the detail goes under the tree
 by a media rule, not looked at).
+
+## 0.0.19 from the release (2026-11-17)
+
+Installed through the release's install.sh into its own uv tool folder and home: swissarmybench and
+swissarmybench-streamlit 0.0.19. `swissarmybench open old.sab` says "this version opens project folders only."
+(exit 1). `/explorer/browse` answers; `/blades/table-name` says "available" for a free name and "not a valid
+name: select is a word DuckDB's SQL keeps for itself"; `/project/import-sab` is 404. In Chromium: the rail has Data
+after Variables; no "Open a .sab file…"; New project's Choose another folder… opens on the nearest existing
+folder with its note; the rail's Data opens `open=data`; the Blades page has no Catalog panel.
+
+NOT checked: Windows and macOS desktops, Edge.
