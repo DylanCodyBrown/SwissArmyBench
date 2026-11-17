@@ -1,3 +1,4 @@
+# ruff: noqa: E501 (the connections' code is text, written as it runs; its lines are its own)
 """Signing in to Microsoft Entra, as text: the one sign-in code the lake and SharePoint connections share
 (OneLake, Data Lake, Delta Lake on Azure, SharePoint lists, SharePoint documents).
 
@@ -32,14 +33,16 @@ LOGIN_VARIABLE: str = "SWISSARMYBENCH_LOGIN_URL"
 GRAPH_SCOPE: str = "https://graph.microsoft.com/.default"
 STORAGE_SCOPE: str = "https://storage.azure.com/.default"
 # The Graph permissions the SharePoint connections use (named in AADSTS65001's words).
-GRAPH_PERMISSIONS: str = "Sites.Read.All (Sites.ReadWrite.All to write), Files.Read.All (Files.ReadWrite.All to upload)"
+GRAPH_PERMISSIONS: str = (
+    "Sites.Read.All (Sites.ReadWrite.All to write), Files.Read.All (Files.ReadWrite.All to upload)"
+)
 
 # The marks each way's code alone holds (the form's Sign in tells them apart by these).
 YOU_MARK: str = "DefaultAzureCredential"
 MANAGED_MARK: str = "IDENTITY_HEADER"
 APP_MARK: str = "# Sign in as an app registration"
 ROPC_MARK: str = "# A public app registration"
-ROPC_SECRET_MARK: str = "# The app registration's client secret too"
+ROPC_SECRET_MARK: str = "# The app registration's client secret too"  # noqa: S105 (a mark in code, not a secret)
 
 IMPORTS: str = """import base64
 import datetime
@@ -94,7 +97,7 @@ def sign_in(scope):
     return answer["access_token"], float(answer.get("expires_on") or time.time() + 3600)
 '''
 
-_TOKEN = '''
+_REQUEST = '''
 
 def token_request(form, what):
     """Microsoft's token endpoint for the tenant: the token, and when it runs out."""
@@ -118,7 +121,7 @@ def sign_in(scope):
     form = {"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret}
     return token_request(form | {"scope": scope}, "The sign-in")
 '''
-    + _TOKEN
+    + _REQUEST
 )
 
 
@@ -164,7 +167,7 @@ def sign_in(scope):
         raise AzureError(why("The sign-in", 400, json.dumps(found).encode()))
     return found["access_token"], time.time() + int(found.get("expires_in", 3600))
 '''
-        + _TOKEN
+        + _REQUEST
     )
 
 

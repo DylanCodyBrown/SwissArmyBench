@@ -132,6 +132,15 @@ class CatalogService:
         found: set[str] = await self._on_worker(lambda cur: self._catalogs.shared_tables(cur, name))
         return found
 
+    async def titles(self, name: str) -> dict[tuple[str, str, str], str]:
+        """What the source said of each table, by (database, schema, table): a Dataverse table's display
+        name, a Delta table's version and size. None said: {}."""
+        try:
+            info = self._catalogs.get(name)
+        except KeyError:
+            return {}
+        return {(d, s, t): words for d, s, t, words in info.titles}
+
     async def places(self, name: str) -> list[tuple[str, str, str]] | None:
         """Every table of a loaded catalog as (database, schema, table); None when it is not loaded."""
         try:

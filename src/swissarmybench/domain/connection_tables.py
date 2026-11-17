@@ -28,7 +28,7 @@ import sqlglot
 from sqlglot import exp
 
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, powerbi
+from swissarmybench.domain import dataverse, lakes, powerbi
 from swissarmybench.domain.connection_swap import Place
 
 # How each kind of connection lists its tables and reads one (the contract's two calls).
@@ -53,7 +53,36 @@ TABLE_KINDS: dict[str, tuple[str, str]] = {
     "api": ("its web calls that return a table (the API's List the tables)", "the web call (Read a table)"),
     "file": ("the file itself: one table, or a workbook's sheets", "DuckDB's reader, or the sheet"),
     "folder": ("its files", "the file (a workbook's first sheet)"),
+    # Lakes and SharePoint (domain/lakes.py): the connection's own code lists and reads them.
+    "onelake": (
+        "a lakehouse's Delta tables (Tables/) and files (Files/), by the OneLake DFS endpoint's listing; a "
+        "warehouse's INFORMATION_SCHEMA on its SQL endpoint",
+        "DuckDB's delta_scan, read_parquet or read_csv (else the deltalake package, else its Delta log read "
+        "here); T-SQL on a warehouse's SQL endpoint",
+    ),
+    "datalake": (
+        "its container's Parquet, CSV and JSON files, Delta folders and partitioned folders (the ADLS Gen2 "
+        "listing)",
+        "DuckDB's read_parquet, read_csv or delta_scan, over HTTPS with the sign-in's token",
+    ),
+    "delta": (
+        "every folder holding a _delta_log under its root, to a depth",
+        "DuckDB's delta_scan (else the deltalake package, else its Delta log read here); a version or a "
+        "time after @",
+    ),
+    "sharepoint": (
+        "the site's lists (Microsoft Graph)",
+        "Graph's list items, paged, $select and $filter sent",
+    ),
+    "sharepoint_docs": (
+        "each document library's file index, and its tabular documents (CSV, Parquet, JSON lines, a "
+        "workbook's sheets and named tables)",
+        "Graph's file index; a document downloaded into memory, kept by its eTag",
+    ),
 }
+# Kinds whose tables are named by their folders (a path), and the ones that have versions after @.
+PATH_KINDS: frozenset[str] = frozenset({"onelake", "datalake", "delta", "sharepoint_docs"})
+VERSIONED: frozenset[str] = frozenset({"onelake", "datalake", "delta"})
 # Blades that expose no tables, so are not connections, with why.
 NO_TABLES: dict[str, str] = {
     "vault": "not a connection: a source of secrets for variables",
@@ -103,6 +132,8 @@ def tables_kind(
             return "powerbi"
         if dataverse.is_dataverse(dialect):
             return "dataverse" if catalog_language == "sql" else "dataverse_web"
+        if lakes.is_kind(dialect):
+            return str(dialect)
         return "database"
     if connection == "file":
         return "folder" if template == "folder" else "file"
@@ -131,7 +162,9 @@ def copy_name(connection: str, place: Place, kind: str, shared: Iterable[str] = 
     parts: list[str] = []
     if kind == "powerbi":
         parts = [place.schema, place.table] if place.table.casefold() in shared_names else [place.table]
-    elif kind in ("file", "folder", "python", "api", "dataverse", "dataverse_web"):
+    elif kind in PATH_KINDS:
+        parts = lakes.path_parts(place.database, place.schema, place.table)
+    elif kind in ("file", "folder", "python", "api", "dataverse", "dataverse_web", "sharepoint"):
         parts = [place.table]
     else:
         parts = [p for p in (place.database, place.schema, place.table) if p]
@@ -167,9 +200,52 @@ def _matching(parts: Sequence[str], candidates: Sequence[Place], kind: str, exac
     return []
 
 
+def _resolve_path(connection: str, kind: str, parts: Sequence[str], candidates: Sequence[Place]) -> Place:
+    """A table named by its folders (a lake's, a library's): the parts are the end of its path (its last
+    parts are enough when they name one table; the whole path, then an exact spelling, wins a tie), a
+    file by its name with or without its suffix; a Delta table's @version or @time kept on its name."""
+    *folders, last = parts
+    name, at = lakes.split_at(last)
+    if at and kind not in VERSIONED:
+        raise ConnectionSqlError(f"{connection}'s tables have no versions: {last} names none.")
+    wanted = [*folders, name]
+    hits: list[tuple[bool, bool, Place]] = []
+    for c in candidates:
+        path = lakes.path_parts(c.database, c.schema, c.table)
+        stem = [*path[:-1], path[-1].rsplit(".", 1)[0]] if "." in path[-1] else path
+        for candidate in (path, stem):
+            tail = candidate[-len(wanted) :]
+            if len(candidate) >= len(wanted) and [p.casefold() for p in tail] == [
+                w.casefold() for w in wanted
+            ]:
+                hits.append((len(candidate) == len(wanted), tail == wanted, c))
+                break
+    for keep in ((True, True), (True, None), (None, True), (None, None)):
+        picked = [h[2] for h in hits if all(k is None or h[i] == k for i, k in enumerate(keep))]
+        if len(picked) == 1:
+            found = picked[0]
+            return Place(found.database, found.schema, found.table + at) if at else found
+    written = f"[{connection}]." + ".".join(parts)
+    if hits:
+        places = ", ".join(copy_name(connection, h[2], kind) for h in hits[:_SHOWN])
+        raise ConnectionSqlError(f"{written} could be {places}: name its folders too.")
+    if not candidates:
+        raise ConnectionSqlError(f"{connection} lists no tables (its catalog is empty or not loaded).")
+    paths = {".".join(lakes.path_parts(c.database, c.schema, c.table)) for c in candidates}
+    names = sorted(paths, key=str.casefold)
+    near = difflib.get_close_matches(".".join(wanted), names, n=3, cutoff=0.6)
+    more = f" ... ({len(names)} in all)" if len(names) > _SHOWN else ""
+    hint = f" Did you mean {', '.join(near)}?" if near else ""
+    raise ConnectionSqlError(
+        f"{connection} has no table {'.'.join(parts)}.{hint} It has: {', '.join(names[:_SHOWN])}{more}."
+    )
+
+
 def resolve(connection: str, kind: str, parts: Sequence[str], candidates: Sequence[Place]) -> Place:
     """The table `connection.<parts>` names among the connection's tables (any case; an exact spelling
     wins a tie). A name two places share says which; an unknown one says what there is."""
+    if kind in PATH_KINDS and 0 < len(parts) <= 16:
+        return _resolve_path(connection, kind, parts, candidates)
     written = f"[{connection}]." + ".".join(parts)
     if not parts or len(parts) > (2 if kind == "powerbi" else 3):
         shape = "[connection].[dataset].table" if kind == "powerbi" else "[connection].[schema].table"
@@ -218,7 +294,13 @@ class Reference:
 
 
 _SKIP = re.compile(r"'(?:[^']|'')*'|--[^\n]*|/\*.*?\*/", re.DOTALL)
-_IDENT = r'(?:\[[^\[\]\n]+\]|"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)'
+# An unquoted name may end in a Delta table's @version or @time (orders@v12, orders@2026-11-01): quoted
+# below when the chain is a connection's, so SQL reads it as one name.
+_IDENT = (
+    r'(?:\[[^\[\]\n]+\]|"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*'
+    r"(?:@(?:[vV]\d+|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?)(?![\w:-]))?)"
+)
+_AT_NAME = re.compile(r"(\.\s*)([A-Za-z_][A-Za-z0-9_$]*@[A-Za-z0-9:-]+)")
 _CHAIN = re.compile(rf"(?<![\w\].\"])({_IDENT})((?:\s*\.\s*{_IDENT})+)")
 
 
@@ -239,13 +321,14 @@ def quote_brackets(text: str, names: Iterable[str]) -> str:
     square brackets as a list): only a dotted name whose first part is a connection's, outside quoted
     text and comments."""
     known = {n.casefold() for n in names}
-    if "[" not in text or not known:
+    if ("[" not in text and "@" not in text) or not known:
         return text
 
     def chain(found: re.Match[str]) -> str:
         if _bare(found.group(1)).casefold() not in known:
             return found.group(0)
         rest = re.sub(r"\[([^\[\]\n]+)\]", lambda m: _quoted(m.group(1)), found.group(2))
+        rest = _AT_NAME.sub(lambda m: m.group(1) + _quoted(m.group(2)), rest)
         first = found.group(1)
         return (_quoted(first[1:-1]) if first.startswith("[") else first) + rest
 
@@ -343,6 +426,12 @@ _FILTER_DIALECTS: dict[str, str] = {
     "snowflake": "snowflake",
     "oracle": "oracle",
     "trino": "trino",
+    # The lake and SharePoint kinds: the conditions as (column, op, value), applied by their own code.
+    "onelake": "structured",
+    "datalake": "structured",
+    "delta": "structured",
+    "sharepoint": "structured",
+    "sharepoint_docs": "structured",
 }
 _COMPARE = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE)
 _DATES = {"DATE", "TIMESTAMP", "DATETIME"}
@@ -357,9 +446,12 @@ class Pushed:
     where: str = ""
     said: str = ""
     limit: int | None = None
+    # The same conditions as (column, op, value), for a source whose own code applies them (a lake's
+    # DuckDB, SharePoint's $filter): =, <>, <, <=, >, >=, in, between, is null, is not null.
+    filters: tuple[tuple[str, str, Any], ...] = ()
 
     def key(self) -> str:
-        return f"{','.join(self.columns)}|{self.where}|{self.limit}"
+        return f"{','.join(self.columns)}|{self.where}|{self.said}|{self.limit}"
 
     def to_json(self) -> dict[str, object]:
         return {"columns": list(self.columns), "filters": self.said, "limit": self.limit}
@@ -495,6 +587,10 @@ def pushdown(text: str, names: Iterable[str], ref: Reference, known: Sequence[st
         if mine and cols and _plain_condition(condition) and all(c.name.casefold() in spelled for c in cols):
             sent.append(condition)
     said = " AND ".join(c.sql(dialect="duckdb") for c in sent)
+    if target == "structured":
+        structured = tuple(f for f in (_structured(c, spelled) for c in sent) if f is not None)
+        limit = _safe_limit(root, single, len(structured) == len(conditions))
+        return Pushed(columns, "", said, limit, structured)
     written: list[str] = []
     for condition in sent:
         copied = condition.copy()
@@ -503,6 +599,42 @@ def pushdown(text: str, names: Iterable[str], ref: Reference, known: Sequence[st
         written.append(copied.sql(dialect=target))
     limit = _safe_limit(root, single, len(sent) == len(conditions))
     return Pushed(columns, " AND ".join(f"({w})" for w in written), said, limit)
+
+
+def _plain_value(node: Any) -> Any:
+    """A plain value as Python: a number, a text, a date as its text (2026-11-01)."""
+    if isinstance(node, exp.Neg):
+        return -_plain_value(node.this)
+    if isinstance(node, exp.Cast):
+        return str(node.this.this)
+    if node.is_string:
+        return str(node.this)
+    text = str(node.this)
+    return int(text) if text.lstrip("-").isdigit() else float(text)
+
+
+def _structured(node: Any, spelled: Mapping[str, str]) -> tuple[str, str, Any] | None:
+    """A plain condition (_plain_condition) as (column, op, value), its column as the catalog spells it."""
+    if isinstance(node, exp.Paren):
+        return _structured(node.this, spelled)
+    if isinstance(node, exp.Not) and isinstance(node.this, exp.Is):
+        return (spelled[node.this.this.name.casefold()], "is not null", None)
+    if isinstance(node, exp.Is):
+        return (spelled[node.this.name.casefold()], "is null", None)
+    if isinstance(node, exp.In):
+        return (spelled[node.this.name.casefold()], "in", [_plain_value(v) for v in node.expressions])
+    if isinstance(node, exp.Between):
+        low, high = _plain_value(node.args["low"]), _plain_value(node.args["high"])
+        return (spelled[node.this.name.casefold()], "between", [low, high])
+    ops = {exp.EQ: "=", exp.NEQ: "<>", exp.GT: ">", exp.GTE: ">=", exp.LT: "<", exp.LTE: "<="}
+    flipped = {">": "<", ">=": "<=", "<": ">", "<=": ">="}
+    op = ops.get(type(node))
+    if op is None:
+        return None
+    left, right = node.this, node.expression
+    if isinstance(right, exp.Column) and not isinstance(left, exp.Column):
+        left, right, op = right, left, flipped.get(op, op)
+    return (spelled[left.name.casefold()], op, _plain_value(right))
 
 
 def _filterable(root: exp.Select, table: exp.Table) -> bool:

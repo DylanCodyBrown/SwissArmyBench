@@ -1,3 +1,4 @@
+# ruff: noqa: E501 (the connections' code is text, written as it runs; its lines are its own)
 """Lakes and SharePoint as connections (the owner, 2026-11-17: "OneLake, Data Lake and SharePoint as
 connections, each exposing tables DuckDB can query, by the rule we just set" / "Delta lake as well").
 
@@ -79,6 +80,24 @@ def read_by_code(dialect: str | None, catalog_language: str | None = None) -> st
     return None
 
 
+def read_with(how: str) -> str:
+    """How a read was made, in words: "delta_scan" -> DuckDB's delta_scan; "graph ($filter sent)" ->
+    Microsoft Graph ($filter sent)."""
+    word, _, rest = how.partition(" ")
+    return (code.READ_WITH.get(word, word) + (f" {rest}" if rest else "")).strip()
+
+
+def cell_words(dialect: str) -> str:
+    """What a %%sql cell on one of these runs, in words."""
+    if dialect in (SHAREPOINT, SHAREPOINT_DOCS):
+        return f"{LABELS[dialect]}: no SQL of its own; its tables in DuckDB SQL by name ([Connection].table)"
+    if dialect == ONELAKE:
+        return (
+            "a Fabric lakehouse or warehouse: T-SQL on its SQL endpoint, else DuckDB SQL (every table a view)"
+        )
+    return f"{LABELS.get(dialect, dialect)}: DuckDB SQL here, every table a view (sales.orders)"
+
+
 def path_parts(database: str, schema: str, table: str) -> list[str]:
     """A table's place as the parts its SQL name is made of: its folders, then its name (a workbook's
     sheet after its file)."""
@@ -153,8 +172,9 @@ class Tds:
     def connection(self):
         if self.sql is None:
             pyodbc = importlib.import_module("pyodbc")
-            text = (f"Driver={{ODBC Driver 18 for SQL Server}};Server={self.server},1433;"
-                    f"Database={self.database};Encrypt=yes;TrustServerCertificate=no;")
+            parts = {"Driver": "{ODBC Driver 18 for SQL Server}", "Server": f"{self.server},1433",
+                     "Database": self.database, "Encrypt": "yes", "TrustServerCertificate": "no"}
+            text = "".join(f"{k}={v};" for k, v in parts.items())
             try:
                 self.sql = pyodbc.connect(text, attrs_before={1256: token_struct(self.token())})
             except Exception as error:  # the driver's own error class
@@ -232,7 +252,7 @@ class OneLake(Lake):
         item = str(item).strip()
         if not re.search(r"\.(Lakehouse|Warehouse)$", item, re.I):
             raise LakeError(f"Name the item with its kind: Sales.Lakehouse or Finance.Warehouse, not {item!r}.")
-        super().__init__(AzureStore("onelake", workspace, item, token, host="dfs.fabric.microsoft.com"), "OneLake")
+        super().__init__(AzureStore("onelake", workspace, item, token, domain="dfs.fabric.microsoft.com"), "OneLake")
         self.warehouse = item.lower().endswith(".warehouse")
         self.tds = Tds(sql_endpoint, item.rsplit(".", 1)[0], sql_token) if sql_endpoint else None
         if self.warehouse and self.tds is None:
@@ -284,14 +304,14 @@ _ENTRA = {"you": entra.YOU, "managed": entra.MANAGED, "app": entra.APP}
 
 # ===== OneLake =====
 
-_ONELAKE_PLACE = '''
+_ONELAKE_PLACE = """
 # The workspace (its name or id), and the item: a lakehouse (Sales.Lakehouse) or a warehouse
 # (Finance.Warehouse). For T-SQL (a warehouse, or a lakehouse's SQL analytics endpoint): the SQL
 # endpoint's address from the item's settings (SQL connection string).
 workspace = "My Workspace"
 item = "Sales.Lakehouse"
 sql_endpoint = ""
-'''
+"""
 
 
 def _onelake(way: str) -> str:
@@ -305,20 +325,20 @@ def _onelake(way: str) -> str:
 
 # ===== Data Lake =====
 
-_DATALAKE_PLACE = '''
+_DATALAKE_PLACE = """
 # The storage account, its container, and a folder in it ("" for the container's root).
 account = "my-storage-account"
 container = "my-container"
 folder_in_container = ""
-'''
-_ACCOUNT_KEY = '''
+"""
+_ACCOUNT_KEY = """
 # The storage account's access key, from a key vault (it signs a short-lived read-only SAS here).
 account_key = secret("account key")
-'''
-_SAS = '''
+"""
+_SAS = """
 # A SAS token for the container (read and list), from a key vault.
 sas_token = secret("sas token")
-'''
+"""
 
 
 def _datalake(way: str) -> str:
@@ -334,32 +354,32 @@ def _datalake(way: str) -> str:
 
 # ===== Delta Lake =====
 
-_DELTA_LOCAL = '''
+_DELTA_LOCAL = """
 # A folder on this computer (or a share) holding Delta tables, looked into to a depth.
 root = r"C:\\lake"
 depth = 4
-'''
-_DELTA_AZURE = '''
+"""
+_DELTA_AZURE = """
 # Delta tables in Azure Data Lake Storage or OneLake: abfss://<container>@<account>.dfs.core.windows.net/<path>
 # (OneLake: abfss://<workspace>@onelake.dfs.fabric.microsoft.com/<item>/Tables), looked into to a depth.
 root = "abfss://my-container@my-account.dfs.core.windows.net/lake"
 depth = 4
-'''
-_DELTA_S3 = '''
+"""
+_DELTA_S3 = """
 # Delta tables in Amazon S3: s3://<bucket>/<path>, looked into to a depth.
 root = "s3://my-bucket/lake"
 depth = 4
 region = "us-east-1"
-'''
-_S3_KEY = '''
+"""
+_S3_KEY = """
 # An access key: its id here, its secret from a key vault.
 access_key_id = "my-access-key-id"
 aws_secret_access_key = secret("aws secret access key")
-'''
-_S3_PROFILE = '''
+"""
+_S3_PROFILE = """
 # A profile of this computer's AWS configuration (~/.aws).
 profile = "default"
-'''
+"""
 
 
 def _delta(way: str) -> str:
@@ -387,10 +407,11 @@ _ENTRA_WAYS: tuple[tuple[str, str, str], ...] = (
     (entra.SIGN_INS[1][0], entra.MANAGED_MARK, "managed"),
     (entra.SIGN_INS[2][0], entra.APP_MARK, "app"),
 )
-ONELAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple((label, mark, _onelake(way)) for label, mark, way in _ENTRA_WAYS)
-DATALAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
-    (label, mark, _datalake(way)) for label, mark, way in _ENTRA_WAYS
-) + (
+ONELAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
+    (label, mark, _onelake(way)) for label, mark, way in _ENTRA_WAYS
+)
+DATALAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = (
+    *((label, mark, _datalake(way)) for label, mark, way in _ENTRA_WAYS),
     ("Account key, from a key vault", 'account_key = secret("account key")', _datalake("key")),
     ("SAS token, from a key vault", 'sas_token = secret("sas token")', _datalake("sas")),
 )
@@ -398,6 +419,10 @@ DELTA_SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("A folder on this computer", "# A folder on this computer", _delta("local")),
     *((f"Azure: {label[:1].lower()}{label[1:]}", mark, _delta(way)) for label, mark, way in _ENTRA_WAYS),
     ("Azure: account key, from a key vault", 'account_key = secret("account key")', _delta("key")),
-    ("Amazon S3: access key, its secret from a key vault", "aws_secret_access_key = secret(", _delta("s3key")),
+    (
+        "Amazon S3: access key, its secret from a key vault",
+        "aws_secret_access_key = secret(",
+        _delta("s3key"),
+    ),
     ("Amazon S3: a profile on this computer", 'profile = "', _delta("s3profile")),
 )

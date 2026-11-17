@@ -1,3 +1,4 @@
+# ruff: noqa: E501 (the connections' code is text, written as it runs; its lines are its own)
 """SharePoint as two connections, through Microsoft Graph (the owner, 2026-11-17: "SharePoint should be for
 the things we can convert to tables for the grid" / "There can be a generic SharePoint connection type for
 retrieving documents" / "Those documents could be csvs, or an Excel file which we could turn into a
@@ -32,23 +33,23 @@ BATCH: int = 20  # requests in one Graph $batch (Graph's own most)
 MAX_WORKBOOK_BYTES: int = 25 * 1024 * 1024  # a workbook read for its sheets' names
 MAX_WORKBOOKS: int = 100  # workbooks a catalog looks into
 
-_PLACE = '''
+_PLACE = """
 # The site: its address (https://<tenant>.sharepoint.com/sites/<name>).
 site_url = "https://my-company.sharepoint.com/sites/my-site"
-'''
-_DOCS_PLACE = '''
+"""
+_DOCS_PLACE = """
 # The site: its address (https://<tenant>.sharepoint.com/sites/<name>). A library's documents: header_row
 # is the row of a sheet or CSV that holds the column names (1: the first).
 site_url = "https://my-company.sharepoint.com/sites/my-site"
 header_row = 1
-'''
+"""
 
 GRAPH: str = (
     f"""
-BATCH = {BATCH}  # requests in one Graph $batch (Graph's own most)
-MAX_WORKBOOK_BYTES = {MAX_WORKBOOK_BYTES}  # a workbook read for its sheets' names
-MAX_WORKBOOKS = {MAX_WORKBOOKS}  # workbooks a catalog looks into
-"""
+# Requests in one Graph $batch (Graph's own most); a workbook read for its sheets' names, at most; the
+# most workbooks a catalog looks into.
+BATCH, MAX_WORKBOOK_BYTES, MAX_WORKBOOKS = {BATCH}, {MAX_WORKBOOK_BYTES}, {MAX_WORKBOOKS}
+"""  # noqa: S608 (code as text: its words, not a query)
     + r'''
 
 class SharePointError(LakeError):
@@ -352,6 +353,15 @@ class Site:
     def read(self, table, schema="", columns=None, filters=None, limit=None):
         """A table's rows as a DataFrame (Arrow without pandas)."""
         return self.rows(table, schema, limit, columns, filters, frame=True)[0]
+
+    def tested(self, rows=20):
+        """Test: it signed in and found the site; how many tables it has, and the first one's first rows."""
+        listed = self.tables()
+        found = {"found": f"signed in and found {len(listed)} table{'' if len(listed) == 1 else 's'}"}
+        if listed:
+            got, total = self.rows(listed[0]["table"], listed[0]["schema"], rows)
+            found["preview"] = {"table": listed[0]["table"], "rows": got.to_pylist(), "total": total}
+        return found
 
     def cursor(self):
         raise SharePointError("SharePoint has no SQL of its own: name its tables in DuckDB SQL "
@@ -710,7 +720,15 @@ class SharePointDocuments(Site):
                 continue
             words = {"sheet": "a workbook's sheet", "named": f"a workbook's named table ({t.get('ref')})"}.get(
                 t["kind"], f"a {t['kind'].upper()} document")
+            try:  # its columns: the document read (once: kept by its eTag)
+                found = self.rows(t["table"], t["schema"], limit=0)[0]
+            except (SharePointError, LakeError, ImportError, ValueError, KeyError) as error:
+                folder = {"table_schema": t["schema"], "table_name": "", "table_type": "TABLE", "column_name": ""}
+                rows.append(folder | {"data_type": "", "description": f"{t['table']}: not read: {str(error)[:160]}"})
+                continue
             rows.append(place | {"column_name": "", "data_type": "", "description": words})
+            rows += [place | {"column_name": f.name, "data_type": str(f.type).upper(), "description": ""}
+                     for f in found.schema]
         return rows
 
     def frame(self, path, sheet=None, header_row=None):
@@ -838,9 +856,7 @@ _WAYS: tuple[tuple[str, str, str], ...] = (
     *entra.SIGN_INS,
 )
 _LISTS_MADE = 'conn = SharePointLists(site_url, Token(sign_in, "https://graph.microsoft.com/.default"))\n'
-_DOCS_MADE = (
-    'conn = SharePointDocuments(site_url, Token(sign_in, "https://graph.microsoft.com/.default"), header_row)\n'
-)
+_DOCS_MADE = 'conn = SharePointDocuments(site_url, Token(sign_in, "https://graph.microsoft.com/.default"), header_row)\n'
 
 LISTS_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
     (label, mark, _code(_PLACE, way, _LISTS_MADE)) for label, mark, way in _WAYS

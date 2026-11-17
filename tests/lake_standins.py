@@ -1,3 +1,4 @@
+# ruff: noqa: E501 (the connections' code is text, written as it runs; its lines are its own)
 """Stand-ins on this computer for the lake and SharePoint connections (domain/lakes.py, domain/sharepoint.py):
 no real tenant, storage account or site is ever reached, and every value is made up.
 
@@ -95,7 +96,9 @@ def write_delta(table: Path, versions: list[list[tuple[int, float, str]]], check
             folder.mkdir(exist_ok=True)
             name = f"part-{version:05d}.parquet"
             mine = [r for r in rows if r[2] == region]
-            pq.write_table(pa.table({"order_id": [r[0] for r in mine], "amount": [r[1] for r in mine]}), folder / name)
+            pq.write_table(
+                pa.table({"order_id": [r[0] for r in mine], "amount": [r[1] for r in mine]}), folder / name
+            )
             add = {"path": f"region={region}/{name}", "partitionValues": {"region": region},
                    "size": (folder / name).stat().st_size, "modificationTime": FIRST, "dataChange": True}  # fmt: skip
             adds.append(add)
@@ -104,19 +107,24 @@ def write_delta(table: Path, versions: list[list[tuple[int, float, str]]], check
         (log / f"{version:020d}.json").write_text("\n".join(json.dumps(a) for a in actions) + "\n")
     if checkpoint:
         last = len(versions) - 1
-        rows = [{"protocol": protocol["protocol"], "metaData": None, "add": None},
+        actions_at: list[dict[str, Any]] = [{"protocol": protocol["protocol"], "metaData": None, "add": None},
                 {"protocol": None, "metaData": _flat(meta["metaData"]), "add": None}]  # fmt: skip
-        rows += [{"protocol": None, "metaData": None, "add": a} for a in adds]
-        pq.write_table(pa.Table.from_pylist(rows), log / f"{last:020d}.checkpoint.parquet")
-        (log / "_last_checkpoint").write_text(json.dumps({"version": last, "size": len(rows)}))
+        actions_at += [{"protocol": None, "metaData": None, "add": a} for a in adds]
+        pq.write_table(pa.Table.from_pylist(actions_at), log / f"{last:020d}.checkpoint.parquet")
+        (log / "_last_checkpoint").write_text(json.dumps({"version": last, "size": len(actions_at)}))
         for v in range(last):  # older commits cleaned away: only the checkpoint says them
             (log / f"{v:020d}.json").unlink()
 
 
 def _flat(meta: dict[str, Any]) -> dict[str, Any]:
     """metaData as a checkpoint holds it here (Parquet has no empty structs: the empty parts left out)."""
-    return {"id": meta["id"], "format": {"provider": "parquet"}, "schemaString": meta["schemaString"],
-            "partitionColumns": meta["partitionColumns"], "createdTime": meta["createdTime"]}
+    return {
+        "id": meta["id"],
+        "format": {"provider": "parquet"},
+        "schemaString": meta["schemaString"],
+        "partitionColumns": meta["partitionColumns"],
+        "createdTime": meta["createdTime"],
+    }
 
 
 def make_lake(root: Path) -> dict[str, Path]:
@@ -135,7 +143,9 @@ def make_lake(root: Path) -> dict[str, Path]:
     write_delta(house / "Tables" / "orders", [ORDERS_V0, ORDERS_V1], checkpoint=True)
     write_delta(house / "Tables" / "products", [[(10, 9.99, "North")]])
     (house / "Files" / "raw").mkdir(parents=True)
-    (house / "Files" / "raw" / "regions.csv").write_text("region,manager\nNorth,Avery\nSouth,Blake\n", encoding="utf-8")
+    (house / "Files" / "raw" / "regions.csv").write_text(
+        "region,manager\nNorth,Avery\nSouth,Blake\n", encoding="utf-8"
+    )
     return {"lake": lake, "house": house}
 
 
@@ -150,7 +160,11 @@ def verify_sas(query: dict[str, str]) -> bool:
 # ===== the made-up SharePoint site =====
 
 PEOPLE = {11: "Avery Made-up", 12: "Blake Made-up", 13: "Casey Made-up"}
-CUSTOMERS = {1: ("Northwind Made-up", "North"), 2: ("Southside Made-up", "South"), 3: ("Westway Made-up", "West")}
+CUSTOMERS = {
+    1: ("Northwind Made-up", "North"),
+    2: ("Southside Made-up", "South"),
+    3: ("Westway Made-up", "West"),
+}
 
 
 def _task(n: int) -> dict[str, Any]:
@@ -182,11 +196,21 @@ TASK_COLUMNS = [
 ]  # fmt: skip
 CUSTOMER_COLUMNS = [
     {"name": "Title", "displayName": "Title", "indexed": True, "text": {}},
-    {"name": "Region", "displayName": "Region", "indexed": True, "choice": {"choices": ["North", "South", "West"]}},
+    {
+        "name": "Region",
+        "displayName": "Region",
+        "indexed": True,
+        "choice": {"choices": ["North", "South", "West"]},
+    },
 ]
 DOC_COLUMNS = [
     {"name": "Title", "displayName": "Title", "text": {}},
-    {"name": "Department", "displayName": "Department", "indexed": True, "choice": {"choices": ["Finance", "HR"]}},
+    {
+        "name": "Department",
+        "displayName": "Department",
+        "indexed": True,
+        "choice": {"choices": ["Finance", "HR"]},
+    },
 ]
 
 
@@ -199,11 +223,11 @@ def workbook() -> bytes:
     summary = book.active
     assert summary is not None
     summary.title = "Summary"
-    for row in (("region", "budget"), ("North", 1000), ("South", 750), ("West", 500)):
-        summary.append(row)
+    for line in (("region", "budget"), ("North", 1000), ("South", 750), ("West", 500)):
+        summary.append(line)
     detail = book.create_sheet("Detail")
-    for row in (("month", "region", "amount"), ("2026-01", "North", 80), ("2026-02", "North", 90)):
-        detail.append(row)
+    for entry in (("month", "region", "amount"), ("2026-01", "North", 80), ("2026-02", "North", 90)):
+        detail.append(entry)
     targets = book.create_sheet("Goals")
     for row in (("goal", "value"), ("Growth", 5), ("Margin", 12)):
         targets.append(row)
@@ -216,8 +240,11 @@ def workbook() -> bytes:
 def word_document() -> bytes:
     sink = io.BytesIO()
     with zipfile.ZipFile(sink, "w") as book:
-        book.writestr("word/document.xml", '<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>Made-up travel policy.'
-                      "</w:t></w:r></w:p><w:p><w:r><w:t>Book trains first.</w:t></w:r></w:p></w:body></w:document>")
+        book.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>Made-up travel policy.'
+            "</w:t></w:r></w:p><w:p><w:r><w:t>Book trains first.</w:t></w:r></w:p></w:body></w:document>",
+        )
     return sink.getvalue()
 
 
@@ -231,7 +258,10 @@ def documents() -> dict[str, dict[str, Any]]:
         "Policies/Travel.docx": (word_document(), "HR"),
         "Images/logo.png": (b"\x89PNG made-up", "HR"),
     }
-    return {path: _document(n, path, data, department) for n, (path, (data, department)) in enumerate(files.items(), 1)}
+    return {
+        path: _document(n, path, data, department)
+        for n, (path, (data, department)) in enumerate(files.items(), 1)
+    }
 
 
 def _document(n: int, path: str, data: bytes, department: str) -> dict[str, Any]:
@@ -255,7 +285,9 @@ class StandIn:
             def log_message(self, format: str, *args: Any) -> None:
                 return
 
-            def _send(self, status: int, body: Any, headers: dict[str, str] | None = None, head: bool = False) -> None:
+            def _send(
+                self, status: int, body: Any, headers: dict[str, str] | None = None, head: bool = False
+            ) -> None:
                 data = body if isinstance(body, bytes) else json.dumps(body).encode()
                 self.send_response(status)
                 for k, v in (headers or {}).items():
@@ -325,19 +357,45 @@ class StandIn:
         shown = {k: ("****" if k in ("password", "client_secret") else v) for k, v in form.items()}
         self.requests.append({"what": "token", "tenant": tenant, "form": shown})
         if tenant != TENANT or form.get("client_id") != CLIENT:
-            return 400, {"error": "unauthorized_client", "error_description": "AADSTS700016: Application not found."}, {}
+            return (
+                400,
+                {"error": "unauthorized_client", "error_description": "AADSTS700016: Application not found."},
+                {},
+            )
         if form.get("grant_type") == "client_credentials":
             if form.get("client_secret") != SECRET:
-                return 401, {"error": "invalid_client", "error_description": "AADSTS7000215: Invalid client secret."}, {}
+                return (
+                    401,
+                    {"error": "invalid_client", "error_description": "AADSTS7000215: Invalid client secret."},
+                    {},
+                )
         elif form.get("grant_type") == "password":
             if form.get("username") == MFA_USERNAME:
-                return 400, {"error": "invalid_grant", "error_description": "AADSTS50076: Due to a configuration "
-                             "change made by your administrator, you must use multi-factor authentication."}, {}
+                return (
+                    400,
+                    {
+                        "error": "invalid_grant",
+                        "error_description": "AADSTS50076: Due to a configuration "
+                        "change made by your administrator, you must use multi-factor authentication.",
+                    },
+                    {},
+                )
             if (form.get("username"), form.get("password")) != (USERNAME, PASSWORD):
-                return 400, {"error": "invalid_grant", "error_description": "AADSTS50126: Error validating "
-                             "credentials due to invalid username or password."}, {}
+                return (
+                    400,
+                    {
+                        "error": "invalid_grant",
+                        "error_description": "AADSTS50126: Error validating "
+                        "credentials due to invalid username or password.",
+                    },
+                    {},
+                )
             if "client_secret" in form and form["client_secret"] != SECRET:
-                return 401, {"error": "invalid_client", "error_description": "AADSTS7000215: Invalid client secret."}, {}
+                return (
+                    401,
+                    {"error": "invalid_client", "error_description": "AADSTS7000215: Invalid client secret."},
+                    {},
+                )
         else:
             return 400, {"error": "unsupported_grant_type"}, {}
         return 200, {"token_type": "Bearer", "expires_in": 3599, "access_token": TOKEN}, {}
@@ -357,7 +415,11 @@ class StandIn:
             return self.managed(query, headers)
         if parts.path.startswith("/graph/v1.0/"):
             if headers.get("authorization") != f"Bearer {TOKEN}":
-                return 401, {"error": {"code": "InvalidAuthenticationToken", "message": "Access token is empty."}}, {}
+                return (
+                    401,
+                    {"error": {"code": "InvalidAuthenticationToken", "message": "Access token is empty."}},
+                    {},
+                )
             return self.graph(unquote(parts.path[len("/graph/v1.0/") :]), query, headers)
         return self.storage(parts.path, query, headers)
 
@@ -375,7 +437,9 @@ class StandIn:
             return verify_sas(query)
         return headers.get("authorization") == f"Bearer {TOKEN}"
 
-    def storage(self, path: str, query: dict[str, str], headers: dict[str, str]) -> tuple[int, Any, dict[str, str]]:
+    def storage(
+        self, path: str, query: dict[str, str], headers: dict[str, str]
+    ) -> tuple[int, Any, dict[str, str]]:
         parts = [unquote(p) for p in path.strip("/").split("/")]
         self.requests.append({"what": "storage", "path": "/".join(parts), "query": {k: v for k, v in query.items()
                               if k != "sig"}, "range": headers.get("range")})  # fmt: skip
@@ -405,7 +469,11 @@ class StandIn:
         directory = query.get("directory", "")
         start = place.joinpath(*[p for p in directory.split("/") if p])
         if not start.is_dir():
-            return 404, {"error": {"code": "PathNotFound", "message": "The specified path does not exist."}}, {}
+            return (
+                404,
+                {"error": {"code": "PathNotFound", "message": "The specified path does not exist."}},
+                {},
+            )
         recursive = query.get("recursive") == "true"
         found = sorted(start.rglob("*") if recursive else start.iterdir())
         rows = [{"name": p.relative_to(place).as_posix(), "isDirectory": "true" if p.is_dir() else "false",
@@ -436,10 +504,14 @@ class StandIn:
         if list_id == "list-customers":
             return {k: {"Title": t, "Region": r} for k, (t, r) in CUSTOMERS.items()}
         if list_id == "list-users":
-            return {k: {"Title": t, "EMail": f"{t.split()[0].lower()}@made-up.example"} for k, t in PEOPLE.items()}
+            return {
+                k: {"Title": t, "EMail": f"{t.split()[0].lower()}@made-up.example"} for k, t in PEOPLE.items()
+            }
         return {}
 
-    def graph(self, path: str, query: dict[str, str], headers: dict[str, str]) -> tuple[int, Any, dict[str, str]]:
+    def graph(
+        self, path: str, query: dict[str, str], headers: dict[str, str]
+    ) -> tuple[int, Any, dict[str, str]]:
         self.requests.append({"what": "graph", "path": path, "query": query, "prefer": headers.get("prefer")})
         if path == f"sites/{SITE_HOST}:{SITE_PATH}":
             return 200, {"id": SITE_ID, "webUrl": f"https://{SITE_HOST}{SITE_PATH}"}, {}
@@ -465,7 +537,11 @@ class StandIn:
         if found:
             doc = next((d for d in self.docs.values() if d["id"] == found.group(1)), None)
             if doc is None:
-                return 404, {"error": {"code": "itemNotFound", "message": "The resource could not be found."}}, {}
+                return (
+                    404,
+                    {"error": {"code": "itemNotFound", "message": "The resource could not be found."}},
+                    {},
+                )
             self.downloads.append(doc["path"])
             return 200, doc["data"], {"Content-Type": "application/octet-stream"}
         return 404, {"error": {"code": "itemNotFound", "message": f"No such path: {path}"}}, {}
@@ -494,7 +570,7 @@ class StandIn:
                 if column is None or not column.get("indexed"):
                     return 400, {"error": {"code": "invalidRequest", "message": f"Field '{field}' cannot be "
                                  "referenced in filter or orderby as it is not indexed."}}, {}  # fmt: skip
-            rows = [r for r in rows if _matches(wanted, items[int(r["id"])])]
+            rows = [r for r in rows if _matches(wanted, items[int(str(r["id"]))])]
         return 200, self._page(rows, query, f"sites/{SITE_ID}/lists/{list_id}/items"), {}
 
     def doc_items(self, query: dict[str, str]) -> tuple[int, Any, dict[str, str]]:
@@ -520,9 +596,15 @@ class StandIn:
 
     # ===== changes =====
 
-    def change(self, method: str, path: str, body: bytes, headers: dict[str, str]) -> tuple[int, Any, dict[str, str]]:
+    def change(
+        self, method: str, path: str, body: bytes, headers: dict[str, str]
+    ) -> tuple[int, Any, dict[str, str]]:
         if headers.get("authorization") != f"Bearer {TOKEN}":
-            return 401, {"error": {"code": "InvalidAuthenticationToken", "message": "Access token is empty."}}, {}
+            return (
+                401,
+                {"error": {"code": "InvalidAuthenticationToken", "message": "Access token is empty."}},
+                {},
+            )
         inner = unquote(urlsplit(path).path).removeprefix("/graph/v1.0/")
         self.requests.append({"what": "change", "method": method, "path": inner})
         status, answer = self.apply(method, inner, json.loads(body) if body and method != "PUT" else body)
@@ -549,14 +631,23 @@ class StandIn:
             n = len(self.docs) + 1
             self.docs[found.group(1)] = _document(n, found.group(1), bytes(body), "Finance")
             name = found.group(1).rsplit("/", 1)[-1]
-            return 201, {"id": f"item-{n}", "name": name, "size": len(body), "webUrl": f"https://{SITE_HOST}/x/{name}"}
+            return 201, {
+                "id": f"item-{n}",
+                "name": name,
+                "size": len(body),
+                "webUrl": f"https://{SITE_HOST}/x/{name}",
+            }
         return 400, {"error": {"code": "invalidRequest", "message": f"Cannot {method} {path}"}}
 
     def batch(self, sent: dict[str, Any]) -> tuple[int, Any, dict[str, str]]:
         requests = sent.get("requests") or []
         self.requests.append({"what": "batch", "count": len(requests)})
         if len(requests) > 20:
-            return 400, {"error": {"code": "invalidRequest", "message": "A batch holds at most 20 requests."}}, {}
+            return (
+                400,
+                {"error": {"code": "invalidRequest", "message": "A batch holds at most 20 requests."}},
+                {},
+            )
         answers = []
         for r in requests:
             if r["id"] in self.refuse_once or "all" in self.refuse_once:
@@ -571,19 +662,27 @@ class StandIn:
 
 def _matches(where: str, fields: dict[str, Any]) -> bool:
     """A made-up $filter: comparisons joined by and/or (the shapes the connection sends)."""
+
     def one(text: str) -> bool:
-        found = re.fullmatch(r"\(?fields/(\w+) (eq|ne|gt|ge|lt|le) ('(?:[^']|'')*'|[\d.]+|true|false)\)?", text.strip())
+        found = re.fullmatch(
+            r"\(?fields/(\w+) (eq|ne|gt|ge|lt|le) ('(?:[^']|'')*'|[\d.]+|true|false)\)?", text.strip()
+        )
         if found is None:
             return True
         name, op, raw = found.groups()
-        value: Any = raw[1:-1].replace("''", "'") if raw.startswith("'") else (raw == "true" if raw in ("true", "false") else float(raw))
+        value: Any = (
+            raw[1:-1].replace("''", "'")
+            if raw.startswith("'")
+            else (raw == "true" if raw in ("true", "false") else float(raw))
+        )
         have = fields.get(name)
         if have is None:
             return False
         if isinstance(value, float):
             have = float(have)
-        return {"eq": have == value, "ne": have != value, "gt": have > value, "ge": have >= value,
-                "lt": have < value, "le": have <= value}[op]  # fmt: skip
+        compared: dict[str, bool] = {"eq": have == value, "ne": have != value, "gt": have > value,
+                                  "ge": have >= value, "lt": have < value, "le": have <= value}  # fmt: skip
+        return compared[op]
 
     for group in re.split(r"\s+and\s+", where):
         options = re.split(r"\s+or\s+", group.strip().strip("()"))

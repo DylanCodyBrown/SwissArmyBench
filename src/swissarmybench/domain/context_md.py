@@ -134,9 +134,13 @@ class ConnectionFacts:
 
     @property
     def naming(self) -> str:
-        """powerbi, file, single (one part: a table), or database."""
+        """powerbi, file, single (one part: a table), path (a lake's or a library's folders), or database."""
         if self.template == "powerbi":
             return "powerbi"
+        if self.template in ("onelake", "datalake", "delta", "sharepoint_docs"):
+            return "path"
+        if self.template == "sharepoint":
+            return "single"
         if self.kind == "file":
             return "file"
         if self.kind == "python" or self.template == "dataverse":
@@ -148,6 +152,8 @@ class ConnectionFacts:
             parts = [t.schema, t.table] if t.table.casefold() in self.shared else [t.table]
         elif self.naming in ("file", "single"):
             parts = [t.table]
+        elif self.naming == "path":
+            parts = [p for part in (t.database, t.schema, t.table) for p in part.split("/") if p]
         else:
             parts = [p for p in (t.database, t.schema, t.table) if p]
         return sql_name(self.name, parts)
@@ -165,6 +171,13 @@ class ConnectionFacts:
             return shape("<sheet or file>")
         if self.naming == "single":
             return shape("<table>")
+        if self.naming == "path":
+            at = f" ({shape('<folder>', '"<table>@v12"')} or @2026-11-01: a Delta table's version or time)"
+            return shape("<folder>", "<table>") + (
+                at
+                if self.template != "sharepoint_docs"
+                else f" ({shape('<library>', '<folder>', '"<workbook.xlsx>"', '<sheet>')})"
+            )
         return f"{shape('<schema>', '<table>')} (or {shape('<database>', '<schema>', '<table>')})"
 
 
@@ -402,7 +415,12 @@ NAMING = """### Naming a connection's tables in DuckDB SQL
 - A table is named through its connection: `[Connection].table`, `[Connection].schema.table`,
   `[Connection].database.schema.table`; a Power BI workspace's `[Connection].table` when one dataset holds
   it, else `[Connection]."Dataset".table`; a file or folder's `[Connection].<sheet or file>`. Each
-  connection above says its own form, and lists its tables by it."""
+  connection above says its own form, and lists its tables by it.
+- A lake (OneLake, Data Lake, Delta Lake) or SharePoint documents: the table's folders, then its name:
+  `[Lake].sales.orders`, `[Fabric].Files.raw."sales.csv"` (or `.sales`), `[Team Docs].Documents.Finance.
+  "Budget 2026.xlsx".Summary`; the last parts are enough when they name one table. A Delta table at a
+  version or a time: `[Lake].sales."orders@v12"`, `[Lake].sales."orders@2026-11-01"`. SharePoint lists:
+  `[Site].Tasks` (a lookup or person also as `<column>_id`)."""
 
 
 def demote(text: str) -> str:

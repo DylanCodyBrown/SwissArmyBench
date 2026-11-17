@@ -1,3 +1,4 @@
+# ruff: noqa: E501 (the connections' code is text, written as it runs; its lines are its own)
 """The lake connections' shared code, as text: where the files are (a folder on this computer, Azure Data
 Lake Storage Gen2 or OneLake through the ADLS Gen2 API, Amazon S3), a Delta table's log, and the one way
 every lake kind reads a table into DuckDB (domain/lakes.py assembles each kind's code from these).
@@ -32,7 +33,9 @@ STORAGE_VARIABLE: str = "SWISSARMYBENCH_STORAGE_URL"
 MAX_DEPTH: int = 6  # folders below the place looked into for tables
 MAX_TABLES: int = 500  # tables one connection lists
 MAX_ENTRIES: int = 200_000  # files and folders one listing reads
-DESCRIBED: int = 200  # tables whose columns the catalog reads (the rest: listed, columns on first read)
+DESCRIBED: int = (
+    MAX_TABLES  # tables whose columns the catalog reads (each one listed: a table needs a column)
+)
 
 # How a read was made (in each read's answer, from the Arrow table's metadata `sab_read`).
 READ_WITH: dict[str, str] = {
@@ -48,12 +51,9 @@ READ_WITH: dict[str, str] = {
 }
 
 STORES: str = (
-    f"""
-MAX_DEPTH = {MAX_DEPTH}  # folders below the place looked into for tables
-MAX_TABLES = {MAX_TABLES}  # tables one connection lists
-MAX_ENTRIES = {MAX_ENTRIES}  # files and folders one listing reads
-DESCRIBED = {DESCRIBED}  # tables whose columns the catalog reads
-"""
+    "\n# The most: the depth looked into below the place, the tables listed, the files one listing reads,\n"  # noqa: S608 (words)
+    "# the tables whose columns the catalog reads.\n"
+    + f"MAX_DEPTH, MAX_TABLES, MAX_ENTRIES, DESCRIBED = {MAX_DEPTH}, {MAX_TABLES}, {MAX_ENTRIES}, {DESCRIBED}\n"
     + r'''
 
 class LakeError(RuntimeError):
@@ -141,10 +141,10 @@ class AzureStore:
     kind = "azure"
     VERSION = "2023-11-03"
 
-    def __init__(self, account, filesystem, base="", token=None, sas="", key="", host="dfs.core.windows.net"):
+    def __init__(self, account, filesystem, base="", token=None, sas="", key="", domain="dfs.core.windows.net"):
         self.account, self.filesystem = str(account).strip(), str(filesystem).strip()
         self.base = "/".join(p for p in str(base).replace("\\", "/").split("/") if p)
-        self.token, self.key, self.host = token, key, host
+        self.token, self.key, self.host = token, key, domain
         self.sas = str(sas or "").lstrip("?")
         if not self.account or not self.filesystem:
             raise LakeError("Name the storage account and the container (a OneLake workspace).")
@@ -622,14 +622,28 @@ class Lake:
             return self._delta_source(t, filters)
         if t.get("version") is not None or t.get("when"):
             raise LakeError(f"{t['table']} is not a Delta table: it has no versions.")
+        reader = {"parquet": "read_parquet", "json": "read_json_auto"}.get(t["format"], "read_csv")
+        if t["kind"] == "hive":
+            # Each file with its folders' key=value as columns (pruned by an =, IN or IS NULL filter on
+            # them first): the same over HTTPS as on this computer.
+            files = []
+            for f in t["files"]:
+                values = dict(p.split("=", 1) for p in f[len(t["path"]) + 1 :].split("/")[:-1] if "=" in p)
+                files.append({"path": f, "values": {k: urllib.parse.unquote(v) for k, v in values.items()}})
+            kept = prune(files, t["partitions"], filters) or files[:1]
+            parts = []
+            for f in kept:
+                values = ", ".join(f"{quoted(f['values'].get(k)) if f['values'].get(k) is not None else 'NULL'} AS {ident(k)}"
+                                   for k in t["partitions"])
+                parts.append(f"SELECT *, {values} FROM {reader}({quoted(self.store.url(f['path']))})")
+            if not prune(files, t["partitions"], filters):
+                parts = [f"SELECT * FROM ({parts[0]}) WHERE false"]
+            return "(" + "\nUNION ALL BY NAME\n".join(parts) + ")", t["format"]
         urls = [self.store.url(f) for f in t["files"]]
         listed = "[" + ", ".join(quoted(u) for u in urls) + "]"
-        hive = ", hive_partitioning = true" if t["kind"] == "hive" else ""
-        if t["format"] == "parquet":
-            return f"read_parquet({listed}, union_by_name = true{hive})", "parquet"
         if t["format"] == "json":
-            return f"read_json_auto({listed}{hive})", "json"
-        return f"read_csv({listed}, union_by_name = true{hive})", "csv"
+            return f"{reader}({listed})", "json"
+        return f"{reader}({listed}, union_by_name = true)", t["format"]
 
     def _delta_source(self, t, filters):
         log = self.delta(t)
@@ -769,7 +783,10 @@ class Lake:
             try:
                 columns, words = self.describe(t)
             except (LakeError, duckdb.Error, ModuleNotFoundError) as error:
-                columns, words = [], f"not read: {hidden(error).splitlines()[0][:160]}"
+                # Said beside its folder (a table with no column is not listed).
+                note = f"{t['table']}: not read: {hidden(error).splitlines()[0][:160]}"
+                rows.append(place | {"table_name": "", "column_name": "", "data_type": "", "description": note})
+                continue
             rows.append(place | {"column_name": "", "data_type": "", "description": words})
             rows += [place | {"column_name": c, "data_type": str(k), "description": ""} for c, k in columns]
         return rows

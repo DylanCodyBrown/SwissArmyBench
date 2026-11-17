@@ -78,6 +78,12 @@ const ICONS: Record<string, string> = {
   settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
   // A Dataverse environment: a table of rows inside a hexagon (our own drawing).
   dataverse: '<path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z"/><path d="M7.5 9.5h9M7.5 13h9M7.5 16.5h9M12 9.5v7"/>',
+  // The lake and SharePoint kinds (our own drawings): a lake's waves, a Delta's triangle, a list, a page.
+  onelake: '<path d="M3 15c2 0 2 1.5 4.5 1.5S10 15 12 15s2 1.5 4.5 1.5S19 15 21 15M3 19c2 0 2 1.5 4.5 1.5S10 19 12 19s2 1.5 4.5 1.5S19 19 21 19"/><path d="M12 3l5 8H7z"/>',
+  datalake: '<path d="M3 15c2 0 2 1.5 4.5 1.5S10 15 12 15s2 1.5 4.5 1.5S19 15 21 15M3 19c2 0 2 1.5 4.5 1.5S10 19 12 19s2 1.5 4.5 1.5S19 19 21 19"/><ellipse cx="12" cy="6" rx="6" ry="2.5"/><path d="M6 6v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V6"/>',
+  delta: '<path d="M12 3.5L21 19H3z"/><path d="M12 9.5L16.5 17h-9z"/>',
+  sharepoint: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 12.5h8M8 16h5"/>',
+  sharepoint_docs: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 15.5h6"/>',
   sql: '<ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
   profile: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   code: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM10 11l-2 2 2 2M14 11l2 2-2 2"/>',

@@ -73,9 +73,20 @@ interface Field {
   placeholder: boolean;
   picker: "file" | "folder" | null;
   suggestions: { value: string; from: string }[];
-  /** A certificate or keystore file only: the environment variable it is read from (null: a plain path). */
+  /** A setting that may come from an environment variable (a certificate or keystore file; every setting of
+   *  the lake and SharePoint kinds): the variable it is read from (null: as typed here). */
   env?: string | null;
+  /** The variable the form offers for it (SHAREPOINT_TENANT_ID), editable. */
+  suggested_env?: string;
 }
+
+/** The lake and SharePoint kinds (domain/lakes.py): a group of their own on the page. */
+const LAKE_GROUP = "Lakes and SharePoint";
+const LAKE_KINDS = new Set(["onelake", "datalake", "delta", "sharepoint", "sharepoint_docs"]);
+/** The start of the variables a lake's or SharePoint's passwords are offered as (domain/lakes.py ENV_PREFIX). */
+const LAKE_ENV: Record<string, string> = { onelake: "ONELAKE", datalake: "DATALAKE", delta: "DELTA_LAKE", sharepoint: "SHAREPOINT", sharepoint_docs: "SHAREPOINT" };
+/** Those whose own code reads their tables: sab.read, and Test shows a table's first rows. */
+const readsByCode = (dialect: string): boolean => dialect === "dataverse" || LAKE_KINDS.has(dialect);
 
 interface Form {
   id: string;
@@ -313,7 +324,7 @@ function inCode(c: Connection): string {
   const cell = /\s/.test(c.name) ? `"${c.name}"` : c.name;
   if (c.dialect === "dax") return `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>`;
   if (c.connection === "vault") return `sab.blade("${c.name}")`;
-  if (c.connection === "python" || c.dialect === "dataverse") return `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)${c.dialect === "dataverse" ? `  ·  %%sql ${cell}` : ""}`;
+  if (c.connection === "python" || readsByCode(c.dialect)) return `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)${c.dialect !== "sharepoint" && c.dialect !== "sharepoint_docs" && c.connection !== "python" ? `  ·  %%sql ${cell}` : ""}`;
   return `sab.connection("${c.name}")  ·  %%sql ${cell}`;
 }
 
@@ -591,11 +602,12 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
         ),
       );
-    const groups: [string, Card["connection"]][] = [
-      ["Databases", "database"],
-      ["Files", "file"],
-      ["Your own code", "python"],
-      ["Key vaults", "vault"],
+    const groups: [string, (c: Card) => boolean][] = [
+      ["Databases", (c) => c.connection === "database" && !LAKE_KINDS.has(c.tables_kind ?? "")],
+      [LAKE_GROUP, (c) => LAKE_KINDS.has(c.tables_kind ?? "")],
+      ["Files", (c) => c.connection === "file"],
+      ["Your own code", (c) => c.connection === "python"],
+      ["Key vaults", (c) => c.connection === "vault"],
     ];
     clear(
       body,
@@ -603,8 +615,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         ? h(
             "div",
             { class: "connection-groups" },
-            ...groups.flatMap(([title, kind]) => {
-              const these = found.filter((c) => c.connection === kind);
+            ...groups.flatMap(([title, belongs]) => {
+              const these = found.filter(belongs);
               return these.length ? [h("h2", { class: "connection-group-title" }, title), h("ul", { class: "connection-cards", "aria-label": title }, ...these.map(card))] : [];
             }),
           )
@@ -647,7 +659,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       swatch ? h("span", { class: "connection-colour" }, swatch, "Colour") : null,
       c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(name), { icon: "rows", class: "primary" }) : null,
       readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
-      button("Test", () => void testSaved(name, c && (c.connection === "python" || c.dialect === "dataverse") ? tested : undefined).then(refreshCalls), { icon: "play" }),
+      button("Test", () => void testSaved(name, c && (c.connection === "python" || readsByCode(c.dialect)) ? tested : undefined).then(refreshCalls), { icon: "play" }),
       dataverseSwitch(c, () => void showDetail(name)),
       c?.has_catalog ? button("Refresh catalog", () => void refresh(name).then(() => void showDetail(name)), { icon: "import" }) : null,
       config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
@@ -779,9 +791,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       made.dataset.type = t.id;
       return made;
     };
-    const group = (title: string, kind: Form["connection"]): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter((t) => t.connection === kind).map(tile))];
+    const group = (title: string, belongs: (t: Form) => boolean): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter(belongs).map(tile))];
+    const of = (kind: Form["connection"]) => (t: Form): boolean => t.connection === kind && t.group !== LAKE_GROUP;
     // From a password's New vault: only vaults, and Back returns to that connection.
-    clear(body, ...(then ? [] : [...group("Databases", "database"), ...group("Files", "file"), ...group("Your own code", "python")]), ...group("Key vaults", "vault"));
+    clear(body, ...(then ? [] : [...group("Databases", of("database")), ...group(LAKE_GROUP, (t) => t.group === LAKE_GROUP), ...group("Files", of("file")), ...group("Your own code", of("python"))]), ...group("Key vaults", of("vault")));
     foot.append(then ? button("Back", () => void then(null), { icon: "back" }) : backButton("Connections", urlOf(LIST)));
   };
 
@@ -891,8 +904,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
 
     const fileSource = (field: Field, i: number, input: HTMLInputElement): HTMLElement => {
       const label = words(field.name);
-      const from = h("select", { "aria-label": `${label} from` }, h("option", { value: "path", selected: !field.env }, "Path"), h("option", { value: "env", selected: Boolean(field.env) }, "From an environment variable")) as HTMLSelectElement;
-      const variable = h("input", { type: "text", value: field.env ?? "", placeholder: certificateVariable(name.value.trim() || form.id, field.name), "aria-label": `${label} variable`, spellcheck: false, hidden: !field.env, class: "mono" }) as HTMLInputElement;
+      const typed = CERTIFICATE_KINDS[field.name] ? "Path" : "Typed here";
+      const from = h("select", { "aria-label": `${label} from` }, h("option", { value: "path", selected: !field.env }, typed), h("option", { value: "env", selected: Boolean(field.env) }, "From an environment variable")) as HTMLSelectElement;
+      const variable = h("input", { type: "text", value: field.env ?? "", placeholder: field.suggested_env ?? certificateVariable(name.value.trim() || form.id, field.name), "aria-label": `${label} variable`, spellcheck: false, hidden: !field.env, class: "mono" }) as HTMLInputElement;
       const path = (): string => input.value.trim() || String(fields[i]!.value);
       from.addEventListener("change", () => {
         const mapped = from.value === "env";
@@ -1030,7 +1044,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
             } else if (from.value === "env") {
               boxLabel.textContent = "Variable's name";
               passwords.delete(s);
-              const variable = h("input", { type: "text", class: "mono", "aria-label": `${label(s)}: the variable's name`, value: looksLikeVariable(s) ? s : "", placeholder: "WAREHOUSE_PASSWORD", spellcheck: false });
+              const variable = h("input", { type: "text", class: "mono", "aria-label": `${label(s)}: the variable's name`, value: looksLikeVariable(s) ? s : "", placeholder: LAKE_ENV[form.dialect] ? `${LAKE_ENV[form.dialect]}_${s.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}` : "WAREHOUSE_PASSWORD", spellcheck: false });
               slot.replaceChildren(variable, button("Use it", () => void pointAt(s, { from: "env", env: variable.value.trim() }), { icon: "check" }));
             } else {
               boxLabel.textContent = "Vault and its entry";

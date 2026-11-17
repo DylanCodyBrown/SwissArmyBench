@@ -23,6 +23,8 @@ interface TreeTable {
   schema: string;
   table: string;
   sql: string;
+  /** What the source says of it: a Delta table's version, size and partition columns; a sheet. */
+  title?: string;
 }
 
 interface TreeGroup {
@@ -131,7 +133,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
       h(
         "div",
         { class: "conn-tree-row" },
-        h("span", { class: "conn-tree-name" }, icon("rows"), t.table),
+        h("span", { class: "conn-tree-name" }, icon("rows"), t.table, t.title ? h("span", { class: "conn-tree-title" }, t.title) : null),
         h(
           "span",
           { class: "conn-tree-actions" },

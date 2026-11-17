@@ -52,6 +52,18 @@ a variable by its name.
   `{"<id>": {"value": path, "env": "TRINO_KEYSTORE_PATH"}}`; `env: null` makes it a plain path again.
   An export and a script's run settings then list the variable.
 
+## Lakes and SharePoint
+- Five kinds (`connections_types`, group "Lakes and SharePoint"): `onelake`, `datalake`, `delta`,
+  `sharepoint` (lists), `sharepoint_docs` (libraries). Their own code lists and reads their tables; the
+  same connection commands make, test and read them.
+- Names in DuckDB SQL: the table's folders, then its name (`[Lake].sales.orders`, `[Fabric].Files.raw.
+  regions`, `[Team Docs].Documents.Finance."Budget 2026.xlsx".Summary`); the last parts are enough when
+  they name one table. A Delta table's version or time: `"orders@v12"`, `"orders@2026-11-01"`.
+- Every setting may come from an environment variable (`blades_fill` with `{"<id>": {"value": v, "env":
+  "SHAREPOINT_TENANT_ID"}}`; a setting's `suggested_env` is the form's name). SharePoint signs in by
+  username and password (ROPC) first; ROPC cannot do MFA (the error says so).
+- Writes are Write starters (dry run first); SharePoint documents' files are the SharePoint starters.
+
 ## Reading one
 - `connections_open_table(name, table)`: a table as a grid (a database's first rows, 10,000 unless
   the connection says otherwise; `all=true` for every row). `connections_preview_table`: 50 rows, kept

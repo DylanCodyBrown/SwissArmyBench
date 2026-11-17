@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import dataverse, python_connections, snippets
+from swissarmybench.domain import dataverse, lakes, python_connections, snippets
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
@@ -192,7 +192,13 @@ class BladeService:
             for b in (everything or self._blades.all())
             if b.code and b.name.casefold() != mine
         ]
-        return [s.to_json() for s in rules.suggest_settings(found, others, self._environ)]
+        settings = [s.to_json() for s in rules.suggest_settings(found, others, self._environ)]
+        for s in settings:
+            # The variable a lake's or SharePoint's setting is offered as (SHAREPOINT_TENANT_ID), editable.
+            offered = lakes.suggested_env(template, str(s["name"])) if "env" in s else None
+            if offered:
+                s["suggested_env"] = offered
+        return settings
 
     def feature(self, template: str | None, name: str | None = None) -> str:
         """What a connection or blade is for, in plain words, for the missing-package prompt."""
@@ -367,12 +373,25 @@ class BladeService:
         return {"catalog": info.to_json(), "columns": answer["columns"], "rows": answer["rows"]}
 
     async def read(
-        self, blade: Blade, place: Mapping[str, str], limit: int | None, body: Any
+        self,
+        blade: Blade,
+        place: Mapping[str, str],
+        limit: int | None,
+        body: Any,
+        columns: Sequence[str] = (),
+        filters: Sequence[Any] = (),
     ) -> dict[str, Any]:
         """A table's rows by a connection's own Read a table (its Python, given conn, schema, table and
-        limit), run in a child process as Refresh is: {"table", "total"}."""
+        limit; a lake's or SharePoint's also the columns and filters a query sends), run in a child
+        process as Refresh is: {"table", "total", "read_with"?}."""
         typed = self._typed_values(blade, body)
-        return await self._run_blade(blade, "read", typed, {"place": dict(place), "limit": limit})
+        extra = {
+            "place": dict(place),
+            "limit": limit,
+            "columns": list(columns),
+            "filters": [list(f) for f in filters],
+        }
+        return await self._run_blade(blade, "read", typed, extra)
 
     async def test(self, blade: Blade, body: Any) -> dict[str, Any]:
         """Run it in a child process: does it work?"""
@@ -540,6 +559,9 @@ class BladeService:
                 "set": python_connections.plain_values(blade.variables),
                 "keyring": python_connections.keyring_names(blade.variables),
             }
+        elif lakes.is_kind(blade.dialect):
+            # A lake's or SharePoint's table, by the connection's own read (sab.read).
+            python = {"tables": None, "read": lakes.READ, "set": {}, "keyring": []}
         elif dataverse.is_dataverse(blade.dialect):
             # A Dataverse environment reads a table through its Web API, by its own read (sab.read).
             python = {"tables": None, "read": dataverse.READ, "set": {}, "keyring": []}

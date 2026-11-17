@@ -245,11 +245,17 @@ def read_table(
     limit: int | None,
     secrets: dict[str, str],
     label: str,
+    columns: list[str] | None = None,
+    filters: list[Any] | None = None,
+    frame: bool = True,
 ) -> tuple[Any, int | None]:
     """Run Read a table after Connect, in the same names plus `schema`, `table` and `limit` (None: every
-    row): what it returned (its last expression, or `rows`) and the source's count when it gave one."""
+    row): what it returned (its last expression, or `rows`) and the source's count when it gave one.
+    The lake and SharePoint kinds' own read also takes `columns` and `filters` (what a DuckDB query sends
+    them: none, every column and row) and `frame` (a DataFrame, or with False Arrow)."""
     what = f"{label}'s Read a table"
-    names |= {"schema": schema, "table": table, "limit": limit}
+    names |= {"schema": schema, "table": table, "limit": limit, "columns": columns, "filters": filters}
+    names["frame"] = frame
     names.pop("rows", None)  # an earlier read's, in the same names
     try:
         result = _run(command, names, f"<blade {label} read>")

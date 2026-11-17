@@ -23,8 +23,32 @@ import json
 import re
 from typing import Any
 
-# The settings (their plain names, domain/blades.py KEYWORDS) that may come from a variable.
-ENV_MAPPABLE = frozenset({"certificate file", "keystore", "client certificate file", "client key file"})
+# A connection's own top-level settings by the name its code gives them (the lake and SharePoint kinds,
+# domain/lakes.py; Dataverse's and Power BI's tenant and client ids too): their plain names. Each may come
+# from an environment variable (the owner, 2026-11-17: "All should be mapable to env vars").
+TOP_LEVEL: dict[str, str] = {
+    "tenant_id": "tenant",
+    "client_id": "client id",
+    "managed_client_id": "managed identity client id",
+    "username": "username",
+    "site_url": "site",
+    "header_row": "header row",
+    "workspace": "workspace",
+    "item": "item",
+    "sql_endpoint": "sql endpoint",
+    "account": "account",
+    "container": "container",
+    "folder_in_container": "folder in container",
+    "root": "root",
+    "depth": "depth",
+    "region": "region",
+    "profile": "profile",
+    "access_key_id": "access key id",
+}
+# The settings (their plain names, domain/blades.py KEYWORDS and TOP_LEVEL) that may come from a variable.
+ENV_MAPPABLE = frozenset(
+    {"certificate file", "keystore", "client certificate file", "client key file"} | set(TOP_LEVEL.values())
+)
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 
 

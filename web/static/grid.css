@@ -4336,6 +4336,15 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   margin-top: 4px;
 }
 
+.connection-fields .field-source select {
+  flex: none;
+}
+
+.connection-fields .field-source input.mono {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Security: the certificate file sits beside Trust server certificate, in the order of the rule. */
 .connection-security .field.wide {
   grid-column: span 2;
@@ -11037,6 +11046,7 @@ g.follow-pulse > path:first-of-type {
   background-repeat: no-repeat;
   background-size: 100% 4px;
   box-shadow: none;
+}
 
 /* ===== a connection's tables as a tree (connectionTree.ts) ===== */
 .connection-detail-main {
@@ -11083,9 +11093,15 @@ g.follow-pulse > path:first-of-type {
   white-space: nowrap;
 }
 
-.conn-tree-group-name .count {
+.conn-tree-group-name .count,
+.conn-tree-title {
   color: var(--muted);
   font-size: 12px;
+}
+
+.conn-tree-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conn-tree-group-name .icon-svg,

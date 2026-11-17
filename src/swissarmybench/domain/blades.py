@@ -920,7 +920,7 @@ def _detect(code: str) -> list[_Found]:
             continue
         mapped = certificate_files.env_default(value)
         if isinstance(target, ast.Name) and mapped is not None:
-            word = KEYWORDS.get(target.id.casefold())
+            word = certificate_files.TOP_LEVEL.get(target.id) or KEYWORDS.get(target.id.casefold())
             if word in certificate_files.ENV_MAPPABLE:
                 add_env(value, mapped[0], mapped[1], word, target.id, "name")
             continue
@@ -929,7 +929,7 @@ def _detect(code: str) -> list[_Found]:
             literal = literal or _flag(value, KEYWORDS.get(target.id.casefold()))
         if isinstance(target, ast.Name) and literal is not None:
             # A known setting's own word first (verify = r"...pem" is a certificate file, not any path).
-            known = KEYWORDS.get(target.id.casefold())
+            known = certificate_files.TOP_LEVEL.get(target.id) or KEYWORDS.get(target.id.casefold())
             name = (
                 known
                 if known
