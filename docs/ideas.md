@@ -3991,6 +3991,61 @@ own SQL `contains` per word (the folded `customerid` form works for open tables,
 inside catalogs). A canvas drop of a result is not built (a block is a cell's link; a table has no cell to
 link to until code reads it). Fixed on the way: grid.css had one unclosed rule (`.conn-block.conn-worn.conn-two`),
 which swallowed every rule after it (the Connections page's tree styles among them).
+
+## The Data page (the owner, 2026-11-17; built, branch data-page)
+
+"we dont even need catalog if its just tables" / "yea I said a long time ago we needed a standalone DATA
+rail icon and page" / "for this purpose", and "then we dont have to put it in variables". The Data page is
+**the one place to browse tables**: the Blades page's Catalog panel goes (branch blade-screen), and the
+Variables page keeps only variables and key vaults (nothing about tables there).
+
+**Built.**
+- **The rail:** **Data** after Variables (Connections, Variables, Data, Grids, ERD, APIs, Structures,
+  Blades…), our own line icon (stacked disks, `data` in dom.ts). A page of the rail's over any page
+  (areaPage.ts), open=data: a nav.ts layer, so Back, Forward and a reload work; Open in a new window on
+  request; from every page and window with the rail. `app_navigate(to="data")` (domain/navigation.py AREAS).
+- **The page is the Data Explorer's fourth host** (dataPage.ts), not a fork: dataExplorer.ts gained a
+  `browse` host option whose view is dataBrowse.ts (the tree and the detail side). The search, its chips,
+  the connection picker and the recent searches are the same; the actions are the same function.
+- **Browsing first:** with nothing typed, GET /explorer/browse (services/explorer.py `Explorer.browse`,
+  domain/explorer.py's browse rules): each connection (never a key vault) with its colour, its status (its
+  catalog's state: N tables, Not loaded, loading, failed and why, Needs a password) and its tables in the
+  groups its tree has (connection_tables.tree with `load=False`: a look never loads a catalog; **Load** does,
+  by catalog_loading, and `catalog_loading` notices redraw the status). A table opens to its columns and
+  types (GET /explorer/table, read once and kept for the page). Then **Open tables** (with their columns),
+  **Structures** (documents and their paths), **APIs** (table-returning calls and their columns) and
+  **Blades** whose result is a table (a blade that names its table, which blade-screen adds, else a
+  function blade that is not a web call). Names only, never a value.
+- **Typed:** the same tree narrowed (GET /explorer/search): a table under its connection and schema, a
+  matched column under its table (open); a connection matched by name keeps all its tables (closed); the
+  other kinds as their own groups.
+- **Actions:** a table's are the Explorer's (Open as grid, Preview, Copy SQL name, Insert, Query in a
+  notebook); a connection's Load, Show only this, Copy name; a dataset's or schema's **Import its
+  relationships** where the kind has them (Power BI, SQL Server: domain/explorer.py `imports_relationships`).
+  **Insert** shows only while a Workbench window has a document in front (`explorer.target`, read on the
+  window's focus).
+- **The detail side:** the selected table's columns (name, type, nulls), where it comes from, its SQL name
+  (Copy), the code that reads it (a `%%sql` cell's and a Python cell's, `df = sab.sql("SELECT * FROM ...
+  LIMIT 100")`), and its actions. Under the tree when the window is narrow.
+- **Drag** a table or a column into a Workbench cell (EXPLORER_DRAG, the same `dragData` as the results);
+  **keys**: the arrows through the tree (Right opens, Left closes or goes up), Enter runs a table's first
+  action (Open as grid) or opens a group, Down from the search goes into the tree, **/** focuses the search.
+- **One page, not two (decision):** the pane's Pop out opens the Data page in a window of its own
+  (`/workspace?open=data&q=...`, the named window `swissarmybench-explorer`) and closes the pane; the old
+  popped-out window (explorerPage.ts, explorer.html, its handoffs, BroadcastChannel and Move back) is gone,
+  and its address `/workbench?panel=explorer` redirects (302) to `/workspace?open=data` (the browser keeps
+  the #token). `explorer.moveBack` is gone; `explorer.popOut` opens the Data page. Ctrl+K's **Open the
+  Data page** takes the dialog's search there (`openData`).
+- **The agent:** `explorer_browse` (the tree, names only), `explorer_table` (a table's detail), the existing
+  `explorer_search`, `connections_open_table`, `connections_preview_table`, `connections_load_catalog`,
+  `connections_import_relationships`, `workbench_window` (`cell.insertBelow`, `explorer.insert`). index.md's
+  row is `explorer_`, `catalog_`: Data page; the connections guide's "Finding data" says the rest.
+- **The tour:** its Catalog stop is a **Data** stop on the rail's Data icon.
+
+**Decisions.** Open as grid from the page opens the grid behind it (a toast says so) and leaves the page
+where it was, so several can open in a row; an open table's Open as grid shows its tab (the page makes way).
+The browse tree draws 500 tables a group (the search finds the rest), like the Connections page's tree.
+Columns are read per table when it opens, not for the whole catalog at once.
 ## Blades and functions are two things (the owner, 2026-11-17)
 "I think we should seperate the different types of blades, function blades should be called something else but I hate the name cuts" / "when you right click in the workbench ide and insert you get two options insert a blade or insert a function".
 - **Function**: code you call (import_excel, write_sql_server): inserting one writes its def into the project's functions.py and puts only the call in the cell.

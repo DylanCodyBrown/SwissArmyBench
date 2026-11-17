@@ -47,7 +47,7 @@ export const STOPS: readonly Stop[] = [
   { icon: "image", word: "Visualizations", line: "Charts, notes and diagrams on one board.", target: '.nav-rail [data-area="visualizations"]' },
   { icon: "diagram", word: "ERD", line: "The keys and joins between your open tables, drawn.", target: '.nav-rail [data-area="erd"]' },
   { icon: "key", word: "Blade", line: "Saved code that loads data: a database, a file.", where: "Blades and catalog", target: BLADES_BUTTON, code: 'conn = sab.blade("Warehouse")' },
-  { icon: "folder", word: "Catalog", line: "Every table and column your blades reach. Search it.", where: "Blades and catalog", target: BLADES_BUTTON },
+  { icon: "data", word: "Data", line: "Every table and column your connections reach. Browse it or search it.", target: '.nav-rail [data-area="data"]' },
   { icon: "group", word: "Pack", line: "Blades and tangs your team shares on GitHub.", where: "Blades and catalog, then Packs", target: BLADES_BUTTON },
   { icon: "code", word: "Notebook", line: "Python and SQL cells, in a window of its own.", where: "Notebooks", target: '.nav-rail [data-area="notebooks"]' },
   { icon: "agent", word: "Agent", line: "Your AI helper. Sees what you see, asks before it exports.", where: "Settings", target: '.nav-rail [data-area="settings"]' },

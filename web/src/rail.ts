@@ -3,7 +3,7 @@
  * to say it, this app needs a navigation pane somehow."; a slim icon rail, as VS Code's Activity Bar).
  * [SHARED]
  *
- *   [AREAS]   Grids (the home page's tabbed grids; the mark goes Home, the Start view), Visualizations, ERD, Notebooks,
+ *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids; the mark goes Home, the Start view), Visualizations, ERD, Notebooks,
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, Session (what the agent made this
  *             session, a count of what is new on its icon: sessionPage.ts), and Extensions
  *             (extensionsPage.ts) and Settings pinned at the bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
@@ -50,8 +50,9 @@ import { canvasOn } from "./modes";
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, the same
 import { openMenu } from "./workbenchMenu";
+import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "settings";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -61,6 +62,7 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   // then the log.
   { area: "connections", name: "Connections", icon: "plug" },
   { area: "variables", name: "Variables", icon: "variables" }, // this computer's variables (variablesPage.ts)
+  { area: "data", name: DATA, icon: "data" }, // the one place to browse and find tables (dataPage.ts)
   { area: "grids", name: "Grids", icon: "grids" },
   { area: "erd", name: "ERD", icon: "diagram" },
   { area: "apis", name: APIS, icon: "apis" }, // the library's APIs, their explorer (apisPage.ts)
@@ -79,13 +81,13 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
-const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp"];
+const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "data"];
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
 const areaOfKind = (kind: string | null): Area | null => AREAS.find((a) => a.kind === kind)?.area ?? null;
 
-const LAYER_OFF = { open: null, at: null, type: null, name: null };
+const LAYER_OFF = { open: null, at: null, type: null, name: null, q: null, kinds: null, connection: null, column: null };
 
 let kind: PageKind = "home";
 let items: HTMLButtonElement[] = [];

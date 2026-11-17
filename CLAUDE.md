@@ -610,7 +610,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window, in the order of
-                         the work (the owner, 2026-11-17): Connections, Variables, Grids, ERD, APIs, Structures,
+                         the work (the owner, 2026-11-17): Connections, Variables, Data, Grids, ERD, APIs, Structures,
                          Blades, Notebooks, Scripts, Apps, Visualizations, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
@@ -620,7 +620,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          library.ts Settings' Library (the folder, Change…,
                          Default, its counts) and the move's notices, said once; areaPage.ts is a page of the rail's over any page
                          (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
-                         by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); sessionPage.ts the Session page
+                         by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data page (open=data, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); connectionsWindow.ts the
@@ -682,8 +682,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          replaced the Data panel (2026-11-17): left, resizable, off until Ctrl+Shift+E, per
                          window; a project's files at its foot (setFiles); "+ Table" and "+ Blade" open
                          catalogRail.ts beside it; Pop out), dataExplorer.ts (the Data Explorer itself, one
-                         component for three hosts: the pane, its own window explorerPage.ts
-                         (/workbench?panel=explorer, static/explorer.html; Move back through a handoff), the
+                         component for three hosts: the Data page (dataPage.ts, open=data: the one place to
+                         browse tables, its tree and detail side dataBrowse.ts; the pane's Pop out opens it; /workbench?panel=explorer redirects to it), the pane, the
                          grid page's Find data dialog (Ctrl+K, gridCommands.ts): one search, chips, a
                          connection picker, recent searches, each result's actions, its drag
                          (EXPLORER_DRAG: lazy/codeEditor.ts drops the cell's language's code)),

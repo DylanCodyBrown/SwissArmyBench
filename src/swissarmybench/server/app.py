@@ -212,9 +212,11 @@ def create_app(
 
     async def workbench_page(request: Request) -> Response:
         # Notebooks and scripts, always in a window of their own (the grid page's Workbench tab opens it).
-        # ?panel=explorer: the Data Explorer popped out into a window of its own.
-        page = "explorer.html" if request.query_params.get("panel") == "explorer" else "workbench.html"
-        return FileResponse(settings.web_root / page, headers={"Cache-Control": "no-store"})
+        # ?panel=explorer, the popped-out Data Explorer's old address: the Data page now (open=data); the
+        # browser keeps the address's #token across the redirect.
+        if request.query_params.get("panel") == "explorer":
+            return RedirectResponse("/workspace?open=data", status_code=302)
+        return FileResponse(settings.web_root / "workbench.html", headers={"Cache-Control": "no-store"})
 
     async def drop_silent_sessions() -> None:
         # A notebook that closes or crashes just stops reporting; the list notices within a few

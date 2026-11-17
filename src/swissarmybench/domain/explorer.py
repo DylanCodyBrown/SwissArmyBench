@@ -11,13 +11,18 @@ holds data. Pure rules, no I/O.
                 as (a SQL cell's and a Python cell's). Names only: never a value, a row or a secret
   the answer    grouped by kind in KINDS' order, each group counted (all the matches) and cut to the limit;
                 the connections whose catalog is not loaded offered (Load its catalog)
+  the browse    the Data page with nothing typed (the owner, 2026-11-17: "a standalone DATA rail icon and
+                page"; the one place to browse tables): every connection with its status and its tables,
+                grouped as its tree groups them (database, schema; a Power BI workspace's datasets), then
+                the open tables with their columns, Structures' documents with their paths, the APIs'
+                table-returning calls with their columns, and the blades whose result is a table. Names only
 """
 
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -53,6 +58,7 @@ class Query:
     connection: str | None = None  # only what belongs to this connection (the picker)
     column: str | None = None  # Show tables with this column: the column's exact name, in any case
     limit: int = DEFAULT_LIMIT
+    browse: bool = False  # the Data page's browse: every source's children too (names, never a value)
 
     def wants(self, kind: str) -> bool:
         return kind in self.kinds
@@ -357,3 +363,159 @@ def parent_pointer(pointer: str) -> str:
     """`$.orders[].customer.id` -> `$.orders[].customer`; `$.orders` -> `$`."""
     at = max(pointer.rfind("."), pointer.rfind('["'))
     return pointer[:at] if at > 1 else "$"
+
+
+# ===== the browse (the Data page with nothing typed) =====
+
+BROWSE_TABLES: int = 500  # a group's tables drawn at once (the search finds the rest)
+# The sections after the connections, in order.
+SECTIONS: tuple[tuple[str, str], ...] = (
+    ("open", "Open tables"),
+    ("structures", "Structures"),
+    ("apis", "APIs"),
+    ("blades", "Blades"),
+)
+# Which filter chips show each part of the browse (none pressed: every part).
+_SHOWN_BY: dict[str, frozenset[str]] = {
+    "connections": frozenset({"connections", "tables", "columns"}),
+    "open": frozenset({"tables", "columns"}),
+    "structures": frozenset({"structures"}),
+    "apis": frozenset({"apis", "columns"}),
+    "blades": frozenset({"blades"}),
+}
+# The connections whose relationships come in: a Power BI dataset's own, SQL Server's foreign keys.
+RELATIONSHIP_DIALECTS: frozenset[str] = frozenset({"powerbi", "sqlserver"})
+
+
+def browse_query(kinds: Any = None, connection: Any = None) -> Query:
+    """The browse as the page or the agent asks for it: the filter chips and the connection picker."""
+    q = parse("", kinds, connection, None, MAX_LIMIT)
+    return Query("", (), q.kinds, q.connection, None, MAX_LIMIT, browse=True)
+
+
+def shows(part: str, query: Query) -> bool:
+    """Whether a part of the browse (connections, open, structures, apis, blades) is shown."""
+    return bool(_SHOWN_BY[part] & query.kinds)
+
+
+def imports_relationships(tables_kind: str | None, dialect: str | None) -> bool:
+    """Import its relationships: a Power BI workspace's datasets, a SQL Server database's foreign keys."""
+    return tables_kind == "powerbi" or (dialect or "") in RELATIONSHIP_DIALECTS
+
+
+def blade_is_table(blade: Mapping[str, Any]) -> bool:
+    """A blade whose result is a table: one that names its table, else a function blade (kind other) that
+    is not an API's web call (those are the APIs' section's)."""
+    if blade.get("table"):
+        return True
+    kind = str(blade.get("blade_kind") or blade.get("kind") or "")
+    return kind == "other" and not blade.get("web_call")
+
+
+def catalog_table(connection: str, table: Mapping[str, Any]) -> Result:
+    """A connection's table as the browse holds it (its tree's entry: database, schema, table, sql)."""
+    place = {k: str(table.get(k) or "") for k in ("database", "schema", "table")}
+    sql = str(table.get("sql") or sql_identifier(place["table"]))
+    path = [p for p in (connection, place["database"], place["schema"]) if p]
+    return Result(
+        "tables",
+        place["table"],
+        path,
+        connection=connection,
+        sql=sql,
+        icon="rows",
+        detail=str(table.get("title") or ""),
+        insert=table_insert(sql),
+        more={"place": place, "catalog": connection, "source": "catalog"},
+    )
+
+
+def connection_node(
+    listed: Mapping[str, Any], tree: Mapping[str, Any] | None, error: str | None = None
+) -> dict[str, Any]:
+    """A connection in the browse: its type, its status (its catalog's state), whether it imports
+    relationships, and its tables in groups (each cut to BROWSE_TABLES, counted whole)."""
+    name = str(listed["name"])
+    kind = str(listed.get("tables_kind") or "")
+    state: dict[str, Any] = dict((tree or {}).get("state") or {"state": "none"})
+    if error:
+        state = {"state": "failed", "error": error}
+    groups = []
+    total = 0
+    for g in (tree or {}).get("groups") or []:
+        tables = [catalog_table(name, t).to_json() for t in g.get("tables") or []]
+        total += len(tables)
+        groups.append(
+            {
+                "database": str(g.get("database") or ""),
+                "schema": str(g.get("schema") or ""),
+                "count": len(tables),
+                "tables": tables[:BROWSE_TABLES],
+            }
+        )
+    return {
+        "name": name,
+        "type": str(listed.get("type") or listed.get("connection") or ""),
+        "tables_kind": kind,
+        "group": str((tree or {}).get("group") or "schema"),
+        "state": state,
+        "loaded": bool(groups) or state.get("state") == "loaded",
+        "count": total,
+        "relationships": imports_relationships(kind, listed.get("dialect")),
+        "needs_password": bool(listed.get("needs_password")),
+        "groups": groups,
+    }
+
+
+def _nested(
+    parents: Sequence[Result], children: Sequence[Result], parent_of: Callable[[Result], Any]
+) -> list[dict[str, Any]]:
+    by: dict[str, list[dict[str, Any]]] = {}
+    for c in children:
+        by.setdefault(str(parent_of(c)), []).append(c.to_json())
+    out = []
+    for p in parents:
+        item = p.to_json()
+        item["children"] = by.get(p.name, [])
+        out.append(item)
+    return out
+
+
+def _by_name(r: Result) -> tuple[list[str], str]:
+    return [p.casefold() for p in r.path], r.name.casefold()
+
+
+def browse_sections(results: Sequence[Result], query: Query) -> list[dict[str, Any]]:
+    """The sections after the connections, from the providers' results (a browse query's: with their
+    children): the open tables and their columns, Structures' documents and their paths, the APIs'
+    table-returning calls and their columns, the blades whose result is a table."""
+    rs = [
+        r
+        for r in results
+        if query.connection is None or (r.connection and same_name(r.connection, query.connection))
+    ]
+    grids = [r for r in rs if r.kind == "tables" and r.more.get("source") == "grid"]
+    grid_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "grid"]
+    docs = [r for r in rs if r.kind == "structures" and r.more.get("pointer") == "$"]
+    paths = [r for r in rs if r.kind == "structures" and r.more.get("pointer") != "$"]
+    calls = [r for r in rs if r.kind == "apis"]
+    call_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "api"]
+    blades = [r for r in rs if r.kind == "blades" and blade_is_table(r.more)]
+    items: dict[str, list[dict[str, Any]]] = {
+        "open": _nested(sorted(grids, key=_by_name), grid_columns, lambda c: c.more.get("table")),
+        "structures": _nested(sorted(docs, key=_by_name), paths, lambda c: c.path[0] if c.path else ""),
+        "apis": _nested(sorted(calls, key=_by_name), call_columns, lambda c: c.more.get("table")),
+        "blades": [r.to_json() for r in sorted(blades, key=_by_name)],
+    }
+    return [
+        {"kind": kind, "label": label, "count": len(items[kind]), "items": items[kind]}
+        for kind, label in SECTIONS
+        if shows(kind, query) and items[kind]
+    ]
+
+
+def table_code(sql: str) -> dict[str, str]:
+    """The code that reads a table, for the detail side: a SQL cell's and a Python cell's."""
+    select = f"SELECT *\nFROM {sql}\nLIMIT 100"
+    one_line = f"SELECT * FROM {sql} LIMIT 100"  # noqa: S608 (code for the user's cell, not run here)
+    return {"sql": f"%%sql\n{select}", "python": f"df = sab.sql({py_string(one_line)})"}

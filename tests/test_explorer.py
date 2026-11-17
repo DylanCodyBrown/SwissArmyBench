@@ -200,11 +200,135 @@ def test_one_search_over_connections_grids_and_variables(
         assert bad.status_code == 400 and "not a kind" in bad.text
 
 
-def test_the_popped_out_window_has_an_address_of_its_own(tmp_path: Path) -> None:
+def test_the_popped_out_windows_old_address_is_the_data_page(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
-        page = client.get("/workbench?panel=explorer")
-        assert page.status_code == 200 and "explorer.js" in page.text and "Data Explorer" in page.text
+        page = client.get("/workbench?panel=explorer", follow_redirects=False)
+        assert page.status_code == 302 and page.headers["location"] == "/workspace?open=data"
         assert "workbench.js" in client.get("/workbench").text
+
+
+# ===== the Data page's browse (the owner, 2026-11-17: "a standalone DATA rail icon and page") =====
+
+
+def test_the_browse_rules() -> None:
+    q = rules.browse_query()
+    assert q.browse and q.empty and q.kinds == set(rules.KINDS)
+    assert rules.shows("connections", rules.browse_query("columns"))
+    assert not rules.shows("blades", rules.browse_query("tables"))
+    assert rules.imports_relationships("powerbi", "powerbi")
+    assert rules.imports_relationships("database", "sqlserver")
+    assert not rules.imports_relationships("database", "sqlite")
+    assert rules.blade_is_table({"blade_kind": "other"})
+    assert rules.blade_is_table({"kind": "sql", "table": "orders"})  # a blade that names its table
+    assert not rules.blade_is_table({"blade_kind": "other", "web_call": True})
+    assert not rules.blade_is_table({"blade_kind": "vault"})
+    tree = {
+        "state": {"state": "loaded"},
+        "group": "dataset",
+        "groups": [
+            {
+                "database": "",
+                "schema": "Sales model",
+                "tables": [{"database": "", "schema": "Sales model", "table": "Orders", "sql": "[F].Orders"}],
+            }
+        ],
+    }
+    node = rules.connection_node({"name": "F", "tables_kind": "powerbi", "type": "Power BI"}, tree)
+    assert node["relationships"] and node["loaded"] and node["count"] == 1 and node["group"] == "dataset"
+    table = node["groups"][0]["tables"][0]
+    assert table["sql"] == "[F].Orders" and table["path"] == ["F", "Sales model"]
+    assert table["insert"]["sql"] == "SELECT * FROM [F].Orders" and table["source"] == "catalog"
+    failed = rules.connection_node({"name": "G", "tables_kind": "database"}, None, "no driver")
+    assert failed["state"] == {"state": "failed", "error": "no driver"} and not failed["loaded"]
+    code = rules.table_code("[F].Orders")
+    assert code["sql"] == "%%sql\nSELECT *\nFROM [F].Orders\nLIMIT 100"
+    assert code["python"] == 'df = sab.sql("SELECT * FROM [F].Orders LIMIT 100")'
+
+
+def test_the_browse_over_http_and_the_agents_commands(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        sqlite_connection(
+            client,
+            tmp_path,
+            "Shop",
+            {
+                "orders": ("order_id INTEGER, customer_id INTEGER, amount REAL", [(1, 1, 9.5)]),
+                "customers": ("CustomerKey INTEGER, name TEXT", [(1, "Ada")]),
+            },
+        )
+        sqlite_connection(client, tmp_path, "Ledger", {"invoices": ("invoice_id INTEGER", [(7,)])})
+        ok(client.post("/datasets/sales/paste", content=b"region\tcustomer_id\nNorth\t1\n", headers=AUTH))
+        ok(
+            client.post(
+                "/structures/paste", json={"text": '{"crates": [{"id": 1}]}', "name": "plums"}, headers=AUTH
+            )
+        )
+        ok(client.get("/connections/Shop/tree", headers=AUTH))
+
+        tree = ok(client.get("/explorer/browse", headers=AUTH))
+        by = {c["name"]: c for c in tree["connections"]}
+        assert set(by) == {"Shop", "Ledger"}
+        # Shop's tables in its schema; Ledger's catalog not loaded: a look never loads it (Load does).
+        assert by["Shop"]["state"]["state"] == "loaded" and by["Shop"]["count"] == 2
+        assert [g["schema"] for g in by["Shop"]["groups"]] == ["main"]
+        assert sorted(t["name"] for t in by["Shop"]["groups"][0]["tables"]) == ["customers", "orders"]
+        assert not by["Ledger"]["loaded"] and by["Ledger"]["groups"] == []
+        assert not by["Shop"]["relationships"]
+        sections = {s["kind"]: s for s in tree["sections"]}
+        assert [s["kind"] for s in tree["sections"]] == ["open", "structures"]
+        sales = sections["open"]["items"][0]
+        assert sales["name"] == "sales" and [c["name"] for c in sales["children"]] == [
+            "region",
+            "customer_id",
+        ]
+        plums = sections["structures"]["items"][0]
+        assert plums["name"] == "plums" and [c["pointer"] for c in plums["children"]] == [
+            "$.crates",
+            "$.crates[].id",
+        ]
+        assert "North" not in str(tree)  # names only, never a value
+
+        # The filters: a kind, a connection.
+        only = ok(client.get("/explorer/browse", params={"kinds": "structures"}, headers=AUTH))
+        assert only["connections"] == [] and [s["kind"] for s in only["sections"]] == ["structures"]
+        shop = ok(client.get("/explorer/browse", params={"connection": "shop"}, headers=AUTH))
+        assert [c["name"] for c in shop["connections"]] == ["Shop"] and shop["sections"] == []
+
+        # Load (the catalog loads in the background), then Ledger has its table.
+        ok(client.post("/connections/Ledger/catalog", headers=AUTH))
+        ok(client.get("/connections/Ledger/tree", headers=AUTH))
+        ledger = ok(client.get("/explorer/browse", params={"connection": "Ledger"}, headers=AUTH))
+        assert ledger["connections"][0]["groups"][0]["tables"][0]["name"] == "invoices"
+
+        # The detail side: a table's columns, its SQL name and its code.
+        detail = ok(
+            client.get(
+                "/explorer/table",
+                params={"connection": "shop", "schema": "main", "table": "orders"},
+                headers=AUTH,
+            )
+        )
+        assert detail["sql"] == "[Shop].orders" and detail["where"] == ["Shop", "main"]
+        assert [(c["name"], c["type"]) for c in detail["columns"]] == [
+            ("order_id", "INTEGER"),
+            ("customer_id", "INTEGER"),
+            ("amount", "REAL"),
+        ]
+        assert detail["code"]["sql"].startswith("%%sql\nSELECT *\nFROM [Shop].orders")
+        assert not detail["relationships"]
+        missing = client.get("/explorer/table", params={"connection": "Shop"}, headers=AUTH)
+        assert missing.status_code == 400
+
+        # The agent: the same answers, by its commands.
+        assert {"explorer_browse", "explorer_table"} <= set(REGISTRY)
+        agent = ok(client.get("/explorer/browse", headers=AGENT))
+        assert [c["name"] for c in agent["connections"]] == [c["name"] for c in tree["connections"]]
+        assert (
+            ok(client.get("/explorer/table", params=detail["place"] | {"connection": "Shop"}, headers=AGENT))[
+                "sql"
+            ]
+            == "[Shop].orders"
+        )
 
 
 # ===== Structures and APIs (the trees-apis branch's, registered in bootstrap) =====

@@ -58,10 +58,78 @@ class CatalogSearch(Protocol):
     async def shared_tables(self, name: str) -> set[str]: ...
 
 
+@dataclass
+class BrowseSources:
+    """What the Data page's browse reads besides the providers: the connections (the Connections page's
+    listing), a connection's tree (services/connection_tables.py, never loading it: Load does), and a
+    catalog table's columns with its DuckDB SQL name."""
+
+    connections: Callable[[], list[dict[str, Any]]]
+    tree: Callable[[str], Awaitable[dict[str, Any]]]
+    describe: Callable[[str, Place], Awaitable[dict[str, Any]]]
+
+
 class Explorer:
-    def __init__(self, ws: Workspace) -> None:
+    def __init__(self, ws: Workspace, sources: BrowseSources | None = None) -> None:
         self.ws = ws
         self._providers: dict[str, Provider] = {}
+        self.sources = sources
+
+    async def browse(self, params: Any) -> dict[str, Any]:
+        """The Data page with nothing typed: every connection (its status, its tables in its tree's groups),
+        then the open tables, Structures, the APIs' tables and the blades whose result is a table, each with
+        its children. {"kinds", "connection"} as the search's. Names only."""
+        given = params if isinstance(params, dict) else {}
+        query = rules.browse_query(given.get("kinds"), given.get("connection"))
+        connections: list[dict[str, Any]] = []
+        if self.sources is not None and rules.shows("connections", query):
+            listed = [c for c in self.sources.connections() if c.get("tables_kind")]  # never a key vault
+            if query.connection is not None:
+                listed = [c for c in listed if rules.same_name(str(c["name"]), query.connection)]
+            trees = await asyncio.gather(
+                *(self.sources.tree(str(c["name"])) for c in listed), return_exceptions=True
+            )
+            for c, tree in zip(listed, trees, strict=True):
+                if isinstance(tree, BaseException):
+                    connections.append(rules.connection_node(c, None, str(tree) or type(tree).__name__))
+                else:
+                    connections.append(rules.connection_node(c, tree))
+        sections = [p for p in self._providers if p != "connections"]
+        answers = await asyncio.gather(*(self._providers[p](query) for p in sections), return_exceptions=True)
+        results = [r for a in answers if not isinstance(a, BaseException) for r in a.results]
+        return {
+            "query": {"kinds": [k for k in rules.KINDS if k in query.kinds], "connection": query.connection},
+            "connections": connections,
+            "sections": rules.browse_sections(results, query),
+        }
+
+    async def table(self, params: Any) -> dict[str, Any]:
+        """A connection's table for the detail side: its columns (name, type, nulls), where it comes from,
+        its DuckDB SQL name, and the code that reads it (a SQL cell's and a Python cell's)."""
+        given = params if isinstance(params, dict) else {}
+        connection = str(given.get("connection") or "").strip()
+        table = str(given.get("table") or "").strip()
+        if not connection or not table:
+            raise ValueError(
+                "Name the connection and the table (and its schema, and database if it has one)."
+            )
+        if self.sources is None:
+            raise LookupError("The Data page's tables are not in this build.")
+        place = Place(str(given.get("database") or ""), str(given.get("schema") or ""), table)
+        described = await self.sources.describe(connection, place)
+        sql = str(described["sql"])
+        saved = str(described.get("connection", connection))
+        listed = next((c for c in self.sources.connections() if rules.same_name(str(c["name"]), saved)), {})
+        return {
+            "connection": saved,
+            "place": place.to_json(),
+            "where": [p for p in (saved, place.database, place.schema) if p],
+            "sql": sql,
+            "columns": described.get("columns", []),
+            "code": rules.table_code(sql),
+            "insert": rules.table_insert(sql),
+            "relationships": rules.imports_relationships(listed.get("tables_kind"), listed.get("dialect")),
+        }
 
     def register(self, name: str, provider: Provider) -> None:
         """A source of results (a later one under the same name replaces it)."""
@@ -243,7 +311,7 @@ def grids_provider(tables: Callable[[], list[OpenTable]]) -> Provider:
                     more=more,
                 )
             )
-            if query.empty:
+            if query.empty and not query.browse:
                 continue
             for column, typed in t.columns:
                 found.results.append(
@@ -301,7 +369,11 @@ def blades_provider(listing: Callable[[], list[dict[str, Any]]]) -> Provider:
                     detail=str(b.get("description") or b.get("kind") or ""),
                     icon="bolt",
                     insert=rules.blade_insert(name, b.get("variable"), str(b.get("kind")), signature),
-                    more={"blade_kind": b.get("kind")},
+                    more={
+                        "blade_kind": b.get("kind"),
+                        "table": b.get("table"),
+                        "web_call": bool(b.get("web_call")),
+                    },
                 )
             )
             table = b.get("table") if b.get("names_table") else None
@@ -341,7 +413,7 @@ def structures_provider(listing: Callable[[], dict[str, Any]], value_of: Callabl
             found.results.append(
                 Result("structures", name, detail=str(s.get("format") or "").upper(), icon="json", more=whole)
             )
-            if query.empty or s.get("error"):
+            if (query.empty and not query.browse) or s.get("error"):
                 continue
             try:
                 value = value_of(sid)
@@ -406,7 +478,7 @@ def apis_provider(blades: Callable[[], list[dict[str, Any]]]) -> Provider:
                     more=more,
                 )
             )
-            if query.empty:
+            if query.empty and not query.browse:
                 continue
             for column, typed in dict(call.get("columns") or {}).items():
                 found.results.append(

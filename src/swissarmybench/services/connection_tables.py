@@ -253,6 +253,29 @@ class ConnectionTables:
 
     # ===== the Connections page's tree =====
 
+    async def describe(self, name: str, place: Place) -> dict[str, Any]:
+        """One table of a loaded catalog for the Data page's detail side: its name in DuckDB SQL and its
+        columns (name, type, nulls, description), as the catalog has them. Names only."""
+        saved, kind = self.kind(name)
+        if await self._catalogs.places(saved) is None:
+            raise LookupError(f"{saved}'s catalog is not loaded yet: load it (connections_load_catalog).")
+        shared = await self._catalogs.shared_tables(saved)
+        found = await self._catalogs.columns(saved, place.schema, place.table, place.database or None)
+        return {
+            "connection": saved,
+            "kind": kind,
+            "sql": rules.copy_name(saved, place, kind, shared),
+            "columns": [
+                {
+                    "name": c["column"],
+                    "type": c.get("type"),
+                    "nullable": c.get("nullable"),
+                    "description": c.get("description"),
+                }
+                for c in found["columns"]
+            ],
+        }
+
     async def tree(self, name: str, load: bool = True) -> dict[str, Any]:
         """A connection's tables as a tree: groups (a Power BI workspace's datasets, a database's schemas)
         and their tables, each with its name for SQL. `load`: load the catalog when it is not (the state

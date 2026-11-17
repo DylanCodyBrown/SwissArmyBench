@@ -69,6 +69,7 @@ import { pastedToast } from "./renameTable";
 import { mountStepsPanel } from "./stepsPanel";
 import { editStep } from "./stepForms";
 import { mountStepsStrip } from "./stepsStrip";
+import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
 import { setGridZoom, stepZoom } from "./theme";
 
@@ -259,6 +260,11 @@ async function startSingle(): Promise<void> {
 async function start(): Promise<void> {
   if (!(await requireSession())) return; // no token and no good cookie: how to open the app
   watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
+  // The Data page's Open as grid of an open table: its tab here (dataPage.ts).
+  setGridShower((grid) => {
+    showGridView();
+    void activateGrid(grid);
+  });
   libraryNotices(); // the move into the library, said once (library.ts)
   // Beta mode (the beta log and Leave a note…): on every window of this page; nothing while it is off.
   mountBeta("grid", {
