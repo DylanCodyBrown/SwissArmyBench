@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
+from swissarmybench.domain.connection_usage import connection_named
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.grids import POS, Grid, combine_stats, selection_scope, stats_sql
 from swissarmybench.domain.steps import (
@@ -48,7 +49,8 @@ class GridService:
 
     def _source(self, dataset: str) -> dict[str, Any]:
         origin = self._origin_of(dataset)
-        return {"kind": origin.kind, "connection": origin.connection if origin.kind == "connection" else None}
+        named = origin.connection if origin.kind == "connection" and origin.connection else None
+        return {"kind": origin.kind, "connection": connection_named(named) if named else None}
 
     def find(self, grid_id: str) -> tuple[Grid, DatasetInfo]:
         return self.ws.grid_and_info(grid_id)

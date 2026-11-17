@@ -302,6 +302,11 @@ RULES: dict[str, Rule] = {
         "connections",
         {"place": "connection", "name": d},
     ),
+    "connection_colour": lambda d, x: (
+        f"Coloured the connection {d} {_name(x.get('colour')) or 'the next free colour'}",
+        "connections",
+        {"place": "connection", "name": d},
+    ),
     "remove_catalog": lambda d, x: (f"Removed the catalog of {d}", "connections", _area("connections")),
     # The Workbench: documents and their cells.
     "workbench_window": _window,

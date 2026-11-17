@@ -367,6 +367,9 @@ export interface CodeEditor {
   unfold: (lines: number[]) => void;
   /** Words drawn after lines (a table's state beside its marker), and cell markers drawn as rules. */
   setLineNotes: (notes: LineNote[]) => void;
+  /** Connection colours (connectionColours.ts): a stripe in the margin beside each run of lines (a
+   *  script's cell) that names a connection; two colours side by side for two connections. [] clears. */
+  setStripes: (stripes: Stripe[]) => void;
   /** A new line as Enter makes it (keeping the indent). */
   insertNewline: () => void;
   /** Put text in as one edit (undone at once): where a point on the editor is (a drop), else at the
@@ -399,6 +402,29 @@ export interface CodeEditor {
   onChange: (listener: (change: { undo: boolean }) => void) => void;
   layout: () => void;
   dispose: () => void;
+}
+
+/** Lines `start` to `end` (1-based) wearing these colours (#rrggbb, the first one or two). */
+export interface Stripe {
+  start: number;
+  end: number;
+  colours: string[];
+}
+
+// One small class per colour pair, made once on the page (the margin's stripe needs a class).
+const stripeClasses = new Map<string, string>();
+function stripeClass(colours: string[]): string {
+  const [a, b] = [colours[0]!, colours[1] ?? colours[0]!].map((c) => c.toLowerCase().replace(/[^#0-9a-f]/g, ""));
+  const key = `${a}${b}`;
+  let name = stripeClasses.get(key);
+  if (!name) {
+    name = `sab-stripe-${a!.slice(1)}-${b!.slice(1)}`;
+    stripeClasses.set(key, name);
+    const style = document.createElement("style");
+    style.textContent = `.${name}{background:linear-gradient(to right,${a} 0 3px,${b} 3px 6px,transparent 6px)!important;width:6px!important;margin-left:0}`;
+    document.head.append(style);
+  }
+  return name;
 }
 
 /** A pane between a script's lines. */
@@ -561,6 +587,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     });
   }
   const notes = editor.createDecorationsCollection([]);
+  const stripes = editor.createDecorationsCollection([]);
   const zones = new Map<string, { zoneId: string; zone: monaco.editor.IViewZone; widget: monaco.editor.IOverlayWidget; element: HTMLElement }>();
   const hiddenBy = { name: "sab-html-cells" };
   const keys = options.keys ?? {};
@@ -740,6 +767,18 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
             if (n.text) marks.push({ range: new monaco.Range(n.line, Math.max(1, end - 1), n.line, end), options: { showIfCollapsed: true, after: { content: `   ${n.text}`, inlineClassName: n.tone === "stale" ? "wb-line-note stale" : "wb-line-note" } } });
             return marks;
           }),
+      );
+    },
+    setStripes: (list) => {
+      const m = editor.getModel();
+      if (!m) return;
+      stripes.set(
+        list
+          .filter((s) => s.colours.length && s.start >= 1 && s.start <= m.getLineCount())
+          .map((s) => ({
+            range: new monaco.Range(s.start, 1, Math.min(s.end, m.getLineCount()), 1),
+            options: { isWholeLine: true, linesDecorationsClassName: stripeClass(s.colours) },
+          })),
       );
     },
     insertNewline: () => editor.trigger("keyboard", "type", { text: "\n" }),

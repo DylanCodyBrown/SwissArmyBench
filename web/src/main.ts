@@ -27,6 +27,7 @@
  * Finder; both follow the same server state through the WebSocket, so edits show in every window.
  */
 import { mountContextMenus } from "./cellMenu";
+import { watchConnectionColours } from "./connectionColours";
 import { api, connect, gridId, onNotice, openedWith, requireSession, token, type Notice } from "./api";
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
@@ -252,6 +253,7 @@ async function startSingle(): Promise<void> {
 
 async function start(): Promise<void> {
   if (!(await requireSession())) return; // no token and no good cookie: how to open the app
+  watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
   // Beta mode (the beta log and Leave a note…): on every window of this page; nothing while it is off.
   mountBeta("grid", {
     window: popout ? "steps" : keysWindow ? "keys" : sqlWindow ? "sql" : "main",

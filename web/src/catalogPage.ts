@@ -17,6 +17,7 @@
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { connect, onNotice, openedWith, requireSession } from "./api";
+import { watchConnectionColours } from "./connectionColours";
 import { type BladeKind, editBlade, showTemplatePicker } from "./bladeEditor";
 import { type CatalogInfo, type CatalogPlace, mountRail, schemaDetails, tableDetails, type TableView, watchTheme } from "./catalogRail";
 import { betaMark, mountBeta } from "./betaNotes";
@@ -32,6 +33,7 @@ const liveNote = document.querySelector<HTMLElement>(".cat-live");
 let editing = false; // the save screen holds work not saved yet
 // No token and no good cookie (a bookmark after a restart): the page says how to open the app.
 void requireSession();
+watchConnectionColours(); // a connection's colour on its blade (connectionColours.ts)
 
 const PAGE = "Blades";
 const WELCOME = "/catalog";

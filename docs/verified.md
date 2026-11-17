@@ -2135,3 +2135,22 @@ drags; code of more than one line is pasted, one typed value):
   prompt and its `%pip install` then re-run in a browser (the server's shape is tested, the page's path
   by typecheck only); the blade editor's and Add API's prompts in a browser; the Trino keystore's pyjks
   (another branch).
+
+## Connection colours (2026-11-17, branch connection-colours)
+
+- **Rules** (tests/test_connection_colours.py): the palette clashes with none of the rail's colours and
+  reads in every theme; the next free colour in turn and the least worn; the rail's colours refused with
+  their words (violet, blue, green, red, amber), a chosen kind colour reserved from then on, a kept colour
+  near it turned away; the connections a cell names (SQL, DAX, Python by ast; a comment is not a use);
+  colours.toml sorted, stable, read back, broken text read as none, an unchanged save writes nothing; a new
+  connection's colour, kept across a restart, refused over HTTP (400), 404 for no such connection, a
+  rename carrying its colour, a colour sent with a new connection checked.
+- **In the browser** (Chromium, tests/e2e/test_connection_colours_page.py, SQLite stand-ins Ledger and
+  Depot): the tabs grouped Files, Ledger, Depot with the connection's colour on its tab; the arrow keys
+  across groups; the agent's change followed live; a group folded and opened; the card's colour, its
+  palette (eight), Magenta chosen and worn; the detail's swatch; a rail blue refused; notebook cells with
+  one and two connections (two marks), a comment not marked, a `%%sql Depot` cell, a change followed; the
+  Data panel's tables; a script's margin stripe; a canvas block's colour.
+- **Not checked:** the high-contrast and dark themes in a browser (the colours per theme are unit-tested);
+  a Session entry's stripe in a browser (the attribute is set by the same rule as the cards); dragging a
+  group head; Monaco's stripe colour in a script after a theme change.

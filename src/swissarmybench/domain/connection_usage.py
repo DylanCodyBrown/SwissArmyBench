@@ -59,6 +59,11 @@ def _base(named: str) -> str:
     return named.split(" -> ")[0].split("/")[0].strip()
 
 
+def connection_named(named: str) -> str:
+    """The connection's own name in a table's origin or a cell's words (Finance/Sales model -> Finance)."""
+    return _base(named)
+
+
 @dataclass(frozen=True)
 class Use:
     """One use inside a piece of code: how it is written and its line."""

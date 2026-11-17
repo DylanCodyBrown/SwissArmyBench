@@ -40,6 +40,7 @@
  *          POST /workbench/tables/arrange {kind: "script", text, tables, move}: the text as it should
  *          be and where its cells are (the rules are the server's: domain/table_cells.py)
  */
+import { cellConnections, colourOf, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
 import { h, toast } from "./dom";
 import type { CodeEditor, LineNote, ScriptOutline } from "./lazy/codeEditor";
@@ -247,8 +248,34 @@ export function scriptView(
     return starts;
   };
 
+  // Connection colours (connectionColours.ts): each `# %%` cell (or the whole script, with none) that
+  // names a connection wears its colour in the margin; two connections, two stripes. Nothing runs.
+  let striping = 0;
+  let stripeTimer: number | undefined;
+  const stripeNow = async (): Promise<void> => {
+    if (!editor) return;
+    const mine = ++striping;
+    const count = editor.lineCount();
+    const runs = outline.cells.length ? outline.cells.map((c) => [c.line, Math.min(c.end, count)] as const) : [[1, count] as const];
+    const found = await cellConnections(runs.map(([a, b]) => ({ kind: "code", source: editor!.lines(a, b) })));
+    if (mine !== striping || !editor) return;
+    editor.setStripes(
+      runs
+        .map(([start, end], i) => ({ start, end, colours: (found[i] ?? []).map((n) => colourOf(n)).filter((c): c is string => !!c) }))
+        .filter((s) => s.colours.length),
+    );
+  };
+  const stripesSoon = (): void => {
+    window.clearTimeout(stripeTimer);
+    stripeTimer = window.setTimeout(() => void stripeNow(), 400);
+  };
+  onConnectionColours(() => {
+    if (!disposed) stripesSoon();
+  });
+
   const draw = (): void => {
     if (!editor) return;
+    stripesSoon();
     const notes: LineNote[] = [];
     if (outline.region) {
       const group = groupLineText(tableLines.map(stateOf));
@@ -783,10 +810,12 @@ export function scriptView(
       for (const held of htmlCells.values()) if (held.run) drawHtmlState(held);
       if (!(applying && quietly)) changed();
       hooks.streamlit?.changed();
+      stripesSoon();
       // The uses lines and the cells' places follow the typing, after a short pause (never an undo).
       if (!applying && !change.undo) typedSoon();
     });
     if (hooks.cursor) editor.onCursor(hooks.cursor);
+    stripesSoon();
     // An HTML cell shows its lines while the cursor is in it, its design when it is not. Leaving a
     // cell just typed in: the outline is asked for at once, not after the pause.
     const moved = (): void => {
@@ -876,7 +905,10 @@ export function scriptView(
     helpAtCursor: async () => (editor ? kernel.help(editor.value(), editor.cursorOffset()) : ""),
     focus: () => editor?.focus(),
     reveal: (line) => editor?.reveal(line),
-    setTheme: (t) => editor?.setTheme(t),
+    setTheme: (t) => {
+      editor?.setTheme(t);
+      stripesSoon(); // each theme shows a connection's colour of its own
+    },
     setTables: (tables) => {
       tableInfos = tables;
       void arrange(true);

@@ -81,6 +81,8 @@ export interface BlockState {
   makes: string[];
   reads: string[];
   tables: string[];
+  /** The connections its cell names (sab.sql, sab.read, sab.dax...): it wears their colours. */
+  connections?: string[];
   problem: string | null;
   /** In red on the block: the cell is gone, or its file is (the path and the number). */
   missing: string | null;

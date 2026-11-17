@@ -788,12 +788,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       "article",
       {
         // A left edge in its source document's kind colour (notebook blue, script green); red when the page's test failed on it.
-        class: `cv-block km-${kindOfPath(block.document) ?? "notebook"} ${block.missing ? "gone" : ""} ${stale ? "stale" : ""} ${block.failures?.length ? "failed" : ""} ${block.id === selectedId ? "selected" : ""}`,
+        class: `cv-block conn-block km-${kindOfPath(block.document) ?? "notebook"} ${block.missing ? "gone" : ""} ${stale ? "stale" : ""} ${block.failures?.length ? "failed" : ""} ${block.id === selectedId ? "selected" : ""}`,
         "aria-selected": String(block.id === selectedId),
         role: "listitem",
         tabindex: 0,
         draggable: "true",
         "aria-label": `${name}, ${block.where}, row ${block.row}, column ${block.column}, ${sizeWords(block)}`,
+        ...(block.connections?.length ? { "data-connections": block.connections.join("|") } : {}),
         dataset: { block: block.id, cell: String(block.cell), row: String(block.row), column: String(block.column), w: String(block.w), h: block.h === null ? "" : String(block.h) },
         style: { gridColumn: `${block.column} / span ${block.w}`, gridRow: "1", minHeight: `${block.h === null ? 76 : Math.max(76, block.h * 14)}px` },
       },

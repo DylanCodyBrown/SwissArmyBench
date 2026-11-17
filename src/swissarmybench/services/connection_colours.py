@@ -117,7 +117,7 @@ class ConnectionColours:
         if found is None:
             raise NotFound(f"There is no connection called {name}.")
         self._keep(found.name, colour)
-        self.ws.audit.write(who, "connection_colour", f"{found.name} {colour or 'next free'}")
+        self.ws.audit.write(who, "connection_colour", found.name, colour=colour or "")
         listed = self.get()
         await self.ws.live.broadcast({"type": "connection_colours_changed"} | listed)
         return listed
