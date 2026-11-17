@@ -3644,3 +3644,7 @@ become a library of connections" (Plans/library.plan.md).
 - A cloned file with no local values reads its local and keyring variables as Not set on that computer.
 - Show stays with the user: the golden rule's exception (no answer the agent gets holds a password's value).
 
+The export (the owner, 2026-11-17): "I feel like the export/ build app should create 4 pythons called Variables,
+Structures, Data, and Connections along with any app pages": variables.py, connections.py, data.py,
+structures.py (from data.ipynb's four groups; imports in one direction: variables <- connections <- data,
+structures <- pages) and pages/*.py.
