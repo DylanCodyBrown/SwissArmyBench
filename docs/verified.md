@@ -2857,3 +2857,21 @@ from the kernel's rows) passed.
 
 NOT checked: the policy in a running code app (no tenant), DuckDB-Wasm refused there (taken from the
 documented directives; the enforcement date the coordinator gave, 2026-01-30, is not on the page).
+
+## 0.0.18 from the release, installed as a user would (2026-11-17)
+
+Checked on Linux in a container, each in its own uv tool folder and home:
+- **A new install through the release's install.sh** (`--no-autostart --no-start`): the tool holds
+  swissarmybench and swissarmybench-streamlit 0.0.18. The Extensions page says Streamlit installed, and Accounting
+  and Power Apps available. The Project Explorer's types are Analysis and Streamlit app.
+- **One-click Install of Power Apps:** the app restarted in about 10 seconds with Power Apps installed and
+  Streamlit kept, and no failure note. The types then include Power Apps code app.
+- **New project** (the page's call) for Analysis and for Streamlit app: each made a folder in
+  `~/Swiss Army Bench Projects` with `.sab/`, README.md and .gitignore. The Streamlit one also has app.ipynb,
+  data.ipynb, data.py, its .stapp.json and requirements.txt. The Project Explorer lists both, with their types and
+  counts.
+- **Update from 0.0.17** (the check, then Update to 0.0.18): the app came back on 0.0.18 with Streamlit installed
+  (swissarmybench-streamlit 0.0.18 in the tool), and no failure note.
+
+NOT checked: macOS and Windows desktops, the tray during these restarts, Edge, a code app against a real Power
+Platform environment.
