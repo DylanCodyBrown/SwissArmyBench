@@ -59,7 +59,7 @@ CATALOG: tuple[Extension, ...] = (
         "streamlit",
         "Streamlit",
         "Build Streamlit apps from your notebooks' cells.",
-        ("The Apps area", "The Streamlit canvas", "App mode", "Streamlit, Components and Controllers starters"),
+        ("The Apps area", "The Streamlit canvas", "App mode", "Streamlit, Components, Controllers starters"),
         "preinstalled",
         "swissarmybench-streamlit",
         ("streamlit_", "workbench_canvas", "workbench_live_", "workbench_new_app"),

@@ -591,7 +591,8 @@ def test_this_apps_own_python_has_no_streamlit(tmp_path: Path) -> None:
     for pyproject in ("pyproject.toml", "extensions/streamlit/pyproject.toml"):
         text = (Path(__file__).parents[1] / pyproject).read_text(encoding="utf-8")
         project = tomllib.loads(text)["project"]
-        needs = [*project["dependencies"], *sum(project.get("optional-dependencies", {}).values(), [])]
+        extras = project.get("optional-dependencies", {}).values()
+        needs = [*project["dependencies"], *(d for extra in extras for d in extra)]
         assert not [d for d in needs if d.lower().startswith("streamlit")], pyproject
 
 
