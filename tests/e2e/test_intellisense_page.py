@@ -80,7 +80,10 @@ def test_the_member_list_parameter_info_and_quick_info(browser: Browser, orders_
     expect(hints.locator(".parameter.active")).to_have_text("table: str", timeout=10000)
     expect(hints).to_contain_text("The table to write.")
     workbench.keyboard.press("Escape")
-    # Quick info on hover: the pointer over the name.
+    # Quick info on hover: the pointer over the name. The window never scrolls sideways (a long status
+    # bar once made the page wider than the window: the rail then covered the name).
+    assert workbench.evaluate("document.documentElement.scrollWidth") <= 1280
+    assert workbench.evaluate("scrollX") == 0
     word = second.locator(".view-line span span", has_text="write_sqlite").first
     box = word.bounding_box()
     assert box
