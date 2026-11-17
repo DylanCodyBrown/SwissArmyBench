@@ -2155,6 +2155,8 @@ drags; code of more than one line is pasted, one typed value):
   name, no Show), Add variable (the name in capitals), North in plain sight, This computer only marked,
   Show and Hide on a keyring secret, the source chip and the search, Remove listing the connection. Light
   and dark screenshots. The rail tests take the new area.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,301 passed, 42 skipped, 2 failed in
+  20 minutes: test_streamlit_page's two canvas drag tests, which pass alone (load).
 - **Not checked:** a real Workbench kernel reading a variable added while the server runs (the kernel
   inherits os.environ by the launcher's code path, not run here); a real system keyring (Windows Credential
   Manager, macOS Keychain); Edge (Chromium here).
