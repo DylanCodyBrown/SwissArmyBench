@@ -118,7 +118,8 @@ def test_the_footer_button_opens_claude_code_in_a_terminal(browser: Browser, ser
         "--",
         "/usr/local/bin/claude",
     ]
-    text = (folder / "CLAUDE.md").read_text()
+    assert "@context.md" in (folder / "CLAUDE.md").read_text()
+    text = (folder / "context.md").read_text()
     assert "`claude_plums`" in text and "North" not in text
     page.context.close()
 
