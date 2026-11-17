@@ -303,15 +303,17 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     assert found[2:7] == ["Server", "Port", "Database", "User", "Password comes from"], found
     dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
 
-    # SQL Server: the user arrives with another way to sign in, and lands in the same place.
+    # SQL Server: the user arrives with another way to sign in, and lands in the same place; its options
+    # (encryption, the certificate) are folded under Options, after the password.
     page.locator(".connection-type", has_text="SQL Server").first.click()
     not_now(page)
-    dialog.get_by_role("combobox", name="Sign in").select_option(label="User name and password")
+    dialog.get_by_role("combobox", name="Sign in").select_option(label="User name and password (SQL login)")
     expect(dialog.get_by_role("textbox", name="User")).to_be_visible()
+    dialog.locator("details.connection-options > summary").click()
     found = labels()
     assert found[2:4] == ["Server", "Database"]
     assert found.index("Sign in") < found.index("User") < found.index("Password comes from")
-    assert found.index("Password") < found.index("Encrypt") < found.index("Trust server certificate")
+    assert found.index("Password") < found.index("Encryption") and "Trust server certificate" in found
 
 
 MADE_UP_VAULT = """values = {"warehouse-password": "made-up-not-real", "api-key": "made-up", "3d-token": "x"}
