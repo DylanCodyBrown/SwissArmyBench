@@ -89,8 +89,9 @@ packages = ["src/swissarmybench", "src/swissarmygrid"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src", "tests", "examples", "tools", "build.py"]
-mypy_path = "src"
+# Each extension's own package (extensions/<id>/src) too.
+files = ["src", "tests", "examples", "tools", "build.py", "extensions/*/src"]
+mypy_path = "src:extensions/accounting/src:extensions/powerapps/src"
 
 [[tool.mypy.overrides]]
 # These ship no type information (Pillow does, but the tray reads it only where it is installed).
@@ -110,7 +111,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-src = ["src", "tests"]
+src = ["src", "extensions/accounting/src", "extensions/powerapps/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
@@ -160,6 +161,8 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # The starter pack: its Power BI blades reach the REST API at the address their workspace connection holds,
 # and a snippet's lines (DAX, HTML, a piece for a Python cell) are kept as the cell will hold them.
 "src/swissarmybench/starters/**" = ["S310", "E501"]
+# An extension's starters too (their snippets' lines are the lines the user gets).
+"extensions/powerapps/src/swissarmybench_powerapps/starters/**" = ["E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]
 

@@ -205,6 +205,24 @@ if _manager is not None and callable(getattr(_manager, "get_tool", None)):
 
     _manager.get_tool = _get_tool_by_any_name
 
+# The open project's mode puts its tools first (Plans/editions.plan.md, "Project modes": an Accounting
+# project lists the workbook_, template_ and statements_ tools first). Asked of the running app each time
+# the list is asked for; without an answer (no app running) the list is as registered.
+if _manager is not None and callable(getattr(_manager, "list_tools", None)):
+    _list_tools = _manager.list_tools
+
+    def _mode_first() -> list[Any]:
+        tools = list(_list_tools())
+        try:
+            from swissarmybench.cli import api
+
+            prefixes = tuple(str(p) for p in api.call("GET", "/app/mode", timeout=2.0)["mode"]["tools"])
+        except Exception:
+            return tools
+        return sorted(tools, key=lambda t: not str(t.name).startswith(prefixes)) if prefixes else tools
+
+    _manager.list_tools = _mode_first
+
 
 def main() -> None:
     server.run("stdio")

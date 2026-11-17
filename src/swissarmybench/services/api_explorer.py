@@ -232,6 +232,12 @@ class Explorer:
                 older.append({"name": blade["name"], "older": True})
         return {"apis": cards, "older": older}
 
+    def document_of(self, name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """An API's OpenAPI document and its sign-in's settings (its type and names, never a secret):
+        what an extension makes a custom connector of."""
+        api = self._api(name)
+        return self._document(api), dict(api["mark"].get("auth") or {"type": "none"})
+
     def describe(self, name: str, operation: str | None = None) -> dict[str, Any]:
         explored = self._explored(name)
         if not operation:

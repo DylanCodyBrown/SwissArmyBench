@@ -60,6 +60,17 @@ def main() -> None:
     if not wheel.is_file():
         sys.exit(f"uv build wrote no {wheel.name}.")
     print(f"\nBuilt {wheel.relative_to(HERE)}")
+    # Each extension (extensions/<id>/, Plans/editions.plan.md): its own wheel, on the base's version.
+    for folder in sorted(p.parent for p in (HERE / "extensions").glob("*/pyproject.toml")):
+        with (folder / "pyproject.toml").open("rb") as file:
+            project = tomllib.load(file)["project"]
+        if project["version"] != version:
+            sys.exit(f"{project['name']} is {project['version']}: an extension carries the base's {version}.")
+        run(["uv", "build", "--wheel", "--out-dir", str(HERE / "dist")], folder)
+        made = HERE / "dist" / f"{project['name'].replace('-', '_')}-{version}-py3-none-any.whl"
+        if not made.is_file():
+            sys.exit(f"uv build wrote no {made.name}.")
+        print(f"Built {made.relative_to(HERE)}")
     # The installers, with this version written in: they go in the release beside the wheel.
     for name in ("install.sh", "install.ps1"):
         text = (HERE / "installer" / name).read_text(encoding="utf-8").replace("__VERSION__", version)

@@ -31,6 +31,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
+  routes_modes.py          project modes: the open project's type and its working set (canvases, families)
+  (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
@@ -66,6 +68,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from swissarmybench.bootstrap import bootstrap
+from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.server import (
     routes_agent,
     routes_analysis,
@@ -88,6 +91,7 @@ from swissarmybench.server import (
     routes_intellisense,
     routes_kind_colours,
     routes_lineage,
+    routes_modes,
     routes_navigation,
     routes_packs,
     routes_panels,
@@ -136,6 +140,11 @@ def create_app(
     settings, workers = ctx.settings, ctx.workers
     # The pages' cookie (security.py): a secret of this start's own, never the token, in memory only.
     session_secret = secrets.token_urlsafe(32)
+    # Each extension that is on: its live pages' secret paths (the guard lets them through, the route checks
+    # the secret) and its Session page words.
+    secret_paths = tuple(p for extension in ctx.extensions for p in getattr(extension, "SECRET_PATHS", ()))
+    for extension in ctx.extensions:
+        session_log_rules.RULES.update(getattr(extension, "SESSION_RULES", None) or {})
 
     async def session(request: Request) -> Response:
         # The guard let the request in (the token, or a good cookie). POST: the cookie for this start.
@@ -219,6 +228,10 @@ def create_app(
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         await ctx.sab_projects.stop()  # nor an open .sab's working folder
+        for extension in ctx.extensions:  # nor an extension's processes (a code app's dev server)
+            stop = getattr(extension, "stop", None)
+            if callable(stop):
+                await stop(ctx)
         ctx.variables.release()  # the environment as it was
         workers.close()
         ctx.beta.stopped()
@@ -254,6 +267,9 @@ def create_app(
             *routes_project_scope.routes(ctx.project_scope),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
+            *routes_modes.routes(ctx.modes),
+            # Each extension that is on: its routes, given the services (its own are built from them).
+            *(route for extension in ctx.extensions for route in extension.routes(ctx)),
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
@@ -281,7 +297,9 @@ def create_app(
             Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[
-            Middleware(LocalOnlyGuard, port=port, token=token, session=session_secret),
+            Middleware(
+                LocalOnlyGuard, port=port, token=token, session=session_secret, secret_paths=secret_paths
+            ),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
         ],
         lifespan=lifespan,

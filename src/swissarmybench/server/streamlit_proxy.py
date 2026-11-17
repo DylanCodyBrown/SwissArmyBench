@@ -75,13 +75,15 @@ def _fetch(
         connection.close()
 
 
-def routes(port_of: Lookup) -> list[BaseRoute]:
-    """`port_of("<app>-<secret>")` gives the Streamlit port to pass on to (None: refuse)."""
+def routes(port_of: Lookup, prefix: str = PREFIX, what: str = "This Streamlit app") -> list[BaseRoute]:
+    """`port_of("<app>-<secret>")` gives the Streamlit port to pass on to (None: refuse). Another live page
+    served the same way (an extension's dev server, started with `prefix` as its base path) passes its own
+    `prefix` and its words for `what` is not running."""
 
     async def page(request: Request) -> Response:
         port = port_of(request.path_params["key"])
         if port is None:
-            return Response("This Streamlit app is not running (run it again in the Workbench).", 404)
+            return Response(f"{what} is not running (run it again).", 404)
         if request.method == "OPTIONS":  # a sandboxed frame asks before an upload
             return Response(
                 status_code=204,
@@ -100,12 +102,12 @@ def routes(port_of: Lookup) -> list[BaseRoute]:
         headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP}
         headers["Host"] = f"127.0.0.1:{port}"
         if "origin" in request.headers:
-            headers["Origin"] = f"http://127.0.0.1:{port}"  # Streamlit's own check: its own address
+            headers["Origin"] = f"http://127.0.0.1:{port}"  # the live server's own check: its own address
         target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
         try:
             status, got, data = await asyncio.to_thread(_fetch, port, request.method, target, headers, body)
         except OSError:
-            return Response("The Streamlit app did not answer (it may still be starting).", 502)
+            return Response(f"{what} did not answer (it may still be starting).", 502)
         answer = Response(data, status_code=status)
         del answer.headers["content-length"]
         for name, value in got:
@@ -178,7 +180,7 @@ def routes(port_of: Lookup) -> list[BaseRoute]:
 
     methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
     return [
-        Route(PREFIX + "{key}", page, methods=methods),
-        Route(PREFIX + "{key}/{rest:path}", page, methods=methods),
-        WebSocketRoute(PREFIX + "{key}/{rest:path}", socket),
+        Route(prefix + "{key}", page, methods=methods),
+        Route(prefix + "{key}/{rest:path}", page, methods=methods),
+        WebSocketRoute(prefix + "{key}/{rest:path}", socket),
     ]

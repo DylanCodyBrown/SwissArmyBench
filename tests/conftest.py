@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,16 @@ from starlette.testclient import TestClient
 
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
+
+# The Accounting extension, from this checkout (it is not installed here: SWISSARMYBENCH_EXTENSIONS turns
+# it on where a test wants it; off, nothing of it shows).
+ACCOUNTING_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "accounting" / "src")
+if ACCOUNTING_SRC not in sys.path:
+    sys.path.insert(0, ACCOUNTING_SRC)
+# The Power Apps extension, the same way (tests/test_powerapps*.py turn it on).
+POWERAPPS_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src")
+if POWERAPPS_SRC not in sys.path:
+    sys.path.insert(0, POWERAPPS_SRC)
 
 # A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
 os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")
