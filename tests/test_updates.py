@@ -438,8 +438,12 @@ def test_the_routes_read_switch_and_refuse_without_an_update(tmp_path: Path) -> 
         assert client.get("/updates").status_code == 401  # the token, as on every route
 
 
-def test_the_app_is_named_the_streamlit_edition() -> None:
-    """The status bar's name (the owner, 2026-11-17): the backend says it; the Lite switch is gone."""
+def test_the_app_is_named_swiss_army_bench(tmp_path: Path) -> None:
+    """The status bar's name (the owner, 2026-11-17: "It's not an edition now it's the streamlit extension.
+    Preinstalled"): the backend says it, and the installed extensions with it."""
     from swissarmybench.server.routes_updates import APP_NAME
 
-    assert APP_NAME == "Swiss Army Bench Streamlit Edition"
+    assert APP_NAME == "Swiss Army Bench"
+    with make_client(tmp_path, update_feeds=()) as client:
+        said = client.get("/updates", headers=AUTH).json()
+        assert said["name"] == "Swiss Army Bench" and "Streamlit" in said["extensions"]

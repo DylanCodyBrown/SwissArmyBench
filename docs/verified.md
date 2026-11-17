@@ -2538,3 +2538,14 @@ After merging claude/vibrant-mendel-j04osj (lakes and SharePoint) into sql-serve
 Chromium, 3,767 passed, 45 skipped, 8 failed: the seven known on main (beta export zip, a script's HTML cell,
 the Power BI page, swap-connection's deleted connection, the agent snapshot, the narrow window, the
 Application row's zoom) and test_workbench_feedback's landing pages, which passes alone (load).
+
+## Extensions page and install machinery (2026-11-17, branch extensions)
+Checked: tests/test_extensions.py (the catalog's statuses; discovery from made-up entry points, a broken one left
+out, the environment variable; the GitHub wheel's address; Install's exact uv command and its restore; an update of
+the base keeping an installed extension at the new version and restoring it at the old; the helper's hand-over of a
+change; a development checkout refusing with what to run; Remove asking first; the agent's Install and Remove
+waiting for Allow; the routes with the token); tests/e2e/test_extensions_page.py in Chromium (the rail's icon above
+Settings, the page's Preinstalled and Coming cards, the version mark's tooltip, Install's progress through a
+stood-in restart with a made-up available extension, a development checkout's words on the card).
+NOT checked: a real uv install of an extension wheel from a GitHub release (none exists yet); Windows (the helper's
+stop_in path for an extension change is the update's, untested here); the page reopening after a real restart.

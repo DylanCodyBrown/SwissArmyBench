@@ -191,6 +191,8 @@ const ICONS: Record<string, string> = {
   // The Session page (2026-11-16): a log, a dot for each thing made.
   // The Variables page's (rail.ts): braces round an x.
   variables: '<path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2-1 3-3 3"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/>',
+  // The Extensions page's: a puzzle piece (what plugs into the base).
+  extensions: '<path d="M4 8h4a2 2 0 114 0h4v4a2 2 0 110 4v4h-4a2 2 0 10-4 0H4v-4a2 2 0 100-4z"/>',
   session: '<path d="M5 3.5v17"/><circle cx="5" cy="6.5" r="1.7"/><circle cx="5" cy="12" r="1.7"/><circle cx="5" cy="17.5" r="1.7"/><path d="M10 6.5h11M10 12h8M10 17.5h10"/>',
   grids: '<path d="M3 8V5.5A1.5 1.5 0 014.5 4H10l1.5 4"/><rect x="3" y="8" width="18" height="12" rx="1.5"/><path d="M3 12h18M3 16h18M9 12v8M15 12v8"/>',
   // ----- connection types (2026-11-16, the owner: "our connection panel has no icons on the connection

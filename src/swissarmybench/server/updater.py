@@ -303,6 +303,7 @@ class Helper:
         spawn: Callable[[list[str]], object] = detached,
         uv: Callable[[], str | None] = find_uv,
         windows: bool = sys.platform == "win32",
+        kept: Callable[[str], list[str]] | None = None,
     ) -> None:
         self.info_file = info_file
         self.note_file = note_file
@@ -310,10 +311,15 @@ class Helper:
         self._spawn = spawn
         self._uv = uv
         self.windows = windows
+        # The installed extensions' wheels at a version (services/extensions.py): an update keeps them.
+        self.kept: Callable[[str], list[str]] = kept or (lambda version: [])
 
-    def launch(self, version: str, source: str) -> None:
-        from swissarmybench import __version__
-        from swissarmybench.domain.updates import UpdateError, plan_update
+    def installable(self) -> bool:
+        """A uv tool's install (the installer's), not a development checkout."""
+        return uv_tool_prefix(self.prefix)
+
+    def _ready(self) -> str:
+        from swissarmybench.domain.updates import UpdateError
 
         if not uv_tool_prefix(self.prefix):
             raise UpdateError(
@@ -322,6 +328,13 @@ class Helper:
         uv = self._uv()
         if uv is None:
             raise UpdateError("uv was not found: run the installer again to update.")
+        return uv
+
+    def launch(self, version: str, source: str) -> None:
+        from swissarmybench import __version__
+        from swissarmybench.domain.updates import plan_update
+
+        uv = self._ready()
         tray = _tray_pid(self.info_file.with_name("tray.json"))
         plan = plan_update(
             version=version,
@@ -337,11 +350,38 @@ class Helper:
             environ={"UV_TOOL_DIR": str(self.prefix.parent)},
             # Windows: what else runs from its folder (an editor's MCP server) is stopped first.
             stop_in=str(self.prefix) if self.windows else "",
+            wheels=tuple(self.kept(version)),
+            restore_wheels=tuple(self.kept(__version__)),
         )
+        self._hand_over(plan.to_json())
+
+    def launch_change(self, wheels: list[str], before: list[str]) -> None:
+        """Install or Remove an extension: this same version with `wheels` (`before` again on a failure)."""
+        from swissarmybench import __version__
+        from swissarmybench.domain.extensions import plan_change
+
+        uv = self._ready()
+        plan = plan_change(
+            current=__version__,
+            uv=uv,
+            tool_python=sys.executable,
+            python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+            wheels=wheels,
+            before=before,
+            wait_pids=[os.getpid(), _tray_pid(self.info_file.with_name("tray.json"))],
+            info_file=str(self.info_file),
+            note_file=str(self.note_file),
+            environ={"UV_TOOL_DIR": str(self.prefix.parent)},
+            stop_in=str(self.prefix) if self.windows else "",
+        )
+        self._hand_over(plan.to_json())
+
+    def _hand_over(self, plan: dict[str, Any]) -> None:
+        """This file and `plan` copied to a temporary folder, run by the base Python, detached."""
         folder = Path(tempfile.mkdtemp(prefix="sab-update-"))
         script = folder / "sab_update.py"
         shutil.copyfile(Path(__file__), script)
-        (folder / "plan.json").write_text(json.dumps(plan.to_json()), encoding="utf-8")
+        (folder / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
         # The base Python, outside the tool's environment, which uv is about to replace.
         python = getattr(sys, "_base_executable", None) or sys.executable
         self._spawn([python, "-I", str(script), str(folder / "plan.json")])

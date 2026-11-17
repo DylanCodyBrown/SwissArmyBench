@@ -111,7 +111,7 @@ Quiet { uv tool update-shell }
 if ($Temp) { Remove-Item -Recurse -Force $Temp -ErrorAction SilentlyContinue }
 
 Write-Host ""
-Write-Host "Swiss Army Bench Streamlit Edition $Version is installed." -ForegroundColor Green
+Write-Host "Swiss Army Bench $Version is installed." -ForegroundColor Green
 Write-Host "  Start it:              swissarmybench start"
 Write-Host "  The Python client:     uv pip install `"$WheelName`"   (in any project's environment)"
 Write-Host "  Then, in Python:       import swissarmybench as sab; sab.push(df)"

@@ -216,15 +216,22 @@ def requirement(version: str, source: str) -> str:
 
 
 def install_command(
-    uv: str, version: str, source: str, python: str, find_links: str | None = None
+    uv: str,
+    version: str,
+    source: str,
+    python: str,
+    find_links: str | None = None,
+    wheels: tuple[str, ...] = (),
 ) -> list[str]:
     """`uv tool install --force "swissarmybench[server]==X"` on the Python the app runs on now.
-    `find_links`: a folder of wheels to look in as well (the tests' local wheel)."""
+    `find_links`: a folder of wheels to look in as well (the tests' local wheel). `wheels`: the installed
+    extensions' wheels at that version, each `--with` (an update keeps them; domain/extensions.py)."""
     command = [uv, "tool", "install", "--force", "--python", python]
+    kept = [part for wheel in wheels for part in ("--with", wheel)]
     if find_links:
         command += ["--find-links", find_links]
-        return [*command, f"{PACKAGE}[server]=={version}"]
-    return [*command, requirement(version, source)]
+        return [*command, f"{PACKAGE}[server]=={version}", *kept]
+    return [*command, requirement(version, source), *kept]
 
 
 @dataclass(frozen=True)
@@ -282,10 +289,13 @@ def plan_update(
     find_links: str | None = None,
     environ: dict[str, str] | None = None,
     stop_in: str = "",
+    wheels: tuple[str, ...] = (),
+    restore_wheels: tuple[str, ...] = (),
 ) -> UpdatePlan:
     """The plan for updating from `current` to `version`; `tool_python` is the app's own Python (the uv
     tool's), which runs the new version once it is installed. `stop_in` (Windows): the tool's folder,
-    whose programs still running are stopped before the install."""
+    whose programs still running are stopped before the install. `wheels`, `restore_wheels`: the installed
+    extensions' wheels at `version` and at `current` (each kept, `--with`)."""
     if parse_version(version) <= parse_version(current) and find_links is None:
         raise UpdateError(f"{version} is not newer than {current}.")
     start = (tool_python, "-m", f"{PACKAGE}.server", "start")
@@ -294,8 +304,8 @@ def plan_update(
         version=version,
         current=current,
         wait_pids=tuple(pid for pid in wait_pids if pid > 0),
-        install=tuple(install_command(uv, version, source, python_version, find_links)),
-        restore=tuple(install_command(uv, current, "pypi", python_version, find_links)),
+        install=tuple(install_command(uv, version, source, python_version, find_links, wheels)),
+        restore=tuple(install_command(uv, current, "pypi", python_version, find_links, restore_wheels)),
         installed_version=(tool_python, "-I", "-c", probe),
         start=start,
         info_file=info_file,

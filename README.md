@@ -1,4 +1,4 @@
-# Swiss Army Bench Streamlit Edition
+# Swiss Army Bench
 
 (Installed and run as `swissarmybench`, alias `sab`.)
 
@@ -789,6 +789,18 @@ the app stops, a small helper installs the version with `uv tool install --force
 "swissarmybench[server]==X"`, and the new version starts with its tray and its page. If it fails, the old
 version starts again and says why. **Settings, Updates, Check for updates** turns the check off (kept).
 The agent has `app_update_check` and `app_update` (which waits for your Allow).
+
+## Extensions
+
+Swiss Army Bench is the base; **extensions** plug into it (Plans/editions.plan.md). The rail's
+**Extensions** page lists them: **Streamlit** is preinstalled (it comes with every install), **Accounting**
+and **Power Apps** are coming. An available extension installs with one click: the app stops, the update's
+helper runs `uv tool install --force "swissarmybench[server]==<this version>" --with <the extension's
+wheel>` (the wheel from the GitHub release of this exact version), and the app starts again; Remove is the
+same without it. An update of the base keeps each installed extension (`--with` its wheel at the new
+version). An extension package registers itself under the entry-point group `swissarmybench.extensions`;
+`SWISSARMYBENCH_EXTENSIONS=<id>,...` treats ids as installed, for tests and development only. The agent has
+`extensions_list`, `extensions_install` and `extensions_remove` (both wait for your Allow).
 
 ## Beta mode: the beta log and notes
 

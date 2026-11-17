@@ -3476,6 +3476,32 @@ def app_update(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "extensions_list",
+    "The Extensions page: each extension, its status (preinstalled, available, installed, coming)",
+)
+def extensions_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/extensions")
+
+
+@command(
+    "extensions_install",
+    "Install an available extension (waits for the user's Allow; the app stops, installs it, restarts)",
+    req("id", "The extension's id, from extensions_list."),
+)
+def extensions_install(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/extensions/install", {"id": a["id"]}, timeout=200)
+
+
+@command(
+    "extensions_remove",
+    "Remove an installed extension (waits for the user's Allow; the app stops, removes it, restarts)",
+    req("id", "The extension's id, from extensions_list."),
+)
+def extensions_remove(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/extensions/remove", {"id": a["id"]}, timeout=200)
+
+
+@command(
     "app_autostart",
     "Start at sign-in (the tray, which starts the app): on or off; `on` sets it",
     opt("on", "true or false; none: read it.", "bool"),
@@ -4500,6 +4526,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("compare", "Compare (two grids side by side)"),
     ("visualizations", "Visualizations: cards, dashboards, themes"),
     ("app", "The page itself: snapshots"),
+    ("extensions", "Extensions: what plugs into the base (Streamlit, Accounting, Power Apps)"),
     ("agent", "What only the agent has: the table in front, the inbox, approvals, live events"),
 )
 HELP_COMMANDS = frozenset({"guide", "commands", "health"})
