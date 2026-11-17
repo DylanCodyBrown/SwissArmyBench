@@ -97,7 +97,7 @@ import { type Descriptions, type DictionaryTable, described, drawDictionary, dra
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
 import { activeMode, canvasAnywhere, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
-import { closeProject, copyProject, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
+import { closeProject, copyProject, exportOutline, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
@@ -615,7 +615,14 @@ function projectEntries(): MenuEntry[] {
       .map((m) => ({ label: `New ${m.name} project…`, icon: "plus", title: `Its deliverable: ${m.deliverable}`, run: guarded(() => newProject(undefined, undefined, [], false, false, m.type)) })),
     { label: "Open project…", icon: "folder", run: guarded(() => openProject()) },
     { label: "Export data.py", icon: "export", disabled: !open, title: open ? "Written again from data.ipynb" : "No project is open", run: guarded(exportData) },
-    ...(sabOpen() ? [null, { label: "Copy project to…", icon: "copy", run: guarded(() => copyProject()) }, { label: "Close project", icon: "close", run: guarded(() => closeProject()) }] : []),
+    ...(sabOpen()
+      ? [
+          null,
+          { label: "Copy project to…", icon: "copy", run: guarded(() => copyProject()) },
+          { label: "Export outline", icon: "outline", title: "ARCHITECTURE.md: the project for someone joining it", run: guarded(() => exportOutline()) },
+          { label: "Close project", icon: "close", run: guarded(() => closeProject()) },
+        ]
+      : []),
   ];
 }
 
@@ -2719,6 +2726,7 @@ const COMMANDS: Command[] = [
   { id: "file.save", group: "File", title: "Save (the open project, when it is in front)", keys: "Ctrl+S", when: () => saves() || sabOpen(), whyNot: "nothing that saves is in front", run: () => saveFront() },
   { id: "project.save", group: "Project", title: "Save the project (its .sab/ state)", when: sabOpen, whyNot: "no project is open", run: () => saveProject() },
   { id: "project.saveAs", group: "Project", title: "Copy the project to another folder…", when: sabOpen, whyNot: "no project is open", run: () => copyProject() },
+  { id: "project.outline", group: "Project", title: "Export outline (ARCHITECTURE.md)", when: sabOpen, whyNot: "no project is open", run: () => exportOutline() },
   { id: "project.close", group: "Project", title: "Close the project", when: sabOpen, whyNot: "no project file is open", run: () => closeProject() },
   { id: "project.saveDocuments", agentOnly: true, group: "Project", title: "Save the project's documents that have unsaved changes", args: "folder: the project's folder", run: (a) => saveProjectDocuments(text(a, "folder")) },
   { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current, true) },

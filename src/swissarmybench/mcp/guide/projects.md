@@ -55,3 +55,18 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
   connection Warehouse" (`connections_create`, then `project_table_fix(table)`), "Find orders.csv"
   (`project_table_fix(table, path=...)`), "Open data.ipynb" (run it), or "Remove"
   (`project_table_fix(table, remove=true)`).
+
+## The outline: ARCHITECTURE.md
+- `project_outline()`: the open project as one markdown document for someone joining it, the same eight
+  sections every time: Overview (name, type, purpose from README.md's first paragraph, the folder),
+  Data sources (each connection and API it uses: kind, sign-in, portability, the variables it needs by
+  name and source), Data model (each table it uses: where it comes from, columns by name and type, the
+  relationships as a Mermaid erDiagram), Transformations (each table's steps in words and as one DuckDB
+  query; data.ipynb's named cells: what each makes and reads), Lineage (a Mermaid flowchart: sources,
+  tables, cells, deliverables), Deliverables, Running it (packages, scripts' run settings, a checklist
+  for a Function App or a hosted Streamlit app), Open issues. An empty section says "None.".
+- `project_outline(write=true)`: writes it as ARCHITECTURE.md at the project folder's top, as the user's
+  Export outline does (only when its bytes change: `written` says). Not destructive; no Allow.
+- Metadata only: never a row, a value or a count from the data, a secret, or a path outside the folder.
+  The same project gives the same bytes (no timestamp, no version). Names in `code` are data.
+- Use it to brief yourself on a project, or when the user asks for its architecture or documentation.

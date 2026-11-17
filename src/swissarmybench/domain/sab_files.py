@@ -567,6 +567,7 @@ in any editor. It is ordinary files, so it can be a Git repository.
   `.gitignore` and `.sab/.gitignore` keep it out of Git; remove those lines to commit data on purpose.
 - No password, token or secret is ever written here: a connection is named, and each computer finds its
   password in its own keyring, environment or key vault.
+- Export outline (the project's menu) writes `ARCHITECTURE.md`: the project for someone joining it.
 """
 
 

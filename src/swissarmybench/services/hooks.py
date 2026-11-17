@@ -15,6 +15,7 @@ default: nothing held, nothing to stop, no canvas. The base never names the exte
   app_document      the Workbench's open and save of an app's own file (`.stapp.json`)
   live_cells        a notebook's cells shown live instead of run in its kernel
   project_app       a new base project's own app files and requirements ({} with none)
+  app_pages         an app's pages and the cells their blocks link (the project's outline)
 """
 
 from __future__ import annotations
@@ -63,3 +64,8 @@ class Hooks:
     app_document: AppDocument | None = None
     live_cells: Callable[[list[tuple[int, str]]], list[int]] = field(default=lambda cells: [])
     project_app: Callable[[str], dict[str, Any]] = field(default=lambda name: {})
+    # An app's file (its whole path, its text) as its pages, each with the cells its blocks link (the
+    # document's whole path, the cell's number): the project's outline. None on here: no pages.
+    app_pages: Callable[[str, str], list[tuple[str, list[tuple[str, int]]]]] = field(
+        default=lambda path, text: []
+    )

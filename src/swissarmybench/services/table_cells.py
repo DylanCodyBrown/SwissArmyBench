@@ -104,6 +104,7 @@ class TableCells:
             # Each transformation in plain words (the Scripts and Notebooks pages' cards).
             "step_words": [describe_step(s) for s in on],
             "problem": problem,
+            "query": query,  # the steps as one DuckDB query (None: no steps): the project's outline
             "code": rules.cell_text([change]),
             "loaded": rules.cell_text([load, change]),
         }

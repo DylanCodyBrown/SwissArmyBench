@@ -28,6 +28,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_sab_projects.py   a project is a folder: new, open, save, copy, close, a fix
   routes_project_explorer.py  the Project Explorer: every project as a card, sorted, the types explained
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
+  routes_project_outline.py  the project's outline: ARCHITECTURE.md, read or written
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_modes.py          project modes: the open project's type and its working set (canvases, families)
@@ -100,6 +101,7 @@ from swissarmybench.server import (
     routes_panels,
     routes_processes,
     routes_project_explorer,
+    routes_project_outline,
     routes_project_scope,
     routes_projects,
     routes_regression,
@@ -283,6 +285,7 @@ def create_app(
             *routes_sab_projects.routes(ctx.sab_projects),
             *routes_project_explorer.routes(ctx.project_explorer),
             *routes_project_scope.routes(ctx.project_scope),
+            *routes_project_outline.routes(ctx.project_outline),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
             *routes_modes.routes(ctx.modes),

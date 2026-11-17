@@ -139,6 +139,7 @@ def routes(services: Any) -> list[Any]:
     hooks.app_document = AppFile()
     hooks.live_cells = streamlit_cells.live_cells
     hooks.project_app = project_app
+    hooks.app_pages = streamlit_cells.outline_pages
     return [
         *routes_streamlit.routes(apps),
         *routes_controllers.routes(controllers),

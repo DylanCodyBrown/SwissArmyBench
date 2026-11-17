@@ -1407,3 +1407,15 @@ def canvas_references(
                     )
                 )
     return found
+
+
+def outline_pages(
+    path: str, text: str, resolve: Callable[[str, str], str] = resolve_link
+) -> list[tuple[str, list[tuple[str, int]]]]:
+    """An app's pages for the project's outline (the base's hooks.app_pages): each page's name and the cells
+    its blocks link (the document's whole path, the cell's number), in the order they sit on the page."""
+    out = []
+    for page in read_app(text, lambda link: resolve(path, link)):
+        placed = sorted(page.blocks, key=lambda b: (b.row, b.column, b.id))
+        out.append((page.name, [(b.document, b.cell) for b in placed]))
+    return out
