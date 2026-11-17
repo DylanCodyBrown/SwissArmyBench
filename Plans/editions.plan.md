@@ -109,16 +109,15 @@ anyone who has a Streamlit project (or simply for every existing install: decide
 4. **The Accounting extension.**
 5. **The Power Apps extension.**
 
-## Open questions for the owner
-1. What "delivering" a BI notebook means: a polished read-only report (HTML or PDF, code hidden), a notebook that
-   refreshes on a schedule, the `.ipynb` itself, or several.
-2. **Pivot tables in Excel workbooks:** the Python Excel libraries (openpyxl, XlsxWriter) write tables, formats,
-   formulas and charts but cannot create real Excel pivot tables. Choices: (a) drive Excel itself through its
-   automation interface (Windows with Excel installed: real pivots, the automation then needs Excel where it
-   runs); (b) write the pivot's own file parts ourselves (works anywhere; hard and fragile); (c) summary tables
-   computed with DuckDB and laid out like a pivot, with native charts (works anywhere; not interactive in Excel).
-   Recommended: (c) by default, (a) when Excel is on the computer and the user asks for a real pivot.
-3. The cession statement and invoice templates: start from your existing workbooks (Import), from a design made
-   on the canvas, or both.
-4. Streamlit's migration: install the extension for every existing install, or only where Streamlit projects
-   exist.
+## Decided (the owner, 2026-11-17)
+1. **Delivering a BI notebook:** a **polished report** (HTML and PDF: code hidden, outputs, charts and
+   Visualizations cards in reading order, the narrative) and **the `.ipynb` itself** (runnable in VS Code or
+   Jupyter through `%load_ext swissarmybench`). No scheduled refresh in the base.
+2. **Pivots in Excel workbooks: summary tables only.** DuckDB computes the pivot; the workbook gets a formatted,
+   pivot-shaped summary table and native charts. Never a real Excel pivot table, never driving Excel itself: the
+   automation runs anywhere (a Function App included). The Excel canvas's "pivot" block is this summary.
+3. **Cession statement and invoice templates: imported from existing workbooks.** A template always starts from
+   a workbook the user already has (its layout, formats and named ranges read with openpyxl); the Excel canvas
+   adjusts it (binds its places to data, adds blocks), it does not design templates from blank.
+4. **Streamlit's move to an extension: installed for everyone.** The update that makes Streamlit an extension
+   installs `swissarmybench-streamlit` for every existing install; anyone can remove it in Settings.
