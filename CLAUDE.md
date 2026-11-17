@@ -784,6 +784,11 @@ extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; en
     domain/ts_notebook.py the data notebook's kernel (phase 2): the `sab` prelude (DuckDB's Node package: sab.sql,
                          sab.table), a SQL cell as `await sab.sql(...)`, the open tables' views, a result's id,
                          outputs cleaned, an error as the panel's detail, the editor's declarations
+    domain/shown.py      the files a code app lists: src/App.tsx, src/pages.ts, src/pages/**, src/shared/** (.ts/.tsx);
+                         the rest stays in the folder (Show all files)
+    domain/pages.py      pages, each owning everything it needs (src/pages/<Page>/: page, components, hooks,
+                         state, types, index), the list of pages (src/pages.ts), the starter files (src/shared,
+                         the Accounts page, App.tsx's switcher), the rule: a page never imports another page
     domain/data_ts.py    data.ts from the TypeScript cells (exported declarations, kernel cells left, npm: imports
                          plain, row types from DuckDB's types)
     domain/tsx_preview.py a TSX cell drawn: its props line, the bundler's deno.json (the project's own React), the

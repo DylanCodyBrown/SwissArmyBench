@@ -3,8 +3,8 @@
 Jupyter kernel stood in by tests/deno_fake.py and the Power Platform tools by tests/powerapps_fakes.py: the
 Code App page's Data notebook opens data.ipynb in the Workbench, a SQL cell over an open table and a
 TypeScript cell run in the one kernel with their tables drawn, Open as grid, an error in the panel, a TSX cell
-drawn in the HTML cells' frame with its props from the notebook, and Use in app writes src/shared/data.ts. Made-up
-data only.
+drawn in the HTML cells' frame with its props from the notebook, and Use in app writes src/shared/data.ts.
+Made-up data only.
 
 With SWISSARMYBENCH_CODEAPP_SHOTS set to a folder, the test also saves screenshots there (2x)."""
 

@@ -17,7 +17,16 @@ environments list and custom connectors. Every run is on the Code App page's Run
   then it is the open project and the mode is the code app's (TypeScript, React blades, Push).
   `powerapps_open(folder)` opens one (`close=true` closes it).
 - `powerapps_project`: its data sources and the generated models and services. `powerapps_files`: the
-  tree; `path` reads a file; `path` and `text` save it.
+  files a person edits (`src/App.tsx`, `src/pages.ts`, `src/pages/**`, `src/shared/**`; `all=true` lists the
+  rest, which stays in the folder); `path` reads any file; `path` and `text` save it. Survey the generated
+  code by path when you need it; do not list or change configs, `power.config.json` or `src/generated/`.
+
+## Pages (each page owns everything it needs)
+- `src/pages/<Page>/`: `<Page>Page.tsx` (its state in useReducer, handed down), `components/`, `hooks/`
+  (`use<Page>`: loading, error, refresh over the generated service), `state.ts`, `types.ts`, `index.ts`.
+  `src/pages.ts` lists them. A page never imports another page: shared pieces go in `src/shared/`.
+- `powerapps_pages`: the pages; `name` (and `source`, a data source) makes a New page and lists it.
+  `powerapps_scaffold`: the starter files where none is. `powerapps_lint`: imports across pages.
 - `powerapps_add_source(table)` adds a Dataverse table; with `connector` and `connection_id`
   (`powerapps_connections`) a connector; `dataset`, `table` or `as` for a tabular one.
   `powerapps_remove_source(name)`.
@@ -34,7 +43,7 @@ environments list and custom connectors. Every run is on the Code App page's Run
   `[Connection].table` reads it first. A table output: columns, types, first rows, `total`, `id`.
 - `powerapps_ts_grid(id, name)`: that result, every row, as a grid.
 - `powerapps_data_ts`: data.ts from the saved notebook (its TypeScript exported, typed results);
-  `use_in_app=true` writes `src/data.ts`.
+  `use_in_app=true` writes `src/shared/data.ts`.
 - `powerapps_tsx_preview(source)`: a TSX cell (its `export default`, `// props: {...}` on line 1) as one page
   for the HTML cells' frame, with the app's own React (`npm install` first).
 - `powerapps_dataverse_grid(source)`: a Dataverse source as a grid through the library's Dataverse

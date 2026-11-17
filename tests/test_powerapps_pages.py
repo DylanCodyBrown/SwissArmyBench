@@ -168,23 +168,23 @@ def test_the_starter_files_and_a_new_page_compile_and_lint(tmp_path: Path) -> No
         pages.register((work / "src" / "pages.ts").read_text(), "Open orders")
     )
     node = str(shutil.which("node"))
-    tsc = subprocess.run(
+    tsc = subprocess.run(  # noqa: S603 (Node.js here, the template's own compiler)
         [node, str(app / "node_modules/typescript/bin/tsc"), "-p", "tsconfig.app.json", "--noEmit"],
         cwd=work,
         capture_output=True,
         text=True,
         check=False,
-    )  # noqa: S603
+    )
     assert tsc.returncode == 0, tsc.stdout + tsc.stderr
     eslint = app / "node_modules" / "eslint" / "bin" / "eslint.js"
     if eslint.is_file():
-        linted = subprocess.run(
+        linted = subprocess.run(  # noqa: S603 (Node.js here, the template's own linter)
             [node, str(eslint), "src/pages", "src/shared", "src/App.tsx", "src/pages.ts"],
             cwd=work,
             capture_output=True,
             text=True,
             check=False,
-        )  # noqa: S603
+        )
         assert linted.returncode == 0, linted.stdout
 
 

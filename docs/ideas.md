@@ -4644,7 +4644,7 @@ in `web/` the generic `routedCells.ts` with the notebook, outputs, modes and Cod
 8. **Editor:** TypeScript and TSX cells use Monaco's own TypeScript service (the phase 1 worker), the
    kernel's `sab` declared from the route `types`; each cell is a script, so a name one cell declares is
    known in the next; top-level await and a name declared again are not flagged.
-9. **data.ts** (Use in app writes `src/data.ts`): each TypeScript cell's top-level declarations exported in
+9. **data.ts** (Use in app writes `src/shared/data.ts`, since the pages addendum below): each TypeScript cell's top-level declarations exported in
    the notebook's order; a cell using the kernel (`sab.`, `Deno.`, DuckDB, a `jsr:` import) left in the
    notebook with a comment; `npm:pkg@x` imports made the package's plain name, gathered once; typed results:
    each name a cell made that holds a table result now (asked of the kernel) gets `XRow` and `X = XRow[]`
@@ -4678,3 +4678,64 @@ connection instead (route b), which is built.
 kernel; the Deno kernel's are the agent's `powerapps_notebook` and end with the server. A notebook closed in
 the Workbench keeps its Deno kernel until the server stops. TSX blades bound to Dataverse, TypeScript
 functions and canvas apps remain later work.
+
+### Phase 2, addendum: the files a code app shows, and its pages (the owner, 2026-11-17; built, branch ext-powerapps-2)
+
+The owner: "I want the agent to understand that it should survey the generated project code and the project
+template is going to expose only the files that have to be touched in the code app. Everything else makes it
+into the project folder but does not need to be exposed in the app, only .ts files." Then: "Right now I develop
+react by treating each page as a lane. We should do the same", and "Lanes should be pages". (A first scaffold
+shaped otherwise was held and dropped: "I don't want to pretend react is streamlit though.")
+
+**The survey (2026-11-17):** Microsoft's template copied for real (`npx degit
+github:microsoft/PowerAppsCodeApps/templates/vite`; degit fell back to a git clone) and its packages installed
+(`npm install`: React 19.2, TypeScript 5.9, Vite 7, `@microsoft/power-apps` and its Vite plugin); `pa app init`
+and `pa app add data-source` from their documented output (no tenant here: the recorded stand-in).
+
+| File | Made by | Shown | Why |
+|---|---|---|---|
+| `src/App.tsx` | template | yes | the app's root: the page switcher |
+| `src/pages.ts`, `src/pages/<Page>/**` | the starter files, New page | yes | where a person works |
+| `src/shared/**` (`.ts`, `.tsx`) | the starter files, Use in app (`data.ts`) | yes | what pages share |
+| `src/main.tsx` | template | no | the entry: renders App, never changed |
+| `src/App.css`, `src/index.css`, `src/assets/react.svg`, `public/vite.svg` | template | no | the template's demo look |
+| `index.html` | template | no | the page Vite serves; only its title changes, rarely |
+| `package.json`, `package-lock.json` | template, npm | no | packages: npm's |
+| `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `vite.config.ts`, `eslint.config.js` | template | no | build settings |
+| `.gitignore`, `README.md` | template | no | Git's and the template's |
+| `power.config.json` | `pa app init`, data sources | no | pa owns it |
+| `src/generated/models/*Model.ts`, `src/generated/services/*Service.ts` | `pa app add data-source` | no | written again on every refresh; read by the pages' hooks |
+| `.power/schemas/**` | `pa app add data-source` | no | pa's downloads |
+| `.sab/project.json`, `data.ipynb` | this app | no (the notebook opens from Data notebook) | the app's own |
+| `node_modules/`, `dist/` | npm, the build | no | never listed |
+| any other `.ts` outside pages and shared | a person | no | listed with Show all files; pages and shared are the places |
+
+**Built:**
+1. **Shown, not moved:** the Code App page's file tree, the Workbench's project files (the mode's
+   `project_files` route) and the agent's `powerapps_files` list only the shown set; everything else stays in
+   the folder for Git, VS Code and pa. A quiet "Show all files" (off at each start; the agent's `all=true`)
+   lists the rest; a hidden file is read by its path.
+2. **Pages** (domain/pages.py): `src/pages/<Page>/` with `<Page>Page.tsx` (the root: its state in useReducer,
+   handed down by props), `components/` (only this page's), `hooks/` (`use<Page>`: loading, error and refresh,
+   over the generated service when it is named, else made-up rows), `state.ts` (the page's reducer, never
+   app-wide), `types.ts`, `index.ts` (its one public face: the page and its entry). `src/pages.ts` is the list
+   of pages; App.tsx draws a button per page and the chosen one below (no router). `src/shared/` holds what
+   pages share: the Page type, `useLoad`, `DataTable`, `FormField`, the app's context (signed-in user,
+   environment), and `data.ts` (Use in app writes it there now: the notebook's fixed results, never the data
+   layer).
+3. **The starter files** at New code app (`powerapps_scaffold` again for an older app): src/shared, the
+   Accounts page, src/pages.ts and App.tsx's switcher; each only where no file is (a person's App.tsx is kept;
+   the template's own is replaced).
+4. **New page** (the Code App page's button, `powerapps_pages(name, source?)`): the folder, its line in
+   src/pages.ts, opened in the Workbench.
+5. **The rule:** a page importing another page's code (or a shared file importing a page) is flagged in the
+   editor as it is typed (`/powerapps/project/lint`, `powerapps_lint`), with the fix "Move it to
+   src/shared/".
+6. **Starters** (families React and TypeScript): React page, Hook over a generated service, Page reducer,
+   Shared component, Form with state.
+7. **Defaults, each in one place to swap:** hand-written hooks (no query library), the switcher in App.tsx (no
+   router), plain controlled inputs (no form library), no new package. The template's own TypeScript settings
+   (verbatimModuleSyntax, erasableSyntaxOnly, noUnusedLocals) and ESLint (react-hooks, react-refresh) pass the
+   starter files and a new page over a generated service (checked with the installed template).
+8. The generated service's read-all method is read from its file (`getAll`; Microsoft's docs also show
+   `getall`); a service without one (a connector's actions) gives a page with made-up rows.

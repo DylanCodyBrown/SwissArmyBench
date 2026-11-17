@@ -2754,3 +2754,34 @@ docs/ideas.md says why), Deno on Windows and macOS (its install commands are the
 `deno bundle` of a real Vite code app's node_modules (a scratch React 19.2.0 install stood in), React 18
 projects, Monaco's TypeScript service in a cell across many cells (drawn, not measured), a notebook with
 thousands of rows in a table result (the first 200 are drawn; the rest is Open as grid), Edge.
+
+### Phase 2 addendum: the files shown, and pages (2026-11-17, branch ext-powerapps-2)
+
+Relied on (read 2026-11-17): Microsoft Learn, **Connect your code app to data** (2026-10-02): generated
+`src/generated/models/*Model.ts` and `services/*Service.ts`, imported as `./generated/services/...`; a
+tabular source's methods shown as `create`, `update`, `delete`, `get`, `getall` (the recorded `pa` writes
+`getAll`: the app reads the method's spelling from the service file); `pa app refresh data-source` writes them
+again.
+
+Checked here:
+- **The template, for real:** `npx degit github:microsoft/PowerAppsCodeApps/templates/vite` (its tar snapshot
+  failed through this network; degit fell back to a git clone) and `npm install` (181 packages: React 19.2,
+  TypeScript ~5.9.3, Vite 7.2, `@microsoft/power-apps` ^1.2.5, `@microsoft/power-apps-vite`, ESLint 9 with
+  react-hooks 7 and react-refresh). Its files are docs/ideas.md's survey table. Its `tsconfig.app.json`:
+  strict, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noUnusedLocals`, `allowImportingTsExtensions`.
+- **The starter files and a new page over a generated service** (a made-up `OrdersService` with `getAll`):
+  the template's own `tsc -p tsconfig.app.json --noEmit` passes, and its own ESLint passes (two of its rules
+  changed the first draft: `react-hooks/set-state-in-effect` and `react-refresh/only-export-components`).
+  tests/test_powerapps_pages.py runs both where SWISSARMYBENCH_TEST_CODEAPP names such a folder (skipped with
+  the reason otherwise). data.ts under the same settings: tests/test_powerapps_notebook_rules.py.
+- A TSX preview bundled with the installed template's own React 19.2 packages (and its real tsconfig.json
+  beside them): bundled. **Deno's bundler reads the code app's tsconfig.json** next to those packages: an
+  empty one (the old recorded template's) failed the bundle; the stand-in now writes `{}`.
+- The shown set, the hidden files on disk, Show all files, a hidden file read by its path, New page (its
+  folder, its line in src/pages.ts, opened in the Workbench), the rule as typed in the editor (a squiggle on
+  the import), and the agent's `powerapps_files`, `powerapps_pages`, `powerapps_scaffold`, `powerapps_lint`:
+  through the door with the recorded `pa`, and in Chromium (tests/e2e/test_codeapp_page.py).
+
+NOT checked: `pa app init` and `pa app add data-source` for real (no tenant: their files are the recorded
+stand-in's), a real generated service's exact types (the page's row type is inferred from its read-all
+method's result), `vite build` and Run live of the starter files, the starter files on Windows and macOS.

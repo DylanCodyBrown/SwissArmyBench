@@ -279,7 +279,10 @@ def test_the_workbench_in_the_code_app_mode(browser: Browser, server: dict[str, 
     read = call(server, "GET", "/powerapps/project/file?path=src/App.tsx")
     assert 'const total: number = "twelve";' in read["text"]
     # The pages rule in the editor: a page importing another page's code is marked.
-    bad = 'import { AccountsList } from "../Accounts/components/AccountsList";\nexport const x = AccountsList;\n'
+    bad = (
+        'import { AccountsList } from "../Accounts/components/AccountsList";\n'
+        "export const x = AccountsList;\n"
+    )
     call(server, "PUT", "/powerapps/project/file", {"path": "src/pages/Reports/ReportsPage.tsx", "text": bad})
     page.goto("about:blank")  # a new load: a hash alone would not open the file
     page.goto(
