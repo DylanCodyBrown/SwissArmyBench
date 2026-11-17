@@ -1041,7 +1041,9 @@ def test_files_are_written_and_read_back(tmp_path: Path) -> None:
     )
     run(add, orders=rows)
     read = f"SELECT count(*) FROM read_parquet('{folder}/*/*.parquet', hive_partitioning = true)"
-    assert duckdb.execute(read).fetchall() == [(6,)]
+    assert duckdb.connect().execute(read).fetchall() == [
+        (6,)
+    ]  # its own: another test may lock the shared one
     data = tmp_path / "orders.json"
     run(cell("write_json_file", dry_run=False, file=str(data)), orders=rows)
     assert [r["order_id"] for r in json.loads(data.read_text())] == [1, 2, 3]
