@@ -2394,6 +2394,15 @@ def connections_open_dataset(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "connections_dataverse_sql_endpoint",
+    "Move a Dataverse connection saved for its Web API to its SQL endpoint: its tables listed and read there",
+    req("name", "The Dataverse connection's name."),
+)
+def connections_dataverse_sql_endpoint(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/sql-endpoint")
+
+
+@command(
     "connections_sql_reads",
     "The connections' tables DuckDB SQL read this session: connection, table, rows, when read",
 )

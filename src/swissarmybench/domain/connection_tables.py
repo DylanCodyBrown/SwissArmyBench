@@ -152,6 +152,8 @@ def _matching(parts: Sequence[str], candidates: Sequence[Place], kind: str, exac
     """The candidates the parts after the connection's name can mean."""
     last = parts[-1]
     found = [c for c in candidates if _equal(c.table, last, exact)]
+    if not found and kind == "folder":  # a folder's file by its name without its suffix: orders.csv as orders
+        found = [c for c in candidates if "." in c.table and _equal(c.table.rsplit(".", 1)[0], last, exact)]
     if len(parts) == 1:
         return found
     if kind == "powerbi":

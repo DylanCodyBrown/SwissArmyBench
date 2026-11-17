@@ -9,6 +9,8 @@ SQL that names them by the connection. The agent may do all of it too (the golde
                                             this session's read of them), and the query pointed at them
                                             (what a Workbench kernel's %%sql runs; the tables themselves
                                             come from the next route)
+  POST   /connections/{name}/sql-endpoint   a Dataverse connection saved for its Web API moved to its
+                                            SQL endpoint (its tables listed and read there from now on)
   GET    /connections/sql/reads             this session's reads: each one's connection, table, rows, when
   GET    /connections/sql/reads/{id}        one read's rows as an Arrow IPC stream (a kernel's DuckDB)
   POST   /connections/sql/refresh           {connection?}: drop the session's reads, so the next query
@@ -25,9 +27,10 @@ from swissarmybench.server.blade_runner import RefreshError
 from swissarmybench.server.http import actor, error_response, json_response, read_json
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.connection_tables import ConnectionTables
+from swissarmybench.services.connections import ConnectionService
 
 
-def routes(tables: ConnectionTables, blades: BladeService) -> list[BaseRoute]:
+def routes(tables: ConnectionTables, blades: BladeService, connections: ConnectionService) -> list[BaseRoute]:
     def failed(error: Exception, name: str | None) -> Response:
         if isinstance(error, NeedsValues):
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
@@ -50,6 +53,14 @@ def routes(tables: ConnectionTables, blades: BladeService) -> list[BaseRoute]:
             return json_response(await tables.open_dataset(name, dataset, actor(request)))
         except Exception as error:
             return failed(error, name)
+
+    async def sql_endpoint(request: Request) -> Response:
+        try:
+            return json_response(
+                await connections.use_sql_endpoint(request.path_params["name"], actor(request))
+            )
+        except Exception as error:
+            return error_response(error)
 
     async def prepare(request: Request) -> Response:
         try:
@@ -87,4 +98,5 @@ def routes(tables: ConnectionTables, blades: BladeService) -> list[BaseRoute]:
         Route("/connections/sql/refresh", refresh, methods=["POST"]),
         Route("/connections/{name}/tree", tree),
         Route("/connections/{name}/open-dataset", open_dataset, methods=["POST"]),
+        Route("/connections/{name}/sql-endpoint", sql_endpoint, methods=["POST"]),
     ]

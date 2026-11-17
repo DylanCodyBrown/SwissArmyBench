@@ -11,6 +11,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connections as rules
 from swissarmybench.domain import dataverse, powerbi, python_connections
 from swissarmybench.domain import project_scope as scope_rules
@@ -63,8 +64,13 @@ class ConnectionService:
                 more["needs_password"] = (
                     scope_rules.password_fix(str(b["name"]), missing) if missing else None
                 )
+                saved = self._blades.get(str(b["name"]))
+                # How it lists and reads its tables (domain/connection_tables.py); none for a key vault.
+                more["tables_kind"] = table_rules.tables_kind(
+                    saved.kind, saved.template, saved.dialect, saved.catalog_language, saved.tags, saved.code
+                )
                 if kind == "vault":
-                    vault = self._blades.get(str(b["name"]))
+                    vault = saved
                     entries = vault.vault_mapping.items()
                     more["entries"] = [{"env": env, "secret": secret} for env, secret in entries]
                     more["every"] = vault.vault_all
@@ -411,6 +417,19 @@ class ConnectionService:
         shown = int(table.num_rows)
         return TableRead("", table, None, shown, shown, origin, sql, dax)
 
+    async def use_sql_endpoint(self, name: str, who: str) -> dict[str, Any]:
+        """A Dataverse connection saved for its Web API moved to its SQL endpoint: its tables listed by the
+        endpoint's catalog and read with T-SQL from now on (the card's "Web API (switch to the SQL
+        endpoint)"). Its code, sign-in and passwords stay as they are."""
+        blade = self._blades.get(name)
+        if not dataverse.is_dataverse(blade.dialect):
+            raise BladeError(f"{blade.name} is not a Dataverse connection.")
+        if not _web_api(blade):
+            return {"name": blade.name, "changed": False}
+        body = blade.to_json() | {"catalog": {"language": "sql", "command": dataverse.SQL_CATALOG}}
+        saved = await self.save(body, blade.name, who)
+        return {"name": saved["name"], "changed": True}
+
     async def read_place(self, name: str, place: dict[str, str], every: bool = False) -> TableRead:
         """One of a connection's tables read, not kept (the tables contract's read, services/
         connection_tables.py): a database's (Power BI's, Dataverse's) or a Python connection's first Rows
@@ -627,7 +646,7 @@ class Tables(Protocol):
 
 def _web_api(blade: Blade) -> bool:
     """A Dataverse connection saved for its Web API (its catalog from the metadata), not its SQL endpoint."""
-    return dataverse.is_dataverse(blade.dialect) and blade.catalog_language != "sql"
+    return dataverse.is_dataverse(blade.dialect) and not dataverse.on_sql_endpoint(blade.catalog_language)
 
 
 def _plain(value: Any) -> Any:

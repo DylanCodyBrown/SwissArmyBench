@@ -218,7 +218,7 @@ def create_app(
             *routes_catalog.routes(ctx.catalogs),
             *routes_blades.routes(ctx.blades),
             *routes_connection_swap.routes(ctx.connection_swap),
-            *routes_connection_tables.routes(ctx.connection_tables, ctx.blades),
+            *routes_connection_tables.routes(ctx.connection_tables, ctx.blades, ctx.connections),
             *routes_connections.routes(
                 ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
             ),
