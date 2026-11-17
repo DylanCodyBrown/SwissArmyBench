@@ -199,7 +199,9 @@ def create_app(
         ctx.variables.apply()  # the Variables page's values, in this server's environment
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
+        context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         yield
+        context_md.cancel()
         autosave.cancel()
         pruner.cancel()
         checker.cancel()

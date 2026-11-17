@@ -223,6 +223,11 @@ class AgentService:
 
     # ===== the current table =====
 
+    @property
+    def active_grid(self) -> str | None:
+        """The grid tab in front of the user (context.md's Windows), or None."""
+        return self._active if self._active and self.ws.grids.get(self._active) else None
+
     def set_active(self, grid_id: Any) -> dict[str, Any]:
         """The workspace page says which grid tab is in front."""
         self._active = grid_id if isinstance(grid_id, str) and self.ws.grids.get(grid_id) else None

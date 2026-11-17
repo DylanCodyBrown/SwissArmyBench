@@ -239,8 +239,14 @@ def _context() -> Context:
     )
 
 
-def test_claude_md_has_the_context_and_no_value() -> None:
-    text = rules.claude_md(_context(), "# Swiss Army Bench: the index (read first)\n")
+def test_claude_md_is_stable_and_imports_context_md() -> None:
+    text = rules.claude_md("9.9.9")
+    assert text == rules.claude_md("9.9.9") and "# Swiss Army Bench 9.9.9: your context" in text
+    assert text.rstrip().endswith("@context.md") and "swissarmybench://context" in text
+
+
+def test_the_summary_has_the_context_and_no_value() -> None:
+    text = rules.context_markdown(_context())
     assert SECRET_VALUE not in text and "Oslo" not in text and "SELECT" not in text
     for part in (
         'Q3 "close" pack',
@@ -253,8 +259,6 @@ def test_claude_md_has_the_context_and_no_value() -> None:
         "Sort by amount descending",
         "Warehouse (PostgreSQL)",
         "`data.ipynb`",
-        "swissarmybench://index",
-        "the index (read first)",
     ):
         assert part in text, part
 
@@ -266,7 +270,7 @@ def test_mcp_and_settings_files_have_no_token_and_grant_nothing() -> None:
     settings = json.loads(rules.settings_json("/Program Files/x/swissarmybench-context"))
     assert "permissions" not in settings and settings["enabledMcpjsonServers"] == ["swissarmybench"]
     hook = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]
-    assert hook["command"] == '"/Program Files/x/swissarmybench-context"'
+    assert hook["command"] == '"/Program Files/x/swissarmybench-context" --folder'
 
 
 def test_folder_names_are_safe() -> None:
@@ -364,8 +368,8 @@ def test_launching_claude_code_writes_the_folder_and_opens_the_terminal(tmp_path
         assert answer["launched"] == "code" and answer["bypass"] is False
         folder = Path(answer["folder"])
         assert folder == tmp_path / "state" / "claude" / "no-project"
-        text = (folder / "CLAUDE.md").read_text()
-        assert "`orders`: 2 rows" in text and "Keep rows where region equals a value" in text
+        text = (folder / "context.md").read_text()
+        assert "`orders`: 2 rows" in text and "`Keep rows where region equals a value`" in text
         assert SECRET_VALUE not in text and "North" not in text
         assert "swissarmybench" in json.loads((folder / ".mcp.json").read_text())["mcpServers"]
         assert "UserPromptSubmit" in (folder / ".claude" / "settings.json").read_text()

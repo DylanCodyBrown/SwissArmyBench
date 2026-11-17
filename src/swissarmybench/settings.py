@@ -177,6 +177,10 @@ class Settings:
     project_temp_dir: Path | None = None
     # Autosave (the project's switch): how often it looks; a change saves once it has settled for a look.
     autosave_seconds: float = 2.0
+    # context.md (services/context_md.py), Launch Claude's folder's live picture: its size at most (trimmed in
+    # a stated order past it), and how often the app looks for a change to write (once it settled).
+    context_md_chars: int = 24_000
+    context_md_seconds: float = 2.0
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4

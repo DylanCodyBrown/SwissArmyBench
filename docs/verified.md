@@ -2184,3 +2184,29 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** the high-contrast and dark themes in a browser (the colours per theme are unit-tested);
   a Session entry's stripe in a browser (the attribute is set by the same rule as the cards); dragging a
   group head; Monaco's stripe colour in a script after a theme change.
+
+## context.md, the app's live picture beside the agent (2026-11-17, branch context-md)
+
+- **Rules** (tests/test_context_md.py): from a made-up state (a PostgreSQL connection and a Power BI
+  workspace with two datasets sharing a Date table, three grids with steps, a relationship, two variables,
+  two documents) the sections in order, the SQL names (`[Warehouse].sales."Order Lines"`,
+  `[Finance Captive]."Sales model".Date`, `[Finance Captive].model_Report`), a failing connection's error,
+  steps in words; no filter value, SQL step text or variable value anywhere (scanned for the made-up
+  value); APIs and Structures only when given; a hostile table and column name stays one code span (no
+  line starts a heading); a catalog capped at 40 tables with the rest's count and catalog_search, a table
+  at 30 columns; over the budget the trims in order (columns, then catalog lists), each with its note, and
+  a last cut within the budget; which sections changed.
+- **The service** (fakes, a stepped clock): a change written once it settled, a notice that changed
+  nothing writes nothing, no notice writes nothing, a burst of changes is one write.
+- **HTTP** (TestClient, the Claude stand-in): Launch Claude writes CLAUDE.md (`@context.md`, the stable
+  header), context.md and the hook with `--folder`; context.md has the table, its step in words, the
+  variable by name and no cell or filter value; `/claude/context` (app_context) and the MCP resource give
+  the file's exact text; a prompt with nothing changed rewrites nothing (same mtime) and says nothing; a
+  table pushed: the folder's hook prints "context.md changed: Open tables" with the path and the file has
+  it; the plugin's hook (no flag) in that folder prints nothing. Two sqlite connections, a loaded catalog
+  and a relationship model from a running app: colours by name, the catalog's tables by SQL name, the
+  other's "catalog not loaded", the ERD's line, no source column names.
+- **Not checked:** a real Claude Code reading `@context.md` at start and re-reading on the hook's line (the
+  import syntax is Claude Code's documented `@path`; not run here); Claude Desktop reading the resource; a
+  Power BI or Dataverse connection's live catalog in the file (the made-up state covers the naming); APIs
+  and Structures (their branch); the file's write load during the browser suite beyond its passing.

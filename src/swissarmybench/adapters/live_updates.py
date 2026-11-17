@@ -49,6 +49,8 @@ class LiveUpdates:
         self._openers: list[WebSocket] = []
         # When the last VS Code window left (from the start, until the first one arrives).
         self._openers_left_at: float = monotonic()
+        # Counted at every notice: context.md (services/context_md.py) looks again only after one.
+        self.changes = 0
 
     def add(
         self,
@@ -60,6 +62,7 @@ class LiveUpdates:
         window: str | None = None,
         catalog: bool = False,
     ) -> None:
+        self.changes += 1  # a window opened: context.md's Windows
         self._sockets.add(websocket)
         if catalog and not workbench:  # the Workbench reads catalogs too, but is a window of its own
             self._catalogs.add(websocket)
@@ -76,6 +79,7 @@ class LiveUpdates:
             self._openers.append(websocket)
 
     def discard(self, websocket: WebSocket) -> None:
+        self.changes += 1
         self._sockets.discard(websocket)
         self._grid_of.pop(websocket, None)
         self._window_of.pop(websocket, None)
@@ -179,6 +183,7 @@ class LiveUpdates:
         after it, and the push or step change that broadcast, until the connection's ping timed out;
         now it holds up one broadcast by at most the limit and is dropped. (Sending to all pages at
         once costs a task per page: slower with 200 pages, 8.7 -> 10.5 ms, so it is not done.)"""
+        self.changes += 1
         if not self._sockets:
             return
         text = json.dumps(message, separators=(",", ":"), ensure_ascii=False)
