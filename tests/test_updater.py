@@ -168,6 +168,8 @@ def test_the_server_hands_a_copy_of_the_helper_and_its_plan_to_the_base_python(t
         "tool",
         "install",
         "--force",
+        "--refresh-package",
+        "swissarmybench",
         "--python",
         f"{sys.version_info.major}.{sys.version_info.minor}",
         "swissarmybench[server]==99.0.0",

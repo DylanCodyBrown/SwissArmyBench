@@ -109,14 +109,16 @@ def test_install_is_this_version_with_each_kept_extensions_wheel() -> None:
     )
     ledger = "https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v1.2.3/sab_ledger-1.2.3-py3-none-any.whl"
     assert plan.install == (
-        "/bin/uv", "tool", "install", "--force", "--python", "3.12", "swissarmybench[server]==1.2.3",
-        "--with", ledger,
+        "/bin/uv", "tool", "install", "--force", "--refresh-package", "swissarmybench",
+        "--python", "3.12", "swissarmybench[server]==1.2.3", "--with", ledger,
     )  # fmt: skip
     assert plan.restore == (
         "/bin/uv",
         "tool",
         "install",
         "--force",
+        "--refresh-package",
+        "swissarmybench",
         "--python",
         "3.12",
         "swissarmybench[server]==1.2.3",
@@ -168,8 +170,8 @@ def test_the_helper_hands_over_an_extension_change(tmp_path: Path) -> None:
     helper.launch_change(["https://example.invalid/ledger.whl"], [])
     handed = json.loads(Path(spawned[0][-1]).read_text())
     assert handed["install"] == [
-        "/bin/uv", "tool", "install", "--force", "--python", PY, f"swissarmybench[server]=={__version__}",
-        "--with", "https://example.invalid/ledger.whl",
+        "/bin/uv", "tool", "install", "--force", "--refresh-package", "swissarmybench",
+        "--python", PY, f"swissarmybench[server]=={__version__}", "--with", "https://example.invalid/ledger.whl",
     ]  # fmt: skip
     assert handed["version"] == __version__ and handed["wait_pids"][0] == os.getpid()
     shutil.rmtree(Path(spawned[0][-1]).parent)

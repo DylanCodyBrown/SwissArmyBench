@@ -113,6 +113,8 @@ def test_the_install_is_uv_tool_install_force_on_the_python_the_app_runs_on() ->
         "tool",
         "install",
         "--force",
+        "--refresh-package",
+        "swissarmybench",
         "--python",
         "3.12",
         "swissarmybench[server]==0.0.2",

@@ -187,7 +187,8 @@ def kept_wheels(catalog: tuple[Extension, ...], installed: list[str], version: s
 
 def install_command(uv: str, version: str, python: str, wheels: list[str]) -> list[str]:
     """`uv tool install --force --python X "swissarmybench[server]==V" --with <wheel>...`."""
-    command = [uv, "tool", "install", "--force", "--python", python, f"{PACKAGE}[server]=={version}"]
+    command = [uv, "tool", "install", "--force", "--refresh-package", PACKAGE, "--python", python]
+    command.append(f"{PACKAGE}[server]=={version}")  # --refresh-package: the index read again for it
     for wheel in wheels:
         command += ["--with", wheel]
     return command

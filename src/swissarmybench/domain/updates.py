@@ -226,7 +226,9 @@ def install_command(
     """`uv tool install --force "swissarmybench[server]==X"` on the Python the app runs on now.
     `find_links`: a folder of wheels to look in as well (the tests' local wheel). `wheels`: the installed
     extensions' wheels at that version, each `--with` (an update keeps them; domain/extensions.py)."""
-    command = [uv, "tool", "install", "--force", "--python", python]
+    # --refresh-package: the package index read again for the app itself (uv's cache can hold the list
+    # from before this version was published, and say "no version of swissarmybench==X").
+    command = [uv, "tool", "install", "--force", "--refresh-package", PACKAGE, "--python", python]
     kept = [part for wheel in wheels for part in ("--with", wheel)]
     if find_links:
         command += ["--find-links", find_links]
