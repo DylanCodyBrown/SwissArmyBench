@@ -4117,3 +4117,10 @@ Decisions:
   Its refreshes stay listed in the Write family (`also`): after the source is written, refresh the model.
 - No API write starter and no pointer starter: an API's read-only reason says "the APIs page's Write rows
   with this call", on its card and to the agent.
+
+## The editions' names (the owner, 2026-11-17)
+"we should probably just call this the streamlit edition": today's app is **Swiss Army Bench Streamlit Edition**
+(data work and Streamlit apps); beside it **Swiss Army Bench Power Apps Edition** (Plans/code-apps.plan.md) and
+**Swiss Army Bench Lite** (Plans/lite-edition.plan.md). The visible name changes (status bar, titles, installer
+messages, README); the PyPI package, the uv tool and the commands stay `swissarmybench` and `sab`, so installed
+copies keep updating.
