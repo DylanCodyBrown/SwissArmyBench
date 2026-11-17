@@ -381,6 +381,10 @@ class PowerApps:
         self._environments = cli_lines.environments(ran.output)
         return {"environments": self._mark_project(self._environments)}
 
+    def state_environments(self) -> list[dict[str, Any]]:
+        """The environments last listed this session (none listed yet: empty), nothing run."""
+        return list(self._environments or [])
+
     def _mark_project(self, found: list[dict[str, Any]]) -> list[dict[str, Any]]:
         current = self._summary().get("environment_id") if self._folder else None
         return [e | {"project": bool(current) and e["id"].lower() == str(current).lower()} for e in found]

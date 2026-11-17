@@ -248,3 +248,92 @@ def powerapps_runs(a: dict[str, Any]) -> Any:
     if a.get("run"):
         return api.call("GET", f"/powerapps/runs/{quote(str(a['run']), safe='')}")
     return api.call("GET", "/powerapps/runs")
+
+
+# ===== the data notebook (phase 2): TypeScript and SQL cells on Deno's kernel, data.ts, TSX =====
+
+RUN = 600.0  # a cell can run for minutes; the first start fetches DuckDB's Node package
+
+
+@command(
+    "powerapps_notebook",
+    "The data notebook: its kernels and Deno; `open` makes the code app's data.ipynb (SQL and TypeScript "
+    "cells on one DuckDB) and gives its path; `interrupt`, `restart` or `stop` its kernel",
+    opt("open", "true: the code app's data notebook (made the first time).", "bool"),
+    opt("interrupt", "true: interrupt the running cell.", "bool"),
+    opt("restart", "true: a fresh kernel (every variable gone).", "bool"),
+    opt("stop", "true: end the kernel.", "bool"),
+    opt("path", "The notebook (default: the code app's data.ipynb)."),
+)
+def powerapps_notebook(a: dict[str, Any]) -> Any:
+    body = {"path": a.get("path")}
+    for verb in ("open", "interrupt", "restart", "stop"):
+        if a.get(verb):
+            return api.call("POST", f"/powerapps/notebook/{verb}", body, timeout=RUN)
+    return api.call("GET", "/powerapps/notebook")
+
+
+@command(
+    "powerapps_ts_run",
+    "Run a TypeScript or SQL cell in the data notebook's Deno kernel (one DuckDB; the open tables are views "
+    "by name; `sab.sql`, `sab.table`); its outputs (a table: columns, first rows, total, id)",
+    req("code", "The cell's TypeScript, or its SQL (kind sql)."),
+    opt("kind", "typescript (the default) or sql."),
+    opt("path", "The notebook (default: the code app's data.ipynb)."),
+    opt("cell", "The cell's number (for its error's place).", "int"),
+)
+def powerapps_ts_run(a: dict[str, Any]) -> Any:
+    body = {
+        "code": a["code"],
+        "kind": a.get("kind") or "typescript",
+        "path": a.get("path"),
+        "cell": a.get("cell"),
+    }
+    return api.call("POST", "/powerapps/notebook/run", body, timeout=RUN)
+
+
+@command(
+    "powerapps_ts_grid",
+    "Open a TypeScript or SQL cell's table result as a grid (every row), by its id (r and a number)",
+    req("id", "The result's id (its output says it)."),
+    opt("name", "The grid's name."),
+    opt("path", "The notebook (default: the code app's data.ipynb)."),
+)
+def powerapps_ts_grid(a: dict[str, Any]) -> Any:
+    body = {"id": a["id"], "name": a.get("name"), "path": a.get("path")}
+    return api.call("POST", "/powerapps/notebook/grid", body, timeout=RUN)
+
+
+@command(
+    "powerapps_data_ts",
+    "data.ts from the data notebook's TypeScript cells (exported, typed results); `use_in_app` writes it "
+    "into the code app's src/ (Use in app)",
+    opt("use_in_app", "true: write src/data.ts.", "bool"),
+    opt("path", "The notebook (default: the code app's data.ipynb, as saved)."),
+)
+def powerapps_data_ts(a: dict[str, Any]) -> Any:
+    route = "use-in-app" if a.get("use_in_app") else "data-ts"
+    return api.call("POST", f"/powerapps/notebook/{route}", {"path": a.get("path")}, timeout=RUN)
+
+
+@command(
+    "powerapps_tsx_preview",
+    "Draw a TSX cell (its default export, the code app's own React; `// props: {...}` on its first line "
+    "worked out in the notebook's kernel): the page, its frame policy and the props' names",
+    req("source", "The TSX cell's code."),
+    opt("path", "The notebook (default: the code app's data.ipynb)."),
+    opt("cell", "The cell's number.", "int"),
+)
+def powerapps_tsx_preview(a: dict[str, Any]) -> Any:
+    body = {"source": a["source"], "path": a.get("path"), "cell": a.get("cell")}
+    return api.call("POST", "/powerapps/notebook/preview", body, timeout=RUN)
+
+
+@command(
+    "powerapps_dataverse_grid",
+    "Open one of the code app's Dataverse sources as a grid through the library's Dataverse connection for "
+    "its environment; with none, which connection to add",
+    req("source", "The source's name (powerapps_project lists them)."),
+)
+def powerapps_dataverse_grid(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/powerapps/dataverse/grid", {"source": a["source"]}, timeout=RUN)

@@ -19,6 +19,10 @@ goes, the code and the height stay. Pages once kept in a notebook's metadata
 (`swissarmybench.streamlit.pages`) are not read and not written: an app is a file of its own now
 (domain/streamlit_cells.py).
 
+A TypeScript or TSX cell (a kind an extension's kernel runs, OTHER_KERNEL: the Power Apps extension's data
+notebook, 2026-11-17) is a code cell kept as it is, marked with its kind in its metadata; the Python
+kernel never runs it, and plain Jupyter shows it as text in a code cell.
+
 Any cell may have a name (the owner, 2026-11-15): a short label of one line, kept in the cell's
 metadata (`swissarmybench.name`), so plain Jupyter keeps it. The number stays the cell's identity: a
 name changes nothing that links to the cell.
@@ -45,7 +49,11 @@ APP_SUFFIX: str = ".stapp.json"  # a Streamlit app's file (domain/streamlit_cell
 MAX_CELLS: int = 2_000
 MAX_CELL_CHARS: int = 1_000_000
 MAX_OUTPUTS_PER_CELL: int = 200
-KINDS: tuple[str, ...] = ("code", "sql", "dax", "html", "markdown")
+KINDS: tuple[str, ...] = ("code", "sql", "dax", "html", "markdown", "typescript", "tsx")
+# Kinds another kernel runs (an extension's, as the project's mode declares: `cell_routes`): the code cell
+# keeps its text as it is, marked with its kind; the Python kernel runs none of it.
+OTHER_KERNEL: tuple[str, ...] = ("typescript", "tsx")
+SIZED: tuple[str, ...] = ("html", "code", "tsx")  # kinds whose pane's height is kept
 # What an older file or window may still call a Python cell that draws with Streamlit.
 _OLD_STREAMLIT: str = "streamlit"
 _OLD_STREAMLIT_LINE = re.compile(r"^# ?%% \[streamlit\]\s*$")
@@ -65,7 +73,7 @@ class NotebookError(ValueError):
 
 @dataclass
 class Cell:
-    kind: str  # code, sql, dax, html or markdown
+    kind: str  # code, sql, dax, html, markdown, typescript or tsx (OTHER_KERNEL)
     # A SQL or DAX cell's query, without its %%sql or %%dax line; an HTML cell's HTML, without %%html.
     source: str
     # A SQL cell's connection (None: the %sql_connect one); a DAX cell's dataset: Finance/Sales model.
@@ -107,9 +115,9 @@ class Cell:
         kept: dict[str, Any] = {}
         if self.kind in ("sql", "dax"):
             kept |= {"kind": self.kind, "connection": self.connection}
-        if self.kind == "html":
+        if self.kind == "html" or self.kind in OTHER_KERNEL:
             kept["kind"] = self.kind
-        if self.kind in ("html", "code") and self.height is not None:
+        if self.kind in SIZED and self.height is not None:
             kept["height"] = self.height
         if self.number is not None:
             kept["number"] = self.number
@@ -157,7 +165,7 @@ def code_of(cell: Cell) -> str:
         return f"{dax_line(cell.connection)}\n{cell.source}"
     if cell.kind == "html":
         return f"%%html\n{cell.source}"
-    return cell.source if cell.kind == "code" else ""
+    return cell.source if cell.kind == "code" else ""  # markdown, and the kinds another kernel runs
 
 
 def _text(value: Any) -> str:
@@ -201,7 +209,7 @@ def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:
     cell.grouped = marks.get("grouped") is True
     if isinstance(marks.get("steps"), list) and cell.role == "transformations":
         cell.steps = marks["steps"]
-    if cell.kind in ("html", "code"):
+    if cell.kind in SIZED:
         cell.height = check_height(marks.get("height"))
     try:
         cell.name = check_name(marks.get("name"))
@@ -257,7 +265,9 @@ def read_document(text: str) -> tuple[list[Cell], int]:
             own = _own(raw)
             marked = own.get("kind") if isinstance(own, dict) else None
             dax = bool(_DAX_LINE.match(first)) or (marked == "dax" and not _SQL_LINE.match(first))
-            if dax or _SQL_LINE.match(first) or marked == "sql":
+            if marked in OTHER_KERNEL:
+                cell = Cell(str(marked), source)
+            elif dax or _SQL_LINE.match(first) or marked == "sql":
                 words = first.split(None, 1)
                 try:
                     named = " ".join(shlex.split(words[1])) if len(words) > 1 else None
@@ -299,7 +309,8 @@ def read_cells(sent: Any) -> list[Cell]:
             raw = raw | {"kind": "code"}  # a window that still holds the old kind: plain Python
         if not isinstance(raw, dict) or raw.get("kind") not in KINDS:
             raise NotebookError(
-                'Each cell is {"kind": "code", "sql", "dax", "html" or "markdown", "source": "..."}.'
+                'Each cell is {"kind": "code", "sql", "dax", "html", "markdown", "typescript" or "tsx", '
+                '"source": "..."}.'
             )
         source = raw.get("source", "")
         if not isinstance(source, str) or len(source) > MAX_CELL_CHARS:
@@ -342,7 +353,7 @@ def read_cells(sent: Any) -> list[Cell]:
                 table or None,
                 raw.get("grouped") is True,
                 steps,
-                check_height(raw.get("height")) if raw["kind"] in ("html", "code") else None,
+                check_height(raw.get("height")) if raw["kind"] in SIZED else None,
                 check_name(raw.get("name")),
                 approved,
             )
@@ -374,7 +385,7 @@ def write_notebook(
             base
             | {
                 "cell_type": "code",
-                "source": _lines(code_of(cell)),
+                "source": _lines(cell.source if cell.kind in OTHER_KERNEL else code_of(cell)),
                 "outputs": cell.outputs,
                 "execution_count": cell.execution_count,
             }

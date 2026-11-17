@@ -43,7 +43,12 @@ BASE_MODE: dict[str, Any] = {
     "cell_kinds": [],
     "tools": [],
     "export": ["notebook"],
+    # The cell kinds this mode runs somewhere else than the Python kernel: {kind: {name, language, run
+    # (the route a run is posted to), preview (a route that draws it, or "")}}; a base kind too (a
+    # DuckDB SQL cell run in the mode's kernel). The page reads them as data, never which mode it is.
+    "cell_routes": {},
 }
+_ROUTE_FIELDS = ("name", "language", "run", "preview")
 _MODE_FIELDS = ("canvases", "families", "languages", "cell_kinds", "tools", "export")
 
 
@@ -95,6 +100,16 @@ def _mode(raw: Any) -> dict[str, Any] | None:
     for key in _MODE_FIELDS:
         value = mode.get(key)
         mode[key] = [str(v) for v in value] if isinstance(value, list | tuple) else []
+    routes = mode.get("cell_routes")
+    mode["cell_routes"] = (
+        {
+            str(kind): {k: str(v) for k, v in spec.items() if k in _ROUTE_FIELDS}
+            for kind, spec in routes.items()
+            if isinstance(spec, dict)
+        }
+        if isinstance(routes, dict)
+        else {}
+    )
     return mode
 
 
