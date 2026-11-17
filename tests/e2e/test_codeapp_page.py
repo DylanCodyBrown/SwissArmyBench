@@ -142,11 +142,17 @@ def test_the_code_app_page_from_new_app_to_push(browser: Browser, server: dict[s
     page.locator("dialog[open]").get_by_label("The table's logical name").fill("account")
     page.locator("dialog[open]").get_by_role("button", name="Add").click()
     expect(page.locator(".ca-sources tr[data-source='accounts']")).to_be_visible(timeout=20000)
-    expect(
-        page.locator(".ca-generated .ca-file[data-path='src/generated/services/AccountsService.ts']")
-    ).to_be_visible()
-    page.locator(".ca-tree details.ca-folder").first.wait_for()
+    # Only the files a person edits are listed; Show all files lists the rest (generated, configs).
+    tree = page.locator(".ca-tree")
+    expect(tree.locator(".ca-file[data-path='src/App.tsx']")).to_be_visible(timeout=20000)
+    expect(tree.locator(".ca-file[data-path='package.json']")).to_have_count(0)
+    expect(tree.locator(".ca-file[data-path='src/main.tsx']")).to_have_count(0)
+    expect(tree.locator(".ca-file[data-path='src/generated/services/AccountsService.ts']")).to_have_count(0)
     shot(page, "codeapp-project")
+    tree.get_by_label("Show all files").check()
+    expect(tree.locator(".ca-file[data-path='package.json']")).to_have_count(1, timeout=20000)
+    tree.get_by_label("Show all files").uncheck()
+    expect(tree.locator(".ca-file[data-path='package.json']")).to_have_count(0, timeout=20000)
 
     # The connectors, one explored as the APIs explorer draws an API, then added to the app.
     page.locator(".ca-tab[data-tab='connectors']").click()

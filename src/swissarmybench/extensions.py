@@ -48,6 +48,9 @@ BASE_MODE: dict[str, Any] = {
     # grid), types (the editor's declarations), install (a missing tool installed)}}; a base kind too (a
     # DuckDB SQL cell run in the mode's kernel). The page reads them as data, never which mode it is.
     "cell_routes": {},
+    # A route answering the project's files a person edits ({"files": [...]}), listed in the Workbench's
+    # project files ("" for none: the base's own listing).
+    "project_files": "",
 }
 _ROUTE_FIELDS = ("name", "language", "run", "preview", "grid", "types", "install")
 _MODE_FIELDS = ("canvases", "families", "languages", "cell_kinds", "tools", "export")
@@ -101,6 +104,7 @@ def _mode(raw: Any) -> dict[str, Any] | None:
     for key in _MODE_FIELDS:
         value = mode.get(key)
         mode[key] = [str(v) for v in value] if isinstance(value, list | tuple) else []
+    mode["project_files"] = str(mode.get("project_files") or "")
     routes = mode.get("cell_routes")
     mode["cell_routes"] = (
         {

@@ -168,6 +168,7 @@ function drawPage(): void {
   body.replaceChildren(strip, tabs, panel);
   let state: State | null = null;
   let lastDataTs: DataTs | null = null;
+  let everyFile = false; // "Show all files": off at each start
 
   const load = async (): Promise<void> => {
     const got = await call<State>("/powerapps");
@@ -309,7 +310,7 @@ function drawPage(): void {
           button("Remove", () => void removeSource(s), { icon: "trash", class: "ghost ca-remove", title: `Remove ${s.name}` })),
       ),
     );
-    const generated = project.generated ?? [];
+    const allFiles = h("input", { type: "checkbox", checked: everyFile, onchange: (e: Event) => { everyFile = (e.target as HTMLInputElement).checked; void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!); } }) as HTMLInputElement;
     panel.replaceChildren(
       h("section", { class: "ca-app" },
         h("div", { class: "ca-facts" },
@@ -330,13 +331,13 @@ function drawPage(): void {
         ),
         dataTsLine(),
       ),
-      h("section", { class: "ca-generated" },
-        h("h2", {}, "Generated models and services"),
-        generated.length
-          ? h("ul", { class: "ca-files" }, ...generated.map((g) => h("li", {}, h("button", { type: "button", class: "link ca-file", "data-path": g.path, onclick: () => openInWorkbench(g.path) }, icon(g.kind === "service" ? "bolt" : "schema"), g.name), h("span", { class: "muted" }, ` ${g.kind}`))))
-          : h("p", { class: "muted" }, "Added data sources make them."),
+      h("section", { class: "ca-tree" },
+        h("div", { class: "ca-section-head" },
+          h("h2", {}, "Files"),
+          h("label", { class: "ca-every-file muted", title: "Configs, generated models and services, .power/: in the folder, not listed" }, allFiles, "Show all files"),
+        ),
+        h("div", { class: "ca-tree-host" }, h("p", { class: "muted" }, "…")),
       ),
-      h("section", { class: "ca-tree" }, h("h2", {}, "Files"), h("div", { class: "ca-tree-host" }, h("p", { class: "muted" }, "…"))),
     );
     void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!);
   };
@@ -370,11 +371,11 @@ function drawPage(): void {
   };
 
   const drawTree = async (host: HTMLElement): Promise<void> => {
-    const got = await call<{ tree: TreeNode }>("/powerapps/project/files");
+    const got = await call<{ tree: TreeNode }>(`/powerapps/project/files${everyFile ? "?all=1" : ""}`);
     if (!got) return;
     const node = (n: TreeNode): HTMLElement =>
       n.children
-        ? h("details", { class: "ca-folder", open: n.path === "src" }, h("summary", {}, icon("folder"), n.name), h("ul", {}, ...n.children.map((c) => h("li", {}, node(c)))))
+        ? h("details", { class: "ca-folder", open: !everyFile || n.path === "src" }, h("summary", {}, icon("folder"), n.name), h("ul", {}, ...n.children.map((c) => h("li", {}, node(c)))))
         : h("button", { type: "button", class: "link ca-file", "data-path": n.path, onclick: () => openInWorkbench(n.path) }, icon("page"), n.name);
     host.replaceChildren(h("ul", { class: "ca-files" }, ...(got.tree.children ?? []).map((c) => h("li", {}, node(c)))));
   };

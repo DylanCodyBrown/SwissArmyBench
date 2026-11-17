@@ -7,6 +7,10 @@ routes. Made-up data only."""
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -15,7 +19,7 @@ from swissarmybench import extensions
 from swissarmybench.domain import notebooks
 from swissarmybench.domain.html_cells import FRAME_POLICY
 from swissarmybench_powerapps import extension
-from swissarmybench_powerapps.domain import data_ts, tools, tsx_preview
+from swissarmybench_powerapps.domain import data_ts, shown, tools, tsx_preview
 from swissarmybench_powerapps.domain import ts_notebook as rules
 
 # ===== the kernel's code =====
@@ -240,3 +244,57 @@ def test_deno_is_installed_without_a_shell() -> None:
     assert tools.NEEDED["typescript"] == ("deno",) and tools.FEATURES["typescript"] == "TypeScript cells"
     assert tools.install_argv("deno", "linux") == ["npm", "install", "--global", "deno"]
     assert tools.install_argv("deno", "windows") == ["winget", "install", "--id", "DenoLand.Deno", "-e"]
+
+
+# ===== the files a person edits (the owner, 2026-11-17: "only .ts files") =====
+
+# What Microsoft's template (degit, 2026-11-17), `pa app init` and `pa app add data-source` wrote: the survey.
+SURVEY = [
+    ".gitignore", "README.md", "eslint.config.js", "index.html", "package.json", "package-lock.json",
+    "public/vite.svg", "src/App.css", "src/App.tsx", "src/assets/react.svg", "src/index.css", "src/main.tsx",
+    "tsconfig.app.json", "tsconfig.json", "tsconfig.node.json", "vite.config.ts", "power.config.json",
+    "src/generated/models/AccountsModel.ts", "src/generated/services/AccountsService.ts",
+    ".power/schemas/appschemas/dataSourcesInfo.ts", ".power/schemas/shared_contosotasks/x.Schema.json",
+    ".sab/project.json", "src/data.ts", "src/vite-env.d.ts", "src/features/totals.ts", "data.ipynb",
+]  # fmt: skip
+
+
+def test_only_the_files_a_person_edits_are_shown() -> None:
+    assert shown.shown_files(SURVEY) == ["src/App.tsx", "src/data.ts", "src/features/totals.ts"]
+    assert shown.shown("src\\pages\\Home.tsx") and not shown.shown("src/generated/x.ts")
+    assert not shown.shown("src/main.tsx") and not shown.shown("vite.config.ts")
+
+
+TEMPLATE = os.environ.get("SWISSARMYBENCH_TEST_CODEAPP")  # a code app folder with its node_modules installed
+
+
+@pytest.mark.skipif(
+    not TEMPLATE or not shutil.which("node"),
+    reason="no code app with its packages here (SWISSARMYBENCH_TEST_CODEAPP), or no Node.js",
+)
+def test_data_ts_compiles_under_the_templates_own_settings(tmp_path: Path) -> None:
+    """data.ts with exports and row types, checked by the template's own TypeScript (tsc -p tsconfig.app.json)."""
+    app = Path(str(TEMPLATE))
+    work = tmp_path / "app"
+    shutil.copytree(app, work, ignore=shutil.ignore_patterns("node_modules"))
+    (work / "node_modules").symlink_to(app / "node_modules", target_is_directory=True)
+    cells = [
+        {
+            "kind": "typescript",
+            "number": 1,
+            "source": "type Sale = { total: number };\nconst sum = (rows: Sale[]): number => rows.reduce((a, r) => a + r.total, 0);",
+        }
+    ]
+    results: dict[str, dict[str, Any]] = {
+        "by_region": {"columns": ["region", "n"], "types": ["VARCHAR", "BIGINT"]}
+    }
+    (work / "src" / "data.ts").write_text(data_ts.build(cells, results)["text"])
+    tsc = app / "node_modules" / "typescript" / "bin" / "tsc"
+    ran = subprocess.run(  # noqa: S603 (Node.js on this computer, the template's own tsc)
+        [str(shutil.which("node")), str(tsc), "-p", "tsconfig.app.json", "--noEmit"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert ran.returncode == 0, ran.stdout + ran.stderr

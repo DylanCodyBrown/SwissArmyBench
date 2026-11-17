@@ -37,6 +37,8 @@ export interface Mode {
   tools: string[];
   export: string[];
   cell_routes?: Record<string, CellRoute>;
+  /** A route answering the project's files a person edits ({files}): listed with the project's own. */
+  project_files?: string;
 }
 
 export interface ActiveMode {

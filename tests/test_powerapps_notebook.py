@@ -376,3 +376,49 @@ def test_the_cells_on_a_real_deno(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
             drawn = ok(client.post("/powerapps/notebook/preview", json={"source": source}, headers=AUTH))
             assert "createRoot" in drawn["html"] or "render" in drawn["html"]
         ok(client.post("/powerapps/notebook/stop", json={}, headers=AUTH))
+
+
+# ===== the files a person edits: the page's, the Workbench's and the agent's =====
+
+
+def test_only_the_files_a_person_edits_are_listed_and_the_rest_stay(
+    client: TestClient, app_folder: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ok(client.post("/powerapps/sources", json={"kind": "dataverse", "table": "account"}, headers=AUTH))
+    (app_folder / "src" / "data.ts").write_text("export {};\n")
+    listed = ok(client.get("/powerapps/project/files", headers=AUTH))
+    assert listed["files"] == ["src/App.tsx", "src/data.ts"] and listed["all"] is False
+    assert listed["hidden"] >= 10
+    names = json.dumps(listed["tree"])
+    for hidden in ("package.json", "power.config.json", "main.tsx", "generated", "vite.config.ts", ".power"):
+        assert hidden not in names
+    # Everything is still in the folder (Git, VS Code and pa see it), and listed when asked for all.
+    for rel in ("package.json", "power.config.json", "src/main.tsx", "tsconfig.app.json", "index.html",
+                "src/generated/services/AccountsService.ts"):  # fmt: skip
+        assert (app_folder / rel).is_file(), rel
+    every = ok(client.get("/powerapps/project/files", params={"all": "1"}, headers=AUTH))
+    assert "power.config.json" in every["files"] and "src/main.tsx" in every["files"] and every["all"] is True
+    # A hidden file is read by its path.
+    config = ok(client.get("/powerapps/project/file", params={"path": "power.config.json"}, headers=AUTH))
+    assert '"environmentId"' in config["text"]
+    # The Workbench lists the same set (the mode names the route).
+    monkeypatch.setenv(extensions.VARIABLE, "powerapps")
+    assert extensions.mode_of("codeapp")["project_files"] == "/powerapps/project/files"
+    assert extensions.mode_of(None)["project_files"] == ""
+    # The agent sees the same set, and reads a hidden one only by its path.
+    from swissarmybench_powerapps import extension
+
+    def through_client(
+        method: str, path: str, body: Any = None, params: Any = None, timeout: float = 0
+    ) -> Any:
+        sent = {k: v for k, v in (params or {}).items() if v is not None}
+        answer = client.request(method, path, json=body, params=sent or None, headers=AGENT)
+        if answer.status_code >= 400:
+            raise cli_api.CommandError(answer.text)
+        return answer.json()
+
+    monkeypatch.setattr(cli_api, "call", through_client)
+    files = extension.commands()["powerapps_files"]
+    assert files.run({})["files"] == listed["files"]
+    assert "package.json" in files.run({"all": True})["files"]
+    assert files.run({"path": "src/main.tsx"})["text"].startswith("import App")

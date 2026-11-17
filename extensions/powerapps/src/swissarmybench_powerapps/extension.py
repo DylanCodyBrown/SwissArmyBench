@@ -43,6 +43,8 @@ MODE: dict[str, Any] = {
     "cell_kinds": ["typescript", "tsx"],
     "tools": ["powerapps_"],
     "export": ["push"],
+    # The project's files a person edits, for the Workbench's project files (domain/shown.py).
+    "project_files": "/powerapps/project/files",
     "cell_routes": {
         "typescript": {
             "name": "TypeScript",

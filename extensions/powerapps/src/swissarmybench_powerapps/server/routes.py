@@ -16,7 +16,7 @@ GET    /powerapps/project            the open code app                          
 POST   /powerapps/project/new        {name, environment_id, parent}             powerapps_new
 POST   /powerapps/project/open       {folder}                                   powerapps_open
 POST   /powerapps/project/close                                                 powerapps_open close=
-GET    /powerapps/project/files      the file tree                              powerapps_files
+GET    /powerapps/project/files      ?all=1: the files a person edits (or all)  powerapps_files
 GET    /powerapps/project/file       ?path=: a file and its language            powerapps_files path=
 PUT    /powerapps/project/file       {path, text}: saved                        powerapps_files text=
 POST   /powerapps/sources            pa app add data-source                     powerapps_add_source
@@ -133,7 +133,7 @@ def routes(service: PowerApps, notebook: TsNotebooks | None = None) -> list[Base
         return await service.close_app(actor(r))
 
     async def files(r: Request) -> Any:
-        return service.files_tree()
+        return service.files_tree(r.query_params.get("all") == "1")
 
     async def file(r: Request) -> Any:
         return service.read_file(r.query_params.get("path"))

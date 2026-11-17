@@ -120,16 +120,18 @@ def powerapps_open(a: dict[str, Any]) -> Any:
 
 @command(
     "powerapps_files",
-    "The code app's file tree; `path` reads a file; `path` and `text` save it",
+    "The code app's files a person edits (.ts and .tsx under src/; `all` lists every file); `path` reads "
+    "one (a hidden one too); `path` and `text` save it",
     opt("path", "A file's path in the app (src/App.tsx)."),
     opt("text", "The file's new text (saves it)."),
+    opt("all", "true: every file (configs, generated, .power/).", "bool"),
 )
 def powerapps_files(a: dict[str, Any]) -> Any:
     if a.get("path") and a.get("text") is not None:
         return api.call("PUT", "/powerapps/project/file", {"path": a["path"], "text": a["text"]})
     if a.get("path"):
         return api.call("GET", "/powerapps/project/file", params={"path": a["path"]})
-    return api.call("GET", "/powerapps/project/files")
+    return api.call("GET", "/powerapps/project/files", params={"all": "1" if a.get("all") else None})
 
 
 @command(

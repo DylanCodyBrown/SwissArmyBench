@@ -23,7 +23,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain.packages import MissingPackagesError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
-from swissarmybench_powerapps.domain import cli_lines, connectors, project, tools
+from swissarmybench_powerapps.domain import cli_lines, connectors, project, shown, tools
 
 TIMEOUTS: dict[str, float] = {
     "quick": 120.0,
@@ -453,10 +453,20 @@ class PowerApps:
             ),
         }
 
-    def files_tree(self) -> dict[str, Any]:
+    def files_tree(self, every: bool = False) -> dict[str, Any]:
+        """The files a person edits (domain/shown.py: .ts and .tsx under src/, not generated), or with
+        `every` all of them. The others are in the folder all the same; a hidden one is read by its path."""
         if not self._folder:
             raise Conflict("No code app is open.")
-        return {"folder": self._folder, "tree": project.tree(self._files.listing(self._folder))}
+        listing = self._files.listing(self._folder)
+        files = shown.shown_files(listing)
+        return {
+            "folder": self._folder,
+            "tree": project.tree(listing if every else files),
+            "files": listing if every else files,
+            "all": every,
+            "hidden": len(listing) - len(files),
+        }
 
     def read_file(self, path: Any) -> dict[str, Any]:
         if not self._folder:

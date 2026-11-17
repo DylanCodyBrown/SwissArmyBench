@@ -493,7 +493,26 @@ function listProject(): void {
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
+  // The mode's own files a person edits (a code app's .ts and .tsx under src/), opened in the code editor.
+  for (const path of modeFiles) files.push({ path, icon: "code", word: undefined, open: () => void openCodeFileDoc(path) });
   explorerPane.setFiles({ root: `${project.name}/`, files });
+}
+
+let modeFiles: string[] = [];
+
+/** The files the mode lists for the open project (its route), then the list drawn again. */
+async function loadModeFiles(): Promise<void> {
+  const route = activeMode().mode.project_files;
+  let found: string[] = [];
+  if (route && project) {
+    try {
+      found = (await api<{ files: string[] }>(route)).files ?? [];
+    } catch {
+      found = [];
+    }
+  }
+  modeFiles = found;
+  listProject();
 }
 
 /** A project's files as tabs: data.ipynb first (and in front), then the app's canvas, then the rest. */
@@ -501,6 +520,7 @@ async function showProject(found: ProjectFiles): Promise<ProjectFiles> {
   project = found;
   await refreshMode(); // its type's mode: the canvases and families it offers
   listProject();
+  void loadModeFiles();
   for (const path of found.files) await open(path);
   const front = docs.find((d) => d.path === found.data) ?? docs.find((d) => d.path === found.files[0]);
   if (front) show(front);
@@ -1480,6 +1500,7 @@ onMode(() => {
   registerCanvasKinds();
   drawEmpty();
   drawTop();
+  void loadModeFiles(); // the mode's own files, for the project now open
 });
 void whenMode();
 
