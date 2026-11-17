@@ -22,7 +22,7 @@ from typing import Any
 
 import duckdb
 
-from swissarmybench import __version__
+from swissarmybench import __version__, extensions
 from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
@@ -108,6 +108,7 @@ from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.lineage import Lineage
+from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
@@ -200,6 +201,10 @@ class Services:
     context_md: ContextMd
     live: LiveUpdates
     workers: PriorityWorkers
+    # The project modes (the open project's type to its working set) and the extensions that are on
+    # (swissarmybench/extensions.py): each one's routes are mounted beside the base's (server/app.py).
+    modes: Modes
+    extensions: list[Any]
 
 
 def usage_documents(
@@ -225,6 +230,14 @@ def usage_documents(
     return list(seen.values())
 
 
+def _scaffold_of(project_type: str) -> Any:
+    """The scaffold of the extension whose mode is this project type (None: none is on here)."""
+    for module in extensions.enabled():
+        if (getattr(module, "MODE", None) or {}).get("type") == project_type:
+            return getattr(module, "scaffold", None)
+    return None
+
+
 def bootstrap(
     port: int,
     token: str,
@@ -235,6 +248,7 @@ def bootstrap(
     """Build everything for a server listening on 127.0.0.1:`port` that accepts `token`."""
     settings = settings or Settings()
     state_dir, export_dir = settings.state_dir, settings.export_dir
+    on_extensions = extensions.enabled()
 
     # ===== the adapters =====
     connection = open_database(settings.duckdb_memory_limit)
@@ -509,6 +523,7 @@ def bootstrap(
         export_data=streamlit.export_data,
         remember=lambda path: documents.remember(path, time.time()),
         approvals=approvals,
+        scaffold=_scaffold_of,
     )
     # A project as one .sab file: unpacked into a working folder while open, written back on Save.
     archive = SabArchive(
@@ -881,6 +896,12 @@ def bootstrap(
         intellisense=intellisense,
         table_cells=table_cells,
         panels=Panels(ws),
+        modes=Modes(
+            extensions.modes,
+            lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
+            projects.type_of,
+        ),
+        extensions=on_extensions,
         session_log=session_log,
         variables=variables,
         explorer=explorer,

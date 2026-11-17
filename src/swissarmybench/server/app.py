@@ -31,6 +31,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
+  routes_modes.py          project modes: the open project's type and its working set (canvases, families)
+  (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
@@ -88,6 +90,7 @@ from swissarmybench.server import (
     routes_intellisense,
     routes_kind_colours,
     routes_lineage,
+    routes_modes,
     routes_navigation,
     routes_packs,
     routes_panels,
@@ -254,6 +257,9 @@ def create_app(
             *routes_project_scope.routes(ctx.project_scope),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
+            *routes_modes.routes(ctx.modes),
+            # Each extension that is on: its routes, given the services (its own are built from them).
+            *(route for extension in ctx.extensions for route in extension.routes(ctx)),
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),

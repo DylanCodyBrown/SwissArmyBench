@@ -31,6 +31,7 @@ table has one text. Pure rules, no I/O:
 from __future__ import annotations
 
 import ast
+import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -44,6 +45,11 @@ DATA_NOTEBOOK: str = "data.ipynb"
 DATA_FILE: str = "data.py"
 REQUIREMENTS_FILE: str = "requirements.txt"
 PAGES_FOLDER: str = "pages"
+# The project's type (Plans/editions.plan.md: "a project folder's .sab/project.json records its type"):
+# the base's "bi", or an installed extension's (accounting). It sets the project's mode.
+TYPE_FILE: str = ".sab/project.json"
+BASE_TYPE: str = "bi"
+_TYPE = re.compile(r"^[a-z][a-z0-9_-]{0,39}$")
 MAX_NAME: int = 60
 MAX_FILES: int = 200
 _FOLDER = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]+$")
@@ -66,6 +72,31 @@ def check_folder_name(name: str) -> str:
     if not said or len(said) > MAX_NAME or not _FOLDER.match(said) or said in (".", ".."):
         raise ProjectError("A name here is a file's or folder's own: one name, at most 60 characters.")
     return said
+
+
+def check_type(value: object) -> str:
+    """A project type's id (bi, accounting, ...): lower-case letters, digits, _ and -."""
+    if value is None or value == "":
+        return BASE_TYPE
+    if not isinstance(value, str) or not _TYPE.match(value.strip().lower()):
+        raise ProjectError("A project's type is its id: bi, or an installed extension's (accounting).")
+    return value.strip().lower()
+
+
+def type_file(project_type: str) -> str:
+    """.sab/project.json's text for a project of this type."""
+    return json.dumps({"type": check_type(project_type)}, indent=2) + "\n"
+
+
+def read_type(text: str | None) -> str:
+    """The type .sab/project.json names; the base's when there is none, or it does not read."""
+    if not text:
+        return BASE_TYPE
+    try:
+        found = json.loads(text)
+        return check_type(found.get("type") if isinstance(found, dict) else None)
+    except (ValueError, ProjectError):
+        return BASE_TYPE
 
 
 @dataclass(frozen=True)
@@ -357,14 +388,14 @@ def project_files(names: Iterable[str]) -> list[str]:
         lowered = name.lower()
         if lowered == DATA_NOTEBOOK:
             return 0
-        if lowered.endswith(".stapp.json"):
+        if lowered.endswith((".stapp.json", ".design.json")):
             return 1
         return 2 if lowered.endswith(".ipynb") else 3
 
     wanted = [
         n
         for n in set(names)
-        if n.lower().endswith((".py", ".ipynb", ".stapp.json"))
+        if n.lower().endswith((".py", ".ipynb", ".stapp.json", ".design.json"))
         and not n.startswith(".")
         and n.lower() not in (DATA_FILE, streamlit_cells.TEXT_FILE)
     ]
