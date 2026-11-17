@@ -18,6 +18,17 @@ IPython: pick the connection once, write only SQL (or DAX).
 
     %%dax "Finance/Sales model" -> by_region --grid      # the same options as a SQL cell
 
+    %%sql                              # no connection: DuckDB here, over this Python's tables and
+    SELECT g.Segment, sum(s.Amount)    # any connection's tables, named by the connection
+    FROM [Finance Captive].Sales s JOIN "Shop".segments g USING (CustomerKey) GROUP BY ALL
+
+A cell with no connection (and no %sql_connect default), and `sab.sql(query)` with no connection, run in
+DuckDB in this Python: a table (DataFrame) of this Python by its variable's name, and a connection's
+table by the connection's name (`[Finance Captive].Sales`, `"Shop".main.orders`,
+`[Finance Captive].[Sales model].Date` when two datasets share the name). The app reads each such table
+(the connection's Rows to open; read once a session, Refresh on the Connections page) and hands it to
+this Python's DuckDB; joins across connections work, DuckDB does the transforming.
+
 Connections are added in the app (the Application row's Connections). What runs the SQL depends on
 what the connection's code makes:
 
@@ -51,6 +62,7 @@ pandas are imported when a cell needs them, from this Python.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
@@ -518,6 +530,69 @@ def _run_database(target: Any, sql: str) -> Any:
             close()
 
 
+# ===== DuckDB here, a connection's tables named by the connection =====
+
+# FROM or JOIN a dotted name: possibly a connection's table (the app says which are).
+_DOTTED = re.compile(r"\b(?:FROM|JOIN)\s+(?:\[[^\]\n]+\]|\"[^\"\n]+\"|[A-Za-z_]\w*)\s*\.", re.IGNORECASE)
+_here: list[Any] = []  # this Python's DuckDB for cells with no connection (one, kept)
+
+
+def _arrow(read_id: str) -> Any:
+    try:
+        import pyarrow.ipc as ipc
+    except ImportError:
+        raise SqlCellError(
+            f"A connection's table reaches this Python as Arrow: {sys.executable} -m pip install pyarrow"
+        ) from None
+    return ipc.open_stream(blades_client._call_bytes(f"/connections/sql/reads/{read_id}")).read_all()
+
+
+def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
+    """`query` in DuckDB in this Python: the tables of `namespace` (a DataFrame by its variable's name)
+    and any connection's tables named by the connection, read by the app. A DataFrame (or rows)."""
+    text = query.strip()
+    if not text:
+        raise SqlCellError("The cell has no SQL to run.")
+    duckdb = _duckdb()
+    if not _here:
+        _here.append(duckdb.connect())
+    con = _here[0]
+    sql, reads = text, []
+    if _DOTTED.search(text):
+        try:
+            prepared = blades_client._call(
+                "POST", "/connections/sql/prepare", json.dumps({"sql": text}).encode("utf-8")
+            )
+        except ServerNotRunningError:
+            prepared = {"sql": text, "tables": []}
+        except RuntimeError as error:  # the app's words: an unknown table, a shared one, a vault
+            said = str(error).split(": ", 1)[-1]
+            raise SqlCellError(said) from None
+        sql, reads = str(prepared["sql"]), list(prepared["tables"])
+    registered: list[str] = []
+    try:
+        for read in reads:
+            con.register(str(read["name"]), _arrow(str(read["id"])))
+            registered.append(str(read["name"]))
+            connection_use.report(str(read["connection"]), "query")
+        for name, value in (namespace or {}).items():
+            if (
+                isinstance(name, str)
+                and not name.startswith("_")
+                and _is_table(value)
+                and re.search(rf"(?<![\w.]){re.escape(name)}(?![\w])", sql)
+            ):
+                con.register(name, value)
+                registered.append(name)
+        return _duck_result(con.sql(sql))
+    finally:
+        for name in registered:
+            try:
+                con.unregister(name)
+            except Exception:  # noqa: S112 (a name already gone)
+                continue
+
+
 def run(found: Connection, sql: str) -> Any:
     """The SQL on the connection: a DataFrame (or rows), or a line saying what changed. In a Workbench
     kernel the app counts the query (client/connection_use.py)."""
@@ -549,9 +624,14 @@ def _run(found: Connection, text: str) -> Any:
     return _duck_result(found.target.sql(text))
 
 
-def sql(connection_name: str, query: str) -> Any:
+def sql(connection_name: str, query: str | None = None) -> Any:
     """Run `query` on a connection in this Python: `sab.sql("Warehouse", "SELECT ...")`. A DataFrame (or
-    rows, without pandas), or a line saying what changed."""
+    rows, without pandas), or a line saying what changed. One argument, no connection: DuckDB here, over
+    the caller's tables and any connection's tables named by the connection:
+    `sab.sql("SELECT * FROM [Finance Captive].Sales")`."""
+    if query is None:
+        caller = sys._getframe(1)
+        return duck(connection_name, {**caller.f_globals, **caller.f_locals})
     return run(connection(connection_name), query)
 
 
@@ -592,6 +672,9 @@ def _cell(shell: Any, line: str, cell: str, dax: bool = False) -> Any:
         parsed = parse_line(line)
         if dax and parsed.name is None and not _default:
             raise SqlCellError("Name the dataset: %%dax <connection>/<dataset>.")
+        if not dax and parsed.name is None and not _default:
+            # No connection: DuckDB here, a connection's tables named by the connection.
+            return _kept(shell, parsed, "DuckDB", _here_cell(shell, cell))
         found = connection(parsed.name)
         if dax and found.language != "dax":
             raise _not_dax(found)
@@ -603,15 +686,29 @@ def _cell(shell: Any, line: str, cell: str, dax: bool = False) -> Any:
         raise _stop(f"{what}: {error}") from None
     except Exception as error:  # the database's own refusal, in its words
         raise _stop(f"{found.name}: {type(error).__name__}: {error}") from None
+    return _kept(shell, parsed, found.name, result)
+
+
+def _here_cell(shell: Any, cell: str) -> Any:
+    try:
+        return duck(cell, shell.user_ns)
+    except SqlCellError:
+        raise
+    except Exception as error:  # DuckDB's own refusal, in its words
+        raise _stop(f"DuckDB: {type(error).__name__}: {error}") from None
+
+
+def _kept(shell: Any, parsed: CellLine, name: str, result: Any) -> Any:
+    """A cell's result: kept as `-> name`, opened as a grid with --grid."""
     if isinstance(result, str):
-        print(f"{found.name}: {result}")
+        print(f"{name}: {result}")
         return None
     if parsed.target:
         shell.user_ns[parsed.target] = result
     if parsed.grid and result is not None:
         from swissarmybench.client.push_client import push
 
-        print(push(result, name=parsed.target or f"{found.name} result"))
+        print(push(result, name=parsed.target or f"{name} result"))
     return result
 
 
