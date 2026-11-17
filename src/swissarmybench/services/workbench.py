@@ -70,6 +70,10 @@ class Kernel(Protocol):
 
     async def inspect(self, code: str, offset: int) -> str: ...
 
+    def idle(self) -> bool: ...
+
+    async def evaluate(self, expression: str) -> Any: ...
+
     async def variables(self, env_names: list[str]) -> dict[str, Any] | None: ...
 
     async def html_marks(self, names: list[str]) -> dict[str, Any] | None: ...
@@ -344,6 +348,10 @@ class Workbench:
     def kernel_count(self) -> int:
         """How many kernels are running (the question before an update)."""
         return len(self._running)
+
+    def kernel_or_none(self, kernel_id: str) -> Kernel | None:
+        """A running kernel by its id (the editors' intelligence asks it; None: not running)."""
+        return self._running.get(kernel_id)
 
     def _kernel(self, kernel_id: str) -> Kernel:
         kernel = self._running.get(kernel_id)

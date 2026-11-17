@@ -102,6 +102,11 @@ ignore_missing_imports = true
 module = ["pyodbc", "pyodbc.*", "oracledb", "oracledb.*", "trino", "trino.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# The editors' intelligence: Jedi (with IPython) and pyflakes (when the app's Python has it) ship no types.
+module = ["jedi", "jedi.*", "pyflakes", "pyflakes.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 110
 target-version = "py312"

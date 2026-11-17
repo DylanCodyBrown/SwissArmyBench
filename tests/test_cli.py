@@ -131,6 +131,8 @@ NOT_COMMANDS = {
     " by its path with datasets_load",
     "/files/dropped-sheets": "a dropped workbook's sheets: the agent asks datasets_sheets by path",
     "/agent/export-approval/{}": "reached through table_export, which asks first",
+    "/workbench/kernels/{}/complete": "IPython's own completion in a kernel (a SQL cell's names): the "
+    "agent asks workbench_complete, which reads the kernel's names through Jedi",
     "/workbench/window/{}": "the Workbench window's own answer to workbench_window (not the agent's)",
     "/workbench/notebook/flow": "the window's reading of an open notebook's run order: the agent reads "
     "it with workbench_window notebook.runOrder",
@@ -619,7 +621,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # Connections' tables in DuckDB SQL (2026-11-17) added four: a connection's tree, Open all of a
     # dataset, the session's reads and their Refresh (1,000 characters).
     # context.md (2026-11-17) added one, app_context (app_claude's context option went to it).
-    assert size < 74_500, f"the tool list is {size} characters"
+    # The editors' intelligence (2026-11-17) added three: workbench_complete, workbench_signature (its
+    # hover too) and workbench_problems.
+    assert size < 75_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

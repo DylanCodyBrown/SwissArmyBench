@@ -3069,6 +3069,57 @@ def workbench_is_complete(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/is-complete", {"code": a["code"]})
 
 
+def _intel_body(a: dict[str, Any]) -> dict[str, Any]:
+    body = {"text": a["code"], "line": a["line"], "column": a["column"]}
+    for key in ("kernel", "path", "notebook"):
+        if a.get(key) is not None:
+            body[key] = a[key]
+    return body
+
+
+_INTEL_ARGS = (
+    req("code", "The cell's or script's text."),
+    req("line", "The cursor's line (1-based).", "int"),
+    req("column", "The cursor's column (1-based).", "int"),
+    opt("kernel", "The document's kernel: its live names (Jedi's Interpreter)."),
+    opt("path", "The document's path (its project's modules)."),
+    opt("notebook", "A notebook cell (IPython's lines allowed).", "bool"),
+)
+
+
+@command(
+    "workbench_complete",
+    "What the editor's member list offers at a place: names ranked, each with its kind, signature and "
+    "docs; the app's names inside strings (connections, variables, blades); a project module's import",
+    *_INTEL_ARGS,
+)
+def workbench_complete(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/workbench/intel/complete", _intel_body(a))
+
+
+@command(
+    "workbench_signature",
+    "Parameter info for the call at a place (each signature, the active parameter, each one's words), "
+    "or with hover the docs and type of the name there",
+    *_INTEL_ARGS,
+    opt("hover", "The name's docs and type instead.", "bool"),
+)
+def workbench_signature(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/workbench/intel/{'hover' if a.get('hover') else 'signature'}", _intel_body(a))
+
+
+@command(
+    "workbench_problems",
+    "The problems the Workbench's editors show (syntax, undefined names, unused imports, Ruff's), each "
+    "document's; with path, that file checked now",
+    opt("path", "A .py or .ipynb file to check now."),
+)
+def workbench_problems(a: dict[str, Any]) -> Any:
+    if a.get("path"):
+        return api.call("GET", f"/workbench/intel/problems?path={_q(a['path'])}")
+    return api.call("GET", "/workbench/intel/problems")
+
+
 @command(
     "agent_inbox",
     "What the user sent you from the Workbench (right-click an error or code, Send to the agent): "
@@ -4051,19 +4102,6 @@ def workbench_run_notebook(a: dict[str, Any]) -> Any:
             },
         )
     return {"kernel": kernel, "cells_run": len(results), "results": results}
-
-
-@command(
-    "workbench_complete",
-    "What the kernel offers at a place in the code (variables, attributes, a DataFrame's columns)",
-    req("kernel", "The kernel's id."),
-    req("code", "The code."),
-    req("offset", "The place: characters from the start.", "int"),
-)
-def workbench_complete(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST", f"/workbench/kernels/{_q(a['kernel'])}/complete", {"code": a["code"], "offset": a["offset"]}
-    )
 
 
 @command(

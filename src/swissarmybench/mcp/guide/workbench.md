@@ -13,8 +13,14 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
   A run that stopped on an import says `missing` {feature, packages, python, command} in its error:
   run `%pip install <packages>` in that kernel, then the code again (the user gets a prompt).
 - `workbench_run_notebook`: run every cell, save with the outputs. `workbench_input` answers input().
-- `workbench_variables`, `workbench_complete`, `workbench_inspect`, `workbench_is_complete`,
-  `workbench_statement`, `workbench_kernel` (interrupt, restart, stop).
+- `workbench_variables`, `workbench_inspect`, `workbench_is_complete`, `workbench_statement`,
+  `workbench_kernel` (interrupt, restart, stop).
+- What the editors know (no window needed), at `code`, `line`, `column` (1-based; `kernel` for its live
+  names, `path` for its project's modules, `notebook` for IPython's lines): `workbench_complete` (the
+  member list: kind, signature, docs; connections, variables and blades inside strings; a project
+  module's name with its import), `workbench_signature` (parameter info: the active parameter and its
+  words; `hover` for the name's docs and type), `workbench_problems` (what the editors show now, each
+  document's; `path` checks a file now: syntax, undefined names, unused imports, Ruff's rules).
 - `workbench_to_grid(kernel, name)`: a DataFrame in the kernel opens as a grid.
 - Environments: `workbench_environment_offer`, `workbench_environment_create` (uv, else venv),
   `workbench_environment_choose` (the Python a document runs in).

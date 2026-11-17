@@ -38,6 +38,7 @@ from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, op
 from swissarmybench.adapters.datasets import DatasetStore
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import listing as folder_listing
+from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
 from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.projects import ProjectFiles
@@ -58,6 +59,7 @@ from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_fai
 from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
+from swissarmybench.client import kernel_intel
 from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import python_connections
@@ -101,6 +103,7 @@ from swissarmybench.services.export import Exports
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.inbox import Inbox
+from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.navigation import Navigation
@@ -171,6 +174,7 @@ class Services:
     tie_out: TieOut
     snapshots: Snapshots
     workbench_window: WorkbenchWindow
+    intellisense: Intellisense
     table_cells: TableCells
     streamlit: StreamlitApps
     controllers: Controllers
@@ -742,6 +746,22 @@ def bootstrap(
                 out.append((ref.kind, ref.document))
         return out
 
+    intellisense = Intellisense(
+        ws,
+        kernel_intel.answer,
+        JediWorld(),
+        ProjectModules(),
+        Linters(),
+        kernel_of=workbench.kernel_or_none,
+        project_folder=lambda: (sab_projects.state().get("project") or {}).get("folder"),
+        blades=lambda: blades.listing()["blades"],
+        variables=lambda: variables.listing()["variables"],
+        structures=lambda: sorted({str(f.get("name")) for f in structures.files()}),
+        dialect_of=lambda name: next(
+            (b.dialect for b in blade_store.all() if b.name.casefold() == name.casefold()), None
+        ),
+        read_file=lambda path: documents.read(path)[0],
+    )
     context_md = ContextMd(
         ws,
         claude_files,
@@ -818,6 +838,7 @@ def bootstrap(
         tie_out=TieOut(compares),
         snapshots=Snapshots(ws),
         workbench_window=workbench_window,
+        intellisense=intellisense,
         table_cells=table_cells,
         panels=Panels(ws),
         session_log=session_log,
