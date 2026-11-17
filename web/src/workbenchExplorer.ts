@@ -12,8 +12,8 @@
  *              connection…) and "+ Blade" (the saved blades and connections) open the flyout beside it
  *              (catalogRail.ts)
  *   [FILES]    at the bottom, folded: a project's files. Hidden until a project exists (setFiles)
- *   [POP OUT]  into a window of its own (explorerPage.ts) with its search; while it is out the pane is
- *              closed here, and its toggle brings that window forward; Move back there opens it here again
+ *   [POP OUT]  the Data page (dataPage.ts) in a window of its own, with its search; the pane closes here
+ *              (Ctrl+Shift+E opens it again); the Data page is the one place to browse tables
  */
 import { kindOfPath } from "./kindColours";
 import { button, h, icon } from "./dom";
@@ -123,7 +123,7 @@ export function mountExplorerPane(host: ExplorerPaneHost): ExplorerPane {
   addTable.setAttribute("aria-haspopup", "menu");
   const addBlade = button("Blade", () => flyout(shown === "blades" ? null : "blades"), { icon: "plus", class: "ghost wb-data-add", title: "Blades and connections" });
   addBlade.setAttribute("aria-label", "Add a blade");
-  const popOut = button("Pop out", () => host.popOut(), { icon: "popout", iconOnly: true, class: "ghost", title: "Pop out into a window of its own" });
+  const popOut = button("Pop out", () => host.popOut(), { icon: "popout", iconOnly: true, class: "ghost", title: "Open the Data page in a window of its own" });
   const closeButton = button("Close the Data Explorer", () => toggle(false), { icon: "close", iconOnly: true, class: "ghost", title: "Close (Ctrl+Shift+E)" });
 
   const filesHead = h("button", { type: "button", class: "wb-files-head", "aria-expanded": String(!filesFolded) });

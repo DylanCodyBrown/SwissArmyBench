@@ -186,6 +186,8 @@ const ICONS: Record<string, string> = {
   blade: '<path d="M2.5 14.5h12a3 3 0 010 6h-12a3 3 0 010-6z"/><path d="M11 14.5L20.5 4c1.2 4.2-.6 8.3-4.4 10.5"/><circle cx="5.5" cy="17.5" r=".6"/>',
   // The APIs page's (rail.ts): a request and its answer, two arrows between two ends.
   apis: '<path d="M4 8h12l-3-3M20 16H8l3 3"/><circle cx="19" cy="8" r="1.5"/><circle cx="5" cy="16" r="1.5"/>',
+  // The Data page's (the rail, 2026-11-17): stacked disks, a cylinder in three bands; our own, no brand's.
+  data: '<ellipse cx="12" cy="5" rx="7" ry="2.5"/><path d="M5 5v14c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5M5 9.7c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5M5 14.3c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/>',
   // The Structures page's: a small branching tree, a root and three leaves.
   structures: '<circle cx="6" cy="5" r="2"/><path d="M6 7v12M6 12h5M6 19h5"/><rect x="12" y="9.5" width="8" height="5" rx="1.2"/><rect x="12" y="16.5" width="8" height="5" rx="1.2"/><path d="M8 5h4"/><rect x="12" y="2.5" width="8" height="5" rx="1.2"/>',
   plug: '<path d="M9 3v4.5M15 3v4.5M6 7.5h12v3.5a6 6 0 01-12 0zM12 17v4"/>',

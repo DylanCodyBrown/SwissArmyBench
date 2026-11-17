@@ -28,6 +28,7 @@ AREAS: tuple[str, ...] = (
     # data, tools, building, presenting, the log; Settings at the bottom.
     "connections",
     "variables",
+    "data",  # the one place to browse tables (the owner, 2026-11-17: "a standalone DATA rail icon")
     "grids",
     "erd",
     "apis",

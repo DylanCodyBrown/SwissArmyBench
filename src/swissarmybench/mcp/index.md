@@ -28,7 +28,7 @@ A project is one .sab file; connections, APIs, vaults, blades, variables: the li
 | `library_` | the library's folder (Git) | `library_info`, `library_set_folder` |
 | `apis_` | APIs: operations, calls, web call blades | `apis_search`, `apis_call`, `apis_save_call` |
 | `structures_` | JSON, YAML, XML, TOML; steps, lineage | `structures_open`, `structures_show` |
-| `catalog_`, `explorer_` | find any data | `explorer_search`, `catalog_search` |
+| `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_starters` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
 | `streamlit_` | Streamlit (preinstalled extension) | `streamlit_block_place`, `streamlit_test` |

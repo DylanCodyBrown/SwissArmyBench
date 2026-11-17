@@ -105,7 +105,7 @@ from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.context_md import ContextMd
 from swissarmybench.services.data_export import DataExport
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
-from swissarmybench.services.explorer import Explorer, OpenTable
+from swissarmybench.services.explorer import BrowseSources, Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.extensions import Extensions
 from swissarmybench.services.folders import Folders
@@ -701,7 +701,15 @@ def bootstrap(
 
     # The Data Explorer: one search over the connections and their catalogs, the open tables, the
     # variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
-    explorer = Explorer(ws)
+    # The Data page browses the same sources: each connection's tree (never loaded by a look: Load does).
+    explorer = Explorer(
+        ws,
+        BrowseSources(
+            lambda: connections.listing()["connections"],
+            lambda name: connection_tables.tree(name, load=False),
+            connection_tables.describe,
+        ),
+    )
     explorer.register(
         "connections",
         explorer_providers.connections_provider(

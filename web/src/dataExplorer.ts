@@ -3,8 +3,10 @@
  * to quickly search by column names, table name, connection to quickly find data like the structures").
  * [SHARED: one component, three hosts]
  *
- *   [HOSTS]    the Workbench's pane (workbenchExplorer.ts), the pane popped out into a window of its own
- *              (explorerPage.ts, /workbench?panel=explorer), the grid page's Find data dialog (Ctrl+K)
+ *   [HOSTS]    the Data page (dataPage.ts: the rail's Data, open=data; browsing first, dataBrowse.ts), the
+ *              Workbench's pane (workbenchExplorer.ts; its Pop out opens the Data page in a window of its
+ *              own: the popped-out window and its explorerPage.ts are gone), the grid page's Find data
+ *              dialog (Ctrl+K)
  *   [SEARCH]   one box, as you type: connections, their loaded catalogs' tables and columns, the open
  *              tables and their columns, Structures, APIs, variables and blades, grouped and counted
  *              (services/explorer.py). Any case, by parts: cust finds customer_id and CustomerKey
@@ -15,16 +17,17 @@
  *              name, Insert, Show tables with this column; a Structures path: Open at this node, Copy path;
  *              a variable: Open in Variables; a blade: Insert its call
  *   [DRAG]     any result into a cell: the code its language writes (EXPLORER_DRAG: a SQL cell's SQL, a
- *              Python cell's Python), from this window or another (a popped-out Explorer's)
- *   [STATE]    the search, its filters and the scroll: state() and setState(), carried when it pops out
- *              and back (workbench handoffs)
+ *              Python cell's Python), from this window or another (the Data page's)
+ *   [STATE]    the search, its filters and the scroll: state() and setState(); the Data page's address
+ *              carries them when the pane pops out (dataUrl)
  *
- * ROUTING: GET /explorer/search  POST /connections/{name}/open|preview|catalog  GET /grids/{id}/rows
- *          POST /workbench/window {command: "cell.insertBelow" | "explorer.insert"}
+ * ROUTING: GET /explorer/search  GET /explorer/browse  POST /connections/{name}/open|preview|catalog
+ *          GET /grids/{id}/rows  POST /workbench/window {command: "cell.insertBelow" | "explorer.insert"}
  */
 import { api, errorText, onNotice, token } from "./api";
 import { DROP_TYPE } from "./catalogRail";
 import { queryInNotebook } from "./connectionTree";
+import { type BrowseAnswer, mountBrowse } from "./dataBrowse";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { tablePreview } from "./pythonConnectionForm";
 import { openStructures } from "./structuresPage";
@@ -32,11 +35,8 @@ import type { Part } from "./structureTree";
 
 /** A result's drag: {sql, python} (the code for each kind of cell). lazy/codeEditor.ts reads it. */
 export const EXPLORER_DRAG = "application/x-sab-explorer";
-/** The popped-out Explorer's window, by name: one at a time, found again by it. */
+/** The Data page's window when the pane pops out, by name: one at a time, found again by it. */
 export const EXPLORER_WINDOW = "swissarmybench-explorer";
-/** The main Workbench window and the popped-out Explorer talk here (same origin only): "here?", "here",
- *  "gone", "back", "search". */
-export const EXPLORER_BROADCAST = "swissarmybench-explorer";
 
 export const KINDS = ["connections", "tables", "columns", "structures", "apis", "variables", "blades"] as const;
 export type ResultKind = (typeof KINDS)[number];
@@ -100,6 +100,10 @@ export interface ExplorerHost {
   openStructure?: (result: ExplorerResult) => void;
   /** The search, a filter or the scroll changed (the host keeps it for the window). */
   changed?: (state: ExplorerState) => void;
+  /** The Data page: with nothing typed it browses (a tree), and a table's detail shows beside it. */
+  browse?: boolean;
+  /** Whether Insert has a cell to go to now (default: whenever the host has an insert). */
+  canInsert?: () => boolean;
 }
 
 export interface Explorer {
@@ -150,18 +154,32 @@ function importsOf(code: string): string[] {
   return out;
 }
 
-/** The Explorer in a window of its own (from the grid page's dialog, or a pop out): the same search
- *  carried there through a handoff (the server holds it until that window takes it). */
-export async function openExplorerWindow(state: ExplorerState): Promise<Window | null> {
-  const { id } = await api<{ id: string }>("/workbench/handoffs", "POST", { document: { kind: "explorer", ...state } });
-  const hash = new URLSearchParams({ token, take: id }).toString();
-  const opened = window.open(`/workbench?panel=explorer#${hash}`, EXPLORER_WINDOW, "popup,width=480,height=860");
-  if (!opened) {
-    await api(`/workbench/handoffs/${id}`, "DELETE").catch(() => undefined);
-    throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
-  }
+/** The Data page's address with a search (open=data; q, kinds, connection, column when set). */
+export function dataUrl(state: ExplorerState): string {
+  const params = new URLSearchParams({ open: "data" });
+  if (state.text) params.set("q", state.text);
+  if (state.kinds.length) params.set("kinds", state.kinds.join(","));
+  if (state.connection) params.set("connection", state.connection);
+  if (state.column) params.set("column", state.column);
+  return `/workspace?${params.toString()}`;
+}
+
+/** The Data page in a window of its own with this search (the Workbench pane's Pop out): the pop-out and the
+ *  Data page are one page (the owner, 2026-11-17). */
+export function openDataWindow(state: ExplorerState): Window {
+  const opened = window.open(`${dataUrl(state)}#${new URLSearchParams({ token }).toString()}`, EXPLORER_WINDOW);
+  if (!opened) throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
   opened.focus();
   return opened;
+}
+
+/** A result's drag: the code each kind of cell writes (EXPLORER_DRAG), the text, a Python cell's whole. */
+export function dragData(r: { insert: { sql?: string; python?: string }; sql?: string; name: string }, e: DragEvent): void {
+  const plain = r.insert.python ?? r.insert.sql ?? r.sql ?? r.name;
+  e.dataTransfer?.setData("text/plain", plain);
+  e.dataTransfer?.setData(EXPLORER_DRAG, JSON.stringify(r.insert));
+  if (r.insert.python) e.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: r.insert.python, imports: importsOf(r.insert.python) }));
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
 }
 
 /** A Structures result's document on the Structures page, at its node: an open one by its id, a saved
@@ -194,9 +212,28 @@ export function mountExplorer(host: ExplorerHost): Explorer {
   const recent = h("div", { class: "ex-recent", "aria-label": "Recent searches" });
   const offers = h("div", { class: "ex-offers" });
   const results = h("div", { class: "ex-results", role: "region", "aria-label": "Results" });
+  // The Data page: the tree and the detail side in the results' place (dataBrowse.ts).
+  let browsed: BrowseAnswer | null = null;
+  const browse = host.browse
+    ? mountBrowse({
+        actions: (r, under) => actions(r as ExplorerResult, under),
+        drag: (r, e) => dragData(r, e),
+        only: (name) => {
+          state.connection = name;
+          drawPicker();
+          searchNow();
+        },
+        loadCatalog: (name) => loadCatalog(name),
+        search: input,
+      })
+    : null;
+  if (browse) {
+    results.classList.add("ex-results-browse");
+    results.append(browse.element);
+  }
   const element = h(
     "div",
-    { class: "ex" },
+    { class: browse ? "ex ex-browse" : "ex" },
     h("div", { class: "ex-head" }, h("span", { class: "ex-search-wrap" }, icon("zoom"), input), h("div", { class: "ex-filters" }, chips, picker), columnChip, recent),
     offers,
     results,
@@ -293,6 +330,30 @@ export function mountExplorer(host: ExplorerHost): Explorer {
     drawColumnChip();
     host.changed?.(state);
     try {
+      const typed = Boolean(state.text.trim() || state.column);
+      if (browse) {
+        // The Data page: with nothing typed, the tree; typed, the tree narrowed to what matches.
+        const filters = new URLSearchParams();
+        if (state.kinds.length) filters.set("kinds", state.kinds.join(","));
+        if (state.connection) filters.set("connection", state.connection);
+        const [tree, answer] = await Promise.all([
+          !typed || !browsed ? api<BrowseAnswer>(`/explorer/browse?${filters.toString()}`) : Promise.resolve(browsed),
+          typed ? api<Answer>(`/explorer/search?${params.toString()}`) : Promise.resolve(null),
+        ]);
+        if (n !== asked) return;
+        browsed = tree;
+        last = answer;
+        if (answer) {
+          drawOffers(answer);
+          browse.showSearch(answer, tree);
+        } else {
+          clear(offers);
+          browse.showBrowse(tree);
+        }
+        element.dataset.searched = state.text.trim() || state.column;
+        element.dataset.browsed = typed ? "" : "1";
+        return;
+      }
       const answer = await api<Answer>(`/explorer/search?${params.toString()}`);
       if (n !== asked) return; // a newer search is on its way
       last = answer;
@@ -301,7 +362,8 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       element.dataset.searched = state.text.trim() || state.column;
     } catch (e) {
       if (n !== asked) return;
-      clear(results, h("p", { class: "status-error" }, errorText(e)));
+      if (browse) clear(offers, h("p", { class: "status-error" }, errorText(e)));
+      else clear(results, h("p", { class: "status-error" }, errorText(e)));
     }
   }
 
@@ -367,7 +429,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
   };
 
   function actions(r: ExplorerResult, under: HTMLElement): Action[] {
-    const into = host.insert ? [{ label: "Insert", icon: "plus", title: `Insert into ${host.target()}`, run: () => insert(r) }] : [];
+    const into = host.insert && (host.canInsert?.() ?? true) ? [{ label: "Insert", icon: "plus", title: `Insert into ${host.target()}`, run: () => insert(r) }] : [];
     switch (r.kind) {
       case "connections":
         return [
@@ -425,7 +487,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
           ...into,
         ];
       case "blades":
-        return [...(host.insert ? [{ label: "Insert its call", icon: "plus", title: `Insert into ${host.target()}`, run: () => insert(r) }] : []), { label: "Copy its call", icon: "copy", run: () => copyText(r.insert.python ?? r.name, "the call") }];
+        return [...(host.insert && (host.canInsert?.() ?? true) ? [{ label: "Insert its call", icon: "plus", title: `Insert into ${host.target()}`, run: () => insert(r) }] : []), { label: "Copy its call", icon: "copy", run: () => copyText(r.insert.python ?? r.name, "the call") }];
       default:
         return [...into, { label: "Copy name", icon: "copy", run: () => copyText(r.name, r.name) }];
     }
@@ -468,19 +530,11 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       select(r.key);
       showMenu(e.clientX, e.clientY, r.name, own.map((a): MenuItem => [a.icon, a.label, () => void a.run()]));
     });
-    item.addEventListener("dragstart", (e) => {
-      const plain = r.insert.python ?? r.insert.sql ?? r.sql ?? r.name;
-      e.dataTransfer?.setData("text/plain", plain);
-      e.dataTransfer?.setData(EXPLORER_DRAG, JSON.stringify(r.insert));
-      if (r.insert.python) e.dataTransfer?.setData(DROP_TYPE, JSON.stringify({ code: r.insert.python, imports: importsOf(r.insert.python) }));
-      if (e.dataTransfer) e.dataTransfer.effectAllowed = "copy";
-    });
+    item.addEventListener("dragstart", (e) => dragData(r, e));
     return item;
   }
 
-  function draw(): void {
-    const answer = last;
-    if (!answer) return;
+  function drawOffers(answer: Answer): void {
     clear(
       offers,
       ...answer.offers.map((o) =>
@@ -492,6 +546,12 @@ export function mountExplorer(host: ExplorerHost): Explorer {
         ),
       ),
     );
+  }
+
+  function draw(): void {
+    const answer = last;
+    if (!answer) return;
+    drawOffers(answer);
     clear(
       results,
       ...answer.groups.map((g) =>
@@ -518,6 +578,15 @@ export function mountExplorer(host: ExplorerHost): Explorer {
   // Keys: the arrows move through the results, Enter runs the selected one's first action.
   element.addEventListener("keydown", (e) => {
     if ((e.target as HTMLElement).closest("select, button")) return;
+    if (browse) {
+      // The Data page's tree has its own keys (dataBrowse.ts); from the search box, Down goes into it.
+      if (e.target === input && e.key === "ArrowDown") {
+        e.preventDefault();
+        browse.focus();
+      }
+      if (e.target === input && e.key === "Enter") keepRecent(state.text);
+      return;
+    }
     const list = flat();
     if (!list.length) return;
     const at = list.findIndex((r) => r.key === selectedKey);
@@ -536,7 +605,11 @@ export function mountExplorer(host: ExplorerHost): Explorer {
 
   onNotice((notice) => {
     if (!element.isConnected) return;
-    if (["catalogs_changed", "blades_changed", "dataset_updated", "dataset_closed", "dataset_renamed", "grid_shown", "grid_closed", "variables_changed"].includes(notice.type)) {
+    const watched = ["catalogs_changed", "blades_changed", "dataset_updated", "dataset_closed", "dataset_renamed", "grid_shown", "grid_closed", "variables_changed"];
+    // The Data page also follows a catalog's loading (its status) and Structures.
+    if (browse) watched.push("catalog_loading", "structures_changed");
+    if (watched.includes(notice.type)) {
+      if (browse) browsed = null; // the tree read again
       if (notice.type === "blades_changed") void loadConnections();
       void search(true);
     }

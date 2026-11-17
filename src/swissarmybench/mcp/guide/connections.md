@@ -173,6 +173,16 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
 - `kinds=["columns"]`, `connection="Shop"` narrow it; `column="customer_id"` lists every table with that
   column in every connection (a join's hint). `offers` are connections whose catalog is not loaded:
   `connections_load_catalog`, then search again.
-- The user's pane (Ctrl+Shift+E in the Workbench, Ctrl+K on the grid page) shows the same results; its
-  actions are tools you have: `connections_open_table`, `connections_preview_table`, `workbench_window`
-  (`explorer.insert`, `explorer.popOut`, `explorer.moveBack`).
+- The Data page (the rail's Data, after Variables: `app_navigate(to="data")`) is the one place to browse
+  tables. `explorer_browse` is its tree with nothing typed: every connection with its status (`loaded`,
+  `state`: loading, none, failed) and its tables by database and schema (a Power BI workspace's datasets),
+  each with its DuckDB SQL name; then the open tables and their columns, Structures' documents and paths,
+  APIs' table-returning calls and the blades whose result is a table. `explorer_table(connection, schema,
+  table)` is a table's detail: columns (type, nulls), its SQL name, the code that reads it, and whether
+  `connections_import_relationships` works for it (Power BI, SQL Server).
+- The page's actions are tools you have: Open as grid `connections_open_table`, Preview
+  `connections_preview_table`, Load `connections_load_catalog`, Import its relationships
+  `connections_import_relationships`, Query in a notebook `workbench_window("cell.insertBelow",
+  {kind: "sql", source})`, Insert `workbench_window("explorer.insert")`. The same search is the Workbench's
+  pane (Ctrl+Shift+E; "explorer.popOut" opens the Data page in a window of its own) and Ctrl+K on the
+  grid page.

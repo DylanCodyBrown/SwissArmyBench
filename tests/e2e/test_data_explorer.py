@@ -3,8 +3,8 @@
 pane called Data Explorer that allows us to quickly search by column names, table name, connection to
 quickly find data"; and "that Data Explorer should have the option to pop it out into another tab"). The
 pane beside the data notebook and a script, a search, an insert into a SQL cell and a Python cell, the
-Streamlit cells in App mode, pop out and Move back (a result dragged from the window into a cell), and
-Ctrl+K on the grid page. Made-up data only.
+Streamlit cells in App mode, and Ctrl+K on the grid page (its Open the Data page). The pop-out is the Data
+page now: tests/e2e/test_data_page.py. Made-up data only.
 
 With SWISSARMYBENCH_EXPLORER_SHOTS set to a folder, the tests also save screenshots there (2x)."""
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -165,74 +166,6 @@ def test_app_mode_has_the_streamlit_cells(browser: Browser, server: dict[str, An
     page.context.close()
 
 
-def test_pop_out_search_drag_across_windows_and_move_back(
-    browser: Browser, server: dict[str, Any], shop: str
-) -> None:
-    page = workbench(browser, server)
-    window(server, "file.newNotebook")
-    window(server, "cell.insertBelow", kind="sql", source="")
-    open_explorer(page)
-    search(page, "orders")
-    with page.context.expect_page() as popped:
-        page.locator(".wb-explorer").get_by_role("button", name="Pop out").click()
-    out = popped.value
-    expect(out).to_have_title("Data Explorer", timeout=20000)
-    expect(out.locator(".ex-search")).to_have_value("orders")  # the search came with it
-    expect(page.locator(".wb-explorer")).to_be_hidden()
-    expect(out.locator(".nav-rail")).to_be_visible()
-    expect(out.locator(".ex-group[data-kind='tables'] .ex-result").first).to_be_visible()
-    # A drag from the window into a cell of the Workbench's notebook: what the window's drag carries,
-    # dropped there (Playwright cannot drag between two windows; the browser carries the data).
-    carried = out.evaluate(
-        """() => {
-            const dt = new DataTransfer();
-            const li = document.querySelector(".ex-group[data-kind='tables'] .ex-result");
-            li.dispatchEvent(new DragEvent("dragstart", { dataTransfer: dt, bubbles: true }));
-            return Object.fromEntries(dt.types.map((t) => [t, dt.getData(t)]));
-        }"""
-    )
-    assert "application/x-sab-explorer" in carried
-    editor = page.locator(".wb-cell.selected .monaco-editor").first
-    editor.evaluate(
-        """(node, carried) => {
-            const dt = new DataTransfer();
-            for (const [type, value] of Object.entries(carried)) dt.setData(type, value);
-            const box = node.getBoundingClientRect();
-            const at = { clientX: box.left + 20, clientY: box.top + 10, bubbles: true, cancelable: true };
-            node.dispatchEvent(new DragEvent("dragover", { ...at, dataTransfer: dt }));
-            node.dispatchEvent(new DragEvent("drop", { ...at, dataTransfer: dt }));
-        }""",
-        carried,
-    )
-    sql = json.loads(carried["application/x-sab-explorer"])["sql"]
-    assert sql.startswith("SELECT * FROM [")
-    expect(page.locator(".wb-cell.selected .view-lines")).to_contain_text(sql.split(" FROM ")[1])
-    # A search in the window.
-    search(out, "customer_id", out)
-    result = out.locator(".ex-group[data-kind='columns'] .ex-result").first
-    expect(result).to_be_visible()
-    shot(out, "explorer-window")
-    # Insert from the window goes to the Workbench's selected cell.
-    out.bring_to_front()
-    result.hover()
-    result.get_by_role("button", name="Insert").click()
-    expect(page.locator(".wb-cell.selected .view-lines")).to_contain_text("customer_id")
-    # Move back: the pane opens with the window's search, and the window closes.
-    out.get_by_role("button", name="Move back").click()
-    expect(page.locator(".wb-explorer")).to_be_visible(timeout=15000)
-    expect(page.locator(".wb-explorer .ex-search")).to_have_value("customer_id")
-    out.wait_for_event("close", timeout=15000)
-    # The agent pops it out and back too.
-    with page.context.expect_page() as again:
-        window(server, "explorer.popOut")
-    second = again.value
-    expect(second.locator(".ex-search")).to_have_value("customer_id", timeout=20000)
-    window(server, "explorer.moveBack")
-    second.wait_for_event("close", timeout=15000)
-    expect(page.locator(".wb-explorer")).to_be_visible(timeout=15000)
-    page.context.close()
-
-
 def test_ctrl_k_on_the_grid_page(browser: Browser, server: dict[str, Any], shop: str) -> None:
     page = browser.new_context(viewport={"width": 1400, "height": 900}, device_scale_factor=2).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workspace#token={server['token']}")
@@ -244,8 +177,14 @@ def test_ctrl_k_on_the_grid_page(browser: Browser, server: dict[str, Any], shop:
     expect(
         dialog.locator(f".ex-group[data-kind='tables'] .ex-result[data-connections='{shop}'] .ex-name")
     ).to_have_text(["customers"])
-    expect(dialog.get_by_role("button", name="Open the Data Explorer")).to_be_visible()
     shot(page, "explorer-find-data")
+    # Open the Data page: the dialog goes, the Data page comes with the same search (2026-11-17).
+    dialog.get_by_role("button", name="Open the Data page").click()
+    data = page.locator(".area-page[data-page='data']")
+    expect(data).to_be_visible(timeout=10000)
+    expect(dialog).to_have_count(0)
+    expect(data.locator(".ex-search")).to_have_value("cust")
+    expect(page).to_have_url(re.compile(r"q=cust.*open=data|open=data.*q=cust"))
     page.context.close()
 
 

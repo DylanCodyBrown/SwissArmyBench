@@ -8,7 +8,7 @@
  *              it, beside every document; off until then): one search over everything that holds data
  *              (dataExplorer.ts), a project's files when there is one. "+ Table" (Open file…, a
  *              connection's tables, the catalog's search) and "+ Blade" open the side bar's old lists
- *              (catalogRail.ts) beside it. Pop out puts it in a window of its own (explorerPage.ts)
+ *              (catalogRail.ts) beside it. Pop out opens the Data page (dataPage.ts) in a window of its own
  *   [GROUPS]   the documents as tabs in groups (workbenchGroups.ts): drag a tab along a row, or to a
  *              group's edge to split it; splitters size them. The focused group's row ends with its
  *              document's controls: a notebook's "+ Cell", Run all and "…"; a script's "+ Cell", Run
@@ -65,7 +65,7 @@ import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
 import { mountExplorerPane } from "./workbenchExplorer";
 import { cellsPane } from "./workbenchCellsPane";
-import { EXPLORER_BROADCAST, EXPLORER_WINDOW, type ExplorerResult, type ExplorerState, openExplorerWindow } from "./dataExplorer";
+import { type ExplorerResult, type ExplorerState, openDataWindow } from "./dataExplorer";
 import { openVariables } from "./variablesPage";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
 import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
@@ -2193,28 +2193,19 @@ function showGridAtHome(grid: string): void {
   if (!opened) toast("The browser blocked the grid's window. Allow pop-ups for this address.", "error");
 }
 
-// ----- the Data Explorer popped out into a window of its own (explorerPage.ts), and back
-const explorerChannel = "BroadcastChannel" in window ? new BroadcastChannel(EXPLORER_BROADCAST) : null;
-explorerChannel?.addEventListener("message", (e: MessageEvent) => {
-  const said = e.data as { type?: string } | null;
-  if (said?.type === "here" && !explorerPane.popped()) explorerPane.setPopped(true);
-  if (said?.type === "gone" && explorerPane.popped()) explorerPane.setPopped(false);
-});
-// A popped-out Explorer from before a reload says it is there (else the pane is this window's again).
-if (explorerPane.popped()) {
-  explorerPane.setPopped(false);
-  explorerChannel?.postMessage({ type: "here?" });
+// ----- the Data Explorer popped out: the Data page in a window of its own (dataPage.ts; the owner,
+// 2026-11-17: the pop-out and the Data page are not two pages doing one job). Its search goes with it in
+// the address; the pane closes here (Ctrl+Shift+E opens it again).
+if (explorerPane.popped()) explorerPane.setPopped(false); // a pop-out window from before: the pane is this window's
+
+/** Pop the Explorer out: the Data page in a window of its own, with the pane's search; the pane closes here. */
+async function popExplorer(): Promise<{ popped: boolean; page: string }> {
+  openDataWindow(explorerPane.explorer.state());
+  explorerPane.toggle(false);
+  return { popped: true, page: "data" };
 }
 
-/** Pop the Explorer out: its search, filters and scroll go with it (a handoff), the pane closes here. */
-async function popExplorer(): Promise<{ popped: boolean }> {
-  if (!explorerPane.popped()) await openExplorerWindow(explorerPane.explorer.state());
-  else window.open("", EXPLORER_WINDOW)?.focus();
-  explorerPane.setPopped(true);
-  return { popped: true };
-}
-
-/** The popped-out Explorer back into the pane (it hands its search back through a handoff). */
+/** An Explorer's search handed to this window's pane (an older window's Move back). */
 function explorerBack(state: ExplorerState): void {
   explorerPane.setPopped(false);
   explorerPane.toggle(true);
@@ -3024,10 +3015,6 @@ const COMMANDS: Command[] = [
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
   { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: (a) => {
     const show = typeof a.show === "boolean" ? a.show : undefined;
-    if (explorerPane.popped() && show !== false) {
-      window.open("", EXPLORER_WINDOW)?.focus(); // it is in its own window: that window comes forward
-      return { open: true, popped: true };
-    }
     return { open: explorerPane.toggle(show), popped: false };
   } },
   { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
@@ -3077,11 +3064,8 @@ const COMMANDS: Command[] = [
   { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: async (a) => {
     const kinds = Array.isArray(a.kinds) ? a.kinds.map(String) : typeof a.kinds === "string" ? a.kinds.split(",") : [];
     const state: ExplorerState = { text: text(a, "text") ?? "", kinds, connection: text(a, "connection") ?? "", column: text(a, "column") ?? "", scroll: 0 };
-    if (explorerPane.popped()) explorerChannel?.postMessage({ type: "search", state });
-    else {
-      explorerPane.toggle(true);
-      explorerPane.explorer.setState(state);
-    }
+    explorerPane.toggle(true);
+    explorerPane.explorer.setState(state);
     const params = new URLSearchParams({ q: state.text, kinds: state.kinds.join(","), connection: state.connection, column: state.column });
     return api(`/explorer/search?${params.toString()}`);
   } },
@@ -3091,11 +3075,7 @@ const COMMANDS: Command[] = [
     return explorerInsert({ ...(typeof insert.sql === "string" ? { sql: insert.sql } : {}), ...(typeof insert.python === "string" ? { python: insert.python } : {}) });
   } },
   { id: "explorer.target", agentOnly: true, group: "Data", title: "Where the Data Explorer's Insert goes: the focused document and its cell", run: () => explorerTarget() },
-  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out into a window of its own", when: () => panelOn("workbench.explorer") && isMainWindow(), whyNot: panelOn("workbench.explorer") ? "this is a popped-out window" : turnedOff("The Data Explorer"), run: () => popExplorer() },
-  { id: "explorer.moveBack", group: "Data", title: "Move the popped-out Data Explorer back into this window's pane", when: () => explorerPane.popped(), whyNot: "the Data Explorer is not popped out", run: () => {
-    explorerChannel?.postMessage({ type: "back" });
-    return { moving: true };
-  } },
+  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out: the Data page in a window of its own, with its search", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: () => popExplorer() },
   { id: "tables.transformations", group: "Tables", title: "Show a table's transformations (its read-only cell, wherever it lives)", args: "table: the table's name", run: (a) => {
     const table = text(a, "table");
     if (!table) throw new Error("Send the table's name.");

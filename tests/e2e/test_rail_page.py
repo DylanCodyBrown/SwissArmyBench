@@ -30,6 +30,7 @@ from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 AREAS = [
     "connections",
     "variables",
+    "data",  # after Variables: the one place to browse tables (the owner, 2026-11-17)
     "grids",
     "erd",
     "apis",
@@ -46,6 +47,7 @@ AREAS = [
 NAMES = [
     "Connections",
     "Variables",
+    "Data",
     "Grids",
     "ERD",
     "APIs",
@@ -214,8 +216,8 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     area(page, "erd").focus()
     page.keyboard.press("ArrowDown")
     expect(area(page, "apis")).to_be_focused()
-    for _ in range(4):
-        page.keyboard.press("ArrowUp")  # the ERD, the grids, Variables, Connections
+    for _ in range(5):
+        page.keyboard.press("ArrowUp")  # the ERD, the grids, Data, Variables, Connections
     expect(area(page, "connections")).to_be_focused()
     page.keyboard.press("ArrowUp")  # past the first: round to Settings
     expect(area(page, "settings")).to_be_focused()

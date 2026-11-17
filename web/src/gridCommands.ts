@@ -29,7 +29,8 @@ import { focusedCell } from "./gridView";
 import { activateGrid, activeContext, closeGrid, compareWith, gridList, openWorkbench, renameActive, showAgentView, showErdView, showGridView } from "./panes";
 import { setGridZoom } from "./theme";
 import { api } from "./api";
-import { mountExplorer, openExplorerWindow } from "./dataExplorer";
+import { mountExplorer } from "./dataExplorer";
+import { openData } from "./dataPage";
 import { button, openDialog, toast } from "./dom";
 import { openVariables } from "./variablesPage";
 import { openPalette, setCommandSource, type Command } from "./workbenchCommands";
@@ -142,9 +143,11 @@ export function openFindData(): void {
   });
   body.append(explorer.element);
   foot.append(
-    button("Open the Data Explorer", () => {
-      void openExplorerWindow(explorer.state()).then(close, (e: Error) => toast(e.message, "error"));
-    }, { icon: "popout", class: "line", title: "The Data Explorer in a window of its own, with this search" }),
+    button("Open the Data page", () => {
+      const state = explorer.state();
+      close();
+      openData(state);
+    }, { icon: "data", class: "line", title: "The Data page, with this search" }),
   );
   explorer.focus();
 }

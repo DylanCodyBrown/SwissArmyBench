@@ -33,9 +33,9 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
   `project_documents` and "documents" give each notebook's `role` (data, app or ""). The Notebooks page
   groups them under Data notebook and App notebooks; in a project "file.newNotebook" makes an app notebook.
   The Data Explorer (the left pane, off until opened: "view.explorer", Ctrl+Shift+E) sits beside every
-  document; "documents" panes.data_explorer says open, closed or popped. "explorer.search" searches it
+  document; "documents" panes.data_explorer says open or closed. "explorer.search" searches it
   (as `explorer_search`), "explorer.insert" puts a result's insert code in the front document's cell,
-  "explorer.popOut" and "explorer.moveBack" move it to a window of its own and back. A canvas's
+  "explorer.popOut" opens the Data page (the one place to browse tables) in a window of its own. A canvas's
   Streamlit cells and Starters are its own left panels ("data.streamlitCells", "data.starters").
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data Explorer).

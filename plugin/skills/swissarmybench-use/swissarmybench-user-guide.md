@@ -74,7 +74,7 @@ The page has these parts:
 
 ### Getting around
 
-- **The rail** down the left of every page and window has an icon for each area, in the order you work: where the data comes from (**Connections**, **Variables**), getting and shaping it (**Grids**, **ERD**), web data (**APIs**, **Structures**), tools (**Blades**), building (**Notebooks**, **Scripts**, **Apps**: the Streamlit canvas), presenting (**Visualizations**), then the log (**Session**), and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+- **The rail** down the left of every page and window has an icon for each area, in the order you work: where the data comes from (**Connections**, **Variables**, **Data**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), web data (**APIs**, **Structures**), tools (**Blades**), building (**Notebooks**, **Scripts**, **Apps**: the Streamlit canvas), presenting (**Visualizations**), then the log (**Session**), and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
   - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
@@ -464,10 +464,10 @@ their own, run in an IPython kernel on this computer.
   in every connection: where a join may be); a variable: **Open in Variables**; a blade: **Insert its
   call**. Drag any result into a cell. **+ Table** opens a file, browses a connection's tables,
   searches the catalog or adds a connection; **+ Blade** shows your saved blades and connections.
-  **Pop out** puts the Data Explorer in a window of its own (on another screen, say) with your search;
-  its Insert still goes into the Workbench's selected cell (the button's tip names it), a drag from it
-  drops into a cell there, and **Move back** brings it back into the pane. On the grid page, **Ctrl+K**
-  (Find data…) opens the same search in a dialog, with **Open the Data Explorer** for its window.
+  **Pop out** opens the **Data** page (below, under "Data: browse and find tables") in a window of its
+  own (on another screen, say) with your search, and closes the pane here; its Insert still goes into the
+  Workbench's selected cell, and a drag from it drops into a cell there. On the grid page, **Ctrl+K**
+  (Find data…) opens the same search in a dialog, with **Open the Data page** to take it there.
 - **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
   the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the
@@ -541,7 +541,7 @@ their own, run in an IPython kernel on this computer.
 - **The agent** works the Workbench as you do: it opens, runs and saves files and kernels, and its
   `workbench_window` tool runs any palette command in the window you were last in (`documents` says
   what is open and how the groups are arranged, `commands` lists them all: splitting, moving a tab,
-  the Data Explorer's too: its search, Insert, Pop out and Move back).
+  the Data Explorer's too: its search, Insert and Pop out).
 
 ## Connections and key vaults
 
@@ -767,6 +767,34 @@ text files, your **library**, made to be a Git repository you can share with you
   the page says so. Opening an older project that kept its own connections and blades copies them into
   your library: one that is already there is skipped, and one that differs is kept as
   **&lt;name&gt; from &lt;project&gt;**, and the page says which. The project's next save leaves them out.
+
+## Data: browse and find tables
+
+The rail's **Data** icon (after Variables) is the one place to browse tables: every table your
+connections reach, and the ones you have open, on one page.
+
+- **With nothing typed it browses.** Each connection is a group, in its colour, with its status (how many
+  tables, **Not loaded**, loading, or why it did not load). Open one: its tables under their database and
+  schema (a Power BI workspace's datasets), and open a table for its columns and their types. A
+  connection whose tables are not loaded yet has **Load**. Under the connections: the **Open tables**
+  (with their columns), **Structures** (each document and its keys by their paths), **APIs** (the web
+  calls that return a table) and **Blades** whose result is a table.
+- **Type to find.** The search box at the top is the Data Explorer's: any case, any part (`cust` finds
+  `customer_id` and `CustomerKey`). The tree narrows to what matches: a table under its connection and
+  schema, a matching column under its table. The chips keep one kind or a few, the picker one connection,
+  and your recent searches wait under the box.
+- **A table's actions** (its buttons, a right-click, or Enter): **Open as grid**, **Preview** (its first
+  rows, nothing kept), **Copy SQL name** (`[Shop].customers`, how DuckDB SQL names it anywhere),
+  **Insert** (into the Workbench's selected cell, shown while a notebook or script is in front there) and
+  **Query in a notebook** (a new `%%sql` cell). A Power BI dataset and a SQL Server schema also have
+  **Import its relationships**.
+- **The detail side**: click a table to see its columns (type, whether it may be empty), where it comes
+  from, its SQL name, and the code that reads it in a SQL cell and in a Python cell, each with Copy.
+- **Drag** a table or a column into a Workbench cell: it arrives as that cell's language writes it.
+- **Keys**: the arrows move through the tree (Right opens, Left closes), Enter opens a table as a grid,
+  and **/** jumps to the search.
+- The Workbench's Data Explorer pane is the same search beside your code; its **Pop out** opens this page
+  in a window of its own. For an agent: `explorer_browse`, `explorer_search`, `explorer_table`.
 
 ## Variables
 
