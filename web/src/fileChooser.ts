@@ -81,6 +81,7 @@ export function chooseFile(options: ChooseOptions): Promise<string | null> {
     // Only the newest listing is drawn: a path typed while the first folder is still being read would
     // otherwise be replaced by that first answer when it arrives late.
     let asked = 0;
+    let missing: string | null = null; // the first folder asked for, when it did not exist
     const go = async (path: string | null): Promise<void> => {
       const query = new URLSearchParams();
       if (path) query.set("path", path);
@@ -92,7 +93,17 @@ export function chooseFile(options: ChooseOptions): Promise<string | null> {
       try {
         found = await api<Listing>(`/folders?${query}`);
       } catch (e) {
-        if (mine === asked) status.textContent = (e as Error).message;
+        if (mine !== asked) return;
+        // The first folder asked for may not exist yet (a projects folder before its first project, a moved
+        // project's old place): the nearest folder above it that does is shown instead, else home. Nothing
+        // shown at all (an empty list, an empty menu) left no way to go anywhere.
+        if (!shown && path) {
+          const above = path.replace(/[\\/]+$/, "").replace(/[\\/][^\\/]*$/, "");
+          missing ??= path;
+          void go(above && above !== path && !/^[A-Za-z]:$/.test(above) ? above : null);
+          return;
+        }
+        status.textContent = (e as Error).message;
         return;
       }
       if (mine !== asked) return;
@@ -136,6 +147,10 @@ export function chooseFile(options: ChooseOptions): Promise<string | null> {
       clear(list, ...rows);
       const kinds = options.suffixes?.length ? ` (${options.suffixes.join(", ")})` : "";
       status.textContent = `${at.folders.length} folder${at.folders.length === 1 ? "" : "s"}, ${at.files.length} file${at.files.length === 1 ? "" : "s"}${kinds}`;
+      if (missing) {
+        status.textContent = `${missing} does not exist yet: showing the nearest folder that does.`;
+        missing = null;
+      }
     };
 
     where.addEventListener("keydown", (e) => { if (e.key === "Enter") void go(where.value.trim()); });

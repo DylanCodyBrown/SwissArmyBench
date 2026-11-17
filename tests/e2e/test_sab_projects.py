@@ -221,6 +221,23 @@ def test_the_empty_state_and_new_project_from_a_beginners_type_card(
     page.context.close()
 
 
+def test_new_projects_folder_picker_opens_before_the_projects_folder_exists(
+    browser: Browser, server: dict[str, Any], fresh: Path
+) -> None:
+    """The projects folder is made by the first project: before that, Choose another folder… showed an empty
+    list and an empty menu (no way to go anywhere). It shows the nearest folder above that does exist."""
+    assert not projects_folder().exists()
+    page = home(browser, server, "?view=start")
+    page.locator("#start-view").get_by_role("button", name="New project").first.click()
+    page.get_by_role("button", name="Choose another folder…").click()
+    chooser = page.locator("dialog.file-chooser")
+    expect(chooser.locator(".file-row").first).to_be_visible(timeout=10000)
+    expect(chooser.get_by_role("status")).to_contain_text("does not exist yet")
+    expect(chooser.get_by_role("combobox", name="Start from").locator("option")).not_to_have_count(0)
+    chooser.get_by_role("button", name="Cancel").click()
+    page.context.close()
+
+
 def test_open_project_picks_a_folder_and_save_clears_the_mark(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
