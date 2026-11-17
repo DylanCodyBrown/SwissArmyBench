@@ -63,6 +63,52 @@ export interface Suggestion {
   /** What the typed text is matched against, when it is not the label: a DAX name's insert begins
    *  with the quote or bracket already typed ('Customer', [Total Sales]). */
   filter?: string;
+  /** The documentation panel beside the list (markdown, no HTML). */
+  documentation?: string;
+  /** Inserted as a snippet: a call's required arguments as tab stops (`f(${1:a}, ${2:b})$0`). */
+  snippet?: string;
+  /** More edits it makes (an import line added), 1-based lines and columns. */
+  edits?: { line: number; col: number; end_line: number; end_col: number; text: string }[];
+  /** Its place in the list, as the server ranked it. */
+  sort?: string;
+  /** Drawn after the name, faded (a function's parameters), and at the row's right (its type or module). */
+  labelDetail?: string;
+  description?: string;
+}
+
+/** A problem the lint found as you type (services/intellisense.py): 1-based lines and columns. */
+export interface IntelProblem {
+  line: number;
+  col: number;
+  end_line: number;
+  end_col: number;
+  message: string;
+  severity: "error" | "warning" | "hint" | "info";
+  code: string;
+  source: string;
+  unnecessary?: boolean;
+  fixes?: { kind: string; title: string; edits: { line: number; col: number; end_line: number; end_col: number; text: string }[] }[];
+}
+
+/** Parameter info for the call at the cursor (Jedi's signatures). */
+export interface Signatures {
+  signatures: {
+    label: string;
+    params: { name: string; label: string; span: [number, number] | null; words: string; type: string }[];
+    active: number | null;
+    returns: string;
+    summary: string;
+    returns_words: string;
+  }[];
+}
+
+/** The editors' intelligence an editor asks (workbenchIntel.ts): parameter info, quick info, the lint. */
+export interface Intel {
+  signature?: (text: string, offset: number) => Promise<Signatures | null>;
+  hover?: (text: string, offset: number) => Promise<string>;
+  lint?: (text: string) => Promise<IntelProblem[] | null>;
+  /** Told what the lint shows now (the status bar's count). */
+  onLint?: (problems: IntelProblem[]) => void;
 }
 export type Completer = (text: string, offset: number) => Promise<Suggestion[]>;
 
@@ -122,7 +168,32 @@ export interface LineNote {
 }
 
 // Each editor's own completer and help (a notebook cell's kernel and connection, a script's kernel).
-const completers = new WeakMap<monaco.editor.ITextModel, { complete?: Completer; help?: Helper }>();
+const completers = new WeakMap<monaco.editor.ITextModel, { complete?: Completer; help?: Helper; intel?: Intel }>();
+// What the lint shows on each editor (its fixes are Ctrl+.'s).
+const linted = new WeakMap<monaco.editor.ITextModel, IntelProblem[]>();
+const LINT = "sab-lint";
+// The lint waits this long after the last keystroke.
+const LINT_MS = 400;
+const RECENT = "sab-intel-recent"; // workbenchIntel.ts reads it
+
+/** A completion was chosen: it comes first next time, in its group. */
+function chosen(label: string): void {
+  try {
+    const list = [label, ...(JSON.parse(localStorage.getItem(RECENT) ?? "[]") as string[]).filter((l) => l !== label)].slice(0, 50);
+    localStorage.setItem(RECENT, JSON.stringify(list));
+  } catch {
+    /* no storage: nothing remembered */
+  }
+}
+let chosenRegistered = false;
+// Monaco's suggest widget, as far as opening its documentation panel goes (not in its public API).
+interface SuggestWidget {
+  onDidShow: (listener: () => void) => unknown;
+  onDidFocus?: (listener: () => void) => unknown;
+  _isDetailsVisible: () => boolean;
+  toggleDetails: () => void;
+}
+let detailsOpened = false;
 const cellLinks = new WeakMap<monaco.editor.ITextModel, CellLinks>();
 const outlines = new WeakMap<monaco.editor.ITextModel, ScriptOutline>();
 const CELL_LINK = /@cell(\d+)\b/g;
@@ -229,6 +300,8 @@ const KINDS: Record<string, monaco.languages.CompletionItemKind> = {
   path: monaco.languages.CompletionItemKind.File,
   property: monaco.languages.CompletionItemKind.Property,
   table: monaco.languages.CompletionItemKind.Struct,
+  struct: monaco.languages.CompletionItemKind.Struct,
+  variable: monaco.languages.CompletionItemKind.Variable,
   view: monaco.languages.CompletionItemKind.Interface,
   schema: monaco.languages.CompletionItemKind.Folder,
   column: monaco.languages.CompletionItemKind.Field,
@@ -239,6 +312,10 @@ const KINDS: Record<string, monaco.languages.CompletionItemKind> = {
 function register(language: string): void {
   if (registered.has(language)) return;
   registered.add(language);
+  if (!chosenRegistered) {
+    chosenRegistered = true;
+    monaco.editor.registerCommand("sab.intel.chosen", (_accessor, label: string) => chosen(label));
+  }
   monaco.languages.registerCompletionItemProvider(language, {
     triggerCharacters: language === "msdax" ? [".", "'", "["] : [".", "\"", "'"],
     provideCompletionItems: async (model, position) => {
@@ -255,13 +332,17 @@ function register(language: string): void {
         suggestions: found.map((s, i) => {
           const range = s.start !== undefined ? monaco.Range.fromPositions(model.getPositionAt(s.start), model.getPositionAt(s.end ?? offset)) : wordRange;
           return {
-            label: s.label,
-            insertText: s.insert ?? s.label,
-            filterText: s.filter,
+            label: s.labelDetail || s.description ? { label: s.label, detail: s.labelDetail, description: s.description } : s.label,
+            insertText: s.snippet ?? s.insert ?? s.label,
+            insertTextRules: s.snippet ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet : undefined,
+            filterText: s.filter ?? (s.labelDetail || s.description ? s.label : undefined),
             kind: KINDS[s.kind ?? ""] ?? monaco.languages.CompletionItemKind.Text,
             detail: s.detail ?? s.kind,
+            documentation: s.documentation ? { value: s.documentation, supportHtml: false } : undefined,
+            additionalTextEdits: s.edits?.map((e) => ({ range: new monaco.Range(e.line, e.col, e.end_line, e.end_col), text: e.text })),
+            command: { id: "sab.intel.chosen", title: "", arguments: [s.label] },
             range,
-            sortText: String(i).padStart(5, "0"), // the order the completer gave
+            sortText: s.sort ?? String(i).padStart(5, "0"), // the order the completer gave
           };
         }),
       };
@@ -279,17 +360,63 @@ function register(language: string): void {
         const words = first === null ? `There is no cell ${link.number} in this document.` : `Cell ${link.number}` + (first ? "\n```\n" + first.replace(/```/g, "ˋˋˋ") + "\n```" : " (empty)");
         return { range: link.range, contents: [{ value: words, supportHtml: false }] };
       }
-      const help = completers.get(model)?.help;
+      // Quick info: the signature or the variable's type, and the docstring (Jedi's); else the kernel's help.
+      const own = completers.get(model);
+      const word = model.getWordAtPosition(position);
+      if (own?.intel?.hover && word) {
+        const words = await own.intel.hover(model.getValue(), model.getOffsetAt(position));
+        if (words) return { range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), contents: [{ value: words, supportHtml: false }] };
+      }
+      const help = own?.help;
       if (!help) return null;
       const text = await help(model.getValue(), model.getOffsetAt(position));
       return text ? { contents: [{ value: "```\n" + text.replace(/```/g, "ˋˋˋ") + "\n```" }] } : null;
     },
   });
+  // Parameter info while a call is typed: each signature (overloads with up and down), the current
+  // parameter bold with its own words, the return type.
+  if (language === "python")
+    monaco.languages.registerSignatureHelpProvider("python", {
+      signatureHelpTriggerCharacters: ["(", ","],
+      signatureHelpRetriggerCharacters: [",", ")"],
+      provideSignatureHelp: async (model, position) => {
+        const ask = completers.get(model)?.intel?.signature;
+        if (!ask) return null;
+        const found = await ask(model.getValue(), model.getOffsetAt(position));
+        if (!found) return null;
+        const returns = (sig: Signatures["signatures"][number]): string =>
+          sig.returns ? `**Returns** \`${sig.returns}\`${sig.returns_words ? `: ${sig.returns_words}` : ""}` : sig.returns_words ? `**Returns** ${sig.returns_words}` : "";
+        const signatures = found.signatures.map((sig) => ({
+          label: sig.label,
+          documentation: { value: [sig.summary, returns(sig)].filter(Boolean).join("\n\n") },
+          parameters: sig.params.map((p) => ({
+            label: (p.span ?? p.label) as [number, number] | string,
+            documentation: { value: [`\`${p.label}\``, p.words].filter(Boolean).join(": ") },
+          })),
+          activeParameter: sig.active ?? undefined,
+        }));
+        return { value: { signatures, activeSignature: 0, activeParameter: found.signatures[0]?.active ?? 0 }, dispose: () => undefined };
+      },
+    });
   if (language === "python") monaco.languages.registerFoldingRangeProvider("python", { onDidChange: foldsChanged.event, provideFoldingRanges: (model) => foldingRanges(model) });
   // Quick fixes (Ctrl+., the light bulb, the hover's "Quick Fix…"): a close name, an import.
   monaco.languages.registerCodeActionProvider(language, {
     provideCodeActions: (model, range) => {
       const actions: monaco.languages.CodeAction[] = [];
+      // The lint's fixes: add the import, remove the unused one, define it from the Variables page, a close name.
+      for (const p of linted.get(model) ?? []) {
+        const at = new monaco.Range(p.line, p.col, p.end_line, p.end_col);
+        if (!at.intersectRanges(range) && at.startLineNumber !== range.startLineNumber) continue;
+        for (const fix of p.fixes ?? []) {
+          if (!fix.edits.length) continue;
+          actions.push({
+            title: fix.title.replace(/`/g, ""),
+            kind: "quickfix",
+            isPreferred: actions.length === 0,
+            edit: { edits: fix.edits.map((e) => ({ resource: model.uri, textEdit: { range: new monaco.Range(e.line, e.col, e.end_line, e.end_col), text: e.text }, versionId: model.getVersionId() })) },
+          });
+        }
+      }
       for (const p of problems.get(model) ?? []) {
         const at = rangeOf(model, p);
         if (!at.intersectRanges(range) && at.startLineNumber !== range.startLineNumber) continue;
@@ -414,6 +541,9 @@ export interface CodeEditor {
   setHidden: (ranges: [number, number][]) => void;
   focus: () => void;
   setTheme: (theme: string) => void;
+  /** Lint now (the language or the kernel changed), and what the lint shows. */
+  lint: () => void;
+  lintProblems: () => IntelProblem[];
   /** Told of every change; `undo`: it was an undo or a redo (the app does not answer those with edits). */
   onChange: (listener: (change: { undo: boolean }) => void) => void;
   layout: () => void;
@@ -482,6 +612,8 @@ export interface CodeEditorOptions {
   sendToAgent?: (what: { text: string; startLine: number; endLine: number; problem: Problem | null }, withQuestion: boolean) => void;
   /** More of the right-click menu's own entries (Lineage): each run with the line it was opened on. */
   actions?: { id: string; label: string; run: (line: number) => void }[];
+  /** Parameter info, quick info and the lint as you type (workbenchIntel.ts). */
+  intel?: Intel;
 }
 
 /** Beta mode's "Leave a note…" in the editor's own right-click menu. The page (betaNotes.ts, another
@@ -571,8 +703,8 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     readOnlyMessage: { value: "This cell follows the grid: change the table's steps there." },
   });
   const model = editor.getModel();
-  if (model && (options.complete || options.help || options.cellLinks)) {
-    completers.set(model, { complete: options.complete, help: options.help });
+  if (model && (options.complete || options.help || options.cellLinks || options.intel)) {
+    completers.set(model, { complete: options.complete, help: options.help, intel: options.intel });
     for (const language of ["python", "sql", "msdax", "markdown", "html"]) register(language);
   }
   // Cell links: drawn as links, followed on a plain click.
@@ -643,6 +775,64 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       lens.clear();
     }
   });
+
+  // The lint, a moment after typing stops (never in the way of typing): its marks replace the last ones.
+  let lintTimer = 0;
+  let lintAsked = 0;
+  const lintNow = async (): Promise<void> => {
+    const m = editor.getModel();
+    const ask = options.intel?.lint;
+    if (!m || !ask) return;
+    const version = m.getVersionId();
+    const mine = ++lintAsked;
+    const found = await ask(m.getValue());
+    if (found === null || mine !== lintAsked || m.isDisposed() || m.getVersionId() !== version) return;
+    linted.set(m, found);
+    monaco.editor.setModelMarkers(
+      m,
+      LINT,
+      found.map((p) => ({
+        severity: p.severity === "error" ? monaco.MarkerSeverity.Error : p.severity === "warning" ? monaco.MarkerSeverity.Warning : p.severity === "info" ? monaco.MarkerSeverity.Info : monaco.MarkerSeverity.Hint,
+        message: p.message.replace(/`/g, ""),
+        code: p.code,
+        source: p.source,
+        tags: p.unnecessary ? [monaco.MarkerTag.Unnecessary] : [],
+        startLineNumber: p.line,
+        startColumn: p.col,
+        endLineNumber: p.end_line,
+        endColumn: p.line === p.end_line ? Math.max(p.end_col, p.col + 1) : p.end_col,
+      })),
+    );
+    options.intel?.onLint?.(found);
+  };
+  // The documentation panel beside the member list from the start (as Visual Studio shows it): opened
+  // once for the page; after that Monaco keeps the user's own choice (Ctrl+Space shows or hides it).
+  if (options.intel) {
+    const once = editor.onDidFocusEditorText(() => {
+      once.dispose();
+      try {
+        const controller = editor.getContribution("editor.contrib.suggestController") as unknown as { widget: { value: SuggestWidget } };
+        const widget = controller.widget.value;
+        // Shown each time the list opens until it once could be (an item with no words has no panel).
+        const open = (): void => {
+          if (detailsOpened || widget._isDetailsVisible()) return;
+          widget.toggleDetails();
+          detailsOpened = widget._isDetailsVisible();
+        };
+        widget.onDidShow(open);
+        widget.onDidFocus?.(open);
+      } catch {
+        /* Monaco's own parts moved: the panel opens with Ctrl+Space */
+      }
+    });
+  }
+  if (options.intel?.lint) {
+    editor.onDidChangeModelContent(() => {
+      window.clearTimeout(lintTimer);
+      lintTimer = window.setTimeout(() => void lintNow(), LINT_MS);
+    });
+    lintTimer = window.setTimeout(() => void lintNow(), LINT_MS);
+  }
 
   if (options.sendToAgent) {
     const send = (withQuestion: boolean): void => {
@@ -924,7 +1114,14 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     setTheme: (theme) => monaco.editor.setTheme(THEMES[theme] ?? "vs"),
     onChange: (listener) => void editor.onDidChangeModelContent((e) => listener({ undo: e.isUndoing || e.isRedoing })),
     layout: () => (options.grow ? fit() : editor.layout()),
+    lint: () => void lintNow(),
+    lintProblems: () => {
+      const m = editor.getModel();
+      return (m && linted.get(m)) || [];
+    },
     dispose: () => {
+      window.clearTimeout(lintTimer);
+      options.intel?.onLint?.([]);
       editor.getModel()?.dispose();
       editor.dispose();
     },

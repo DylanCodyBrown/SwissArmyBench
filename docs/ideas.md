@@ -4125,3 +4125,78 @@ The Lite edition's plan was scrapped (the owner, 2026-11-17: "Scrap the plan for
 name switch (SWISSARMYBENCH_EDITION=lite) goes with the Streamlit Edition rename. The visible name changes (status bar, titles, installer
 messages, README); the PyPI package, the uv tool and the commands stay `swissarmybench` and `sab`, so installed
 copies keep updating.
+
+## The editors' intelligence: completion like C#'s and a lint as you type (the owner, 2026-11-17; built, branch intellisense)
+
+The owner: "can we get a basic realtime lint built into the workbench if it isnt already" and "make sure
+the code completion is robust to suggest and explain like c# does the function and its inputs. and detect
+all the connections, functions, variables and anything in the scaffolded files so we can quickly create
+python here"; then "I figure jedi handles most of this". b/scriptside.md's completion and diagnostics items
+(the Scripts IDE brief) are built here; that brief builds its tree, go to definition, rename, format and
+debugger on them.
+
+### Built
+- **One server door for every Python editor** (notebook cells, scripts, the console) and SQL cells:
+  `POST /workbench/intel/{complete,signature,hover,lint}` (services/intellisense.py), worked out in one
+  worker thread, within a second (else nothing, quietly; the page asks once more and the answer, warmed,
+  is quick), a request a newer one from the same editor overtook is skipped, answers kept by the text.
+- **Jedi does the Python work** (client/kernel_intel.py): where the document's kernel has run and is idle,
+  Jedi's Interpreter over the kernel's own namespace, asked in the kernel as a user expression (the live
+  objects: a DataFrame's columns, a variable's type and shape on hover); otherwise Jedi's Script over the
+  text, a notebook's earlier cells first (IPython's lines made Python of the same lines), `sab` known, the
+  project folder on the path (its modules, pages, scripts) and the document's own Python's libraries
+  (Jedi's environment for that Python).
+- **The member list:** each name's kind icon, its parameters after it and its return type or module at the
+  row's right, the documentation panel beside the list (open from the start once per page, then Monaco
+  keeps the user's choice): the docstring's summary, each parameter's words, returns, raises, where it
+  comes from. A function's required arguments as tab stops. Ranked: names in scope, the project's, the
+  app's, libraries', keywords; what was chosen lately first in its group (kept in the browser).
+- **Where Jedi cannot see:** connections in `sab.connection/sql/read("…")` and `%%sql …`, variables in
+  `os.environ[…]`, `os.environ.get`, `os.getenv`, `secret("…")` (their source shown, never a value),
+  blades in `sab.blade("…")` (their description), structures in `sab.structure("…")`, an open table's
+  columns in `orders["…"]` and `orders.` (identifiers only), connections by their code names; `sab.`
+  offers the package's calls, never its layers. `[Connection].` inside SQL stays connectionSql.ts's.
+- **Auto-import:** a name from the project's functions.py, data.py, structures.py, variables.py or
+  connections.py completes with its `from <module> import <name>`: it joins an existing line of that
+  module, else goes after the imports at the top (a blank line before code); in a notebook, at the cell's
+  top until data-notebook's module-imports cell lands.
+- **Parameter info** on `(` and `,` (and kept as the cursor moves): Jedi's signatures (overloads with up
+  and down), the current parameter bold (its span in the label), its words from the docstring (Google,
+  NumPy and reST read by domain/intellisense.py's parse_docstring), the return type and its words.
+- **Quick info** on hover: the signature or the kernel variable's type (and shape), the docstring; the
+  kernel's own help when Jedi says nothing.
+- **The lint**, 400 ms after typing stops: Python's compile (a notebook cell's magics and `!` lines are not
+  errors; a %%sql or %%html cell is not Python), then a small ast pass (undefined names knowing builtins,
+  the kernel's names, the names earlier cells make and later cells use; unused imports; an f-string
+  without placeholders; `== None`; a bare `except:`; a star import said as unknowable), pyflakes when the
+  app's Python has it, Ruff when the document's Python has it (its own rules and fixes; the project's or
+  the document's folder's settings, else Ruff's defaults). Squiggles: errors red, warnings yellow, unused
+  faded. Ctrl+. fixes: add the import (the project's modules, common aliases like pd, the standard
+  library), remove the unused import, define a name from the Variables page
+  (`NAME = os.environ["NAME"]`), use the close name, Ruff's own. SQL cells: DuckDB's parser for a DuckDB
+  cell (`[Connection].table` read as a name), sqlglot in the connection's dialect otherwise; DAX not checked.
+- **The status bar** counts the front document's errors and warnings (nothing while there is none); a
+  click lists every problem and goes to the one picked. The page tells the server what each document
+  shows, and the agent reads the same.
+- **The agent:** `workbench_complete` (replaces the kernel-only one: the kernel is optional now),
+  `workbench_signature` (with `hover`), `workbench_problems` (each open document's, or a file checked
+  now: a notebook cell by cell in order).
+
+### Decisions
+- Jedi, not a home-made analyser (the owner's call): the only parsing kept is a parameter's words from
+  its docstring (Jedi gives the docstring whole) and the small lint for when neither pyflakes nor Ruff is
+  there. No new dependency: Jedi comes with IPython; pyflakes and Ruff are used only where they are.
+- Ruff is never installed by the app on its own and never prompted for: the lint answer carries the
+  missing-package shape (`ruff.missing`), and the Problems list ends with "Check with Ruff too: install
+  ruff…" (the missing-package prompt, into the document's own Python through its console). A Python
+  without Ruff is looked at again a minute on, and a lint without Ruff is not kept, so it joins in once
+  installed.
+- In a notebook cell, Ruff's rules that do not fit a cell are dropped: imports not at the top, their
+  order, the missing final newline, a last line that is the cell's output (I001, E402, F404, W292, B018).
+  An undefined name is the app's own check only (it knows the kernel's and other cells' names).
+- Cells before and after are the document's order, not the run order.
+- The kernel's answer is not kept (its namespace changes with each run); the Script's is kept by the text.
+
+### Next
+- Unused variables and redefinitions without pyflakes or Ruff; the run order for a
+  notebook's cells before; go to definition, references and rename (the Scripts IDE brief).

@@ -5949,6 +5949,17 @@ body.wb-dragging-tab * {
   font-variant-numeric: tabular-nums;
 }
 
+/* The lint's count (workbenchIntel.ts): amber with warnings only, red once there is an error. */
+.wb-status .wb-problems {
+  margin-left: 8px;
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-status .wb-problems.has-errors {
+  color: var(--error);
+}
+
 .wb-status .btn {
   min-height: 0;
   padding: 3px 8px;

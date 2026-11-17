@@ -10,7 +10,7 @@
  *   [CLEAR]   empties the log (a run still going keeps its place; the variables stay)
  */
 import { button, h } from "./dom";
-import type { CodeEditor, Completer, Helper } from "./lazy/codeEditor";
+import type { CodeEditor, Completer, Helper, Intel } from "./lazy/codeEditor";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { type Kernel, runInto, type RunBody } from "./workbenchKernel";
 import { type ErrorHooks, outputArea, resultName } from "./workbenchOutputs";
@@ -42,7 +42,7 @@ export const loadEditors = (): Promise<typeof import("./lazy/codeEditor")> =>
 export function consoleView(
   kernel: Kernel,
   theme: () => string,
-  options: { complete: Completer; help: Helper; f5?: () => void; errors?: (origin?: RunOrigin) => ErrorHooks; ran?: () => void },
+  options: { complete: Completer; help: Helper; intel?: Intel; f5?: () => void; errors?: (origin?: RunOrigin) => ErrorHooks; ran?: () => void },
 ): ConsoleView {
   const log = h("div", { class: "wb-console-log", role: "log", "aria-label": "Console output" });
   const promptHost = h("div", { class: "wb-console-editor" });
@@ -147,6 +147,7 @@ export function consoleView(
       },
       complete: options.complete,
       help: options.help,
+      intel: options.intel,
       sendToAgent: (what, ask) => sendToAgent(codeItem(`the console of ${currentDocument()}`, what, "python"), ask),
     });
   });

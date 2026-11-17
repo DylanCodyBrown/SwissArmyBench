@@ -152,6 +152,9 @@ const ICONS: Record<string, string> = {
   outliers: '<circle cx="6" cy="16" r="1.4"/><circle cx="10" cy="13.5" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="13" cy="16.5" r="1.4"/><circle cx="19" cy="5" r="2"/><path d="M3 21h18"/>',
   // The tour: a question mark in a circle.
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2M12 17h.01"/>',
+  warning: '<path d="M12 3.5L21.5 20h-19z"/><path d="M12 10v4.5M12 17.5h.01"/>',
+  problem: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   // The Workbench's modes (2026-11-15): history, schedule, outline, properties, state, devices, light
   // and dark, undo and redo, align, duplicate, dictionary, run up to here (lineage's own is above).
   history: '<path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',

@@ -61,6 +61,12 @@ export class Kernel {
     this.listeners.push(listener);
   }
 
+  /** What the editors' intelligence asks with: the kernel once it runs (its live names), the document's
+   *  path (its project's modules) and the Python chosen for it (its libraries). */
+  intel(): { kernel: string | null; path: string | null; python: string | null } {
+    return { kernel: this.state === "idle" ? this.id : null, path: this.path(), python: this.python || this.chosenPython() };
+  }
+
   private set(state: Kernel["state"]): void {
     this.state = state;
     for (const l of this.listeners) l();

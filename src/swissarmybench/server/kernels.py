@@ -317,6 +317,10 @@ class Kernel:
         text = str(content.get("data", {}).get("text/plain", ""))
         return re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)[:_MAX_HELP]  # no colour codes in a hover
 
+    def idle(self) -> bool:
+        """Not running code now (a completion asked of it answers at once)."""
+        return not self._lock.locked() and not self._ended
+
     async def evaluate(self, expression: str) -> Any:
         """A Python expression's value, worked out in the kernel without printing or entering the history
         (a user expression on an empty run). Its repr, read back as a literal. None when the kernel is
