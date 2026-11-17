@@ -356,7 +356,7 @@ class SabProjects:
             raise NotFound(f"The folder {self._archive.folder_of(target)} is not there.")
         if self.current is not None:
             self._check_discard(body)
-        await self._make(name, body.get("app") is True, who)
+        await self._make(name, body.get("app") is True, who, body.get("type"))
         current = self._need()
         current.autosave = body.get("autosave") is True
         try:
@@ -367,7 +367,7 @@ class SabProjects:
             await self._changed()
             raise
 
-    async def _make(self, name: str, app: bool, who: str) -> None:
+    async def _make(self, name: str, app: bool, who: str, kind: Any = None) -> None:
         """A project of its own in a new working folder (not saved yet: new and save write it)."""
         async with self._busy:
             if self.current is not None:
@@ -377,7 +377,7 @@ class SabProjects:
             try:
                 named = folder[len(parent) :].strip("\\/")
                 made = await self._projects.create(
-                    {"folder": parent, "name": named, "app": app},
+                    {"folder": parent, "name": named, "app": app, "type": kind},
                     who,
                     remember=False,
                     rows=False,

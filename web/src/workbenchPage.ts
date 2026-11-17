@@ -93,6 +93,8 @@ import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLin
 import { type AppHost, appPanels } from "./workbenchApp";
 import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
 import { fillSnippet } from "./starters";
+import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
+import { modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, mountProject, onBeforeSave, onProject, openProject as openSabProject, projectLabel, projectState, type ProjectState, reportLayout, saveFolderAsFile, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
@@ -103,7 +105,7 @@ watchTheme();
 
 interface Doc {
   id: number;
-  kind: "notebook" | "script" | "app" | "blade" | "table";
+  kind: "notebook" | "script" | "app" | "blade" | "table" | "workbook";
   title: string;
   path: string | null;
   modified: number | null;
@@ -119,6 +121,8 @@ interface Doc {
   streamlit?: StreamlitDoc;
   /** A Streamlit app's canvas. */
   canvas?: CanvasView;
+  /** A workbook's design on the Excel canvas (the Accounting extension's; excelCanvas.ts). */
+  workbook?: ExcelView;
   /** Its mode's own panels (workbenchModes.ts): beside it in its group. */
   modes?: ModeFrame;
   /** App mode: Properties and State share the live page's state. */
@@ -382,6 +386,48 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
   return doc;
 }
 
+/** A workbook's design (workbook.design.json) on the Excel canvas: offered while the open project's mode
+ *  names the canvas (modes.ts); a design opened by its file opens whatever the mode. */
+function openWorkbook(path: string | null): Doc {
+  const doc = makeDoc("workbook", path ? baseName(path) : `Untitled workbook ${counter + 1}`, path, null);
+  doc.workbook = excelView(path, {
+    path: () => doc.path,
+    title: () => (doc.path ? baseName(doc.path).slice(0, -WORKBOOK_ENDING.length) : project?.name ?? doc.title),
+    changed: (dirty) => {
+      if (doc.dirty === dirty) return;
+      doc.dirty = dirty;
+      drawTabs();
+    },
+    chooseSave: () => chooseFile({ title: "Save workbook design", mode: "save", start: doc.path ?? project?.folder ?? homeFolder, name: `workbook${WORKBOOK_ENDING}` }).then((p) => (p && !p.toLowerCase().endsWith(".json") ? p + WORKBOOK_ENDING : p)),
+    saved: (saved, modified) => {
+      doc.path = saved;
+      doc.modified = modified;
+      doc.title = baseName(saved);
+      doc.dirty = false;
+      drawTabs();
+      void refreshHome();
+    },
+    drew: () => {
+      if (doc === current) drawStatus();
+    },
+  });
+  doc.element.append(doc.workbook.element);
+  show(doc);
+  return doc;
+}
+
+const workbookInFront = (): ExcelView => {
+  if (!current?.workbook) throw new Error("No workbook is in front.");
+  return current.workbook;
+};
+
+/** The canvases' "New" entries follow the open project's mode (modes.ts): each is offered only where the
+ *  mode names it (the base's: the Streamlit canvas; an Accounting project's: the Excel canvas). */
+function registerCanvasKinds(): void {
+  registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", ...(offersCanvas("streamlit") ? { start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } } : {}) });
+  registerTabKind({ id: "workbook", label: "Workbook", icon: "excel", mark: "app", ...(offersCanvas("excel") ? { start: { label: "New Excel workbook", run: () => void openWorkbook(null) } } : {}) });
+}
+
 /** A thin cell's move (domain/thin_cells.py): the model work goes into a named cell at the end of the
  *  project's data.ipynb, and the block's cell keeps one line that reads it back. Both documents are
  *  opened when they are not, and left with the change unsaved, as typing leaves them; then the canvas
@@ -450,6 +496,7 @@ function listProject(): void {
 /** A project's files as tabs: data.ipynb first (and in front), then the app's canvas, then the rest. */
 async function showProject(found: ProjectFiles): Promise<ProjectFiles> {
   project = found;
+  await refreshMode(); // its type's mode: the canvases and families it offers
   listProject();
   for (const path of found.files) await open(path);
   const front = docs.find((d) => d.path === found.data) ?? docs.find((d) => d.path === found.files[0]);
@@ -466,7 +513,7 @@ async function openProject(folder?: string): Promise<ProjectFiles | null> {
 
 /** `agent`: the agent asked (workbench_window): its request, which the server holds for the user's Allow
  * when data.ipynb would hold a pasted table's rows. */
-async function newProject(folder?: string, name?: string, notebooks: string[] = [], app = true, agent = false): Promise<ProjectFiles | null> {
+async function newProject(folder?: string, name?: string, notebooks: string[] = [], app = true, agent = false, type?: string): Promise<ProjectFiles | null> {
   let where = folder;
   let called = name;
   if (!where || !called) {
@@ -477,7 +524,7 @@ async function newProject(folder?: string, name?: string, notebooks: string[] = 
     where = path.slice(0, at) || "/";
     called = path.slice(at + 1);
   }
-  return showProject(await (agent ? agentApi : api)<ProjectFiles>("/projects", "POST", { folder: where, name: called, notebooks, app }));
+  return showProject(await (agent ? agentApi : api)<ProjectFiles>("/projects", "POST", { folder: where, name: called, notebooks, app, ...(type ? { type } : {}) }));
 }
 
 /** Export data.py: written again from the project's data.ipynb, as it stands here. */
@@ -551,6 +598,10 @@ function projectEntries(): MenuEntry[] {
   const open = docs.some(isData) || !!project;
   return [
     { label: "New project…", icon: "plus", title: "A folder that starts with data.ipynb", run: guarded(() => newProject()) },
+    // Each other project type this app can make (an extension's: modes.ts), its deliverable said.
+    ...modes()
+      .filter((m) => m.type !== "bi")
+      .map((m) => ({ label: `New ${m.name} project…`, icon: "plus", title: `Its deliverable: ${m.deliverable}`, run: guarded(() => newProject(undefined, undefined, [], false, false, m.type)) })),
     { label: "Open project…", icon: "folder", run: guarded(() => openProject()) },
     { label: "Export data.py", icon: "export", disabled: !open, title: open ? "Written again from data.ipynb" : "No project is open", run: guarded(exportData) },
     null,
@@ -1350,7 +1401,7 @@ function focused(doc: Doc | null): void {
   current = doc;
   variables.show(doc?.kernel ?? null);
   // A Streamlit app runs no code of its own: its console's place says nothing.
-  if (doc?.kind === "app") layout.console.replaceChildren();
+  if (doc?.kind === "app" || doc?.kind === "workbook") layout.console.replaceChildren();
   else layout.console.replaceChildren(doc?.console?.element ?? h("p", { class: "hint wb-pane-empty" }, "No console"));
   cursor = { line: 1, column: 1 };
   drawEmpty();
@@ -1370,6 +1421,7 @@ function close(doc: Doc, moved = false): void {
   doc.kernel?.stop();
   doc.streamlit?.close(); // its Streamlit process and temporary folder go with it
   doc.canvas?.close();
+  doc.workbook?.close();
   // Its Monaco editors and design frames go too (they were kept alive, detached, before).
   doc.notebook?.dispose();
   doc.script?.dispose();
@@ -1401,6 +1453,7 @@ function docMark(doc: Doc): "app" | "notebook" | "script" | undefined {
  *  Table. */
 function kindOf(doc: Doc): string {
   if (doc.kind === "app") return "page";
+  if (doc.kind === "workbook") return "workbook";
   if (doc.kind === "notebook") {
     const role = notebookRole(doc.path);
     return role === "data" ? "dataNotebook" : role === "app" ? "appNotebook" : "notebook";
@@ -1415,9 +1468,16 @@ registerTabKind({ id: "dataNotebook", label: "Data notebook", icon: "dataNoteboo
 registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
 registerTabKind({ id: "appNotebook", label: "App notebook", icon: "appNotebook", mark: "notebook" });
 registerTabKind({ id: "script", label: "Script", icon: "code", mark: "script", start: { label: "New script", run: () => void openScript(null, "", null) } });
-registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } });
 registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "plain" });
 registerTabKind({ id: "explorer", label: "Table", icon: "rows", mark: "plain" });
+registerCanvasKinds();
+// The open project's mode (modes.ts): its canvases offered by New, its families first in the pickers.
+onMode(() => {
+  registerCanvasKinds();
+  drawEmpty();
+  drawTop();
+});
+void whenMode();
 
 const groups = mountGroups<Doc>({
   kindOf,
@@ -1518,7 +1578,7 @@ function splitDoc(doc: Doc | null, side: Side): void {
 // ===== files =====
 
 async function open(path?: string): Promise<void> {
-  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", APP_ENDING], start: sab.folder ?? current?.path ?? homeFolder }));
+  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", APP_ENDING, ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])], start: sab.folder ?? current?.path ?? homeFolder }));
   if (!chosen) return;
   // Documents are the project's (the owner, 2026-11-16): a file from outside it is copied in, and the copy opens.
   if (!path && sabOpen() && sab.folder && !inFolder(chosen, sab.folder)) {
@@ -1531,6 +1591,7 @@ async function open(path?: string): Promise<void> {
   }
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
+  if (chosen.toLowerCase().endsWith(WORKBOOK_ENDING)) return void openWorkbook(chosen);
   try {
     const found = await api<{ path: string; kind: "notebook" | "script" | "app"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; pages?: SavedPage[]; settings?: AppSettings; dictionary?: Descriptions }>("/workbench/open", "POST", { path: chosen });
     if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell, found.dictionary);
@@ -1550,6 +1611,11 @@ async function open(path?: string): Promise<void> {
 
 /** Save a document (true: it is saved). */
 async function save(doc: Doc | null, as = false): Promise<boolean> {
+  if (doc?.workbook) {
+    if (!as) return doc.workbook.save();
+    const where = await chooseFile({ title: "Save workbook design as", mode: "save", start: doc.path ?? project?.folder ?? homeFolder, name: `workbook${WORKBOOK_ENDING}` });
+    return where ? doc.workbook.save(where.toLowerCase().endsWith(".json") ? where : where + WORKBOOK_ENDING) : false;
+  }
   if (!doc || (doc.kind !== "notebook" && doc.kind !== "script" && doc.kind !== "app")) return false;
   let path = doc.path;
   if (!path || as) {
@@ -1833,6 +1899,7 @@ function drawControls(): void {
   menuButton(more, "Document menu", () => moreEntries(doc, more), { align: "right" });
   // A Streamlit app's canvas: Play, Edit, Export, Save as (its pages are tabs inside the canvas).
   if (doc.canvas) return void host.replaceChildren(doc.canvas.tools, more);
+  if (doc.workbook) return void host.replaceChildren(doc.workbook.tools, more);
   if (!doc.notebook && !doc.script) return void host.replaceChildren(more);
   const addCell = h("button", { type: "button", class: "btn line wb-add-cell", "aria-label": "Add cell", title: "Add cell" }, icon("plus"), h("span", { class: "btn-label" }, "Cell"), icon("down")) as HTMLButtonElement;
   menuButton(addCell, "Cell kinds", () => cellEntries(doc));
@@ -2400,9 +2467,9 @@ function drawEmpty(): void {
     h(
       "div",
       { class: "wb-empty-choice app" },
-      h("span", { class: "wb-empty-icon app" }, icon("page")),
+      h("span", { class: "wb-empty-icon app" }, icon(app?.icon ?? "page")),
       app
-        ? button("Start an app", () => app.start!.run(), { icon: "plus", class: "primary" })
+        ? button(app.id === "page" ? "Start an app" : app.start!.label, () => app.start!.run(), { icon: "plus", class: "primary" })
         : Object.assign(button("Start an app", () => undefined, { icon: "plus", class: "primary", title: "App pages are not here yet" }), { disabled: true }),
     ),
   );
@@ -2416,7 +2483,7 @@ onTabKinds(() => {
 // ===== commands: the palette, the keys and the agent (workbench_window) =====
 
 const isCode = (): boolean => !!current?.notebook || !!current?.script;
-const saves = (): boolean => isCode() || !!current?.canvas;
+const saves = (): boolean => isCode() || !!current?.canvas || !!current?.workbook;
 const isCanvas = (): boolean => !!current?.canvas;
 const NO_CANVAS = "no Streamlit app is in front";
 const isScript = (): boolean => !!current?.script;
@@ -2586,7 +2653,11 @@ const COMMANDS: Command[] = [
   { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current, true) },
   { id: "file.exportScript", group: "File", title: "Export as one Python script…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "script", text(a, "path"), from.agent) },
   { id: "file.exportNotebook", group: "File", title: "Export as one notebook…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "notebook", text(a, "path"), from.agent) },
-  { id: "project.new", group: "Project", title: "New project…", args: "folder: where it goes; name: its name; notebooks: names of notebooks to make; app: false for no Streamlit app (without folder and name, the file chooser opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], a.app !== false, from.agent) },
+  { id: "project.new", group: "Project", title: "New project…", args: "folder: where it goes; name: its name; notebooks: names of notebooks to make; app: false for no Streamlit app; type: an extension's project type (app_mode all) (without folder and name, the file chooser opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], a.app !== false, from.agent, text(a, "type")) },
+  { id: "workbook.new", group: "Workbook", title: "New Excel workbook", args: "(the Excel canvas: offered while the open project's mode names it)", when: () => offersCanvas("excel"), whyNot: "the open project's mode has no Excel canvas", run: () => openWorkbook(null).workbook!.report() },
+  { id: "workbook.play", group: "Workbook", title: "Play the workbook", when: () => !!current?.workbook, whyNot: "no workbook is in front", run: () => workbookInFront().play() },
+  { id: "workbook.edit", group: "Workbook", title: "Edit the workbook's blocks", when: () => !!current?.workbook, whyNot: "no workbook is in front", run: () => (workbookInFront().edit(), workbookInFront().report()) },
+  { id: "workbook.report", group: "Workbook", title: "The workbook in front, as it stands", when: () => !!current?.workbook, whyNot: "no workbook is in front", run: () => workbookInFront().report() },
   { id: "project.open", group: "Project", title: "Open project…", args: "folder: the project's folder (without it, the file chooser opens)", run: (a) => openProject(text(a, "folder")) },
   { id: "project.exportData", group: "Project", title: "Export data.py (from data.ipynb)", when: () => docs.some(isData) || !!project, whyNot: "no project is open", run: () => exportData() },
   { id: "file.close", group: "File", title: "Close the document", args: "index: a document (default: the one in front)", when: () => docs.length > 0, whyNot: "nothing is open", run: (a) => {
@@ -3098,6 +3169,8 @@ onNotice((notice) => {
   handleAgentNotice(notice);
   // The project's documents changed (opened, closed, an import): "In this project" follows.
   if (notice.type === "project_changed" || notice.type === "project_documents_changed") void refreshHome();
+  if (notice.type === "project_changed") void refreshMode();
+  if (notice.type === "workbook_changed") for (const d of docs) d.workbook?.noticed(String((notice as unknown as { id: string }).id));
   // The agent's workbench_window: a command run here, as the palette would, and answered.
   // A document moved back to this (the main) window from one it was popped out into.
   const handedTo = notice.type === "workbench_handoff" ? (notice as unknown as { to: string }).to : null;

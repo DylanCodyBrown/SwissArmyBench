@@ -151,6 +151,9 @@ src/swissarmybench/
                          release removes it, src/swissarmygrid/ and every OLD_* name (tests/test_renamed.py)
   stats.py               public: the Analyze menu's analyses on your own table (what notebook code calls)
   bootstrap.py           the composition root: builds the adapters, hands them to the services
+  extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
+                         SWISSARMYBENCH_EXTENSIONS: extension_on(id)), their modules, every project type's
+                         mode as data (the base's BASE_MODE, each extension's MODE)
 
   domain/                the model and its rules. Standard library and sqlglot only; no I/O, no clock
     datasets.py          Column, DatasetInfo, names, the dataset errors
@@ -412,6 +415,8 @@ src/swissarmybench/
                          thread, a one-second budget, superseded requests skipped); what each editor shows,
                          for the agent (workbench_complete, workbench_signature, workbench_problems)
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
+    modes.py             project modes: the open project's type (.sab/project.json) to its mode (canvases,
+                         families, languages, cell kinds, tool group, export); GET /app/mode, app_mode
     navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
     kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
@@ -646,7 +651,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          card; pictures go to Visualizations), workbenchGroups.ts (tab groups as VS Code's
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
                          layout as data for the session restore; the tab kind registry, registerTabKind,
-                         where app pages are added), workbenchExplorer.ts (the Data Explorer pane, which
+                         where app pages are added; the canvases' New entries follow the mode),
+                         modes.ts (the open project's mode as the backend declares it: canvases offered,
+                         families shown first with Show all, New <type> project), canvasKit.ts (what the
+                         canvases share: Undo/Redo, the page tabs, the resize grip), excelCanvas.ts (the
+                         Accounting extension's Excel canvas: workbook.design.json, blocks on a grid of
+                         cells, Properties, Play, Download, Export workbook.py), excelPreview.ts (a built or
+                         imported workbook's sheet drawn, its charts), excelTemplates.ts (templates bound by
+                         clicking cells; statements: dry run, Build, register), workbenchExplorer.ts (the Data Explorer pane, which
                          replaced the Data panel (2026-11-17): left, resizable, off until Ctrl+Shift+E, per
                          window; a project's files at its foot (setFiles); "+ Table" and "+ Blade" open
                          catalogRail.ts beside it; Pop out), dataExplorer.ts (the Data Explorer itself, one
@@ -743,6 +755,14 @@ build.py                 build the page (release) and the one wheel; --vsix also
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
 tools/smoke_install.py   start the installed server, push the sample store, check it all arrived (used by releases)
+extensions/accounting/   the Accounting extension (swissarmybench-accounting, its own wheel on the base's version):
+                         src/swissarmybench_accounting/ runtime.py (the one workbook builder: Play runs it, Export
+                         writes it into workbook.py; pivots by DuckDB's GROUPING SETS, Excel's own charts,
+                         templates filled, build_statements), design.py and templates.py (rules), exporter.py
+                         (workbook.py's text), files.py (files, the preview), service.py, routes.py (/accounting),
+                         commands.py (workbook_, template_, statements_), extension.py (describe, MODE, routes,
+                         scaffold); tests in tests/test_accounting_*.py with tests/accounting_data.py (a made-up
+                         reinsurer's cessions)
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
                          and an Open Swiss Army Bench button (starts the server when needed, opens its window)
 ```

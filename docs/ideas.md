@@ -4430,3 +4430,77 @@ Visualizations, model and saved dashboards.
   folders and packs stay read-only extras as before.
 - The library's README and .gitignore are written on the first write, not at start, so a server that never
   saves anything writes nothing.
+
+
+## The Accounting extension (the owner, 2026-11-17; built, branch ext-accounting)
+"the accounting edition includes a project type where the deliverable is an Excel workbook and the workflow is
+simply connection, data, build an python excel automation. The canvas can used to build excel files with pivots
+and charts and tools to import and build cession statements and invoices from python." Plans/editions.plan.md,
+"Extension: Accounting", "Project modes", and its decisions 2 and 3.
+
+### Built
+- **The package:** `extensions/accounting/` (`swissarmybench-accounting`, the base's version, depends on
+  `swissarmybench[server]`; entry point `accounting = "swissarmybench_accounting.extension:describe"` in
+  `swissarmybench.extensions`, as the extensions branch reads them). build.py builds its wheel beside the base's
+  and refuses one whose version is not the base's. Its Python: `runtime.py` (the one generator), `design.py`
+  and `templates.py` (rules, no I/O), `exporter.py` (workbook.py's text), `files.py` (files, the preview),
+  `service.py`, `routes.py` (under /accounting), `commands.py` (12 agent commands), `extension.py` (what the
+  base reads: describe(), MODE, AREAS, routes(), scaffold(), commands()).
+- **The switch:** `swissarmybench/extensions.py`: `extension_on(id)` (installed entry points, or
+  SWISSARMYBENCH_EXTENSIONS; "-id" turns an installed one off), `enabled()`, `modes()`, `mode_of()`. Off,
+  nothing of Accounting shows: no routes (GET /accounting is 404), no commands, no project type, no canvas.
+- **Project types and modes:** a project folder's `.sab/project.json` says its type (`bi`, or an extension's);
+  `project_new(type=...)`, New <type> project… in the Workbench's project menu. The mode is DATA (the base's in
+  extensions.BASE_MODE; Accounting's in its MODE: canvases ["excel"], families ["Excel", "Write", "Files"],
+  languages ["python"], no cell kinds, tools ["workbook_", "template_", "statements_"], export ["workbook.py",
+  "workbook"]), read through services/modes.py (`GET /app/mode`, `/app/modes`, `app_mode`) and web/src/modes.ts.
+  While an Accounting project is open: New and the empty state offer "New Excel workbook" (and not the Streamlit
+  canvas: the mode names the canvases), the Blades page and Insert a snippet… show its families first with
+  "Show all", and the MCP lists its tools first (mcp/server.py asks /app/mode each time the list is asked for).
+  No `if type == "accounting"` in shared code.
+- **The Accounting project:** data.ipynb and data.py as every project, `workbook.design.json`, `workbook.py`,
+  `templates/`; no Streamlit app.
+- **The Excel canvas** (excelCanvas.ts; its machinery shared with the Streamlit canvas through canvasKit.ts:
+  Undo/Redo, the tabs, the resize grip, which workbenchCanvas.ts now uses too): sheets as tabs; title, text,
+  table, pivot and chart blocks on a grid of cells (drag, the corner, arrow keys, Delete); Properties for the
+  selected block or the sheet (freeze panes, orientation, paper, fit to width, header, footer). Play builds the
+  workbook from the open tables, each through its grid's steps, and shows each sheet as built
+  (excelPreview.ts: formats, merged cells, fills, colour rules, totals worked out, charts drawn where they are
+  anchored); Download; Export workbook.py.
+- **Templates** (excelTemplates.ts): Import keeps the workbook's layout, formats, merged cells and named
+  ranges; a click on a cell names its place (its named range first) and binds it to a value (a column, text with
+  {column} names, the number, the date) or to a table of lines that grows (rows inserted under the area: the
+  formulas, merged cells and named ranges below moved, a total's range made longer, the area's style on the new
+  rows). Saved as templates/<name>.xlsx and templates/<name>.bind.json.
+- **Statements and invoices:** `build_statements(template, data, lines, group_by, out_folder, dry_run=True,
+  ...)` in runtime.py (so workbook.py has it too): one workbook per group or one workbook of sheets, named from
+  columns, numbered (`{"start", "pattern": "INV-{n:05d}"}`), dated; the dry run first (files, rows, totals);
+  nothing written over unless asked; register.csv beside them, opened as a grid.
+
+### Decisions
+- **One generator:** runtime.py is the builder Play runs and the text Export writes into workbook.py whole (the
+  design as a Python literal, the tables from data.py by their variable names). Tested by building both ways
+  and comparing the workbooks cell by cell (value and number format).
+- **openpyxl only** (already a server dependency): it reads templates and writes their copies, so the built
+  workbooks use it too; xlsxwriter is not used. No new dependency.
+- **Pivots are summaries** (the owner's decision): one `GROUP BY GROUPING SETS` in DuckDB gives the cells,
+  each row's and column's total and the grand total (an average's total is every row's average, not the
+  average of averages); written as a formatted table. A chart of a pivot shows its cells, never its totals.
+- **A table's total row is Excel's own formula** (`=SUM(C6:C23)`): it stays live when someone edits the
+  workbook, and the preview works it out.
+- **Each block's query runs in a DuckDB of its own**, the tables registered by name, then
+  `enable_external_access = false` and `lock_configuration = true`: a query cannot read a file or reach the
+  network. The same in workbook.py.
+- **The real build is the dry run's request**: refused (409) without that dry run in this session; the agent's
+  waits for the user's Allow as well ("files written only after the user said to").
+- **A design is data only**: no rows in workbook.design.json; the preview and the built bytes live in memory.
+- A template's numbering and date are bindings like any other place.
+- The Excel canvas is a Workbench document (Doc kind "workbook"); it is not kept in the session restore (the
+  server's design ids do not outlive it): it opens again from its file.
+
+### Next
+- Wire into the extensions branch (its catalog, Install, the Extensions page) once it merges: replace this
+  branch's extensions.py discovery with its adapters/extensions.py, keep `extension_on`, MODE and modes().
+- context.md: the project's type and the installed extensions; the mode's guide topics first.
+- Number formats per locale (the currency symbol), a template's table bound to several areas, images (a logo).
+- With the extension on, the MCP tool list is about 4,000 characters longer (79,551 against the base's 75,558).

@@ -245,6 +245,8 @@ const ICONS: Record<string, string> = {
   // The catalog's tree: a schema, a table, a view; a column by its kind of value.
   schema: '<path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5L12 21l9-4.5"/>',
   table: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M3 14.5h18M9 9v11"/>',
+  // A chart block (the Excel canvas): three columns on a baseline.
+  chart: '<path d="M4 20h16"/><rect x="6" y="11" width="3" height="9"/><rect x="11" y="6" width="3" height="14"/><rect x="16" y="14" width="3" height="6"/>',
   view: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18"/><path d="M7 14.5s2-2.5 5-2.5 5 2.5 5 2.5-2 2.5-5 2.5-5-2.5-5-2.5z"/>',
   number: '<path d="M10 4L8 20M16 4l-2 16M4.5 9h15M4 15h15"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',

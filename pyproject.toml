@@ -89,8 +89,8 @@ packages = ["src/swissarmybench", "src/swissarmygrid"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src", "tests", "examples", "tools", "build.py"]
-mypy_path = "src"
+files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src"]
+mypy_path = "src:extensions/accounting/src"
 
 [[tool.mypy.overrides]]
 # These ship no type information (Pillow does, but the tray reads it only where it is installed).
@@ -162,6 +162,16 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/starters/**" = ["S310", "E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]
+# The Accounting extension: its commands' help prose (as the base's), workbook.py's lines as the user reads
+# them, and the builder's queries over the blocks' own tables (every name through _quote; a block's query is
+# the user's, run in a DuckDB of its own with no files or network).
+"extensions/accounting/src/swissarmybench_accounting/commands.py" = ["E501"]
+"extensions/accounting/src/swissarmybench_accounting/exporter.py" = ["E501"]
+"extensions/accounting/src/swissarmybench_accounting/runtime.py" = ["S608", "E501"]
+"extensions/accounting/src/swissarmybench_accounting/service.py" = ["S608", "E501"]
+"extensions/accounting/src/swissarmybench_accounting/extension.py" = ["E501"]
+"tests/test_accounting_*.py" = ["E501", "S603", "S608"]
+"tests/e2e/test_accounting_page.py" = ["E501", "S603"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

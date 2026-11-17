@@ -12469,6 +12469,353 @@ dialog.find-data .dialog-body {
   flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 12px;
+
+/* ===== The Excel canvas (excelCanvas.ts, excelPreview.ts, excelTemplates.ts: the Accounting extension's
+   front-end plug-in). Blocks on a grid of cells; Play's sheet as Excel draws it; templates and statements. */
+
+.xc-middle {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.xc-board,
+.xc-played {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.xc-played {
+  padding: 12px;
+}
+
+.xc-cells {
+  position: relative;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: var(--col) var(--row);
+  background-position: 40px 22px;
+}
+
+.xc-heads span {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 11px;
+  background: var(--surface);
+  user-select: none;
+}
+
+.xc-colhead {
+  top: 0;
+  height: 22px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.xc-rowhead {
+  left: 0;
+  width: 40px;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+.xc-freeze {
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.xc-freeze-row {
+  left: 0;
+  height: 2px;
+}
+
+.xc-freeze-col {
+  top: 0;
+  width: 2px;
+}
+
+.xc-empty {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.xc-block {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  padding: 3px 6px 4px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--kind-app);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow);
+  cursor: grab;
+  touch-action: none;
+}
+
+.xc-block:focus-visible,
+.xc-block.selected {
+  outline: var(--focus-width, 2px) solid var(--kind-app);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+.xc-block.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  z-index: 3;
+}
+
+.xc-block-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.xc-block-head svg {
+  width: 14px;
+  height: 14px;
+  color: var(--kind-app);
+}
+
+.xc-block-head .btn.icon {
+  min-height: 0;
+  padding: 0 2px;
+}
+
+.xc-block-words {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.xc-title-words {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.xc-size {
+  margin-top: auto;
+  font-size: 10px;
+}
+
+.xc-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+.xc-props {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.xc-props h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.xc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.xc-field input,
+.xc-field select,
+.xc-field textarea,
+.xc-column select,
+.xc-value select,
+.xc-value input,
+.xc-rule select,
+.xc-rule input {
+  min-width: 0;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.xc-column,
+.xc-value,
+.xc-rule,
+.xc-sizes {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.xc-sizes {
+  grid-template-columns: 1fr 1fr;
+}
+
+.xc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+/* Play: a sheet as Excel draws it. */
+.xc-preview-sheet {
+  position: relative;
+  display: inline-block;
+}
+
+.xc-grid {
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #1c2228;
+  background: #ffffff;
+  table-layout: fixed;
+}
+
+.xc-grid th {
+  padding: 1px 4px;
+  font-weight: 400;
+  font-size: 11px;
+  color: #525c66;
+  background: #f1f3f5;
+  border: 1px solid #d3d8de;
+}
+
+.xc-rowhead-col {
+  width: 40px;
+}
+
+.xc-grid td {
+  height: 20px;
+  overflow: hidden;
+  padding: 1px 4px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid #e3e6ea;
+}
+
+.xc-grid td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.xc-grid td.b {
+  font-weight: 700;
+}
+
+.xc-grid td.i {
+  font-style: italic;
+}
+
+.xc-grid td.top {
+  border-top: 1px solid #6b7785;
+}
+
+.xc-grid td.bottom {
+  border-bottom: 1px solid #6b7785;
+}
+
+.xc-grid.pickable td {
+  cursor: cell;
+}
+
+.xc-grid.pickable td:hover {
+  outline: 2px solid var(--kind-app);
+  outline-offset: -2px;
+}
+
+.xc-grid td.named {
+  box-shadow: inset 0 0 0 1px #2e75b6;
+}
+
+.xc-grid td.bound {
+  background: #efe7fb;
+}
+
+.xc-mark {
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 10px;
+  color: #ffffff;
+  background: #7b3fc4;
+  border-radius: 3px;
+}
+
+.xc-chart-holder {
+  position: absolute;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+}
+
+.xc-chart-frame {
+  fill: #ffffff;
+  stroke: #c8d0d8;
+}
+
+.xc-chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  fill: #1c2228;
+}
+
+.xc-chart-legend,
+.xc-chart-tick {
+  font-size: 10px;
+  fill: #525c66;
+}
+
+.xc-chart-axis {
+  stroke: #9aa5b8;
+}
+
+.xc-chart-slice {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+/* Templates and statements. */
+.xc-template-body {
+  display: flex;
+  gap: 14px;
+  min-height: 360px;
+}
+
+.xc-template-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  width: 180px;
+}
+
+.xc-template-list {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -12502,4 +12849,117 @@ dialog.find-data .dialog-body {
   gap: 8px;
   margin: 0 0 4px;
   overflow-wrap: anywhere;
+
+.xc-template-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow: auto;
+}
+
+.xc-template-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.xc-template-head h3 {
+  margin: 0;
+}
+
+.xc-bindings {
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  list-style: none;
+}
+
+.xc-bind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.xc-bind h4 {
+  width: 100%;
+  margin: 0;
+}
+
+.xc-bind input,
+.xc-bind select,
+.xc-build-form input,
+.xc-build-form select {
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.xc-build-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.xc-plan {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.xc-plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.xc-plan-table th,
+.xc-plan-table td {
+  padding: 3px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.xc-plan-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.xc-plan-table tfoot td {
+  font-weight: 650;
+}
+
+.snippet-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.snippet-head .cat-search {
+  flex: 1;
+}
+
+.blade-group .starter-all {
+  margin-left: auto;
+  min-height: 0;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.xc-block.xc-title {
+  justify-content: center;
+  padding: 0 6px;
+}
+
+.xc-block-head .xc-title-words {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

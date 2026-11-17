@@ -143,6 +143,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
     "projects": "Projects as one .sab file: open, save, the recent ones, tables that need a fix",
     "library": "The library: connections, APIs, vaults, blades, tangs, variables as a Git repository's files",
+    "accounting": "Accounting (an extension): the Excel canvas, Play, workbook.py, templates, statements",
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
 }
@@ -3328,6 +3329,16 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "app_mode",
+    "The open project's mode: its type and working set (canvases, blade families, languages, cell kinds, "
+    "your tool group, the export); every with all: each type this app can make",
+    opt("all", "true: every project type this app can make (New project's list).", "bool"),
+)
+def app_mode(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/app/modes" if a.get("all") else "/app/mode")
+
+
+@command(
     "app_panels",
     "The panels' switches in Settings (all on at each start); with set, turn some off or on",
     opt("set", '{"workbench.console": false, "grid.ribbon": true}', "json"),
@@ -3723,6 +3734,7 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
     opt("autosave", "true: save quietly after each change.", "bool"),
     opt("name", "A folder project's name."),
     opt("folder", "A folder project: where its folder goes."),
+    opt("type", "The project's type: bi (default) or an extension's (app_mode all lists them)."),
     opt("app", "false: no Streamlit app (data and notebooks only).", "bool"),
     opt("notebooks", 'Notebooks to make, by name: ["analysis", "mockups"].', "json"),
     opt("tables", "Open tables for data.ipynb (default: all).", "json"),
@@ -3730,12 +3742,14 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
 )
 def project_new(a: dict[str, Any]) -> Any:
     if a.get("folder"):
-        body = {k: a[k] for k in ("folder", "name", "app", "notebooks", "tables") if a.get(k) is not None}
+        body = {
+            k: a[k] for k in ("folder", "name", "type", "app", "notebooks", "tables") if a.get(k) is not None
+        }
         return api.call("POST", "/projects", body)
     return api.call(
         "POST",
         "/project/new",
-        {k: a[k] for k in ("path", "autosave", "app", "discard") if a.get(k) is not None},
+        {k: a[k] for k in ("path", "autosave", "type", "app", "discard") if a.get(k) is not None},
     )
 
 
@@ -4695,6 +4709,23 @@ def execute(name: str, raw: dict[str, Any] | None = None) -> str:
         note = "The picture is returned as an image by the MCP tool, and saved to a file by the sab command."
         return json.dumps(result.meta | {"note": note})
     return result
+
+
+def _add_extensions() -> None:
+    """Each extension that is on (swissarmybench/extensions.py): its commands and their areas join the
+    registry, so each is an MCP tool and a `sab` command like the base's."""
+    global AREAS
+    from swissarmybench import extensions
+
+    for module in extensions.enabled():
+        made = getattr(module, "commands", None)
+        for name, cmd in (made() if callable(made) else {}).items():
+            REGISTRY.setdefault(name, cmd)
+        known = {area for area, _ in AREAS}
+        AREAS = AREAS + tuple(a for a in getattr(module, "AREAS", ()) if a[0] not in known)
+
+
+_add_extensions()
 
 
 __all__ = [

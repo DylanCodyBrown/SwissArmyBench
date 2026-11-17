@@ -46,6 +46,11 @@ class Files(Protocol):
     def read(self, folder: str, name: str) -> str | None: ...
 
 
+# A project type's scaffold: (the project's name, the names data.py gives) -> {"files": {relative path:
+# text}, "requirements": [...], "app": whether it has a Streamlit app}.
+Scaffold = Callable[[str, list[str]], dict[str, Any]]
+
+
 class Projects:
     def __init__(
         self,
@@ -55,6 +60,7 @@ class Projects:
         export_data: Callable[[str, str], Awaitable[dict[str, Any]]],
         remember: Callable[[str], None],
         approvals: Approvals,
+        scaffold: Callable[[str], Scaffold | None] = lambda _type: None,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -63,6 +69,9 @@ class Projects:
         self._table_cells = table_cells
         self._export_data = export_data  # data.py from a folder's data.ipynb (services/streamlit.py)
         self._remember = remember  # a file among the Workbench's recent ones
+        # A project type's own files (an extension's: Plans/editions.plan.md), None for a type not on here.
+        self._scaffold = scaffold
+        self.opened: str | None = None  # the folder project last made or opened (its type sets the mode)
 
     def _folder(self, body: Any) -> str:
         """The project a call is about: {"folder"}, or {"path"}: a file in it."""
@@ -91,6 +100,10 @@ class Projects:
         if not isinstance(body, dict) or not isinstance(body.get("folder"), str):
             raise ProjectError('Send {"folder": where it goes, "name": the project\'s name}.')
         name = rules.check_folder_name(body.get("name") or "")
+        kind = rules.check_type(body.get("type"))
+        scaffold = self._scaffold(kind) if kind != rules.BASE_TYPE else None
+        if kind != rules.BASE_TYPE and scaffold is None:
+            raise ProjectError(f"No installed extension makes a {kind} project here.")
         wanted = body.get("notebooks") or []
         if not isinstance(wanted, list) or not all(isinstance(n, str) for n in wanted) or len(wanted) > 20:
             raise ProjectError("notebooks is a list of names.")
@@ -144,7 +157,13 @@ class Projects:
                 folder, rules.DATA_NOTEBOOK, notebooks.write_notebook(cells, next_number=following)
             )
             exported = await self._export_data(folder, name)
-            if body.get("app") is not False:
+            own = scaffold(name, list(exported["names"])) if scaffold is not None else {}
+            with_app = body.get("app") is not False and own.get("app", True) is not False
+            if kind != rules.BASE_TYPE:  # the base's type needs no file: a folder without one is the base's
+                self._files.write(folder, rules.TYPE_FILE, rules.type_file(kind))
+            for relative, text in (own.get("files") or {}).items():
+                self._files.write(folder, relative, text)
+            if with_app:
                 app = f"{streamlit_cells.slug(name)}{streamlit_cells.APP_SUFFIX}"
                 self._files.write(folder, app, streamlit_cells.write_app([]))
             given = exported["names"]
@@ -153,17 +172,23 @@ class Projects:
                 self._files.write(
                     folder, f"{stem}.ipynb", notebooks.write_notebook([notebooks.Cell("code", first)])
                 )
-            needed = (["streamlit>=1.36"] if body.get("app") is not False else []) + exported["requirements"]
+            needed = (
+                (["streamlit>=1.36"] if with_app else [])
+                + list(own.get("requirements") or [])
+                + exported["requirements"]
+            )
             self._files.write(folder, rules.REQUIREMENTS_FILE, rules.merged_requirements(None, needed))
         except PermissionError as error:
             raise Conflict(str(error)) from None
-        self.ws.audit.write(who, "new_project", folder)
+        self.ws.audit.write(who, "new_project", folder, type=kind)
+        self.opened = folder
         return self._opened(folder, remember)
 
     def _opened(self, folder: str, remember: bool = True) -> dict[str, Any]:
         """The project's files; each among the Workbench's recent ones (not a .sab's working copy's:
         the .sab is the recent one, services/sab_projects.py)."""
         listed = self._listing(folder)
+        listed["type"] = self.type_of(folder)
         for path in listed["files"] if remember else []:
             self._remember(path)
         return listed
@@ -179,8 +204,18 @@ class Projects:
         if listed["data"] is None:
             raise NotFound(f"{listed['folder']} is not a project: it has no data.ipynb.")
         self.ws.audit.write(who, "open_project", listed["folder"])
+        self.opened = str(listed["folder"])
         # A .sab's working copy is listed, not remembered: the .sab is the recent one ("remember": false).
         return self._opened(folder, remember=not (isinstance(body, dict) and body.get("remember") is False))
+
+    def type_of(self, folder: str | None) -> str:
+        """A project folder's type (the base's for none, or a folder without .sab/project.json)."""
+        if not folder:
+            return rules.BASE_TYPE
+        try:
+            return rules.read_type(self._files.read(folder, rules.TYPE_FILE))
+        except (OSError, ValueError):
+            return rules.BASE_TYPE
 
     async def export_data(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Export data.py: written again from the project's data.ipynb (the open one, saved or not)."""
