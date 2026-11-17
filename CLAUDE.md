@@ -173,6 +173,11 @@ src/swissarmybench/
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
                          placeholders, suggestions, written back), Blade, parse_blade, Template
+    sql_server.py        SQL Server and Azure SQL made robust: the connection's code as text (a SqlServer object:
+                         drivers found, eight sign-ins, the Entra token beside the string and refreshed, errors
+                         in plain words, passing errors tried again, a paused serverless database waited for,
+                         typed Arrow reads, SQLCancel on an interrupt, for_writes); the form's options, choices
+                         and variables; the catalog from the system views; foreign keys into the ERD; the card
     certificate_files.py a certificate or keystore file setting (verify, sslrootcert, sslcert, sslkey, keystore)
                          as a path or `os.environ.get("NAME", r"<this computer's path>")`: read back, written,
                          `import os` added; blades.env_settings lists the mappings (export, Run settings)

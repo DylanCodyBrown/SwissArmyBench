@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import certificate_files, python_connections, snippets, web_calls
+from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
@@ -643,6 +643,7 @@ KEYWORDS: dict[str, str] = {
     "ssl_cert": "client certificate file",
     "sslkey": "client key file",
     "ssl_key": "client key file",
+    **sql_server.KEYWORDS,  # SQL Server's options, and an app registration's ids
 }
 # The parts of a connection string (ODBC, DB2, OLE DB) that are settings, by their key ignoring case.
 CONNECTION_KEYS: dict[str, str] = {
@@ -663,7 +664,7 @@ CONNECTION_KEYS: dict[str, str] = {
     "encrypt": "encrypt",
 }
 # Settings that are on or off (a checkbox): True/False in code, yes/no in a connection string.
-FLAGS = frozenset({"trust server certificate", "encrypt"})
+FLAGS = frozenset({"trust server certificate", "encrypt"}) | sql_server.FLAGS
 # Never a setting, wherever it appears: these belong in secret("...").
 _SECRET_WORDS = re.compile(r"pass|pwd|token|secret|credential|api_?key|private", re.IGNORECASE)
 # The first argument of these calls is a file or folder.
@@ -721,11 +722,10 @@ class Setting:
     where: str  # keyword, name, argument or connection string
     placeholder: bool  # still a stand-in such as my-server: it needs the person's own value
     suggestions: list[dict[str, str]] = field(default_factory=list)  # {"value", "from"}
-    # A certificate or keystore file read from this environment variable (its value: the default).
-    env: str | None = None
+    env: str | None = None  # read from this variable (value: its default); a file says always, others mapped
 
     def to_json(self) -> dict[str, Any]:
-        mappable = {"env": self.env} if certificate_files.mappable(self.name) else {}
+        mappable = {"env": self.env} if certificate_files.says_source(self.name, self.env) else {}
         return mappable | {
             "id": self.id,
             "name": self.name,

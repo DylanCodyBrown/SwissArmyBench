@@ -12,8 +12,12 @@ key: `sslcert`, `sslkey`) may be written either way:
 Mapped, the variable's value wins where it is set (a function app's Application setting names where
 the file sits there) and this computer's path is its default. The mapping lives in the code itself:
 the one place the app, a Workbench kernel, an export and a scheduled run all read. `blades.env_settings`
-lists a code's mappings as {"variable", "setting", "key", "default"}. No other setting is mapped.
-Standard library only.
+lists a code's mappings as {"variable", "setting", "key", "default"}.
+
+SQL Server and Azure SQL map more (the owner, 2026-11-17: the same "From an environment variable" on
+server, database, username, client id and tenant): PLACE_SETTINGS, written and read back the same way
+(`server=os.environ.get("WAREHOUSE_SERVER", "sql01.example.local")`); the form offers them on those two
+connections (domain/sql_server.py ENV_SETTINGS). Standard library only.
 """
 
 from __future__ import annotations
@@ -46,17 +50,27 @@ TOP_LEVEL: dict[str, str] = {
     "profile": "profile",
     "access_key_id": "access key id",
 }
+FILE_SETTINGS = frozenset({"certificate file", "keystore", "client certificate file", "client key file"})
+# Where and who, by domain/blades.py KEYWORDS (host= is a server): the SQL Server forms offer them
+# (domain/sql_server.py ENV_SETTINGS); a setting here says its source (`env`) only once it is mapped.
+PLACE_SETTINGS = frozenset({"server", "database", "user"})
 # The settings (their plain names, domain/blades.py KEYWORDS and TOP_LEVEL) that may come from a variable.
-ENV_MAPPABLE = frozenset(
-    {"certificate file", "keystore", "client certificate file", "client key file"} | set(TOP_LEVEL.values())
-)
+ENV_MAPPABLE = FILE_SETTINGS | PLACE_SETTINGS | frozenset(TOP_LEVEL.values())
 
 
 def mappable(setting: str | None) -> TypeGuard[str]:
     """Whether a setting (its plain name) may come from an environment variable, its value this
-    computer's default: a certificate or keystore file, and every setting of TOP_LEVEL. The one rule the
-    settings' reading, writing and the form's "From an environment variable" share."""
+    computer's default: a certificate or keystore file, a server, database or user, and every setting of
+    TOP_LEVEL. The one rule the settings' reading, writing and the form's "From an environment variable"
+    share."""
     return setting in ENV_MAPPABLE
+
+
+def says_source(setting: str, env: str | None) -> bool:
+    """Whether a setting's answer carries its source (`env`): a mapped one always; an unmapped one when
+    the form offers the choice by itself (a file, a TOP_LEVEL setting), not a server, database or user
+    (only the SQL Server forms offer those, by their env_settings)."""
+    return bool(env) or (mappable(setting) and setting not in PLACE_SETTINGS)
 
 
 def plain_name(identifier: str, keywords: Mapping[str, str]) -> str | None:
@@ -104,7 +118,8 @@ def variable_choice(name: Any, setting: str, key: str) -> str | None:
         return None
     if not mappable(setting):
         raise MappingError(
-            f"Only a certificate or keystore file comes from an environment variable, not {key}."
+            f"{key} cannot come from an environment variable: a file, a server, a database, a user, an id "
+            "or a place can, a number or an on/off setting cannot."
         )
     if not isinstance(name, str) or not _ENV_NAME.match(name.strip()):
         raise MappingError(

@@ -30,7 +30,7 @@ from swissarmybench.domain import notebooks, table_cells
 from swissarmybench.domain import streamlit_cells as canvases
 
 CALL_KINDS: tuple[str, ...] = ("catalog", "query", "read", "test", "connect")
-STATUSES: tuple[str, ...] = ("works", "ready", "needs", "failing")
+STATUSES: tuple[str, ...] = ("works", "ready", "needs", "failing", "resuming")
 # The client's functions that take a connection's name first (sab.sql(name, query) ...).
 _NAMED_FIRST = {
     "sql": "sab.sql",
@@ -324,8 +324,11 @@ def record(calls: Calls | None, kind: str, ok: bool, at: float) -> Calls:
     return Calls(counts, at, kind, ok)
 
 
-def status(calls: Calls | None, missing: list[str], catalog_failed: bool) -> str:
-    """The card's word: failing, needs (a password), works, ready."""
+def status(calls: Calls | None, missing: list[str], catalog_failed: bool, error: str = "") -> str:
+    """The card's word: failing, resuming (a paused serverless database that is waking: its last error
+    said so), needs (a password), works, ready."""
+    if calls is not None and calls.last_ok is False and "is resuming" in error:
+        return "resuming"
     if catalog_failed or (calls is not None and calls.last_ok is False):
         return "failing"
     if missing:

@@ -340,8 +340,17 @@ ENGINES: dict[str, Engine] = {
 }
 
 
+def for_writes(conn: Any) -> Any:
+    """The connection a write goes through: the SQL Server connection's without read-only intent (a read
+    replica refuses writes; domain/sql_server.py), any other as it is."""
+    writer = getattr(conn, "for_writes", None) if getattr(conn, "dbms", None) == "sqlserver" else None
+    return writer() if callable(writer) else conn
+
+
 def detect(conn: Any) -> Engine:
     """The database a connection is, by its driver (pyodbc: by the source's own answer)."""
+    if getattr(conn, "dbms", None) == "sqlserver":  # the SQL Server connection's own (domain/sql_server.py)
+        return ENGINES["sqlserver"]
     top = type(conn).__module__.split(".")[0]
     if top == "pyodbc":
         try:
@@ -391,6 +400,7 @@ class SqlWrite(Write):
         engine: str | Sequence[str] | None = None,
     ) -> None:
         name, conn = live(connection)
+        conn = for_writes(conn)
         super().__init__(name, target, what, rows, dry_run)
         self.engine = detect(conn)
         wanted = [engine] if isinstance(engine, str) else list(engine or [])
@@ -1041,6 +1051,7 @@ class SqlServerWrite(SqlWrite):
     def _reopen(self) -> None:
         self._close()
         _, conn = live(self._given)
+        conn = for_writes(conn)
         self.conn = conn
         self.cursor = conn.cursor()
         self._target = None

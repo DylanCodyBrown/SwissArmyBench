@@ -20,7 +20,7 @@ from typing import Any
 
 from swissarmybench.domain import connection_usage as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import dataverse, python_connections
+from swissarmybench.domain import dataverse, python_connections, sql_server
 from swissarmybench.domain.blades import Blade, BladeError
 from swissarmybench.domain.notebooks import NotebookError
 from swissarmybench.domain.streamlit_cells import StreamlitError
@@ -56,6 +56,10 @@ class ConnectionUsage:
         self._environ = environ
         self._now = now
         self._calls: dict[str, rules.Calls] = {}  # by name, case folded
+        # The last run's words (memory only): its error, in plain words, and what the server said it is
+        # (SQL Server's about(): driver, sign-in, version, collation; never a value).
+        self._errors: dict[str, str] = {}
+        self._about: dict[str, dict[str, Any]] = {}
 
     # ===== the calls =====
 
@@ -66,8 +70,11 @@ class ConnectionUsage:
             return None
         return blade if connection_rules.connection_kind(blade.kind, blade.template) else None
 
-    def record(self, name: str, kind: str, ok: bool = True) -> None:
-        """One call of a connection's through the app (a blade that is not a connection is not counted)."""
+    def record(
+        self, name: str, kind: str, ok: bool = True, error: str = "", about: Mapping[str, Any] | None = None
+    ) -> None:
+        """One call of a connection's through the app (a blade that is not a connection is not counted),
+        with its error's words when it failed and what the server said it is when it told."""
         try:
             said = rules.call_kind(kind)
         except ValueError:
@@ -77,6 +84,12 @@ class ConnectionUsage:
             return
         key = blade.name.casefold()
         self._calls[key] = rules.record(self._calls.get(key), said, ok, self._now())
+        if ok:
+            self._errors.pop(key, None)
+        elif error:
+            self._errors[key] = error[:2000]
+        if about:
+            self._about[key] = {str(k): v for k, v in about.items() if isinstance(v, str | bool)}
 
     def report(self, name: str, body: Any) -> dict[str, Any]:
         """A Workbench kernel's report of a call: {"kind": "query" | "read" | "connect", "ok"?}."""
@@ -109,6 +122,8 @@ class ConnectionUsage:
         calls = self.calls(name)
         failed = (entry.get("catalog_state") or {}).get("state") == "failed"
         missing = self._missing(entry)
+        error = self._errors.get(name.casefold(), "")
+        about = self._about.get(name.casefold(), {})
         return {
             "name": name,
             "connection": entry.get("connection"),
@@ -118,8 +133,11 @@ class ConnectionUsage:
             "dialect": entry.get("dialect"),
             "description": entry.get("description") or "",
             "source": entry.get("source"),
-            "status": rules.status(calls, missing, failed),
+            "status": rules.status(calls, missing, failed, error),
             "missing": missing,
+            "error": error,  # the last run's, in plain words (SQL Server's say the fix)
+            # What the server is, when it said (SQL Server's Test): the card's lines.
+            "about": sql_server.card_words(about) if about else [],
             "catalog_state": entry.get("catalog_state"),
             "catalog_loaded": bool(entry.get("catalog_loaded")),
             "calls": (calls or rules.Calls()).to_json(),

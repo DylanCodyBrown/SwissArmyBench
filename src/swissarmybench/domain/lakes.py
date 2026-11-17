@@ -37,6 +37,7 @@ import re
 
 from swissarmybench.domain import dataverse, entra
 from swissarmybench.domain import lake_code as code
+from swissarmybench.domain.sql_server import TOKEN_CODE
 
 ONELAKE: str = "onelake"
 DATALAKE: str = "datalake"
@@ -154,13 +155,11 @@ def suggested_env(kind: str | None, setting: str) -> str | None:
 
 # ===== the code =====
 
-_TDS = r'''
-
-def token_struct(token):
-    """An access token as Microsoft's ODBC driver takes it: its length, then the token in UTF-16-LE."""
-    sent = token.encode("utf-16-le")
-    return len(sent).to_bytes(4, "little") + sent
-
+# The token beside the ODBC connection string: the one code SQL Server's and Dataverse's use too.
+_TDS = (
+    "\n"  # noqa: S608 (code: its names are quoted where they are made)
+    + TOKEN_CODE
+    + r'''
 
 class Tds:
     """T-SQL on a Fabric SQL endpoint (a warehouse, or a lakehouse's SQL analytics endpoint): pyodbc and
@@ -218,6 +217,7 @@ class Tds:
         result = pa.Table.from_pylist(found) if found else pa.table({n: [] for n in names})
         return result.replace_schema_metadata({b"sab_read": b"sql"}), total
 '''
+)
 
 _KINDS = r'''
 
@@ -298,7 +298,7 @@ class OneLake(Lake):
         return super().cursor()
 '''
 
-_HEAD = entra.IMPORTS + "\nimport duckdb\n"
+_HEAD = entra.IMPORTS.replace("import time\n", "import struct\nimport time\n") + "\nimport duckdb\n"
 _BODY = entra.COMMON + code.STORES + code.DELTA + code.WRITER + code.READER
 _ENTRA = {"you": entra.YOU, "managed": entra.MANAGED, "app": entra.APP}
 

@@ -13,7 +13,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, lakes, powerbi, python_connections, write_capability
+from swissarmybench.domain import dataverse, lakes, powerbi, python_connections, sql_server, write_capability
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
@@ -384,7 +384,12 @@ class ConnectionService:
                              how=str(answer.get("read_with") or ""))  # fmt: skip
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
         count = (
-            None if every else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
+            None
+            if every
+            # SQL Server: the rows sys.partitions holds, not a COUNT(*) over the table (domain/sql_server.py)
+            else sql_server.count_sql(place["schema"], place["table"])
+            if blade.dialect == sql_server.DIALECT and not place["database"]
+            else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
         )
         dax = blade.dialect == powerbi.DIALECT
         within = place["schema"] if dax else ""  # a Power BI workspace: the table's dataset
@@ -622,6 +627,30 @@ class ConnectionService:
             dataset["cell"] = powerbi.joined_name(blade.name, dataset["name"])
         return {"connection": blade.name, "datasets": found, "from": origin}
 
+    async def _foreign_keys(self, name: str, body: Any, who: str) -> dict[str, Any]:
+        """A SQL Server or Azure SQL database's foreign keys (sys.foreign_keys; a composite key whole)
+        merged into the current model, as a Power BI dataset's relationships are."""
+        if self._models is None:
+            raise BladeError("Importing relationships needs the relationship model.")
+        blade = self._blades.get(name)
+        answer = await self._blades.queries(blade, sql_server.RELATIONSHIP_QUERIES, body)
+        try:
+            model = sql_server.relationships_model(blade.name, list(answer["results"]))
+        except sql_server.SqlServerError as error:
+            raise BladeError(str(error)) from None
+        if not model.relationships:
+            raise BladeError(f"{blade.name} has no foreign keys to import.")
+        merged = await self._models.apply(model, who)
+        return {
+            "dataset": "",
+            "model": {k: v for k, v in merged.items() if k != "changed"},
+            "changed": merged.get("changed", []),
+            "imported": [r.to_json() for r in model.relationships],
+            "tables": sorted(model.tables()),
+            "skipped": 0,
+            "skipped_why": "",
+        }
+
     async def import_relationships(self, name: str, body: Any, who: str) -> dict[str, Any]:
         """Read one dataset's relationships (DAX's INFO functions, on the connection) and merge them
         into the current model, the tables named as they open as grids: the ERD and the Key
@@ -629,6 +658,8 @@ class ConnectionService:
         needs none. Answers the model, what the merge changed, and what came."""
         if self._models is None:
             raise BladeError("Importing relationships needs the relationship model.")
+        if self._blades.get(name).dialect == sql_server.DIALECT:
+            return await self._foreign_keys(name, body, who)
         blade = self._workspace(name)
         dataset = str(body.get("dataset") or "").strip() if isinstance(body, dict) else ""
         try:

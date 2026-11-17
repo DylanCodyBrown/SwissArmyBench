@@ -438,27 +438,29 @@ def test_trust_server_certificate_is_a_checkbox_in_code_and_connection_strings()
 
 
 @pytest.mark.parametrize("template", ["sqlserver", "azuresql"])
-def test_sql_server_and_azure_sql_sign_in_three_ways(template: str) -> None:
+def test_sql_server_and_azure_sql_sign_in_every_way(template: str) -> None:
     from swissarmybench.domain.blades import detect_settings, read_code
     from swissarmybench.server.blade_templates import TEMPLATES
 
     starter = next(t for t in TEMPLATES if t.id == template)
     ways = {label: (mark, code) for label, mark, code in starter.sign_ins}
     assert starter.code == starter.sign_ins[0][2]  # the first way is the starter's own code
-    assert len(ways) == 3 and any("MFA" in w for w in ways) and "User name and password" in ways
-    assert any("Windows" in w for w in ways)
+    assert len(ways) == (8 if template == "sqlserver" else 7)
+    assert "User name and password (SQL login)" in ways and any("managed identity" in w for w in ways)
     for label, (mark, code) in ways.items():
         assert mark in code and sum(mark in other for _, other in ways.values()) == 1  # tells them apart
         names = {s.name for s in detect_settings(code)}
-        assert {"server", "database", "trust server certificate", "encrypt"} <= names, label
-        assert read_code(code).secrets == (["password"] if label == "User name and password" else [])
+        assert {"server", "database", "trust server certificate", "encryption", "driver"} <= names, label
+        passwords = read_code(code).secrets
+        wanted = ["password"] if "password" in label else ["client secret"] if "secret" in label else []
+        assert passwords == wanted
 
 
 def test_the_form_offers_the_ways_to_sign_in_new_and_saved(client: TestClient) -> None:
     types = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
     assert types["sqlserver"]["sign_ins"][0]["label"] == "Windows sign-in"
     assert types["postgres"]["sign_ins"] == []
-    mfa = next(w for w in types["azuresql"]["sign_ins"] if "MFA" in w["label"])
+    mfa = next(w for w in types["azuresql"]["sign_ins"] if "as you" in w["label"])
     body = {
         "name": "Sales",
         "kind": "sql",
@@ -468,7 +470,7 @@ def test_the_form_offers_the_ways_to_sign_in_new_and_saved(client: TestClient) -
     }
     assert client.post("/connections", json=body, headers=AUTH).status_code == 200
     saved = client.get("/connections/Sales", headers=AUTH).json()
-    assert len(saved["sign_ins"]) == 3 and mfa["mark"] in saved["code"]
+    assert len(saved["sign_ins"]) == 7 and mfa["mark"] in saved["code"]
 
 
 def test_a_sign_in_that_opens_a_window_is_told_apart() -> None:
