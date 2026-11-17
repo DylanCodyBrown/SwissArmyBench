@@ -105,66 +105,29 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     # Saved: its catalog loads itself.
     wait_until(lambda: any(c["name"] == "Finance" for c in call(server, "GET", "/catalogs")["catalogs"]))
 
-    # The catalog: the workspace's datasets, each with its tables; the one that could not be read is
-    # marked on itself only.
-    catalog = page.context.new_page()
-    catalog.goto(f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}&catalog=Finance")
-    catalog.wait_for_selector('[role="treeitem"]')
-
-    def item(label: str, level: int = 1) -> Any:
-        return catalog.locator(
-            f'[role="treeitem"][aria-level="{level}"]',
-            has=catalog.locator(f':scope > .node > .node-label:text-is("{label}")'),
-        )
-
-    expect(catalog.locator('[role="treeitem"][aria-level="1"] > .node > .node-label')).to_have_text(
-        ["Broken model", "Budget model", "Sales model"]
-    )
-    broken = item("Broken model")
-    expect(broken.locator(".node-error")).to_have_attribute(
-        "title", re.compile(r"^Could not be read: .*being refreshed")
-    )
-    expect(catalog.locator(".node-error")).to_have_count(1)  # the other two are not marked
-    assert broken.get_attribute("aria-expanded") is None  # nothing under it to open
-    broken.locator(":scope > .node .node-label").click()
-    detail = catalog.locator("#detail")
-    expect(detail.locator(".status-error")).to_contain_text("The dataset is being refreshed")
-    expect(detail.get_by_role("button", name="Import its relationships")).to_have_count(0)
-    # The second dataset: its own tables (a Date of its own), and its page.
-    budget = item("Budget model")
-    budget.locator(":scope > .node .node-label").click()  # its page, and its tables under it
-    expect(detail.locator("p.hint").first).to_have_text("Dataset in Finance · DAX")
-    expect(detail.get_by_role("button", name="Import its relationships")).to_be_visible()
-    expect(budget).to_have_attribute("aria-expanded", "true")
-    expect(budget.locator('[role="treeitem"][aria-level="2"] > .node > .node-label')).to_have_text(
-        ["Budget", "Date", "Department"]
-    )
-    item("Budget", 2).locator(":scope > .node .node-label").click()
-    expect(detail.locator("pre")).to_have_text("EVALUATE TOPN(100, 'Budget')")
-    expect(detail.locator("p.hint").first).to_have_text(
-        "Budget model in Finance · 4 columns, 1 measure · DAX"
-    )
-    measure = detail.locator(".columns-table").first.locator("tr", has_text="Total Planned")
-    expect(measure.locator("td").nth(1)).to_have_text("measure, Decimal")
-    expect(detail.locator(".preview-table tbody tr")).to_have_count(24, timeout=60000)  # its first rows
-
-    # Open as grid, from the second dataset; the toast offers that dataset's relationships.
-    detail.get_by_role("button", name="Open as grid").click()
-    opened = catalog.locator(".toast", has_text="Budget is open as a grid.")
-    expect(opened).to_be_visible(timeout=60000)
-    assert standin.queries("Budget model")[-2] == "EVALUATE TOPN(10000, 'Budget')"
-    opened.get_by_role("button", name="Import its relationships").click()
-    expect(
-        catalog.locator(".toast", has_text="2 relationships from Budget model are in the model.")
-    ).to_be_visible(timeout=60000)
-    # Both datasets have a Date: this one opens under its dataset's name too (the menu on its node).
-    item("Date", 2).locator(":scope > .node").click(button="right")
-    catalog.get_by_role("menuitem", name="Open as grid").click()
-    expect(catalog.locator(".toast", has_text="Budget_model_Date is open as a grid.")).to_be_visible(
+    # The catalog (the blades page's catalog panel went, 2026-11-17: read through its routes, and the
+    # Connections page's tree): the workspace's datasets, each with its tables; the one that could not be
+    # read says why on itself only.
+    schemas = call(server, "GET", "/catalogs/Finance/schemas")["schemas"]
+    assert [x["schema"] for x in schemas] == ["Broken model", "Budget model", "Sales model"]
+    assert "being refreshed" in schemas[0].get("note", "") and not any(x.get("note") for x in schemas[1:])
+    tables = call(server, "GET", "/catalogs/Finance/tables?schema=Budget%20model")["tables"]
+    assert [t["table"] for t in tables] == ["Budget", "Date", "Department"]
+    columns = call(server, "GET", "/catalogs/Finance/columns?schema=Budget%20model&table=Budget")["columns"]
+    assert next(c for c in columns if c["column"] == "Total Planned")["type"] == "measure, Decimal"
+    expect(dialog.locator(".connection-tables .conn-tree-group[data-group='Budget model']")).to_be_visible(
         timeout=60000
     )
+
+    # Open as grid, from the second dataset; then that dataset's relationships.
+    call(server, "POST", "/connections/Finance/open", {"schema": "Budget model", "table": "Budget"})
+    assert standin.queries("Budget model")[-2] == "EVALUATE TOPN(10000, 'Budget')"
+    imported = call(server, "POST", "/connections/Finance/relationships", {"dataset": "Budget model"})
+    assert len(imported["imported"]) == 2
+    # Both datasets have a Date: this one opens under its dataset's name too.
+    dated = call(server, "POST", "/connections/Finance/open", {"schema": "Budget model", "table": "Date"})
+    assert dated["dataset"] == "Budget_model_Date"
     call(server, "POST", "/connections/Finance/open", {"schema": "Budget model", "table": "Department"})
-    catalog.close()
 
     # The grid page: the second dataset's table is a tab, a date read as a date.
     page.bring_to_front()

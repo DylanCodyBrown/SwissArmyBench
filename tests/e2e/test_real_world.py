@@ -235,26 +235,48 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
     act.click(page.locator(".nav-rail [data-area='grids']"))
 
 
-def open_catalog(act: Actions, page: Page) -> Page:
-    """Blades and catalog: a window of its own."""
+def open_blades(act: Actions, page: Page) -> Page:
+    """The blades page: a window of its own."""
     with page.context.expect_page() as opened:
         act.click(page.locator(".nav-rail [data-area='blades']"))
-    catalog = opened.value
-    expect(catalog.locator('[role="treeitem"]').first).to_be_visible(timeout=LONG)
-    return catalog
+    blades = opened.value
+    expect(blades.locator(".blade-list")).to_be_visible(timeout=LONG)
+    return blades
+
+
+def open_catalog(act: Actions, page: Page) -> Page:
+    """A connection's tables are on the Connections page (the blades page's catalog panel went, the owner
+    2026-11-17): the same window; choose_catalog opens a connection's detail and its tree."""
+    return page
+
+
+_chosen: dict[str, str] = {}
+
+
+def choose_catalog(act: Actions, page: Page, name: str) -> None:
+    """The Connections page at a connection's detail: its tables as a tree."""
+    act.click(page.locator(".nav-rail [data-area='connections']"))
+    act.click(page.locator(f".area-page[data-page='connections'] .connection-card[data-connection='{name}']"))
+    expect(page.locator(".connection-tables .conn-tree-table").first).to_be_attached(timeout=LONG)
+    _chosen[str(id(page))] = name
+
+
+def tree_of(act: Actions, page: Page) -> Locator:
+    """The tree of the connection chosen last, shown again when an Open took the page to the grids."""
+    tree = page.locator(".area-page[data-page='connections'] .connection-tables")
+    if not tree.count() or not tree.first.is_visible():
+        choose_catalog(act, page, _chosen[str(id(page))])
+    return tree.first
 
 
 def open_as_grid(act: Actions, catalog: Page, table: str, schema: str | None = None) -> None:
-    """A table of the catalog's tree, then its page's Open as grid."""
-    tree = catalog.locator('[role="treeitem"]')
-    if schema is not None:
-        node = tree.filter(has=catalog.locator(f':scope > .node > .node-label:text-is("{schema}")'))
-        if node.first.get_attribute("aria-expanded") == "false":
-            act.click(node.first.locator(":scope > .node .node-label"))
-    label = catalog.locator(f'[role="treeitem"] > .node > .node-label:text-is("{table}")').first
-    act.click(label)
-    act.click(catalog.locator("#detail").get_by_role("button", name="Open as grid"))
-    expect(catalog.locator(".toast", has_text="is open as a grid")).to_be_visible(timeout=LONG)
+    """A table of the connection's tree: its Open."""
+    tree = tree_of(act, catalog)
+    within = tree.locator(f".conn-tree-group[data-group='{schema}']") if schema is not None else tree
+    act.click(
+        within.locator(f".conn-tree-table[data-table='{table}']").first.get_by_role("button", name="Open")
+    )
+    expect(catalog.locator(".toast", has_text="is open as a grid").last).to_be_visible(timeout=LONG)
 
 
 def open_workbench(act: Actions, page: Page) -> Page:
@@ -458,7 +480,7 @@ def test_3_the_notebook_runs_as_an_azure_function_would_with_its_password_from_t
     if not (folder / "clean_orders.ipynb").exists():
         pytest.skip("use case 1 saves the notebook this one runs")
     page = app_page(browser, bench)
-    catalog = open_catalog(act, page)
+    catalog = open_blades(act, page)
     act.click(catalog.locator(".blade-item", has_text="Shop").locator(".blade-name, .blade-text").first)
     with catalog.expect_download() as downloaded:
         act.click(catalog.get_by_role("button", name="Export", exact=True))
@@ -535,15 +557,6 @@ def ensure_shop(bench: dict[str, Any]) -> None:
     if not any(c["name"] == "Shop" for c in call(bench, "GET", "/catalogs")["catalogs"]):
         call(bench, "POST", "/blades/Shop/refresh", {})
         wait_until(lambda: any(c["name"] == "Shop" for c in call(bench, "GET", "/catalogs")["catalogs"]))
-
-
-def choose_catalog(act: Actions, catalog: Page, name: str) -> None:
-    """The catalog's picker set to a connection (when it shows another)."""
-    picker = catalog.locator("select").filter(has=catalog.locator("option", has_text=name)).first
-    expect(picker.locator("option", has_text=name)).to_have_count(1, timeout=LONG)
-    if picker.input_value() != name:
-        act.select(picker, label=name)
-        expect(catalog.locator('[role="treeitem"]').first).to_be_visible(timeout=LONG)
 
 
 def blade_list(act: Actions, workbench: Page, family: str) -> Locator:
@@ -889,18 +902,16 @@ def team_vault(bench: dict[str, Any]) -> None:
 
 
 def dataset_item(catalog: Page, label: str, level: int = 1) -> Locator:
-    return catalog.locator(
-        f'[role="treeitem"][aria-level="{level}"]',
-        has=catalog.locator(f':scope > .node > .node-label:text-is("{label}")'),
-    )
+    """A Power BI dataset in the connection's tree."""
+    return catalog.locator(f".connection-tables .conn-tree-group[data-group='{label}']")
 
 
 def open_from_dataset(act: Actions, catalog: Page, dataset: Locator, table: str) -> None:
-    """A dataset's table, Open as grid from its right-click menu."""
-    label = catalog.locator(f':scope > .node > .node-label:text-is("{table}")')
-    node = dataset.locator('[role="treeitem"][aria-level="2"]', has=label)
-    act.click(node.locator(":scope > .node"), button="right")
-    act.click(catalog.get_by_role("menuitem", name="Open as grid"))
+    """A dataset's table, its Open in the tree."""
+    group = dataset.get_attribute("data-group") or ""
+    tree = tree_of(act, catalog)
+    row = tree.locator(f".conn-tree-group[data-group='{group}'] .conn-tree-table[data-table='{table}']")
+    act.click(row.first.get_by_role("button", name="Open"))
     grid = table.replace(" ", "_")
     expect(catalog.locator(".toast", has_text=f"{grid} is open as a grid.")).to_have_count(1, timeout=LONG)
 
@@ -918,8 +929,7 @@ def test_7_a_power_bi_datasets_tables_and_relationships_are_read_in(
     catalog = open_catalog(act, page)
     choose_catalog(act, catalog, "Finance")
     model = dataset_item(catalog, "Company model")
-    act.click(model.locator(":scope > .node .node-label"))
-    act.click(catalog.locator("#detail").get_by_role("button", name="Import its relationships"))
+    act.click(model.get_by_role("button", name="Import its relationships").first)
     expect(catalog.locator(".toast", has_text="5 relationships from Company model")).to_be_visible(
         timeout=LONG
     )
@@ -966,8 +976,6 @@ def test_8_power_bi_ties_out_against_its_postgresql_source(
     catalog = open_catalog(act, page)
     choose_catalog(act, catalog, "Finance")
     model = dataset_item(catalog, "Company model")
-    if model.get_attribute("aria-expanded") != "true":
-        act.click(model.locator(":scope > .node .node-label"))
     open_from_dataset(act, catalog, model, "Invoices")
     choose_catalog(act, catalog, "Shop")
     open_as_grid(act, catalog, "invoices")

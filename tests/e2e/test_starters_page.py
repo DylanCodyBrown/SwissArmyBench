@@ -158,7 +158,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
     listed.locator(".starter-item", has_text="Power BI refresh dataset").locator(".blade-name").click()
     detail = page.locator("#detail")
     expect(detail.get_by_text("Power BI starter: read-only")).to_be_visible()
-    expect(detail.locator("textarea[aria-label='Blade code']")).to_have_value(re.compile("def refresh"))
+    expect(detail.locator(".blade-code .monaco-editor")).to_be_visible(timeout=20000)  # read-only
     shot(page, "2-a-power-bi-action")
     detail.get_by_role("button", name="Copy as your own").click()
     expect(detail.locator("h2")).to_have_text("Blade: Power BI refresh dataset copy")

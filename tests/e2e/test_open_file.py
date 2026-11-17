@@ -83,7 +83,7 @@ def test_open_file_and_dropped_files_open_as_grids(
                 pass
 
 
-def test_a_catalog_table_previews_opens_as_a_grid_and_loads_all_rows(
+def test_a_connections_table_previews_opens_as_a_grid_and_loads_all_rows(
     browser: Browser, orders_url: str, server: dict[str, Any], tmp_path: Path
 ) -> None:
     import sqlite3
@@ -108,14 +108,15 @@ def test_a_catalog_table_previews_opens_as_a_grid_and_loads_all_rows(
         while not any(c["name"] == "Shop" for c in call(server, "GET", "/catalogs")["catalogs"]):
             assert time.monotonic() < deadline, "the catalog did not load itself"
             time.sleep(0.3)
-        page = browser.new_page(viewport={"width": 1400, "height": 900})
-        page.goto(f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}&catalog=Shop")
-        tree = page.locator('[role="treeitem"]')
-        tree.filter(has_text="main").first.click()
-        page.get_by_role("treeitem", name="invoices").click()
-        # The table's first rows, beside its columns; then Open as grid.
-        expect(page.locator(".preview-table tbody tr")).to_have_count(30, timeout=30000)
-        page.get_by_role("button", name="Open as grid").click()
+        # The Connections page's tree (the blades page's catalog panel went, 2026-11-17): Preview, then Open.
+        grid_page.locator(".nav-rail [data-area='connections']").click()
+        dialog = grid_page.locator(".area-page[data-page='connections']")
+        dialog.locator(".connection-card[data-connection='Shop']").click()
+        invoices = dialog.locator(".connection-tables .conn-tree-table[data-table='invoices']")
+        invoices.get_by_role("button", name="Preview").click()
+        expect(invoices.locator(".connection-preview tbody tr").first).to_be_visible(timeout=30000)
+        invoices.get_by_role("button", name="Open").click()
+        grid_page.keyboard.press("Escape")
         # The grid says it is cut short, beside the table, and Load all rows brings the rest.
         expect(grid_page.locator(".opened-note")).to_contain_text("First 10 of 30 rows", timeout=30000)
         grid_page.locator(".opened-note").get_by_role("button", name="Load all rows").click()
