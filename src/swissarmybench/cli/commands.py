@@ -2348,6 +2348,7 @@ _TABLE_ARGS = (
     opt("table", "The table (a database's table; a workbook's sheet; a file in a folder connection)."),
     opt("schema", "The table's schema (as the catalog shows it); a Power BI workspace's: the dataset."),
     opt("database", "The table's database, when the catalog spans more than one."),
+    opt("dataset", "A Power BI workspace's dataset holding the table (the same as schema)."),
 )
 
 
@@ -2361,7 +2362,7 @@ _TABLE_ARGS = (
     opt("all", "Every row, not the first Rows to open.", "bool"),
 )
 def connections_open_table(a: dict[str, Any]) -> Any:
-    keys = ("table", "schema", "database", "all")
+    keys = ("table", "schema", "database", "dataset", "all")
     body = {k: a[k] for k in keys if a.get(k) is not None}
     return api.call("POST", f"/connections/{_q(a['name'])}/open", body)
 
@@ -2372,7 +2373,7 @@ def connections_open_table(a: dict[str, Any]) -> Any:
     *_TABLE_ARGS,
 )
 def connections_preview_table(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("table", "schema", "database") if a.get(k) is not None}
+    body = {k: a[k] for k in ("table", "schema", "database", "dataset") if a.get(k) is not None}
     return api.call("POST", f"/connections/{_q(a['name'])}/preview", body)
 
 

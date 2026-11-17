@@ -291,6 +291,9 @@ class ConnectionService:
             raise BladeError(f"{blade.name} has no tables to open.")
         where = body if isinstance(body, dict) else {}
         place = {k: str(where.get(k) or "") for k in ("database", "schema", "table")}
+        if not place["schema"] and blade.dialect == powerbi.DIALECT:
+            # A Power BI workspace's table lives in one of its datasets: named as the schema or as dataset.
+            place["schema"] = str(where.get("dataset") or "")
         return blade, str(kind), place
 
     async def open_table(self, name: str, body: Any, who: str) -> dict[str, Any]:
@@ -350,7 +353,16 @@ class ConnectionService:
         )
         dax = blade.dialect == powerbi.DIALECT
         within = place["schema"] if dax else ""  # a Power BI workspace: the table's dataset
-        answer = await self._blades.rows(blade, sql, count, body, within)
+        try:
+            answer = await self._blades.rows(blade, sql, count, body, within)
+        except Exception as error:
+            if not dax or within or "name the one to read" not in str(error):
+                raise
+            # The connection's own words name its code's argument; say how to name it here.
+            raise type(error)(
+                f"{blade.name} is a Power BI workspace with several datasets: name the one that holds "
+                f"{place['table']} as dataset (or schema). connections_datasets lists them. {error}"
+            ) from None
         table, total = answer["table"], answer.get("total")
         if table.num_columns == 0:
             # Power BI names an answer's columns only on its rows: an empty table comes with none.
@@ -521,6 +533,12 @@ class ConnectionService:
             "imported": [r.to_json() for r in model.relationships],
             "tables": sorted(model.tables()),
             "skipped": skipped,  # those of the date tables Power BI makes by itself
+            "skipped_why": (
+                "Relationships to the date tables Power BI makes by itself (LocalDateTable_..., "
+                "DateTableTemplate_...) for its automatic date hierarchies; they are not the model's own."
+                if skipped
+                else ""
+            ),
         }
 
 
