@@ -1027,10 +1027,10 @@ def test_the_agent_builds_a_canvas_plays_it_and_saves_it(live: Live, tmp_path: P
         out = command("streamlit_export", app=app, folder=str(tmp_path / "out"))
     assert len(out["problems"]) == 1 and (tmp_path / "out" / "app.py").is_file()  # the filter was taken off
     assert [(a["action"], a["dataset"]) for a in asked] == [("export the Streamlit app", "sales.stapp.json")]
-    # orders was pasted: its rows are written out in data.ipynb's cell, so New project asks too.
+    # orders was pasted: a project folder keeps its rows out (only on a tick, in .sab/data/): no question.
     with allowing(live) as asked:
         made = command("project_new", folder=str(tmp_path), name="proj", app=False, notebooks=["analysis"])
-    assert [a["action"] for a in asked] == ["make the project"] and "orders (2 rows)" in asked[0]["detail"]
+    assert asked == []
     assert [Path(p).name for p in made["files"]] == ["data.ipynb", "analysis.ipynb"]
     assert command("project_files", folder=made["folder"])["files"] == made["files"]
     assert command("project_export_data", folder=made["folder"])["names"] == ["orders"]
@@ -1178,7 +1178,7 @@ def test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_sa
     csv = tmp_path / "orders.csv"
     csv.write_text("order_id,region,amount\n1,East,100\n2,West,250\n3,East,40\n4,North,75\n")
     grid = command("datasets_load", name="orders", path=str(csv))["grid"]
-    project = command("project_new", folder=str(tmp_path), name="sales", notebooks=["mockups"])
+    project = command("project_new", folder=str(tmp_path), name="sales", notebooks=["mockups"], app=True)
     folder = Path(project["folder"])
     notebook = _notebook(folder, "mockups.ipynb")
     # The notebook's own live cells, as the Workbench window shows them in their cells.
@@ -1500,7 +1500,7 @@ def test_the_real_streamlit_fills_a_markdown_and_an_html_block_from_a_filter(
     csv = tmp_path / "orders.csv"
     csv.write_text("order_id,region,amount\n1,East,100\n2,West,250\n3,East,40\n4,North,75\n")
     command("datasets_load", name="orders", path=str(csv))
-    project = command("project_new", folder=str(tmp_path), name="story", notebooks=["mockups"])
+    project = command("project_new", folder=str(tmp_path), name="story", notebooks=["mockups"], app=True)
     folder = Path(project["folder"])
     notebook = folder / "story.ipynb"
     markdown, card, hostile = (

@@ -236,4 +236,3 @@ def test_the_unix_installer_takes_away_an_earlier_sab_registration() -> None:
     text = (ROOT / "installer" / "install.sh").read_text()
     assert '<glob pattern="*.sab"/>' not in text and "xdg-mime default" not in text
     assert 'rm -f "$data/mime/packages/swissarmybench-project.xml"' in text
-

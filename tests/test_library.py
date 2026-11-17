@@ -11,7 +11,6 @@ import json
 import shutil
 import threading
 import time
-import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -336,10 +335,10 @@ def test_this_computers_older_stores_move_in_once_with_a_backup_and_a_notice(tmp
 
 
 def _with_own_blades(path: Path, blades: dict[str, dict[str, Any]]) -> None:
-    """An older app's .sab: its own connections and blades in .sab/blades (added to a saved file)."""
-    with zipfile.ZipFile(path, "a") as archive:
-        for file, blade in blades.items():
-            archive.writestr(f".sab/blades/{file}", json.dumps(blade))
+    """An older app's project: its own connections and blades in its .sab/blades."""
+    (path / ".sab" / "blades").mkdir(parents=True, exist_ok=True)
+    for file, blade in blades.items():
+        (path / ".sab" / "blades" / file).write_text(json.dumps(blade), encoding="utf-8")
 
 
 def test_an_older_projects_own_blades_move_into_the_library_and_its_next_save_leaves_them_out(
@@ -349,7 +348,7 @@ def test_an_older_projects_own_blades_move_into_the_library_and_its_next_save_le
     with make_client(tmp_path) as client:
         ok(client.post("/connections", json=warehouse(), headers=AUTH))
         library_text = (tmp_path / "state" / "library" / "connections" / "warehouse.blade.py").read_text()
-        target = tmp_path / "older.sab"
+        target = tmp_path / "older"
         ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
         ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
         same = _old_blade("Warehouse", warehouse()["code"])
@@ -368,8 +367,7 @@ def test_an_older_projects_own_blades_move_into_the_library_and_its_next_save_le
             tmp_path / "state" / "library" / "connections" / "warehouse.blade.py"
         ).read_text() == library_text
         ok(client.post("/project/save", json={}, headers=AUTH))
-        with zipfile.ZipFile(target) as archive:
-            assert not [n for n in archive.namelist() if n.startswith(".sab/blades/")]
+        assert not list((target / ".sab" / "blades").glob("*.json"))
         # Closed, the library keeps them: every project has them.
         ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
         assert "Orchard" in {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}

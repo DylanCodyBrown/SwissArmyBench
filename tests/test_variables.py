@@ -248,14 +248,11 @@ def test_the_page_over_http(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 def test_the_variables_are_the_computers_with_a_project_open(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         _ok(client.put("/variables", json={"name": "SALES_REGION", "value": "North"}, headers=AUTH))
-        target = tmp_path / "work" / "sales.sab"
-        target.parent.mkdir()
+        target = tmp_path / "work" / "sales"
         _ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
         assert _by_name(client, AUTH)["SALES_REGION"]["value"] == "North"
         _ok(client.put("/variables", json={"name": "REGION_TWO", "value": "West"}, headers=AUTH))
         _ok(client.post("/project/save", json={}, headers=AUTH))
-    import zipfile
-
-    with zipfile.ZipFile(target) as sab:
-        assert not any("variables" in name for name in sab.namelist())
-        assert all(b"West" not in sab.read(n) for n in sab.namelist())
+    written = [p for p in target.rglob("*") if p.is_file()]
+    assert not any("variables" in p.name for p in written)
+    assert all(b"West" not in p.read_bytes() for p in written)

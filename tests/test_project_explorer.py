@@ -221,10 +221,10 @@ def test_rename_and_remove_from_the_list_touch_no_other_file(tmp_path: Path) -> 
 
 
 def test_show_in_folder_and_delete_are_the_users_own(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmybench.adapters import project_explorer as adapter
+    from swissarmybench.server import file_manager
 
     shown: list[str] = []
-    monkeypatch.setattr(adapter, "_show_in_file_manager", shown.append)
+    monkeypatch.setattr(file_manager, "show", shown.append)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
     folder = _projects_folder(tmp_path)
     doomed = _project(folder / "Doomed")

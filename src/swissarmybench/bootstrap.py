@@ -75,7 +75,7 @@ from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
-from swissarmybench.server import blade_runner
+from swissarmybench.server import blade_runner, file_manager
 from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
@@ -605,7 +605,7 @@ def bootstrap(
     # The Project Explorer (the home page): every project in one place, sortable, the types explained.
     project_explorer = ProjectExplorer(
         ws,
-        ExplorerFiles(),
+        ExplorerFiles(file_manager.show, file_manager.trash),
         ExplorerSettings(state_dir / "projects.json" if audit_log else None),
         recent_projects,
         sab_projects,

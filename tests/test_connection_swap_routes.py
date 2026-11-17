@@ -164,7 +164,7 @@ def test_a_table_not_found_by_name_asks_to_pick_or_runs_a_reviewed_query(tmp_pat
 
 
 def test_a_deleted_connections_tables_all_move_and_a_project_reopens_them_from_trino(tmp_path: Path) -> None:
-    target = tmp_path / "work.sab"
+    target = tmp_path / "work"
     with make_client(tmp_path) as client:
         edp, trino = connections(tmp_path)
         ok(client.post("/connections", json=edp, headers=AUTH))
@@ -191,7 +191,7 @@ def test_a_deleted_connections_tables_all_move_and_a_project_reopens_them_from_t
         grid = ok(client.get("/grids", headers=AUTH))["grids"][0]["grid"]
         assert ids(client, grid) == [4, 3, 1, 5]  # its steps, Trino's rows
         ok(client.post("/project/save", json={}, headers=AUTH))
-        manifest = json.loads(__import__("zipfile").ZipFile(target).read("project.json"))
+        manifest = json.loads((target / ".sab" / "project.json").read_text(encoding="utf-8"))
         source = manifest["tables"][0]["source"]
         assert source["connection"] == "Trino" and source["schema"] == "sales" and source["table"] == "orders"
 

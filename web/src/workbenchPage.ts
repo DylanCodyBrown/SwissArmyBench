@@ -683,10 +683,14 @@ async function followProject(state: ProjectState): Promise<void> {
 
 /** Save: the project when one is open and the document in front is one of its own (or nothing is in
  *  front); else the document. */
-function saveFront(as = false): Promise<unknown> {
+/** Save: the document in front (a project's documents are its own files, saved by their own Save), then
+ *  the open project's .sab/ quietly; with nothing in front, the project (Save as: Copy project to…). */
+async function saveFront(as = false): Promise<unknown> {
   const opened = projectState().project;
-  if (opened && (!current || inFolder(current.path, opened.folder))) return as ? copyProject() : saveProject();
-  return save(current, as);
+  if (opened && !current) return as ? copyProject() : saveProject();
+  const done = await save(current, as);
+  if (opened && !as && inFolder(current?.path ?? null, opened.folder)) await api("/project/save", "POST", {}).catch(() => undefined);
+  return done;
 }
 
 /** The project's documents with unsaved changes, saved (the server asks before it writes the .sab). */

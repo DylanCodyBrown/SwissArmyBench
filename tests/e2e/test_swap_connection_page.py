@@ -166,7 +166,7 @@ def test_a_deleted_connections_tables_move_from_the_strip_and_the_code_follows_w
     browser: Browser, server: dict[str, Any], both: dict[str, Any]
 ) -> None:
     folder = Path(server["tmp"]) / "swap"
-    target = folder / "work.sab"
+    target = folder / "work"
     call(server, "POST", "/project/new", {"path": str(target), "discard": True})
     for body in (both["edp"], both["trino"]):
         try:

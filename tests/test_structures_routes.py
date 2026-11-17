@@ -4,7 +4,6 @@ Save as, a project's .sab with a structure in it, and where code uses one. Made-
 from __future__ import annotations
 
 import json
-import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -128,10 +127,10 @@ def test_yaml_reads_and_writes(client: TestClient, tmp_path: Path) -> None:
     assert bad.status_code == 400 and "Not YAML: line" in bad.text
 
 
-def test_a_project_keeps_its_structures_in_the_sab_and_opens_them_again(tmp_path: Path) -> None:
+def test_a_project_keeps_its_structures_and_opens_them_again(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         (tmp_path / "work").mkdir()
-        target = tmp_path / "work" / "flags.sab"
+        target = tmp_path / "work" / "flags"
         state = ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
         folder = Path(state["project"]["folder"])
         sid = ok(client.post("/structures", json={"value": GATES, "name": "gates"}, headers=AUTH))["id"]
@@ -159,9 +158,8 @@ def test_a_project_keeps_its_structures_in_the_sab_and_opens_them_again(tmp_path
             == "beta"
         )
         ok(client.post("/project/save", json={}, headers=AUTH))
-        with zipfile.ZipFile(target) as read:
-            assert "structures/gates.json" in read.namelist()
-            manifest = json.loads(read.read("project.json"))
+        assert (target / "structures" / "gates.json").is_file()
+        manifest = json.loads((target / ".sab" / "project.json").read_text(encoding="utf-8"))
         assert manifest["structures"] == {"open": ["structures/gates.json"]}
         ok(client.post("/project/close", json={}, headers=AUTH))
         assert ok(client.get("/structures", headers=AUTH))["open"] == []

@@ -192,9 +192,7 @@ def test_refresh_shows_what_changed_then_applies_it(client: TestClient, service:
 def test_delete_lists_the_code_that_uses_it_first(tmp_path: Path, service: Service) -> None:
     with make_client(tmp_path) as client:
         (tmp_path / "work").mkdir()
-        state = ok(
-            client.post("/project/new", json={"path": str(tmp_path / "work" / "shop.sab")}, headers=AUTH)
-        )
+        state = ok(client.post("/project/new", json={"path": str(tmp_path / "work" / "shop")}, headers=AUTH))
         add_two(client, service)
         folder = Path(state["project"]["folder"])
         cell = notebooks.Cell(

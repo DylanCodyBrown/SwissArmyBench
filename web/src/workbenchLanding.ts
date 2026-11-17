@@ -74,8 +74,8 @@ const plural = (n: number, word: string): string => `${n.toLocaleString()} ${wor
 export async function projectDocuments(kind: Kind): Promise<string[]> {
   // The open project's documents of this kind (everything is the project's, 2026-11-16); with no project
   // open, this computer's recent ones, as the connections and blades fall back to this computer's.
-  const listed = await api<{ project: unknown; documents: { path: string; made?: boolean }[] }>(`/project/documents?kind=${kind}`);
-  if (listed.project) return listed.documents.filter((d) => !d.made).map((d) => d.path);
+  const listed = await api<{ project: unknown; documents: { path: string; full?: string; made?: boolean }[] }>(`/project/documents?kind=${kind}`);
+  if (listed.project) return listed.documents.filter((d) => !d.made).map((d) => d.full ?? d.path);
   const home = await api<{ recent: { path: string; exists: boolean }[] }>("/workbench/home");
   return home.recent.filter((r) => r.exists && kindOfPath(r.path) === kind).map((r) => r.path);
 }

@@ -606,7 +606,7 @@ def test_a_project_opens_with_its_data_first(
     browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
 ) -> None:
     workbench = open_window(browser, server)
-    made = window(server, "project.new", folder=str(tmp_path), name="sales", notebooks=["mockups"])
+    made = window(server, "project.new", folder=str(tmp_path), name="sales", notebooks=["mockups"], app=True)
     assert [Path(p).name for p in made["files"]] == ["data.ipynb", "sales.stapp.json", "mockups.ipynb"]
     tabs = workbench.locator(".wb-tab")
     expect(tabs).to_have_text([re.compile(n) for n in ("data.ipynb", "sales.stapp.json", "mockups")])

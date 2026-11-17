@@ -1341,7 +1341,7 @@ def test_11a_the_agent_makes_the_same_project_through_its_commands_only(
     ensure_shop(bench)
     close_tables(bench)
     agent("connections_open_table", name="Shop", schema="sales", table="invoices", all=True)
-    made = agent("project_new", folder=str(tmp_path), name="quillmere", notebooks=["pages"])
+    made = agent("project_new", folder=str(tmp_path), name="quillmere", notebooks=["pages"], app=True)
     project = tmp_path / "quillmere"
     pages = project / "pages.ipynb"
     assert {Path(f).name for f in made["files"]} >= {"data.ipynb", "quillmere.stapp.json", "pages.ipynb"}

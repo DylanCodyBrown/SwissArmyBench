@@ -261,7 +261,9 @@ def test_the_landing_pages_have_no_transformations_and_no_data_panel(
             f"http://127.0.0.1:{server['port']}/workbench?kind={kind}&view=list#token={server['token']}"
         )
         expect(landing).to_be_visible(timeout=20000)
-        expect(landing.get_by_role("heading", name=title, exact=True)).to_be_visible()
+        expect(landing.locator("h1")).to_have_text(
+            title
+        )  # (an h2 "Notebooks" lists recent ones from outside)
         expect(landing.locator(".wb-landing-table")).to_have_count(0)
         expect(landing.get_by_role("heading", name="Transformations")).to_have_count(0)
         expect(page.locator(".wb-explorer")).to_be_hidden()  # the Data Explorer is off until opened

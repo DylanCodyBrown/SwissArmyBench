@@ -452,12 +452,16 @@ class SabProjects:
             self._asked = full
             await self._changed()
             return self.state() | {"asked": full, "page": self.ws.live.page_open()}
+        # A folder never opened as a project (no .sab/ yet: made with the scaffold alone, or a plain one made
+        # a project now) takes the open tables with no project into it: nothing is lost, nothing asked.
+        adopt = rules.MANIFEST_PATH not in names and self.current is None
         async with self._busy:
-            self._check_discard(body)
+            if not adopt:
+                self._check_discard(body)
             made: list[str] = []
             if not rules.is_project(names):
                 made = await asyncio.to_thread(self._make_around, full)
-            await self._open_folder(full, who)
+            await self._open_folder(full, who, keep_work=adopt)
             self.ws.audit.write(who, "open_project_folder", full, made=len(made))
         await self._changed()
         return self.state() | {"page": self.ws.live.page_open(), "made": made}
@@ -474,8 +478,9 @@ class SabProjects:
         self._archive.write_state(folder, rules.MANIFEST_PATH, rules.write_manifest(manifest).encode("utf-8"))
         return [*made, rules.MANIFEST_PATH]
 
-    async def _open_folder(self, folder: str, who: str) -> None:
-        """The project in `folder` as the open one: its tables read again, Visualizations, the model."""
+    async def _open_folder(self, folder: str, who: str, keep_work: bool = False) -> None:
+        """The project in `folder` as the open one: its tables read again, Visualizations, the model.
+        `keep_work`: the open tables, Visualizations and model (no project open) become its own."""
         raw = await asyncio.to_thread(self._archive.read_state, folder, rules.MANIFEST_PATH)
         try:
             manifest, read_only = (
@@ -485,7 +490,8 @@ class SabProjects:
             )
         except (UnicodeDecodeError, rules.SabError) as error:
             raise ValueError(f"{folder}: {error}") from None
-        await self._clear(who)
+        if not keep_work:
+            await self._clear(who)
         self._asked = None
         await asyncio.to_thread(self._archive.move_old_dashboards, folder)
         self._serial += 1
@@ -527,7 +533,8 @@ class SabProjects:
         for opened in self.opened:
             await opened(folder, manifest.extra)
         self._remember(folder)
-        self.current.saved_key = self._key()
+        # Taken in, the open work is not saved here yet (Save or Autosave writes it).
+        self.current.saved_key = None if keep_work and self._has_work() else self._key()
 
     async def _state_text(self, folder: str, relative: str | None) -> str | None:
         if not relative:

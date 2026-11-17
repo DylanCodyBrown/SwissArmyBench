@@ -165,20 +165,15 @@ def test_an_export_writes_only_where_it_was_allowed(tmp_path: Path) -> None:
 # ===== New project and Save as: only when data.ipynb would hold a pasted table's rows =====
 
 
-def test_a_new_project_with_a_pasted_tables_rows_waits_for_the_users_allow(
-    live: Live, tmp_path: Path
-) -> None:
+def test_a_new_project_keeps_a_pasted_tables_rows_out_and_asks_nothing(live: Live, tmp_path: Path) -> None:
+    """A project is a folder (2026-11-17): rows stay out by default, so the agent's New project writes no
+    pasted rows into data.ipynb and has nothing to ask (its rows are kept only on a tick, in .sab/data/)."""
     command("datasets_paste", name="orders", text=PASTED)
-    with allowing(live, approve=False) as asked:
-        with pytest.raises(CommandError, match="declined"):
-            command("project_new", folder=str(tmp_path), name="shop", app=False)
-    assert not (tmp_path / "shop").exists()
-    assert asked[0]["action"] == "make the project" and asked[0]["dataset"] == "shop"
-    assert f"  {tmp_path / 'shop'}\n" in asked[0]["detail"] and "  orders (2 rows)" in asked[0]["detail"]
     with allowing(live) as asked:
         made = command("project_new", folder=str(tmp_path), name="shop", app=False)
-    assert len(asked) == 1 and made["folder"] == str(tmp_path / "shop")
-    assert "AS pasted(" in (tmp_path / "shop" / "data.ipynb").read_text()  # the rows, as allowed
+    assert asked == [] and made["folder"] == str(tmp_path / "shop")
+    assert "AS pasted(" not in (tmp_path / "shop" / "data.ipynb").read_text()
+    command("project_close", discard=True)
     # The user's own New project asks nothing.
     with allowing(live) as asked:
         live.user("POST", "/projects", {"folder": str(tmp_path), "name": "mine", "app": False})

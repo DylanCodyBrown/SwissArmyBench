@@ -7,9 +7,9 @@ on a folder (show it in the system's file manager, rename it, move it to the tra
             data.ipynb)
   facts     a project's type, documents, tables, Git (.git/HEAD read as text: git itself never runs), its
             folder's created and last changed times
-  show      the folder in the system's file manager (Explorer, Finder, the desktop's own): the user's click
-  trash     the folder to the system's trash (the Recycle Bin, the Finder's Trash, the desktop's Trash), never
-            deleted outright: the user's click and typed name only
+  show      the folder in the system's file manager: the user's click (server/file_manager.py starts it)
+  trash     the folder to the system's trash, never deleted outright: the user's click and typed name only
+            (server/file_manager.py)
 
 Nothing is written here but projects.json (the user's sort, order and folder), a rename the user asked for,
 and a move to the trash the user confirmed by typing the project's name.
@@ -19,12 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
-import time
-import urllib.parse
 from collections.abc import Callable
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -122,8 +117,10 @@ def _git_head(root: Path) -> tuple[bool, str | None]:
 class ExplorerFiles:
     """The projects on disk, and the user's clicks on a project's folder."""
 
-    def __init__(self, opener: Callable[[str], None] | None = None) -> None:
-        self._opener = opener or _show_in_file_manager
+    def __init__(self, opener: Callable[[str], None], trasher: Callable[[str], str]) -> None:
+        # The system's file manager and trash: processes the server starts (server/file_manager.py).
+        self._opener = opener
+        self._trasher = trasher
 
     @staticmethod
     def full(path: str) -> str:
@@ -206,73 +203,9 @@ class ExplorerFiles:
             raise FileNotFoundError(f"{folder} is not there.")
         self._opener(folder)
 
-    @staticmethod
-    def trash(folder: str, home: Path | None = None) -> str:
-        """The folder moved to the system's trash; where it went, in words."""
+    def trash(self, folder: str) -> str:
+        """The folder moved to the system's trash (server/file_manager.py); where it went, in words."""
         root = Path(folder).resolve()
         if not root.is_dir():
             raise FileNotFoundError(f"{root} is not there.")
-        if sys.platform == "win32":
-            _windows_recycle(str(root))
-            return "the Recycle Bin"
-        if sys.platform == "darwin":
-            script = 'tell application "Finder" to delete POSIX file "{}"'.format(
-                str(root).replace("\\", "\\\\").replace('"', '\\"')
-            )
-            subprocess.run(["osascript", "-e", script], check=True, capture_output=True, timeout=60)  # noqa: S603, S607
-            return "the Trash"
-        return _freedesktop_trash(root, home)
-
-
-def _show_in_file_manager(folder: str) -> None:
-    if sys.platform == "win32":
-        os.startfile(folder)  # type: ignore[attr-defined]  # noqa: S606 (the user's own folder, their click)
-    else:
-        command = "open" if sys.platform == "darwin" else "xdg-open"
-        subprocess.Popen([command, folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603
-
-
-def _windows_recycle(path: str) -> None:
-    """SHFileOperationW with FOF_ALLOWUNDO: the Recycle Bin, never a plain delete."""
-    import ctypes
-    from ctypes import wintypes
-
-    class _Op(ctypes.Structure):
-        _fields_ = [
-            ("hwnd", wintypes.HWND),
-            ("wFunc", wintypes.UINT),
-            ("pFrom", wintypes.LPCWSTR),
-            ("pTo", wintypes.LPCWSTR),
-            ("fFlags", ctypes.c_uint16),
-            ("fAnyOperationsAborted", wintypes.BOOL),
-            ("hNameMappings", ctypes.c_void_p),
-            ("lpszProgressTitle", wintypes.LPCWSTR),
-        ]
-
-    op = _Op(None, 3, path + "\0", None, 0x0040 | 0x0010 | 0x0004 | 0x0400, False, None, None)
-    result = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))  # type: ignore[attr-defined]
-    if result != 0 or op.fAnyOperationsAborted:
-        raise OSError(f"{path} could not be moved to the Recycle Bin (code {result}).")
-
-
-def _freedesktop_trash(root: Path, home: Path | None) -> str:
-    """The desktop's Trash (the freedesktop.org specification): files/ and its .trashinfo."""
-    base = Path(os.environ.get("XDG_DATA_HOME") or ((home or Path.home()) / ".local" / "share")) / "Trash"
-    files, info = base / "files", base / "info"
-    files.mkdir(parents=True, exist_ok=True)
-    info.mkdir(parents=True, exist_ok=True)
-    name, n = root.name, 1
-    while (files / name).exists() or (info / f"{name}.trashinfo").exists():
-        n += 1
-        name = f"{root.name}.{n}"
-    stamp = datetime.fromtimestamp(time.time()).strftime("%Y-%m-%dT%H:%M:%S")
-    (info / f"{name}.trashinfo").write_text(
-        f"[Trash Info]\nPath={urllib.parse.quote(str(root))}\nDeletionDate={stamp}\n", encoding="utf-8"
-    )
-    try:
-        os.rename(root, files / name)
-    except OSError:
-        import shutil
-
-        shutil.move(str(root), str(files / name))
-    return "the Trash"
+        return self._trasher(str(root))
