@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,9 @@ from tests.api_standins import Service
 from tests.e2e.test_ui import browser, call, demo_frame, grid_of, open_grid, server  # noqa: F401
 from tests.e2e.test_workbench_page import seen_by_server
 
-SHOTS = Path(os.environ.get("SAB_SHOTS", Path(__file__).resolve().parents[2] / "docs" / "screenshots"))
+# The docs' pictures only when asked (SAB_SHOTS); otherwise a temporary folder, so a test run never writes
+# into docs/screenshots.
+SHOTS = Path(os.environ.get("SAB_SHOTS") or tempfile.mkdtemp(prefix="sab-add-api-shots-"))
 VAULT = {
     "name": "Team vault",
     "kind": "vault",
