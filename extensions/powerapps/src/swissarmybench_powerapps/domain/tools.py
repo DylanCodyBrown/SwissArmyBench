@@ -3,7 +3,8 @@
 Microsoft's current tooling (docs/verified.md, 2026-11-17): code apps are built with the **Power Apps CLI**
 (`pa`, the npm package `@microsoft/power-apps-cli`, which needs Node.js 22 or later), Node.js and npm; the
 **Power Platform CLI** (`pac`, a .NET tool) is kept for what `pa` does not do: its environments list and
-custom connectors (`pac connector create`). Deno is for phase 2's TypeScript cells. A missing tool is said
+custom connectors (`pac connector create`). Deno runs the data notebook's TypeScript cells
+(phase 2). A missing tool is said
 one way everywhere (the base's missing-package shape: {"missing": {feature, packages, python, command}}),
 here with "python": "tool" and the command this system installs it with: installed on the user's word only.
 
@@ -91,14 +92,14 @@ TOOLS: dict[str, Tool] = {
         Tool(
             "deno",
             "Deno",
-            "runs TypeScript cells (phase 2)",
+            "runs the data notebook's TypeScript and SQL cells, and draws TSX cells",
             ("--version",),
             {
                 "windows": "winget install --id DenoLand.Deno -e",
                 "macos": "brew install deno",
-                "linux": "curl -fsSL https://deno.land/install.sh | sh",
+                # Deno's installation page (2026-07-09) lists npm on every system; it runs without a shell.
+                "linux": "npm install --global deno",
             },
-            phase=2,
         ),
     )
 }
@@ -112,6 +113,7 @@ NEEDED: dict[str, tuple[str, ...]] = {
     "push": ("node", "npm", "pa"),
     "environments": ("pac",),
     "custom_connector": ("pac",),
+    "typescript": ("deno",),
 }
 FEATURES: dict[str, str] = {
     "auth": "Signing in to Power Platform",
@@ -122,6 +124,7 @@ FEATURES: dict[str, str] = {
     "push": "Push",
     "environments": "The environments list",
     "custom_connector": "A custom connector",
+    "typescript": "TypeScript cells",
 }
 
 _VERSION = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")

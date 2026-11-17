@@ -95,7 +95,7 @@ import { type AppHost, appPanels } from "./workbenchApp";
 import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
-import { activeMode, canvasAnywhere, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
+import { activeMode, canvasAnywhere, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, copyProject, importSab, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
@@ -493,7 +493,26 @@ function listProject(): void {
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
+  // The mode's own files a person edits (a code app's .ts and .tsx under src/), opened in the code editor.
+  for (const path of modeFiles) files.push({ path, icon: "code", word: undefined, open: () => void openCodeFileDoc(path) });
   explorerPane.setFiles({ root: `${project.name}/`, files });
+}
+
+let modeFiles: string[] = [];
+
+/** The files the mode lists for the open project (its route), then the list drawn again. */
+async function loadModeFiles(): Promise<void> {
+  const route = activeMode().mode.project_files;
+  let found: string[] = [];
+  if (route && project) {
+    try {
+      found = (await api<{ files: string[] }>(route)).files ?? [];
+    } catch {
+      found = [];
+    }
+  }
+  modeFiles = found;
+  listProject();
 }
 
 /** Open project…: a project's folder, opened as THE project (projectFile.ts); its documents open here
@@ -665,6 +684,7 @@ async function followProject(state: ProjectState): Promise<void> {
   if (listed) {
     project = listed;
     listProject();
+    void loadModeFiles(); // the mode's own files (a code app's), for this project
   }
   const saved = opened.layout.workbench as { documents?: string[]; groups?: SavedLayout } | undefined;
   const wanted = saved?.documents?.length ? saved.documents.map((relative) => joinPath(opened.folder, relative)) : (listed?.files ?? []);
@@ -1469,6 +1489,7 @@ onMode(() => {
   registerCanvasKinds();
   drawEmpty();
   drawTop();
+  void loadModeFiles(); // the mode's own files, for the project now open
 });
 void whenMode();
 
@@ -1505,7 +1526,7 @@ const scriptLanguage = (): string | null => {
 const LANGUAGE_WORDS: Record<string, string> = { typescript: "TypeScript", tsx: "TSX", python: "Python" };
 async function newModeFile(language: string): Promise<void> {
   const ending = language === "tsx" ? ".tsx" : ".ts";
-  const name = prompt(`New ${LANGUAGE_WORDS[language] ?? language} file (in the code app's src folder)`, `module${ending}`);
+  const name = prompt(`New ${LANGUAGE_WORDS[language] ?? language} file (in src/shared, or a path under src/pages/<Page>/)`, `module${ending}`);
   if (!name) return;
   try {
     const path = await newCodeFile(name.endsWith(ending) || /\.(ts|tsx)$/.test(name) ? name : `${name}${ending}`);
@@ -1891,10 +1912,15 @@ function cellEntries(doc: Doc): MenuEntry[] {
     { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: add("dax") },
     { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: add("html") },
     { label: "Markdown", icon: "edit", run: add("markdown") },
-    // The open project's mode's own cell kinds (a code app: TypeScript and TSX): offered, not yet run here.
+    // The open project's mode's own cell kinds (a code app: TypeScript and TSX): run where its routes say;
+    // a kind with no route yet is offered as coming.
     ...activeMode().mode.cell_kinds
       .filter((k) => !["code", "python", "sql", "dax", "html", "markdown"].includes(k))
-      .map((k) => ({ label: `${LANGUAGE_WORDS[k] ?? k} (coming)`, icon: "code", disabled: true, title: "Coming: a later version runs these cells", run: () => undefined })),
+      .map((k) =>
+        cellRoute(k) && (k === "typescript" || k === "tsx")
+          ? { label: cellRoute(k)!.name || (LANGUAGE_WORDS[k] ?? k), icon: k === "tsx" ? "image" : "code", title: k === "tsx" ? "A React component, drawn" : "Run in the data notebook's kernel", run: add(k) }
+          : { label: `${LANGUAGE_WORDS[k] ?? k} (coming)`, icon: "code", disabled: true, title: "Coming: a later version runs these cells", run: () => undefined },
+      ),
   ];
 }
 
@@ -3288,6 +3314,8 @@ onNotice((notice) => {
 window.addEventListener("message", (e: MessageEvent) => {
   const said = e.data as { sab?: unknown; path?: unknown } | null;
   if (e.origin === location.origin && said?.sab === "codefile" && typeof said.path === "string") void openCodeFileDoc(said.path);
+  // A document by its path (the Code App page's data notebook).
+  if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => toast(err.message, "error"));
 });
 void Promise.all([
   loadPanels(),

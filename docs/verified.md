@@ -2760,3 +2760,100 @@ Checked:
 NOT checked: install.ps1 on Windows (the release's job runs it), a real update from 0.0.17 to the next
 version through the bring-back (needs both released), Remove and Install of Streamlit from the released app's
 page, macOS, and Edge.
+
+## The Power Apps extension, phase 2: the data notebook on Deno (2026-11-17, branch ext-powerapps-2)
+
+Relied on (read 2026-11-17):
+- Deno's **Jupyter kernel** documentation (docs.deno.com/runtime/reference/cli/jupyter, last updated
+  2026-08-26): `deno jupyter`; the kernel runs with `--allow-all` ("a temporary limitation"); rich output
+  through an object's `Symbol.for("Jupyter.display")` method returning a MIME bundle; `npm:` imports.
+- `deno jupyter --help` (Deno 2.9.6, here): `--kernel` and `--conn <file>` start the kernel (the kernelspec's
+  argv the app writes). Its own warning: "deno jupyter is unstable and might change in the future".
+- Deno's **installation** page (2026-07-09): `npm install -g deno` on every system, `brew install deno`,
+  `winget install DenoLand.Deno`, the shell installers.
+- DuckDB's **Node.js (Neo) client** documentation (duckdb.org/docs/2.0/clients/node_neo/overview; no date on
+  the page, latest stable 2.0.0): `DuckDBInstance.create(":memory:")`, `instance.connect()`,
+  `runAndReadAll`, `columnNames()`, `columnTypes()` (each `toString()`), `getRowObjectsJson()`, named
+  parameters as an object to `run`. npm's dist-tags (2026-11-17): latest `2.0.0-r.1`.
+- `deno bundle --help` (2.9.6): `--platform browser`, `--format esm`, `--no-remote`, `--no-npm`, `--config`,
+  `-o` (experimental, says Deno); it fetches esbuild from npm once.
+
+Checked here, with a real **Deno 2.9.6** (from npm, in a scratch folder) and the app's Python:
+- The kernel through jupyter_client: state shared between runs, top-level await, `npm:@duckdb/node-api@2.0.0-r.1`
+  imported and run (DuckDB 2.0 as in the app's Python), a `Symbol.for("Jupyter.display")` bundle as an
+  execute_result, `console.log` and `console.error` as streams, an error as `ename`/`evalue`/`traceback`
+  (`at <anonymous>:line:col`), completion (`Deno.ver` -> `version`). Plain values come with colour codes
+  (taken out). **Deno's kernel refuses an ipc address** (`invalid host ... invalid char found in FQDN`): it
+  listens on 127.0.0.1 with signed messages. **A folder with a package.json and node_modules (a code app)
+  makes Deno refuse an `npm:` specifier the package.json does not list**; `DENO_NO_PACKAGE_JSON=1` (set for
+  the kernel) lets it fetch DuckDB's package as anywhere else.
+- DuckDB in that kernel: JSON rows give BIGINT as strings ("36") and DOUBLE as numbers; `read_json_auto` of
+  a JSON-lines file; `COPY (...) TO ... (FORMAT parquet)`; `read_parquet` views of the app's Parquet;
+  DuckDB 2.0's error words `Catalog Error: Table with name X does not exist!` with `LINE 1:` and a caret.
+- `deno bundle` with a deno.json mapping `react` and `react-dom` to a node_modules folder (React 19.2.0,
+  installed from npm in a scratch folder) and `jsx: react-jsx`: 12 modules, about 190 KB; the page drawn in
+  Chromium under the HTML cells' FRAME_POLICY (no request, the button's state changing on a click).
+- tests/test_powerapps_notebook.py's real-Deno test (SWISSARMYBENCH_TEST_DENO, SWISSARMYBENCH_TEST_REACT):
+  a SQL cell over a pasted table, `sab.table` seen by the next SQL cell (one DuckDB), a tagged template's
+  parameter, Open as grid (every row), data.ts's row type from the kernel, an error, and a TSX preview with
+  the real React: passed.
+- Everything else with Deno stood in by tests/deno_fake.py (a real Jupyter kernel answering with Deno 2.9.6's
+  recorded outputs; `deno bundle` writing a small script): the door, the agent's commands, Deno missing as
+  the missing-package answer, the kernel's key-only route, Use in app, Dataverse sources (no connection: what
+  to add; one whose address matches, case and a trailing slash aside: opened through it), and the browser
+  (tests/e2e/test_codeapp_notebook.py, Chromium: the Code App page's Data notebook, a SQL and a TypeScript
+  cell's tables, Open as grid, a TSX cell drawn in the design frame with its props, an error in the panel,
+  Use in app).
+
+NOT checked: a real environment or tenant (the Dataverse connection's own read was stood in; the match by the
+environment's address comes from the recorded `pac env list`), real connectors (the bridge was not built:
+docs/ideas.md says why), Deno on Windows and macOS (its install commands are the documented ones, not run),
+`deno bundle` of a real Vite code app's node_modules (a scratch React 19.2.0 install stood in), React 18
+projects, Monaco's TypeScript service in a cell across many cells (drawn, not measured), a notebook with
+thousands of rows in a table result (the first 200 are drawn; the rest is Open as grid), Edge.
+
+### Phase 2 addendum: the files shown, and pages (2026-11-17, branch ext-powerapps-2)
+
+Relied on (read 2026-11-17): Microsoft Learn, **Connect your code app to data** (2026-10-02): generated
+`src/generated/models/*Model.ts` and `services/*Service.ts`, imported as `./generated/services/...`; a
+tabular source's methods shown as `create`, `update`, `delete`, `get`, `getall` (the recorded `pa` writes
+`getAll`: the app reads the method's spelling from the service file); `pa app refresh data-source` writes them
+again.
+
+Checked here:
+- **The template, for real:** `npx degit github:microsoft/PowerAppsCodeApps/templates/vite` (its tar snapshot
+  failed through this network; degit fell back to a git clone) and `npm install` (181 packages: React 19.2,
+  TypeScript ~5.9.3, Vite 7.2, `@microsoft/power-apps` ^1.2.5, `@microsoft/power-apps-vite`, ESLint 9 with
+  react-hooks 7 and react-refresh). Its files are docs/ideas.md's survey table. Its `tsconfig.app.json`:
+  strict, `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noUnusedLocals`, `allowImportingTsExtensions`.
+- **The starter files and a new page over a generated service** (a made-up `OrdersService` with `getAll`):
+  the template's own `tsc -p tsconfig.app.json --noEmit` passes, and its own ESLint passes (two of its rules
+  changed the first draft: `react-hooks/set-state-in-effect` and `react-refresh/only-export-components`).
+  tests/test_powerapps_pages.py runs both where SWISSARMYBENCH_TEST_CODEAPP names such a folder (skipped with
+  the reason otherwise). data.ts under the same settings: tests/test_powerapps_notebook_rules.py.
+- A TSX preview bundled with the installed template's own React 19.2 packages (and its real tsconfig.json
+  beside them): bundled. **Deno's bundler reads the code app's tsconfig.json** next to those packages: an
+  empty one (the old recorded template's) failed the bundle; the stand-in now writes `{}`.
+- The shown set, the hidden files on disk, Show all files, a hidden file read by its path, New page (its
+  folder, its line in src/pages.ts, opened in the Workbench), the rule as typed in the editor (a squiggle on
+  the import), and the agent's `powerapps_files`, `powerapps_pages`, `powerapps_scaffold`, `powerapps_lint`:
+  through the door with the recorded `pa`, and in Chromium (tests/e2e/test_codeapp_page.py).
+
+NOT checked: `pa app init` and `pa app add data-source` for real (no tenant: their files are the recorded
+stand-in's), a real generated service's exact types (the page's row type is inferred from its read-all
+method's result), `vite build` and Run live of the starter files, the starter files on Windows and macOS.
+
+### Phase 2: data.ts without DuckDB (2026-11-17, branch ext-powerapps-2)
+
+Relied on: Microsoft Learn, **How to: Configure Content Security Policy** for code apps (ms.date 2026-04-07):
+the default directives (`script-src 'self' <platform>`, `worker-src 'none'`, `child-src 'none'`,
+`connect-src 'none'`), enforced by default, changed only by an environment's administrator.
+
+Checked here: data.ts with types, SOURCES (the tables each query read, by sqlglot, its CTEs left out) and a
+constant, together with the starter files, built by the installed template's own tsc (its browser settings);
+no DuckDB or `.wasm` import in any data.ts or starter file, and `no_duckdb` refusing one
+(tests/test_powerapps_notebook_rules.py). The real Deno test's data.ts (typed results, SOURCES, a constant
+from the kernel's rows) passed.
+
+NOT checked: the policy in a running code app (no tenant), DuckDB-Wasm refused there (taken from the
+documented directives; the enforcement date the coordinator gave, 2026-01-30, is not on the page).

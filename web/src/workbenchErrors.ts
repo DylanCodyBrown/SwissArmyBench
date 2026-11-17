@@ -91,6 +91,8 @@ export interface ErrorActions {
   openGrid?: (name: string) => void;
   /** Open a cell's table result (Out[count]) as a grid, named `name` when the code ends in one. */
   openResult?: (count: number, name?: string) => void;
+  /** A table result of another kernel (a mode's TypeScript or SQL cell), by its id: Open as grid. */
+  openTable?: (id: string) => void;
 }
 
 const last = (detail: ErrorDetail): Entry | undefined => detail.chain[detail.chain.length - 1];

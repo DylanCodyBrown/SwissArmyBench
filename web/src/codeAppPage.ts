@@ -39,6 +39,7 @@ const TYPE = "codeapp";
 interface Tool { id: string; name: string; purpose: string; found: boolean; version: string | null; ok: boolean; phase: number; install: string; problem?: string }
 interface Source { name: string; kind: string; connector: string; table?: string | null; dataset?: string | null; display_name?: string }
 interface Generated { path: string; kind: string; name: string }
+interface DataTs { written: string; target: string; cells: unknown[]; left: unknown[]; types: string[] }
 interface Project {
   open: boolean;
   recent?: string | null;
@@ -135,8 +136,9 @@ async function call<T>(path: string, method = "GET", body?: unknown, again?: () 
 
 const badge = (method: string): HTMLElement => h("span", { class: `api-method m-${method.toLowerCase()}` }, method);
 
-/** The Workbench window, with this file of the open code app in its editor. */
-function openInWorkbench(path: string): void {
+/** The Workbench window, with this file of the open code app in its editor (`document`: a notebook or any
+ *  document by its full path, opened as the Workbench opens it). */
+function openInWorkbench(path: string, document = false): void {
   // The Workbench window this app opened before, as it is (asked by message: nothing reloads), else a new one.
   const name = "swissarmybench-codeapp-workbench";
   const found = window.open("", name);
@@ -150,8 +152,8 @@ function openInWorkbench(path: string): void {
   } catch {
     there = false;
   }
-  if (there) found.postMessage({ sab: "codefile", path }, location.origin);
-  else found.location.href = `/workbench#${new URLSearchParams({ ...(token ? { token } : {}), codefile: path }).toString()}`;
+  if (there) found.postMessage({ sab: document ? "open" : "codefile", path }, location.origin);
+  else found.location.href = `/workbench#${new URLSearchParams({ ...(token ? { token } : {}), [document ? "open" : "codefile"]: path }).toString()}`;
   found.focus();
 }
 
@@ -165,6 +167,8 @@ function drawPage(): void {
   const panel = h("div", { class: "ca-panel", role: "tabpanel" });
   body.replaceChildren(strip, tabs, panel);
   let state: State | null = null;
+  let lastDataTs: DataTs | null = null;
+  let everyFile = false; // "Show all files": off at each start
 
   const load = async (): Promise<void> => {
     const got = await call<State>("/powerapps");
@@ -301,10 +305,12 @@ function drawPage(): void {
         h("td", {}, icon(s.kind === "dataverse" ? "table" : "plug"), " ", s.name),
         h("td", {}, s.kind === "dataverse" ? "Dataverse table" : s.kind === "table" ? `${s.display_name ?? s.connector} table` : s.display_name ?? s.connector),
         h("td", { class: "mono" }, s.table ?? ""),
-        h("td", {}, button("Remove", () => void removeSource(s), { icon: "trash", class: "ghost ca-remove", title: `Remove ${s.name}` })),
+        h("td", { class: "ca-row-actions" },
+          s.kind === "dataverse" ? button("Open as grid", () => void dataverseGrid(s), { icon: "table", class: "ghost ca-open-grid", title: `${s.name} as a grid, through the library's Dataverse connection` }) : null,
+          button("Remove", () => void removeSource(s), { icon: "trash", class: "ghost ca-remove", title: `Remove ${s.name}` })),
       ),
     );
-    const generated = project.generated ?? [];
+    const allFiles = h("input", { type: "checkbox", checked: everyFile, onchange: (e: Event) => { everyFile = (e.target as HTMLInputElement).checked; void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!); } }) as HTMLInputElement;
     panel.replaceChildren(
       h("section", { class: "ca-app" },
         h("div", { class: "ca-facts" },
@@ -317,23 +323,69 @@ function drawPage(): void {
         h("div", { class: "ca-section-head" }, h("h2", {}, "Data sources"), button("Add a Dataverse table", () => addTable(), { icon: "plus", class: "ca-add-table" }), button("Add a connector", () => { tab = "connectors"; drawTabs(); drawPanel(); }, { icon: "plug" })),
         sources.length ? h("table", { class: "ca-table" }, h("thead", {}, h("tr", {}, ...["Name", "Kind", "Table", ""].map((t) => h("th", {}, t)))), h("tbody", {}, ...sourceRows)) : h("p", { class: "muted" }, "None yet."),
       ),
-      h("section", { class: "ca-generated" },
-        h("h2", {}, "Generated models and services"),
-        generated.length
-          ? h("ul", { class: "ca-files" }, ...generated.map((g) => h("li", {}, h("button", { type: "button", class: "link ca-file", "data-path": g.path, onclick: () => openInWorkbench(g.path) }, icon(g.kind === "service" ? "bolt" : "schema"), g.name), h("span", { class: "muted" }, ` ${g.kind}`))))
-          : h("p", { class: "muted" }, "Added data sources make them."),
+      h("section", { class: "ca-notebook" },
+        h("div", { class: "ca-section-head" },
+          h("h2", {}, "Data notebook"),
+          button("Open data notebook", () => void openDataNotebook(), { icon: "notebook", class: "ca-data-notebook", title: "data.ipynb: SQL and TypeScript cells on one DuckDB" }),
+          button("Use in app", () => void useInApp(), { icon: "export", class: "ca-use-in-app", title: "Write data.ts (the notebook's TypeScript, typed) into src/" }),
+        ),
+        dataTsLine(),
       ),
-      h("section", { class: "ca-tree" }, h("h2", {}, "Files"), h("div", { class: "ca-tree-host" }, h("p", { class: "muted" }, "…"))),
+      h("section", { class: "ca-tree" },
+        h("div", { class: "ca-section-head" },
+          h("h2", {}, "Files"),
+          button("New page", () => void newPage(), { icon: "plus", class: "ca-new-page", title: "A page's folder: its page, components, hooks, state and types, listed in src/pages.ts" }),
+          h("label", { class: "ca-every-file muted", title: "Configs, generated models and services, .power/: in the folder, not listed" }, allFiles, "Show all files"),
+        ),
+        h("div", { class: "ca-tree-host" }, h("p", { class: "muted" }, "…")),
+      ),
     );
     void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!);
   };
 
+  const newPage = async (): Promise<void> => {
+    const name = prompt("New page: its name", "Orders");
+    if (!name?.trim()) return;
+    const made = await call<{ open: string }>("/powerapps/pages", "POST", { name: name.trim() });
+    if (!made) return;
+    void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!);
+    openInWorkbench(made.open);
+  };
+
+  const openDataNotebook = async (): Promise<void> => {
+    const got = await call<{ path: string }>("/powerapps/notebook/open", "POST", {});
+    if (got) openInWorkbench(got.path, true);
+  };
+
+  /** The last Use in app's data.ts (kept while the page redraws): the file, and what went into it. */
+  const dataTsLine = (): HTMLElement => {
+    const host = h("div", { class: "ca-data-ts" });
+    const got = lastDataTs;
+    if (!got) return host;
+    const words = [`${got.cells.length} cell${got.cells.length === 1 ? "" : "s"} exported`, got.types.length ? `${got.types.length} typed result${got.types.length === 1 ? "" : "s"}` : "", got.left.length ? `${got.left.length} kept in the notebook` : ""].filter(Boolean).join(", ");
+    host.append(h("button", { type: "button", class: "link ca-file", "data-path": got.target, onclick: () => openInWorkbench(got.target) }, icon("code"), got.target), h("span", { class: "muted" }, ` ${words}`));
+    return host;
+  };
+
+  const useInApp = async (): Promise<void> => {
+    const got = await call<DataTs>("/powerapps/notebook/use-in-app", "POST", {});
+    if (!got) return;
+    lastDataTs = got;
+    panel.querySelector<HTMLElement>(".ca-data-ts")?.replaceWith(dataTsLine());
+  };
+
+  const dataverseGrid = async (s: Source): Promise<void> => {
+    const got = await call<{ opened: boolean; dataset?: string; message?: string }>("/powerapps/dataverse/grid", "POST", { source: s.name });
+    if (!got) return;
+    toast(got.opened ? `${got.dataset ?? s.name} is open as a grid.` : (got.message ?? ""), got.opened ? "info" : "error");
+  };
+
   const drawTree = async (host: HTMLElement): Promise<void> => {
-    const got = await call<{ tree: TreeNode }>("/powerapps/project/files");
+    const got = await call<{ tree: TreeNode }>(`/powerapps/project/files${everyFile ? "?all=1" : ""}`);
     if (!got) return;
     const node = (n: TreeNode): HTMLElement =>
       n.children
-        ? h("details", { class: "ca-folder", open: n.path === "src" }, h("summary", {}, icon("folder"), n.name), h("ul", {}, ...n.children.map((c) => h("li", {}, node(c)))))
+        ? h("details", { class: "ca-folder", open: !everyFile || n.path === "src" }, h("summary", {}, icon("folder"), n.name), h("ul", {}, ...n.children.map((c) => h("li", {}, node(c)))))
         : h("button", { type: "button", class: "link ca-file", "data-path": n.path, onclick: () => openInWorkbench(n.path) }, icon("page"), n.name);
     host.replaceChildren(h("ul", { class: "ca-files" }, ...(got.tree.children ?? []).map((c) => h("li", {}, node(c)))));
   };

@@ -423,6 +423,11 @@ def test_every_action_is_an_agent_command(
             "powerapps_add_source", "powerapps_remove_source", "powerapps_connectors", "powerapps_connector",
             "powerapps_connections", "powerapps_run_live", "powerapps_push", "powerapps_versions",
             "powerapps_custom_connector", "powerapps_runs",
+            # phase 2: the data notebook (tests/test_powerapps_notebook.py drives these)
+            "powerapps_notebook", "powerapps_ts_run", "powerapps_ts_grid", "powerapps_data_ts",
+            "powerapps_tsx_preview", "powerapps_dataverse_grid",
+            # pages (tests/test_powerapps_pages.py)
+            "powerapps_pages", "powerapps_scaffold", "powerapps_lint",
         }  # fmt: skip
         assert base_commands.area_of("powerapps_push") == "powerapps"
 

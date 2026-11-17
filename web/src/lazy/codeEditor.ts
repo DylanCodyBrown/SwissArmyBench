@@ -39,6 +39,20 @@ const monacoId = (language: EditorLanguage): string => (language === "dax" ? "ms
 // ===== TypeScript: a code app's files (the Power Apps extension's), with Monaco's own language service =====
 
 let typescriptReady = false;
+let notebookReady = false;
+// 2307/2792: a package not read here; 7016: its types; 2875: JSX's runtime package; 17004: JSX flag; 7026: JSX's
+// element types (React's own types are in node_modules). A notebook's cells: 1375/1378 a top-level await in a
+// cell (the kernel runs it), 2451 a name a cell declares again (run again, it replaces the first).
+const IGNORED = [2307, 2792, 7016, 2875, 17004, 7026, 1375, 1378, 2451];
+
+/** A notebook's TypeScript cells: the kernel's `sab` known to the language service (each cell is a script, so
+ *  a name one cell declares is known in the others, as the kernel knows it). */
+export function typescriptNotebook(declarations: string): void {
+  if (notebookReady) return;
+  notebookReady = true;
+  typescriptProject([]);
+  monaco.typescript.typescriptDefaults.addExtraLib(declarations, "file:///sab-notebook.d.ts");
+}
 const projectLibs = new Map<string, monaco.IDisposable>();
 
 /** The language service set for a code app (React's JSX, modern modules), and the project's own files known
@@ -60,8 +74,7 @@ export function typescriptProject(files: { path: string; text: string }[]): void
       strict: true,
       skipLibCheck: true,
     });
-    // 2307/2792: a package not read here; 7016: its types; 2875: JSX's runtime package; 17004: JSX flag; 7026: JSX's element types (React's own types are in node_modules).
-    ts.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false, diagnosticCodesToIgnore: [2307, 2792, 7016, 2875, 17004, 7026] });
+    ts.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false, diagnosticCodesToIgnore: IGNORED });
     ts.typescriptDefaults.setEagerModelSync(true);
   }
   for (const file of files) {

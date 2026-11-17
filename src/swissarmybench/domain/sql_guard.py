@@ -298,6 +298,17 @@ def step_tables(text: str, dataset: str) -> list[str]:
     return [name for name in dict.fromkeys((dataset, GRID_TABLE)) if name in used] or [dataset]
 
 
+def tables_read(text: str) -> list[str]:
+    """The tables a DuckDB query reads, in order, its own CTEs left out ([] for a query that does not
+    parse)."""
+    try:
+        root: Any = sqlglot.parse_one(text, read="duckdb")
+    except sqlglot.errors.ParseError:
+        return []
+    ctes = _cte_names(root)
+    return list(dict.fromkeys(t.name for t in root.find_all(exp.Table) if t.name and t.name not in ctes))
+
+
 def keeps_order(text: str, dataset: str) -> bool:
     return _keeps_order(sqlglot.parse_one(text, read="duckdb"), {GRID_TABLE, dataset})
 

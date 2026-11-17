@@ -117,7 +117,7 @@ def test_the_page_may_still_send_the_old_kind_and_it_is_a_python_cell() -> None:
     cell = notebooks.read_cells(sent)[0]
     assert (cell.kind, cell.height) == ("code", 2000)
     assert notebooks.code_of(cell) == FILTER
-    with pytest.raises(notebooks.NotebookError, match='"html" or "markdown"'):
+    with pytest.raises(notebooks.NotebookError, match='"html", "markdown", "typescript" or "tsx"'):
         notebooks.read_cells([{"kind": "dash", "source": ""}])
     assert "streamlit" not in notebooks.KINDS
 

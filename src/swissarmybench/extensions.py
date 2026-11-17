@@ -53,6 +53,14 @@ BASE_MODE: dict[str, Any] = {
         "for the report."
     ),
     "example": "Example: a quarter's sales by region, checked and charted for the finance team.",
+    # The cell kinds this mode runs somewhere else than the Python kernel: {kind: {name, language, run
+    # (the route a run is posted to), preview (a route that draws it), grid (a table result opened as a
+    # grid), types (the editor's declarations), install (a missing tool installed)}}; a base kind too (a
+    # DuckDB SQL cell run in the mode's kernel). The page reads them as data, never which mode it is.
+    "cell_routes": {},
+    # A route answering the project's files a person edits ({"files": [...]}), listed in the Workbench's
+    # project files ("" for none: the base's own listing).
+    "project_files": "",
 }
 # A Streamlit app, for beginners: a base project with its app's canvas (until the Streamlit extension brings
 # its own project type, whose mode then says it). `make` is what New project sends for it.
@@ -69,6 +77,7 @@ STREAMLIT_KIND: dict[str, Any] = {
     "example": "Example: a sales dashboard where each manager picks their region.",
     "make": {"type": "bi", "app": True},
 }
+_ROUTE_FIELDS = ("name", "language", "run", "preview", "grid", "types", "install")
 _MODE_FIELDS = ("canvases", "families", "languages", "cell_kinds", "tools", "export")
 
 
@@ -122,6 +131,17 @@ def _mode(raw: Any) -> dict[str, Any] | None:
     for key in _MODE_FIELDS:
         value = mode.get(key)
         mode[key] = [str(v) for v in value] if isinstance(value, list | tuple) else []
+    mode["project_files"] = str(mode.get("project_files") or "")
+    routes = mode.get("cell_routes")
+    mode["cell_routes"] = (
+        {
+            str(kind): {k: str(v) for k, v in spec.items() if k in _ROUTE_FIELDS}
+            for kind, spec in routes.items()
+            if isinstance(spec, dict)
+        }
+        if isinstance(routes, dict)
+        else {}
+    )
     return mode
 
 
