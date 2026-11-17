@@ -3824,3 +3824,10 @@ treatment here", "they are not really connections, UNLESS they return a table".
 - A function blade that returns a table could be named in SQL the same way (`[My blade].result`).
 - DAX could take the columns (SELECTCOLUMNS) and simple filters (CALCULATETABLE) as SQL sources do.
 - Settings could set the query limit in the page (today an environment variable).
+
+## Blades and functions are two things (the owner, 2026-11-17)
+"I think we should seperate the different types of blades, function blades should be called something else but I hate the name cuts" / "when you right click in the workbench ide and insert you get two options insert a blade or insert a function".
+- **Function**: code you call (import_excel, write_sql_server): inserting one writes its def into the project's functions.py and puts only the call in the cell.
+- **Blade**: text dropped straight into a cell (the snippets: DAX, HTML, Markdown, Streamlit, Python).
+- The Workbench's right-click (notebook cells and the Scripts IDE): **Insert a blade…** and **Insert a function…**, each a searchable picker with its form for placeholders. Analyses stay in the Analyze menu; an API's endpoints are web calls on the APIs page; connections are connections.
+- The rail's Blades page keeps the word, with Blades and Functions shown apart. The renames in the UI, the guide and the agent's commands (functions_list, functions_insert beside blades_*) come with the data notebook change (functions.py).
