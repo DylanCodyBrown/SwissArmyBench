@@ -383,7 +383,10 @@ class SqlCursor:
         if len(parameters) == 1 and isinstance(parameters[0], (list, tuple)):
             parameters = tuple(parameters[0])  # execute(sql, [a, b]) as well as execute(sql, a, b)
         try:
-            self.inner.execute(marks(sql, parameters), tuple(parameters))
+            if parameters:  # python-tds formats a statement given any parameters, none among them too
+                self.inner.execute(marks(sql, parameters), tuple(parameters))
+            else:
+                self.inner.execute(sql)
         except Exception as error:  # the driver's own error class
             raise DataverseError(sql_words(error)) from None
         return self

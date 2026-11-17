@@ -2955,3 +2955,52 @@ after Variables; no "Open a .sab fileâ€¦"; New project's Choose another folderâ€
 folder with its note; the rail's Data opens `open=data`; the Blades page has no Catalog panel.
 
 NOT checked: Windows and macOS desktops, Edge.
+
+
+## Drivers that run anywhere, and "Only works on your machine" (2026-11-17, branch drivers)
+
+Really ran, against a real **SQL Server 2022** (mcr.microsoft.com/mssql/server:2022-latest, CU28, Developer
+Edition) in a container on 127.0.0.1:14333, with **mssql-python 1.18.0** and **python-tds 1.17.1** pip-installed
+into a scratch environment (no ODBC driver installed by hand; mssql-python's wheel carries its own):
+- tests/test_sql_server_real.py (SWISSARMYBENCH_SQLSERVER_TEST set): 6 passed. The SqlServer object signs in
+  (SQL login), says its version and collation; every type read into Arrow as the golden cases say (decimal and
+  money exact, tinyint as uint8, datetime2 as timestamp[us], datetimeoffset as the same instant in UTC, time as
+  time64[us], uniqueidentifier, xml, nvarchar(max), geography by .ToString(), sql_variant by CAST); a query with a
+  sql_variant column outside a plain read falls back from mssql-python's Arrow (it refuses type -150) to the
+  rows; a wrong password, an untrusted (self-signed) certificate and a missing table are said in plain words,
+  the password never in them; an interrupt (Ctrl+C) stops `WAITFOR DELAY '00:00:30'` on the server in 1.5 s
+  and the connection reads again; the Write starter's upsert (dry run: "update 1 row, insert 2 rows", then the
+  write) through mssql-python, Unicode, NULLs, datetime2's microseconds, a datetimeoffset and a
+  uniqueidentifier as their text, read back exact; Dataverse's SQL cursor (its marks, its refusal words) on
+  python-tds against the same server's TDS, signed in with a SQL login.
+- mssql-python's own words, as the error table now reads them: "Driver Error: Invalid authorization
+  specification; DDBC Error: [Microsoft][SQL Server]Login failed for user 'sa'." (a wrong database says the same
+  login failed), "...SSL Provider: [error:0A000086:SSL routines::certificate verify failed:self-signed
+  certificate]", "...TCP Provider: Error code 0x2AF9" (no such host), "Base table or view not found; ... Invalid
+  object name 'nope'.", "Operation canceled". No native number in any of them.
+- Speed, 264,900 rows (int, nvarchar, decimal(18,2), datetime): mssql-python's Arrow batches 0.23 s, the rows
+  then Arrow 0.92 s (best of three). executemany of 20,000 rows into a #temp table: 0.3 s.
+- Found against the real server and fixed: python-tds %-formats a statement whenever it is given a parameters
+  tuple, an empty one too (`100 % 7` failed): a statement with no parameters is now sent alone.
+- Encrypt=strict against the container's self-signed certificate: refused (a dropped connection, 0x2746), as
+  TDS 8 wants a trusted certificate; not checked against a server with one.
+
+Stood in for (no real service reached):
+- Azure SQL, Azure SQL serverless resume, Microsoft Entra tokens (as you, managed identity, an app
+  registration, a certificate), ActiveDirectoryDefault and ActiveDirectoryPassword, Windows integrated sign-in,
+  a Fabric/OneLake SQL endpoint, a Dataverse TDS endpoint and its Entra federated authentication, an Azure
+  Function App and a hosted Streamlit app: none was reached. The unit tests run the connection code against a
+  stand-in mssql_python at its seam (errors shaped as the real one's) and a stand-in pytds at its seam
+  (tests/dataverse_tds_standin.py, the real Dataverse code signing in at the Web API stand-in).
+- "Runs on a Function App" is a rule read from the code (domain/portability.py), not a run on one.
+
+Checks: the unit tests for the new code (tests/test_sql_server.py, test_portability.py, test_dataverse.py,
+test_starters_write.py on both drivers, test_connection_kinds.py, test_agent_streamlit_export.py); browser tests
+in Chromium (tests/e2e/test_sql_server_page.py: the form's portable first way and Windows sign-in's amber
+note, the keyring's note, no Driver option; an ODBC connection's card and page; an older connection's Update to
+the new driver; the script export asking before it writes; test_dataverse_page.py, test_lakes_page.py,
+test_trino_keystore_page.py with the new orders and a password from a variable first). Screenshots in
+scratchpad b/shots-drivers.
+
+NOT checked: Edge, Windows and macOS desktops, the Streamlit export's confirm in the page (its check is tested
+over HTTP), a real Azure anything.

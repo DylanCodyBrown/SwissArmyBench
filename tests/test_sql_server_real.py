@@ -173,3 +173,29 @@ def test_the_write_starter_upserts_through_mssql_python(names: dict[str, Any]) -
     assert check[0]["placed"] == dt.datetime(2026, 1, 2, 3, 4, 5, 123456)
     assert check[0]["at_zone"] == dt.datetime(2026, 1, 2, 1, 4, 5, tzinfo=dt.UTC)
     assert check[0]["ref"].upper() == "6F9619FF-8B86-D011-B42D-00C04FC964FF"
+
+
+def test_dataverses_cursor_reads_tds_through_python_tds(names: dict[str, Any]) -> None:
+    """Dataverse's SQL cursor (its marks, its plain-word refusals) on python-tds against this SQL Server's
+    TDS: signed in with a SQL login here, as Dataverse's endpoint takes only an Entra token (not reached)."""
+    pytds = pytest.importorskip("pytds")
+    from swissarmybench.domain import dataverse
+
+    code = dataverse.MANAGED
+    space: dict[str, Any] = {}
+    start = code.index("def marks(")
+    exec(code[start : code.index("\n\n\n", start)], space)  # noqa: S102
+    words = code.index("def sql_words(")
+    head = "import re\nclass DataverseError(RuntimeError):\n    pass\nclass Dataverse:\n    TDS_OFF = 'off'\n"
+    exec(head + code[words : code.index("class Dataverse:", words)], space)  # noqa: S102
+    _, user, password = GIVEN.split(";", 2)
+    port = int(GIVEN.split(";")[0].partition(",")[2] or 1433)
+    raw = pytds.connect(server=names["host"], port=port, user=user, password=password, autocommit=True)
+    cursor = space["SqlCursor"](raw.cursor())
+    cursor.execute("SELECT name FROM sys.databases WHERE name = ? AND database_id < ?", "master", 10)
+    assert cursor.description[0][0] == "name" and cursor.fetchall() == [("master",)]
+    cursor.execute("SELECT TOP 1 100 % 7 AS m, '?' AS q FROM sys.databases")  # no parameters: as it is
+    assert cursor.fetchall() == [(2, "?")]
+    with pytest.raises(RuntimeError, match="Dataverse's SQL endpoint refused: .*Invalid object name"):
+        cursor.execute("SELECT * FROM dbo.no_such_table")
+    raw.close()

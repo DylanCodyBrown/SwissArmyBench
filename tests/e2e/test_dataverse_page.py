@@ -56,23 +56,30 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     page = open_grid(browser, orders_url)
     dialog = page.locator(".area-page[data-page='connections']")  # the Connections page (2026-11-16)
 
-    # The form: the environment's address and the sign-in; As you comes first.
+    # The form: the environment's address and the sign-in; the app registration comes first (it runs on a
+    # Function App or a hosted Streamlit app too; as you, this machine's only, last: the owner, 2026-11-17).
     page.locator(".nav-rail [data-area='connections']").click()
     page.get_by_role("button", name="Add connection").click()
     tile = page.locator(".connection-type", has_text="Dataverse")
     expect(tile.locator("svg")).to_have_count(1)  # its own icon
     tile.click()
-    not_now(page)  # As you needs azure-identity, which this Python may lack
+    not_now(page)  # its SQL endpoint needs python-tds, which this Python may lack
     sign_in = dialog.get_by_role("combobox", name="Sign in")
     expect(sign_in).to_have_value("0")
     expect(sign_in.locator("option")).to_have_text(
         [
-            "As you (Azure command line or browser)",
-            "Managed identity (in Azure: a Function App, App Service or VM)",
             "App registration, its secret from a key vault",
+            "Managed identity (in Azure: a Function App, App Service or VM)",
+            "As you (Azure command line or browser)",
         ]
     )
-    sign_in.select_option("2")
+    expect(dialog.locator(".sign-in-local .local-only")).to_have_count(0)
+    sign_in.select_option("2")  # as you: said, amber
+    expect(dialog.locator(".sign-in-local .local-only")).to_contain_text(
+        "Only works on your machine: it signs in as you"
+    )
+    not_now(page)  # as you needs azure-identity too
+    sign_in.select_option("0")
     expect(dialog.get_by_role("textbox", name="Tenant id", exact=True)).to_be_visible()  # its own fields
     dialog.get_by_role("textbox", name="Name").fill("Sales CRM")
     code = dialog.locator("textarea.connection-code")
@@ -110,7 +117,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     saved = dialog.locator(".connection-config")  # its detail
     expect(saved).to_contain_text("Dataverse")
     expect(saved.locator(".connection-in-code")).to_contain_text('sab.read("Sales CRM", table)')
-    # The form saves it on the SQL endpoint (the owner, 2026-11-17), which needs pyodbc and a real TDS
+    # The form saves it on the SQL endpoint (the owner, 2026-11-17), which needs python-tds and a real TDS
     # endpoint (tests/test_connection_kinds.py stands in for it at its cursor). The rest of this test is a
     # connection saved for the Web API before then: it keeps working, and its detail offers the switch.
     old: dict[str, Any] = {

@@ -5005,3 +5005,88 @@ already".
 
 ### Next
 - The images 20-catalog.png and 21-blade-save.png in the user guide are no longer referenced: new screenshots.
+
+
+## Drivers that run anywhere, and "Only works on your machine" (the owner, 2026-11-17; built, branch drivers)
+
+The owner's words: "its odbc" / "odbc does not work on function apps" / "this is the wrong type of connectors";
+"We need both Python-TDS for Dataverse and mssql for azure and sql server connections"; "any connector that does
+not scale to a function app needs to carry a warning that it will only work on your machine"; widened: "save
+that rule, we want to advise against any connectors that only work locally for the user, this is meant to scale
+to a function app or up to a hosted streamlit application". The owner approved the two packages (mssql-python,
+python-tds); they are the connections' own, as pyodbc was (PIP_NAMES, the missing-package prompt), never the
+app's dependency.
+
+### Built
+- **SQL Server and Azure SQL on mssql-python.** domain/sql_server.py's SqlServer imports only `mssql_python`
+  (Microsoft's driver, its own ODBC driver inside the wheel: nothing installed by hand, Linux included). No
+  driver lookup, no ODBC Driver 18 preference, no winget/brew/apt prompt, no Driver option or choice. Its
+  connection string uses only the keys mssql-python takes (it refuses any other: a test holds them to its
+  list). The Entra token goes beside it as before (attrs_before 1256); ActiveDirectoryDefault and
+  ActiveDirectoryPassword are the driver's own; Windows is Trusted_Connection. Its Arrow batches
+  (`cursor.arrow_batch`) are read and cast to the same types the rows' path makes (UTC instants, time in
+  microseconds, plain strings and bytes); a column its Arrow cannot read (sql_variant) falls back to the rows,
+  read again. Cancel: mssql-python's cursor has no cancel(), so its statement handle's `_cancel()` (SQLCancel,
+  safe from another thread) is called. An older code's `driver=` keyword is taken and ignored (`**older`).
+- **Errors by their words.** mssql-python says "Driver Error: <the SQLSTATE's words>; DDBC Error: [Microsoft]
+  [SQL Server]<the server's words>" with no native number. ERRORS keeps its numbers; WORDS maps each known
+  number's words to it (Login failed, Cannot open database, the firewall's "is not allowed to access the
+  server", "not currently available", the busy and throttling words, a deadlock, read-only); a dropped
+  connection by its socket code in hex (0x2745, 0x2746, 0x274C) or "Communication link failure"; a server not
+  found by 0x2AF9/0x2AFA. The same words make a passing error (`transient`, `passing`, write_sql's
+  TRANSIENT_WORDS), so the retries and the serverless wait work as before. A missing mssql-python is the
+  import's own ModuleNotFoundError (never wrapped), which the Install prompt reads.
+- **Writes.** client/write_sql.py knows `mssql_python` connections as SQL Server; executemany binds arrays by
+  itself (no fast_executemany; it is set only on an older pyodbc connection); mssql-python takes a type for
+  every parameter or none, so input_sizes fills the ones pyodbc left to the driver (bit, ints, floats, money,
+  date, datetime; uniqueidentifier and datetimeoffset as their text), and clears them after the batches (it
+  keeps them for the next statements). #temp staging, MERGE WITH (HOLDLOCK), whole-transaction retries: as
+  before. write_to_sql_server.blade.py imports mssql_python.
+- **Dataverse's SQL endpoint on python-tds.** `sql_connect` calls `pytds.connect(server, port=5558,
+  cafile=certifi.where(), validate_host=True, access_token_callable=<the connection's token>, autocommit,
+  login_timeout)`: TLS by pyOpenSSL against certifi's authorities (python-tds encrypts only with a cafile), the
+  token by Entra's federated authentication. `?` marks become python-tds's `%s` (a literal % doubled, marks in
+  quotes and brackets kept); a statement with no parameters is sent alone (python-tds %-formats any statement
+  given a parameters tuple, an empty one too: found against a real server). Its packages: python-tds,
+  pyOpenSSL, certifi (an export leaves them out when no SQL runs on it). tests/dataverse_tds_standin.py now
+  stands in at `pytds.connect` with the real Dataverse code signing in at the Web API stand-in.
+- **OneLake's SQL endpoint on mssql-python** (lakes.SQL_ENDPOINT, the shared TOKEN_CODE): a Fabric SQL endpoint
+  is Azure SQL's kind of endpoint, so it follows "mssql for azure and sql server", not python-tds.
+- **Update to the new driver.** `sql_server.is_old` knows the app's earlier starter code (its runtime with
+  `import pyodbc` and `pyodbc.drivers()`); `upgraded` writes today's head (the way's imports, the runtime) and
+  keeps the user's own lines after it (the credential, `conn = SqlServer(...)` with every setting) but the
+  `driver=` line. Golden files: tests/golden/sql_server/old_*.txt, new_*.txt, code_*.txt. The card says
+  `update_driver`; its page has **Update to the new driver** (POST /connections/{name}/update-driver; the
+  agent's `connections_update_driver`). A connection of the user's own code is refused, never rewritten.
+- **domain/portability.py**: LocalOnly(key, reason, instead) and its words, "Only works on your machine:
+  <reason>. On a Function App or hosted Streamlit app use <instead>." Rules by kind (odbc, access, sybase; a
+  file kind whose path is not a web or cloud address), by code (pyodbc imported, Windows sign-in, a sign-in as
+  you: Entra's interactive, Azure command line and VS Code credentials, Snowflake's externalbrowser; a
+  certificate file, a certificate or keystore setting at a plain path, a local Delta folder, an AWS profile,
+  the keyring read in code, a .env at a path) and by password source (the keyring). SQL Server's own code is
+  judged by its `sign_in=` (its runtime holds every way's words).
+- **Shown:** the form (the kind's `local` under its note; each sign-in's `local` beside the choice; the keyring's
+  note when Saved on this computer is picked), the card (one amber line) and its page, a Write starter for those
+  kinds (`blades_starters`' `local`, the Blades list's mark), the script export and the Streamlit extension's
+  Export and Save as (`check: true` answers the notes; the page asks "Export it anyway?" before it writes; the
+  agent's answer carries `local` and `local_words`). The agent's guide (connections.md) says the rule.
+- **Portable defaults** (new connections only; a saved one keeps its code and its sources): SQL Server starts
+  with SQL login, Azure SQL with an app registration whose secret is a vault's, Dataverse with the app
+  registration, OneLake and the Data Lake with the app registration, Delta with Azure's app registration (the
+  folder on this computer and an AWS profile last), Snowflake with a password from a vault (single sign-on in a
+  browser is this computer's only), a new password from An environment variable (the keyring when chosen).
+
+### Decisions
+- SharePoint keeps its username and password (ROPC) first: the owner's own connection, and ROPC needs no
+  desktop. The Azure Key Vault blade keeps DefaultAzureCredential first: without the browser it is a managed
+  identity in Azure, so it runs there.
+- Entra password (ActiveDirectoryPassword) and the driver's default are not flagged: neither needs this
+  computer (the default needs azure-identity, which its code now imports so the Install prompt offers it).
+- An exported script and a Streamlit export are still written when the user says so: the warning asks, it does
+  not refuse (the agent's export writes and says it in its answer).
+- BigQuery's `gcloud auth application-default login` and a Python connection's own code are not judged beyond
+  the rules' words (a rule only says what it can tell from the code).
+
+### Next
+- A real Azure SQL, a Fabric SQL endpoint and a Dataverse TDS endpoint with Entra tokens: not reachable here.
+- Fold mssql-python's `bulkcopy` (TDS bulk insert) into the Write starter for large appends.

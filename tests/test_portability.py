@@ -197,5 +197,7 @@ def test_a_write_starter_for_kinds_that_run_only_here_says_so(client: TestClient
     assert portability.for_tags(["write", "azuresql", "sqlserver"]) == []
     families = client.get("/blades/starters", headers=AUTH).json()["families"]
     shown = {b["name"]: b["local"] for f in families for b in f["blades"]}
-    assert shown["Write to ODBC"][0]["words"].startswith("Only works on your machine: it needs an ODBC driver")
+    assert shown["Write to ODBC"][0]["words"].startswith(
+        "Only works on your machine: it needs an ODBC driver"
+    )
     assert shown["Write to SQL Server"] == []
