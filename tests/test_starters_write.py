@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import sqlite3
 import sys
 import types
@@ -39,7 +40,10 @@ from tests import dataverse_standin
 from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
-WRITERS = sorted(FOLDER.glob("write_*.blade.py"))
+WRITERS = sorted(
+    p for p in FOLDER.glob("write_*.blade.py") if not p.name.startswith("write_to_")
+)  # the calls
+FUNCTIONS = sorted(FOLDER.glob("write_to_*.blade.py"))  # one function a target: what a call runs
 VALUES = {
     "connection": "Warehouse",
     "table": "orders",
@@ -52,19 +56,35 @@ def starter(file: str) -> dict[str, Any]:
     return read_blade((FOLDER / f"{file}.blade.py").read_text(encoding="utf-8"))
 
 
+FETCH = re.compile(r'^(\w+) = sab\.blade\("([^"]+)"\).*$', re.M)
+
+
 def cell(starter_file: str, dry_run: bool, **values: str) -> str:
-    """A Write starter's text, filled as its form fills it, with dry_run as asked."""
+    """A Write starter's call, filled as its form fills it, with dry_run as asked, and its function's
+    code in place of the `sab.blade` line (as the project's functions.py will hold it)."""
     blade = starter(starter_file)
     text = fill(blade["code"], blade["language"], VALUES | values)
-    assert "dry_run = True\n" in text
-    return text.replace("dry_run = True\n", f"dry_run = {dry_run}\n", 1)
+    assert "    dry_run=True," in text
+    fetched = FETCH.search(text)
+    assert fetched is not None
+    function = next(f for f in map(read_blade_file, FUNCTIONS) if f["name"] == fetched.group(2))
+    assert function["variable"] == fetched.group(1)
+    text = text[: fetched.start()] + str(function["code"]) + text[fetched.end() :]
+    return text.replace("    dry_run=True,", f"    dry_run={dry_run},", 1)
+
+
+def read_blade_file(path: Path) -> dict[str, Any]:
+    return read_blade(path.read_text(encoding="utf-8"))
 
 
 def run(text: str, **names: Any) -> Any:
     """The cell run as a notebook runs it; its last line's value (the write's report)."""
     space: dict[str, Any] = dict(names)
-    exec(compile(text, "<cell>", "exec"), space)  # noqa: S102 (the starter pack's own cell, filled here)
-    return space["w"]
+    tree = ast.parse(text)
+    last = tree.body.pop()
+    assert isinstance(last, ast.Expr)  # the call is the cell's last value
+    exec(compile(tree, "<cell>", "exec"), space)  # noqa: S102 (the starter pack's own cell, filled here)
+    return eval(compile(ast.Expression(last.value), "<cell>", "eval"), space)  # noqa: S307
 
 
 @pytest.fixture
@@ -87,32 +107,73 @@ def connection(monkeypatch: pytest.MonkeyPatch) -> Callable[[Callable[[], Any]],
 # ===== every Write starter =====
 
 
-def test_the_write_family_is_43_starters_each_a_python_snippet() -> None:
-    blades = [read_blade(p.read_text(encoding="utf-8")) for p in WRITERS]
-    assert len(blades) == 43
-    assert {b["family"] for b in blades} == {"Write"}
-    assert {b["language"] for b in blades} == {"python"} and {b["kind"] for b in blades} == {"snippet"}
-    for blade in blades:
-        assert blade["description"].endswith("(dry run first; writes on the user's word)")
-        assert (
-            "An agent sets dry_run = False only after you said to write, in your own words" in blade["code"]
-        )
+def test_the_write_family_is_43_calls_and_13_functions() -> None:
+    calls = [read_blade_file(p) for p in WRITERS]
+    functions = [read_blade_file(p) for p in FUNCTIONS]
+    assert len(calls) == 43 and len(functions) == 13
+    assert {b["family"] for b in calls + functions} == {"Write"}
+    assert {b["language"] for b in calls} == {"python"} and {b["kind"] for b in calls} == {"snippet"}
+    assert {b["kind"] for b in functions} == {"other"}
+    for blade in calls + functions:
+        assert blade["description"].endswith("(dry run first; writes on the user's word)"), blade["name"]
         assert "password" not in blade["code"].replace("no password", "").lower(), blade["name"]
+    for blade in calls:
+        assert "An agent sets dry_run=False only after you said to write, in your own words" in blade["code"]
+    for blade in functions:
+        said = " ".join(blade["code"].split())
+        assert "An agent sets dry_run=False only after the user said to write" in said, blade["name"]
+
+
+@pytest.mark.parametrize("path", FUNCTIONS, ids=lambda p: p.stem)
+def test_a_write_function_is_one_typed_public_function_and_nothing_runs_on_import(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each drops into the project's functions.py as it is (the owner, 2026-11-17: a cell gets only the
+    call): imports, constants, private helpers and ONE public function with a typed signature."""
+    blade = read_blade_file(path)
+    tree = ast.parse(blade["code"])
+    public = [s for s in tree.body if isinstance(s, ast.FunctionDef) and not s.name.startswith("_")]
+    assert [f.name for f in public] == [blade["variable"]]
+    (function,) = public
+    arguments = function.args.args
+    assert all(a.annotation is not None for a in arguments) and function.returns is not None
+    assert "dry_run" in [a.arg for a in arguments]
+    dry = function.args.defaults[[a.arg for a in arguments][-len(function.args.defaults) :].index("dry_run")]
+    assert isinstance(dry, ast.Constant) and dry.value is True  # a dry run unless asked
+    for statement in tree.body:  # nothing that runs: imports, defs, a docstring, constants (UPPER or _UPPER)
+        if isinstance(statement, ast.Assign):
+            assert all(isinstance(x, ast.Name) and x.id.lstrip("_").isupper() for x in statement.targets)
+        else:
+            assert isinstance(statement, ast.Import | ast.ImportFrom | ast.FunctionDef | ast.Expr), ast.dump(
+                statement
+            )
+            if isinstance(statement, ast.Expr):
+                assert isinstance(statement.value, ast.Constant)  # the docstring
+    for driver in ("pyodbc", "oracledb", "trino", "psycopg", "pymysql", "openpyxl"):
+        try:
+            __import__(driver)
+        except ImportError:  # not in the test environment: a stand-in, so the code can be loaded
+            monkeypatch.setitem(sys.modules, driver, types.ModuleType(driver))
+    space: dict[str, Any] = {}
+    exec(compile(tree, str(path), "exec"), space)  # noqa: S102 (the starter's own code: defines, runs nothing)
+    assert callable(space[blade["variable"]])
 
 
 @pytest.mark.parametrize("path", WRITERS, ids=lambda p: p.stem)
-def test_a_write_starter_fills_parses_and_lists_its_packages(path: Path) -> None:
-    blade = read_blade(path.read_text(encoding="utf-8"))
+def test_a_write_starter_is_the_call_only_and_its_function_lists_its_packages(path: Path) -> None:
+    blade = read_blade_file(path)
     names = [p.name for p in placeholders(blade["code"])]
     assert "table" in names
     text = fill(blade["code"], "python", VALUES)
     tree = ast.parse(text)
-    assigned = [
-        t.id for s in tree.body if isinstance(s, ast.Assign) for t in s.targets if isinstance(t, ast.Name)
-    ]
-    assert assigned[0] == "dry_run" and "rows" in assigned  # the dry run is the first setting
-    assert isinstance(tree.body[-1], ast.Expr)  # the report is the cell's last value
-    packages = [p.pip for p in needed(text, lambda module: True)]
+    fetch, call = tree.body  # `write_x = sab.blade("Write to ...")` (until functions.py), then the call
+    assert isinstance(fetch, ast.Assign) and "sab.blade(" in ast.unparse(fetch.value)
+    assert isinstance(call, ast.Expr) and isinstance(call.value, ast.Call)
+    assert ast.unparse(call.value.func) == ast.unparse(fetch.targets[0])
+    assert call.value.keywords[-1].arg == "dry_run" and ast.unparse(call.value.keywords[-1].value) == "True"
+    function = next(f for f in map(read_blade_file, FUNCTIONS) if f["name"] in ast.unparse(fetch.value))
+    assert set(blade["tags"]) <= set(function["tags"])
+    packages = [p.pip for p in needed(function["code"], lambda module: True)]
     tags = blade["tags"]
     if not {"dataverse", "powerbi", "excel"} & set(tags):
         assert "duckdb" in packages, blade["name"]  # the rows are staged in DuckDB
@@ -261,8 +322,8 @@ def test_a_write_starters_form_offers_the_connections_of_its_kind_first(client: 
         json={"values": {"connection": "Zed shop", "table": "orders", "key column": "order_id"}},
         headers=AUTH,
     ).json()
-    assert 'connection = "Zed shop"' in filled["text"] and "rows = orders" in filled["text"]
-    assert 'keys = ["order_id"]' in filled["text"] and filled["cell_name"] is None
+    assert '    "Zed shop",' in filled["text"] and "    orders,  # a DataFrame" in filled["text"]
+    assert 'keys=["order_id"]' in filled["text"] and filled["cell_name"] is None
 
 
 # ===== SQLite: every write, its dry run, its rollback =====
@@ -322,7 +383,7 @@ def test_append_upsert_replace_delete_and_create_give_the_right_rows(shop: Path)
 
 
 def test_a_failing_batch_rolls_every_row_back_and_says_which(shop: Path) -> None:
-    text = cell("write_sqlite_append", dry_run=False).replace("batch_size = 1000", "batch_size = 2")
+    text = cell("write_sqlite_append", dry_run=False).replace("batch_size=1000", "batch_size=2")
     rows = pd.DataFrame({"order_id": [20, 21, 22, 1], "region": ["A", "B", "C", "D"], "amount": [0.0] * 4})
     with pytest.raises(WriteError) as refused:
         run(text, orders=rows)
@@ -729,7 +790,7 @@ def test_sql_server_keys_default_to_the_primary_key_and_identity_and_computed_co
     sql_server: dict[str, Any],
 ) -> None:
     text = cell("write_sql_server_upsert", dry_run=True, target="dbo.orders", **{"key column": "order_id"})
-    no_keys = text.replace('keys = ["order_id"]', "keys = []")
+    no_keys = text.replace('keys=["order_id"]', "keys=[]")
     assert "Keys      order_id" in str(run(no_keys, orders=ROWS))
     sql_server["primary"] = False
     with pytest.raises(WriteError, match=r"dbo\.orders has no primary key: name the key columns"):
@@ -738,7 +799,7 @@ def test_sql_server_keys_default_to_the_primary_key_and_identity_and_computed_co
     with pytest.raises(WriteError, match="row_no is dbo.orders's identity column: SQL Server numbers it"):
         run(cell("write_sql_server_append", dry_run=True, target="dbo.orders"), orders=numbered)
     chosen = cell("write_sql_server_append", dry_run=False, target="dbo.orders").replace(
-        "identity_insert = False", "identity_insert = True"
+        "identity_insert=False", "identity_insert=True"
     )
     run(chosen, orders=numbered)
     executed = [c[1] for c in calls(sql_server, "execute")]
@@ -835,7 +896,7 @@ def test_trino_merges_a_batch_at_a_time_and_says_when_the_connector_cannot(
     world: dict[str, Any] = {}
     connection(lambda: FakeTrino(world))
     values = {"target": "iceberg.sales.orders"}
-    text = cell("write_trino_upsert", dry_run=False, **values).replace("batch_size = 200", "batch_size = 2")
+    text = cell("write_trino_upsert", dry_run=False, **values).replace("batch_size=200", "batch_size=2")
     done = run(text, orders=ORDERS)
     merges = [sql for sql, _ in world["log"] if sql.startswith("MERGE")]
     assert len(merges) == 2  # three rows, two a statement
@@ -940,9 +1001,7 @@ def test_dataverse_a_refused_change_set_is_rolled_back_and_named(crm: dataverse_
     values = {"target": "account", "connection": "Sales CRM"}
     rows = pd.DataFrame({"name": ["A", "B", "C"], "accountnumber": ["AC-4001", "AC-4002", "AC-4003"],
                          "numberofemployees": [1, 2, 3], "industrycode": [1, 1, 999]})  # fmt: skip
-    text = cell("write_dataverse_create", dry_run=False, **values).replace(
-        "batch_size = 1000", "batch_size = 2"
-    )
+    text = cell("write_dataverse_create", dry_run=False, **values).replace("batch_size=1000", "batch_size=2")
     with pytest.raises(WriteError) as refused:
         run(text, orders=rows)
     said = str(refused.value)
@@ -978,7 +1037,7 @@ def test_files_are_written_and_read_back(tmp_path: Path) -> None:
     run(cell("write_partitioned_parquet", dry_run=False, folder=str(folder)), orders=rows)
     assert sorted(p.name for p in folder.iterdir()) == ["region=North", "region=South"]
     add = cell("write_partitioned_parquet", dry_run=False, folder=str(folder)).replace(
-        'if_there = "stop"', 'if_there = "add"'
+        'if_there="stop"', 'if_there="add"'
     )
     run(add, orders=rows)
     read = f"SELECT count(*) FROM read_parquet('{folder}/*/*.parquet', hive_partitioning = true)"
@@ -993,7 +1052,7 @@ def test_files_are_written_and_read_back(tmp_path: Path) -> None:
     workbook.save(book)
     run(cell("write_excel_sheet", dry_run=False, file=str(book), sheet="Orders"), orders=rows)
     added = cell("write_excel_sheet", dry_run=False, file=str(book), sheet="Orders").replace(
-        'if_there = "stop"', 'if_there = "add"'
+        'if_there="stop"', 'if_there="add"'
     )
     run(added, orders=rows.head(1))
     opened = openpyxl.load_workbook(book)

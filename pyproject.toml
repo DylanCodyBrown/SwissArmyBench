@@ -97,6 +97,11 @@ mypy_path = "src"
 module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*", "pystray", "pystray.*", "PIL", "PIL.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# The Write starters' drivers: imported by the functions for the notebook's own environment, not the app's.
+module = ["pyodbc", "pyodbc.*", "oracledb", "oracledb.*", "trino", "trino.*"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 110
 target-version = "py312"
@@ -140,6 +145,9 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # The Write starters' helpers build each database's statements by design: every name through name()
 # or quote(), every value a bound parameter; the target's own address in urlopen (Dataverse).
 "src/swissarmybench/client/write*.py" = ["S608", "S310"]
+# The Write starters' functions say each statement in full, names through w.name() and w.table, values
+# bound by the helper.
+"src/swissarmybench/starters/write_*.blade.py" = ["S310", "E501", "S608"]
 # Developer scripts: they run fixed local tools (git, npm, uv, VS Code) with our own arguments,
 # set up sys.path before importing, and hold long command lines.
 "tools/**" = ["S603", "S607", "S110", "E402", "E501"]

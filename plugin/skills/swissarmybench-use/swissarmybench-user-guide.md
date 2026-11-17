@@ -812,12 +812,15 @@ BigQuery, Redshift, Databricks), and a key vault.
 
 Drop one onto a Python cell (or **Insert a snippet…**): the form asks for the connection (those of its
 kind first), the rows (an open table, or any DataFrame or DuckDB relation by its name), the target
-table and the key columns. Every one starts `dry_run = True`: run it and it says what it would do (the
+table and the key columns. The cell gets the call only, `write_sqlite("Shop", "orders", orders,
+mode="upsert", keys=["order_id"], dry_run=True)`, with the line that fetches the function above it
+(the function itself is the Write family's **Write to SQLite**: Copy as your own to change it). Every
+call ends `dry_run=True`: run it and it says what it would do (the
 target, the rows and their types, the statements, how many rows it would insert, update or delete, the
-first 5 rows) and changes nothing. Set `dry_run = False` and run it again to write: one transaction
+first 5 rows) and changes nothing. Set `dry_run=False` and run it again to write: one transaction
 where the database has them (a failure writes nothing and says which batch), the counts and the time at
 the end, and a note if the table changed since the dry run. No password goes in the cell: it signs in
-through the connection's own sign-in. An agent sets `dry_run = False` only after you told it to write,
+through the connection's own sign-in. An agent sets `dry_run=False` only after you told it to write,
 in your own words.
 
 ### Every table has its own cell

@@ -3851,21 +3851,33 @@ Built:
   starters or the reason on hover), its detail the words; `connections_list`, `connections_overview`,
   `connections_types` carry `writes` for the agent. Tests: every writable kind has a Write starter, every
   starter names writable kinds only, a read-only kind has none.
-- **The Write family** (43 starters, src/swissarmybench/starters/write_*.blade.py): Python snippets (a
-  new snippet language, `python`, for a Python cell; a new placeholder kind, `connection`, offered from
+- **The Write family** (56 starters, src/swissarmybench/starters/write_*.blade.py): 13 functions, one
+  a target (`write_to_*.blade.py`: Write to SQL Server, Write to SQLite, ... Write to an Excel sheet), and
+  43 calls, one an operation (SQLite upsert, ...): Python snippets (a new snippet language, `python`, for a Python cell; a new placeholder kind, `connection`, offered from
   the saved connections, those of the snippet's kind first). Databases: append, create table, replace,
   upsert, delete for SQL Server, PostgreSQL, MySQL/MariaDB, SQLite, Oracle and Trino; ODBC without upsert
   (no one statement every driver takes). Dataverse: create, update, upsert, delete. Files: CSV, Parquet, partitioned Parquet, JSON, Excel sheet. Listed in Write too:
   Excel write table, Excel range as table, Power BI refresh dataset, Power BI refresh and wait (`also`).
-- **The same shape in every cell**: `dry_run = True` the first setting (it checks, counts what it can
+- **A function a target, a call a cell** (the owner, 2026-11-17: function blades will be written into the
+  project's functions.py and a cell gets only the call: "the only thing inserted into the notebook is
+  Importexcel() not the entire blade"). Each Write function is ONE public function with a typed
+  signature (`write_sql_server(connection: str, table: str, rows: Any, mode: str = "append", keys:
+  Sequence[str] = (), batch_size: int = 1000, identity_insert: bool = False, dry_run: bool = True) ->
+  SqlServerWrite`), private helpers (`_upsert`, a mode each), its imports and constants: nothing runs on
+  import, so it drops into functions.py as it is (a test holds every one to that). A Write starter's text
+  is the call only, its placeholders filled by the form and `dry_run=True` its last argument. Until
+  functions.py exists the call is reached as the Excel starters are, one line before it:
+  `write_sqlite = sab.blade("Write to SQLite")`; **the functions.py branch replaces that line** (an
+  import from functions.py, or nothing). The Connections page's "Writes:" lists the calls.
+- **The same shape in every write**: `dry_run=True` the default (it checks, counts what it can
   count cheaply, says the statements, shows 5 rows, changes nothing); one transaction where the target
   has them (a failure rolls back and names its batch and rows; Trino and Dataverse's
   change sets say what was written before it); counts and time at the end, and a difference from the
   last dry run said; the connection's own sign-in (`sab.connection`), never a secret in the cell; its
-  packages imported at the top (the missing-package prompt installs them into the notebook's
-  environment). The agent's rule is in the cells and in `guide(topic="writing")`: dry_run False only
+  packages imported at the function's top (the missing-package prompt installs them into the notebook's
+  environment). The agent's rule is in the calls, the functions' docstrings, every description and in `guide(topic="writing")`: dry_run False only
   after the user said to write, in their own words, in this conversation.
-- **A shared helper per target, the statements in the cell** (client/writes.py: the rows staged in a
+- **A shared helper per target, the statements in the function** (client/writes.py: the rows staged in a
   DuckDB of their own, the report; write_sql.py: each database's quoting, marks, values and types;
   write_dataverse.py). Standard library only (the plain client's rule): DuckDB and the
   driver come from the cell's own Python.

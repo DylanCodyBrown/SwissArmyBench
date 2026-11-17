@@ -429,16 +429,17 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (156 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
+  starters/              the built-in starter pack (169 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
                          Streamlit, Write), listed apart, found by name, Copy as your own (tests/test_starters*.py);
-                         Write: 43 Python snippets for the connections that write, a dry run first
+                         Write: 13 functions (write_to_*: one public typed function a target, for functions.py) and
+                         43 calls (a cell's text: the call only, dry_run=True), for the connections that write
   client/push_client.py  push(), ensure_server()
   client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
                          write_sql.py each database's quoting, marks, values, types and transaction (SqlWrite;
                          SqlServerWrite: sys.columns' types, #temp staging, MERGE WITH (HOLDLOCK), retried whole on
                          Azure's passing errors), write_dataverse.py ($batch change sets, choice labels, keys).
-                         Standard library only; the statements stay in the cell
+                         Standard library only; the statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,

@@ -2257,8 +2257,12 @@ drags; code of more than one line is pasted, one typed value):
 
 ## Writing data: the Write starters (2026-11-17, branch write-blades)
 
-- **Every starter** (tests/test_starters_write.py): the 43 Write starters read, fill from their form's
-  values, say the agent's rule in their description, parse as Python, put `dry_run` first and the report last, and list their packages (DuckDB and
+- **Every starter** (tests/test_starters_write.py): the 13 Write functions are each one public function
+  with a typed signature (dry_run True by default), private helpers, imports and constants only, and load
+  without running anything; the 43 calls are the call only (`sab.blade` line, then the call, dry_run=True
+  its last argument), each naming a function whose tags cover its own; every write test runs the call
+  with its function's code in place of the `sab.blade` line (as functions.py will hold it). The calls read, fill from their form's
+  values, say the agent's rule in their description, parse as Python, and their functions list their packages (DuckDB and
   each driver). Every connection kind is writable or read-only with a reason, and every one of
   connection_tables' tables kinds is writable, read-only (Power BI, your own Python, an API) or decided by
   its template (a database, a file); every writable kind has a
@@ -2296,10 +2300,11 @@ drags; code of more than one line is pasted, one typed value):
 - **Files**: CSV, Parquet, partitioned Parquet (a folder per region; "add" beside the old files), JSON
   and an Excel sheet (the workbook's other sheets kept, rows added below) written and read back; an
   existing file refused unless replaced.
-- **In the browser** (Chromium, tests/e2e/test_write_starters_page.py): the Write family (47 with the
-  cross-listed four) in the Workbench's blade list; SQLite upsert dragged into a cell, its form giving the
-  SQLite connection first and order_id as the key; the cell run in the Workbench's kernel as a dry run
-  (nothing written, "update 1 row, insert 2 rows"), then with dry_run = False (written); the Connections
+- **In the browser** (Chromium, tests/e2e/test_write_starters_page.py): the Write family (60 with the
+  cross-listed four) in the Workbench's blade list; SQLite upsert dragged into a cell (the call only, `write_sqlite = sab.blade("Write to SQLite")` above
+  it), its form giving the SQLite connection first and order_id as the key; the cell run in the Workbench's kernel (the
+  function fetched by sab.blade from the starter pack) as a dry run
+  (nothing written, "update 1 row, insert 2 rows"), then with dry_run=False (written); the Connections
   page's cards reading Writes and Read-only, the detail listing the starters.
 - **Not checked:** a real SQL Server or Azure SQL (fast_executemany with setinputsizes on real types,
   MERGE's locking under load, Azure's transient errors as they really arrive, IDENTITY_INSERT

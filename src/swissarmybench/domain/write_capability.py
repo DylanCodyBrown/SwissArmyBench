@@ -137,11 +137,14 @@ def capability(
 
 
 def starters_for(template: str, starters: Iterable[Mapping[str, Any]]) -> list[str]:
-    """The Write starters that name this kind among their tags, by name."""
+    """The Write starters that name this kind among their tags, by name: the calls a cell takes (each
+    runs one of the family's functions, `Write to SQLite`, which are not listed here)."""
     return sorted(
         str(s["name"])
         for s in starters
-        if s.get("family") == WRITE_FAMILY and template in [str(t) for t in s.get("tags") or ()]
+        if s.get("family") == WRITE_FAMILY
+        and s.get("kind", "snippet") == "snippet"
+        and template in [str(t) for t in s.get("tags") or ()]
     )
 
 

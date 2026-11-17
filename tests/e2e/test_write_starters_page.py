@@ -2,7 +2,7 @@
 """The Write starters (docs/ideas.md, "Writing data"), in a real browser: the Write family in the
 Workbench's blade list; a SQLite upsert dragged into a notebook's cell, its form offering the SQLite
 connection first and the key column an id; the cell run as a dry run (nothing written, what it would do
-said), then with dry_run = False (the rows written); and the Connections page's cards saying Writes or
+said), then with dry_run=False (the rows written); and the Connections page's cards saying Writes or
 Read-only, the detail saying which starters.
 
 With SWISSARMYBENCH_SHOTS set to a folder, the tests also save screenshots there (2x). Made-up data
@@ -71,7 +71,7 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     cells = workbench.locator(".wb-cell")
     expect(cells.nth(1).locator(".monaco-editor")).to_be_visible(timeout=20000)
     listed = blades(workbench)
-    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write47", timeout=20000)
+    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write60", timeout=20000)
     family(listed, "Write")
     upsert = listed.locator(".starter-item", has_text="SQLite upsert")
     expect(upsert.locator(".blade-kind")).to_have_text("Python")
@@ -89,8 +89,9 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     source = window(server, "doc.read")["cells"][1]["source"]
     assert (
         source.startswith("# SQLite upsert:")
-        and 'connection = "Shop"' in source
-        and "rows = orders" in source
+        and '    "Shop",' in source
+        and "    orders,  # a DataFrame" in source
+        and 'write_sqlite = sab.blade("Write to SQLite")' in source
     )
     if workbench.locator(".wb-flyout:not([hidden])").count():
         workbench.get_by_role("button", name="Add a blade").click()  # the blade list folded away
@@ -102,11 +103,12 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     shot(workbench, "3-the-dry-run")
     with sqlite3.connect(shop) as db:
         assert db.execute("SELECT count(*) FROM orders").fetchone() == (1,)
-    # The user said to write: dry_run False, and the cell again.
-    line = cells.nth(1).locator(".view-line", has_text="dry_run = True")
+    # The user said to write: dry_run=False, and the cell again.
+    line = cells.nth(1).locator(".view-line", has_text="dry_run=True")
     line.locator("span", has_text="True").last.dblclick()
     workbench.keyboard.type("False")
-    wait_until(lambda: "dry_run = False\n" in window(server, "doc.read")["cells"][1]["source"])
+    workbench.keyboard.press("Escape")  # the completion's list closed
+    wait_until(lambda: "    dry_run=False," in window(server, "doc.read")["cells"][1]["source"])
     window(server, "run.primary")
     expect(outputs).to_contain_text("Wrote orders on Shop: updated 1 row, inserted 2 rows", timeout=90000)
     outputs.scroll_into_view_if_needed()
