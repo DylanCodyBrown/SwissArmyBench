@@ -54,6 +54,7 @@ import { showAddApi } from "./addApi";
 import { api, errorText, onNotice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
+import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
@@ -142,6 +143,8 @@ interface Connection {
   pack: string | null;
   /** A project opened on another computer: a password with no source here, and its fix (Edit). */
   needs_password?: { missing: string[]; message: string } | null;
+  /** How it lists and reads its tables (domain/connection_tables.py); none: a key vault. */
+  tables_kind?: string | null;
 }
 
 type Status = "works" | "ready" | "needs" | "failing";
@@ -164,6 +167,8 @@ interface Card {
   missing: string[];
   catalog_state: { state: string; error?: string } | null;
   calls: Calls;
+  /** How it lists and reads its tables; "api": an API's (the APIs page has those, not this page). */
+  tables_kind?: string | null;
 }
 
 /** A cell, a canvas block or an open grid that uses a connection. */
@@ -437,6 +442,26 @@ export async function importRelationships(connection: string, dataset = ""): Pro
   }
 }
 
+/** The Connections page shows no APIs (the owner, 2026-11-17: "APIs are connections but they dont get
+ *  the connection treatment here"): the APIs page has them. */
+function withoutApis<T extends { tables_kind?: string | null }>(found: T[]): T[] {
+  return found.filter((c) => c.tables_kind !== "api");
+}
+
+/** A connection's detail: its tables (connectionTree.ts) above where it is used; a key vault has none. */
+function withTables(name: string, c: Connection | undefined, used: HTMLElement): HTMLElement {
+  if (!c?.tables_kind || c.tables_kind === "api") return used;
+  return h("div", { class: "connection-detail-main" }, tablesSection(name, shownAsTab), used);
+}
+
+/** A Dataverse connection saved for its Web API: one click moves it to its SQL endpoint. */
+function dataverseSwitch(c: Connection | undefined, after: () => void): HTMLElement | null {
+  if (c?.tables_kind !== "dataverse_web") return null;
+  return button("Web API (switch to the SQL endpoint)", () => {
+    void api(`/connections/${encodeURIComponent(c.name)}/sql-endpoint`, "POST").then(after, (e: Error) => toast(errorText(e), "error"));
+  }, { icon: "sql" });
+}
+
 /** A connection type's icon (2026-11-16): its own, by its id (dom.ts ICONS: postgres, excel,
  *  azure_key_vault, ...), else its group's. */
 const GROUP_ICONS = { database: "sql", file: "folder", vault: "key", python: "code" } as const;
@@ -530,7 +555,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     }
     let found: Card[];
     try {
-      found = (await api<{ connections: Card[] }>("/connections/usage")).connections;
+      found = withoutApis((await api<{ connections: Card[] }>("/connections/usage")).connections);
     } catch (e) {
       if (mine !== drawing) return;
       clear(foot);
@@ -616,6 +641,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(name), { icon: "rows", class: "primary" }) : null,
       readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
       button("Test", () => void testSaved(name, c && (c.connection === "python" || c.dialect === "dataverse") ? tested : undefined).then(refreshCalls), { icon: "play" }),
+      dataverseSwitch(c, () => void showDetail(name)),
       c?.has_catalog ? button("Refresh catalog", () => void refresh(name).then(() => void showDetail(name)), { icon: "import" }) : null,
       config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
       readOnly
@@ -674,7 +700,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       h(
         "div",
         { class: "connection-detail" },
-        used,
+        withTables(name, c, used),
         h(
           "div",
           { class: "connection-detail-side" },

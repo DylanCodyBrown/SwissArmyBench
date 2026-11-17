@@ -31,6 +31,25 @@ interface Built {
   dataset: string;
   version: number;
   rows: number;
+  /** The connections' tables the query named ([Finance Captive].Sales), each read once a session. */
+  connection_reads?: { connection: string; as: string; rows: number; cut: boolean; read_at: string; cached: boolean }[];
+}
+
+/** Where the connections' tables came from and when, for the tray's status line. */
+function readsText(built: Built): string {
+  const reads = built.connection_reads ?? [];
+  return reads.map((r) => ` ${r.as}: ${formatCount(r.rows)}${r.cut ? " (its first rows)" : ""}, read ${r.read_at.slice(11)}.`).join("");
+}
+
+/** Refresh: the connections' tables are read again on the next Run. */
+function offerRefresh(built: Built): void {
+  const reads = built.connection_reads ?? [];
+  if (!reads.length) return;
+  const names = [...new Set(reads.map((r) => r.connection))];
+  toast(`Read from ${names.join(", ")}`, "info", {
+    label: "Refresh",
+    run: () => void Promise.all(names.map((connection) => api("/connections/sql/refresh", "POST", { connection }))).then(() => toast("Run again reads them anew.")),
+  });
 }
 
 interface Tray {
@@ -236,7 +255,8 @@ async function build(tray: Tray, name: string, replace: boolean): Promise<Built 
   tray.busy(true);
   try {
     const built = await api<Built>(`/datasets/${encodeURIComponent(name)}/query`, "POST", { sql, replace });
-    tray.report(`${rowsText(built.rows)} in ${built.dataset} (version ${built.version}).`);
+    tray.report(`${rowsText(built.rows)} in ${built.dataset} (version ${built.version}).${readsText(built)}`);
+    offerRefresh(built);
     return built;
   } catch (e) {
     tray.report((e as Error).message, true);
