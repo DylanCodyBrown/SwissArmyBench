@@ -1,4 +1,4 @@
-# Swiss Army Bench for Code Apps (a plan)
+# Swiss Army Bench Power Apps Edition (a plan)
 
 Status: **planned, not started** (the owner, 2026-11-17).
 
@@ -190,3 +190,21 @@ This supersedes the sections above where they differ.
    cells on DuckDB, Dataverse into grids, `data.ts` and the `.ts` modules; (6) connectors and custom
    connectors in the APIs explorer; (7) TSX previews, TSX blades and TypeScript functions, push and versions.
    About 6 branches after the library and project folders.
+
+## Decided: the name, the codebase, and canvas apps later (the owner, 2026-11-17)
+"I think we go ahead and plan on that just being a different version out of this code base entirely and we
+call it Swiss army bench power apps edition. And we can plan to later build canvas apps with it as an
+expansion"
+1. **Name: Swiss Army Bench Power Apps Edition** (wherever this plan says "Swiss Army Bench for Code Apps" or
+   "the code apps edition", read this). The status bar says it; its PyPI package is
+   `swissarmybench-powerapps` (replacing `swissarmybench-codeapps` above); its installers
+   `install-powerapps.ps1` and `install-powerapps.sh`.
+2. **Built out of this codebase:** a different version of the app from this one repository, as planned
+   above (an edition fixed at install), reusing the GUI and the shell; open question 1 is answered.
+3. **Later expansion: canvas apps.** After code apps, the same edition grows to Power Apps canvas apps,
+   again through pac rather than our own code: an app's `.msapp` unpacked to its source (Power Fx and
+   YAML, with `pac canvas unpack`, or whatever source format current pac and Power Apps use: check first),
+   edited in the Workbench (Power Fx with IntelliSense for the app's controls and data sources), packed and
+   imported back (`pac canvas pack`, a solution import). Data sources, connectors, Dataverse and custom
+   connectors are the ones the code apps work already brings. Not started; a plan of its own when code apps
+   are done.
