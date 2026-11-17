@@ -142,6 +142,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
     "projects": "Projects as one .sab file: open, save, the recent ones, tables that need a fix",
+    "accounting": "Accounting (an extension): the Excel canvas, Play, workbook.py, templates, statements",
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
 }

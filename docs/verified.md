@@ -2538,3 +2538,32 @@ After merging claude/vibrant-mendel-j04osj (lakes and SharePoint) into sql-serve
 Chromium, 3,767 passed, 45 skipped, 8 failed: the seven known on main (beta export zip, a script's HTML cell,
 the Power BI page, swap-connection's deleted connection, the agent snapshot, the narrow window, the
 Application row's zoom) and test_workbench_feedback's landing pages, which passes alone (load).
+
+
+## The Accounting extension (2026-11-17, branch ext-accounting)
+Checked by tests (made-up data: a made-up reinsurer's cessions, tests/accounting_data.py):
+tests/test_accounting_workbook.py (each block kind read back cell by cell with openpyxl: a title merged and
+bold, text, a table's labels, formats, widths, total formulas, a colour rule's range, freeze panes, print
+setup; a pivot against DuckDB's own GROUP BYs, with an average's total; a count pivot; the block DuckDB reading
+no file; a chart with a wrong category said by its sheet and cell; Export's workbook.py run in a fresh Python
+with a data.py beside it, the workbook the same cell by cell as Play's, charts and freeze panes too; a missing
+table said by workbook.py), tests/test_accounting_statements.py (bindings checked; a template filled: fixed
+text and its look, values, the number, a kept date format, three lines in a one-row area, the totals moved and
+made longer, merged cells and a named range moved; build_statements' dry run writing nothing, the files, the
+numbering, the totals, the register, nothing written over; one workbook of sheets; a file name naming a missing
+column), tests/test_accounting_routes.py (the capability check; off: no /accounting, only the bi type, no
+commands, a type refused; on: an Accounting project's files and .sab/project.json, its mode and a bi
+project's; a design's blocks placed, moved, played through a grid's filter, downloaded, saved without rows,
+exported; templates imported, bound, a place that is not there refused; the build refused without its dry
+run, then built, the register as a grid; the extension's commands; the package's entry point and version;
+the MCP listing the mode's tools first). Browser (Chromium): tests/e2e/test_accounting_page.py (the canvas
+with a table, a pivot and a combo chart; a block dragged and sized; Play's preview and its chart; Download;
+Save; Export; a template's cells clicked and bound; the statements' dry run then Build and the register;
+"New Excel workbook" offered and the Blades page's Excel, Files and Write families with Show all in an
+Accounting project, and neither in a bi project).
+LibreOffice 7 (soffice --headless, to PDF) opened a played workbook (its totals recomputed, colour rules
+shown), a built statement and a one-workbook build of six sheets.
+
+NOT checked: Excel itself opening the files (Windows, macOS); the extension installed from its wheel with
+`uv tool install --with` (its wheel was built and its entry_points.txt read; discovery was tested through
+SWISSARMYBENCH_EXTENSIONS); the extensions branch's Install and Extensions page with this package.
