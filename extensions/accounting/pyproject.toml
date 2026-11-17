@@ -11,7 +11,7 @@ dependencies = ["swissarmybench[server]==0.0.13"]
 
 # How the base finds it (src/swissarmybench/extensions.py): the group, its id, its module.
 [project.entry-points."swissarmybench.extensions"]
-accounting = "swissarmybench_accounting.extension"
+accounting = "swissarmybench_accounting.extension:describe"
 
 [build-system]
 requires = ["hatchling"]

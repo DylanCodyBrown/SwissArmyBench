@@ -33,6 +33,7 @@
  * ROUTING: /streamlit/apps/{app}... (routes_streamlit.py); the `streamlit_changed` notice
  */
 import { agentApi, api, ApiError } from "./api";
+import { history, pageTabs, resizeGrip } from "./canvasKit";
 import { button, clear, h, icon, showMenu, toast } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
 import { type PromptOptions, promptInstall } from "./missingPackages";
@@ -157,8 +158,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
   let device: Device = "desktop";
   let previewTheme: "light" | "dark" | null = null;
   let freshSession = 0; // Reset state: the live page is opened again with a new session
-  const undos: SavedPage[][] = [];
-  const redos: SavedPage[][] = [];
+  const changes = history<SavedPage[]>(); // Undo and Redo (canvasKit.ts, shared with the Excel canvas)
   let id: string | null = null;
   let opening: Promise<string> | null = null;
   let pageId: string | null = null;
@@ -229,11 +229,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     const before = state ? savedPages(state.pages) : null;
     try {
       const done = await call(path, method, body);
-      if (before) {
-        undos.push(before);
-        if (undos.length > 50) undos.shift();
-        redos.length = 0;
-      }
+      if (before) changes.push(before);
       return done;
     } catch (e) {
       toast((e as Error).message, "error");
@@ -389,73 +385,42 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
 
   // ===== the top: the pages as tabs, and the app's tools =====
 
-  function renamePage(page: CanvasPage, label: HTMLElement): void {
-    const input = h("input", { type: "text", class: "cv-rename", value: page.name, "aria-label": "Page name", maxlength: 80 }) as HTMLInputElement;
-    let done = false;
-    const finish = (keep: boolean): void => {
-      if (done) return;
-      done = true;
-      const name = input.value.trim();
-      if (keep && name && name !== page.name) void change(`/pages/${page.id}`, "PATCH", { name });
-      else draw();
-    };
-    input.addEventListener("keydown", (e) => {
-      e.stopPropagation();
-      if (e.key === "Enter") finish(true);
-      else if (e.key === "Escape") finish(false);
-    });
-    input.addEventListener("blur", () => finish(true));
-    label.replaceWith(input);
-    input.focus();
-    input.select();
-  }
-
   function drawTop(): void {
     const pages = state?.pages ?? [];
     const page = current();
-    const tabs = pages.map((p) => {
-      const label = h("span", { class: "tab-label" }, p.name);
-      const tab = h(
-        "div",
-        {
-          class: `tab-item cv-tab ${p.id === pageId ? "active" : ""}`,
-          role: "tab",
-          "aria-selected": String(p.id === pageId),
-          tabindex: p.id === pageId ? "0" : "-1",
-          title: p.name,
-          dataset: { page: p.id },
-          onclick: () => {
-            if (pageId === p.id) return;
-            pageId = p.id;
-            draw();
-          },
-          ondblclick: () => renamePage(p, label),
-          onkeydown: (e: KeyboardEvent) => {
-            if (e.target !== tab) return;
-            if (e.key === "F2") renamePage(p, label);
-            else if (e.key === "Enter" || e.key === " ") tab.click();
-          },
-        },
-        label,
-        button(`Remove ${p.name}`, (e) => {
-          e.stopPropagation();
-          if (p.blocks.length && !confirm(`Remove the page ${p.name}? The cells its blocks link to stay where they are.`)) return;
-          void change(`/pages/${p.id}`, "DELETE");
-        }, { icon: "close", iconOnly: true, class: "tab-close" }),
-      );
-      // A cell dropped on a page's tab goes to the end of that page.
-      tab.addEventListener("dragover", (e) => {
-        if (e.dataTransfer?.types.includes(CELL_DRAG)) e.preventDefault();
-      });
-      tab.addEventListener("drop", (e) => {
-        const link = draggedLink(e.dataTransfer);
-        if (!link) return;
-        e.preventDefault();
-        e.stopPropagation();
+    // The pages as tabs (canvasKit.ts): a cell dropped on a page's tab goes to the end of that page.
+    const tabs = pageTabs({
+      pages,
+      current: pageId,
+      label: "Pages",
+      noun: "page",
+      select: (p) => {
         pageId = p.id;
-        void place(link);
-      });
-      return tab;
+        draw();
+      },
+      rename: (p, name) => void change(`/pages/${p.id}`, "PATCH", { name }),
+      holds: (p) => p.blocks.length > 0,
+      remove: (p) => void change(`/pages/${p.id}`, "DELETE"),
+      add: () =>
+        void change("/pages", "POST", {}).then((next) => {
+          if (next?.page) {
+            pageId = next.page;
+            draw();
+          }
+        }),
+      decorate: (tab, p) => {
+        tab.addEventListener("dragover", (e) => {
+          if (e.dataTransfer?.types.includes(CELL_DRAG)) e.preventDefault();
+        });
+        tab.addEventListener("drop", (e) => {
+          const link = draggedLink(e.dataTransfer);
+          if (!link) return;
+          e.preventDefault();
+          e.stopPropagation();
+          pageId = p.id;
+          void place(link);
+        });
+      },
     });
     // Edit | Play: one pair, the mode in front pressed (the mockup's segmented control). Play while
     // the page shows runs it again; it says so when the page is out of date.
@@ -474,20 +439,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     exportButton.disabled = saveAsButton.disabled = !pages.length;
     const testButton = button(testing ? "Testing…" : "Test this page", () => void test(), { icon: "check", class: "cv-test", title: "Run the page with each filter's values (Streamlit's own test runner)" });
     testButton.disabled = !!testing || busy || !page?.blocks.length;
-    clear(
-      top,
-      h(
-        "div",
-        { class: "cv-tabs", role: "tablist", "aria-label": "Pages" },
-        ...tabs,
-        button("New page", () => void change("/pages", "POST", {}).then((next) => {
-          if (next?.page) {
-            pageId = next.page;
-            draw();
-          }
-        }), { icon: "plus", class: "ghost cv-new-page" }),
-      ),
-    );
+    clear(top, tabs);
     clear(tools, modes, testButton, ...(mode === "live" ? previewTools() : editTools()), exportButton, saveAsButton);
   }
 
@@ -497,8 +449,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     const page = current();
     const undoButton = button("Undo", () => void undo(), { icon: "undo", iconOnly: true, class: "ghost cv-undo", title: "Undo (Ctrl+Z)" });
     const redoButton = button("Redo", () => void redo(), { icon: "redo", iconOnly: true, class: "ghost cv-redo", title: "Redo (Ctrl+Shift+Z)" });
-    undoButton.disabled = !undos.length;
-    redoButton.disabled = !redos.length;
+    undoButton.disabled = !changes.canUndo();
+    redoButton.disabled = !changes.canRedo();
     const alignButton = h("button", { type: "button", class: "btn ghost cv-align", "aria-label": "Align", title: selectedId ? "Align the selected block" : "Select a block to align it" }, icon("align"), icon("down")) as HTMLButtonElement;
     alignButton.disabled = !selectedId;
     menuButton(alignButton, "Align", () => [
@@ -632,17 +584,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
   }
 
   async function undo(): Promise<boolean> {
-    const back = undos.pop();
-    if (!back || !state) return false;
-    redos.push(savedPages(state.pages));
-    return replacePages(back);
+    const back = state ? changes.undo(savedPages(state.pages)) : undefined;
+    return back ? replacePages(back) : false;
   }
 
   async function redo(): Promise<boolean> {
-    const again = redos.pop();
-    if (!again || !state) return false;
-    undos.push(savedPages(state.pages));
-    return replacePages(again);
+    const again = state ? changes.redo(savedPages(state.pages)) : undefined;
+    return again ? replacePages(again) : false;
   }
 
   const blockOf = (block?: string): { page: CanvasPage; block: BlockState } => {
@@ -874,33 +822,32 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       size.textContent = sizeWords({ w, h: rows });
     };
     const sized = (): { w: number; h: number | null } => ({ w: Number(element.dataset.w), h: element.dataset.h ? Number(element.dataset.h) : null });
-    grip.addEventListener("pointerdown", (down) => {
-      down.preventDefault();
-      down.stopPropagation();
-      grip.setPointerCapture(down.pointerId);
-      const column = (board.clientWidth - GAP * (COLUMNS - 1) - 2 * 12) / COLUMNS;
-      const box = element.getBoundingClientRect();
-      const from = sized();
-      element.classList.add("resizing");
-      const move = (event: PointerEvent): void => {
-        const w = Math.max(MIN_WIDTH, Math.min(COLUMNS - block.column + 1, Math.round((event.clientX - box.left + GAP) / (column + GAP))));
-        const dy = event.clientY - down.clientY;
+    // (canvasKit.ts's grip: the pointer's distance from where it went down.)
+    let column = 0;
+    let box = element.getBoundingClientRect();
+    let from = sized();
+    let startX = 0;
+    resizeGrip(
+      grip,
+      (down) => {
+        startX = down.clientX;
+        column = (board.clientWidth - GAP * (COLUMNS - 1) - 2 * 12) / COLUMNS;
+        box = element.getBoundingClientRect();
+        from = sized();
+        element.classList.add("resizing");
+      },
+      (dx, dy) => {
+        const w = Math.max(MIN_WIDTH, Math.min(COLUMNS - block.column + 1, Math.round((startX + dx - box.left + GAP) / (column + GAP))));
         // The height changes only once the pointer has clearly moved down or up: a sideways drag keeps it.
         const rows = Math.abs(dy) < 12 ? from.h : Math.max(1, Math.min(MAX_ROWS, (from.h ?? 6) + Math.round(dy / 14)));
         show(w, rows);
-      };
-      const up = (): void => {
+      },
+      () => {
         element.classList.remove("resizing");
-        grip.removeEventListener("pointermove", move);
-        grip.removeEventListener("pointerup", up);
-        grip.removeEventListener("pointercancel", up);
         const now = sized();
         if (now.w !== block.w || now.h !== block.h) void change(path, "PATCH", { w: now.w, h: now.h });
-      };
-      grip.addEventListener("pointermove", move);
-      grip.addEventListener("pointerup", up);
-      grip.addEventListener("pointercancel", up);
-    });
+      },
+    );
     grip.addEventListener("keydown", (e) => {
       const step: Record<string, [number, number]> = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] };
       const [dw, dh] = step[e.key] ?? [0, 0];

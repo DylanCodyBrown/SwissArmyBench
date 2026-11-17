@@ -171,6 +171,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "extensions/accounting/src/swissarmybench_accounting/service.py" = ["S608", "E501"]
 "extensions/accounting/src/swissarmybench_accounting/extension.py" = ["E501"]
 "tests/test_accounting_*.py" = ["E501", "S603", "S608"]
+"tests/e2e/test_accounting_page.py" = ["E501", "S603"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

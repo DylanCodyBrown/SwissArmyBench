@@ -75,6 +75,22 @@ FUNCTIONS = [
 ]
 
 
+def describe() -> dict[str, Any]:
+    """What its entry point gives (`swissarmybench_accounting.extension:describe`): the extension as the
+    Extensions page shows it, and its project type's mode."""
+    return {
+        "id": ID,
+        "name": NAME,
+        "description": DESCRIPTION,
+        "version": VERSION,
+        "adds": list(ADDS),
+        "package": "swissarmybench-accounting",
+        "project_type": PROJECT_TYPE,
+        "mode": dict(MODE),
+        "front_end": list(FRONT_END),
+    }
+
+
 def routes(services: Any) -> list[Any]:
     """Its routes, built from the base's services (the composition root's Services)."""
     from swissarmybench_accounting import routes as door

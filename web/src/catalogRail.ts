@@ -14,6 +14,7 @@ import { connectionIcon, importRelationships, openConnections } from "./connecti
 import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
 import { openImport } from "./projectImport";
 import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
+import { activeMode, familyShown, familyWords, onMode, whenMode } from "./modes";
 import type { Move } from "./nav";
 import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
 
@@ -354,11 +355,26 @@ export function mountRail(host: RailHost): Rail {
     );
   }
 
+  // The open project's mode shows its own families first (modes.ts); "Show all" lists every family.
+  let everyFamily = false;
+  void whenMode().then(() => renderBladeList());
+  onMode(() => renderBladeList());
+
   function renderStarters(): void {
     const searching = bladeSearch.value.trim() !== "" || bladeTag !== null;
-    const families = starterFamilies.map((f) => ({ family: f.family, shown: f.blades.filter((b) => bladeMatches(b)) })).filter((f) => f.shown.length);
-    if (!families.length) return;
-    bladeList.append(h("li", { class: "blade-group" }, h("span", {}, "Starters")));
+    const narrowed = !everyFamily && !!familyWords();
+    const families = starterFamilies
+      .filter((f) => !narrowed || familyShown(f.family))
+      .map((f) => ({ family: f.family, shown: f.blades.filter((b) => bladeMatches(b)) }))
+      .filter((f) => f.shown.length);
+    if (!families.length && !familyWords()) return;
+    const all = familyWords()
+      ? button(everyFamily ? `${activeMode().mode.name} only` : "Show all", () => {
+          everyFamily = !everyFamily;
+          renderBladeList();
+        }, { class: "ghost starter-all", pressed: everyFamily, title: everyFamily ? familyWords() : "Every family" })
+      : null;
+    bladeList.append(h("li", { class: "blade-group", "data-mode": activeMode().mode.type }, h("span", {}, "Starters"), all));
     for (const { family, shown } of families) {
       const open = searching || openFamilies.has(family);
       const toggle = h(

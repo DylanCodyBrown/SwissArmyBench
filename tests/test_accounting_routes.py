@@ -218,9 +218,11 @@ def test_the_agents_commands_are_the_extensions_when_on(monkeypatch: pytest.Monk
     called: list[tuple[str, str, Any]] = []
     from swissarmybench.cli import api
 
-    monkeypatch.setattr(
-        api, "call", lambda method, path, body=None, **_: called.append((method, path, body)) or {}
-    )
+    def fake(method: str, path: str, body: Any = None, **_: Any) -> Any:
+        called.append((method, path, body))
+        return {}
+
+    monkeypatch.setattr(api, "call", fake)
     extension.commands()["statements_build"].run({"template": "statement", "data": "statements"})
     assert called[-1] == (
         "POST",
@@ -241,7 +243,7 @@ def test_the_package_declares_its_entry_point_on_the_bases_version() -> None:
     assert own["project"]["version"] == base == swissarmybench_accounting.__version__
     assert own["project"]["dependencies"] == [f"swissarmybench[server]=={base}"]
     assert own["project"]["entry-points"]["swissarmybench.extensions"] == {
-        "accounting": "swissarmybench_accounting.extension"
+        "accounting": "swissarmybench_accounting.extension:describe"
     }
 
 
@@ -260,4 +262,6 @@ def test_the_mcp_lists_the_modes_tools_first(monkeypatch: pytest.MonkeyPatch) ->
         raise api.CommandError("no app")
 
     monkeypatch.setattr(api, "call", down)
-    assert next(t.name for t in manager.list_tools()) == next(iter(mcp_server.REGISTRY))
+    from swissarmybench.cli.commands import REGISTRY
+
+    assert next(t.name for t in manager.list_tools()) == next(iter(REGISTRY))

@@ -13,6 +13,7 @@
  */
 import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
+import { familyShown, familyWords, whenMode } from "./modes";
 
 /** The type a snippet's drag carries: {"name", "language"}. */
 export const SNIPPET_DRAG = "application/x-sab-snippet";
@@ -251,9 +252,9 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
 export async function pickSnippet(language: SnippetLanguage): Promise<string | null> {
   let found: StarterSummary[];
   try {
-    const [pack, mine] = await Promise.all([starters(), api<{ blades: StarterSummary[] }>("/blades")]);
+    const [pack, mine] = await Promise.all([starters(), api<{ blades: StarterSummary[] }>("/blades"), whenMode()]);
     const fits = (b: StarterSummary): boolean => !!b.language && SNIPPET_CELL[b.language] === SNIPPET_CELL[language];
-    found = [...mine.blades.filter((b) => b.kind === "snippet" && fits(b)), ...pack.flatMap((f) => f.blades.filter(fits))];
+    found = [...mine.blades.filter((b) => b.kind === "snippet" && fits(b)), ...pack.flatMap((f) => f.blades.filter(fits).map((b) => ({ ...b, family: f.family })))];
   } catch (error) {
     toast((error as Error).message, "error");
     return null;
@@ -269,9 +270,18 @@ export async function pickSnippet(language: SnippetLanguage): Promise<string | n
     };
     const search = h("input", { type: "search", class: "cat-search", placeholder: "Search", "aria-label": "Search snippets", spellcheck: "false" }) as HTMLInputElement;
     const list = h("ul", { class: "snippet-list", role: "listbox", "aria-label": "Snippets" });
+    // The open project's mode shows its families' snippets first (modes.ts; the user's own always): Show all.
+    const ofMode = (b: StarterSummary): boolean => !b.family || familyShown(b.family);
+    let every = !found.some((b) => b.family && ofMode(b)) || !familyWords();
+    const all = button("Show all", () => {
+      every = !every;
+      all.setAttribute("aria-pressed", String(every));
+      draw();
+    }, { class: "ghost snippet-all", pressed: every, title: familyWords() });
+    all.hidden = every;
     const draw = (): void => {
       const text = search.value.trim().toLowerCase();
-      const shown = found.filter((b) => !text || `${b.name} ${b.description} ${(b.tags ?? []).join(" ")}`.toLowerCase().includes(text));
+      const shown = found.filter((b) => (every || ofMode(b)) && (!text || `${b.name} ${b.description} ${(b.tags ?? []).join(" ")}`.toLowerCase().includes(text)));
       clear(
         list,
         ...shown.map((b) =>
@@ -288,7 +298,7 @@ export async function pickSnippet(language: SnippetLanguage): Promise<string | n
       }
     });
     draw();
-    body.append(search, list);
+    body.append(h("div", { class: "snippet-head" }, search, all), list);
     foot.append(button("Cancel", () => finish(null), { class: "ghost" }));
     body.closest("dialog")?.addEventListener("close", () => finish(null));
     search.focus();
