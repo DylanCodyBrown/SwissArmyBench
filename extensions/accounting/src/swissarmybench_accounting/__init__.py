@@ -4,4 +4,4 @@ Its entry point (extension.py) is what the base reads; runtime.py is the one wor
 the app and in the workbook.py it exports.
 """
 
-__version__ = "0.0.17"
+__version__ = "0.0.18"
