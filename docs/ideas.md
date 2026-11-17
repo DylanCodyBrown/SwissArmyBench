@@ -5060,3 +5060,21 @@ dataset's), or, with no recorded source, one of the open tables read from it (Co
 tables' keys and sources go too. The delete's answer carries `relationships_removed`, the page's toast says
 "Removed 40 relationships that came from <name>.", and the ERD redraws on the server's notice. Saved sets are
 the user's files: left alone. `relationships_undo` puts the joins back (the connection itself is not restored).
+
+**The ERD draws the tables the project uses.** The owner (2026-11-17): "Relationships should filter the erd to
+only the tables that are being used in the project": importing a connection's foreign keys drew all forty of its
+tables. With a project open, a table is **used** when it is open, is one of the project's tables
+(`.sab/project.json`), or its name stands as a word in one of the project's documents' code (a notebook's cell
+sources, never its outputs; a script as it is): `%%sql` and `%%dax` cells, `sab.sql`, `sab.read`,
+`sab.connection` calls, `[FI-Atlas].gl_entry`, `dbo.Vendor` for a table opened as `dbo_Vendor`
+(domain/relationships.py named_in, code_of; services/relationship_scope.py). A relationship is drawn when both
+its ends are used; the model keeps every one (the ERD's FK marks follow the drawn joins only). Decisions:
+- Words, not a SQL parse: one rule for SQL, DAX and Python, and a cell that does not parse still counts. A word
+  that happens to be a table's name shows that table: a false "used" is a box too many, never a lost join.
+- **Tables in this project** (the default) / **All tables**: a switch on the ERD with the count of the hidden
+  ones by connection ("34 more tables from FI-Atlas are not used in this project.", from the tables' recorded
+  source), and the same switch over **In use now** in the Relationships window. With no project open the ERD
+  is as before (the open tables, else the whole model) and no switch shows.
+- The agent: `erd_text` and `erd_draw` take `scope` (project, the default, or all), `GET /relationships/erd?scope=`
+  and `relationships_scope` (`GET /relationships/scope`) answer which tables are used and hidden.
+

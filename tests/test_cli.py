@@ -648,7 +648,7 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # project_copy, project_import_sab, projects_list, projects_sort, project_rename,
     # project_remove_from_list, projects_folder_set, project_types (2,500 characters).
     # The .sab conversion removed (2026-11-17) took one: project_import_sab.
-    # Relationship sets (2026-11-17: tangs renamed, the dialog made to manage them) added six:
+    # Relationship sets (2026-11-17: tangs renamed, the dialog made to manage them) added five:
     # relationships_delete, _update, _undo (the joins in use), _rename_set, _delete_set, and a saved set's
     # export in relationships_export_set (1,500 characters).
     assert size < 80_500, f"the tool list is {size} characters"

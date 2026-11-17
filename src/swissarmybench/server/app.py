@@ -302,7 +302,7 @@ def create_app(
             *routes_updates.routes(ctx.updates, ctx.extensions.names),
             *routes_extensions.routes(ctx.extensions),
             *routes_claude.routes(ctx.claude),
-            *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
+            *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares, ctx.project_tables),
             *routes_tieout.routes(ctx.tie_out),
             *routes_packs.routes(ctx.packs),
             *routes_processes.routes(ctx.sessions),

@@ -426,3 +426,58 @@ def test_a_set_saved_again_with_only_a_new_time_is_the_same_set() -> None:
     model = parse_model(SALES)
     assert same_set(model, replace(model, saved_at="2026-11-17T09:00:00+00:00"))
     assert not same_set(model, replace(model, description="Other"))
+
+
+# ===== the tables a project uses (the owner, 2026-11-17: "filter the erd to only the tables ... used") =====
+
+
+def test_table_names_are_found_as_words_in_the_projects_code() -> None:
+    from swissarmybench.domain.relationships import named_in
+
+    texts = [
+        "%%sql FI-Atlas\nSELECT * FROM [FI-Atlas].gl_entry e JOIN dbo.Vendor v ON e.vendor = v.id",
+        'df = sab.read("FI-Atlas", "Cost_Center")',
+        "EVALUATE 'Budget'[Amount]",
+    ]
+    tables = ["gl_entry", "dbo_Vendor", "cost_center", "Budget", "gl_entry_archive", "entry"]
+    assert named_in(texts, tables) == {"gl_entry", "dbo_Vendor", "cost_center", "Budget"}
+
+
+def test_a_notebooks_code_is_its_cells_sources_not_its_json() -> None:
+    from swissarmybench.domain.relationships import code_of
+
+    cell = {"cell_type": "code", "source": ["%%sql FI-Atlas\n", "SELECT *\n", "FROM\nvendor"]}
+    notebook = json.dumps(
+        {"cells": [cell | {"outputs": [{"text": "budget"}]}, {"cell_type": "markdown", "source": "notes"}]}
+    )
+    code = code_of("report.ipynb", notebook)
+    assert "FROM\nvendor" in code and "budget" not in code
+    assert code_of("load.py", "x = 1") == "x = 1"
+    assert code_of("broken.ipynb", "{not json") == ""
+
+
+def test_the_scope_draws_a_relationship_only_when_both_ends_are_used() -> None:
+    from swissarmybench.domain.relationships import hidden_words, used_scope
+
+    model = parse_model(
+        {
+            "name": "FI-Atlas foreign keys",
+            "tables": {
+                t: {"source": "connection:FI-Atlas"} for t in ("gl_entry", "gl_account", "cost_center")
+            },
+            "relationships": [
+                {"from": "gl_entry", "from_columns": ["account"], "to": "gl_account", "to_columns": ["id"]},
+                {"from": "gl_entry", "from_columns": ["cc"], "to": "cost_center", "to_columns": ["id"]},
+                {"from": "orders", "from_columns": ["store"], "to": "stores", "to_columns": ["id"]},
+            ],
+        }
+    )
+    scope = used_scope(model, {"gl_entry", "gl_account", "orders"})
+    assert scope["tables"] == ["gl_account", "gl_entry", "orders"]
+    assert scope["relationships"] == 1 and scope["all_relationships"] == 3
+    assert scope["hidden_from"] == [{"connection": "FI-Atlas", "tables": 1}, {"connection": "", "tables": 1}]
+    assert hidden_words(scope) == "1 more table from FI-Atlas and 1 more table are not used in this project."
+    only = used_scope(model, {"gl_entry", "orders", "stores"})
+    assert hidden_words(only) == "2 more tables from FI-Atlas are not used in this project."
+    everything = used_scope(model, None)
+    assert not everything["project"] and everything["hidden"] == [] and hidden_words(everything) == ""

@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from typing import Any
@@ -386,6 +387,97 @@ def without_connection(model: Model, connection: str, tables: set[str]) -> tuple
     )
 
 
+# ===== the tables a project uses: what the ERD draws (the owner, 2026-11-17) =====
+#
+# "Relationships should filter the erd to only the tables that are being used in the project." A database's
+# foreign keys bring every table it has (forty, say); the project uses a few. A table is used when it is open,
+# is one of the project's tables (.sab/project.json), or its name is in one of the project's documents (a
+# %%sql or %%dax cell, a sab.sql/sab.read/sab.connection call, [Connection].table in DuckDB SQL): read as
+# words, so `dbo.Orders`, `[FI-Atlas].Orders`, `'Orders'[Amount]` and sab.read("FI-Atlas", "Orders") all name
+# Orders, and `dbo.Orders` names a table opened as dbo_Orders too. A relationship is drawn when both its ends
+# are used; the model keeps everything.
+
+_WORD = re.compile(r"[A-Za-z0-9_]+")
+
+
+def named_in(texts: Iterable[str], tables: Iterable[str]) -> set[str]:
+    """The tables (by the model's names) that the texts name as a word, in any case; a name with `_` or
+    `-` in it also when its parts stand together with `.` or `-` between them (dbo.Orders: dbo_Orders)."""
+    words: set[str] = set()
+    for text in texts:
+        found = [w.casefold() for w in _WORD.findall(text)]
+        words.update(found)
+        joined = re.findall(r"[A-Za-z0-9_]+(?:[.\-][A-Za-z0-9_]+)+", text)
+        words.update(re.sub(r"[.\-]", "_", j).casefold() for j in joined)
+    return {t for t in tables if t.casefold().replace("-", "_") in words or t.casefold() in words}
+
+
+def code_of(path: str, text: str) -> str:
+    """A document's code, to look for table names in: a notebook's cells' sources (never its outputs, and
+    not the JSON's escapes, which would glue a word to the line before), a script as it is."""
+    if not path.endswith(".ipynb"):
+        return text
+    try:
+        cells = json.loads(text).get("cells", [])
+    except (ValueError, AttributeError):
+        return ""
+    parts = []
+    for cell in cells if isinstance(cells, list) else []:
+        source = cell.get("source", "") if isinstance(cell, dict) else ""
+        parts.append("".join(source) if isinstance(source, list) else str(source))
+    return "\n".join(parts)
+
+
+def source_name(source: str) -> str:
+    """The connection a table's recorded source names ("connection:FI-Atlas", "Finance/Sales (Power BI)"),
+    or "" when it names none."""
+    if source.startswith("connection:"):
+        return source.removeprefix("connection:")
+    if source.endswith(" (Power BI)"):
+        return source.removesuffix(" (Power BI)").split("/", 1)[0]
+    return ""
+
+
+def used_scope(model: Model, used: set[str] | None) -> dict[str, Any]:
+    """What the ERD draws of the model for a project that uses `used` (None: no project open, everything).
+    The tables shown and hidden, the hidden ones counted by the connection they came from, and how many
+    relationships are drawn (both ends used) of all."""
+    tables = model.tables()
+    shown = tables if used is None else {t for t in tables if t in used}
+    hidden = sorted(tables - shown)
+    by_source: dict[str, int] = {}
+    for t in hidden:
+        name = source_name(model.sources.get(t, ""))
+        by_source[name] = by_source.get(name, 0) + 1
+    drawn = [r for r in model.relationships if r.from_table in shown and r.to_table in shown]
+    return {
+        "project": used is not None,
+        "tables": sorted(shown),
+        "hidden": hidden,
+        "hidden_from": [
+            {"connection": k, "tables": v}
+            for k, v in sorted(by_source.items(), key=lambda kv: (not kv[0], kv[0]))
+        ],
+        "relationships": len(drawn),
+        "all_relationships": len(model.relationships),
+    }
+
+
+def hidden_words(scope: Mapping[str, Any]) -> str:
+    """The count of the tables not drawn, in one sentence ("34 more tables from FI-Atlas are not used in
+    this project."), or ""."""
+    parts = [
+        f"{h['tables']} more table{'' if h['tables'] == 1 else 's'}"
+        + (f" from {h['connection']}" if h["connection"] else "")
+        for h in scope.get("hidden_from", [])
+    ]
+    if not parts:
+        return ""
+    total = sum(h["tables"] for h in scope["hidden_from"])
+    verb = "is" if total == 1 else "are"
+    return f"{' and '.join(parts)} {verb} not used in this project."
+
+
 def conflicts(base: Model, extra: Model) -> list[str]:
     """Where `extra` changes what `base` says about the same join or key (applied later, it wins):
     plain sentences, so the window can say what changed hands."""
@@ -429,7 +521,9 @@ def mermaid_erd(model: Model, columns: dict[str, list[tuple[str, str]]], only: s
     table's (name, type) list for the types; `only` limits the diagram to those tables."""
     tables = sorted(t for t in model.tables() if only is None or t in only)
     fk: dict[str, set[str]] = {}
-    for r in model.relationships:
+    for r in model.relationships:  # the joins drawn: a column of a join to a table not drawn is no FK here
+        if r.from_table not in tables or r.to_table not in tables:
+            continue
         fk.setdefault(r.from_table, set()).update(r.from_columns)
         fk.setdefault(r.to_table, set()).update(r.to_columns)
     lines = ["erDiagram"]

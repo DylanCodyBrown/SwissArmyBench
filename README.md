@@ -89,7 +89,9 @@ What a grid page does:
   (whether a join is used), change a row's **Kind** or **Run** in place, filter by table or column, sort
   by any column, group by From table; every change has one **Undo** in its toast. Deleting a connection
   takes the relationships its tables held out of the ones in use (the toast says how many); saved sets
-  stay.
+  stay. With a project open, the ERD and **In use now** show only the tables the project uses (open,
+  its own, or named in its notebooks' and scripts' code) and a join only when both ends are; **All
+  tables** shows the rest, and the ERD says how many are not drawn.
 - **Packs:** blades and relationship sets a team keeps in a GitHub repository that is also a Claude Code
   plugin marketplace. Install a pack with `/plugin install` and its blades and sets show up, marked with the
   pack; `/plugin marketplace update` brings the team's latest.

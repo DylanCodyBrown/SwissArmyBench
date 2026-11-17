@@ -31,7 +31,7 @@ import { api, download, grid } from "./api";
 import { append, button, clear, h, icon, openDialog, showMenu, toast, type MenuItem } from "./dom";
 import { showAgentView } from "./panes";
 import { saveBlob } from "./profileView";
-import { currentModel, loadRelationships, type Join } from "./relationships";
+import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
 
 interface SavedSet {
   name: string;
@@ -204,6 +204,9 @@ export function openRelationships(startFinding = false): void {
   let sort: { key: SortKey; down: boolean } | null = null;
   let grouped = false;
   let shown: Join[] = []; // the rows drawn, in their order (select all and ranges use it)
+  // With a project open, the joins whose two tables it uses (by default) or all of them.
+  let scope: RelationshipScope | null = null;
+  let showAll = false;
 
   body.append(setsHost, findHost, currentHost);
   const file = h("input", { type: "file", accept: ".json,.tang,application/json", hidden: true, onchange: () => void importFile() }) as HTMLInputElement;
@@ -447,7 +450,9 @@ export function openRelationships(startFinding = false): void {
   /** The rows to draw: filtered by table or column, sorted, grouped by From table. */
   function visible(all: Join[]): Join[] {
     const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+    const used = scope?.project && !showAll ? new Set(scope.tables) : null;
     let rows = all.filter((r) => {
+      if (used && !(used.has(r.from) && used.has(r.to))) return false;
       const text = [r.from, r.to, ...r.from_columns, ...r.to_columns].join(" ").toLowerCase();
       return words.every((w) => text.includes(w));
     });
@@ -466,6 +471,7 @@ export function openRelationships(startFinding = false): void {
 
   async function renderCurrent(): Promise<void> {
     await loadRelationships();
+    scope = await projectScope();
     // Rows that are gone are no longer selected.
     const now = new Set(currentModel().relationships.map(keyOf));
     for (const k of [...selected]) if (!now.has(k)) selected.delete(k);
@@ -631,13 +637,24 @@ export function openRelationships(startFinding = false): void {
             button("Delete selected", () => void remove(picked), { icon: "trash", class: "danger" }),
           )
         : null,
+      model.relationships.length && scope?.project
+        ? h(
+            "div",
+            { class: "rel-scope" },
+            scopeSwitch(showAll, (all) => {
+              showAll = all;
+              drawCurrent();
+            }),
+            scope.words ? h("span", { class: "hint rel-hidden", title: scope.words }, scope.words) : null,
+          )
+        : null,
       model.relationships.length
         ? h("div", { class: "rel-scroll" }, h("table", { class: "small rel-table" }, header(), h("tbody", {}, ...rows)))
         : h("p", { class: "hint" }, "No joins in use yet."),
       keys.length ? h("p", { class: "hint rel-keys" }, "Keys: ", ...keys.map(([t, spec], i) => [i ? " · " : "", h("strong", {}, t), ` (${(spec.primary_key ?? []).join(", ")})`]).flat()) : null,
       model.relationships.length ? h("div", { class: "row-actions" }, button("Check against the open tables", () => void run(), { icon: "play" })) : null,
     );
-    for (const b of currentHost.querySelectorAll<HTMLButtonElement>(".rel-tools button:not([aria-pressed])")) b.disabled = !picked.length;
+    for (const b of currentHost.querySelectorAll<HTMLButtonElement>(".rel-tools > button:not([aria-pressed])")) b.disabled = !picked.length;
     if (focused) {
       search.focus();
       search.setSelectionRange(search.value.length, search.value.length);

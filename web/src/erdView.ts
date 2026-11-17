@@ -20,7 +20,7 @@
 import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { contextOf, gridList, onAgentView, viewingErd } from "./panes";
-import { currentModel, onRelationshipsChange } from "./relationships";
+import { currentModel, onRelationshipsChange, projectScope, scopeSwitch } from "./relationships";
 import { importRelationships, openRelationships } from "./relationshipsDialog";
 import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
@@ -72,6 +72,9 @@ function openTables(): string[] {
 
 // Each draw's number: a slower, older draw (the model was still loading) never paints over a newer one.
 let renders = 0;
+// With a project open: all of the model's tables (true), or only those the project uses (the default; the
+// owner, 2026-11-17: "Relationships should filter the erd to only the tables that are being used").
+let showAll = false;
 
 async function render(): Promise<void> {
   const mine = ++renders;
@@ -83,7 +86,22 @@ async function render(): Promise<void> {
   // The open tables' part of the model; none of them open (a Power BI dataset's relationships just
   // imported, its tables not opened yet): the whole model, rather than "No relationships yet".
   const openPart = named.filter((t) => open.has(t));
-  const covered = openPart.length || !model.relationships.length ? openPart : named;
+  const scope = named.length ? await projectScope() : null;
+  if (mine !== renders) return;
+  const inProject = scope?.project === true;
+  // A project open: the tables it uses (or all). None open: the open tables, else the whole model.
+  const covered = inProject ? (showAll ? named : scope.tables) : openPart.length || !model.relationships.length ? openPart : named;
+  const switcher = inProject
+    ? h(
+        "div",
+        { class: "erd-scope" },
+        scopeSwitch(showAll, (all) => {
+          showAll = all;
+          void render();
+        }),
+        scope.words ? h("span", { class: "hint erd-hidden" }, scope.words) : null,
+      )
+    : null;
   const file = h("input", { type: "file", accept: ".json,.tang,application/json", hidden: true, onchange: () => void importModel(file) });
   const actions = h(
     "div",
@@ -98,6 +116,16 @@ async function render(): Promise<void> {
     button("Fit", () => { fitted = true; fit(); }, { icon: "max", title: "Fit the diagram to the window" }),
     button("Actual size", () => { fitted = false; fit(); }, { icon: "zoom" }),
   ];
+  if (!covered.length && inProject && named.length) {
+    clear(
+      host,
+      h("h1", { class: "sandbox-title" }, "ERD"),
+      actions,
+      switcher,
+      h("p", { class: "hint" }, "None of the relationships' tables is used in this project."),
+    );
+    return;
+  }
   if (!covered.length) {
     const shared = await sharedModels(open);
     if (mine !== renders) return;
@@ -121,6 +149,7 @@ async function render(): Promise<void> {
     host,
     h("h1", { class: "sandbox-title" }, "ERD"),
     actions,
+    switcher,
     // ===== DIAGRAM =====
     slot,
   );

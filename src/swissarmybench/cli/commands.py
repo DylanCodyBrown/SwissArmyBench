@@ -1137,13 +1137,26 @@ def relationship_path(a: dict[str, Any]) -> Any:
     return api.call("GET", "/relationships/path", params={"from": a["start"], "to": a["end"]})
 
 
+SCOPE = opt("scope", "project (default: the tables the open project uses) or all.")
+
+
 @command(
     "erd_text",
-    "The ERD as Mermaid text, for the open tables the model knows.",
+    "The ERD as Mermaid text: the tables the open project uses (or all; no project open: the open tables)",
     opt("tables", "Comma-separated dataset names."),
+    SCOPE,
 )
 def erd(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/relationships/erd", params={"tables": a.get("tables")})
+    return api.call("GET", "/relationships/erd", params={"tables": a.get("tables"), "scope": a.get("scope")})
+
+
+@command(
+    "relationships_scope",
+    "Which of the model's tables the open project uses (drawn on the ERD) and which not, by connection",
+    SCOPE,
+)
+def relationships_scope(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/relationships/scope", params={"scope": a.get("scope")})
 
 
 @command(
@@ -1152,9 +1165,10 @@ def erd(a: dict[str, Any]) -> Any:
     req("grid", "Grid the card is filed with."),
     opt("tables", "Comma-separated dataset names."),
     opt("title", "Card title (default Relationships)."),
+    SCOPE,
 )
 def add_erd(a: dict[str, Any]) -> Any:
-    drawn = api.call("GET", "/relationships/erd", params={"tables": a.get("tables")})
+    drawn = api.call("GET", "/relationships/erd", params={"tables": a.get("tables"), "scope": a.get("scope")})
     card = api.call(
         "POST",
         f"/grids/{_q(a['grid'])}/cards",

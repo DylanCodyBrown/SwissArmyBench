@@ -477,6 +477,8 @@ src/swissarmybench/
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
+    relationship_scope.py the tables the open project uses (open, its own, named in its documents' code):
+                         what the ERD and the Relationships window draw by default (scope project or all)
     tieout.py            the tie-out report on a compare's two grids
     processes.py         Python sessions offering tables: the registry and the Open list
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept

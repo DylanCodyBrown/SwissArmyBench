@@ -5,7 +5,9 @@
   POST /relationships                    {"model": {...}, "replace": false}: merge (or replace) a model
   GET  /relationships/library            the models found in the library folders
   POST /relationships/library/{name}     apply that library model (merge)
-  GET  /relationships/erd?tables=a,b     the current model as Mermaid erDiagram text
+  GET  /relationships/erd?tables=a,b     the current model as Mermaid erDiagram text; without tables, of the
+       &scope=project|all                tables the open project uses (the default), or all of them
+  GET  /relationships/scope?scope=       which tables the project uses: drawn, hidden, counted by connection
 
   The joins in use, managed (each with one Undo):
   POST /relationships/delete             {"joins": [{"from", "from_columns", "to", "to_columns"}, ...]}
@@ -59,10 +61,13 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, error_response, json_response, query_int, read_json
+from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 
 
-def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) -> list[BaseRoute]:
+def routes(
+    models: Models, finder: Finder, keys: KeyFinder, compares: Compares, tables: ProjectTables
+) -> list[BaseRoute]:
     ws = keys.ws
 
     # ===== the model =====
@@ -88,7 +93,13 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
     async def erd(request: Request) -> Response:
         try:
             wanted = {t for t in request.query_params.get("tables", "").split(",") if t}
-            return json_response(models.erd(wanted))
+            return json_response(tables.erd(wanted, request.query_params.get("scope")))
+        except Exception as error:
+            return error_response(error)
+
+    async def scope(request: Request) -> Response:
+        try:
+            return json_response(tables.scope(request.query_params.get("scope")))
         except Exception as error:
             return error_response(error)
 
@@ -284,6 +295,7 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
         Route("/relationships/library", library),
         Route("/relationships/library/{name}", apply_library, methods=["POST"]),
         Route("/relationships/erd", erd),
+        Route("/relationships/scope", scope),
         Route("/relationships/delete", delete_joins, methods=["POST"]),
         Route("/relationships/update", update_joins, methods=["POST"]),
         Route("/relationships/undo", undo, methods=["POST"]),

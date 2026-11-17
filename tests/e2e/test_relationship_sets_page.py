@@ -230,3 +230,81 @@ def test_deleting_a_connection_says_how_many_relationships_went(
         call(server, "POST", "/relationships", {"model": {"name": "empty"}, "replace": True})
         call(server, "DELETE", f"/grids/{grid_of(url)}")
         page.close()
+
+
+def test_the_erd_draws_the_tables_the_project_uses_with_a_switch(
+    browser: Browser, server: dict[str, Any], tmp_path: Path
+) -> None:
+    import json
+
+    tables = [f"fi_table_{i:02d}" for i in range(36)] + [
+        "gl_entry",
+        "gl_account",
+        "dbo_Vendor",
+        "cost_center",
+    ]
+    model = {
+        "name": "FI-Atlas foreign keys",
+        "tables": {t: {"source": "connection:FI-Atlas"} for t in tables},
+        "relationships": [
+            {"from": "gl_entry", "from_columns": ["account"], "to": "gl_account", "to_columns": ["id"]},
+            {"from": "gl_entry", "from_columns": ["cc"], "to": "cost_center", "to_columns": ["id"]},
+            *(
+                {"from": f"fi_table_{i:02d}", "from_columns": ["k"], "to": "gl_account", "to_columns": ["id"]}
+                for i in range(36)
+            ),
+        ],
+    }
+    call(server, "POST", "/relationships", {"model": model, "replace": True})
+    folder = tmp_path / "ledger"
+    call(server, "POST", "/project/new", {"path": str(folder)})
+    cell = {
+        "cell_type": "code",
+        "source": "%%sql FI-Atlas\nSELECT * FROM [FI-Atlas].gl_entry JOIN gl_account ON 1=1",
+    }
+    (folder / "report.ipynb").write_text(
+        json.dumps(
+            {
+                "cells": [cell | {"metadata": {}, "outputs": []}],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+    url = push_client.push(pd.DataFrame({"x": [1, 2]}), name="rel_scope", new_grid=True)
+    page = open_grid(browser, url, width=1400, height=900, device_scale_factor=2)
+    try:
+        page.locator(".nav-rail [data-area='erd']").click()
+        erd = page.locator("#erd-view")
+        expect(erd.get_by_role("button", name="Tables in this project")).to_have_attribute(
+            "aria-pressed", "true"
+        )
+        expect(erd.locator(".erd-hidden")).to_have_text(
+            "38 more tables from FI-Atlas are not used in this project."
+        )
+        diagram = erd.locator(".erd-diagram svg")
+        expect(diagram).to_be_visible(timeout=30000)
+        expect(diagram.get_by_text("gl_entry", exact=True).first).to_be_visible()
+        assert diagram.get_by_text("cost_center", exact=True).count() == 0  # one end not used: not drawn
+        if SHOTS:
+            Path(SHOTS).mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(Path(SHOTS) / "erd-project-tables.png"))
+        erd.get_by_role("button", name="All tables").click()
+        expect(erd.get_by_role("button", name="All tables")).to_have_attribute("aria-pressed", "true")
+        expect(erd.locator(".erd-diagram svg").get_by_text("cost_center", exact=True).first).to_be_visible(
+            timeout=30000
+        )
+        # The Relationships window: the project's joins by default, all on the switch.
+        erd.get_by_role("button", name="Manage relationships").click()
+        dialog = page.locator("dialog.rel-dialog")
+        expect(dialog.locator(".rel-table tbody tr")).to_have_count(1, timeout=20000)
+        expect(dialog.locator(".rel-hidden")).to_contain_text("38 more tables from FI-Atlas")
+        dialog.get_by_role("button", name="All tables").click()
+        expect(dialog.locator(".rel-table tbody tr")).to_have_count(38)
+        assert len(call(server, "GET", "/relationships")["relationships"]) == 38  # the model keeps them all
+    finally:
+        call(server, "POST", "/project/close", {"discard": True})  # its grids close with it
+        call(server, "POST", "/relationships", {"model": {"name": "empty"}, "replace": True})
+        page.close()

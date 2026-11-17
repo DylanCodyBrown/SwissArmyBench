@@ -437,3 +437,81 @@ def test_deleting_a_connection_removes_the_relationships_it_brought(
         if m["name"] == "Kept set"
     )
     assert entry["relationships"] == 41
+
+
+# ===== the ERD draws the tables the project uses (the owner, 2026-11-17) =====
+
+
+def ledger_model() -> dict[str, Any]:
+    """Forty made-up tables from FI-Atlas, the joins between them, and one join of two pushed tables."""
+    tables = [f"fi_table_{i:02d}" for i in range(36)] + [
+        "gl_entry",
+        "gl_account",
+        "dbo_Vendor",
+        "cost_center",
+    ]
+    return {
+        "name": "FI-Atlas foreign keys",
+        "tables": {t: {"source": "connection:FI-Atlas"} for t in tables},
+        "relationships": [
+            {"from": "gl_entry", "from_columns": ["account"], "to": "gl_account", "to_columns": ["id"]},
+            {"from": "gl_entry", "from_columns": ["vendor"], "to": "dbo_Vendor", "to_columns": ["id"]},
+            {"from": "gl_entry", "from_columns": ["cc"], "to": "cost_center", "to_columns": ["id"]},
+            *(
+                {"from": f"fi_table_{i:02d}", "from_columns": ["k"], "to": "gl_account", "to_columns": ["id"]}
+                for i in range(36)
+            ),
+        ],
+    }
+
+
+def test_the_erd_draws_only_the_tables_the_project_uses(client: TestClient, tmp_path: Path) -> None:
+    client.post("/relationships", json={"model": ledger_model(), "replace": True}, headers=AUTH)
+    # No project open: everything, as before.
+    scope = client.get("/relationships/scope", headers=AUTH).json()
+    assert not scope["project"] and len(scope["tables"]) == 40 + 0 and scope["words"] == ""
+    folder = tmp_path / "work" / "ledger"
+    made = client.post("/project/new", json={"path": str(folder)}, headers=AUTH)
+    assert made.status_code == 200, made.text
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "source": [
+                    "%%sql FI-Atlas\n",
+                    "SELECT * FROM [FI-Atlas].gl_entry e\n",
+                    "JOIN gl_account a ON 1=1",
+                ],
+                "metadata": {},
+                "outputs": [],
+            }
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    (folder / "report.ipynb").write_text(json.dumps(notebook), encoding="utf-8")
+    (folder / "vendors.py").write_text('vendors = sab.read("FI-Atlas", "dbo.Vendor")\n', encoding="utf-8")
+    scope = client.get("/relationships/scope", headers=AUTH).json()
+    assert scope["project"] and scope["scope"] == "project"
+    used = set(scope["tables"])
+    assert {"gl_entry", "gl_account", "dbo_Vendor"} <= used and "cost_center" not in used
+    assert "fi_table_00" not in used and scope["relationships"] == 2  # both ends used: drawn
+    assert scope["hidden_from"] == [{"connection": "FI-Atlas", "tables": 37}]
+    assert scope["words"] == "37 more tables from FI-Atlas are not used in this project."
+    erd = client.get("/relationships/erd", headers=AUTH).json()
+    assert "gl_entry" in erd["mermaid"] and "cost_center" not in erd["mermaid"]
+    assert "fi_table_00" not in erd["mermaid"] and erd["words"] == scope["words"]
+    every = client.get("/relationships/erd?scope=all", headers=AUTH).json()
+    assert "cost_center" in every["mermaid"] and "fi_table_35" in every["mermaid"]
+    assert client.get("/relationships/erd?scope=some", headers=AUTH).status_code == 400
+    # An open table counts as used; the model keeps every relationship.
+    assert push(client, "cost_center", pa.table({"id": [1, 2]})).status_code == 200
+    assert "cost_center" in client.get("/relationships/scope", headers=AUTH).json()["tables"]
+    assert len(client.get("/relationships", headers=AUTH).json()["relationships"]) == 39
+    # The agent's: the same answers (the golden rule).
+    from swissarmybench.cli import commands
+
+    assert {"relationships_scope", "erd_text", "erd_draw"} <= set(commands.REGISTRY)
+    assert "scope" in {x.name for x in commands.REGISTRY["erd_draw"].args}
+    assert client.get("/relationships/scope?scope=all", headers=AGENT).json()["hidden"] == []

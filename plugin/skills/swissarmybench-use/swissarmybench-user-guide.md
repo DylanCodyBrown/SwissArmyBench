@@ -428,6 +428,8 @@ Draw diagram adds a copy of the diagram to Visualizations; the ERD tab always sh
 
 ## The ERD tab
 
+With a project open, the ERD draws only the tables the project uses: the open tables, the project's tables, and the tables its notebooks and scripts name (a `%%sql` or `%%dax` cell, `sab.sql`, `sab.read`, `[Connection].table`). A join is drawn when both its tables are used. **Tables in this project** (the default) and **All tables** switch between them, and beside them it says how many are not drawn ("34 more tables from FI-Atlas are not used in this project."). Nothing is removed: importing forty foreign keys keeps all forty, and **All tables** draws them. The Relationships window's **In use now** has the same switch. With no project open, the ERD draws the open tables as before.
+
 The ERD (on the rail, after Visualizations; it was called the Diagram) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
 
 ![The ERD tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)

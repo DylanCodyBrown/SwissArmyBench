@@ -126,6 +126,7 @@ from swissarmybench.services.project_explorer import ProjectExplorer
 from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
+from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
@@ -178,6 +179,7 @@ class Services:
     folders: Folders
     workbench: Workbench
     models: Models
+    project_tables: ProjectTables
     finder: Finder
     packs: Packs
     keys: KeyFinder
@@ -668,6 +670,23 @@ def bootstrap(
         open_documents=lambda: hooks.documents(),
         ask_window=lambda command, args: workbench_window.ask(command, args, "app"),
     )
+
+    # The tables the open project uses: the ERD draws only those by default (the owner, 2026-11-17).
+    def project_documents() -> tuple[set[str], list[tuple[str, str]]] | None:
+        project = sab_projects.state().get("project")
+        if not project:
+            return None
+        names = {str(t["name"]) for t in project.get("tables", [])}
+        texts: list[tuple[str, str]] = []
+        for path in usage_documents(documents, hooks, sab_projects, project_files):
+            try:
+                text, full, _ = documents.read(path)
+            except (OSError, ValueError):
+                continue
+            texts.append((full, text))
+        return names, texts
+
+    project_tables = ProjectTables(models, project_documents)
     # A connection deleted: the relationships its tables held go from the ones in use (saved sets stay).
     blades.connection_removed.append(
         lambda name, who: models.forget_connection(name, set(connection_swap.tables_of(name)), who)
@@ -942,6 +961,7 @@ def bootstrap(
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=workbench,
         models=models,
+        project_tables=project_tables,
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),
         library=library,
