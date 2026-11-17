@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -134,6 +135,10 @@ def test_with_follow_off_nothing_moves_and_the_session_page_lists_both_with_link
     expect(switch).to_be_checked()
     switch.click()
     expect(switch).not_to_be_checked()
+    # The box changes at once; the server hears the switch a moment later.
+    deadline = time.monotonic() + 5
+    while call(server, "GET", "/session-log")["follow"] is not False and time.monotonic() < deadline:
+        time.sleep(0.1)
     assert call(server, "GET", "/session-log")["follow"] is False
     page.go_back()
     expect(page.locator(".area-page")).to_have_count(0)
