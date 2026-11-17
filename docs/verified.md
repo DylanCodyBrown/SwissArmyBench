@@ -2151,6 +2151,10 @@ drags; code of more than one line is pasted, one typed value):
   palette (eight), Magenta chosen and worn; the detail's swatch; a rail blue refused; notebook cells with
   one and two connections (two marks), a comment not marked, a `%%sql Depot` cell, a change followed; the
   Data panel's tables; a script's margin stripe; a canvas block's colour.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,305 passed, 42 skipped, 1 failed in
+  19 minutes: test_ui's tabs test lost the tab order on a reload (the colours' first read redrew the empty
+  tab row, which remembered an empty order before the saved one was read). Fixed; test_ui.py and the
+  colours' tests again: 83 passed.
 - **Not checked:** the high-contrast and dark themes in a browser (the colours per theme are unit-tested);
   a Session entry's stripe in a browser (the attribute is set by the same rule as the cards); dragging a
   group head; Monaco's stripe colour in a script after a theme change.

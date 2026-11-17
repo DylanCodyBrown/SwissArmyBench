@@ -418,6 +418,7 @@ export function refreshSources(): void {
       .then(({ grids }) => {
         sources.clear();
         for (const g of grids) if (g.origin) sources.set(g.dataset, g.origin);
+        if (!order.length) return;
         normalize();
         render();
       })
@@ -425,7 +426,10 @@ export function refreshSources(): void {
       .finally(() => (sourcesAsked = false));
   }, 30);
 }
-onConnectionColours(() => render());
+// Never before the tabs are loaded: render() remembers the order, and an empty one would replace the saved.
+onConnectionColours(() => {
+  if (order.length) render();
+});
 onNotice((notice) => {
   if (notice.type === "table_connection" || notice.type === "dataset_updated" || notice.type === "dataset_renamed" || notice.type === "project_changed") refreshSources();
 });
