@@ -4849,6 +4849,9 @@ dialog.missing-packages {
    (workbenchGroups.ts) with one row of controls each, a status bar under them. */
 .workbench-page {
   display: grid;
+  /* One column the window's width (less the rail): a long top bar or status bar never makes the page
+     wider than the window (it scrolled sideways, under the rail). */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;

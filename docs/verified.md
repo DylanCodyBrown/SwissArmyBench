@@ -2484,6 +2484,13 @@ Not checked (nothing real reached):
   the database forms) and six failed the same way on the branch's base (ec0d298, run alone with the same
   Chromium): the narrow window's sideways scroll, the agent's snapshot, the Application row, a script's
   HTML cell, the Power BI workspace and the swap's code following: not this branch's.
+- **After the merge with data-explorer** (4580879): quick info stopped showing in the browser test. The
+  Workbench page had grown wider than the window (the body's one grid column was `auto`, so the longer
+  status bar, Data Explorer's toggle added, set its width: 1,353 px in a 1,232 px space), Monaco's cursor
+  scrolled the window 75 px sideways, and the rail covered the start of every line: the pointer meant for
+  the name landed on the rail's Apps button. The page's column is now `minmax(0, 1fr)` (no sideways
+  scroll; a crowded status bar is cut at its right end, as its own overflow already said), and the test
+  checks the window does not scroll sideways before hovering.
 
 - **After merging the main line (f96b8f9)** the whole suite (Chromium): 3,633 passed, 44 skipped, 9 failed
   and 1 error. Alone, four of those passed (Visualizations' pages, Show the math, a table cell's maker, the
