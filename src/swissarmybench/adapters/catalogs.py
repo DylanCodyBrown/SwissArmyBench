@@ -206,6 +206,19 @@ class CatalogStore:
         ).fetchall()
         return {str(r[0]) for r in rows}
 
+    def places(
+        self, cur: duckdb.DuckDBPyConnection, name: str, limit: int = 50_000
+    ) -> list[tuple[str, str, str]]:
+        """Every table of the catalog as (database, schema, table), at most `limit` (what a connection's
+        tables are named by in DuckDB SQL, domain/connection_tables.py)."""
+        info = self.get(name)
+        limit = min(200_000, max(1, int(limit)))
+        rows = cur.execute(
+            f"""SELECT DISTINCT database, schema, "table" FROM {info.table}
+            ORDER BY lower(schema), lower("table"), database LIMIT {limit}"""  # noqa: S608 (a checked number)
+        ).fetchall()
+        return [(str(r[0] or ""), str(r[1] or ""), str(r[2] or "")) for r in rows]
+
     def tables(
         self,
         cur: duckdb.DuckDBPyConnection,

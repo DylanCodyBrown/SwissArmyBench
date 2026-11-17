@@ -31,7 +31,7 @@ let group: HTMLElement;
 let strip: HTMLElement;
 let shownSerial = -1;
 let paste: () => void = () => undefined;
-let connections: { name: string; connection: string; needs_password: unknown }[] = [];
+let connections: { name: string; connection: string; needs_password: unknown; tables_kind?: string | null }[] = [];
 
 const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
 
@@ -104,7 +104,7 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
 
 async function loadConnections(): Promise<void> {
   try {
-    connections = (await api<{ connections: typeof connections }>("/connections")).connections.filter((c) => c.connection !== "vault");
+    connections = (await api<{ connections: typeof connections }>("/connections")).connections.filter((c) => c.connection !== "vault" && c.tables_kind !== "api");
   } catch {
     connections = [];
   }
@@ -204,7 +204,8 @@ function drawLanding(state: ProjectState): void {
           "div",
           { class: "landing-connections" },
           ...connections.map((c) =>
-            button(c.name, () => openCatalog(c.name), { icon: "plug", class: "start-action", title: c.needs_password ? `${c.name}: needs a password on this computer` : c.name }),
+            // Its tables as a tree (connectionTree.ts, on the Connections page): Open, Open all, Copy name.
+            button(c.name, () => visit(withParams({ open: "connections", at: "detail", type: null, name: c.name })), { icon: "plug", class: "start-action", title: c.needs_password ? `${c.name}: needs a password on this computer` : c.name }),
           ),
           button("Catalog", () => openCatalog(), { icon: "folder", class: "start-action" }),
           button("Add connection", () => visit(withParams({ open: "connections", at: "types", type: null, name: null })), { icon: "plus", class: "start-action" }),

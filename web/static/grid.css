@@ -11058,4 +11058,110 @@ g.follow-pulse > path:first-of-type {
   background-repeat: no-repeat;
   background-size: 100% 4px;
   box-shadow: none;
+
+/* ===== a connection's tables as a tree (connectionTree.ts) ===== */
+.connection-detail-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  align-content: start;
+}
+
+.conn-tree-search {
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.conn-tree-groups,
+.conn-tree-tables {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conn-tree-group > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.conn-tree-group > details > summary:hover,
+.conn-tree-row:hover {
+  background: var(--row-hover);
+}
+
+.conn-tree-group-name,
+.conn-tree-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conn-tree-group-name .count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.conn-tree-group-name .icon-svg,
+.conn-tree-name .icon-svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.conn-tree-tables {
+  margin-left: 18px;
+  border-left: 1px solid var(--border);
+}
+
+.conn-tree-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.conn-tree-actions {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.conn-tree-preview:not(:empty) {
+  margin: 4px 0 8px 6px;
+}
+
+/* A DuckDB SQL cell's connections, as its query names them (workbenchNotebook.ts drawNamed). */
+.wb-sql-named {
+  display: inline-flex;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wb-sql-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.wb-sql-conn .icon-svg {
+  width: 11px;
+  height: 11px;
+  color: var(--muted);
 }

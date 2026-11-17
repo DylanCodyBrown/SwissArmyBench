@@ -5,7 +5,9 @@
  *              a DataFrame's columns, modules; hover shows a signature and its help. Inside
  *              sab.connection("…") or sab.blade("…"): your connection and blade names; inside
  *              sab.dax("…"): your Power BI workspaces' datasets
- *   SQL CELL   the data explorer's catalog of the cell's connection (every catalog when it has none):
+ *   SQL CELL   with no connection (DuckDB): after `[` the connections, after `[Finance].` its datasets or
+ *              schemas and tables (connectionSql.ts); and
+ *              the data explorer's catalog of the cell's connection (every catalog when it has none):
  *              schemas, tables, views and columns, `orders.` gives orders' columns; the kernel's names
  *              too once it runs (a file connection's own tables); SQL's words
  *   DAX CELL   its dataset's part of the workspace's catalog (a DAX cell names `Finance/Sales model`:
@@ -21,6 +23,7 @@
  *          GET /connections/{name}/datasets?live=0 (a Power BI workspace's datasets, from its catalog)
  */
 import { api } from "./api";
+import { connectionSuggestions } from "./connectionSql";
 import type { Suggestion } from "./lazy/codeEditor";
 import { sqlLine } from "./workbenchNotebook";
 import type { Kernel } from "./workbenchKernel";
@@ -299,8 +302,13 @@ export function daxCompleter(named: () => string | null) {
 }
 
 /** A SQL cell: its connection's catalog, the kernel's names (as the %%sql cell it runs as), SQL's words. */
-export function sqlCompleter(kernel: Kernel, connection: () => string | null) {
+export function sqlCompleter(kernel: Kernel, connection: () => string | null, names: () => string[] = () => []) {
   return async (text: string, offset: number): Promise<Suggestion[]> => {
+    // No connection: DuckDB, where a connection's tables are named by the connection ([Finance].Sales).
+    if (!connection()) {
+      const named = await connectionSuggestions(text, offset, names());
+      if (named.length) return named;
+    }
     const token = /[\w."]*$/.exec(text.slice(0, offset))![0];
     const header = `${sqlLine(connection())}\n`;
     const [fromCatalog, fromKernel] = await Promise.all([

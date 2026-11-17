@@ -2,7 +2,9 @@
 Claude Desktop's config file.
 
 - `~/.swissarmybench/claude/<project or no-project>/`: CLAUDE.md, .mcp.json, .claude/settings.json,
-  written again at each launch (metadata only: names, counts, types, steps in words; no row, no secret).
+  written again at each launch (metadata only: names, counts, types, steps in words; no row, no secret);
+  its context.md rewritten while the app runs, atomically and only when its text changes, once the
+  folder exists (a launch made it).
 - `~/.swissarmybench/claude.json`: which Claude Code and Claude Desktop the user chose, bypass permissions
   mode (off unless turned on), and the Desktop config files the user allowed this app to write into.
 - A Claude Desktop install's claude_desktop_config.json: a dated backup first, then the file with the
@@ -37,6 +39,37 @@ class ClaudeFiles:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text, encoding="utf-8")
         return str(folder)
+
+    def write_context(self, name: str, text: str, make: bool = False) -> str | None:
+        """claude/<name>/context.md: written beside, then moved over, and only when its text changed; only
+        into a folder a launch made (`make`: the launch itself). Its path, or None (no folder)."""
+        folder = self.root / name
+        if not folder.is_dir():
+            if not make:
+                return None
+            folder.mkdir(parents=True, exist_ok=True)
+        target = folder / "context.md"
+        try:
+            if target.read_text(encoding="utf-8") == text:
+                return str(target)
+        except OSError:
+            pass
+        temporary = folder / ".context.md.tmp"
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, target)
+        return str(target)
+
+    def context_path(self, name: str) -> str | None:
+        """claude/<name>/context.md, when it is there."""
+        target = self.root / name / "context.md"
+        return str(target) if target.is_file() else None
+
+    def guide(self, topic: str) -> str:
+        """A guide topic's page (mcp/guide/<topic>.md), "" when there is none."""
+        try:
+            return (INDEX.parent / "guide" / f"{topic}.md").read_text(encoding="utf-8")
+        except OSError:
+            return ""
 
     def index(self) -> str:
         """The MCP server's index (mcp/index.md): the folder's CLAUDE.md carries it whole."""

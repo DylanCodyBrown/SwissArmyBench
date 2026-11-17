@@ -20,7 +20,7 @@ from typing import Any
 
 from swissarmybench.domain import connection_usage as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import python_connections
+from swissarmybench.domain import dataverse, python_connections
 from swissarmybench.domain.blades import Blade, BladeError
 from swissarmybench.domain.notebooks import NotebookError
 from swissarmybench.domain.streamlit_cells import StreamlitError
@@ -123,6 +123,9 @@ class ConnectionUsage:
             "catalog_state": entry.get("catalog_state"),
             "catalog_loaded": bool(entry.get("catalog_loaded")),
             "calls": (calls or rules.Calls()).to_json(),
+            "tables_kind": entry.get("tables_kind"),
+            # A Dataverse connection saved for its Web API: its card offers the SQL endpoint.
+            "reads": dataverse.WEB_API_WORDS if entry.get("tables_kind") == "dataverse_web" else "",
         }
 
     def overview(self) -> dict[str, Any]:

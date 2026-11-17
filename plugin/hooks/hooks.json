@@ -1,5 +1,5 @@
 {
-  "description": "Swiss Army Bench: what you sent your agent from the Workbench (Send to the agent), and the table in front of you, added to each prompt. Silent when no Swiss Army Bench server is running.",
+  "description": "Swiss Army Bench: what you sent your agent from the Workbench (Send to the agent), whether context.md changed, and the table in front of you, added to each prompt. Silent when no Swiss Army Bench server is running.",
   "hooks": {
     "UserPromptSubmit": [
       {

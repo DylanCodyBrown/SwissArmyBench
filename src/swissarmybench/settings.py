@@ -94,6 +94,13 @@ def _default_dataset_cap() -> int:
 
 
 EXCEL_MAX_ROWS: int = 1_048_576
+QUERY_ROWS_VARIABLE: str = "SWISSARMYBENCH_MAX_QUERY_ROWS"
+
+
+def _default_query_rows() -> int:
+    """5,000,000 rows from one connection's table into a DuckDB query, or SWISSARMYBENCH_MAX_QUERY_ROWS."""
+    override = os.environ.get(QUERY_ROWS_VARIABLE, "").replace(",", "").replace("_", "")
+    return int(override) if override.isdigit() and int(override) > 0 else 5_000_000
 
 
 def _default_total_budget() -> int:
@@ -144,6 +151,10 @@ class Settings:
     max_cell_chars: int = 500
     # Excel's sheet limit: the SQL box shows a result as large as a worksheet can hold.
     max_sql_rows: int = EXCEL_MAX_ROWS
+    # A connection's table named in a DuckDB query is read whole (every row the query needs, never its
+    # first rows only): above this many rows (counted at the source, with the filters sent) it is refused,
+    # with how to narrow it (domain/connection_tables.py too_many).
+    max_connection_query_rows: int = field(default_factory=_default_query_rows)
     max_chart_points: int = 5_000
     # An analysis blade gets the grid's rows as a DataFrame in a child process: up to this many.
     max_analysis_rows: int = 2_000_000
@@ -177,6 +188,10 @@ class Settings:
     project_temp_dir: Path | None = None
     # Autosave (the project's switch): how often it looks; a change saves once it has settled for a look.
     autosave_seconds: float = 2.0
+    # context.md (services/context_md.py), Launch Claude's folder's live picture: its size at most (trimmed in
+    # a stated order past it), and how often the app looks for a change to write (once it settled).
+    context_md_chars: int = 24_000
+    context_md_seconds: float = 2.0
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4

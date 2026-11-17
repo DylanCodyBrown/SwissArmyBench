@@ -791,17 +791,17 @@ conn = pyodbc.connect("DSN=my_data_source")""",
         ),
         secrets_from="vault",
     ),
-    # A Dataverse environment (domain/dataverse.py): its tables read through the Web API, SQL through
-    # its read-only SQL endpoint; signed in as you, a managed identity or an app registration whose
-    # client secret comes from a key vault only.
+    # A Dataverse environment (domain/dataverse.py): its tables listed and read on its read-only SQL
+    # endpoint (TDS; the owner, 2026-11-17), SQL there too; signed in as you, a managed identity or an
+    # app registration whose client secret comes from a key vault only.
     _db(
         dataverse.TEMPLATE,
         "Dataverse",
         dataverse.DIALECT,
         dataverse.YOU,
-        dataverse.CATALOG,
+        dataverse.SQL_CATALOG,
         "",
-        language="python",
+        language="sql",
         sign_ins=dataverse.SIGN_INS,
         secrets_from=dataverse.VAULT_ONLY,
     ),

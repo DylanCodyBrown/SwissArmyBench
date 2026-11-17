@@ -2,8 +2,10 @@
 
 GET    /claude            what was found (Claude Code, Claude Desktop), the choices; ?refresh=1 looks again
                                                                                     app_claude
-GET    /claude/context    what is open now, as markdown (metadata only)    app_claude context= (and the MCP
-                                                                           resource swissarmybench://context)
+GET    /claude/context    context.md: the app's live picture (metadata only), its path    app_context (and
+                          the MCP resource swissarmybench://context); the agent's read counts as seen
+GET    /claude/context/prompt   the prompt hook's question: the sections changed since the agent's last
+                          read, and the line it prints (plumbing)
 PUT    /claude            Settings, Claude: which Claude, bypass permissions mode, a Desktop's config file
                           (the user's only: 403 for the agent)
 POST   /claude/launch     the status bar's Launch Claude (the user's only: 403 for the agent)
@@ -27,7 +29,18 @@ def routes(claude: Claude) -> list[BaseRoute]:
             return error_response(error)
 
     async def context(request: Request) -> Response:
-        return json_response(claude.summary())
+        try:
+            return json_response(await claude.summary(actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def prompt(request: Request) -> Response:
+        if claude.context_md is None:
+            return json_response({"path": None, "first": False, "changed": [], "line": ""})
+        try:
+            return json_response(await claude.context_md.prompt())
+        except Exception as error:
+            return error_response(error)
 
     async def choose(request: Request) -> Response:
         try:
@@ -46,5 +59,6 @@ def routes(claude: Claude) -> list[BaseRoute]:
         Route("/claude", state),
         Route("/claude", choose, methods=["PUT"]),
         Route("/claude/context", context),
+        Route("/claude/context/prompt", prompt),
         Route("/claude/launch", launch, methods=["POST"]),
     ]

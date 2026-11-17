@@ -145,8 +145,11 @@ def test_add_api_from_a_file_and_from_the_form(
     expect(dialog.locator(".area-page-title")).to_contain_text("Orders")  # its detail
     assert standin.API_KEY not in dialog.inner_text()
     page.locator(".nav-rail [data-area='connections']").click()  # the cards
-    row = dialog.locator(".connection-card[data-connection='Orders']")
-    expect(row.locator(".connection-card-type")).to_have_text("Python (your own code)")
+    # An API is not on the Connections page (the owner, 2026-11-17: "APIs are connections but they dont get
+    # the connection treatment here"); its tables are in SQL all the same.
+    expect(dialog.locator(".connection-cards").first).to_be_visible()
+    expect(dialog.locator(".connection-card[data-connection='Orders']")).to_have_count(0)
+    assert any(c["name"] == "Orders" for c in call(server, "GET", "/connections")["connections"])
 
     # ===== from the form, with the AWS Lambda preset: every field labelled, Try it, the key kept =====
     service.key_name = "x-api-key"
