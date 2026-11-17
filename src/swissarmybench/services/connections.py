@@ -30,6 +30,7 @@ class ConnectionService:
         tables: Tables | None = None,
         models: RelationshipModels | None = None,
         catalogs: LoadedCatalogs | None = None,
+        colours: Colours | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -42,6 +43,9 @@ class ConnectionService:
         self._models = models
         # A Power BI workspace's loaded catalog: its datasets, and the table names several of them hold.
         self._catalogs = catalogs
+        # Connection colours (services/connection_colours.py): a new connection's next free one, and a
+        # colour sent with one checked against the rail's.
+        self._colours = colours
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -136,6 +140,7 @@ class ConnectionService:
                 "name": blade.name,
                 "description": blade.description,
                 "tags": blade.tags,
+                "colour": blade.colour,
                 "summary": self._blades.summary(blade),
             }
         )
@@ -164,6 +169,11 @@ class ConnectionService:
 
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         self._check(body)
+        if self._colours is not None:
+            if body.get("colour") is not None:
+                body = body | {"colour": self._colours.check(body["colour"])}
+            elif previous is None:
+                body = body | {"colour": self._colours.for_new()}  # the palette's next free one
         saved = await self._blades.save(body, previous, who)
         self._on_saved(str(saved["name"]))  # its catalog loads itself, in the background
         return saved
@@ -487,6 +497,12 @@ class ConnectionService:
             "tables": sorted(model.tables()),
             "skipped": skipped,  # those of the date tables Power BI makes by itself
         }
+
+
+class Colours(Protocol):
+    def for_new(self) -> str: ...
+
+    def check(self, colour: Any) -> str | None: ...
 
 
 class LoadedCatalogs(Protocol):

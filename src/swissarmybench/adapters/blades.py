@@ -29,6 +29,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -137,6 +138,7 @@ class BladeStore:
             language=str(data.get("language") or ""),
             cell_name=str(data.get("cell_name") or ""),
             family=str(data.get("family") or ""),
+            colour=rules.kept_colour(data.get("colour")),
             created_at=float(data.get("created_at", 0)),
             updated_at=float(data.get("updated_at", 0)),
         )
@@ -402,6 +404,20 @@ class BladeStore:
                 if not previous.path:
                     self._path(previous.name).unlink(missing_ok=True)
             return blade
+
+    def set_colour(self, name: str, colour: str | None) -> Blade:
+        """A connection's colour, written into its own record (a folder blade's file too); nothing else
+        changes (not even when it was saved)."""
+        with self._lock:
+            blade = self.get(name)
+            if blade.pack:
+                raise BladeError(
+                    f"{blade.name} comes from {'the starters' if blade.pack == rules.STARTERS else 'a pack'}:"
+                    " copy it as your own to choose its colour."
+                )
+            changed = replace(blade, colour=colour)
+            self._write(changed)
+            return changed
 
     def _new_file(self, folder: str, name: str) -> Path:
         listed = {os.path.normcase(os.path.abspath(f["path"])) for f in self.folders()}
