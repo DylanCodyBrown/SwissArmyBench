@@ -2432,3 +2432,8 @@ alone, on this branch and on its base (ec0d298) alike: test_beta_export_page (th
 Application row (Zoom out), test_swap_connection_page's deleted connection (the notebook not rewritten)
 fail on the base too; test_rail_page and test_streamlit_page's export passed alone (load). One was this
 branch's: test_workbench_page's database form order (the SQL Server sign-in's new label; fixed).
+
+After merging claude/vibrant-mendel-j04osj (lakes and SharePoint) into sql-server: the whole suite with
+Chromium, 3,767 passed, 45 skipped, 8 failed: the seven known on main (beta export zip, a script's HTML cell,
+the Power BI page, swap-connection's deleted connection, the agent snapshot, the narrow window, the
+Application row's zoom) and test_workbench_feedback's landing pages, which passes alone (load).
