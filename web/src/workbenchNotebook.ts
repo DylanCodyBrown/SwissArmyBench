@@ -54,6 +54,7 @@
  *
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
+import { cellConnections, markConnections, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
 import { button, clear, h, type MenuItem, showMenu, toast } from "./dom";
 import type { CodeEditor } from "./lazy/codeEditor";
@@ -398,11 +399,37 @@ export function notebookView(
     version++;
     changed();
     hooks.streamlit?.changed(); // the server says which cells call Streamlit, and a canvas reads them
+    connectionsSoon();
   };
+
+  // Connection colours (connectionColours.ts): a cell that names a connection (%%sql, %%dax, sab.sql,
+  // sab.read, sab.dax, sab.blade, sab.connection; a table's read-only cell by its load) wears its colour,
+  // two connections two marks. The server reads the cells (ast); nothing runs.
+  let marking = 0;
+  let markTimer: number | undefined;
+  const markConnectionsNow = async (): Promise<void> => {
+    const mine = ++marking;
+    const these = cells.filter((c) => !c.bar && (c.kind === "code" || c.kind === "sql" || c.kind === "dax"));
+    const found = await cellConnections(these.map((c) => ({ kind: c.kind, source: c.editor?.value() ?? c.source, connection: c.connection })));
+    if (mine !== marking) return;
+    these.forEach((c, i) => {
+      c.element.classList.add("conn-cell");
+      markConnections(c.element, found[i] ?? []);
+    });
+    for (const c of cells) if (!these.includes(c)) markConnections(c.element, []);
+  };
+  const connectionsSoon = (): void => {
+    window.clearTimeout(markTimer);
+    markTimer = window.setTimeout(() => void markConnectionsNow(), 400);
+  };
+  onConnectionColours(() => {
+    if (list.isConnected) connectionsSoon();
+  });
 
   const label = (cell: Cell): string => `Cell ${indexOf(cell) + 1} of ${cells.length}, ${KIND_NAMES[cell.kind]}`;
   const relabel = (): void => {
     for (const c of cells) c.element.setAttribute("aria-label", label(c));
+    connectionsSoon();
   };
 
   const select = (cell: Cell): void => {
@@ -1099,6 +1126,7 @@ export function notebookView(
     connectionPicker.addEventListener("change", () => {
       cell.connection = connectionPicker.value || null;
       changed();
+      connectionsSoon();
     });
     kindPicker.addEventListener("change", () => setKind(cell, kindPicker.value as CellKind));
     if (draggable) {

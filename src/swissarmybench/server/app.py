@@ -32,7 +32,9 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
+  routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
+  routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
@@ -72,6 +74,7 @@ from swissarmybench.server import (
     routes_cards,
     routes_catalog,
     routes_claude,
+    routes_connection_colours,
     routes_connection_swap,
     routes_connections,
     routes_controllers,
@@ -99,6 +102,7 @@ from swissarmybench.server import (
     routes_tieout,
     routes_timeseries,
     routes_updates,
+    routes_variables,
     routes_workbench,
     streamlit_proxy,
 )
@@ -196,6 +200,7 @@ def create_app(
         # The update check: at start, then every six hours (nothing with the switch off or no feeds).
         checker = asyncio.create_task(ctx.updates.run_forever())
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
+        ctx.variables.apply()  # the Variables page's values, in this server's environment
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         yield
@@ -205,6 +210,7 @@ def create_app(
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         await ctx.sab_projects.stop()  # nor an open .sab's working folder
+        ctx.variables.release()  # the environment as it was
         workers.close()
         ctx.beta.stopped()
 
@@ -239,7 +245,9 @@ def create_app(
             *routes_panels.routes(ctx.panels),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
+            *routes_connection_colours.routes(ctx.connection_colours),
             *routes_session_log.routes(ctx.session_log),
+            *routes_variables.routes(ctx.variables),
             *routes_script_runs.routes(ctx.script_runs),
             *routes_beta_log.routes(ctx.beta),
             *routes_updates.routes(ctx.updates),

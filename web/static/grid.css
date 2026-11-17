@@ -10424,6 +10424,212 @@ body.sql-window dialog[open] textarea.code-input {
   }
 }
 
+/* The Variables page (variablesPage.ts): grouped by source, a row each (name, value, uses, tools). */
+.area-page-actions .variables-search {
+  width: min(280px, 40vw);
+}
+
+.variables-page {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  max-width: 1180px;
+}
+
+.variables-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.variables-sources .btn {
+  border-radius: 14px;
+}
+
+.variables-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.variables-group h2 .icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.variables-group h2 .count {
+  padding: 0 7px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.variable-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1.2fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.variable-row:hover {
+  background: var(--row-hover);
+}
+
+.variable-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.variable-badge {
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.variable-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.variable-plain,
+.variable-value .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-vault {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.variable-vault .icon-svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.variable-missing {
+  color: var(--warn);
+}
+
+.variables-page .muted {
+  color: var(--muted);
+}
+
+.variable-uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.variable-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 260px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.variable-use span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-use .icon-svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.variable-use:hover {
+  border-color: var(--accent);
+}
+
+.variable-use:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.variable-tools {
+  display: flex;
+  gap: 2px;
+}
+
+.variables-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.variables-form .field input,
+.variables-form .field select {
+  min-width: 200px;
+}
+
+.variables-form-value {
+  flex: 1 1 260px;
+}
+
+.variables-form-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.variables-remove,
+.variables-still {
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .variable-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .variable-value,
+  .variable-uses {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Follow the agent: what it just made pulses softly in the theme's accent. */
 @keyframes follow-pulse {
   0% {
@@ -10638,4 +10844,197 @@ g.follow-pulse > path:first-of-type {
 
 .project-fix.swap-done > .icon-svg {
   color: var(--accent);
+}
+
+/* ===== CONNECTION COLOURS (connectionColours.ts): a stripe, an edge or a dot, never a background ===== */
+/* --conn-a is the first connection's colour as this theme shows it (made readable by the server), --conn-b
+   the second's (a cell that uses two wears two marks). The rail's colours are never offered. */
+.conn-dot {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--conn-a, var(--border-strong));
+}
+
+.conn-swatch {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--conn-a, var(--surface));
+  cursor: pointer;
+}
+
+.conn-swatch:focus-visible,
+.conn-palette-swatch:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.conn-palette {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.conn-palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  gap: 6px;
+}
+
+.conn-palette .conn-palette-swatch,
+.conn-palette .conn-palette-swatch:hover,
+.conn-palette .conn-palette-swatch:focus-visible {
+  display: block;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+}
+
+.conn-palette .conn-palette-swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+
+.conn-palette-other {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.conn-palette-other input {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  background: none;
+}
+
+/* The Connections page: the card's edge is its colour; the swatch sits in its corner. */
+.connection-card-item {
+  position: relative;
+}
+
+.connection-card-item > .conn-swatch {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+}
+
+.connection-card.conn-worn,
+.connection-card.conn-worn:hover {
+  border-left: 4px solid var(--conn-a);
+}
+
+.connection-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+
+.connection-ref.conn-worn {
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+
+/* The home page's tabs: a table read from a connection wears its colour along its foot; the row gathers
+   them in a group per connection (its dot and name as the head; a click folds it). */
+.tab-item.conn-worn {
+  box-shadow: inset 0 -3px 0 var(--conn-a);
+}
+
+.tab-item.active.conn-worn {
+  box-shadow: inset 0 2px 0 var(--accent), inset 0 -3px 0 var(--conn-a);
+}
+
+.tab-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+}
+
+.tab-group:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.tab-group-head {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.tab-group-head:hover {
+  background: var(--row-hover);
+  color: var(--fg);
+}
+
+.tab-group-head:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+}
+
+.tab-group-count {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The Workbench: a cell that names a connection wears a stripe at its left (two connections: two). */
+.conn-cell.conn-worn {
+  box-shadow: inset 4px 0 0 var(--conn-a);
+}
+
+.conn-cell.conn-worn.conn-two {
+  box-shadow: inset 4px 0 0 var(--conn-a), inset 8px 0 0 var(--conn-b);
+}
+
+/* A row (the Data panel's tables, the Session page's entries): a stripe too. */
+.conn-row.conn-worn {
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+
+@media (forced-colors: active) {
+  .conn-dot,
+  .conn-swatch,
+  .conn-palette-swatch {
+    forced-color-adjust: none;
+  }
+}
+
+/* A canvas block whose cell names a connection: a stripe along its top (its left edge is its kind's). */
+.conn-block.conn-worn {
+  box-shadow: inset 0 4px 0 var(--conn-a);
+}
+
+.conn-block.conn-worn.conn-two {
+  background-image: linear-gradient(to right, var(--conn-a) 50%, var(--conn-b) 50%);
+  background-repeat: no-repeat;
+  background-size: 100% 4px;
+  box-shadow: none;
 }

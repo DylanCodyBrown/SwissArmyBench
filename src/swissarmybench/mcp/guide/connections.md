@@ -14,8 +14,24 @@ a variable by its name.
   type, settings, sign-in, each password's source (keyring, vault, environment, missing) by name, never
   a value; `calls`: by kind (catalog, query, read, test, connect), the last one. Calls count what runs
   through the app and Workbench kernels, not the user's own Jupyter.
+- `connections_colours`: each connection's colour (this computer's: the same in every project) and the
+  palette; `connections_colours(name, colour)` sets one (`#rrggbb`; null: the next free one). The rail's
+  colours (the kind colours, the red accent) and amber are refused. Its grid tabs, cells, canvas blocks
+  and Session entries wear it as a stripe; the home page's tabs are grouped by connection.
 - `app_navigate(to="connection:<name>")` shows that detail to the user; `workbench_window
   file.openCell` opens a reference's cell.
+
+## Variables (the rail's Variables page)
+- This computer's, whether or not a project is open; never in a .sab. Connections, notebooks, scripts
+  and Workbench kernels read them as environment variables (a running kernel: at its next start).
+- `variables_list(search, source)`: each variable's source (`vault`: the vault and secret name; `value`:
+  a plain value, shown; `keyring`; `env`: this computer's environment, its value shown unless it reads
+  as a secret; `missing`), and its `uses` (connections by setting, notebook and script cells, Run
+  settings). Never a keyring's, a secret's or a vault's value: Show is the user's only.
+- `variables_set(name, value)`: a plain value; `local=true` keeps it on this computer only (a path).
+  `kept="keyring"` saves a secret in the keyring: you may set one, never read it back.
+- `variables_rename(name, to)`: connections' code and Run settings follow; `still_reading` lists the
+  notebook and script cells to change. `variables_remove(name)` answers what still uses it.
 
 ## Making one
 - `connections_list`: every connection, its type, its name in code, its catalog's state.

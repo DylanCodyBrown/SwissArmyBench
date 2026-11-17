@@ -2068,6 +2068,18 @@ def connections_usage(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/connections/{_q(a['name'])}/usage")
 
 
+@command(
+    "connections_colours",
+    "Each connection's colour (this computer's, every project) and the palette; name and colour set one",
+    opt("name", "A connection, to set its colour."),
+    opt("colour", "#rrggbb, never a rail colour; null: the next free one."),
+)
+def connections_colours(a: dict[str, Any]) -> Any:
+    if a.get("name"):
+        return api.call("PUT", f"/connection-colours/{_q(a['name'])}", {"colour": a.get("colour")})
+    return api.call("GET", "/connection-colours")
+
+
 # ----- a table's connection swapped (its steps kept), and the code that named the old one -----
 
 
@@ -2350,6 +2362,7 @@ _TABLE_ARGS = (
     opt("table", "The table (a database's table; a workbook's sheet; a file in a folder connection)."),
     opt("schema", "The table's schema (as the catalog shows it); a Power BI workspace's: the dataset."),
     opt("database", "The table's database, when the catalog spans more than one."),
+    opt("dataset", "A Power BI workspace's dataset holding the table (the same as schema)."),
 )
 
 
@@ -2363,7 +2376,7 @@ _TABLE_ARGS = (
     opt("all", "Every row, not the first Rows to open.", "bool"),
 )
 def connections_open_table(a: dict[str, Any]) -> Any:
-    keys = ("table", "schema", "database", "all")
+    keys = ("table", "schema", "database", "dataset", "all")
     body = {k: a[k] for k in keys if a.get(k) is not None}
     return api.call("POST", f"/connections/{_q(a['name'])}/open", body)
 
@@ -2374,7 +2387,7 @@ def connections_open_table(a: dict[str, Any]) -> Any:
     *_TABLE_ARGS,
 )
 def connections_preview_table(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("table", "schema", "database") if a.get(k) is not None}
+    body = {k: a[k] for k in ("table", "schema", "database", "dataset") if a.get(k) is not None}
     return api.call("POST", f"/connections/{_q(a['name'])}/preview", body)
 
 
@@ -3152,6 +3165,52 @@ def app_kind_colours(a: dict[str, Any]) -> Any:
     if a.get("set") is not None:
         return api.call("PUT", "/kind-colours", a["set"])
     return api.call("GET", "/kind-colours")
+
+
+# ===== the Variables page: this computer's variables (never a secret's value) =====
+
+
+@command(
+    "variables_list",
+    "Every variable: its source (vault, value, keyring, env, missing), what uses it, a plain value's "
+    "value; a keyring's, a secret's or a vault's value never",
+    opt("search", "A name, vault, connection or document."),
+    opt("source", "vault, value, keyring, env or missing."),
+)
+def variables_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/variables", params={k: a.get(k) for k in ("search", "source")})
+
+
+@command(
+    "variables_set",
+    "Add or change a variable; kept=keyring keeps a secret in this computer's keyring (never read back)",
+    req("name", "SALES_REGION"),
+    opt("value", "Its value (a keyring one: empty keeps the saved one)."),
+    opt("kept", "value (default) or keyring."),
+    opt("local", "A plain value kept on this computer only (never shared).", "bool"),
+)
+def variables_set(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("name", "value", "local") if a.get(k) is not None}
+    return api.call("PUT", "/variables", body | ({"from": a["kept"]} if a.get("kept") else {}))
+
+
+@command(
+    "variables_rename",
+    "Rename a variable: connections' code and Run settings follow; notebooks still reading it are listed",
+    req("name", "The old name."),
+    req("to", "The new name."),
+)
+def variables_rename(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/variables/rename", {"name": a["name"], "to": a["to"]})
+
+
+@command(
+    "variables_remove",
+    "Remove a variable (or a key vault's entry; the secret stays in the vault); what still reads it",
+    req("name", "The variable."),
+)
+def variables_remove(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/variables/{_q(a['name'])}")
 
 
 # ===== beta mode: the beta log and the notes (redacted: no data, SQL, code, secrets or paths) =====
@@ -4036,7 +4095,7 @@ def app_audit(a: dict[str, Any]) -> Any:
     req(
         "to",
         "the rail: grids, visualizations, erd, notebooks, scripts, apps, blades, connections, "
-        "settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
+        "variables, session, settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
         "catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
     ),
     opt("window", "home (default), catalog or workbench."),
@@ -4240,6 +4299,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("erd", "ERD tab"),
     ("blades", "Blades: the user's saved code that loads from outside Python"),
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
+    ("variables", "Variables page: this computer's variables, their sources and uses"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),

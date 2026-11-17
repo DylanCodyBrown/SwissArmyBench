@@ -31,6 +31,7 @@ class ConnectionService:
         tables: Tables | None = None,
         models: RelationshipModels | None = None,
         catalogs: LoadedCatalogs | None = None,
+        colours: Colours | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -43,6 +44,9 @@ class ConnectionService:
         self._models = models
         # A Power BI workspace's loaded catalog: its datasets, and the table names several of them hold.
         self._catalogs = catalogs
+        # Connection colours (services/connection_colours.py): a new connection's next free one, and a
+        # colour sent with one checked against the rail's.
+        self._colours = colours
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -139,6 +143,7 @@ class ConnectionService:
                 "name": blade.name,
                 "description": blade.description,
                 "tags": blade.tags,
+                "colour": self._colours.colour_of(blade.name) if self._colours is not None else None,
                 "summary": self._blades.summary(blade),
             }
         )
@@ -167,7 +172,15 @@ class ConnectionService:
 
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         self._check(body)
+        sent = None
+        if isinstance(body, dict) and "colour" in body:
+            body = dict(body)
+            raw = body.pop("colour")
+            sent = self._colours.check(raw) if self._colours is not None and raw is not None else None
         saved = await self._blades.save(body, previous, who)
+        if self._colours is not None:
+            # This computer's colours.toml: a new connection's next free colour, a renamed one's kept.
+            self._colours.saved(str(saved["name"]), previous, sent)
         self._on_saved(str(saved["name"]))  # its catalog loads itself, in the background
         return saved
 
@@ -293,6 +306,9 @@ class ConnectionService:
             raise BladeError(f"{blade.name} has no tables to open.")
         where = body if isinstance(body, dict) else {}
         place = {k: str(where.get(k) or "") for k in ("database", "schema", "table")}
+        if not place["schema"] and blade.dialect == powerbi.DIALECT:
+            # A Power BI workspace's table lives in one of its datasets: named as the schema or as dataset.
+            place["schema"] = str(where.get("dataset") or "")
         return blade, str(kind), place
 
     async def open_table(self, name: str, body: Any, who: str) -> dict[str, Any]:
@@ -352,7 +368,16 @@ class ConnectionService:
         )
         dax = blade.dialect == powerbi.DIALECT
         within = place["schema"] if dax else ""  # a Power BI workspace: the table's dataset
-        answer = await self._blades.rows(blade, sql, count, body, within)
+        try:
+            answer = await self._blades.rows(blade, sql, count, body, within)
+        except Exception as error:
+            if not dax or within or "name the one to read" not in str(error):
+                raise
+            # The connection's own words name its code's argument; say how to name it here.
+            raise type(error)(
+                f"{blade.name} is a Power BI workspace with several datasets: name the one that holds "
+                f"{place['table']} as dataset (or schema). connections_datasets lists them. {error}"
+            ) from None
         table, total = answer["table"], answer.get("total")
         if table.num_columns == 0:
             # Power BI names an answer's columns only on its rows: an empty table comes with none.
@@ -523,7 +548,21 @@ class ConnectionService:
             "imported": [r.to_json() for r in model.relationships],
             "tables": sorted(model.tables()),
             "skipped": skipped,  # those of the date tables Power BI makes by itself
+            "skipped_why": (
+                "Relationships to the date tables Power BI makes by itself (LocalDateTable_..., "
+                "DateTableTemplate_...) for its automatic date hierarchies; they are not the model's own."
+                if skipped
+                else ""
+            ),
         }
+
+
+class Colours(Protocol):
+    def check(self, colour: Any) -> str | None: ...
+
+    def saved(self, name: str, previous: str | None, sent: str | None) -> None: ...
+
+    def colour_of(self, name: str) -> str | None: ...
 
 
 class LoadedCatalogs(Protocol):

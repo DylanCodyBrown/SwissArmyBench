@@ -29,6 +29,7 @@ AREAS: tuple[str, ...] = (
     "apps",
     "blades",
     "connections",
+    "variables",
     "project",
 )
 ACTORS: tuple[str, ...] = ("agent", "user")
@@ -302,6 +303,11 @@ RULES: dict[str, Rule] = {
         "connections",
         {"place": "connection", "name": d},
     ),
+    "connection_colour": lambda d, x: (
+        f"Coloured the connection {d} {_name(x.get('colour')) or 'the next free colour'}",
+        "connections",
+        {"place": "connection", "name": d},
+    ),
     "remove_catalog": lambda d, x: (f"Removed the catalog of {d}", "connections", _area("connections")),
     # The Workbench: documents and their cells.
     "workbench_window": _window,
@@ -317,6 +323,15 @@ RULES: dict[str, Rule] = {
     "streamlit_remove_block": _app_page("Removed the block"),
     "export_streamlit_app": lambda d, x: (f"Exported a Streamlit app to {_file(d)}", "apps", None),
     "save_streamlit_app_as": lambda d, x: (f"Saved a Streamlit app as {_file(d)}", "apps", None),
+    # Variables (the Variables page): names only, never a value.
+    "add_variable": lambda d, x: (f"Added the variable {d}", "variables", _area("variables")),
+    "change_variable": lambda d, x: (f"Changed the variable {d}", "variables", _area("variables")),
+    "rename_variable": lambda d, x: (
+        f"Renamed the variable {d} to {_name(x.get('to'))}",
+        "variables",
+        _area("variables"),
+    ),
+    "remove_variable": lambda d, x: (f"Removed the variable {d}", "variables", _area("variables")),
     # The project.
     "new_sab_project": lambda d, x: (f"Made the project {_name(x.get('name'))}", "project", _area("project")),
     "open_sab_project": lambda d, x: ("Opened a project", "project", _area("project")),

@@ -43,7 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import app_settings as page_settings
-from swissarmybench.domain import approvals, controllers, notebooks, projects
+from swissarmybench.domain import approvals, connection_usage, controllers, notebooks, projects
 from swissarmybench.domain import dictionary as data_dictionary
 from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.app_settings import AppSettings
@@ -602,6 +602,12 @@ class StreamlitApps:
                         "makes": rules.shown_makes(mine),
                         "reads": [n for n in mine.reads if n not in rules.PROVIDED and n not in named],
                         "tables": named,
+                        # The connections its cell names (sab.sql, sab.read...): it wears their colours.
+                        "connections": (
+                            connection_usage.cell_connections("code", code, None)
+                            if code is not None and linked.kind(block.key) == "code"
+                            else []
+                        ),
                         "problem": mine.problem,
                         # In red on the block: the cell is gone, or its file is.
                         "missing": gone.get(block.id),

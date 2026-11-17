@@ -25,6 +25,8 @@ export interface TableInfo {
   origin: string;
   /** Where it came from, in a word or two: orders.csv, Warehouse, Python (the Data panel's). */
   source?: string;
+  /** The connection it was read from (null: not a connection's): its colour. */
+  connection?: string | null;
   rows?: number;
   /** The Workbench kernel that sent it to the grid (null: no kernel did). */
   kernel: string | null;

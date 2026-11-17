@@ -3592,3 +3592,97 @@ trino(non odbc)".
   old connection.
 - The "+" tab's query (DuckDB over the open tables) can be moved onto a connection through the SQL window:
   it then runs there and becomes a connection's query.
+
+## data.ipynb holds everything the app is built from (the owner, 2026-11-17)
+"how are we determining what will make it into data note book. like all structures and grids should make it
+as well as all variables that are used to create the app". Planned after the Structures branch merges:
+data.ipynb gets four read-only groups the app keeps in sync, in order: Variables (every variable a page,
+notebook or blade uses, found with ast: its source, never a value), Connections (the library connections
+used, `sab.connection(...)`), Tables (every grid: source + steps as one DuckDB query; today's Tables group),
+Structures (every Structures document: source + steps; an API call re-run; Return as table ones as DuckDB
+tables). The user's cells below, untouched; data.py exports it all, so an exported app runs on its own.
+Decided (the owner, 2026-11-17): "everything in the project": every grid and Structures document, used by a page or not.
+
+## The Variables page (the owner, 2026-11-16; built, branch variables-page)
+
+The owner: "after Imported my keyvault and it made a ton on local vairables, that we actually need a workspace
+Variable page for the rail to help manage project variables"; "should be able to add new local env variables
+from the page easily and browse what is there and for variables that are not from the key vault you can see
+their current values". Then (2026-11-17): "Apis, Connections they live OUTSIDE of the project" / "so they
+become a library of connections" (Plans/library.plan.md).
+
+### Built
+- **A page on the rail** after Connections (open=variables, areaPage.ts; its own `{x}` icon): every variable
+  this computer gives or something reads, grouped by source: a key vault's entry (the vault and the
+  secret's name), a plain value (shown), the keyring (dots, **Show** on the user's click), this computer's
+  environment (shown, unless it reads as a secret: behind Show), not set (a certificate file's default
+  path said). Search; a chip per source.
+- **Uses**: connections (a password by `secret()`, a certificate or keystore file mapped to a variable, a
+  Python connection's code), notebook and script cells (`os.environ[...]`, `.get`, `getenv`, `secret()`, by
+  ast), each script's Run settings. A connection opens its card, a cell opens in the Workbench.
+- **Add variable** (prominent, in the heading row): name, value, kept as Plain value, **This computer only**
+  or Keyring (secret); a secret-looking name goes to the keyring and is refused as a plain value. Edit,
+  Rename (connections' code, a vault's mapping and Run settings follow; the notebooks and scripts still
+  reading the old name are listed, never edited), Remove (what uses it shown first; a vault entry's
+  secret stays in the vault).
+- **At once**: the values are set in the server's environment (and given back when removed or when the
+  server stops), so a connection's next run, a scheduled script and a kernel started from now on read
+  them; a change answers how many kernels run (a toast: they read it after a restart).
+- **The agent**: `variables_list` (sources, uses, plain values; never a keyring's, a secret's or a vault's
+  value), `variables_set` (`kept="keyring"`: sets a secret, never reads it back), `variables_rename`,
+  `variables_remove`. `/variables/reveal` is 403 for the agent (NOT_COMMANDS). The Session page names
+  each change, never a value.
+
+### Decisions
+- **This computer's, not the project's** (the owner, 2026-11-17, overriding the brief's project scope): the
+  page shows the same variables with or without a project open, and a .sab never holds one.
+- **Shareable and local apart** (Plans/library.plan.md): `variables.json` in the state folder holds each
+  variable's name and source and a plain value's value unless it is "this computer only"; `local/variables.json`
+  holds the local values. A keyring's value stays in the keyring (`variable/<NAME>`). Both files behind one
+  adapter (adapters/variables.py VariableFiles: sorted keys, no write when nothing changed), so the library
+  change moves them to `library/variables.toml` and `library/local/` by changing two paths (and the format).
+- A cloned file with no local values reads its local and keyring variables as Not set on that computer.
+- Show stays with the user: the golden rule's exception (no answer the agent gets holds a password's value).
+
+The export (the owner, 2026-11-17): "I feel like the export/ build app should create 4 pythons called Variables,
+Structures, Data, and Connections along with any app pages": variables.py, connections.py, data.py,
+structures.py (from data.ipynb's four groups; imports in one direction: variables <- connections <- data,
+structures <- pages) and pages/*.py.
+
+## Connection colours (the owner, 2026-11-16; built, branch connection-colours)
+
+The owner: "can we add a feature where we can choose connection colors that everything associated with that
+connection is painted that color, cells, grids, app cells that are associated with that connection etc.?
+reserve the rail colors for the rail. I even thing we need tab groups from the grid based on connections".
+Then (2026-11-17) connections became this computer's library (Plans/library.plan.md), so a colour is the
+connection's on this computer, the same in every project.
+
+Built:
+- **The colour** (domain/connection_colours.py): eight palette colours (Teal, Magenta, Olive, Orchid, Rust,
+  Pine, Brown, Slate) a new connection is given in turn (the first none wears, else the least worn). The
+  rail's colours are refused when chosen (a hue within 18 degrees of a kind colour as the user chose it, of
+  the accent red, or amber; a grey has no hue and passes); a kept colour that a later kind colour comes near
+  is shown turned just far enough away, its own kept. Every theme shows it made readable by the kind
+  colours' rule (4.5 to 1 against the page and panels, 7 to 1 in high contrast).
+- **Kept** in colours.toml (adapters/connection_colours.py, the state folder's for now; the library's
+  colours.toml later by a path change): keyed by name, sorted keys, one `"name" = "#rrggbb"` line each, a
+  save that changes nothing writes nothing. A rename carries the colour; a connection with no line wears
+  the next free one in its turn (by name). Not in the blade record, not in a .sab.
+- **Worn** (web/src/connectionColours.ts): any element with `data-connections="A|B"` is painted (a
+  MutationObserver; `--conn-a`, `--conn-b`), so each place only names its connections: the Connections
+  page's cards (the left edge, a swatch) and references, the grid tabs (a stripe along the foot), the
+  notebook cells (POST /connection-colours/uses: the server reads them with connection_usage's ast rules;
+  two connections: two stripes), a script's `# %%` cells (a margin stripe, codeEditor.setStripes), canvas
+  blocks (a top stripe; the left edge stays the kind colour), the Data panel's tables, the Session page's
+  connection entries. A table's read-only cell wears its load's connection by the same rule.
+- **Tab groups** (panes.ts): a group per connection by the table's origin (GET /grids' `origin`), files,
+  pasted, Python and query tables in their own; heads only once a connection's table is open. `order` is
+  kept grouped (each group where its first tab was), so the keys and tab drags walk it unchanged; a head
+  folds its group (the front tab stays) and drags the whole group.
+- **The agent:** `connections_colours` reads every colour and the palette, and sets one (null: the next
+  free); a change is a `connection_colours_changed` notice every window follows, and a Session entry.
+
+Decisions: a stripe, never a background; vaults have no colour (no tables; not on a tab or a cell);
+`/connection-colours/uses` is page plumbing (NOT_COMMANDS: the agent reads cells with connections_usage).
+Open: entries about a grid (not a connection) on the Session page are not coloured by the grid's origin;
+a removed connection's line stays in colours.toml (it returns if the name comes back).

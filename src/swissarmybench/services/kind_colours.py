@@ -22,6 +22,10 @@ class KindColours:
         self._kept = kept
         self._chosen = rules.read_saved(kept.read())
 
+    def chosen(self) -> dict[str, str]:
+        """The colours the user chose (a kind not here wears its theme's own)."""
+        return dict(self._chosen)
+
     def get(self) -> dict[str, Any]:
         return rules.listing(self._chosen)
 

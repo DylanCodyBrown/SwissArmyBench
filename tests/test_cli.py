@@ -134,6 +134,8 @@ NOT_COMMANDS = {
     "/workbench/window/{}": "the Workbench window's own answer to workbench_window (not the agent's)",
     "/workbench/notebook/flow": "the window's reading of an open notebook's run order: the agent reads "
     "it with workbench_window notebook.runOrder",
+    "/connection-colours/uses": "the Workbench's marks: which connections its cells name (the agent reads "
+    "a connection's cells with connections_usage)",
     "/workspace/active": "the page reports which tab is in front (page plumbing)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",
@@ -162,6 +164,8 @@ NOT_COMMANDS = {
     "/project/layout": "a window reports its layout for the next save (page plumbing): project_save keeps it",
     "/claude/launch": "Launch Claude starts a process on the user's computer: the user's click only (an "
     "agent does not start another agent); 403 for the agent. app_claude reads what was found",
+    "/variables/reveal": "Show on the Variables page: a keyring secret's value, the user's click only; 403 "
+    "for the agent (no answer the app gives it holds a password's value). variables_list reads the rest",
     "/session-log/follow": "Follow the agent is the user's switch (an agent that could turn it off could "
     "work unseen); 403 for the agent. app_session reads it",
     "/connections/rewrite": "the Workbench window's helper for its open documents: connections_repoint does"
@@ -603,10 +607,12 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The Session page (2026-11-16) added one, app_session: this session's log and the Follow switch.
     # Swapping a table's connection (2026-11-17) added five: a table's connection, the swap and its undo,
     # every table of a connection moved, and its cells listed or pointed at another (1,500 characters).
+    # The Variables page (2026-11-17) added four: list, set (add or change), rename, remove.
+    # Connection colours (2026-11-17) added one, connections_colours: read them, set one.
     # Structures and APIs (2026-11-17) added 18: Structures' open, show, steps, edit, Open as grid, save,
     # lineage, close (8, and a variable sent there through workbench_to_grid); the APIs page's list,
     # describe, search, call, save a web call (Return as table), refresh and apply, rename, delete (9).
-    assert size < 71_500, f"the tool list is {size} characters"
+    assert size < 73_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

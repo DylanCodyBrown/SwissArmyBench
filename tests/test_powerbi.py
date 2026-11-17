@@ -658,6 +658,12 @@ def test_a_table_opens_as_a_grid_its_first_rows_counted_then_all(
     # A dataset is needed where the workspace has several, and an unknown one says what there is.
     refused = client.post("/connections/Finance/open", json={"table": "Sales"}, headers=AUTH)
     assert refused.status_code == 422 and "has 3 datasets: name the one to read" in refused.text
+    assert "name the one that holds Sales as dataset (or schema)" in refused.text
+    # The dataset may be named as dataset, as the agent's commands say.
+    named = client.post(
+        "/connections/Finance/open", json={"dataset": BUDGET, "table": "Budget"}, headers=AUTH
+    )
+    assert named.status_code == 200 and named.json()["dataset"] == "Budget", named.text
     refused = client.post(
         "/connections/Finance/open", json={"schema": "Nope", "table": "Sales"}, headers=AUTH
     )
@@ -1027,6 +1033,7 @@ def test_import_its_relationships_merges_into_the_current_model(
     assert answer["dataset"] == SALES
     assert answer["changed"] == ["Sales -> Customer: one-to-one becomes many-to-one"]  # the dataset's wins
     assert answer["tables"] == ["Customer", "Date", "Product", "Sales"] and answer["skipped"] == 1
+    assert "LocalDateTable_" in answer["skipped_why"]
     assert len(answer["imported"]) == 4
     assert standin.queries()[-1] == "EVALUATE INFO.VIEW.RELATIONSHIPS()"
     current = client.get("/relationships", headers=AUTH).json()

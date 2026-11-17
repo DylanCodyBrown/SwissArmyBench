@@ -36,6 +36,7 @@ AREAS = [
     "apps",
     "blades",
     "connections",
+    "variables",
     "session",
     "settings",
 ]
@@ -48,6 +49,7 @@ NAMES = [
     "Apps",
     "Blades",
     "Connections",
+    "Variables",
     "Session",
     "Settings",
 ]

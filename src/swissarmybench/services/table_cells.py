@@ -18,6 +18,7 @@ from typing import Any
 from swissarmybench.domain import notebooks
 from swissarmybench.domain import table_cells as rules
 from swissarmybench.domain.codegen import variable_name, view_query
+from swissarmybench.domain.connection_usage import connection_named
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.steps import describe_step
@@ -90,6 +91,12 @@ class TableCells:
             "source_kind": info.source_kind,
             "origin": origin.kind,
             "source": origin.label(),  # the file's or connection's name, for the Data panel
+            # The connection it was read from (its colour on the Data panel; None: not a connection's).
+            "connection": (
+                connection_named(origin.connection)
+                if origin.kind == "connection" and origin.connection
+                else None
+            ),
             "rows": info.row_count,
             "kernel": origin.kernel,  # the Workbench kernel that sent it (None: no kernel did)
             "steps": len(on),

@@ -2135,3 +2135,52 @@ drags; code of more than one line is pasted, one typed value):
   prompt and its `%pip install` then re-run in a browser (the server's shape is tested, the page's path
   by typecheck only); the blade editor's and Add API's prompts in a browser; the Trino keystore's pyjks
   (another branch).
+
+## The Variables page (2026-11-17, branch variables-page)
+
+- **Rules** (tests/test_variables.py, made-up names and values): plain, local and keyring variables kept
+  apart (the shareable file has names and sources and the region's value, never the local path nor the
+  secret); a cloned file without local values reads them as Not set; a secret-looking name refused as a
+  plain value; each source (vault, value, keyring, env, missing with a keystore's default) and its uses
+  (a connection's password, a keystore setting, a script's `os.environ` and Run settings); a secret in the
+  environment behind Show; rename in code (secret, environ[], .get, getenv); the server's environment
+  given back; the files unchanged when nothing changed.
+- **HTTP**: add (in os.environ at once), the agent's keyring secret never in any answer to the user or the
+  agent nor in the file, Show 403 for the agent and the value for the user, a vault's refused, rename
+  (the connection's code follows, the keyring value moves), remove (the environment lets go), the Session
+  page's words, the server's stop gives the environment back; with a project open the same variables, and
+  the saved .sab holds none.
+- **In the browser** (Chromium, tests/e2e/test_variables_page.py, its own server with a keyring in a
+  temporary file): the rail's Variables (aria-current, open=variables), the vault's row (vault · secret
+  name, no Show), Add variable (the name in capitals), North in plain sight, This computer only marked,
+  Show and Hide on a keyring secret, the source chip and the search, Remove listing the connection. Light
+  and dark screenshots. The rail tests take the new area.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,301 passed, 42 skipped, 2 failed in
+  20 minutes: test_streamlit_page's two canvas drag tests, which pass alone (load).
+- **Not checked:** a real Workbench kernel reading a variable added while the server runs (the kernel
+  inherits os.environ by the launcher's code path, not run here); a real system keyring (Windows Credential
+  Manager, macOS Keychain); Edge (Chromium here).
+
+
+## Connection colours (2026-11-17, branch connection-colours)
+
+- **Rules** (tests/test_connection_colours.py): the palette clashes with none of the rail's colours and
+  reads in every theme; the next free colour in turn and the least worn; the rail's colours refused with
+  their words (violet, blue, green, red, amber), a chosen kind colour reserved from then on, a kept colour
+  near it turned away; the connections a cell names (SQL, DAX, Python by ast; a comment is not a use);
+  colours.toml sorted, stable, read back, broken text read as none, an unchanged save writes nothing; a new
+  connection's colour, kept across a restart, refused over HTTP (400), 404 for no such connection, a
+  rename carrying its colour, a colour sent with a new connection checked.
+- **In the browser** (Chromium, tests/e2e/test_connection_colours_page.py, SQLite stand-ins Ledger and
+  Depot): the tabs grouped Files, Ledger, Depot with the connection's colour on its tab; the arrow keys
+  across groups; the agent's change followed live; a group folded and opened; the card's colour, its
+  palette (eight), Magenta chosen and worn; the detail's swatch; a rail blue refused; notebook cells with
+  one and two connections (two marks), a comment not marked, a `%%sql Depot` cell, a change followed; the
+  Data panel's tables; a script's margin stripe; a canvas block's colour.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,305 passed, 42 skipped, 1 failed in
+  19 minutes: test_ui's tabs test lost the tab order on a reload (the colours' first read redrew the empty
+  tab row, which remembered an empty order before the saved one was read). Fixed; test_ui.py and the
+  colours' tests again: 83 passed.
+- **Not checked:** the high-contrast and dark themes in a browser (the colours per theme are unit-tested);
+  a Session entry's stripe in a browser (the attribute is set by the same rule as the cards); dragging a
+  group head; Monaco's stripe colour in a script after a theme change.
