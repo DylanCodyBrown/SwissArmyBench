@@ -311,8 +311,8 @@ before it does harm ("bucket it first").
 
 **7.7 Name new ideas with short, memorable words from one family,** chosen with the owner, and put every
 one in the tour.
-- Example: from the knife: blades (saved code that reaches outside Python), tangs (a saved set of
-  relationships), packs.
+- Example: from the knife: blades (saved code that reaches outside Python), packs. A word that does not
+  land goes: tangs became relationship sets (the owner, 2026-11-17: "drop tang its cheesy").
 - The owner (2026-11-12): "basically anytime you reach outside of python to load something, Boom thats
   a blade"
 

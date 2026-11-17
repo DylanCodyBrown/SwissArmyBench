@@ -77,14 +77,21 @@ What a grid page does:
   Python** gives `import duckdb` and one line, `orders_view = duckdb.sql("""...""").df()` (`.pl()`
   for Polars, `.to_arrow_table()` for Arrow). The copy is run exactly as copied, in a fresh namespace holding only your table,
   and compared with the grid before it's offered; only verified code gets the Copy buttons.
-- **Relationships and tangs:** **Find relationships** works out how every open table joins, from
+- **Relationships:** **Find relationships** works out how every open table joins, from
   the data: each join with its kind, the share of values that match, the orphans and why (names that
   don't match, a text column of numbers, two-column keys and second paths are handled; small number
-  columns that overlap by accident are not suggested). Accept the joins, **Run** them to see which
-  hold, and **Save as tang**: a `.tang` file with a name, description and tags, kept in your tangs or
-  in a shared folder (the blade folders), where your coworkers' Relationships window lists it.
-- **Packs:** blades and tangs a team keeps in a GitHub repository that is also a Claude Code plugin
-  marketplace. Install a pack with `/plugin install` and its blades and tangs show up, marked with the
+  columns that overlap by accident are not suggested). Accept the joins, **Check** them against the
+  open tables to see which hold, and **Save as a set…**: a `.relationships.json` file with a name,
+  description and tags, kept in your library's `relationship-sets/` or in a shared folder (the blade
+  folders), where your coworkers' Relationships window lists it under **Saved sets** (rename, export and
+  delete from its menu). **In use now** manages the joins you use, forty imported foreign keys as easily
+  as four: tick rows (select all, shift-click a range), **Delete selected**, **Run on** / **Run off**
+  (whether a join is used), change a row's **Kind** or **Run** in place, filter by table or column, sort
+  by any column, group by From table; every change has one **Undo** in its toast. Deleting a connection
+  takes the relationships its tables held out of the ones in use (the toast says how many); saved sets
+  stay.
+- **Packs:** blades and relationship sets a team keeps in a GitHub repository that is also a Claude Code
+  plugin marketplace. Install a pack with `/plugin install` and its blades and sets show up, marked with the
   pack; `/plugin marketplace update` brings the team's latest.
 - **Analyze** (the Table row): analyses that hand off to each other, to help predict a metric. **Odds**:
   how often each value shows up, and with an outcome, each value's odds of it against the rest ("West:
@@ -173,7 +180,7 @@ The old names still work for this release, and go in the next one:
 - `swissarmygrid`, `sag`, `swissarmygrid-mcp` and `swissarmygrid-context` are still installed: each says
   its new name in one line, then runs it. An already installed plugin or VS Code extension keeps working.
 - Old notebooks run: `%sag_run`, `%%sag_table`, `%%sag_html` and `%%sag` still work, and the old
-  `swissarmygrid` metadata, `# /// swissarmygrid-blade` headers, tangs, Streamlit apps and their saved
+  `swissarmygrid` metadata, `# /// swissarmygrid-blade` headers, relationship sets, Streamlit apps and their saved
   pages are read. Files are written with the new names.
 - On its first start the server moves `~/.swissarmygrid` to `~/.swissarmybench` and says so once in its
   log; if it cannot (an old server still running from it, say), it reads the old folder where it is. An
@@ -194,6 +201,16 @@ pages' titles, the menus (Send to Visualizations) and the help. The old names wo
 (each runs its `visualizations_*` one, by `sab` and by an MCP call; only the new names are listed),
 `app_navigate` to `sandbox` or `diagram`, `app_snapshot` of `sandbox`, the addresses `?view=sandbox` and
 `?view=diagram` (each replaced by the new word), and a `.sab/project.json` saved with a `sandbox` key.
+
+**A tang is now a relationship set** (the owner, 2026-11-17: "drop tang its cheesy"): a saved, shared set of
+relationships, a `.relationships.json` file in the library's `relationship-sets/` folder, and the dialog
+is **Relationships** (**Saved sets**, **Save as a set…**). On its first start this version writes the
+library's `tangs/*.tang` as `relationship-sets/*.relationships.json` and keeps the old folder in
+`~/.swissarmybench/backup/before-relationship-sets-<date>/` (said once on the page). The old names work
+for one release: `.tang` files (in a library, a shared folder, a pack's `tangs/` folder, an import), the
+routes `/relationships/tangs` and `/relationships/tang`, the agent's `relationships_save_tang`,
+`relationships_export_tang` and `relationships_import_tang` (each runs its `_set` one; only the new names
+are listed), `relationships_check`'s `tang` and `packs_add`'s `tangs` arguments.
 
 ## Install it: one package, two installs
 
@@ -618,10 +635,10 @@ conn = psycopg.connect(host="db.example", user="reader", password=secret("passwo
   code. Passwords are never settings: they stay `secret("...")`, and the import review lets you type them
   straight into this computer's vault.
 
-### Packs: blades and tangs from a Claude Code plugin marketplace
+### Packs: blades and relationship sets from a Claude Code plugin marketplace
 
-A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) and a `tangs/` folder
-(`.tang` files). A team keeps its packs in a GitHub repository that is a plugin marketplace
+A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) and a `relationship-sets/`
+folder (`.relationships.json` files; an older pack's `tangs/` folder still reads, one release). A team keeps its packs in a GitHub repository that is a plugin marketplace
 (`.claude-plugin/marketplace.json`); each person installs a pack once in Claude Code:
 
 ```
@@ -631,7 +648,7 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
 
 - **Installed packs** are found in Claude Code's plugin folder (`~/.claude`, or `CLAUDE_CONFIG_DIR`, or
   `SWISSARMYBENCH_CLAUDE_DIR`; the cache follows `CLAUDE_CODE_PLUGIN_CACHE_DIR`). Their blades are on the
-  blades page and their tangs in the Relationships window, marked **pack**, read-only: Claude Code
+  blades page and their relationship sets in the Relationships window, marked **pack**, read-only: Claude Code
   replaces the installed copy on every update. **Save a copy** keeps your own; Test and Refresh the
   catalog work without saving. A pack switched off in Claude Code adds nothing.
 - **Updates:** `/plugin marketplace update team-blades`. A pack with no `version` (as made here) is
@@ -645,7 +662,7 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
   It writes the marketplace, one pack and a README with the commands, and (from the page) adds the
   folder as a blade folder. Push it to GitHub.
 - **Adding to one:** a clone of the repository in your blade folders is an **editable** pack. **Add to
-  pack** copies chosen blades and tangs into it (files already there are kept unless you ask to
+  pack** copies chosen blades and relationship sets into it (files already there are kept unless you ask to
   replace them); then commit, open a pull request, and once it is merged everyone updates.
 - **Trust:** a pack's blades are its maintainers' code, run on your computer when you use one, as with
   any plugin you install. Secrets never travel in a pack, only their names. The agent cannot list,
@@ -654,9 +671,9 @@ A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) a
 **This repository is a marketplace too.** `/plugin marketplace add DylanCodyBrown/SwissArmyBench`
 offers two plugins: `swissarmybench` (the user guide as a skill, and the agent tools, the
 `swissarmybench-mcp` server the installer puts on your computer; remove a copy you added by hand so the
-tools are not listed twice) and `sample-store`, an example pack with a made-up blade and a tang holding
-the ten relationships of `examples/sample_store.py` (push its tables with
-`python examples/sample_store.py --push`, then **Run** the tang).
+tools are not listed twice) and `sample-store`, an example pack with a made-up blade and a relationship
+set holding the ten relationships of `examples/sample_store.py` (push its tables with
+`python examples/sample_store.py --push`, then **Check** the set).
 
 The agent reads catalogs with `catalog_list`, `catalog_schemas`, `catalog_tables`, `catalog_columns`
 (with a first SELECT quoted for the source) and `catalog_search`.
@@ -684,7 +701,7 @@ It asks the running server and never starts one (`SWISSARMYBENCH_COMPLETE=0` tur
 
 **The golden rule: everything you can do, the agent can do too** (215 commands, each an MCP tool):
 grids and steps, analyses, Visualizations and dashboards, connections and blades (made, changed, tested,
-refreshed), packs and tangs, and the Workbench (open and save notebooks and scripts, start
+refreshed), packs and relationship sets, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
 with two exceptions: its exports still wait for your Allow (and it cannot answer an approval), and no
 answer the app gives it holds a password's value. Code it runs in a Workbench kernel can read whatever

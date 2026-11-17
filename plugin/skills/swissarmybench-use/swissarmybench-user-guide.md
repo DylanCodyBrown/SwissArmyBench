@@ -400,20 +400,31 @@ Relationships, on the Table row, holds each table's primary key and the joins be
 
 **Find relationships** works out how the open tables join from their data. For each join it shows the tables and columns, its kind, a confidence bar and the evidence: the share of values that match, the orphans (values with no row on the other side), and why it thinks so. It handles names that don't match (`orders.customer_id` to `customers.cust_key`), a text column holding numbers, keys made of two columns, and two joins between the same tables (only one can be active; the second is marked inactive). Small number columns that happen to overlap, such as status codes and months, are not suggested. The confident joins are ticked: press **Accept the ticked joins**, or reject one so it isn't suggested again.
 
-**Run against the open tables** checks every join in use: each one **holds**, **holds with orphans** (with a few of the orphan values), is **broken** (a column has gone, the key side repeats, or nothing matches) or is **not open**.
+### In use now: managing the joins
 
-### Tangs: sharing relationships
+**In use now** lists every join you use, and is made for many: forty foreign keys imported from a database are as easy as four. Each row has its From and To tables, the columns it joins **On**, its **Kind** (many-to-one, one-to-one, one-to-many, many-to-many) and **Run** (on: the join is used; off: kept, but not used). Long names are cut in the middle so the end that tells them apart shows; hover a cell for all of it. The table scrolls inside the window and never sideways, down to a 700-pixel window (narrow, the Note column steps aside and the buttons show their icons).
 
-A saved set of relationships is a **tang** (the part of a blade that anchors it into the handle, as a join anchors two tables). **Save as tang** keeps the joins in use, with a name, description, tags and, if you like, your name, as one `.tang` file:
+- **Pick rows:** a checkbox per row, **Select all** (only the rows the filter shows), and shift-click to pick a range. The bar says how many are selected.
+- **Delete selected**, **Run on**, **Run off**: on every selected row at once. Each row's **⋯** menu does the same for that row alone.
+- **Kind** and **Run** change in place on a row.
+- **Filter by table or column**, click a heading to sort (again for the other way, a third time for the order they came in), and **Group by From table**.
+- **Undo:** every change says what it did in a toast with **Undo**, which puts back everything that change did (all forty, if you deleted forty).
+- **Deleting a connection** takes the relationships its tables held with it (the toast says how many, and the ERD redraws); your saved sets are left as they are.
 
-- **In your tangs**, on this computer, or
-- **In a shared folder**: the blade folders (a team share or a repository, set with Blade folders on the blades page). A tang saved there is in your coworkers' list the next time they open this window, marked **Shared**, with who saved it and when.
+**Check against the open tables** checks every join in use: each one **holds**, **holds with orphans** (with a few of the orphan values), is **broken** (a column has gone, the key side repeats, or nothing matches) or is **not open**; the Check column shows it.
 
-The list at the top shows every tang found, searchable by name, description, tag or author, with how many of its tables you have open. **Apply** uses one (merged into what you use now; the toast says if it changed a join you had). **Run** checks a tang against your tables before you trust it. **Import a tang** opens a `.tang` file: you see what it holds and what it would change before applying it, and can keep it in your tangs or share it. **Export** downloads the joins in use as a `.tang` file. Only `.tang` files are tangs: ordinary JSON files in those folders are left alone. Older model files (`~/.swissarmybench/models`, `SWISSARMYBENCH_MODELS`) still work.
+### Saved sets: sharing relationships
 
-Tangs also come in packs (see Blades): an installed pack's tangs are listed marked **Pack**, and **Add to pack** shares yours through the team's repository.
+A saved set of relationships is a **relationship set** (it was called a tang until 2026-11-17). **Save as a set…** keeps the joins in use, with a name, description, tags and, if you like, your name, as one `.relationships.json` file:
 
-Draw ERD adds a copy of the diagram to Visualizations; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the tang uses. An agent can find, run and explain joins for you; saving and sharing tangs is yours.
+- **In your saved sets**, in your library's `relationship-sets/` folder, or
+- **In a shared folder**: the blade folders (a team share or a repository, set with Blade folders on the blades page). A set saved there is in your coworkers' list the next time they open this window, marked **Shared**, with who saved it and when.
+
+**Saved sets** at the top lists every set found, searchable by name, description, tag or author, with how many of its tables you have open. **Apply** uses one (merged into what you use now; the toast says if it changed a join you had, with **Undo**). **Check** runs a set against your tables before you trust it. Its **⋯** menu **Renames** it (its file too), **Exports** it, or **Deletes** its file (a pack's or a built-in set is changed in its own repository instead). **Import relationships** opens a set's file: you see what it holds and what it would change before applying it, and can keep it in your saved sets or share it. **Export** downloads the joins in use as a `.relationships.json` file. Older `.tang` files still read for this release. Ordinary JSON files in those folders are left alone; older model files (`~/.swissarmybench/models`, `SWISSARMYBENCH_MODELS`) still work.
+
+Relationship sets also come in packs (see Blades): an installed pack's sets are listed marked **Pack**, and **Add to pack** shares yours through the team's repository.
+
+Draw diagram adds a copy of the diagram to Visualizations; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the set uses. An agent can do all of this for you too (its delete of a saved set waits for your Allow).
 
 ## The ERD tab
 
@@ -423,7 +434,7 @@ The ERD (on the rail, after Visualizations; it was called the Diagram) draws the
 
 With no relationships for the open tables it says so and offers these ways in:
 
-1. **Import relationships**: a `.tang` file (reviewed first: what it would change) or a model as a JSON file, such as one a colleague exported. The Relationships window has the same button.
+1. **Import relationships**: a saved set's `.relationships.json` file (reviewed first: what it would change) or a model as a JSON file, such as one a colleague exported. The Relationships window has the same button.
 2. **Apply a shared model**: when a model in the shared library fits the open tables, it is listed with an Apply button.
 
 ![The ERD for orders, orders_v2 and customers, with the keys and the crow's-foot joins between them.](images/19-erd.png)
@@ -743,16 +754,16 @@ The rail's **Structures** icon (after APIs) is for nested data, as Grids are for
 
 ## Your library
 
-Your connections, APIs, key vaults, blades, relationship sets (tangs), variables and connection colours
+Your connections, APIs, key vaults, blades, relationship sets, variables and connection colours
 live outside every project, so you never hunt for an API again in a new project. They are one folder of
 text files, your **library**, made to be a Git repository you can share with your team.
 
 - **Where it is:** Settings, **Library**, shows the folder (`~/.swissarmybench/library` to begin with)
-  and how many connections, key vaults, APIs, blades and tangs are in it. **Change…** points it at
+  and how many connections, key vaults, APIs, blades and relationship sets are in it. **Change…** points it at
   another folder, such as your clone of a team's library; **Default** goes back. Everything follows at
   once: every page shows the new folder's items.
 - **What is in it:** `connections/`, `vaults/` and `blades/` (one `.blade.py` file each), `apis/<name>/`
-  (an API's client, its blades and its OpenAPI document), `tangs/`, `variables.toml` (each variable's name
+  (an API's client, its blades and its OpenAPI document), `relationship-sets/`, `variables.toml` (each variable's name
   and where its value comes from), `colours.toml` (each connection's colour), a `README.md` and a
   `.gitignore`. Saving something writes its one file; saving it again unchanged changes nothing, so Git
   shows only what you changed.
@@ -762,8 +773,8 @@ text files, your **library**, made to be a Git repository you can share with you
   teammate clones it and points Settings' Library at the clone: the same connections, APIs and blades
   appear, and each connection says **Needs a password** until they set theirs; variables kept on your
   computer only are **Not set** there until they set them.
-- **Moving in:** the first time this version starts, the connections, blades, variables, colours and tangs
-  you had move into the library once (the old files are kept in a dated backup folder beside them), and
+- **Moving in:** the first time this version starts, the connections, blades, variables, colours and saved
+  relationship sets you had move into the library once (the old files are kept in a dated backup folder beside them), and
   the page says so. Opening an older project that kept its own connections and blades copies them into
   your library: one that is already there is skipped, and one that differs is kept as
   **&lt;name&gt; from &lt;project&gt;**, and the page says which. The project's next save leaves them out.
@@ -898,7 +909,7 @@ columns appear as `table#1`, `col#3`.
 - **Find a blade:** the search box above the blades matches names, descriptions and tags, and the tag chips under it narrow the list. The star pins a favourite to the top.
 - **Share a blade:** **Export** on its screen downloads it as one `.blade.py` file (its code under a short header; passwords never go in it). The download arrow above the blades exports them all as a zip. To bring blades in, press the up arrow or drop the files on the blades: you see each blade's code first, and choose what happens when a name is taken. Importing runs nothing. **Fill in your values** on an import offers the values your other blades use for its server, database, user and path.
 - **Blade folders:** the folder button lists folders to search for `.blade.py` files (a team's Git repository, say). Only files that start with the blade header count. A blade from a folder shows **file**; its screen writes only the file's header, and its **Remove** is yours to do in the folder.
-- **Packs:** a team can keep blades and tangs in a GitHub repository that is a Claude Code plugin marketplace. Install a pack once in Claude Code (`/plugin marketplace add <owner>/<repository>`, then `/plugin install <pack>@<marketplace>`) and its blades show here marked **pack**. They are read-only, since Claude Code replaces them on every update (`/plugin marketplace update`): **Copy as your own** to change one; **Test** works as it is. **Packs** above the blades lists what is installed, makes a **New marketplace** (also `sab pack new <folder>` in a terminal) and, for a clone of the repository in your blade folders, **Add to pack** copies your blades and tangs in, ready to commit.
+- **Packs:** a team can keep blades and relationship sets in a GitHub repository that is a Claude Code plugin marketplace. Install a pack once in Claude Code (`/plugin marketplace add <owner>/<repository>`, then `/plugin install <pack>@<marketplace>`) and its blades show here marked **pack**. They are read-only, since Claude Code replaces them on every update (`/plugin marketplace update`): **Copy as your own** to change one; **Test** works as it is. **Packs** above the blades lists what is installed, makes a **New marketplace** (also `sab pack new <folder>` in a terminal) and, for a clone of the repository in your blade folders, **Add to pack** copies your blades and relationship sets in, ready to commit.
 - Your agent makes a new blade from the same choices (`blades_new`), changes a blade's name, description, tags and table name (`blades_update`), and checks a table name as you do (`blades_table_name_check`). It never changes a blade's code and never gets a password's value.
 
 ### Starter blades
