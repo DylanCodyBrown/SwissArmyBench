@@ -328,7 +328,7 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         form.get_by_role("button", name="Create").click()
         clone = page.locator("dialog .set-item", has_text="editable clone")
         expect(clone).to_contain_text("bakery", timeout=10000)
-        clone.get_by_role("button", name="Add blades and tangs").click()
+        clone.get_by_role("button", name="Add blades and sets").click()
         adding = page.locator("dialog").last
         adding.get_by_label("Blade Till export copy").check()
         adding.get_by_role("button", name="Add", exact=True).click()
