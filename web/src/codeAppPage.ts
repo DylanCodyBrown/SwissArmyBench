@@ -334,12 +334,22 @@ function drawPage(): void {
       h("section", { class: "ca-tree" },
         h("div", { class: "ca-section-head" },
           h("h2", {}, "Files"),
+          button("New page", () => void newPage(), { icon: "plus", class: "ca-new-page", title: "A page's folder: its page, components, hooks, state and types, listed in src/pages.ts" }),
           h("label", { class: "ca-every-file muted", title: "Configs, generated models and services, .power/: in the folder, not listed" }, allFiles, "Show all files"),
         ),
         h("div", { class: "ca-tree-host" }, h("p", { class: "muted" }, "…")),
       ),
     );
     void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!);
+  };
+
+  const newPage = async (): Promise<void> => {
+    const name = prompt("New page: its name", "Orders");
+    if (!name?.trim()) return;
+    const made = await call<{ open: string }>("/powerapps/pages", "POST", { name: name.trim() });
+    if (!made) return;
+    void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!);
+    openInWorkbench(made.open);
   };
 
   const openDataNotebook = async (): Promise<void> => {

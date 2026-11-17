@@ -255,13 +255,17 @@ SURVEY = [
     "tsconfig.app.json", "tsconfig.json", "tsconfig.node.json", "vite.config.ts", "power.config.json",
     "src/generated/models/AccountsModel.ts", "src/generated/services/AccountsService.ts",
     ".power/schemas/appschemas/dataSourcesInfo.ts", ".power/schemas/shared_contosotasks/x.Schema.json",
-    ".sab/project.json", "src/data.ts", "src/vite-env.d.ts", "src/features/totals.ts", "data.ipynb",
+    ".sab/project.json", "src/shared/data.ts", "src/vite-env.d.ts", "src/features/totals.ts", "data.ipynb",
+    "src/pages.ts", "src/pages/Accounts/AccountsPage.tsx", "src/shared/components/DataTable.tsx",
 ]  # fmt: skip
 
 
 def test_only_the_files_a_person_edits_are_shown() -> None:
-    assert shown.shown_files(SURVEY) == ["src/App.tsx", "src/data.ts", "src/features/totals.ts"]
-    assert shown.shown("src\\pages\\Home.tsx") and not shown.shown("src/generated/x.ts")
+    assert set(shown.shown_files(SURVEY)) == {
+        "src/App.tsx", "src/pages/Accounts/AccountsPage.tsx", "src/pages.ts", "src/shared/components/DataTable.tsx",
+        "src/shared/data.ts",
+    }  # fmt: skip
+    assert shown.shown("src\\pages\\Home\\HomePage.tsx") and not shown.shown("src/generated/x.ts")
     assert not shown.shown("src/main.tsx") and not shown.shown("vite.config.ts")
 
 

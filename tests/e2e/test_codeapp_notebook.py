@@ -3,7 +3,7 @@
 Jupyter kernel stood in by tests/deno_fake.py and the Power Platform tools by tests/powerapps_fakes.py: the
 Code App page's Data notebook opens data.ipynb in the Workbench, a SQL cell over an open table and a
 TypeScript cell run in the one kernel with their tables drawn, Open as grid, an error in the panel, a TSX cell
-drawn in the HTML cells' frame with its props from the notebook, and Use in app writes src/data.ts. Made-up
+drawn in the HTML cells' frame with its props from the notebook, and Use in app writes src/shared/data.ts. Made-up
 data only.
 
 With SWISSARMYBENCH_CODEAPP_SHOTS set to a folder, the test also saves screenshots there (2x)."""
@@ -114,8 +114,8 @@ def test_the_data_notebook_from_the_code_app_page(browser: Browser, server: dict
     # Use in app: data.ts written into the code app's src/.
     page.bring_to_front()
     page.locator(".ca-use-in-app").click()
-    expect(page.locator(".ca-data-ts .ca-file")).to_have_text("src/data.ts", timeout=20000)
-    written = (folder / "src" / "data.ts").read_text()
+    expect(page.locator(".ca-data-ts .ca-file")).to_have_text("src/shared/data.ts", timeout=20000)
+    written = (folder / "src" / "shared" / "data.ts").read_text()
     assert written.startswith("// data.ts: made from the data notebook's TypeScript cells")
     shot(page, "codeapp-use-in-app")
 

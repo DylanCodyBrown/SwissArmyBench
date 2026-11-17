@@ -153,6 +153,20 @@ def test_the_code_app_page_from_new_app_to_push(browser: Browser, server: dict[s
     expect(tree.locator(".ca-file[data-path='package.json']")).to_have_count(1, timeout=20000)
     tree.get_by_label("Show all files").uncheck()
     expect(tree.locator(".ca-file[data-path='package.json']")).to_have_count(0, timeout=20000)
+    # The starter page, and New page: its folder, listed in src/pages.ts, opened in the Workbench.
+    expect(tree.locator(".ca-file[data-path='src/pages/Accounts/AccountsPage.tsx']")).to_have_count(1)
+    page.once("dialog", lambda d: d.accept("Open orders"))
+    with page.context.expect_page() as opened:
+        tree.locator(".ca-new-page").click()
+    expect(tree.locator(".ca-file[data-path='src/pages/OpenOrders/OpenOrdersPage.tsx']")).to_have_count(
+        1, timeout=20000
+    )
+    workbench = opened.value
+    expect(
+        workbench.locator(".wb-codefile[data-path='src/pages/OpenOrders/OpenOrdersPage.tsx']")
+    ).to_be_visible(timeout=30000)
+    workbench.close()
+    assert "openOrdersPage," in call(server, "GET", "/powerapps/project/file?path=src/pages.ts")["text"]
 
     # The connectors, one explored as the APIs explorer draws an API, then added to the app.
     page.locator(".ca-tab[data-tab='connectors']").click()
@@ -264,6 +278,18 @@ def test_the_workbench_in_the_code_app_mode(browser: Browser, server: dict[str, 
     expect(page.locator(".toast").last).to_contain_text("Saved App.tsx", timeout=20000)
     read = call(server, "GET", "/powerapps/project/file?path=src/App.tsx")
     assert 'const total: number = "twelve";' in read["text"]
+    # The pages rule in the editor: a page importing another page's code is marked.
+    bad = 'import { AccountsList } from "../Accounts/components/AccountsList";\nexport const x = AccountsList;\n'
+    call(server, "PUT", "/powerapps/project/file", {"path": "src/pages/Reports/ReportsPage.tsx", "text": bad})
+    page.goto("about:blank")  # a new load: a hash alone would not open the file
+    page.goto(
+        f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}&codefile=src/pages/Reports/ReportsPage.tsx"
+    )
+    expect(
+        page.locator(".wb-codefile[data-path='src/pages/Reports/ReportsPage.tsx'] .monaco-editor")
+    ).to_be_visible(timeout=30000)
+    expect(page.locator(".wb-codefile .squiggly-error").first).to_be_attached(timeout=30000)
+    shot(page, "codeapp-pages-rule")
     # The code app mode: New makes a TypeScript file.
     page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=script&view=list#token={server['token']}")
     new = page.locator("#wb-top button").filter(has_text="New TypeScript file")

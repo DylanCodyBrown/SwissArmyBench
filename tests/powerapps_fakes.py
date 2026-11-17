@@ -397,7 +397,7 @@ def npx(args):
         # The rest of the template's files as degit wrote them (the survey, docs/ideas.md, 2026-11-17).
         for rel in (".gitignore", "README.md", "eslint.config.js", "public/vite.svg", "src/App.css",
                     "src/assets/react.svg", "src/index.css", "tsconfig.app.json", "tsconfig.json", "tsconfig.node.json"):
-            (root / rel).parent.mkdir(parents=True, exist_ok=True); (root / rel).write_text("")
+            (root / rel).parent.mkdir(parents=True, exist_ok=True); (root / rel).write_text("{}" if rel.endswith(".json") else "")
         (root / "src" / "main.tsx").write_text("import App from './App.tsx'\n")
         print(f"> cloned microsoft/PowerAppsCodeApps#HEAD to {name}"); return 0
     return 1

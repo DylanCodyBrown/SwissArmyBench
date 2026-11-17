@@ -213,10 +213,10 @@ def test_data_ts_exports_the_typescript_and_types_the_results(client: TestClient
     assert "export type Total = " in text and "export function grandTotal(rows: Total[]): number {" in text
     assert "// [3] by region: stays in the notebook" in text and "sab.sql" not in text
     assert said["left"] == [{"cell": 3, "why": "it uses the notebook's kernel (sab, Deno or DuckDB)"}]
-    assert said["target"] == "src/data.ts" and said["types"] == ["ByRegionRow"]
-    assert not (app_folder / "src" / "data.ts").exists()  # a look only
+    assert said["target"] == "src/shared/data.ts" and said["types"] == ["ByRegionRow"]
+    assert not (app_folder / "src" / "shared" / "data.ts").exists()  # a look only
     used = ok(client.post("/powerapps/notebook/use-in-app", json={"cells": CELLS}, headers=AGENT))
-    written = app_folder / "src" / "data.ts"
+    written = app_folder / "src" / "shared" / "data.ts"
     assert used["written"] == str(written) and written.read_text() == text
     session = ok(client.get("/session-log", headers=AUTH))
     assert "Wrote data.ts into the code app (Use in app)" in json.dumps(session)
@@ -329,7 +329,7 @@ def test_the_agents_commands_drive_the_same_door(
     grid = commands["powerapps_ts_grid"].run({"id": ident, "name": "from_agent"})
     assert grid["dataset"] == "from_agent"
     built = commands["powerapps_data_ts"].run({"use_in_app": True})
-    assert built["written"].endswith(os.path.join("src", "data.ts")) and built["path"] == path
+    assert built["written"].endswith(os.path.join("src", "shared", "data.ts")) and built["path"] == path
     _react(app_folder)
     drawn = commands["powerapps_tsx_preview"].run({"source": TSX})
     assert drawn["policy"] == FRAME_POLICY
@@ -385,9 +385,17 @@ def test_only_the_files_a_person_edits_are_listed_and_the_rest_stay(
     client: TestClient, app_folder: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ok(client.post("/powerapps/sources", json={"kind": "dataverse", "table": "account"}, headers=AUTH))
-    (app_folder / "src" / "data.ts").write_text("export {};\n")
+    (app_folder / "src" / "features").mkdir()
+    (app_folder / "src" / "features" / "loose.ts").write_text("export {};\n")  # outside pages and shared
     listed = ok(client.get("/powerapps/project/files", headers=AUTH))
-    assert listed["files"] == ["src/App.tsx", "src/data.ts"] and listed["all"] is False
+    assert set(listed["files"]) == {
+        "src/App.tsx", "src/pages/Accounts/AccountsPage.tsx", "src/pages/Accounts/components/AccountsDetail.tsx",
+        "src/pages/Accounts/components/AccountsList.tsx", "src/pages/Accounts/hooks/useAccounts.ts",
+        "src/pages/Accounts/index.ts", "src/pages/Accounts/state.ts", "src/pages/Accounts/types.ts", "src/pages.ts",
+        "src/shared/AppContext.tsx", "src/shared/appContext.ts", "src/shared/components/DataTable.tsx",
+        "src/shared/components/FormField.tsx", "src/shared/page.ts", "src/shared/useLoad.ts",
+    } and listed["all"] is False  # fmt: skip
+    assert (app_folder / "src" / "features" / "loose.ts").is_file()
     assert listed["hidden"] >= 10
     names = json.dumps(listed["tree"])
     for hidden in ("package.json", "power.config.json", "main.tsx", "generated", "vite.config.ts", ".power"):

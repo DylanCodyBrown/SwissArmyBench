@@ -10,7 +10,7 @@
  */
 import { api } from "./api";
 import { h } from "./dom";
-import type { CodeEditor, EditorLanguage } from "./lazy/codeEditor";
+import type { CodeEditor, EditorLanguage, Problem } from "./lazy/codeEditor";
 
 type Editors = typeof import("./lazy/codeEditor");
 let editors: Promise<Editors> | null = null;
@@ -55,7 +55,8 @@ async function projectFiles(except: string): Promise<{ path: string; text: strin
 export async function newCodeFile(name: string): Promise<string> {
   const clean = name.trim().replace(/\\/g, "/").replace(/^\/+/, "");
   if (!clean || clean.includes("..")) throw new Error("A file's name, such as orders.ts.");
-  const path = clean.startsWith("src/") ? clean : `src/${clean}`;
+  // Outside a page's folder, a file is shared by the pages (src/shared/); a page's own goes in its folder.
+  const path = clean.startsWith("src/") ? clean : `src/shared/${clean}`;
   const there = await api<FileAnswer>(`/powerapps/project/file?path=${encodeURIComponent(path)}`).then(() => true, () => false);
   if (there) throw new Error(`${path} is there already: open it from the Code App page.`);
   await api("/powerapps/project/file", "PUT", { path, text: "" });
@@ -76,7 +77,21 @@ export async function openCodeFile(path: string, theme: string, changed: () => v
     host,
   );
   const editor: CodeEditor = m.createCodeEditor(host, { language, value: found.text, theme, path: found.path });
-  editor.onChange(() => changed());
+  // The app's own rule beside TypeScript's: a page never imports another page's code (moved to src/shared/).
+  let linting = 0;
+  const lint = (): void => {
+    const ticket = ++linting;
+    void api<{ problems: Problem[] }>("/powerapps/project/lint", "POST", { path: found.path, text: editor.value() })
+      .then((r) => ticket === linting && editor.setProblems(r.problems))
+      .catch(() => undefined);
+  };
+  let soon: number | null = null;
+  editor.onChange(() => {
+    changed();
+    if (soon !== null) clearTimeout(soon);
+    soon = window.setTimeout(lint, 400);
+  });
+  lint();
   return {
     element,
     path: found.path,

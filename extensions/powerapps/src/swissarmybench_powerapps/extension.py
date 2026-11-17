@@ -90,6 +90,8 @@ SESSION_RULES: dict[str, Any] = {
         f"Ran {_name(x.get('command'))} ({'done' if x.get('ok') else 'failed'})"
     ),
     "powerapps_new": lambda d, x: _area(f"Made the code app {_name(x.get('app'))}"),
+    "powerapps_new_page": lambda d, x: _area(f"Made the page {_name(x.get('page'))}"),
+    "powerapps_scaffold": lambda d, x: _area(f"Wrote {x.get('files')} starter files into the code app"),
     "powerapps_open": lambda d, x: _area(f"Opened the code app {_name(x.get('app'))}"),
     "powerapps_add_source": lambda d, x: _area(f"Added the data source {_name(x.get('source'))}"),
     "powerapps_remove_source": lambda d, x: _area(f"Removed the data source {_name(x.get('source'))}"),

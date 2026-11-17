@@ -1537,7 +1537,7 @@ const scriptLanguage = (): string | null => {
 const LANGUAGE_WORDS: Record<string, string> = { typescript: "TypeScript", tsx: "TSX", python: "Python" };
 async function newModeFile(language: string): Promise<void> {
   const ending = language === "tsx" ? ".tsx" : ".ts";
-  const name = prompt(`New ${LANGUAGE_WORDS[language] ?? language} file (in the code app's src folder)`, `module${ending}`);
+  const name = prompt(`New ${LANGUAGE_WORDS[language] ?? language} file (in src/shared, or a path under src/pages/<Page>/)`, `module${ending}`);
   if (!name) return;
   try {
     const path = await newCodeFile(name.endsWith(ending) || /\.(ts|tsx)$/.test(name) ? name : `${name}${ending}`);

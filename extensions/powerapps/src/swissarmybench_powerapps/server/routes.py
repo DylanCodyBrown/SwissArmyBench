@@ -20,6 +20,10 @@ GET    /powerapps/project/files      ?all=1: the files a person edits (or all)  
 GET    /powerapps/project/file       ?path=: a file and its language            powerapps_files path=
 PUT    /powerapps/project/file       {path, text}: saved                        powerapps_files text=
 POST   /powerapps/sources            pa app add data-source                     powerapps_add_source
+GET    /powerapps/pages              the app's pages, which src/pages.ts lists   powerapps_pages
+POST   /powerapps/pages              {name, source?}: New page                  powerapps_pages name=
+POST   /powerapps/project/scaffold   the starter files where none is            powerapps_scaffold
+POST   /powerapps/project/lint       {path?, text?}: a page importing another   powerapps_lint
 POST   /powerapps/sources/remove     pa app remove data-source                  powerapps_remove_source
 GET    /powerapps/connectors         ?q=&refresh=1: pa connector list           powerapps_connectors
 GET    /powerapps/connectors/{name}  the explorer's model of one                powerapps_connector
@@ -132,6 +136,18 @@ def routes(service: PowerApps, notebook: TsNotebooks | None = None) -> list[Base
     async def close(r: Request) -> Any:
         return await service.close_app(actor(r))
 
+    async def pages_list(r: Request) -> Any:
+        return service.pages_state()
+
+    async def new_page(r: Request) -> Any:
+        return await service.new_page(await _body(r), actor(r))
+
+    async def scaffold(r: Request) -> Any:
+        return await service.scaffold(actor(r))
+
+    async def lint(r: Request) -> Any:
+        return service.lint(await _body(r))
+
     async def files(r: Request) -> Any:
         return service.files_tree(r.query_params.get("all") == "1")
 
@@ -197,6 +213,10 @@ def routes(service: PowerApps, notebook: TsNotebooks | None = None) -> list[Base
         Route("/powerapps/project/open", door(open_app), methods=["POST"]),
         Route("/powerapps/project/close", door(close), methods=["POST"]),
         Route("/powerapps/project/files", door(files)),
+        Route("/powerapps/pages", door(pages_list)),
+        Route("/powerapps/pages", door(new_page), methods=["POST"]),
+        Route("/powerapps/project/scaffold", door(scaffold), methods=["POST"]),
+        Route("/powerapps/project/lint", door(lint), methods=["POST"]),
         Route("/powerapps/project/file", door(file)),
         Route("/powerapps/project/file", door(save), methods=["PUT"]),
         Route("/powerapps/sources", door(add_source), methods=["POST"]),

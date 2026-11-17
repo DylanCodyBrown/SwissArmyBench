@@ -23,7 +23,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain.packages import MissingPackagesError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
-from swissarmybench_powerapps.domain import cli_lines, connectors, project, shown, tools
+from swissarmybench_powerapps.domain import cli_lines, connectors, pages, project, shown, tools
 
 TIMEOUTS: dict[str, float] = {
     "quick": 120.0,
@@ -468,6 +468,93 @@ class PowerApps:
             "hidden": len(listing) - len(files),
         }
 
+    # ===== pages: each page a folder of its own (domain/pages.py) =====
+
+    def _service_for(self, folder: str, source: str) -> tuple[str, str] | None:
+        """A data source's generated service file and its text (None: none, or no such source)."""
+        wanted = pages.names_of(source)["folder"].lower() if source else ""
+        for path in self._files.listing(folder):
+            if path.startswith(project.GENERATED + "/services/") and path.endswith("Service.ts"):
+                if pages.service_of(path).removesuffix("Service").lower() == wanted:
+                    return path, self._files.read(folder, path) or ""
+        return None
+
+    def pages_state(self) -> dict[str, Any]:
+        """The app's pages (each folder under src/pages with its index.ts) and which src/pages.ts lists."""
+        folder = self._open_folder()
+        listing = self._files.listing(folder)
+        found = sorted(
+            {
+                p.split("/")[2]
+                for p in listing
+                if p.startswith(pages.PAGES + "/") and p.endswith("/index.ts") and p.count("/") == 3
+            }
+        )
+        listed = pages.registered(self._files.read(folder, pages.REGISTRY))
+        return {
+            "pages": [{"name": f, "folder": f"{pages.PAGES}/{f}", "listed": f in listed} for f in found],
+            "registry": pages.REGISTRY,
+        }
+
+    async def new_page(self, body: Any, who: str) -> dict[str, Any]:
+        """New page: its folder (page, components, hooks, state, types, index) and its line in src/pages.ts;
+        its hook reads a data source's generated service when one is named."""
+        body = body if isinstance(body, dict) else {}
+        folder = self._open_folder()
+        try:
+            names = pages.names_of(body.get("name"))
+        except pages.PageError as error:
+            raise ValueError(str(error)) from None
+        page_folder = f"{pages.PAGES}/{names['folder']}"
+        if any(p.startswith(page_folder + "/") for p in self._files.listing(folder)):
+            raise Conflict(f"{page_folder} is there already: choose another name.")
+        source = str(body.get("source") or "")
+        service = self._service_for(folder, source) if source else None
+        if source and service is None:
+            raise NotFound(f"The app has no generated service for {source} (add it as a data source first).")
+        made = pages.page_files(names["title"], *(service or (None, "")))
+        for path, text in made.items():
+            self._files.write(folder, path, text)
+        self._files.write(
+            folder, pages.REGISTRY, pages.register(self._files.read(folder, pages.REGISTRY), names["title"])
+        )
+        self._audit.write(who, "powerapps_new_page", None, page=names["title"])
+        await self._live.broadcast({"type": "powerapps_project", "open": True})
+        return {
+            "page": names["title"],
+            "files": sorted(made),
+            "open": f"{page_folder}/{names['component']}.tsx",
+        }
+
+    async def scaffold(self, who: str) -> dict[str, Any]:
+        """The starter files on the template: what pages share, the Accounts page (its hook over the generated
+        Accounts service when there is one), src/pages.ts and App.tsx: each only where no file is."""
+        folder = self._open_folder()
+        existing = {p: self._files.read(folder, p) for p in pages.scaffold_paths()}
+        service = self._service_for(folder, "Accounts")
+        planned = pages.scaffold_plan(existing, *(service or (None, "")))
+        for path, text in planned.items():
+            self._files.write(folder, path, text)
+        if planned:
+            self._audit.write(who, "powerapps_scaffold", None, files=len(planned))
+            await self._live.broadcast({"type": "powerapps_project", "open": True})
+        return {"written": sorted(planned), "kept": sorted(p for p in existing if p not in planned)}
+
+    def lint(self, body: Any) -> dict[str, Any]:
+        """The pages rule (a page never imports another page's code) over one file as sent, or every shown
+        file of the app."""
+        body = body if isinstance(body, dict) else {}
+        folder = self._open_folder()
+        path, text = body.get("path"), body.get("text")
+        if isinstance(path, str) and isinstance(text, str):
+            return {"problems": [p | {"path": path} for p in pages.cross_page_imports(path, text)]}
+        found = []
+        for rel in shown.shown_files(self._files.listing(folder)):
+            found += [
+                p | {"path": rel} for p in pages.cross_page_imports(rel, self._files.read(folder, rel) or "")
+            ]
+        return {"problems": found}
+
     def read_file(self, path: Any) -> dict[str, Any]:
         if not self._folder:
             raise Conflict("No code app is open.")
@@ -562,9 +649,10 @@ class PowerApps:
         finally:
             self._busy.discard("init")
         await self.stop_live(who)
-        state = await self._opened(folder, who)
+        await self._opened(folder, who)
+        await self.scaffold(who)
         self._audit.write(who, "powerapps_new", None, app=name)
-        return state
+        return self.project_state()
 
     # ===== data sources =====
 

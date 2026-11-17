@@ -135,6 +135,38 @@ def powerapps_files(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "powerapps_pages",
+    "The app's pages (each a folder under src/pages that owns its components, hooks, state and types); "
+    "`name` makes a New page and lists it in src/pages.ts",
+    opt("name", "New page: its name (Accounts, Open orders)."),
+    opt("source", "New page: a data source whose generated service its hook reads."),
+)
+def powerapps_pages(a: dict[str, Any]) -> Any:
+    if a.get("name"):
+        return api.call("POST", "/powerapps/pages", {"name": a["name"], "source": a.get("source")})
+    return api.call("GET", "/powerapps/pages")
+
+
+@command(
+    "powerapps_scaffold",
+    "The starter files where none is: src/shared (Page, useLoad, DataTable, FormField, the app's context), "
+    "the Accounts page, src/pages.ts and App.tsx's page switcher",
+)
+def powerapps_scaffold(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/powerapps/project/scaffold", {})
+
+
+@command(
+    "powerapps_lint",
+    "The pages rule: an import from another page (move the piece to src/shared/); one file as sent, or all",
+    opt("path", "A file's path (with `text`)."),
+    opt("text", "The file's text as it stands."),
+)
+def powerapps_lint(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/powerapps/project/lint", {"path": a.get("path"), "text": a.get("text")})
+
+
+@command(
     "powerapps_add_source",
     "Add a data source (pa app add data-source): a Dataverse table, or a connector with its connection",
     opt("table", "Dataverse: the table's logical name; a connector: its table."),

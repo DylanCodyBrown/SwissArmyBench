@@ -30,7 +30,7 @@ from swissarmybench_powerapps.domain import data_ts, tools, tsx_preview
 from swissarmybench_powerapps.domain import ts_notebook as rules
 
 DATA_NOTEBOOK = "data.ipynb"
-DATA_TS = "src/data.ts"
+DATA_TS = "src/shared/data.ts"  # the notebook's fixed results, shared by the pages (never their data layer)
 BUNDLE_SECONDS = 120.0
 _PARQUET = ExportOptions(format="parquet", provenance=False)
 
