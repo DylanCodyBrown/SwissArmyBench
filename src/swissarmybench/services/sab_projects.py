@@ -42,7 +42,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import notebooks
 from swissarmybench.domain import sab_files as rules
 from swissarmybench.domain.projects import DATA_NOTEBOOK, check_folder_name
-from swissarmybench.domain.relationships import Model, TangError, read_tang, write_tang
+from swissarmybench.domain.relationships import Model, RelationshipSetError, read_set, write_set
 from swissarmybench.domain.sab_files import GridEntry, Manifest, Source, TableEntry
 from swissarmybench.domain.steps import ViewSettings, steps_from_json
 from swissarmybench.domain.table_cells import Origin
@@ -514,8 +514,8 @@ class SabProjects:
         model_text = await self._state_text(folder, manifest.model)
         if model_text is not None:
             try:
-                await self._models.replace(read_tang(model_text))
-            except TangError:
+                await self._models.replace(read_set(model_text))
+            except RelationshipSetError:
                 pass  # a model edited into something else: the project opens without it
         for opened in self.opened:
             await opened(folder, manifest.extra)
@@ -815,7 +815,7 @@ class SabProjects:
         model = self._models.model
         model_entry = rules.MODEL_PATH if model.tables() or model.relationships else None
         if model_entry:
-            await put(model_entry, write_tang(model).encode("utf-8"))
+            await put(model_entry, write_set(model).encode("utf-8"))
         else:
             await drop(rules.MODEL_PATH)
         layout = current.layout

@@ -1,12 +1,13 @@
-"""Packs: blades and tangs a team shares through a Claude Code plugin marketplace (the owner's idea:
-"use the Claude marketplace to source blades and tangs, so they could be stored in a GitHub repo and
-collaborated with").
+"""Packs: blades and relationship sets a team shares through a Claude Code plugin marketplace (the
+owner's idea: "use the Claude marketplace to source blades and tangs, so they could be stored in a GitHub
+repo and collaborated with"; a tang is a relationship set since 2026-11-17).
 
 A marketplace is a repository with `.claude-plugin/marketplace.json` listing plugins; a **pack** is one
-of those plugins carrying a `blades/` folder (`.blade.py` files) and a `tangs/` folder (`.tang` files).
-Claude Code copies a plugin's folder as a unit when it installs it, so the blades and tangs arrive with
+of those plugins carrying a `blades/` folder (`.blade.py` files) and a `relationship-sets/` folder
+(`.relationships.json` files; one release, an older pack's `tangs/` folder of `.tang` files reads too).
+Claude Code copies a plugin's folder as a unit when it installs it, so the blades and sets arrive with
 it (`/plugin marketplace add org/repo`, `/plugin install sales@repo`, `/plugin marketplace update`).
-Swiss Army Bench lists an installed pack's blades and tangs read-only; changes go through the repository:
+Swiss Army Bench lists an installed pack's blades and sets read-only; changes go through the repository:
 a clone added as a blade folder, a commit, a pull request.
 
 Standard library only, and no I/O: the adapter reads and writes the files.
@@ -51,7 +52,8 @@ CROSS_LISTED: dict[str, tuple[str, ...]] = {
         "Power BI refresh and wait",
     ),
 }
-TANGS_FOLDER = "tangs"
+SETS_FOLDER = "relationship-sets"
+OLD_TANGS_FOLDER = "tangs"  # the old name, one release: read, never written
 
 
 class PackError(ValueError):
@@ -60,16 +62,16 @@ class PackError(ValueError):
 
 @dataclass(frozen=True)
 class Pack:
-    """A plugin that carries blades and tangs: installed (read-only) or a clone's (editable)."""
+    """A plugin that carries blades and relationship sets: installed (read-only) or a clone's (editable)."""
 
     name: str
     marketplace: str
     version: str
     root: str  # the plugin's folder
     blades: int  # how many .blade.py files it carries
-    tangs: int
+    sets: int  # how many relationship sets (and old .tang files)
     enabled: bool = True
-    editable: bool = False  # in a blade folder (a clone of the repository): blades and tangs can be added
+    editable: bool = False  # in a blade folder (a clone of the repository): blades and sets can be added
 
     @property
     def label(self) -> str:
@@ -84,7 +86,7 @@ class Pack:
             "label": self.label,
             "root": self.root,
             "blades": self.blades,
-            "tangs": self.tangs,
+            "relationship_sets": self.sets,
             "enabled": self.enabled,
             "editable": self.editable,
         }
@@ -106,7 +108,7 @@ def scaffold(marketplace: str, owner: str, pack: str, description: str = "") -> 
     every commit is an update for whoever has it installed (Claude Code uses the commit then)."""
     check_names(marketplace, pack)
     owner = (owner or "").strip() or "The team"
-    about = (description or "").strip() or f"Blades and tangs, shared by {owner}."
+    about = (description or "").strip() or f"Blades and relationship sets, shared by {owner}."
     manifest = {
         "name": marketplace,
         "owner": {"name": owner},
@@ -116,18 +118,18 @@ def scaffold(marketplace: str, owner: str, pack: str, description: str = "") -> 
                 "name": pack,
                 "source": f"./packs/{pack}",
                 "description": about,
-                "keywords": ["swissarmybench", "blades", "tangs"],
+                "keywords": ["swissarmybench", "blades", "relationships"],
             }
         ],
     }
-    plugin = {"name": pack, "description": about, "keywords": ["swissarmybench", "blades", "tangs"]}
+    plugin = {"name": pack, "description": about, "keywords": ["swissarmybench", "blades", "relationships"]}
     readme = f"""# {marketplace}
 
 {about}
 
 A Claude Code plugin marketplace of Swiss Army Bench **packs**: each pack is a plugin with a `blades/`
-folder (`.blade.py` files: saved code that loads data) and a `tangs/` folder (`.tang` files: saved
-relationships between tables).
+folder (`.blade.py` files: saved code that loads data) and a `relationship-sets/` folder
+(`.relationships.json` files: saved relationships between tables).
 
 ## Use it
 
@@ -138,8 +140,8 @@ In Claude Code:
 /plugin install {pack}@{marketplace}
 ```
 
-Swiss Army Bench then lists the pack's blades on its blades page and its tangs in the Relationships
-window, marked with the pack. To get the team's latest:
+Swiss Army Bench then lists the pack's blades on its blades page and its relationship sets in the
+Relationships window's Saved sets, marked with the pack. To get the team's latest:
 
 ```
 /plugin marketplace update {marketplace}
@@ -149,7 +151,8 @@ window, marked with the pack. To get the team's latest:
 
 1. Clone this repository, and add the clone as a blade folder in Swiss Army Bench (Blade folders, on the
    blades page).
-2. Save blades into `packs/{pack}/blades/` and tangs into `packs/{pack}/tangs/` (or use Add to pack in
+2. Save blades into `packs/{pack}/blades/` and relationship sets into `packs/{pack}/relationship-sets/`
+   (or use Add to pack in
    Swiss Army Bench's Packs window).
 3. Commit, push a branch and open a pull request. Once it is merged, everyone updates.
 
@@ -161,7 +164,9 @@ Secrets are never in them (only their names).
         ".claude-plugin/marketplace.json": json.dumps(manifest, indent=2) + "\n",
         f"packs/{pack}/.claude-plugin/plugin.json": json.dumps(plugin, indent=2) + "\n",
         f"packs/{pack}/{BLADES_FOLDER}/README.md": keep.format(what="blades, as .blade.py files"),
-        f"packs/{pack}/{TANGS_FOLDER}/README.md": keep.format(what="tangs, as .tang files"),
+        f"packs/{pack}/{SETS_FOLDER}/README.md": keep.format(
+            what="relationship sets, as .relationships.json files"
+        ),
         "README.md": readme,
     }
 

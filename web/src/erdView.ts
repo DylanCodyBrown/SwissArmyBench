@@ -84,12 +84,12 @@ async function render(): Promise<void> {
   // imported, its tables not opened yet): the whole model, rather than "No relationships yet".
   const openPart = named.filter((t) => open.has(t));
   const covered = openPart.length || !model.relationships.length ? openPart : named;
-  const file = h("input", { type: "file", accept: ".tang,.json,application/json", hidden: true, onchange: () => void importModel(file) });
+  const file = h("input", { type: "file", accept: ".json,.tang,application/json", hidden: true, onchange: () => void importModel(file) });
   const actions = h(
     "div",
     { class: "erd-actions" },
     file,
-    button("Import relationships", () => file.click(), { icon: "import", title: "A .tang file (reviewed before it is applied) or a model as JSON" }),
+    button("Import relationships", () => file.click(), { icon: "import", title: "A saved set (reviewed before it is applied) or a model as JSON" }),
     button("Manage relationships", () => openRelationships(), { icon: "crown" }),
   );
   // With a diagram on screen: its size. Fitted to the window as it is drawn; Actual size is for a

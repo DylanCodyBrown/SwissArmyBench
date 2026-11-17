@@ -7,6 +7,9 @@
   migration   once: this computer's stores from before the library (blades/*.json, variables.json and
               local/variables.json, colours.toml, tangs/) written as library files, the old files moved into a
               dated backup folder beside them (state folder/backup/before-library-<date>/)
+  sets        once: the library's tangs/*.tang (the old name, 2026-11-17) written as relationship-sets/
+              <name>.relationships.json, the old folder moved into state folder/backup/
+              before-relationship-sets-<date>/
   a project   its own blades (an older .sab's .sab/blades/*.json, in its working folder) read, and removed
               from the working folder once in the library, so its next save leaves them out
 
@@ -26,6 +29,7 @@ from swissarmybench.adapters.variables import VariableFiles
 from swissarmybench.domain import library as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.project_scope import BLADES as PROJECT_BLADES
+from swissarmybench.domain.relationships import OLD_SET_SUFFIX, SET_SUFFIX, read_set, set_file_name, write_set
 
 
 class LibraryFolder:
@@ -96,7 +100,7 @@ class LibraryFolder:
             "vaults": files(rules.VAULTS, ".blade.py"),
             "blades": files(rules.BLADES, ".blade.py"),
             "apis": sum(1 for p in apis.iterdir() if p.is_dir()) if apis.is_dir() else 0,
-            "tangs": files(rules.TANGS, ".tang"),
+            "relationship_sets": files(rules.RELATIONSHIP_SETS, SET_SUFFIX),
             "local_files": sum(1 for p in local.rglob("*") if p.is_file()) if local.is_dir() else 0,
         }
 
@@ -118,7 +122,12 @@ class LibraryFolder:
         ]
         if any(p.exists() for p in before):
             self.ensure()
-        moved = {"connections and blades": 0, "variables files": 0, "colours files": 0, "tangs": 0}
+        moved = {
+            "connections and blades": 0,
+            "variables files": 0,
+            "colours files": 0,
+            "relationship sets": 0,
+        }
         old_blades = state_dir / "blades"
         if old_blades.is_dir() and old_blades.resolve() != self._root.resolve():
             for path in sorted(old_blades.glob("*.json")):
@@ -147,16 +156,22 @@ class LibraryFolder:
                 moved["colours files"] += 1
             self._backup(colours, backup / "colours.toml")
         tangs = state_dir / "tangs"
-        if tangs.is_dir() and tangs.resolve() != (self._root / rules.TANGS).resolve():
-            target_folder = self._root / rules.TANGS
-            for path in sorted(tangs.glob("*.tang")):
-                target = target_folder / path.name
-                if not target.exists():
-                    target_folder.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(path, target)
-                    moved["tangs"] += 1
+        if tangs.is_dir() and tangs.resolve() != (self._root / rules.OLD_TANGS).resolve():
+            moved["relationship sets"] += _convert_sets(tangs, self._root / rules.RELATIONSHIP_SETS)
             self._backup(tangs, backup / "tangs")
         return {"moved": moved, "backup": str(backup) if backup.exists() else ""}
+
+    def move_relationship_sets(self, state_dir: Path, date: str) -> dict[str, Any]:
+        """Once: the library's tangs/ (the old name) written as relationship-sets/<name>.relationships.json,
+        the old folder moved into state folder/backup/before-relationship-sets-<date>/tangs. A set already
+        there by that name stays; a file that does not read is only in the backup."""
+        old = self._root / rules.OLD_TANGS
+        if not old.is_dir():
+            return {"moved": 0, "backup": ""}
+        count = _convert_sets(old, self._root / rules.RELATIONSHIP_SETS)
+        backup = state_dir / "backup" / f"before-relationship-sets-{date}"
+        self._backup(old, backup / "tangs")
+        return {"moved": count, "backup": str(backup)}
 
     @staticmethod
     def _backup(old: Path, to: Path) -> None:
@@ -177,6 +192,24 @@ class LibraryFolder:
     def drop_project_blades(folder: str) -> None:
         """The project folder's .sab/blades, gone once its items are in the library."""
         shutil.rmtree(Path(folder) / PROJECT_BLADES, ignore_errors=True)
+
+
+def _convert_sets(folder: Path, target: Path) -> int:
+    """Every old .tang file in `folder` written into `target` as a .relationships.json (a name already
+    there is kept). How many were written."""
+    count = 0
+    for path in sorted(folder.glob(f"*{OLD_SET_SUFFIX}")):
+        try:
+            model = read_set(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        written = target / set_file_name(model.name)
+        if written.exists():
+            continue
+        target.mkdir(parents=True, exist_ok=True)
+        written.write_text(write_set(model), encoding="utf-8", newline="\n")
+        count += 1
+    return count
 
 
 def _json(path: Path) -> Any:

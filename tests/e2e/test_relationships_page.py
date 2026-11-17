@@ -150,7 +150,7 @@ def test_a_key_finder_row_compares_on_its_columns_and_becomes_a_relationship(
         page.close()
 
 
-def test_import_relationships_is_one_name_and_takes_a_model_or_a_tang(
+def test_import_relationships_is_one_name_and_takes_a_model_or_a_set(
     browser: Browser, server: dict[str, Any], tmp_path: Path
 ) -> None:
     url, model = tables("imp")
@@ -175,9 +175,9 @@ def test_import_relationships_is_one_name_and_takes_a_model_or_a_tang(
         dialog = page.locator("dialog")
         expect(dialog.get_by_role("button", name="Import relationships")).to_be_visible()
         assert page.get_by_role("button", name=re.compile("Import a")).count() == 0
-        # A tang from here or from the ERD tab is reviewed first, then applied.
-        saved = tmp_path / "shop.tang"
-        saved.write_text(tang_text(server, model), encoding="utf-8")
+        # A saved set from here or from the ERD tab is reviewed first, then applied.
+        saved = tmp_path / "shop.relationships.json"
+        saved.write_text(set_text(server, model), encoding="utf-8")
         with page.expect_file_chooser() as chooser:
             dialog.get_by_role("button", name="Import relationships").click()
         chooser.value.set_files(str(saved))
@@ -219,8 +219,8 @@ def test_a_model_none_of_whose_tables_are_open_is_drawn_whole(
         page.close()
 
 
-def tang_text(server: dict[str, Any], model: dict[str, Any]) -> str:
-    """The model as a .tang file, written by the app itself (domain/relationships.py write_tang)."""
-    from swissarmybench.domain.relationships import parse_model, write_tang
+def set_text(server: dict[str, Any], model: dict[str, Any]) -> str:
+    """The model as a .relationships.json file, written by the app itself (write_set)."""
+    from swissarmybench.domain.relationships import parse_model, write_set
 
-    return write_tang(parse_model(model))
+    return write_set(parse_model(model))

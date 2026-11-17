@@ -1,8 +1,8 @@
 {
-  "swissarmybench": "tang",
+  "swissarmybench": "relationship-set",
   "format": 1,
   "name": "Sample store",
-  "description": "The made-up store's ten relationships (examples/sample_store.py): push its tables with python examples/sample_store.py --push, then run this tang.",
+  "description": "The made-up store's ten relationships (examples/sample_store.py): push its tables with python examples/sample_store.py --push, then run this set.",
   "tags": [
     "example",
     "sample-store"

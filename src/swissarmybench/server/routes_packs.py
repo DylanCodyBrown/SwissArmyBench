@@ -1,9 +1,9 @@
-"""Packs: blades and tangs from a Claude Code plugin marketplace (services/packs.py).
+"""Packs: blades and relationship sets from a Claude Code plugin marketplace (services/packs.py).
 
   GET  /packs        the installed packs, the editable ones (clones in the blade folders), the commands
   POST /packs/new    {"folder", "marketplace", "owner", "pack", "description", "add_folder"}: a new
                      marketplace repository with one pack
-  POST /packs/add    {"pack": <folder>, "blades": [names], "tangs": [names], "replace"}: copy them in
+  POST /packs/add    {"pack": <folder>, "blades": [names], "sets": [names], "replace"}: copy them in
 
 Files on disk, and code that others will run; the agent may do all of it too (the golden rule).
 """

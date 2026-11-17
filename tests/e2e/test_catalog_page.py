@@ -318,7 +318,7 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         # The Packs window: the installed pack, the commands, and a new marketplace repository.
         page.get_by_role("button", name="Packs").click()
         packs = page.locator("dialog")
-        expect(packs.locator(".tang-item", has_text="sales")).to_contain_text("version 1a2b3c4d5e6f")
+        expect(packs.locator(".set-item", has_text="sales")).to_contain_text("version 1a2b3c4d5e6f")
         expect(packs).to_contain_text("/plugin install <pack>@<marketplace>")
         packs.get_by_role("button", name="New marketplace repository").click()
         form = page.locator("dialog").last
@@ -326,7 +326,7 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         form.get_by_label("Marketplace name").fill("data-blades")
         form.get_by_label("First pack's name").fill("bakery")
         form.get_by_role("button", name="Create").click()
-        clone = page.locator("dialog .tang-item", has_text="editable clone")
+        clone = page.locator("dialog .set-item", has_text="editable clone")
         expect(clone).to_contain_text("bakery", timeout=10000)
         clone.get_by_role("button", name="Add blades and tangs").click()
         adding = page.locator("dialog").last

@@ -1,5 +1,5 @@
 /**
- * library.ts: the library (Plans/library.plan.md: connections, APIs, vaults, blades, tangs, variables and
+ * library.ts: the library (Plans/library.plan.md: connections, APIs, vaults, blades, relationship sets, variables and
  * colours in one folder made to be a Git repository, whatever project is open). [SHARED]
  *
  *   [SETTINGS]  Settings' Library: where the folder is, Change… (a folder: a clone of a team's library) and
@@ -28,7 +28,7 @@ const COUNT_WORDS: [string, string][] = [
   ["vaults", "key vaults"],
   ["apis", "APIs"],
   ["blades", "blades"],
-  ["tangs", "tangs"],
+  ["relationship_sets", "relationship sets"],
 ];
 
 /** Settings' Library section. */

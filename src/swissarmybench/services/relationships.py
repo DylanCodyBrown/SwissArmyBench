@@ -7,9 +7,10 @@ the relations the caller hands in (each grid's view), and the use cases are at t
 
   KeyFinder   possible join columns between this grid and other grids, and this grid's own key
   Compares    two grids side by side, aligned row for row on key columns
-  Models      the current model (keys and relationships); tangs: the library (the person's own and
-              the shared folders), save, export, review and apply, and running a tang against the
-              open tables; the relationship finder across the open tables; the ERD
+  Models      the current model (keys and relationships: delete, change kind or Run, undo; a deleted
+              connection's taken out); relationship sets: the saved ones (the person's own and the
+              shared folders), save, export, review and apply, rename, delete, and running one against
+              the open tables; the relationship finder across the open tables; the ERD
 
 Both sides of a Key Finder or a compare are grid views (each after its own steps), so a user can
 filter two grids down first and then ask how they join. Pairs carry counts, never values.
@@ -48,6 +49,9 @@ from swissarmybench.domain.relationships import (
     _value_list,
     conflicts,
     differences,
+    edit_joins,
+    is_set_file,
+    join_keys,
     key_family,
     keyed_sql,
     mapping_order,
@@ -59,17 +63,19 @@ from swissarmybench.domain.relationships import (
     parse_model,
     path_between,
     preferred_key,
-    read_tang,
+    read_set,
     relationship,
     rename_table,
     score,
+    set_file_name,
     suggest,
-    tang_file_name,
-    write_tang,
+    without_connection,
+    without_joins,
+    write_set,
 )
 from swissarmybench.services.grids import truncate
 from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
-from swissarmybench.services.workspace import NotFound, TimedOut, Workspace
+from swissarmybench.services.workspace import NotFound, Refused, TimedOut, Workspace
 
 # ===== Key Finder =====
 
@@ -824,7 +830,7 @@ class Compares:
 
 
 class ModelLibrary(Protocol):
-    """The library of tangs and model files (adapters/state_files.py)."""
+    """The relationship sets and model files (adapters/state_files.py)."""
 
     def folders(self) -> list[str]: ...
 
@@ -836,26 +842,43 @@ class ModelLibrary(Protocol):
 
     def save(self, model: Model, folder: str | None) -> str: ...
 
+    def delete(self, path: str) -> None: ...
+
+    def rename(self, path: str, model: Model, new: str) -> str: ...
+
+
+class Asker(Protocol):
+    """The user's Allow (services/agent.py Approvals): the agent's delete of a saved set waits for it."""
+
+    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
+
+
+# How many earlier states of the joins in use the Undo of a delete or an edit can go back through.
+UNDO_DEPTH = 20
+
 
 class Models:
     """The current model for this server, shared with the pages (and the agent): a page redraws on
     the relationships_updated notice. Agents may set relationships too: keys and joins are metadata,
     never cell values."""
 
-    def __init__(self, ws: Workspace, library: ModelLibrary) -> None:
+    def __init__(self, ws: Workspace, library: ModelLibrary, approvals: Asker | None = None) -> None:
         self.ws = ws
         self._library = library
+        self._approvals = approvals
         self.model = Model()
         # The relationships last told to the Session page: each change names the ones it added.
         self._seen: list[str] = []
+        # The model before each delete or edit of the joins in use, newest last: Undo takes one back.
+        self._undo: list[Model] = []
 
     @property
     def library_files(self) -> ModelLibrary:
-        """The tang library itself (packs copy tangs out of it)."""
+        """The relationship sets themselves (packs copy sets out of them)."""
         return self._library
 
     def current(self) -> dict[str, Any]:
-        return self.model.to_json()
+        return self.model.to_json() | {"can_undo": bool(self._undo)}
 
     def _told(self) -> tuple[list[str], list[str]]:
         """The relationships added and removed since the last change told (names only)."""
@@ -872,11 +895,12 @@ class Models:
         added, removed = self._told()
         self.ws.audit.write(who, "relationships", None, model=name, added=added, removed=removed)
         await self.ws.live.broadcast({"type": "relationships_updated"})
-        return self.model.to_json()
+        return self.current()
 
     async def replace(self, model: Model) -> None:
         """The current model is `model` (a project opened or closed): every page redraws."""
         self.model = model
+        self._undo.clear()
         self._told()
         await self.ws.live.broadcast({"type": "relationships_updated"})
 
@@ -885,6 +909,7 @@ class Models:
         model = rename_table(self.model, old, new)
         if model is not self.model:
             self.model = model
+            self._undo.clear()
             self._told()
             await self.ws.live.broadcast({"type": "relationships_updated"})
 
@@ -893,11 +918,65 @@ class Models:
         if not isinstance(body, dict) or "model" not in body:
             raise ValueError('Send {"model": {...}, "replace": false}.')
         model = parse_model(body["model"])
+        self._remember()
         self.model = model if body.get("replace") else merge(self.model, model)
         return await self._changed(who, model.name)
 
+    # ===== the joins in use: delete, change kind or Run, undo =====
+
+    def _remember(self) -> None:
+        self._undo = [*self._undo, self.model][-UNDO_DEPTH:]
+
+    async def delete_joins(self, body: Any, who: str) -> dict[str, Any]:
+        """Delete the named joins from the ones in use: {"joins": [{"from", "from_columns", "to",
+        "to_columns"}, ...]}. One Undo brings them all back."""
+        keys = join_keys(body.get("joins") if isinstance(body, dict) else None)
+        model, removed = without_joins(self.model, keys)
+        if removed:
+            self._remember()
+            self.model = model
+            answer = await self._changed(who, self.model.name)
+        else:
+            answer = self.current()
+        self.ws.audit.write(who, "relationships_delete", None, removed=removed)
+        return answer | {"removed": removed}
+
+    async def update_joins(self, body: Any, who: str) -> dict[str, Any]:
+        """Change the named joins' kind and/or Run (active: whether a join is used): {"joins": [...],
+        "kind": "one-to-one", "active": false}. One Undo puts them back."""
+        body = body if isinstance(body, dict) else {}
+        keys = join_keys(body.get("joins"))
+        model, changed = edit_joins(self.model, keys, body.get("kind"), body.get("active"))
+        if changed:
+            self._remember()
+            self.model = model
+            await self.ws.live.broadcast({"type": "relationships_updated"})
+        self.ws.audit.write(who, "relationships_update", None, changed=changed)
+        return self.current() | {"changed": changed}
+
+    async def undo(self, who: str) -> dict[str, Any]:
+        """The joins in use as they were before the last delete or edit."""
+        if not self._undo:
+            raise ValueError("Nothing to undo.")
+        self.model = self._undo.pop()
+        answer = await self._changed(who, self.model.name)
+        return answer | {"undone": True}
+
+    async def forget_connection(self, connection: str, tables: set[str], who: str) -> dict[str, Any]:
+        """A connection was deleted: the relationships it brought in go from the ones in use (each to or
+        from one of its tables: recorded as its, or read from it). Saved sets stay as they are."""
+        model, removed = without_connection(self.model, connection, tables)
+        if model == self.model:
+            return {"relationships_removed": 0}
+        self._remember()
+        self.model = model
+        await self._changed(who, self.model.name)
+        return {"relationships_removed": removed}
+
+    # ===== the saved sets =====
+
     def library(self) -> dict[str, Any]:
-        """The models found in the library folders."""
+        """The relationship sets (and older models) found in the library folders."""
         found, problems = self._library.read()
         open_names = {i.name for i in self.ws.store.all()}
         return {
@@ -910,7 +989,7 @@ class Models:
                     "author": model.author,
                     "file": path,
                     "where": self._library.where(path),
-                    "tang": path.endswith(".tang"),
+                    "set": is_set_file(path),
                     "tables": sorted(model.tables()),
                     "open_tables": sorted(model.tables() & open_names),
                     "relationships": len(model.relationships),
@@ -922,27 +1001,75 @@ class Models:
             "problems": problems,
         }
 
-    def _named(self, name: str) -> Model:
+    def _entry(self, name: str) -> tuple[Model, str]:
         found, _ = self._library.read()
         entry = found.get(name) or next(
             (v for k, v in found.items() if k.casefold() == name.casefold()), None
         )
         if entry is None:
-            raise NotFound(f"No tang named {name!r} in the library.")
-        return entry[0]
+            raise NotFound(f"No relationship set named {name!r}.")
+        return entry
+
+    def _named(self, name: str) -> Model:
+        return self._entry(name)[0]
 
     async def apply(self, model: Model, who: str) -> dict[str, Any]:
         """Merge a model into the current one (the later one wins a join or a key both name); the answer
         names what it changed there."""
         changed = conflicts(self.model, model)
+        self._remember()
         self.model = merge(self.model, model)
         return await self._changed(who, model.name) | {"changed": changed}
 
     async def apply_library(self, name: str, who: str) -> dict[str, Any]:
-        """Apply (merge) one library tang; the answer names what it changed in the current one."""
+        """Apply (merge) one saved set; the answer names what it changed in the current one."""
         return await self.apply(self._named(name), who)
 
-    # ===== tangs: save, export, review and apply a .tang file =====
+    async def rename_set(self, name: str, body: Any, who: str) -> dict[str, Any]:
+        """A saved set under a new name: {"name": "Sales store 2025"}. Its file is written under the new
+        name and the old one goes."""
+        new = body.get("name") if isinstance(body, dict) else None
+        if not isinstance(new, str) or not new.strip():
+            raise ValueError('Send {"name": "the new name"}.')
+        new = new.strip()
+        parse_model({"name": new})  # the name's own rules
+        model, path = self._entry(name)
+        if new != model.name and any(k.casefold() == new.casefold() for k in self._library.read()[0]):
+            raise ValueError(f"A relationship set named {new!r} is there already.")
+        try:
+            file = self._library.rename(path, model, new)
+        except PermissionError as error:
+            raise Refused(str(error)) from None
+        except FileExistsError as error:
+            raise ValueError(str(error)) from None
+        self.ws.audit.write(who, "rename_relationship_set", None, set=model.name, to=new)
+        await self.ws.live.broadcast({"type": "relationship_sets_changed"})
+        return {"renamed": model.name, "name": new, "file": file}
+
+    async def delete_set(self, name: str, who: str) -> dict[str, Any]:
+        """Delete a saved set's file. The agent's waits for the user's Allow: it is the user's file."""
+        model, path = self._entry(name)
+        if who == "agent" and (
+            self._approvals is None
+            or not await self._approvals.ask(
+                "relationships", "delete a saved set", f"Delete the saved set {model.name} ({path})."
+            )
+        ):
+            raise Refused("The user declined (or did not answer): the saved set stays.")
+        try:
+            self._library.delete(path)
+        except PermissionError as error:
+            raise Refused(str(error)) from None
+        self.ws.audit.write(who, "delete_relationship_set", None, set=model.name)
+        await self.ws.live.broadcast({"type": "relationship_sets_changed"})
+        return {"deleted": model.name, "file": path}
+
+    def export_saved(self, name: str) -> tuple[str, str]:
+        """A saved set as .relationships.json text (an old .tang written anew), and a file name for it."""
+        model = self._named(name)
+        return write_set(model), set_file_name(model.name)
+
+    # ===== save, export, review and apply a set's file =====
 
     def _with_columns(self, model: Model) -> dict[str, tuple[tuple[str, str], ...]]:
         """The open tables' columns and types, for every table the model names."""
@@ -953,7 +1080,7 @@ class Models:
         } | {t: c for t, c in model.columns.items() if self.ws.store.get(t) is None}
 
     def snapshot(self, body: Any) -> Model:
-        """The current model as a tang to save: its name, description, tags and author from `body`,
+        """The current model as a set to save: its name, description, tags and author from `body`,
         the open tables' columns, and the time."""
         body = body if isinstance(body, dict) else {}
         current = self.model.to_json()
@@ -980,65 +1107,68 @@ class Models:
             named.author,
         )
 
-    async def save_tang(self, body: Any, who: str) -> dict[str, Any]:
-        """Save the current relationships as a tang: in the person's own tangs, or a shared folder
+    async def save_set(self, body: Any, who: str) -> dict[str, Any]:
+        """Save the current relationships as a set: in the person's own sets, or a shared folder
         (`folder`), where coworkers' windows list it."""
         if not isinstance(body, dict) or not isinstance(body.get("name"), str) or not body["name"].strip():
             raise ValueError('Send {"name": "Sales store", "description", "tags", "author", "folder"}.')
-        tang = self.snapshot(body)
+        saved = self.snapshot(body)
         folder = body.get("folder") or None
-        path = self._library.save(tang, folder if isinstance(folder, str) else None)
+        path = self._library.save(saved, folder if isinstance(folder, str) else None)
         self.model = Model(
-            tang.name, tang.description, tang.keys, tang.sources, tang.relationships, tang.tags,
-            tang.columns, tang.saved_at, tang.author,
+            saved.name, saved.description, saved.keys, saved.sources, saved.relationships, saved.tags,
+            saved.columns, saved.saved_at, saved.author,
         )  # fmt: skip
         self._told()
-        self.ws.audit.write(who, "save_tang", None, tang=tang.name, shared=bool(folder))
+        self.ws.audit.write(who, "save_relationship_set", None, set=saved.name, shared=bool(folder))
         await self.ws.live.broadcast({"type": "relationships_updated"})
-        return {"saved": tang.name, "file": path, "where": self._library.where(path)}
+        return {"saved": saved.name, "file": path, "where": self._library.where(path)}
 
-    def export_tang(self) -> tuple[str, str]:
-        """The current relationships as .tang text, and a file name for it."""
-        tang = self.snapshot({})
-        name = tang.name if tang.name != "current" else "relationships"
-        return write_tang(tang), tang_file_name(name)
+    def export_set(self) -> tuple[str, str]:
+        """The current relationships as .relationships.json text, and a file name for it."""
+        saved = self.snapshot({})
+        name = saved.name if saved.name != "current" else "relationships"
+        return write_set(saved), set_file_name(name)
 
     def review(self, text: Any) -> dict[str, Any]:
-        """What a .tang file holds, before anything is applied: its tables (which are open), its
+        """What a set's file holds, before anything is applied: its tables (which are open), its
         relationships and keys, and what applying it would change in the current ones."""
         if not isinstance(text, str) or not text.strip():
-            raise ValueError('Send {"text": "<the .tang file\'s text>"}.')
-        tang = read_tang(text)
+            raise ValueError('Send {"text": "<the .relationships.json file\'s text>"}.')
+        found = read_set(text)
         open_names = {i.name for i in self.ws.store.all()}
         return {
-            "tang": tang.to_json(),
-            "open_tables": sorted(tang.tables() & open_names),
-            "missing_tables": sorted(tang.tables() - open_names),
-            "changes": conflicts(self.model, tang),
+            "set": found.to_json(),
+            "open_tables": sorted(found.tables() & open_names),
+            "missing_tables": sorted(found.tables() - open_names),
+            "changes": conflicts(self.model, found),
         }
 
-    async def import_tang(self, body: Any, who: str) -> dict[str, Any]:
-        """Apply a .tang file's relationships (merged into the current ones), and with `save` keep it
-        in the person's own tangs or a shared folder too."""
+    async def import_set(self, body: Any, who: str) -> dict[str, Any]:
+        """Apply a set file's relationships (merged into the current ones), and with `save` keep it
+        in the person's own sets or a shared folder too."""
         body = body if isinstance(body, dict) else {}
         text = body.get("text")
         reviewed = self.review(text)
-        tang = read_tang(str(text))
-        self.model = merge(self.model, tang)
-        answer = await self._changed(who, tang.name) | {"changed": reviewed["changes"]}
+        found = read_set(str(text))
+        self._remember()
+        self.model = merge(self.model, found)
+        answer = await self._changed(who, found.name) | {"changed": reviewed["changes"]}
         if body.get("save"):
             folder = body.get("folder") or None
-            path = self._library.save(tang, folder if isinstance(folder, str) else None)
+            path = self._library.save(found, folder if isinstance(folder, str) else None)
             answer |= {"file": path, "where": self._library.where(path)}
         return answer
 
-    # ===== run a tang: does each relationship still hold in the open tables? =====
+    # ===== run a set: does each relationship still hold in the open tables? =====
 
     async def check(self, body: Any, who: str) -> dict[str, Any]:
-        """Run the current relationships, or a library tang (`tang`), against the open tables. Each
-        relationship: holds, holds with orphans, broken (with why), or not open."""
+        """Run the current relationships, or a saved set (`set`; "tang", the old name, one release),
+        against the open tables. Each relationship: holds, holds with orphans, broken (with why), or not
+        open."""
         body = body if isinstance(body, dict) else {}
-        model = self._named(body["tang"]) if isinstance(body.get("tang"), str) else self.model
+        named = body.get("set", body.get("tang"))
+        model = self._named(named) if isinstance(named, str) else self.model
         if not model.relationships:
             raise ValueError("No relationships to run yet.")
         infos = {i.name: i for i in self.ws.store.all()}
@@ -1059,8 +1189,8 @@ class Models:
         counts: dict[str, int] = {}
         for r in results:
             counts[r["status"]] = counts.get(r["status"], 0) + 1
-        self.ws.audit.write(who, "run_tang", None, tang=model.name, results=counts)
-        return {"tang": model.name, "results": results, "counts": counts}
+        self.ws.audit.write(who, "run_relationship_set", None, set=model.name, results=counts)
+        return {"set": model.name, "results": results, "counts": counts}
 
     def path(self, start: str, end: str) -> dict[str, Any]:
         """How two tables join through the current relationships: the shortest chain of joins."""

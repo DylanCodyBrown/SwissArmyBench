@@ -22,7 +22,7 @@ export interface Join {
   evidence?: string; // why it is trusted, from when it was found
 }
 
-/** The current relationships; saved, they are a tang (with its tags, author and time). */
+/** The current relationships; saved, they are a relationship set (with its tags, author and time). */
 export interface RelationshipModel {
   name: string;
   description: string;
@@ -31,6 +31,7 @@ export interface RelationshipModel {
   saved_at?: string;
   tables: Record<string, { primary_key?: string[]; source?: string; columns?: [string, string][] }>;
   relationships: Join[];
+  can_undo?: boolean; // the last delete or edit of the joins in use can be undone
 }
 
 let model: RelationshipModel = { name: "current", description: "", tables: {}, relationships: [] };

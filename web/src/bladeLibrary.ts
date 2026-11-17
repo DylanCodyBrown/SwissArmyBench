@@ -258,7 +258,7 @@ export async function editBladeFolders(onDone: () => void): Promise<void> {
   );
 }
 
-// ===== packs: blades and tangs from your team's Claude Code marketplace =====
+// ===== packs: blades and relationship sets from your team's Claude Code marketplace =====
 
 interface PackInfo {
   name: string;
@@ -267,7 +267,7 @@ interface PackInfo {
   label: string;
   root: string;
   blades: number;
-  tangs: number;
+  relationship_sets: number;
   enabled: boolean;
   editable: boolean;
 }
@@ -288,8 +288,8 @@ function commandLine(text: string): HTMLElement {
   );
 }
 
-/** The Packs window: installed packs (read-only blades and tangs), editable ones (a clone of the team's
- * repository in a blade folder) with Add blades and tangs, and a new marketplace repository. */
+/** The Packs window: installed packs (read-only blades and relationship sets), editable ones (a clone of
+ * the team's repository in a blade folder) with Add blades and sets, and a new marketplace repository. */
 export async function openPacks(onDone: () => void): Promise<void> {
   let state: PacksAnswer;
   try {
@@ -302,10 +302,10 @@ export async function openPacks(onDone: () => void): Promise<void> {
   const packRow = (p: PackInfo, action: HTMLElement | null): HTMLElement =>
     h(
       "li",
-      { class: "tang-item" },
+      { class: "set-item" },
       h(
         "div",
-        { class: "tang-text" },
+        { class: "set-text" },
         // The name, its marketplace and its state on one line (the badge, in the column's grid, had
         // stretched to a full-width outline).
         h(
@@ -315,7 +315,7 @@ export async function openPacks(onDone: () => void): Promise<void> {
           p.marketplace ? h("span", { class: "hint" }, `@ ${p.marketplace}`) : null,
           h("span", { class: "badge" }, p.editable ? "editable clone" : p.enabled ? `version ${p.version}` : "switched off in Claude Code"),
         ),
-        h("div", { class: "hint" }, `${p.blades} blade${p.blades === 1 ? "" : "s"} · ${p.tangs} tang${p.tangs === 1 ? "" : "s"} · `, h("code", {}, p.root)),
+        h("div", { class: "hint" }, `${p.blades} blade${p.blades === 1 ? "" : "s"} · ${p.relationship_sets} relationship set${p.relationship_sets === 1 ? "" : "s"} · `, h("code", {}, p.root)),
       ),
       action,
     );
@@ -323,7 +323,7 @@ export async function openPacks(onDone: () => void): Promise<void> {
     body,
     h("h3", {}, "Installed"),
     state.installed.length
-      ? h("ul", { class: "tang-list" }, ...state.installed.map((p) => packRow(p, null)))
+      ? h("ul", { class: "set-list" }, ...state.installed.map((p) => packRow(p, null)))
       : h("p", { class: "hint" }, "No packs installed"),
     h("h3", {}, "Install in Claude Code"),
     commandLine(state.commands.add),
@@ -334,8 +334,8 @@ export async function openPacks(onDone: () => void): Promise<void> {
     state.editable.length
       ? h(
           "ul",
-          { class: "tang-list" },
-          ...state.editable.map((p) => packRow(p, button("Add blades and tangs", () => void addToPack(p, onDone), { icon: "plus", class: "primary" }))),
+          { class: "set-list" },
+          ...state.editable.map((p) => packRow(p, button("Add blades and sets", () => void addToPack(p, onDone), { icon: "plus", class: "primary" }))),
         )
       : h("p", { class: "hint" }, "No editable packs"),
   );
@@ -351,10 +351,10 @@ export async function openPacks(onDone: () => void): Promise<void> {
 
 async function addToPack(pack: PackInfo, onDone: () => void): Promise<void> {
   let blades: { name: string; source: string }[] = [];
-  let tangs: { name: string; where: string }[] = [];
+  let sets: { name: string; where: string }[] = [];
   try {
     blades = (await api<{ blades: { name: string; source: string }[] }>("/blades")).blades.filter((b) => b.source !== "pack");
-    tangs = (await api<{ models: { name: string; where: string }[] }>("/relationships/library")).models.filter((t) => t.where !== "pack");
+    sets = (await api<{ models: { name: string; where: string }[] }>("/relationships/library")).models.filter((t) => t.where !== "pack");
   } catch (error) {
     toast((error as Error).message, "error");
     return;
@@ -366,20 +366,20 @@ async function addToPack(pack: PackInfo, onDone: () => void): Promise<void> {
     return [list, () => boxes.filter(([, b]) => b.checked).map(([n]) => n)];
   };
   const [bladeList, chosenBlades] = picks(blades.map((b) => b.name), "Blade");
-  const [tangList, chosenTangs] = picks(tangs.map((t) => t.name), "Tang");
+  const [setList, chosenSets] = picks(sets.map((t) => t.name), "Relationship set");
   const replace = h("input", { type: "checkbox", "aria-label": "Replace files already in the pack" }) as HTMLInputElement;
   append(
     body,
     h("h3", {}, "Blades"),
     blades.length ? bladeList : h("p", { class: "hint" }, "No blades"),
-    h("h3", {}, "Tangs"),
-    tangs.length ? tangList : h("p", { class: "hint" }, "No tangs"),
+    h("h3", {}, "Relationship sets"),
+    sets.length ? setList : h("p", { class: "hint" }, "No saved sets"),
     h("label", { class: "check" }, replace, "Replace existing files"),
   );
   foot.append(
     button("Cancel", close, { class: "ghost" }),
     button("Add", () => {
-      void api<{ written: string[]; kept: string[] }>("/packs/add", "POST", { pack: pack.root, blades: chosenBlades(), tangs: chosenTangs(), replace: replace.checked }).then(
+      void api<{ written: string[]; kept: string[] }>("/packs/add", "POST", { pack: pack.root, blades: chosenBlades(), sets: chosenSets(), replace: replace.checked }).then(
         (answer) => {
           close();
           toast(`Added ${answer.written.length} files to ${pack.name}${answer.kept.length ? `; kept ${answer.kept.length} already there` : ""}.`);

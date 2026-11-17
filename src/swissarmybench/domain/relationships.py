@@ -1,9 +1,9 @@
-"""Relationships: a data model's primary keys and joins; tangs (saved, shared sets of them); and the
-finder that proposes them.
+"""Relationships: a data model's primary keys and joins; relationship sets (saved, shared sets of them);
+and the finder that proposes them.
 
-A saved set of relationships is a **tang** (the owner's name: the part of a blade that anchors it into
-the handle, as a join anchors two tables), kept as a .tang file (below) that people share through the
-same folders as blades. The original model JSON (no marker) still reads.
+A saved set of relationships is a **relationship set**, kept as a .relationships.json file (below) that
+people share through the same folders as blades. The original model JSON (no marker) and the old .tang
+files (the name until 2026-11-17) still read.
 
 A model names tables by their dataset name in the grid (what `sab.push(df, "orders")` called
 them), so pushing the same tables again makes the model apply as-is:
@@ -52,7 +52,7 @@ from swissarmybench.domain.steps import type_family
 
 KINDS: tuple[str, ...] = ("one-to-one", "one-to-many", "many-to-one", "many-to-many")
 _NAME = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")  # a table: its dataset name
-_TANG_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ .+#&()\-]{0,63}$")  # a tang may have spaces
+_SET_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ .+#&()\-]{0,63}$")  # a set's name may have spaces
 _TAG = re.compile(r"^[\w][\w .+#-]{0,39}$")
 MAX_TAGS = 20
 MAX_TABLES = 200
@@ -104,7 +104,7 @@ class Model:
     relationships: tuple[Relationship, ...] = ()
     tags: tuple[str, ...] = ()
     # table -> its columns and types when saved: a run says when one has gone or changed type, and
-    # an ERD draws from the tang alone.
+    # an ERD draws from the saved set alone.
     columns: dict[str, tuple[tuple[str, str], ...]] = field(default_factory=dict)
     saved_at: str = ""  # ISO time of the last save, given by the caller (the domain reads no clock)
     author: str = ""  # who saved it, as they wrote it; never read from the computer
@@ -167,7 +167,7 @@ def parse_model(raw: Any) -> Model:
     if not isinstance(raw, dict):
         raise ValueError('A model is {"name", "tables": {...}, "relationships": [...]}.')
     name = raw.get("name", "current")
-    if not isinstance(name, str) or not _TANG_NAME.fullmatch(name):
+    if not isinstance(name, str) or not _SET_NAME.fullmatch(name):
         raise ValueError("name must be letters, digits, spaces, '_' or '-', up to 64 characters.")
     description = raw.get("description", "")
     if not isinstance(description, str) or len(description) > 2000:
@@ -286,6 +286,103 @@ def rename_table(model: Model, old: str, new: str) -> Model:
         relationships=tuple(
             replace(r, from_table=name(r.from_table), to_table=name(r.to_table)) for r in model.relationships
         ),
+    )
+
+
+# ===== managing the relationships in use: pick some, delete them, change their kind or Run =====
+#
+# A join is named by its two ends and their columns (the same as Relationship.same_join), so a page or
+# the agent names the ones it means as {"from", "from_columns", "to", "to_columns"}.
+
+JoinKey = tuple[str, tuple[str, ...], str, tuple[str, ...]]
+
+
+def join_key(raw: Any) -> JoinKey:
+    """One join as the page or the agent names it: {"from", "from_columns", "to", "to_columns"}."""
+    if not isinstance(raw, dict):
+        raise ValueError('Name each join as {"from", "from_columns", "to", "to_columns"}.')
+    return (
+        _table(raw.get("from"), "from"),
+        _columns(raw.get("from_columns"), "from_columns"),
+        _table(raw.get("to"), "to"),
+        _columns(raw.get("to_columns"), "to_columns"),
+    )
+
+
+def join_keys(raw: Any) -> set[JoinKey]:
+    if not isinstance(raw, list) or not raw or len(raw) > MAX_RELATIONSHIPS:
+        raise ValueError(
+            'Send {"joins": [{"from", "from_columns", "to", "to_columns"}, ...]}: '
+            f"1 to {MAX_RELATIONSHIPS} of them."
+        )
+    return {join_key(r) for r in raw}
+
+
+def _key_of(r: Relationship) -> JoinKey:
+    return (r.from_table, r.from_columns, r.to_table, r.to_columns)
+
+
+def without_joins(model: Model, keys: set[JoinKey]) -> tuple[Model, int]:
+    """The model without the named joins, and how many went (a name that is not there is skipped)."""
+    kept = tuple(r for r in model.relationships if _key_of(r) not in keys)
+    return replace(model, relationships=kept), len(model.relationships) - len(kept)
+
+
+def edit_joins(model: Model, keys: set[JoinKey], kind: Any = None, active: Any = None) -> tuple[Model, int]:
+    """The named joins with a new kind and/or Run (active: whether the join is used), and how many
+    changed. Raises ValueError for a kind that is not one, or nothing to change."""
+    if kind is None and active is None:
+        raise ValueError('Send "kind" (' + ", ".join(KINDS) + ') and/or "active" (true or false).')
+    if kind is not None and kind not in KINDS:
+        raise ValueError(f"kind must be one of {', '.join(KINDS)}.")
+    if active is not None and not isinstance(active, bool):
+        raise ValueError("active must be true or false.")
+    changed = 0
+    out: list[Relationship] = []
+    for r in model.relationships:
+        if _key_of(r) in keys:
+            new = replace(
+                r,
+                kind=r.kind if kind is None else str(kind),
+                active=r.active if active is None else bool(active),
+            )
+            changed += new != r
+            out.append(new)
+        else:
+            out.append(r)
+    return replace(model, relationships=tuple(out)), changed
+
+
+def from_connection(source: str, connection: str) -> bool:
+    """A table's recorded source names this connection: a database's foreign keys
+    ("connection:Warehouse"), a Power BI dataset's ("Finance/Sales model (Power BI)", or "Finance
+    (Power BI)" for a workspace with one dataset)."""
+    said, name = source.casefold(), connection.casefold()
+    if said == f"connection:{name}":
+        return True
+    if said.endswith(" (power bi)"):
+        place = said.removesuffix(" (power bi)")
+        return place == name or place.startswith(name + "/")
+    return False
+
+
+def without_connection(model: Model, connection: str, tables: set[str]) -> tuple[Model, int]:
+    """The model without what a deleted connection brought: every join to or from one of its tables (a
+    table whose recorded source is the connection, or one of `tables`, those read from it), and those
+    tables' keys, sources and columns. Answers the model and how many joins went."""
+    gone = {t for t, said in model.sources.items() if from_connection(said, connection)} | tables
+    if not gone:
+        return model, 0
+    kept = tuple(r for r in model.relationships if r.from_table not in gone and r.to_table not in gone)
+    return (
+        replace(
+            model,
+            keys={t: v for t, v in model.keys.items() if t not in gone},
+            sources={t: v for t, v in model.sources.items() if t not in gone},
+            columns={t: v for t, v in model.columns.items() if t not in gone},
+            relationships=kept,
+        ),
+        len(model.relationships) - len(kept),
     )
 
 
@@ -990,14 +1087,14 @@ def path_between(relationships: tuple[Relationship, ...], start: str, end: str) 
     return []
 
 
-# ===== tangs: a saved set of relationships, as one .tang file =====
+# ===== relationship sets: a saved set of relationships, as one .relationships.json file =====
 #
-# The owner named them: a tang is the part of a blade that anchors it into the handle, as a join
-# anchors two tables. A .tang file is JSON with a marker of its own first, so it is never taken for
-# another JSON file, and its own extension:
+# A relationship set (it was a "tang" until the owner's call, 2026-11-17: "drop tang its cheesy") is a
+# saved, shared set of relationships, one file each. The file is JSON with a marker of its own first,
+# so it is never taken for another JSON file, and its own double extension:
 #
 #     {
-#       "swissarmybench": "tang", "format": 1,
+#       "swissarmybench": "relationship-set", "format": 1,
 #       "name": "Sample store", "description": "...", "tags": ["sales"],
 #       "tables": {"orders": {"primary_key": ["order_id"], "columns": [["order_id", "BIGINT"], ...]}},
 #       "relationships": [{"from": "orders", "from_columns": ["customer_id"], "to": "customers",
@@ -1005,51 +1102,73 @@ def path_between(relationships: tuple[Relationship, ...], start: str, end: str) 
 #                          "note": "about 1% orphans"}]
 #     }
 #
-# The columns and their types are what the tables held when the tang was saved: running a tang
-# against the open tables says when a column has gone or changed type, and an ERD can be drawn
-# from the tang alone.
+# The columns and their types are what the tables held when the set was saved: running a set against
+# the open tables says when a column has gone or changed type, and an ERD can be drawn from it alone.
+# For one release the old .tang files (marked "tang", or "swissarmygrid": "tang" from before the first
+# rename) still read; everything written is a .relationships.json.
 
-TANG_MARK = "tang"
-TANG_FORMAT = 1
-# The marker's key: "swissarmybench"; a tang saved before the rename has SwissArmyGrid's, still read.
-TANG_KEY = "swissarmybench"
-OLD_TANG_KEY = "swissarmygrid"
-TANG_SUFFIX = ".tang"
-
-
-class TangError(ValueError):
-    """A file that is not a tang, or a tang that cannot be read. The message says why."""
-
-
-def tang_file_name(name: str) -> str:
-    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_").lower() or "tang"
-    return stem + TANG_SUFFIX
+SET_MARK = "relationship-set"
+OLD_SET_MARKS = ("tang",)  # the old name, one release
+SET_FORMAT = 1
+# The marker's key: "swissarmybench"; one saved before the first rename has SwissArmyGrid's, still read.
+SET_KEY = "swissarmybench"
+OLD_SET_KEY = "swissarmygrid"
+SET_SUFFIX = ".relationships.json"
+OLD_SET_SUFFIX = ".tang"  # the old name, one release: read, never written
+SET_SUFFIXES = (SET_SUFFIX, OLD_SET_SUFFIX)
 
 
-def write_tang(model: Model) -> str:
-    """The model as a .tang file's text."""
+class RelationshipSetError(ValueError):
+    """A file that is not a relationship set, or one that cannot be read. The message says why."""
+
+
+def is_set_file(name: str) -> bool:
+    """A relationship set's file name, by its extension (the old .tang too)."""
+    return name.endswith(SET_SUFFIXES)
+
+
+def set_file_name(name: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_").lower() or "relationships"
+    return stem + SET_SUFFIX
+
+
+def write_set(model: Model) -> str:
+    """The model as a relationship set file's text."""
     body = model.to_json()
-    return (
-        json.dumps({TANG_KEY: TANG_MARK, "format": TANG_FORMAT, **body}, indent=2, ensure_ascii=False) + "\n"
-    )
+    return json.dumps({SET_KEY: SET_MARK, "format": SET_FORMAT, **body}, indent=2, ensure_ascii=False) + "\n"
 
 
-def read_tang(text: str) -> Model:
-    """A .tang file's text as a model. Raises TangError for anything else: plain JSON, another
-    program's file, a newer format, or a tang that does not hold together."""
+def same_set(left: Model, right: Model) -> bool:
+    """The same saved set but for the time it was saved: saving it again would change no other byte."""
+    return replace(left, saved_at="") == replace(right, saved_at="")
+
+
+def is_set_text(raw: Any) -> bool:
+    """Parsed JSON that is marked as a relationship set (or an old tang)."""
+    marks = (SET_MARK, *OLD_SET_MARKS)
+    return isinstance(raw, dict) and (raw.get(SET_KEY) in marks or raw.get(OLD_SET_KEY) in marks)
+
+
+def read_set(text: str) -> Model:
+    """A relationship set file's text (or an old .tang's) as a model. Raises RelationshipSetError for
+    anything else: plain JSON, another program's file, a newer format, or a set that does not hold
+    together."""
     try:
         raw = json.loads(text)
     except json.JSONDecodeError as error:
-        raise TangError(
-            f"This is not a tang: it is not readable ({error.msg}, line {error.lineno})."
+        raise RelationshipSetError(
+            f"This is not a relationship set: it is not readable ({error.msg}, line {error.lineno})."
         ) from None
-    if not isinstance(raw, dict) or TANG_MARK not in (raw.get(TANG_KEY), raw.get(OLD_TANG_KEY)):
-        raise TangError('This is not a tang: it does not start with "swissarmybench": "tang".')
-    if raw.get("format") != TANG_FORMAT:
-        raise TangError(
-            f"This tang is in format {raw.get('format')!r}; this version reads format {TANG_FORMAT}."
+    if not is_set_text(raw):
+        raise RelationshipSetError(
+            f'This is not a relationship set: it does not start with "swissarmybench": "{SET_MARK}".'
+        )
+    if raw.get("format") != SET_FORMAT:
+        raise RelationshipSetError(
+            f"This relationship set is in format {raw.get('format')!r}; this version reads format "
+            f"{SET_FORMAT}."
         )
     try:
-        return parse_model({k: v for k, v in raw.items() if k not in (TANG_KEY, OLD_TANG_KEY, "format")})
+        return parse_model({k: v for k, v in raw.items() if k not in (SET_KEY, OLD_SET_KEY, "format")})
     except ValueError as error:
-        raise TangError(f"This tang does not hold together: {error}") from None
+        raise RelationshipSetError(f"This relationship set does not hold together: {error}") from None

@@ -1,4 +1,5 @@
-"""Tangs (saved, shared sets of relationships) and the finder's rules, in the domain: no DuckDB here.
+"""Relationship sets (saved, shared sets of relationships; tangs until 2026-11-17), managing the joins in
+use, and the finder's rules, in the domain: no DuckDB here.
 
 Made-up table and column names only.
 """
@@ -13,18 +14,24 @@ from swissarmybench.domain.relationships import (
     Candidate,
     Model,
     Relationship,
-    TangError,
+    RelationshipSetError,
     conflicts,
+    edit_joins,
+    from_connection,
+    join_keys,
     judge,
     key_family,
     merge,
     name_likeness,
     parse_model,
     path_between,
-    read_tang,
+    read_set,
+    same_set,
+    set_file_name,
     suggest,
-    tang_file_name,
-    write_tang,
+    without_connection,
+    without_joins,
+    write_set,
 )
 
 SALES = {
@@ -60,27 +67,27 @@ SALES = {
 }
 
 
-# ===== the .tang file =====
+# ===== the .relationships.json file =====
 
 
-def test_a_tang_round_trips_everything_and_starts_with_its_marker() -> None:
+def test_a_set_round_trips_everything_and_starts_with_its_marker() -> None:
     model = parse_model(SALES)
-    text = write_tang(model)
-    assert text.lstrip().startswith('{\n  "swissarmybench": "tang",\n  "format": 1,')
-    back = read_tang(text)
+    text = write_set(model)
+    assert text.lstrip().startswith('{\n  "swissarmybench": "relationship-set",\n  "format": 1,')
+    back = read_set(text)
     assert back == model
     assert back.tags == ("sales", "orders-function-app") and back.author == "Avery"
     assert back.columns["orders"] == (("order_id", "BIGINT"), ("customer_id", "BIGINT"))
     assert back.relationships[0].evidence == "99% of values found, 120 orphans"
     assert back.relationships[1].active is False
-    assert tang_file_name("Sales store") == "sales_store.tang"
+    assert set_file_name("Sales store") == "sales_store.relationships.json"
 
 
 @pytest.mark.parametrize(
     ("text", "says"),
     [
         ("not json at all", "not readable"),
-        (json.dumps(SALES), 'does not start with "swissarmybench": "tang"'),
+        (json.dumps(SALES), 'does not start with "swissarmybench": "relationship-set"'),
         (json.dumps({"swissarmybench": "blade", "format": 1}), "does not start with"),
         (json.dumps({"swissarmybench": "tang", "format": 2, "name": "x"}), "format 2"),
         (json.dumps({"swissarmybench": "tang", "format": 1, "name": "x", "tags": "sales"}), "tags"),
@@ -90,9 +97,9 @@ def test_a_tang_round_trips_everything_and_starts_with_its_marker() -> None:
         ),
     ],
 )
-def test_anything_but_a_tang_is_refused_with_its_reason(text: str, says: str) -> None:
-    with pytest.raises(TangError, match=says):
-        read_tang(text)
+def test_anything_but_a_set_is_refused_with_its_reason(text: str, says: str) -> None:
+    with pytest.raises(RelationshipSetError, match=says):
+        read_set(text)
 
 
 def test_an_old_model_file_still_reads_and_names_may_have_spaces() -> None:
@@ -103,7 +110,7 @@ def test_an_old_model_file_still_reads_and_names_may_have_spaces() -> None:
         parse_model({"name": "a/b"})
 
 
-def test_applying_a_second_tang_wins_and_says_what_it_changed() -> None:
+def test_applying_a_second_set_wins_and_says_what_it_changed() -> None:
     base = parse_model(SALES)
     other = parse_model(
         {
@@ -313,7 +320,7 @@ def test_key_families(duckdb_type: str, family: str) -> None:
     assert key_family(duckdb_type) == family
 
 
-def test_a_model_without_tang_fields_is_unchanged_in_json() -> None:
+def test_a_model_without_set_fields_is_unchanged_in_json() -> None:
     plain = Model(name="x", keys={"a": ("id",)})
     assert plain.to_json() == {
         "name": "x",
@@ -321,3 +328,101 @@ def test_a_model_without_tang_fields_is_unchanged_in_json() -> None:
         "tables": {"a": {"primary_key": ["id"]}},
         "relationships": [],
     }
+
+
+# ===== managing the joins in use =====
+
+
+def _joins(n: int) -> dict[str, object]:
+    """A made-up model of n joins from fact_<i> to dim_<i>."""
+    return {
+        "name": "Made-up warehouse",
+        "relationships": [
+            {"from": f"fact_{i}", "from_columns": ["key"], "to": f"dim_{i}", "to_columns": ["key"]}
+            for i in range(n)
+        ],
+    }
+
+
+def _key(i: int) -> dict[str, object]:
+    return {"from": f"fact_{i}", "from_columns": ["key"], "to": f"dim_{i}", "to_columns": ["key"]}
+
+
+def test_joins_are_deleted_by_their_ends_and_a_missing_one_is_skipped() -> None:
+    model = parse_model(_joins(40))
+    keys = join_keys([_key(i) for i in range(12)] + [{**_key(99)}])
+    smaller, removed = without_joins(model, keys)
+    assert removed == 12 and len(smaller.relationships) == 28
+    assert smaller.relationships[0].from_table == "fact_12"
+    with pytest.raises(ValueError, match="joins"):
+        join_keys([])
+    with pytest.raises(ValueError, match="from"):
+        join_keys([{"from": "a b"}])
+
+
+def test_kind_and_run_change_only_the_named_joins() -> None:
+    model = parse_model(_joins(5))
+    keys = join_keys([_key(1), _key(3)])
+    changed, count = edit_joins(model, keys, active=False)
+    assert count == 2 and [r.active for r in changed.relationships] == [True, False, True, False, True]
+    again, count = edit_joins(changed, keys, active=False)
+    assert count == 0 and again == changed  # already off: nothing changes
+    kinds, count = edit_joins(model, join_keys([_key(0)]), kind="one-to-one")
+    assert count == 1 and kinds.relationships[0].kind == "one-to-one"
+    with pytest.raises(ValueError, match="kind must be one of"):
+        edit_joins(model, keys, kind="sideways")
+    with pytest.raises(ValueError, match="kind"):
+        edit_joins(model, keys)
+
+
+@pytest.mark.parametrize(
+    ("source", "connection", "theirs"),
+    [
+        ("connection:FI-Atlas", "FI-Atlas", True),
+        ("connection:fi-atlas", "FI-Atlas", True),
+        ("Finance/Sales model (Power BI)", "Finance", True),
+        ("Finance (Power BI)", "Finance", True),
+        ("Financed/Sales (Power BI)", "Finance", False),
+        ("connection:FI-Atlas-2", "FI-Atlas", False),
+        ("examples/sample_store.py", "FI-Atlas", False),
+    ],
+)
+def test_which_tables_a_connection_brought(source: str, connection: str, theirs: bool) -> None:
+    assert from_connection(source, connection) is theirs
+
+
+def test_a_deleted_connection_takes_its_relationships_and_leaves_the_rest() -> None:
+    model = parse_model(
+        {
+            "name": "Mixed",
+            "tables": {
+                "gl_entry": {"primary_key": ["entry_id"], "source": "connection:FI-Atlas"},
+                "gl_account": {"source": "connection:FI-Atlas"},
+                "store": {"primary_key": ["store_id"]},
+            },
+            "relationships": [
+                {"from": "gl_entry", "from_columns": ["account"], "to": "gl_account", "to_columns": ["id"]},
+                {"from": "sales", "from_columns": ["store_id"], "to": "store", "to_columns": ["store_id"]},
+                # No recorded source: matched by the tables read from the connection.
+                {"from": "ledger", "from_columns": ["store_id"], "to": "store", "to_columns": ["store_id"]},
+            ],
+        }
+    )
+    left, removed = without_connection(model, "fi-atlas", {"ledger"})
+    assert removed == 2
+    assert [(r.from_table, r.to_table) for r in left.relationships] == [("sales", "store")]
+    assert (
+        "gl_entry" not in left.keys
+        and "gl_account" not in left.sources
+        and left.keys["store"] == ("store_id",)
+    )
+    same, none = without_connection(model, "Warehouse", set())
+    assert none == 0 and same == model
+
+
+def test_a_set_saved_again_with_only_a_new_time_is_the_same_set() -> None:
+    from dataclasses import replace
+
+    model = parse_model(SALES)
+    assert same_set(model, replace(model, saved_at="2026-11-17T09:00:00+00:00"))
+    assert not same_set(model, replace(model, description="Other"))

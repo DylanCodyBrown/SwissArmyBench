@@ -7,18 +7,28 @@
   POST /relationships/library/{name}     apply that library model (merge)
   GET  /relationships/erd?tables=a,b     the current model as Mermaid erDiagram text
 
-  Tangs (saved, shared sets of relationships; the .tang file in domain/relationships.py):
-  POST /relationships/tangs              {"name", "description", "tags", "author", "folder"}: save the
-                                         current relationships as a tang (own tangs, or a shared folder)
-  GET  /relationships/tang               the current relationships as a .tang file (a download)
-  POST /relationships/import             {"text", "apply", "save", "folder"}: without apply, what the
-                                         tang holds and what applying it would change; with it, merge
-  POST /relationships/check              {"tang": name}: run it (or the current) against the open tables
+  The joins in use, managed (each with one Undo):
+  POST /relationships/delete             {"joins": [{"from", "from_columns", "to", "to_columns"}, ...]}
+  POST /relationships/update             {"joins": [...], "kind", "active"}: their kind and/or Run
+  POST /relationships/undo               the joins in use as they were before the last delete or edit
+
+  Relationship sets (saved, shared sets of relationships; the .relationships.json file in
+  domain/relationships.py; a "tang" until 2026-11-17, whose old routes answer for one release):
+  POST   /relationships/sets             {"name", "description", "tags", "author", "folder"}: save the
+                                         current relationships as a set (own sets, or a shared folder)
+  GET    /relationships/set              the current relationships as a .relationships.json (a download)
+  GET    /relationships/sets/{name}      a saved set as a .relationships.json (a download)
+  PATCH  /relationships/sets/{name}      {"name": new}: rename a saved set (its file too)
+  DELETE /relationships/sets/{name}      delete a saved set's file (the agent's waits for the user's Allow)
+  POST   /relationships/import           {"text", "apply", "save", "folder"}: without apply, what the
+                                         set holds and what applying it would change; with it, merge
+  POST   /relationships/check            {"set": name}: run it (or the current) against the open tables
+  POST /relationships/tangs, GET /relationships/tang: the old names of the first two, one release
   POST /relationships/find               {"tables": [...]}: the finder's suggestions, with evidence
   POST /relationships/reject             a suggestion not to offer again ({"undo": true} brings it back)
   GET  /relationships/path?from=a&to=b   the shortest chain of joins between two tables
 
-  Saving, exporting and importing tang files are the user's; the agent finds, runs and reads.
+  Every one of them is the agent's too (the golden rule); its delete of a saved set waits for Allow.
 
   GET  /grids/{id}/key-finder            the grids a Key Finder can compare against
   POST /grids/{id}/key-finder            {"target": grid id | "*", "options": {...}}
@@ -175,30 +185,71 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
         except Exception as error:
             return error_response(error)
 
-    # ===== tangs and the finder =====
+    # ===== the joins in use =====
 
-    async def save_tang(request: Request) -> Response:
+    async def delete_joins(request: Request) -> Response:
         try:
-            return json_response(await models.save_tang(await read_json(request), actor(request)))
+            return json_response(await models.delete_joins(await read_json(request), actor(request)))
         except Exception as error:
             return error_response(error)
 
-    async def export_tang(request: Request) -> Response:
+    async def update_joins(request: Request) -> Response:
         try:
-            text, name = models.export_tang()
-            return Response(
-                text,
-                media_type="application/vnd.swissarmybench.tang+json; charset=utf-8",
-                headers={"Content-Disposition": f'attachment; filename="{name}"'},
-            )
+            return json_response(await models.update_joins(await read_json(request), actor(request)))
         except Exception as error:
             return error_response(error)
 
-    async def import_tang(request: Request) -> Response:
+    async def undo(request: Request) -> Response:
+        try:
+            return json_response(await models.undo(actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    # ===== relationship sets and the finder =====
+
+    def download(text: str, name: str) -> Response:
+        return Response(
+            text,
+            media_type="application/json; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        )
+
+    async def save_set(request: Request) -> Response:
+        try:
+            return json_response(await models.save_set(await read_json(request), actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def export_set(request: Request) -> Response:
+        try:
+            return download(*models.export_set())
+        except Exception as error:
+            return error_response(error)
+
+    async def export_saved(request: Request) -> Response:
+        try:
+            return download(*models.export_saved(request.path_params["name"]))
+        except Exception as error:
+            return error_response(error)
+
+    async def rename_set(request: Request) -> Response:
+        try:
+            body = await read_json(request)
+            return json_response(await models.rename_set(request.path_params["name"], body, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def delete_set(request: Request) -> Response:
+        try:
+            return json_response(await models.delete_set(request.path_params["name"], actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def import_set(request: Request) -> Response:
         try:
             body = await read_json(request)
             if isinstance(body, dict) and body.get("apply"):
-                return json_response(await models.import_tang(body, actor(request)))
+                return json_response(await models.import_set(body, actor(request)))
             return json_response(models.review(body.get("text") if isinstance(body, dict) else None))
         except Exception as error:
             return error_response(error)
@@ -233,9 +284,18 @@ def routes(models: Models, finder: Finder, keys: KeyFinder, compares: Compares) 
         Route("/relationships/library", library),
         Route("/relationships/library/{name}", apply_library, methods=["POST"]),
         Route("/relationships/erd", erd),
-        Route("/relationships/tangs", save_tang, methods=["POST"]),
-        Route("/relationships/tang", export_tang),
-        Route("/relationships/import", import_tang, methods=["POST"]),
+        Route("/relationships/delete", delete_joins, methods=["POST"]),
+        Route("/relationships/update", update_joins, methods=["POST"]),
+        Route("/relationships/undo", undo, methods=["POST"]),
+        Route("/relationships/sets", save_set, methods=["POST"]),
+        Route("/relationships/set", export_set),
+        Route("/relationships/sets/{name}", export_saved),
+        Route("/relationships/sets/{name}", rename_set, methods=["PATCH"]),
+        Route("/relationships/sets/{name}", delete_set, methods=["DELETE"]),
+        # The old names (a tang, until 2026-11-17), one release.
+        Route("/relationships/tangs", save_set, methods=["POST"]),
+        Route("/relationships/tang", export_set),
+        Route("/relationships/import", import_set, methods=["POST"]),
         Route("/relationships/check", check, methods=["POST"]),
         Route("/relationships/find", find_relationships, methods=["POST"]),
         Route("/relationships/reject", reject, methods=["POST"]),

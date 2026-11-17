@@ -1,6 +1,6 @@
 """The library (Plans/library.plan.md; domain/library.py has the rules): this computer's connections, APIs,
-vaults, blades, tangs, variables and colours in one folder made to be a Git repository, whatever project is
-open.
+vaults, blades, relationship sets, variables and colours in one folder made to be a Git repository, whatever
+project is open.
 
   info        where the folder is, what is in it (counts), what stays on this computer (local/, the keyring),
               what never goes in, whether it is a Git working copy (looked at, never run)

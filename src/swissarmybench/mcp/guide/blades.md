@@ -41,6 +41,6 @@ folder), never in the app (the owner, 2026-11-17): the app shows it read-only.
   with values, its text); `workbench_snippet_insert` puts it in the front document. A Streamlit piece
   becomes a named Python cell, ready for a canvas.
 
-## Packs (blades and tangs from a Claude Code marketplace)
+## Packs (blades and relationship sets from a Claude Code marketplace)
 - `packs_list`: installed packs (read-only; Save a copy to change one) and editable clones.
-- `packs_new` makes a marketplace folder; `packs_add` copies saved blades and tangs into an editable pack.
+- `packs_new` makes a marketplace folder; `packs_add` copies saved blades and relationship sets into an editable pack.

@@ -134,6 +134,10 @@ class BladeService:
         # A web call blade saved (its Return as table, its inputs): its API's tables are made again
         # (services/api_explorer.py), by the API's name.
         self.web_call_saved: list[Callable[[str], Awaitable[None]]] = []
+        # A connection deleted: what it brought goes with it (bootstrap: the relationships its tables held,
+        # services/relationships.py Models.forget_connection). Each answers what it did, merged into the
+        # delete's answer ({"relationships_removed": 40}).
+        self.connection_removed: list[Callable[[str, str], Awaitable[dict[str, Any]]]] = []
         self._install_packages = install_packages
         # Swiss Army Bench's own Python (where Refresh runs), and the environment suggestions come from.
         self._python = python
@@ -439,15 +443,24 @@ class BladeService:
         return self.summary(blade)
 
     async def remove(self, name: str, who: str = "user") -> dict[str, Any]:
+        """Delete a blade. A connection's: the relationships its tables held go from the ones in use too
+        (the owner, 2026-11-17: "when a connection is delete from the app just remove the associated
+        relationships it held"); saved relationship sets stay."""
+        connection = False
         try:
             gone = self._blades.get(name)
             word = _kind_word(gone.kind, gone.template)
+            connection = connection_kind(gone.kind, gone.template) not in (None, "vault")
         except Exception:
             word = "blade"
         self._blades.remove(name)
         self.ws.audit.write(who, "remove_blade", name, kind=word)
+        answer: dict[str, Any] = {"removed": name}
+        if connection:
+            for hook in self.connection_removed:
+                answer |= await hook(name, who)
         await self.ws.live.broadcast({"type": "blades_changed"})
-        return {"removed": name}
+        return answer
 
     def set_secrets(self, name: str, body: Any) -> dict[str, Any]:
         """Save or forget its secrets (in the operating system's vault). A Dataverse connection's
