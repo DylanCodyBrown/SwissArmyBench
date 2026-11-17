@@ -56,9 +56,11 @@ from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_fai
 from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
+from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade, env_settings
+from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.renamed import env
@@ -88,6 +90,7 @@ from swissarmybench.services.connection_swap import ConnectionSwap
 from swissarmybench.services.connection_tables import ConnectionTables as ConnectionTablesService
 from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
+from swissarmybench.services.context_md import ContextMd
 from swissarmybench.services.controllers import Controllers
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.export import Exports
@@ -180,6 +183,7 @@ class Services:
     beta: BetaLog
     updates: Updates
     claude: Claude
+    context_md: ContextMd
     live: LiveUpdates
     workers: PriorityWorkers
 
@@ -641,11 +645,76 @@ def bootstrap(
     )
     # Launch Claude: Claude Code in the user's terminal, or Claude Desktop, found wherever it is installed.
     standin = settings.claude_standin
+    claude_files = ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if audit_log else None)
+    agent = AgentService(ws, approvals, tickets)
+
+    async def catalog_of(name: str) -> Any:
+        """A loaded catalog's schemas (datasets), its first tables, their count, and the names shared."""
+        schemas = await catalogs.schema_names(name)
+        if schemas is None:
+            return None
+        tables: list[CatalogTable] = []
+        for s in schemas:
+            if len(tables) >= context_rules.MAX_CATALOG_TABLES:
+                break
+            if not s.get("tables") and not s.get("views"):
+                continue
+            found = await catalogs.tables(
+                name, str(s["schema"]), str(s["database"]) or None, 0, context_rules.MAX_CATALOG_TABLES
+            )
+            tables += [
+                CatalogTable(str(t["database"]), str(t["schema"]), str(t["table"])) for t in found["tables"]
+            ]
+        total = sum(int(s.get("tables") or 0) + int(s.get("views") or 0) for s in schemas)
+        return (
+            [str(s["schema"]) for s in schemas],
+            tables[: context_rules.MAX_CATALOG_TABLES],
+            total,
+            await catalogs.shared_tables(name),
+        )
+
+    def used_in(name: str) -> list[tuple[str, str]]:
+        """The project's documents and the open grids that use a connection (kind, path or table)."""
+        folder = (sab_projects.state().get("project") or {}).get("folder")
+        found, _ = connection_usage.references(name)
+        out = []
+        for ref in found:
+            if ref.kind == "grid":
+                out.append(("grid", ref.title))
+            elif folder and ref.document.replace("\\", "/").casefold().startswith(
+                str(folder).replace("\\", "/").rstrip("/").casefold() + "/"
+            ):
+                out.append((ref.kind, ref.document))
+        return out
+
+    context_md = ContextMd(
+        ws,
+        claude_files,
+        version=__version__,
+        project=lambda: sab_projects.state().get("project"),
+        connections=lambda: connection_usage.overview()["connections"],
+        colour_of=connection_colours.colour_of,
+        catalog=catalog_of,
+        used_in=used_in,
+        origin_of=datasets.origins.get,
+        relationships=models.current,
+        variables=lambda: variables.listing(),
+        documents=lambda: project_scope.documents(),
+        windows=lambda: {
+            "home": live.workspace_open(),
+            "front": agent.active_grid,
+            "workbench": live.workbench_open(),
+            "kernels": workbench.running_documents(),
+            "blades": live.catalog_open(),
+        },
+        changes=lambda: live.changes,
+        # SEAM (trees-apis): apis=api_explorer.listing, structures=structures.listing once that branch merges.
+    )
     claude = Claude(
         ws,
         StandinFinder(standin) if standin else ClaudeFinder(),
         RecordingStarter(standin.with_suffix(".launches.jsonl")) if standin else ClaudeStarter(),
-        ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if audit_log else None),
+        claude_files,
         version=__version__,
         home=str(Path.home()),
         environ=dict(os.environ),
@@ -653,6 +722,7 @@ def bootstrap(
         project=lambda: sab_projects.state().get("project"),
         connections=lambda: connections.listing()["connections"],
         documents=lambda: project_scope.documents()["documents"],
+        context_md=context_md,
     )
     # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
     for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
@@ -671,7 +741,7 @@ def bootstrap(
         codes=CodeService(ws, verifier),
         cards=cards,
         inbox=Inbox(ws),
-        agent=AgentService(ws, approvals, tickets),
+        agent=agent,
         sessions=Sessions(processes, store, live),
         catalogs=catalogs,
         blades=blades,
@@ -702,6 +772,7 @@ def bootstrap(
         beta=beta,
         updates=updates,
         claude=claude,
+        context_md=context_md,
         streamlit=streamlit,
         # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
         controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),

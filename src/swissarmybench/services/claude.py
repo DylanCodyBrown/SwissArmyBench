@@ -2,13 +2,14 @@
 what it needs to understand Swiss Army Bench.
 
 - **Claude Code:** a folder of its own in the state folder (claude/<project>/) with CLAUDE.md (what the app
-  is, its index, what is open now: metadata only), .mcp.json and .claude/settings.json (the prompt hook),
+  is, and context.md imported), context.md (the app's live picture, kept current by services/context_md.py:
+  metadata only), .mcp.json and .claude/settings.json (the prompt hook),
   then the user's terminal running `claude` there, the project's working folder added. Bypass permissions
   mode only when the user turned it on in Settings.
 - **Claude Desktop:** it takes no folder, so its context comes through its MCP config: the `swissarmybench`
   server is set in that install's claude_desktop_config.json (a backup first, every other entry kept; the
-  user is asked once per file), then the app is started. The index, the guide and the summary of what is
-  open are the MCP server's resources.
+  user is asked once per file), then the app is started. The index, the guide and context.md's text are
+  the MCP server's resources.
 
 Only the user's click launches anything, and only the user changes which Claude is launched: the agent
 reads what was found and the summary, and is refused the rest (an agent starting another agent).
@@ -22,6 +23,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import claude as rules
 from swissarmybench.domain.claude import CODE, DESKTOP, Context, Install, TableFacts
+from swissarmybench.services.context_md import ContextMd
 from swissarmybench.services.workspace import Refused, Workspace
 
 AGENT_REFUSED = (
@@ -75,6 +77,7 @@ class Claude:
         project: Callable[[], dict[str, Any] | None],
         connections: Callable[[], list[dict[str, Any]]],
         documents: Callable[[], list[dict[str, Any]]],
+        context_md: ContextMd | None = None,
     ) -> None:
         self.ws = ws
         self._finder = finder
@@ -88,6 +91,7 @@ class Claude:
         self._connections = connections
         self._documents = documents
         self._found: list[Install] | None = None
+        self.context_md = context_md  # context.md: the folder's live picture
 
     # ===== what was found, and the user's choices =====
 
@@ -208,9 +212,11 @@ class Claude:
             documents,
         )
 
-    def summary(self) -> dict[str, Any]:
-        """What is open now as markdown (the MCP resource swissarmybench://context)."""
-        return {"text": rules.context_markdown(self.context())}
+    async def summary(self, who: str = "user") -> dict[str, Any]:
+        """context.md's text and path (the MCP resource swissarmybench://context, app_context)."""
+        if self.context_md is None:
+            return {"text": rules.context_markdown(self.context()), "path": None}
+        return await self.context_md.read(who)
 
     # ===== launching =====
 
@@ -241,11 +247,13 @@ class Claude:
     async def _launch_code(self, install: Install, who: str) -> dict[str, Any]:
         context = self.context()
         files = {
-            "CLAUDE.md": rules.claude_md(context, self._files.index()),
+            "CLAUDE.md": rules.claude_md(self._version),
             ".mcp.json": rules.mcp_json(self._commands("swissarmybench-mcp")),
             ".claude/settings.json": rules.settings_json(self._commands("swissarmybench-context")),
         }
         folder = await asyncio.to_thread(self._files.prepare, rules.folder_name(context.project), files)
+        if self.context_md is not None:
+            await self.context_md.launched()  # context.md beside it, taken as read
         bypass = self._choices().get("bypass") is True
         argv = rules.claude_argv(install.path, [context.folder] if context.folder else [], bypass)
         plan = rules.terminal(self._finder.platform, self._finder.terminals(), folder, argv)

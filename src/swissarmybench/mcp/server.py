@@ -83,15 +83,15 @@ CONTEXT_URI = "swissarmybench://context"
 @server.resource(
     CONTEXT_URI,
     name="context",
-    title="What is open now in Swiss Army Bench",
-    description="The open project, its tables (rows, columns, steps), connections and documents. No values.",
+    title="context.md: Swiss Army Bench's live picture",
+    description="Connections and their SQL names, open tables, the ERD, variables, documents, the guide.",
     mime_type="text/markdown",
     annotations=Annotations(audience=["assistant"], priority=0.9),
 )
 def open_now() -> str:
-    """Launch Claude's summary (CLAUDE.md's "What is open now"), read fresh: Claude Desktop has no folder."""
+    """context.md's text, read fresh (app_context): Claude Desktop has no folder to find it in."""
     try:
-        answer = json.loads(str(execute_result("app_claude", {"context": True})))
+        answer = json.loads(str(execute_result("app_context", {})))
     except (CommandError, ValueError) as error:
         return f"Swiss Army Bench did not answer: {error}"
     return str(answer.get("text", "")) if isinstance(answer, dict) else str(answer)

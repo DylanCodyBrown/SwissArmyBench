@@ -9,7 +9,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.client.context_hook import summary
+from swissarmybench.client.context_hook import short, summary
 from tests.conftest import AGENT, AUTH, PORT, grid_id, push
 
 # Copied per call: websocket_connect writes the subprotocols into the headers dict it is given.
@@ -36,6 +36,10 @@ def test_the_agent_hears_which_table_is_in_front(client: TestClient) -> None:
     text = summary(context)
     assert "orders" in text and "2 rows in the view of 3" in text and "region (VARCHAR)" in text
     assert "privacy" not in text
+    # With context.md beside the agent: one line, its columns and steps left to the file (one source).
+    one = short(context)
+    assert "\n" not in one and "2 rows in the view of 3" in one and "context.md" in one
+    assert "region" not in one and "North" not in one
 
 
 def test_the_hook_prints_nothing_without_a_table_in_front() -> None:

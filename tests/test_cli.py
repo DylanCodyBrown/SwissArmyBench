@@ -167,6 +167,7 @@ NOT_COMMANDS = {
     "/project/layout": "a window reports its layout for the next save (page plumbing): project_save keeps it",
     "/claude/launch": "Launch Claude starts a process on the user's computer: the user's click only (an "
     "agent does not start another agent); 403 for the agent. app_claude reads what was found",
+    "/claude/context/prompt": "the prompt hook's question (plumbing): app_context reads context.md itself",
     "/variables/reveal": "Show on the Variables page: a keyring secret's value, the user's click only; 403 "
     "for the agent (no answer the app gives it holds a password's value). variables_list reads the rest",
     "/session-log/follow": "Follow the agent is the user's switch (an agent that could turn it off could "
@@ -613,7 +614,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # Connection colours (2026-11-17) added one, connections_colours: read them, set one.
     # Connections' tables in DuckDB SQL (2026-11-17) added four: a connection's tree, Open all of a
     # dataset, the session's reads and their Refresh (1,000 characters).
-    assert size < 68_500, f"the tool list is {size} characters"
+    # context.md (2026-11-17) added one, app_context (app_claude's context option went to it).
+    assert size < 69_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

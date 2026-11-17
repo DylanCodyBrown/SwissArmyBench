@@ -1,4 +1,4 @@
-# Swiss Army Bench: the index (read first)
+# Swiss Army Bench: the index (read first; the live picture: `app_context`, swissarmybench://context)
 
 A local server on 127.0.0.1: the user's tables in live grids, the same ones they see. Python brings the
 data and the analysis; DuckDB SQL does the transforming.
@@ -6,7 +6,7 @@ Workflow: data (connections, files, blades) -> notebook or script in the Workben
 canvas. A project is one .sab file holding its own documents, connections and blades.
 
 ## Start
-1. `agent_context`: the grid in front of the user, its columns and steps; the other open tables.
+1. `app_context`: connections (their SQL names), tables, ERD, variables. `agent_context`: the grid in front.
 2. `tabs_list` (grid ids), `datasets_list`, `table_profile`, then `row_read(format="csv")`.
 3. `steps_run_sql`: one DuckDB SELECT; `grid` is that grid's view, other tables by name, a
    connection's as `[Finance].Sales` (`connections_tables`).
@@ -31,7 +31,7 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 | `workbench_` | notebooks, scripts, kernels, the window (tables.transformations) | `workbench_run`, `workbench_lineage`, `workbench_window`, `workbench_script_run` |
 | `streamlit_` | the canvas, its tests, export | `streamlit_block_place`, `streamlit_test` |
 | `project_` | projects: one .sab file | `project_new`, `project_import`, `project_documents` |
-| `files_`, `app_` | files; the page, getting around; session log; beta; updates | `files_list`, `app_snapshot`, `app_navigate`, `app_session`, `app_beta_log` |
+| `files_`, `app_` | files; the page, getting around; context; session log; beta | `app_context`, `app_snapshot`, `app_navigate`, `app_session`, `app_beta_log` |
 | `agent_` | yours only | `agent_context`, `agent_events`, `agent_approvals` |
 
 No prefix: `guide`, `commands`, `health`.

@@ -86,7 +86,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   value in the keyring only; the values are set in the server's environment while it runs.
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
-  row, value or secret), `claude.json` keeps the chosen installs and the bypass switch, and a Claude
+  row, value or secret); once a launch made it, its **context.md** (the app's live picture: connections,
+  tables, the ERD, variables by name and source, documents, windows, the tool guide; metadata only, names
+  as data) is rewritten while the app runs, atomically and only when its text changes (2026-11-17); `claude.json` keeps the chosen installs and the bypass switch, and a Claude
   Desktop install's claude_desktop_config.json gets the `swissarmybench` server (asked once, a dated
   backup first, nothing else changed, no token).
   **Projects as one .sab file (the owner, 2026-11-16):** a .sab is written on Save, on New project (where
@@ -247,9 +249,14 @@ src/swissarmybench/
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
     claude.py            Launch Claude: Claude Code and Claude Desktop found loosely (registry, Store, Start menu,
-                         bundles, .desktop files, PATH answers read), the official first; CLAUDE.md (what is
-                         open: names, counts, types, steps in words, never a value), .mcp.json, the prompt
-                         hook; the user's terminal as an argument list; Desktop's config merged; install help
+                         bundles, .desktop files, PATH answers read), the official first; CLAUDE.md (a stable
+                         header and `@context.md`), .mcp.json, the prompt hook (--folder); the user's terminal
+                         as an argument list; Desktop's config merged; install help
+    context_md.py        context.md, the app's live picture: its sections (Project, Connections with their
+                         DuckDB SQL names and a loaded catalog's first 40 tables, APIs, Open tables, Structures,
+                         Relationships, Variables, Documents, Windows, Tool guide), every name as code (data),
+                         the budget's trims in order (columns, catalog lists, guide topics, long lists), each
+                         section's digest and the prompt hook's "context.md changed: ..." line
     session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
                          relationship, a connection, a cell), names and counts only; the filter; Follow
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
@@ -322,6 +329,9 @@ src/swissarmybench/
                          work would be lost; the agent's waits for Allow), start at sign-in
     claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
                          Desktop started (Desktop's config asked once); the agent reads only
+    context_md.py        context.md kept current: gathered from the services, looked at after a notice (every
+                         2 s), written once a change settled; what the agent last read (launch, prompt,
+                         app_context) and the sections changed since; SEAM for APIs and Structures
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     streamlit.py         Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
@@ -364,7 +374,8 @@ src/swissarmybench/
     beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
     connection_colours.py colours.toml (the state folder's; the library's later by its path), written only
                          when it changes
-    claude.py            Launch Claude's files: claude/<project>/, claude.json, a Desktop config (backup first)
+    claude.py            Launch Claude's files: claude/<project>/ (its context.md atomically, only when changed),
+                         claude.json, a Desktop config (backup first)
     updates.py           the release list's one GET, update.json, the helper's and the tray's notes
     streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped

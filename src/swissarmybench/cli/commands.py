@@ -161,9 +161,11 @@ def guide_text(topic: str | None = None) -> str:
 @command(
     "guide",
     "Read first: the index of the app and its tools; topic gives one topic's detail.",
-    opt("topic", "One of: " + ", ".join(GUIDE_TOPICS) + "."),
+    opt("topic", "One of: " + ", ".join(GUIDE_TOPICS) + "; or context: the live context.md."),
 )
 def guide(a: dict[str, Any]) -> Any:
+    if str(a.get("topic") or "").strip().lower() == "context":
+        return api.call("GET", "/claude/context")
     return guide_text(a.get("topic"))
 
 
@@ -3090,15 +3092,21 @@ def app_autostart(a: dict[str, Any]) -> Any:
 
 @command(
     "app_claude",
-    "Which Claude Code and Claude Desktop this computer has (Launch Claude); `context`: what is open, as markdown",
-    opt("context", "true: the summary of what is open now (names, counts, types, steps; no values).", "bool"),
+    "Which Claude Code and Claude Desktop this computer has (Launch Claude)",
     opt("refresh", "true: look for Claude again.", "bool"),
 )
 def app_claude(a: dict[str, Any]) -> Any:
     # Reading only: launching Claude and choosing which one is launched are the user's (403 for the agent).
-    if a.get("context"):
-        return api.call("GET", "/claude/context")
     return api.call("GET", "/claude?refresh=1" if a.get("refresh") else "/claude")
+
+
+@command(
+    "app_context",
+    "context.md: connections (their SQL names), open tables, the ERD, variables, documents, windows, the guide",
+)
+def app_context(a: dict[str, Any]) -> Any:
+    # The same text as Launch Claude's folder's context.md and the resource swissarmybench://context.
+    return api.call("GET", "/claude/context")
 
 
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
