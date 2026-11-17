@@ -10,7 +10,15 @@ from typing import Any
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from tests.e2e.test_ui import browser, call, demo_frame, grid_of, open_grid, server, wait_for_cell  # noqa: F401
+from tests.e2e.test_ui import (  # noqa: F401
+    browser,
+    call,
+    demo_frame,
+    grid_of,
+    open_grid,
+    server,
+    wait_for_cell,
+)
 
 
 def keep_north(page: Page) -> None:

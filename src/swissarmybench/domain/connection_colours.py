@@ -11,15 +11,19 @@ associated with that connection etc.? reserve the rail colors for the rail").
               chosen since) is shown turned just far enough away, its own kept as it was.
   [READABLE]  every colour shown is made readable in each theme by the kind colours' rule (kind_colours.
               fitted: 4.5 to 1 against the page and the panels, 7 to 1 in high contrast), its hue kept.
-  [ASSIGNED]  a connection keeps its colour in its own record (the blade store: the open project's, or
-              this computer's). One saved before colours existed, or saved where none was given (the
-              blades page), wears the first free colour in its turn (by name), so every one has one.
+  [ASSIGNED]  a connection's colour is this computer's, the same in every project (the owner, 2026-11-17:
+              connections are a library outside any project). It is kept in colours.toml, keyed by the
+              connection's name (sorted keys, one stable line each: a save that changes nothing changes no
+              byte, so the file diffs well in the library's Git repository). One with no line there (saved
+              before colours existed, or on the blades page) wears the first free colour in its turn (by
+              name), so every one has one.
 
 Pure rules, no I/O. A colour is #rrggbb, lower case.
 """
 
 from __future__ import annotations
 
+import tomllib
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -206,3 +210,38 @@ def readable_everywhere(colour: str, kinds: Mapping[str, str] | None = None) -> 
         for theme in kind_colours.THEMES
         for background in kind_colours.BACKGROUNDS[theme]
     )
+
+
+# ===== colours.toml =====
+
+TOML_HEAD = "# Each connection's colour (Swiss Army Bench). One line per connection, by name.\n"
+
+
+def _toml_key(name: str) -> str:
+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def to_toml(colours: Mapping[str, str]) -> str:
+    """colours.toml's text: sorted keys (case folded, then as spelled), one `"name" = "#rrggbb"` line
+    each, so the same colours are always the same bytes."""
+    lines = [
+        f'{_toml_key(name)} = "{colour.lower()}"'
+        for name, colour in sorted(colours.items(), key=lambda kv: (kv[0].casefold(), kv[0]))
+        if kept(colour) and not any(ord(ch) < 32 for ch in name)
+    ]
+    return TOML_HEAD + "".join(line + "\n" for line in lines)
+
+
+def from_toml(text: str) -> dict[str, str]:
+    """colours.toml read back: every name with a #rrggbb colour (anything else, or a broken file, is no
+    colour: the connections wear their next free ones)."""
+    try:
+        data = tomllib.loads(text)
+    except (tomllib.TOMLDecodeError, UnicodeError):
+        return {}
+    out: dict[str, str] = {}
+    for name, raw in data.items():
+        colour = kept(raw)
+        if colour:
+            out[name] = colour
+    return out

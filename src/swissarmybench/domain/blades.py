@@ -331,8 +331,6 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         lines.append("tags = [" + ", ".join(_toml_string(str(t)) for t in blade["tags"]) + "]")
     if blade.get("family"):
         lines.append(f"family = {_toml_string(str(blade['family']))}")
-    if blade.get("colour"):
-        lines.append(f"colour = {_toml_string(str(blade['colour']))}")
     if kind == "snippet":
         lines.append(f"language = {_toml_string(str(blade.get('language') or ''))}")
         if blade.get("cell_name"):
@@ -522,9 +520,6 @@ def read_blade(text: str) -> dict[str, Any]:
         blade["tags"] = [str(t) for t in tags if isinstance(t, str)]
     if isinstance(header.get("family"), str) and header["family"]:
         blade["family"] = header["family"]
-    colour = header.get("colour")
-    if isinstance(colour, str) and _COLOUR.fullmatch(colour):
-        blade["colour"] = colour.lower()
     return blade
 
 
@@ -1188,8 +1183,6 @@ class Blade:
     # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit, Components), kept on
     # a copy.
     family: str = ""
-    # A connection's colour (domain/connection_colours.py: #rrggbb; None: the next free one in turn).
-    colour: str | None = None
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
     pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace
     created_at: float = 0.0
@@ -1252,7 +1245,6 @@ class Blade:
             "language": self.language,
             "cell_name": self.cell_name,
             "family": self.family,
-            "colour": self.colour,
             "path": self.path,
             "pack": self.pack,
             "source": self.source,
@@ -1308,27 +1300,6 @@ def _tags(value: Any) -> list[str]:
     return list(tags.values())
 
 
-_COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
-
-
-def kept_colour(raw: Any) -> str | None:
-    """A record's colour as read back (anything that is not #rrggbb is no colour)."""
-    return raw.lower() if isinstance(raw, str) and _COLOUR.fullmatch(raw) else None
-
-
-def _colour(data: dict[str, Any], previous: Blade | None) -> str | None:
-    """A connection's colour as sent (#rrggbb; null: none), else the one it had (a save from its form
-    keeps it). Whether it may be a connection's is connection_colours.check's to say."""
-    if "colour" not in data:
-        return previous.colour if previous else None
-    value = data["colour"]
-    if value is None or value == "":
-        return None
-    if not isinstance(value, str) or not _COLOUR.fullmatch(value):
-        raise BladeError("A connection's colour is #rrggbb, like #0e7c7b.")
-    return value.lower()
-
-
 def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> Blade:
     """A blade from the save screen's JSON, checked. Raises BladeError with a plain message. `now` is
     the time it is saved at (the caller's clock; nothing here reads one)."""
@@ -1348,7 +1319,6 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
         description=_text(data, "description", 2_000).strip(),
         tags=_tags(data.get("tags")),
         family=_text(data, "family", 40).strip(),
-        colour=_colour(data, previous),
         path=previous.path if previous else None,
         created_at=previous.created_at if previous else now,
         updated_at=now,

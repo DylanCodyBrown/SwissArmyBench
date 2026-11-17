@@ -62,8 +62,6 @@ class Blades(Protocol):
 
     def remove(self, name: str) -> None: ...
 
-    def set_colour(self, name: str, colour: str | None) -> Blade: ...
-
     def pinned(self) -> set[str]: ...
 
     def set_pinned(self, name: str, pinned: bool) -> bool: ...
@@ -135,10 +133,6 @@ class BladeService:
     def everything(self) -> list[Blade]:
         """Every blade: saved, in a blade folder, in a pack."""
         return self._blades.all()
-
-    def set_colour(self, name: str, colour: str | None) -> Blade:
-        """A connection's colour into its record (connection_colours.py checks it first)."""
-        return self._blades.set_colour(name, colour)
 
     def summary(
         self, blade: Blade, everything: list[Blade] | None = None, pinned: set[str] | None = None

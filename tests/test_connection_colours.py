@@ -186,8 +186,59 @@ def test_a_connection_keeps_its_colour_and_the_user_and_agent_change_it(tmp_path
             headers=AUTH,
         ).json()
         assert uses == {"cells": [["Warehouse"], ["Finance"], []]}
-    # In the record: a new start keeps it.
+    # This computer's colours.toml, sorted keys, one line each: a new start keeps it.
+    kept = (tmp_path / "state" / "colours.toml").read_text(encoding="utf-8")
+    assert kept.splitlines()[1:] == ['"Finance" = "' + second + '"', '"Warehouse" = "#808080"']
     with make_client(tmp_path) as client:
         listed = {c["name"]: c for c in client.get("/connection-colours", headers=AUTH).json()["connections"]}
         assert listed["Warehouse"]["colour"] == "#808080"
         assert client.get("/connections/Warehouse", headers=AUTH).json().get("colour") == "#808080"
+
+
+# ===== colours.toml =====
+
+
+def test_colours_toml_is_sorted_stable_and_read_back() -> None:
+    text = rules.to_toml(
+        {"warehouse": "#0E7C7B", 'Orders "API"': "#b3307f", "Bad": "nope", "a\nb": "#123456"}
+    )
+    assert text.splitlines() == [
+        rules.TOML_HEAD.strip(),
+        '"Orders \\"API\\"" = "#b3307f"',
+        '"warehouse" = "#0e7c7b"',
+    ]
+    assert rules.from_toml(text) == {'Orders "API"': "#b3307f", "warehouse": "#0e7c7b"}
+    assert rules.to_toml(rules.from_toml(text)) == text  # the same colours: the same bytes
+    assert rules.from_toml("not = [toml") == {} and rules.from_toml('x = 3\ny = "#zzzzzz"') == {}
+
+
+def test_a_save_that_changes_nothing_writes_nothing(tmp_path: Path) -> None:
+    from swissarmybench.adapters.connection_colours import ColoursFile
+
+    kept = ColoursFile(tmp_path / "colours.toml")
+    kept.write(rules.to_toml({"Warehouse": "#0e7c7b"}))
+    before = (tmp_path / "colours.toml").stat().st_mtime_ns
+    kept.write(rules.to_toml({"Warehouse": "#0e7c7b"}))
+    assert (tmp_path / "colours.toml").stat().st_mtime_ns == before
+    assert ColoursFile(None).read() == "" and ColoursFile(tmp_path / "none.toml").read() == ""
+
+
+def test_a_renamed_connection_keeps_its_colour(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        _connection(client, "Warehouse", "#808080")
+        body = {
+            "name": "Old warehouse",
+            "kind": "sql",
+            "template": "postgres",
+            "dialect": "postgres",
+            "code": "import sqlite3\nconn = sqlite3.connect(':memory:')\n",
+            "variable": "conn",
+        }
+        assert client.put("/connections/Warehouse", json=body, headers=AUTH).status_code == 200
+        listed = {
+            c["name"]: c["chosen"]
+            for c in client.get("/connection-colours", headers=AUTH).json()["connections"]
+        }
+        assert listed == {"Old warehouse": "#808080"}
+        refused = client.post("/connections", json=body | {"name": "B", "colour": "#1f63b0"}, headers=AUTH)
+        assert refused.status_code == 400 and "blue" in refused.text

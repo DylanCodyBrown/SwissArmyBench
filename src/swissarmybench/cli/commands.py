@@ -2066,6 +2066,18 @@ def connections_usage(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/connections/{_q(a['name'])}/usage")
 
 
+@command(
+    "connections_colours",
+    "Each connection's colour (this computer's, every project) and the palette; name and colour set one",
+    opt("name", "A connection, to set its colour."),
+    opt("colour", "#rrggbb, never a rail colour; null: the next free one."),
+)
+def connections_colours(a: dict[str, Any]) -> Any:
+    if a.get("name"):
+        return api.call("PUT", f"/connection-colours/{_q(a['name'])}", {"colour": a.get("colour")})
+    return api.call("GET", "/connection-colours")
+
+
 # ----- a table's connection swapped (its steps kept), and the code that named the old one -----
 
 

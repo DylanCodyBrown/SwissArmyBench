@@ -141,7 +141,7 @@ class ConnectionService:
                 "name": blade.name,
                 "description": blade.description,
                 "tags": blade.tags,
-                "colour": blade.colour,
+                "colour": self._colours.colour_of(blade.name) if self._colours is not None else None,
                 "summary": self._blades.summary(blade),
             }
         )
@@ -170,12 +170,15 @@ class ConnectionService:
 
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         self._check(body)
-        if self._colours is not None:
-            if body.get("colour") is not None:
-                body = body | {"colour": self._colours.check(body["colour"])}
-            elif previous is None:
-                body = body | {"colour": self._colours.for_new()}  # the palette's next free one
+        sent = None
+        if isinstance(body, dict) and "colour" in body:
+            body = dict(body)
+            raw = body.pop("colour")
+            sent = self._colours.check(raw) if self._colours is not None and raw is not None else None
         saved = await self._blades.save(body, previous, who)
+        if self._colours is not None:
+            # This computer's colours.toml: a new connection's next free colour, a renamed one's kept.
+            self._colours.saved(str(saved["name"]), previous, sent)
         self._on_saved(str(saved["name"]))  # its catalog loads itself, in the background
         return saved
 
@@ -535,9 +538,11 @@ class ConnectionService:
 
 
 class Colours(Protocol):
-    def for_new(self) -> str: ...
-
     def check(self, colour: Any) -> str | None: ...
+
+    def saved(self, name: str, previous: str | None, sent: str | None) -> None: ...
+
+    def colour_of(self, name: str) -> str | None: ...
 
 
 class LoadedCatalogs(Protocol):
