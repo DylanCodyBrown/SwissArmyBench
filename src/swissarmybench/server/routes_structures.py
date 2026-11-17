@@ -13,6 +13,8 @@ PUT    /structures/{id}                 {"text"} the text view's edit | {"format
 POST   /structures/{id}/steps           a step; POST /structures/{id}/steps/remove {"index"?}
 POST   /structures/{id}/undo, /redo
 POST   /structures/{id}/grid            {"path"?, "name"?}: Open as grid
+POST   /structures/{id}/run-again       an API call's structure: the call sent again, its steps kept
+GET    /structures/{id}/lineage         the call (or file) -> it -> its steps -> the grids made from it
 POST   /structures/{id}/save            to its file
 POST   /structures/{id}/save-as         {"name"?, "format"?, "folder"? | "path"?}
 """
@@ -98,6 +100,12 @@ def routes(structures: Structures) -> list[BaseRoute]:
         body = await read_json(request)
         return json_response(await structures.open_as_grid(sid(request), body, actor(request)))
 
+    async def run_again(request: Request) -> Response:
+        return json_response(await structures.run_again(sid(request), actor(request)))
+
+    async def lineage(request: Request) -> Response:
+        return json_response(structures.lineage(sid(request)))
+
     async def save(request: Request) -> Response:
         return json_response(await structures.save(sid(request), actor(request)))
 
@@ -121,5 +129,7 @@ def routes(structures: Structures) -> list[BaseRoute]:
         Route("/structures/{sid}/redo", safely(redo), methods=["POST"]),
         Route("/structures/{sid}/grid", safely(grid), methods=["POST"]),
         Route("/structures/{sid}/save", safely(save), methods=["POST"]),
+        Route("/structures/{sid}/run-again", safely(run_again), methods=["POST"]),
+        Route("/structures/{sid}/lineage", safely(lineage), methods=["GET"]),
         Route("/structures/{sid}/save-as", safely(save_as), methods=["POST"]),
     ]

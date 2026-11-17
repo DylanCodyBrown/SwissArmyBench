@@ -811,3 +811,52 @@ def iter_keys(value: Any) -> Iterator[str]:
                 stack.append(v)
         elif isinstance(node, list):
             stack += node
+
+
+# ===== lineage: where a structure came from, what was done to it, what was made of it =====
+
+
+def lineage(
+    name: str,
+    origin: Mapping[str, Any],
+    steps: list[str],
+    grids: list[tuple[str, str, list[str]]],
+) -> Any:
+    """A structure's lineage as the Workbench's (domain/lineage.py): its source (an API call with its
+    operation, a file, a paste, a kernel's value), the structure, each step, and each grid made from it
+    (its path, then the grid's own steps). Names and words only: never a value or a secret."""
+    from swissarmybench.domain.lineage import Edge, Graph, Node
+
+    nodes: list[Node] = []
+    edges: list[Edge] = []
+    kind = str(origin.get("kind") or "new")
+    if kind == "api":
+        label = f"{origin.get('method', '')} {origin.get('path', '')}".strip()
+        where = f"{origin.get('api', '')} · {origin.get('operation', '')}"
+        if origin.get("status"):
+            where += f" · {origin['status']}"
+        nodes.append(Node("src", "source", label or "API call", where))
+    elif kind == "file":
+        nodes.append(Node("src", "source", str(origin.get("file") or name), "file"))
+    else:
+        words = {"paste": "Pasted", "kernel": "Python", "agent": "The agent", "new": "New"}.get(kind, kind)
+        nodes.append(Node("src", "source", words, kind))
+    nodes.append(Node("doc", "text", name, "structure", target=not steps and not grids))
+    edges.append(Edge("src", "doc", "", "name"))
+    before = "doc"
+    for n, words in enumerate(steps, start=1):
+        ident = f"s{n}"
+        nodes.append(Node(ident, "step", words, f"step {n}", step=n, target=n == len(steps) and not grids))
+        edges.append(Edge(before, ident, "", "step"))
+        before = ident
+    for g, (table, path, grid_steps) in enumerate(grids, start=1):
+        ident = f"g{g}"
+        nodes.append(Node(ident, "table", table, f"grid of {path}", table=table, target=g == len(grids)))
+        edges.append(Edge(before, ident, path, "table"))
+        last = ident
+        for n, words in enumerate(grid_steps, start=1):
+            step = f"g{g}s{n}"
+            nodes.append(Node(step, "step", words, f"grid step {n}", table=table, step=n))
+            edges.append(Edge(last, step, "", "step"))
+            last = step
+    return Graph(tuple(nodes), tuple(edges))

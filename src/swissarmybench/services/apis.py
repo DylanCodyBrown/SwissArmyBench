@@ -18,11 +18,12 @@ The rules are domain/apis.py and domain/api_clients.py; files and fetches adapte
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
-from swissarmybench.domain import api_clients, apis
+from swissarmybench.domain import api_clients, api_explorer, apis, web_calls
 from swissarmybench.domain.apis import ApiError, Names, Spec
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
@@ -47,6 +48,28 @@ class Files(Protocol):
     def clients(self, folder: str) -> dict[str, str]: ...
 
 
+class Library(Protocol):
+    """This computer's library of APIs (adapters/apis.py ApiLibrary): one folder each."""
+
+    def folder_for(self, name: str) -> str: ...
+
+    def path(self, folder: str, name: str) -> str: ...
+
+    def read(self, path: str) -> str | None: ...
+
+    def write(self, path: str, text: str) -> None: ...
+
+
+class Blades(Protocol):
+    """The blades (services/blades.py): an API's web call blades are saved and removed there."""
+
+    def get(self, name: str) -> Any: ...
+
+    def save(self, body: Any, previous: str | None, who: str = ...) -> Awaitable[dict[str, Any]]: ...
+
+    def remove(self, name: str, who: str = ...) -> Awaitable[dict[str, Any]]: ...
+
+
 class Connections(Protocol):
     """The connections (services/connections.py): a saved one's form, and saving one."""
 
@@ -68,6 +91,8 @@ class _Plan:
     old_mark: dict[str, Any] | None
     existing: dict[str, Any] | None  # the connection of that name, when it is this file's
     taken: str  # why the file or the name cannot be used ("": they can)
+    document: dict[str, Any] | None = None  # the OpenAPI document read (None: a form's)
+    source: dict[str, Any] | None = None  # where it was read from: {"kind", "address"}
 
     def to_json(self) -> dict[str, Any]:
         changes = None
@@ -103,18 +128,28 @@ class Apis:
         files: Files,
         sources: SpecSource,
         connections: Connections,
-        default_folder: Callable[[], str],
+        library: Library,
+        blades: Blades,
+        now: Callable[[], str],
     ) -> None:
         self.ws = ws
         self._files = files
         self._sources = sources
         self._connections = connections
-        self._default_folder = default_folder  # the Workbench's own folder, when no project is open
+        # This computer's library (the owner, 2026-11-17): every API's folder, whatever project is open.
+        self._library = library
+        self._blades = blades
+        self._now = now  # the time a source was read, as text
+        self.busy: set[str] = set()  # APIs being added: their tables are made once, at the end
 
     def choices(self) -> dict[str, Any]:
         return apis.choices()
 
     async def _spec(self, body: dict[str, Any]) -> Spec:
+        return (await self._read(body))[0]
+
+    async def _read(self, body: dict[str, Any]) -> tuple[Spec, dict[str, Any] | None, dict[str, Any]]:
+        """The spec, the document it was read from (None: a form) and where that came from."""
         given = [k for k in ("spec", "spec_path", "spec_url", "form") if body.get(k) not in (None, "")]
         if len(given) != 1:
             raise ApiError(
@@ -122,6 +157,8 @@ class Apis:
                 '"spec_url" (its address) or "form" (a base URL and endpoints).'
             )
         way = given[0]
+        document: dict[str, Any] | None = None
+        where: dict[str, Any] = {"kind": "form", "address": ""}
         if way == "form":
             spec = apis.parse_form(body["form"])
         else:
@@ -139,23 +176,23 @@ class Apis:
                 text, source = await asyncio.to_thread(self._sources.fetch, str(body["spec_url"]))
             document = text if isinstance(text, dict) else self._sources.document(text)
             spec = apis.parse_spec(document, source)
+            kinds = {"spec": "text", "spec_path": "file", "spec_url": "address"}
+            address = str(body.get(way)) if way in ("spec_path", "spec_url") else ""
+            where = {"kind": kinds[way], "address": address}
         if body.get("base_url"):
             spec = replace(spec, base_url=apis.check_url(body["base_url"]))
         if not spec.base_url.startswith(("http://", "https://")):
             raise ApiError("The API's address is not known: give its base URL (https://...).")
         if "auth" in body:
             spec = replace(spec, auth=apis.check_auth(body.get("auth")))
-        return spec
+        return spec, document, where
 
     async def _plan(self, body: Any) -> _Plan:
         if not isinstance(body, dict):
             raise ApiError('Send {"spec_url": "https://.../openapi.json"} (or spec, spec_path, form).')
-        spec = await self._spec(body)
+        spec, document, where = await self._read(body)
         names = apis.names_for(str(body.get("name") or spec.title))
-        try:
-            folder = self._files.folder(str(body.get("folder") or self._default_folder()))
-        except FileNotFoundError as error:
-            raise NotFound(str(error)) from None
+        folder = self._library.folder_for(names.module.removeprefix("API_"))  # the library's apis/<name>/
         path = self._files.path(folder, names.file)
         text = api_clients.write(spec, names)
         old = self._files.read(path)
@@ -178,7 +215,7 @@ class Apis:
                 existing = found
             else:
                 taken = taken or f"A connection is named {names.connection}: name the API something else."
-        return _Plan(spec, names, folder, path, text, old, old_mark, existing, taken)
+        return _Plan(spec, names, folder, path, text, old, old_mark, existing, taken, document, where)
 
     async def preview(self, body: Any) -> dict[str, Any]:
         """What Add would do, written nowhere."""
@@ -204,11 +241,106 @@ class Apis:
             row_limit=body.get("row_limit"),
         )
         previous = plan.names.connection if plan.existing is not None else None
+        connection["tags"] = [web_calls.API_TAG]
+        self.busy.add(plan.names.connection.casefold())
+        try:
+            calls = await self._web_calls(plan, who)
+        finally:
+            self.busy.discard(plan.names.connection.casefold())
+        switched_on = web_calls.table_calls(calls, plan.names.connection)
+        connection.pop("catalog", None)  # an API's tables are its Return-as-table web calls: none yet
+        connection.pop("read", None)
+        if switched_on:
+            catalog, read = web_calls.tables_boxes(switched_on)
+            connection["catalog"] = {"language": "python", "command": "api = conn\n" + catalog}
+            connection["read"] = {"command": "api = conn\n" + read}
+        if previous is None:
+            connection["library_folder"] = self._library_relative(plan.folder)
         saved = await self._connections.save(connection, previous, who)
+        self._write_description(plan, body.get("check") is True)
         self.ws.audit.write(
             who, "add_api", f"{plan.names.connection}: {plan.path}", connection=plan.names.connection
         )
-        return answer | {"saved": saved, "written": plan.path}
+        return answer | {"saved": saved, "written": plan.path, "web_calls": [c["name"] for c in calls]}
+
+    def _library_relative(self, folder: str) -> str:
+        return "apis/" + folder.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
+    def _write_description(self, plan: _Plan, check: bool) -> None:
+        """openapi.json (the document as read, or a form's operations as one) and source.json (where it
+        came from, when, and the check-for-changes switch): text only, no secret, no response."""
+        document = plan.document if plan.document is not None else api_explorer.openapi_of(plan.spec)
+        text = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+        self._library.write(self._library.path(plan.folder, "openapi.json"), text)
+        where = dict(plan.source or {"kind": "form", "address": ""})
+        earlier = self._library.read(self._library.path(plan.folder, "source.json"))
+        try:
+            kept = json.loads(earlier) if earlier else {}
+        except ValueError:
+            kept = {}
+        source = {
+            "api": plan.names.connection,
+            "kind": where.get("kind", "form"),
+            "address": where.get("address", ""),
+            "check": bool(kept.get("check")) if not check else True,
+            "read_at": self._now(),
+        }
+        self._library.write(
+            self._library.path(plan.folder, "source.json"), json.dumps(source, indent=2) + "\n"
+        )
+
+    async def _web_calls(self, plan: _Plan, who: str) -> list[dict[str, Any]]:
+        """One web call blade per operation (Return as table off), each in the API's folder; a web call
+        made before keeps its inputs, body and table settings; one whose operation is gone goes."""
+        api = plan.names.connection
+        made: list[dict[str, Any]] = []
+        wanted = {web_calls.name_of(api, op.name): op for op in plan.spec.operations}
+        for name, op in wanted.items():
+            try:
+                before = self._blades.get(name)
+            except (KeyError, LookupError, ValueError):
+                before = None
+            call: dict[str, Any] = {
+                "api": api,
+                "operation": op.name,
+                "method": op.method,
+                "path": op.path,
+                "as_table": False,
+                "paging_by": op.paging(),
+            }
+            inputs: dict[str, Any] = {}
+            for p in op.parameters:  # nothing typed yet: a required one left empty is named when read
+                if p.required:
+                    inputs.setdefault(p.place, {})[p.name] = None
+            body: Any = None
+            if before is not None and getattr(before, "web_call", None):
+                kept = dict(before.web_call)
+                call |= {k: kept[k] for k in kept if k not in ("api", "operation", "method", "path")}
+                said = web_calls.values_of(before.code)
+                inputs = said["inputs"] or inputs
+                body = said["body"]
+            blade = {
+                "name": name,
+                "kind": "other",
+                "code": web_calls.code(api, op.method, op.path, op.summary, inputs, body, call),
+                "variable": "result",
+                "description": (op.summary or f"{op.method} {op.path}")[:300],
+                "tags": [web_calls.API_TAG, web_calls.TAG],
+                "web_call": call,
+            }
+            if before is None:
+                blade["library_folder"] = self._library_relative(plan.folder)
+            await self._blades.save(blade, name if before is not None else None, who)
+            made.append(blade)
+        if plan.old is not None:
+            for module_method in api_clients.methods(plan.old):
+                gone = web_calls.name_of(api, module_method)
+                if gone not in wanted:
+                    try:
+                        await self._blades.remove(gone, who)
+                    except (KeyError, LookupError, ValueError):
+                        pass
+        return made
 
     async def try_it(self, body: Any) -> dict[str, Any]:
         """Try it: one operation's first rows (`"try": "list_orders"`), before Add. The client is run
@@ -242,6 +374,9 @@ class Apis:
         if not wanted:
             return []
         found = self._files.clients(folder)
+        for module in wanted:  # the library's own (apis/<name>/API_<name>.py), whatever folder the code is in
+            if module not in found:
+                found |= self._files.clients(self._library.folder_for(module.removeprefix("API_")))
         return [
             {"module": module, "code": api_clients.inline(module, found[module])}
             for module in wanted

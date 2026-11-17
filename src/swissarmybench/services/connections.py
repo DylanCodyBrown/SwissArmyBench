@@ -52,6 +52,8 @@ class ConnectionService:
         found = []
         for b in self._blades.listing()["blades"]:
             kind = rules.connection_kind(str(b["kind"]), b.get("template"))
+            if "api" in (b.get("tags") or []):
+                continue  # an API: the APIs page is its home (the owner, 2026-11-17), never this list
             if kind:
                 more: dict[str, Any] = {
                     "connection": kind,

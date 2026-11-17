@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -88,6 +88,7 @@ class Opened:
     redo: list[Step] = field(default_factory=list)
     edited: bool = False  # the original changed since it was read (a paste, New, the text view)
     version: int = 0
+    grids: list[tuple[str, str]] = field(default_factory=list)  # (table, path): made with Open as grid
 
     @property
     def dirty(self) -> bool:
@@ -117,6 +118,10 @@ class Structures:
         self._documents = documents  # SEAM: the documents references are looked for in (as connections')
         self._read_document = read_document
         self._open: dict[str, Opened] = {}
+        # Run again: an API call's origin sent again (services/api_explorer.py sets it): (value, origin).
+        self.rerun: Callable[[dict[str, Any], str], Awaitable[tuple[Any, dict[str, Any]]]] | None = None
+        # A grid's own steps in words, for the lineage (services/grids.py, by table).
+        self.grid_steps: Callable[[str], list[str]] = lambda table: []
         self._project: str | None = None  # the project folder last told (project_changed)
         self._lock = asyncio.Lock()
 
@@ -173,6 +178,11 @@ class Structures:
                 except StructureError as error:
                     out["text"], out["text_error"] = self._codecs.dump(result, "json"), str(error)
         return out
+
+    def node(self, sid: str, path: str = "$") -> Any:
+        """The value at `path` of an open structure's result."""
+        value = self.value(self._get(sid))
+        return value if path in ("", "$") else rules.get(value, path)
 
     def describe(self, sid: str, path: str = "$") -> dict[str, Any]:
         """What the agent reads: the shape (types, counts, keys), the record lists, and the node at `path`
@@ -271,10 +281,29 @@ class Structures:
         return self.show(s.id)
 
     async def from_api(self, name: str, value: Any, origin: dict[str, Any], who: str) -> dict[str, Any]:
-        """An API's response, opened as a new tab (services/apis.py's Try it)."""
-        s = self._add(self._free_name(rules.check_name(name)), "json", value, None, origin, True)
+        """An API's response, opened as a new tab (the APIs page's Send): its origin is the call."""
+        s = self._add(self._free_name(rules.check_name(name)), "json", value, None, dict(origin), True)
         await self._changed(s, who, "structure_from_api")
         return self._summary(s)
+
+    async def run_again(self, sid: str, who: str = "user") -> dict[str, Any]:
+        """An API call's structure: the same call sent again, its answer the new original, the steps kept."""
+        s = self._get(sid)
+        if s.origin.get("kind") != "api" or self.rerun is None:
+            raise StructureError(f"{s.name} did not come from an API call: there is nothing to run again.")
+        value, origin = await self.rerun(dict(s.origin), who)
+        s.original, s.origin, s.edited = value, dict(origin), True
+        await self._changed(s, who, "structure_run_again")
+        return self.show(s.id)
+
+    def lineage(self, sid: str) -> dict[str, Any]:
+        """Where it came from (the call, with its inputs and body; the file), each step, each grid made
+        from it with the grid's own steps: as the Workbench's lineage (nodes, edges, Mermaid)."""
+        s = self._get(sid)
+        grids = [(table, path, self.grid_steps(table)) for table, path in s.grids if self.ws.store.get(table)]
+        origin = dict(s.origin) | ({"file": s.path} if s.path else {})
+        graph = rules.lineage(s.name, origin, [rules.describe(step) for step in s.steps], grids)
+        return {"id": s.id, "name": s.name, "origin": s.origin, **graph.to_json()}
 
     async def close(self, sid: str, who: str = "user") -> dict[str, Any]:
         s = self._get(sid)
@@ -378,6 +407,7 @@ class Structures:
         code = f"sab.structure_table({s.name!r}, {path!r})" if s.path else None
         origin = Origin("structure", path=s.path, filename=s.name, code=code, sql=path)
         answer = await self._datasets.store_table(str(name), table, "structure", True, who, origin=origin)
+        s.grids = [g for g in s.grids if g[0] != str(name)] + [(str(name), path)]
         self.ws.audit.write(who, "structure_to_grid", str(name), rows=len(rows), structure=s.name)
         return answer | {"rows": len(rows), "path": path}
 

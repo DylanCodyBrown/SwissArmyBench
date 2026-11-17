@@ -136,6 +136,8 @@ GUIDE_TOPICS: dict[str, str] = {
     "analyze": "Analyze and Visualizations: the analyses, cards, dashboards, themes",
     "relationships": "Keys and relationships: the finder, tangs, the ERD, compare and tie-out",
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python, key vaults",
+    "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
+    "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
@@ -2447,6 +2449,112 @@ def connections_password_source(a: dict[str, Any]) -> Any:
     return api.call("POST", "/connections/source", body)
 
 
+# ===== apis: the APIs page (this computer's library of APIs: API blades and web call blades) =====
+
+
+@command(
+    "apis_list", "Every API in the library: its operations, tables, sign-in type, source, calls this session"
+)
+def apis_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/apis")
+
+
+@command(
+    "apis_describe",
+    "An API's operations (inputs, body example, outputs per status, its web call blade, SQL name) and its "
+    "schemas; with operation: that one only",
+    req("name", "The API."),
+    opt("operation", "An operation (list_orders)."),
+)
+def apis_describe(a: dict[str, Any]) -> Any:
+    query = f"?operation={_q(a['operation'])}" if a.get("operation") else ""
+    return api.call("GET", f"/apis/{_q(a['name'])}" + query)
+
+
+@command("apis_search", "Search every API's operations: name, method, path, text, tags, parameters, fields",
+         req("q", "Words."))  # fmt: skip
+def apis_search(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/apis/search?q={_q(a['q'])}")
+
+
+@command(
+    "apis_call",
+    "Send an operation (its web call, after its API blade): the answer opens in Structures with its lineage; "
+    "you get the status, time, headers and the structure's id (read it with structures_show)",
+    req("name", "The API."),
+    req("operation", "The operation."),
+    opt("inputs", '{"order_id": 3} or {"path": {...}, "query": {...}, "header": {...}}.', "json"),
+    opt("body", "The JSON body.", "json"),
+)
+def apis_call(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("inputs", "body") if k in a}
+    return api.call("POST", f"/apis/{_q(a['name'])}/calls/{_q(a['operation'])}", body)
+
+
+@command(
+    "apis_save_call",
+    "Save an operation's web call blade: its inputs and body; as_table=true makes it one of the API's tables "
+    "in SQL (records: $.items; shape records|header_rows; header; columns; flatten; paging all|first)",
+    req("name", "The API."),
+    req("operation", "The operation."),
+    opt("inputs", "Its inputs.", "json"),
+    opt("body", "Its body.", "json"),
+    opt("as_table", "Return as table.", "bool"),
+    opt("records", "Where its rows are ($.items)."),
+    opt("shape", "records or header_rows."),
+    opt("header", "header_rows: its header's path, or first_row."),
+    opt("columns", '{"id": "BIGINT"}.', "json"),
+    opt("flatten", "Nested objects as columns.", "bool"),
+    opt("paging", "all or first."),
+    opt("conversion", "DuckDB's SQL over response (one row per page, page)."),
+    opt("structure", "A Structures answer to read the settings from (with as_table)."),
+)
+def apis_save_call(a: dict[str, Any]) -> Any:
+    keys = ("inputs", "body", "as_table", "records", "shape", "header", "columns", "flatten", "paging", "conversion",
+            "structure")  # fmt: skip
+    body = {k: a[k] for k in keys if a.get(k) is not None}
+    return api.call("PUT", f"/apis/{_q(a['name'])}/calls/{_q(a['operation'])}", body)
+
+
+@command(
+    "apis_refresh",
+    "Read an API's source again: what changed (operations, parameters, fields), nothing written; "
+    "apis_apply_refresh writes it",
+    req("name", "The API."),
+)
+def apis_refresh(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/apis/{_q(a['name'])}/refresh", {})
+
+
+@command("apis_apply_refresh", "Write what apis_refresh showed", req("name", "The API."))
+def apis_apply_refresh(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/apis/{_q(a['name'])}/refresh/apply", {})
+
+
+@command(
+    "apis_rename",
+    "Rename an API (its blades too; the code that named it is listed), or set its check-for-changes switch",
+    req("name", "The API."),
+    opt("new_name", "Its new name."),
+    opt("check", "Check for changes when the page opens.", "bool"),
+)
+def apis_rename(a: dict[str, Any]) -> Any:
+    if a.get("check") is not None:
+        return api.call("PUT", f"/apis/{_q(a['name'])}/check", {"on": a["check"]})
+    return api.call("PUT", f"/apis/{_q(a['name'])}/name", {"name": a.get("new_name") or ""})
+
+
+@command(
+    "apis_delete",
+    "Delete an API (its blades and folder): without confirm, the code that uses it; with confirm, it waits "
+    "for the user's Allow",
+    req("name", "The API."),
+    opt("confirm", "Delete it.", "bool"),
+)
+def apis_delete(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/apis/{_q(a['name'])}/delete", {"confirm": bool(a.get("confirm"))})
+
+
 # ===== structures: JSON, YAML, XML and TOML as documents (the Structures page) =====
 
 
@@ -2569,6 +2677,20 @@ def structures_save(a: dict[str, Any]) -> Any:
     if body:
         return api.call("POST", f"/structures/{sid}/save-as", body)
     return api.call("POST", f"/structures/{sid}/save", {})
+
+
+@command(
+    "structures_lineage",
+    "A structure's lineage: the API call (inputs, body, when) or file, its steps, the grids made from it; "
+    "run_again=true sends the same call again (the steps kept)",
+    req("structure", "Its id or name."),
+    opt("run_again", "Send its call again.", "bool"),
+)
+def structures_lineage(a: dict[str, Any]) -> Any:
+    sid = _q(a["structure"])
+    if a.get("run_again"):
+        return _structure_summary(api.call("POST", f"/structures/{sid}/run-again", {}))
+    return api.call("GET", f"/structures/{sid}/lineage")
 
 
 @command(

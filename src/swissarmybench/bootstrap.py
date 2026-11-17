@@ -26,7 +26,7 @@ from swissarmybench import __version__
 from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
-from swissarmybench.adapters.apis import ApiFiles, SpecSource
+from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
@@ -61,6 +61,7 @@ from swissarmybench.domain import python_connections
 from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_scope import APP_FOLDER
+from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner
 from swissarmybench.server.autostart import Autostart
@@ -75,6 +76,7 @@ from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.api_explorer import Explorer as ApiExplorer
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
@@ -148,6 +150,7 @@ class Services:
     connection_usage: ConnectionUsage
     apis: Apis
     structures: Structures
+    api_explorer: ApiExplorer
     catalog_loading: CatalogLoading
     folders: Folders
     workbench: Workbench
@@ -230,6 +233,7 @@ def bootstrap(
     )
     blade_store = BladeStore(
         settings.blades_dir,
+        library=state_dir / "library",
         folders_file=state_dir / "blade_folders.json",
         pins_file=state_dir / "blade_pins.json",
         packs=pack_files.blade_dirs,
@@ -455,8 +459,16 @@ def bootstrap(
         environ=os.environ,
         now=time.time,
     )
-    # Add API: API_<name>.py beside data.py, or in the Workbench's own folder, and its connection.
-    apis = Apis(ws, ApiFiles(), SpecSource(), connections, documents.made_default_folder)
+    # Add API: this computer's library (apis/<name>/): API_<name>.py, its API blade and web call blades.
+    apis = Apis(
+        ws,
+        ApiFiles(),
+        SpecSource(),
+        connections,
+        ApiLibrary(state_dir / "library" / "apis"),
+        blades,
+        now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+    )
     workbench_window = WorkbenchWindow(ws)
     dashboards = DashboardFiles(state_dir / "dashboards")
     cards = Cards(ws, dashboards, ThemeFiles(state_dir / "themes"))
@@ -544,6 +556,25 @@ def bootstrap(
         read_document=documents.read,
     )
     structures_ready.append(structures)
+    # The APIs page: the library's APIs explored; a call sent opens in Structures, its origin the call.
+    api_explorer = ApiExplorer(
+        ws,
+        apis,
+        ApiLibrary(state_dir / "library" / "apis"),
+        SpecSource(),
+        blades,
+        connections,
+        connection_usage,
+        structures,
+        approvals,
+        now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+        to_thread=asyncio.to_thread,
+    )
+    structures.rerun = api_explorer.run_again
+    blades.web_call_saved.append(api_explorer.tables_changed)
+    structures.grid_steps = lambda table: (
+        describe_steps(grid.steps) if (grid := ws.grids.first_for(table)) is not None else []
+    )
     sab_projects.manifest_extras.append(lambda: {"structures": {"open": structures.open_paths()}})
     sab_projects.opened.append(structures.project_changed)
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
@@ -654,6 +685,7 @@ def bootstrap(
         connection_usage=connection_usage,
         apis=apis,
         structures=structures,
+        api_explorer=api_explorer,
         catalog_loading=catalog_loading,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=workbench,
