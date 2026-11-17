@@ -251,6 +251,39 @@ Updating an edition is then a version bump (Dependabot or Renovate opens the pul
 the status bar, the Data panel and the library in one day); packages before the shapes settle would slow both
 editions down. Step 1 makes drift visible now, step 2 removes its main cause, step 3 makes parity automatic.
 
+## 8a. The boundary: one front end, editions are backends (the owner, 2026-11-17)
+"Would be cool if we could set a boundary on what is front end and what is back end for the app and for future
+editions we could just develop the back end piece and leave the front end intact"
+
+This is section 8's end state, chosen as the goal: **one front end, shared by every edition; an edition is a
+backend.** The front end draws whatever the backend says exists.
+1. **The contract:**
+   - **`GET /app/manifest`**: the edition's name and version; its rail areas (name, icon, page kind, order);
+     its commands (id, title, keys, arguments, where they show); its connection kinds with their **forms as
+     data** (fields, labels, kinds, sources, environment-variable choices, sign-ins); its cell kinds and editor
+     languages; its Settings sections; its starter packs; its context.md sections.
+   - **The routes as an OpenAPI document**, generated from the server; the front end calls only what is in it.
+   - **Contract tests on both sides:** the backend's manifest and routes against the schema; the front end's
+     browser tests against a stand-in backend serving only the contract.
+2. **A front end of general pieces**, drawn from the manifest: a grid of rows; a searchable tree (connections,
+   Structures, the Data Explorer); a form from field descriptions; cards on a dashboard; the editor (tabs,
+   IntelliSense, console); an explorer (operations, inputs, outputs); a log (Session); the rail, status bar,
+   zoom, palette, themes and Settings. A new edition's backend says "Connectors: an explorer over this route"
+   and the page exists.
+3. **Plug-ins for the genuinely unique screens** (the Streamlit canvas, TSX previews, later a canvas app
+   designer): front-end modules the manifest names, loaded on demand, kept with the shared front end.
+4. **The agent's tools come from the same manifest**, so a command is a button, a palette entry and an agent
+   tool at once: the golden rule by construction.
+5. **Packaging:** the front end becomes `@swissarmybench/ui` (built once, its build bundled into each edition's
+   wheel as `web_static` is today); each edition's repository is its backend plus that package at a version.
+
+**Order:** do this in this repository **before** the Power Apps repository starts (about 3 to 4 branches: the
+manifest and its schema; rail, commands and Settings from the manifest; connection forms as data; the general
+pages drawing from it, with today's specific screens as plug-ins). It replaces section 8's step 2 (registries:
+the same work, with the registries on the backend side of a stable line) and makes step 3's `ui` package the
+natural result. The Power Apps repository then starts as a new backend plus the shared front end, and never
+strips the front end.
+
 ## 9. The new repository's first week
 1. Create it (section 2); copy section 3's documents; write its CLAUDE.md from this file's sections 1, 4 and 5.
 2. Add `parity.toml` and the parity check (section 8, step 1).
@@ -264,4 +297,5 @@ editions down. Step 1 makes drift visible now, step 2 removes its main cause, st
 2. Both editions on one computer at once: one port and one state folder each, or one shared library folder
    (recommended: shared library, separate state and port).
 3. Can a code app project also hold Python helpers (a script that seeds Dataverse), or TypeScript only?
-4. Step 2's registries in this repository before the spin-off starts (recommended), or after.
+4. Section 8a's front-end and back-end boundary in this repository before the spin-off starts (recommended),
+   or after.
