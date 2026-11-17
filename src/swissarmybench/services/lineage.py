@@ -32,8 +32,8 @@ from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.lineage import DocCell, Document, Graph, Key, TableFacts
 from swissarmybench.domain.steps import describe_step
+from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.ports import BACKGROUND
-from swissarmybench.services.streamlit import App, StreamlitApps
 from swissarmybench.services.table_cells import Origins
 from swissarmybench.services.workspace import NotFound, Workspace
 
@@ -123,24 +123,24 @@ class Lineage:
     def __init__(
         self,
         ws: Workspace,
-        streamlit: StreamlitApps,
+        hooks: Hooks,
         origins: Origins,
         read_document: Callable[[str], tuple[str, str, float]],
         project_files: ProjectFiles,
         kernel_values: KernelValues,
-        read_trace: Callable[[str, str], str | None],
     ) -> None:
         self.ws = ws
-        self._streamlit = streamlit
+        # The open documents as their windows hold them, a canvas, a playing page's notes: the extension
+        # that makes apps hands them over (services/hooks.py); with none on, the files.
+        self._hooks = hooks
         self._origins = origins
         self._read = read_document  # a file's text and full path (the Workbench's documents)
         self._project = project_files
         self._kernel_values = kernel_values
-        self._read_trace = read_trace  # what a live page noted of its blocks (adapters/streamlit_files.py)
 
     # ===== the documents, as they are now =====
 
-    def _held_cells(self, held: App, from_file: tuple[DocCell, ...]) -> tuple[DocCell, ...]:
+    def _held_cells(self, held: Any, from_file: tuple[DocCell, ...]) -> tuple[DocCell, ...]:
         """An open document's cells: its window's code over the file's cells (roles, table cells)."""
         if held.every is not None:  # a project's data.ipynb sends every cell
             return tuple(
@@ -186,7 +186,7 @@ class Lineage:
             from_file = ()
         except (notebooks.NotebookError, ValueError, OSError) as error:
             raise rules.LineageError(f"{rules.file_name(path)} cannot be read ({error}).") from None
-        held = self._streamlit.held(path)
+        held = self._hooks.held(path)
         if held is not None:
             return Document(path, self._held_cells(held, from_file), data)
         if not from_file:
@@ -228,12 +228,12 @@ class Lineage:
 
     # ===== the graph =====
 
-    def _target(self, body: Mapping[str, Any]) -> tuple[Key, dict[str, Document], list[Key], App | None, Any]:
+    def _target(self, body: Mapping[str, Any]) -> tuple[Key, dict[str, Document], list[Key], Any, Any]:
         """What the lineage starts from: (the cell, its documents, the page's blocks, the canvas, the
         block's page id)."""
         docs: dict[str, Document] = {}
         if isinstance(body.get("app"), str):
-            app = self._streamlit.canvas(body["app"])
+            app = self._hooks.canvas(body["app"])
             page = next((p for p in app.pages if p.id == body.get("page")), None)
             if page is None:
                 raise NotFound("That page is not on the canvas.")
@@ -281,7 +281,7 @@ class Lineage:
             return graph.to_json()
         kernels: dict[str, str] = {}
         for path in docs:
-            held = self._streamlit.held(path)
+            held = self._hooks.held(path)
             if held is not None and held.kernel:
                 kernels[path] = held.kernel
         if isinstance(body.get("kernel"), str) and body["kernel"]:
@@ -297,12 +297,12 @@ class Lineage:
         mark = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()[:16]
         return said | {"values": values, "busy": busy, "mark": mark, "playing": trace is not None}
 
-    def _page_trace(self, app: App, page_id: str) -> dict[str, Any] | None:
+    def _page_trace(self, app: Any, page_id: str) -> dict[str, Any] | None:
         """What a playing page noted of each block at its last run: {"run", "blocks": {id: {"values",
         "error"}}} (client/lineage_values.py). None: the page is not playing, or noted nothing yet."""
         if app.folder is None or not app.running() or page_id not in app.laid:
             return None
-        text = self._read_trace(app.folder, page_id)
+        text = self._hooks.read_trace(app.folder, page_id)
         try:
             found = json.loads(text) if text else None
         except ValueError:

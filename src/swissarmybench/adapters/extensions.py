@@ -47,6 +47,7 @@ def discover(
             continue
         if said is not None:
             found.setdefault(said.id, said)
-    for ident in rules.from_env((environ if environ is not None else os.environ).get(rules.ENV)):
+    said = (environ if environ is not None else os.environ).get(rules.ENV)
+    for ident in rules.from_env(said):
         found.setdefault(ident, Found(id=ident))
-    return found
+    return {ident: f for ident, f in found.items() if ident not in rules.turned_off(said)}

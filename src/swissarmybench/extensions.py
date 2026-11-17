@@ -31,13 +31,14 @@ from typing import Any
 GROUP = "swissarmybench.extensions"
 VARIABLE = "SWISSARMYBENCH_EXTENSIONS"
 
-# The base's own project type: a BI project (a notebook as its deliverable). Streamlit is still built in
-# (the coming release keeps it), so its canvas is the base's; every family shows (an empty list: all).
+# The base's own project type: a BI project (a notebook as its deliverable); every family shows (an empty
+# list: all). An extension that is on may add to it (its BASE_MODE_ADDS: the preinstalled Streamlit
+# extension's canvas, offered in a BI project as before it was an extension).
 BASE_MODE: dict[str, Any] = {
     "type": "bi",
     "name": "BI",
     "deliverable": "a notebook",
-    "canvases": ["streamlit"],
+    "canvases": [],
     "families": [],
     "languages": ["python"],
     "cell_kinds": [],
@@ -98,10 +99,22 @@ def _mode(raw: Any) -> dict[str, Any] | None:
     return mode
 
 
+def base_mode(on: list[ModuleType] | None = None) -> dict[str, Any]:
+    """The base's mode, with what each on extension adds to it (its BASE_MODE_ADDS: lists, by field)."""
+    mode = {k: list(v) if isinstance(v, list) else v for k, v in BASE_MODE.items()}
+    for module in enabled() if on is None else on:
+        adds = getattr(module, "BASE_MODE_ADDS", None)
+        for key, values in (adds if isinstance(adds, dict) else {}).items():
+            if key in _MODE_FIELDS and isinstance(values, list | tuple):
+                mode[key] = list(dict.fromkeys([*mode[key], *(str(v) for v in values)]))
+    return mode
+
+
 def modes() -> list[dict[str, Any]]:
     """Every project type's mode: the base's first, then each on extension's (its MODE)."""
-    out = [dict(BASE_MODE)]
-    for module in enabled():
+    on = enabled()
+    out = [base_mode(on)]
+    for module in on:
         mode = _mode(getattr(module, "MODE", None))
         if mode is not None and mode["type"] not in {m["type"] for m in out}:
             out.append(mode)
@@ -110,4 +123,5 @@ def modes() -> list[dict[str, Any]]:
 
 def mode_of(project_type: str | None) -> dict[str, Any]:
     """A project type's mode; the base's for no project, or a type whose extension is not on."""
-    return next((m for m in modes() if m["type"] == project_type), dict(BASE_MODE))
+    found = modes()
+    return next((m for m in found if m["type"] == project_type), found[0])

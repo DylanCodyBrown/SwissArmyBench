@@ -41,7 +41,7 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
         "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
         "SWISSARMYBENCH_STATE": str(tmp / "state"),
         "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
-        "SWISSARMYBENCH_EXTENSIONS": "accounting",
+        "SWISSARMYBENCH_EXTENSIONS": "streamlit,accounting",  # Streamlit: preinstalled
         "PYTHONPATH": os.pathsep.join([source, os.environ.get("PYTHONPATH", "")]).strip(os.pathsep),
     }
     process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env_)

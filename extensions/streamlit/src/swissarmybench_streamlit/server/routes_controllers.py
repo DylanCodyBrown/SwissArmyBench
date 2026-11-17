@@ -17,7 +17,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, error_response, json_response
-from swissarmybench.services.controllers import Controllers
+from swissarmybench_streamlit.services.controllers import Controllers
 
 
 def routes(controllers: Controllers) -> list[BaseRoute]:

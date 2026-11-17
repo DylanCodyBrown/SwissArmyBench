@@ -36,7 +36,7 @@ from starlette.testclient import TestClient
 from swissarmybench.cli.commands import CommandError, execute
 from swissarmybench.domain import notebooks
 from swissarmybench.renamed import env
-from swissarmybench.server import streamlit_apps
+from swissarmybench_streamlit.server import streamlit_apps
 from tests.conftest import AGENT, AUTH, BASE, make_client, push
 from tests.test_cli import Live, data_of, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
@@ -585,8 +585,14 @@ def test_this_apps_own_python_has_no_streamlit(tmp_path: Path) -> None:
         ran = _ok(client.post(f"/streamlit/apps/{app}/run", headers=AUTH))
         assert ran["problem"]["kind"] == "missing" and "streamlit" in ran["problem"]["packages"]
         assert ran["problem"]["python"] == sys.executable and ran["running"] is False
-    project = (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
-    assert "streamlit" not in project.lower()
+    # Neither the base nor the extension depends on Streamlit (it runs in the notebook's own Python).
+    import tomllib
+
+    for pyproject in ("pyproject.toml", "extensions/streamlit/pyproject.toml"):
+        text = (Path(__file__).parents[1] / pyproject).read_text(encoding="utf-8")
+        project = tomllib.loads(text)["project"]
+        needs = [*project["dependencies"], *sum(project.get("optional-dependencies", {}).values(), [])]
+        assert not [d for d in needs if d.lower().startswith("streamlit")], pyproject
 
 
 # ===== the app's file: saved by the Workbench, opened again =====
@@ -1333,7 +1339,7 @@ def test_a_streamlit_process_ends_when_the_server_that_started_it_goes(tmp_path:
     (tmp_path / "app.py").write_text("import streamlit as st\nst.write('hello')\n")
     parent = (
         "import asyncio, sys\n"
-        "from swissarmybench.server import streamlit_apps\n"
+        "from swissarmybench_streamlit.server import streamlit_apps\n"
         "async def main():\n"
         "    running = await streamlit_apps.start(sys.argv[1], sys.argv[2], '/streamlit/live/a-b')\n"
         "    print(running.process.pid, running.port, flush=True)\n"

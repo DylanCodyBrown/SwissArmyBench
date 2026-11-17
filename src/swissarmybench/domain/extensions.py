@@ -4,7 +4,8 @@
 extension button to the rail to show what extensions are available to install and one click installs them."
 
 The catalog is every extension that exists or is coming, each with a status:
-    preinstalled  comes with every install (Streamlit, until it moves into a package of its own)
+    preinstalled  comes with every install (Streamlit: the installers and each update install its package);
+               listed as installed while its package is here (Remove asks first), available once removed
     available  a package this version can install (from the GitHub release of this exact version)
     installed  a package found under the entry-point group `swissarmybench.extensions`
     coming     listed, not installable
@@ -38,6 +39,8 @@ class Extension:
     adds: tuple[str, ...] = ()
     status: str = "coming"  # preinstalled | available | coming (installed is found, never written here)
     package: str = ""
+    # Its agent commands' names start with one of these: called while it is off, a plain answer names it.
+    tools: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -56,9 +59,10 @@ CATALOG: tuple[Extension, ...] = (
         "streamlit",
         "Streamlit",
         "Build Streamlit apps from your notebooks' cells.",
-        ("The Apps area", "The Streamlit canvas", "App mode", "Streamlit and Components starters"),
+        ("The Apps area", "The Streamlit canvas", "App mode", "Streamlit, Components and Controllers starters"),
         "preinstalled",
         "swissarmybench-streamlit",
+        ("streamlit_", "workbench_canvas", "workbench_live_", "workbench_new_app"),
     ),
     Extension(
         "accounting",
@@ -67,6 +71,7 @@ CATALOG: tuple[Extension, ...] = (
         ("The Accounting project", "The Excel canvas", "Statements and invoices from templates"),
         "available",
         "swissarmybench-accounting",
+        ("workbook_", "template_", "statements_"),
     ),
     Extension(
         "powerapps",
@@ -75,8 +80,14 @@ CATALOG: tuple[Extension, ...] = (
         ("The code app project", "Dataverse and connectors", "Run live and push", "Custom connectors"),
         "available",
         "swissarmybench-powerapps",
+        ("powerapps_",),
     ),
 )
+
+
+def owner_of(command: str, catalog: tuple[Extension, ...] = CATALOG) -> Extension | None:
+    """The catalog's extension an agent command belongs to (by its tools' prefixes), or None."""
+    return next((e for e in catalog if any(command.startswith(p) for p in e.tools)), None)
 
 
 class ExtensionError(ValueError):
@@ -129,6 +140,8 @@ def from_env(text: str | None) -> tuple[str, ...]:
     """SWISSARMYBENCH_EXTENSIONS's ids (tests and development only)."""
     found: list[str] = []
     for part in (text or "").split(","):
+        if part.strip().startswith("-"):
+            continue  # "-id" turns one off (turned_off)
         try:
             ident = check_id(part)
         except ExtensionError:
@@ -138,17 +151,26 @@ def from_env(text: str | None) -> tuple[str, ...]:
     return tuple(found)
 
 
+def turned_off(text: str | None) -> set[str]:
+    """SWISSARMYBENCH_EXTENSIONS's "-id" words: extensions treated as not installed, even one that is."""
+    return {p.strip()[1:].lower() for p in (text or "").split(",") if p.strip().startswith("-")}
+
+
 def listed(catalog: tuple[Extension, ...], found: dict[str, Found], current: str) -> list[dict[str, Any]]:
     """Every extension with its status and version: the catalog's, then any installed one it does not list.
-    A preinstalled extension stays preinstalled (it comes with the app); any other found is installed."""
+    A preinstalled one (the installers put it in) is installed while its package is found and available once
+    removed, marked `preinstalled` either way; any other found is installed."""
     out: list[dict[str, Any]] = []
     for ext in catalog:
         said = ext.to_json()
+        said["preinstalled"] = ext.status == "preinstalled"
         here = found.get(ext.id)
-        if here is not None and ext.status != "preinstalled":
+        if here is not None:
             said["status"] = "installed"
             said["version"] = here.version or current
         else:
+            if ext.status == "preinstalled":
+                said["status"] = "available"
             said["version"] = current if ext.status in ("preinstalled", "available") else None
         out.append(said)
     known = {e.id for e in catalog}
@@ -169,6 +191,47 @@ def listed(catalog: tuple[Extension, ...], found: dict[str, Found], current: str
     return out
 
 
+def to_bring_back(
+    catalog: tuple[Extension, ...], found: dict[str, Found], record: Any, version: str
+) -> list[Extension]:
+    """The preinstalled extensions an install lacks that the user never removed and that were not tried at
+    this version already: an update from a version that had them built in (Streamlit before 0.0.18) brings
+    them back once, at its first start. `record` is extensions.json's {"removed": [ids], "tried": {id: v}}."""
+    said = record if isinstance(record, dict) else {}
+    removed = {str(i) for i in said.get("removed") or [] if isinstance(i, str)}
+    tried: dict[str, Any] = said["tried"] if isinstance(said.get("tried"), dict) else {}
+    return [
+        e
+        for e in catalog
+        if e.status == "preinstalled"
+        and e.package
+        and e.id not in found
+        and e.id not in removed
+        and tried.get(e.id) != version
+    ]
+
+
+def recorded(
+    record: Any,
+    *,
+    removed: str | None = None,
+    installed: str | None = None,
+    tried: tuple[str, str] | None = None,
+) -> dict[str, Any]:
+    """extensions.json after a change: an id removed by the user (kept out of every bring-back), installed
+    again (no longer removed), or tried at a version."""
+    said = dict(record) if isinstance(record, dict) else {}
+    gone = [str(i) for i in said.get("removed") or [] if isinstance(i, str)]
+    if removed and removed not in gone:
+        gone.append(removed)
+    if installed:
+        gone = [i for i in gone if i != installed]
+    attempts = dict(said["tried"]) if isinstance(said.get("tried"), dict) else {}
+    if tried:
+        attempts[tried[0]] = tried[1]
+    return {"removed": sorted(gone), "tried": dict(sorted(attempts.items()))}
+
+
 def wheel_name(package: str, version: str) -> str:
     return f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
 
@@ -180,7 +243,7 @@ def wheel_url(package: str, version: str) -> str:
 
 
 def kept_wheels(catalog: tuple[Extension, ...], installed: list[str], version: str) -> list[str]:
-    """The `--with` wheels of the extensions installed as packages (never a preinstalled one) at `version`."""
+    """The `--with` wheels of the extensions installed as packages (a preinstalled one too) at `version`."""
     packages = {e.id: e.package for e in catalog}
     return [wheel_url(packages[i], version) for i in installed if packages.get(i)]
 

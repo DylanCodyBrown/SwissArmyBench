@@ -24,8 +24,6 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_workbench.py      the Workbench: notebooks, scripts and their kernels, the user's alone
   routes_table_cells.py    every table's read-only cell in a Workbench document, and its Tables group
   routes_lineage.py        a cell's or a canvas block's lineage, back to the data, with each step's value
-  routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
-  routes_controllers.py    a canvas page's controllers: the check, Test this page, a thin cell's move
   routes_projects.py       projects: a new one, its files, Export data.py
   routes_sab_projects.py   a project as one .sab file: new, open, save, close, the recent ones, a fix
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
@@ -45,7 +43,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
   routes_extensions.py     the Extensions page: the catalog, Install and Remove (the updater's helper)
   routes_claude.py         Launch Claude: Claude Code in a terminal, or Claude Desktop (the user's only)
-  streamlit_proxy.py       a notebook's live Streamlit pages, passed through under the app's own secret
+  streamlit_proxy.py       live pages passed through under their own secret (the extensions' Streamlit and dev
+                           servers mount it with their own prefix)
   routes_relationships.py  the relationship model, the Key Finder, comparing two grids
   routes_processes.py      Python sessions offering tables: the Open list
   routes_snapshots.py      a PNG of the page the user sees, drawn by the page, for an agent
@@ -58,7 +57,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
@@ -85,7 +84,6 @@ from swissarmybench.server import (
     routes_connection_swap,
     routes_connection_tables,
     routes_connections,
-    routes_controllers,
     routes_datasets,
     routes_explorer,
     routes_extensions,
@@ -109,7 +107,6 @@ from swissarmybench.server import (
     routes_script_runs,
     routes_session_log,
     routes_snapshots,
-    routes_streamlit,
     routes_structures,
     routes_table_cells,
     routes_tieout,
@@ -117,7 +114,6 @@ from swissarmybench.server import (
     routes_updates,
     routes_variables,
     routes_workbench,
-    streamlit_proxy,
 )
 from swissarmybench.server.beta_requests import BetaRequests
 from swissarmybench.server.security import (
@@ -130,6 +126,18 @@ from swissarmybench.settings import Settings
 
 # How often the server looks for Python sessions that stopped reporting.
 PRUNE_EVERY_SECONDS: float = 10.0
+ANY = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+
+
+def not_installed(name: str, ident: str) -> Callable[[Request], Awaitable[Response]]:
+    """The answer of an extension's door while it is not installed here: which one, and where to add it."""
+
+    async def answer(request: Request) -> Response:
+        words = f"This is the {name} extension's, and it is not installed here: install it on the Extensions "
+        words += "page."
+        return JSONResponse({"error": words, "extension": ident}, status_code=404)
+
+    return answer
 
 
 def create_app(
@@ -149,6 +157,9 @@ def create_app(
     secret_paths = tuple(p for extension in ctx.switched_on for p in getattr(extension, "SECRET_PATHS", ()))
     for extension in ctx.switched_on:
         session_log_rules.RULES.update(getattr(extension, "SESSION_RULES", None) or {})
+    # The catalog's extensions that are not on: a call on their routes says which one it needs.
+    on_ids = {str(getattr(extension, "ID", "")).lower() for extension in ctx.switched_on}
+    missing = [e for e in ctx.extensions.catalog if e.id not in on_ids]
 
     async def session(request: Request) -> Response:
         # The guard let the request in (the token, or a good cookie). POST: the cookie for this start.
@@ -212,7 +223,7 @@ def create_app(
             # A Workbench window closed (or reloaded) a minute ago: its kernels stop.
             windows = ctx.live.workbench_windows()
             await ctx.workbench.stop_orphans(windows)
-            await ctx.streamlit.stop_orphans(windows)  # and their notebooks' Streamlit apps
+            await ctx.hooks.stop_orphans(windows)  # and what they left running (an extension's)
 
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
@@ -222,6 +233,7 @@ def create_app(
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
         ctx.variables.apply()  # the Variables page's values, in this server's environment
         ctx.catalog_loading.at_start()  # every connection's catalog, in the background
+        ctx.extensions.bring_back()  # a preinstalled extension an update from a built-in version lacks
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         yield
@@ -230,7 +242,6 @@ def create_app(
         pruner.cancel()
         checker.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
-        await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
         await ctx.sab_projects.stop()  # nor an open .sab's working folder
         for extension in ctx.switched_on:  # nor an extension's processes (a code app's dev server)
             stop = getattr(extension, "stop", None)
@@ -264,8 +275,6 @@ def create_app(
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
             *routes_table_cells.routes(ctx.table_cells),
             *routes_lineage.routes(ctx.lineage),
-            *routes_streamlit.routes(ctx.streamlit),
-            *routes_controllers.routes(ctx.controllers),
             *routes_projects.routes(ctx.projects),
             *routes_sab_projects.routes(ctx.sab_projects),
             *routes_project_scope.routes(ctx.project_scope),
@@ -274,6 +283,8 @@ def create_app(
             *routes_modes.routes(ctx.modes),
             # Each extension that is on: its routes, given the services (its own are built from them).
             *(route for extension in ctx.switched_on for route in extension.routes(ctx)),
+            # Each catalog extension that is not on here: its door answers which extension it is.
+            *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
@@ -286,7 +297,6 @@ def create_app(
             *routes_updates.routes(ctx.updates, ctx.extensions.names),
             *routes_extensions.routes(ctx.extensions),
             *routes_claude.routes(ctx.claude),
-            *streamlit_proxy.routes(ctx.streamlit.port_of),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares),
             *routes_tieout.routes(ctx.tie_out),
             *routes_packs.routes(ctx.packs),

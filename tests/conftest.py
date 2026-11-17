@@ -10,13 +10,27 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-import pyarrow as pa
-import pyarrow.ipc as ipc
-import pytest
-from starlette.testclient import TestClient
+# The Streamlit extension, preinstalled with every install, from this checkout: on its path and switched on
+# (SWISSARMYBENCH_EXTENSIONS) before anything of the app is imported, so the commands' registry and every
+# server a test starts (in this process or its own) have it, as an installed app does. A test of the BI base
+# without it turns it off ("-streamlit"); a child process finds it through PYTHONPATH.
+STREAMLIT_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src")
+if STREAMLIT_SRC not in sys.path:
+    sys.path.insert(0, STREAMLIT_SRC)
+if STREAMLIT_SRC not in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+    os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (STREAMLIT_SRC, os.environ.get("PYTHONPATH")) if p)
+if "streamlit" not in os.environ.get("SWISSARMYBENCH_EXTENSIONS", ""):
+    os.environ["SWISSARMYBENCH_EXTENSIONS"] = ",".join(
+        p for p in ("streamlit", os.environ.get("SWISSARMYBENCH_EXTENSIONS")) if p
+    )
 
-from swissarmybench.server.app import create_app
-from swissarmybench.settings import Settings
+import pyarrow as pa  # noqa: E402
+import pyarrow.ipc as ipc  # noqa: E402
+import pytest  # noqa: E402
+from starlette.testclient import TestClient  # noqa: E402
+
+from swissarmybench.server.app import create_app  # noqa: E402
+from swissarmybench.settings import Settings  # noqa: E402
 
 # The Accounting extension, from this checkout (it is not installed here: SWISSARMYBENCH_EXTENSIONS turns
 # it on where a test wants it; off, nothing of it shows).

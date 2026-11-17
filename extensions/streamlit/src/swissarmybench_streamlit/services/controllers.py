@@ -18,14 +18,15 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
-from swissarmybench.domain import controllers, projects, thin_cells
-from swissarmybench.domain import streamlit_cells as rules
+from swissarmybench.domain import projects
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.packages import missing_packages
-from swissarmybench.domain.streamlit_cells import Page
-from swissarmybench.services.streamlit import App, StreamlitApps
-from swissarmybench.services.streamlit_ports import ProjectFiles
 from swissarmybench.services.workspace import Conflict, NotFound
+from swissarmybench_streamlit.domain import controllers, thin_cells
+from swissarmybench_streamlit.domain import streamlit_cells as rules
+from swissarmybench_streamlit.domain.streamlit_cells import Page
+from swissarmybench_streamlit.services.streamlit import App, StreamlitApps
+from swissarmybench_streamlit.services.streamlit_ports import ProjectFiles
 
 
 class Files(Protocol):

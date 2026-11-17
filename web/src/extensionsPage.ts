@@ -29,6 +29,7 @@ interface Extension {
   description: string;
   adds: string[];
   status: Status;
+  preinstalled?: boolean; // comes with every install (installed while its package is here)
   package: string;
   version: string | null;
 }
@@ -127,7 +128,8 @@ function drawPage(): void {
   const said = new Map<string, string>(); // a card's answer from the server (a development checkout's words)
 
   const card = (ext: Extension, installable: boolean): HTMLElement => {
-    const status = h("span", { class: `extension-status status-${ext.status}` }, STATUS_WORDS[ext.status]);
+    const label = ext.preinstalled && ext.status === "installed" ? STATUS_WORDS.preinstalled : STATUS_WORDS[ext.status];
+    const status = h("span", { class: `extension-status status-${ext.status}` }, label);
     const version = ext.version ? h("span", { class: "extension-version muted" }, ext.version) : null;
     const foot = h("div", { class: "extension-foot" });
     const here = changing?.id === ext.id ? changing : null;

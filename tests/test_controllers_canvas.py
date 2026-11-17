@@ -14,9 +14,9 @@ from typing import Any
 import pyarrow.parquet as pq
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import controllers as ctl
 from swissarmybench.domain import notebooks
-from swissarmybench.server import streamlit_apps
+from swissarmybench_streamlit.domain import controllers as ctl
+from swissarmybench_streamlit.server import streamlit_apps
 from tests.conftest import AUTH
 from tests.test_streamlit_apps import (  # noqa: F401 (the fixture)
     STREAMLIT_PYTHON,

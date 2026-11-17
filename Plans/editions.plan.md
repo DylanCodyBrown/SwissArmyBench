@@ -18,8 +18,9 @@ Plans/powerapps-spinoff.plan.md section 8a (the manifest boundary).
 **Today (the owner, 2026-11-17: "It's not an edition now it's the streamlit extension. Preinstalled";
 "For now focus on the streamlit edition like we currently have and get that build out the door"):** the app
 is **Swiss Army Bench, with the Streamlit extension preinstalled**. The rail's Extensions page and the
-one-click install machinery are built (branch `extensions`); Streamlit is listed as Preinstalled and nothing
-is gated or moved yet.
+one-click install machinery are built (branch `extensions`); Streamlit is its own package now
+(`swissarmybench-streamlit`, branch `ext-streamlit`), installed with every install and removable; without it the
+app is the BI base (docs/ideas.md, "The Streamlit extension").
 
 ## The shape
 

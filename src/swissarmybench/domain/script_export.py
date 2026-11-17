@@ -45,7 +45,7 @@ import shlex
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from swissarmybench.domain import dataverse, python_connections, streamlit_cells, table_cells
+from swissarmybench.domain import cell_facts, dataverse, python_connections, table_cells
 from swissarmybench.domain import script_runtime as runtime
 from swissarmybench.domain.blades import env_name_for_secret, env_settings
 from swissarmybench.domain.codegen import python_string, variable_name
@@ -314,7 +314,7 @@ def _translate_magics(cell: _Cell, source: str) -> str:
 def _string_line(source: str, number: int) -> bool:
     """The line sits inside a text that started on an earlier line."""
     try:
-        return number in streamlit_cells._string_lines(source)
+        return number in cell_facts.string_lines(source)
     except Exception:
         return False
 
@@ -569,7 +569,7 @@ def _secret_map(piece: Piece) -> str:
 def _body(code: str, ending: Sequence[str], before: Sequence[str] = ()) -> str:
     code = _FUTURE.sub("", code).strip("\n")
     lines = [*before, code, *ending]
-    return streamlit_cells.indented("\n".join(line for line in lines if line is not None))
+    return cell_facts.indented("\n".join(line for line in lines if line is not None))
 
 
 def _last_as_return(code: str, fallback: str) -> str:
@@ -666,9 +666,8 @@ def _piece(piece: Piece) -> tuple[str, str]:
     elif _reads(piece):
         read = piece.read or 'raise ValueError("This connection has no Read a table box.")'
         inner = _last_as_return(read, "rows")
-        reader = (
-            'def read(schema, table, limit):\n    """Its Read a table box."""\n'
-            + streamlit_cells.indented(inner)
+        reader = 'def read(schema, table, limit):\n    """Its Read a table box."""\n' + cell_facts.indented(
+            inner
         )
         ending = ["", "", reader, "", f"return {piece.variable}, read"]
     else:
@@ -1153,7 +1152,7 @@ def render_script(made: Plan, file: str) -> Exported:
         *(f"    # Not exported: {p}" for p in made.problems),
     ]
     first = len("\n".join(out).split("\n")) + 1
-    out.append(streamlit_cells.indented("\n".join(run_body).rstrip("\n")))
+    out.append(cell_facts.indented("\n".join(run_body).rstrip("\n")))
     out.append(runtime.MAIN.replace("{file}", file).rstrip("\n"))
     text = "\n".join(out) + "\n"
     lines = [(first + s, first + e - 1, label) for label, s, e in places]

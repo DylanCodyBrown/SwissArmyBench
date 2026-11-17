@@ -55,7 +55,6 @@ from swissarmybench.adapters.state_files import (
     info_file_path,
     is_own_file,
 )
-from swissarmybench.adapters.streamlit_files import AppFiles
 from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
 from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
@@ -82,7 +81,6 @@ from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
-from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.server.text_process import run_text
 from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services import explorer as explorer_providers
@@ -103,13 +101,14 @@ from swissarmybench.services.connection_tables import ConnectionTables as Connec
 from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.context_md import ContextMd
-from swissarmybench.services.controllers import Controllers
+from swissarmybench.services.data_export import DataExport
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.explorer import Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.extensions import Extensions
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
+from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.kind_colours import KindColours
@@ -131,7 +130,6 @@ from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.session_log import Heard, SessionLog
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
-from swissarmybench.services.streamlit import StreamlitApps
 from swissarmybench.services.structures import Structures
 from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.tieout import TieOut
@@ -186,8 +184,6 @@ class Services:
     workbench_window: WorkbenchWindow
     intellisense: Intellisense
     table_cells: TableCells
-    streamlit: StreamlitApps
-    controllers: Controllers
     lineage: Lineage
     projects: Projects
     sab_projects: SabProjects
@@ -214,16 +210,24 @@ class Services:
     # (swissarmybench/extensions.py): each one's routes are mounted beside the base's (server/app.py).
     modes: Modes
     switched_on: list[Any]  # the extensions' own modules, each one switched on here
+    # What an extension builds its own services from (services/hooks.py: what it hands back), beside the
+    # use cases above: the Workbench's documents, a project's files, the export's writer, the run events.
+    hooks: Hooks
+    data_export: DataExport
+    documents: Any
+    project_files: Any
+    export_writer: Any
+    process_event: Callable[..., None]
 
 
 def usage_documents(
-    documents: Documents, streamlit: StreamlitApps, sab_projects: SabProjects, project_files: ProjectFiles
+    documents: Documents, hooks: Hooks, sab_projects: SabProjects, project_files: ProjectFiles
 ) -> list[str]:
     """Where the Connections page looks for a connection's references: with a project open, its own
     notebooks, scripts and apps (everything is the project's, 2026-11-16) and the documents open in a
     Workbench window; with none, the Workbench's recent files and the open documents. Each file once,
     by its real path (one notebook reached by two spellings was listed twice)."""
-    paths = list(streamlit.documents())
+    paths = list(hooks.documents())
     folder = (sab_projects.state().get("project") or {}).get("folder")
     if folder:
         try:
@@ -462,23 +466,10 @@ def bootstrap(
     )
     table_cells = TableCells(ws, datasets.origins)
     project_files = ProjectFiles()
-    # Streamlit: a canvas's pages and a document's live cells, written to a temporary folder of the
-    # app's own and run in the document's own Python (Streamlit is never this app's dependency).
-    app_files = AppFiles()
-    streamlit_runner = StreamlitRunner(report=lambda *e: process_event("streamlit", *e))
-    streamlit = StreamlitApps(
-        ws,
-        app_files,
-        streamlit_runner,
-        export_writer,
-        now=time.time,
-        read_document=documents.read,
-        environment_of=documents.environment,
-        project_files=project_files,
-        table_cells=table_cells.group_cells,
-        arrange=table_cells.arrange,
-        approvals=approvals,
-    )
+    # What the extensions that are on hand back once they are built (services/hooks.py): the documents the
+    # Workbench windows hold, what stops with a kernel or a window, a canvas, an app's file.
+    hooks = Hooks()
+    data_export = DataExport(project_files, table_cells.arrange, lambda path: hooks.held(path))
     workbench = Workbench(
         ws,
         documents,
@@ -488,7 +479,8 @@ def bootstrap(
         folder_of=lambda path: str(Path(path).expanduser().parent),
         secret_names=blades.environment_names,
         vault_environment=vault_environment,
-        kernel_stopped=streamlit.kernel_stopped,
+        kernel_stopped=lambda kernel: hooks.kernel_stopped(kernel),
+        hooks=hooks,
     )
     kind_colours = KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None))
     # Each connection's colour: the library's colours.toml, the same in every project; never one of the
@@ -517,11 +509,12 @@ def bootstrap(
         ws,
         blades,
         connections,
-        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        documents=lambda: usage_documents(documents, hooks, sab_projects, project_files),
         read=documents.read,
         origin_of=datasets.origins.get,
         environ=os.environ,
         now=time.time,
+        canvas_references=lambda *found: (hooks.canvas_references or (lambda *_: []))(*found),
     )
     # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
     api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
@@ -541,7 +534,8 @@ def bootstrap(
         ws,
         project_files,
         table_cells.group_cells,
-        export_data=streamlit.export_data,
+        export_data=data_export.export_data,
+        project_app=lambda name: hooks.project_app(name),
         remember=lambda path: documents.remember(path, time.time()),
         approvals=approvals,
         scaffold=_scaffold_of,
@@ -605,7 +599,7 @@ def bootstrap(
         rows_to_table,
         project_folder=lambda: sab_projects.current.folder if sab_projects.current else None,
         default_folder=documents.made_default_folder,
-        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        documents=lambda: usage_documents(documents, hooks, sab_projects, project_files),
         read_document=documents.read,
     )
     structures_ready.append(structures)
@@ -648,7 +642,7 @@ def bootstrap(
         table_reader,
         read_document=documents.read,
         write_document=lambda path, text: documents.write(path, text, True),
-        open_documents=streamlit.documents,
+        open_documents=lambda: hooks.documents(),
         ask_window=lambda command, args: workbench_window.ask(command, args, "app"),
     )
     project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
@@ -676,7 +670,7 @@ def bootstrap(
         ProcessEnvironment(),
         blade_store,
         save_variable_blade,
-        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        documents=lambda: usage_documents(documents, hooks, sab_projects, project_files),
         read=documents.read,
         run_settings=script_runs,
         kernels=workbench.kernel_count,
@@ -738,7 +732,7 @@ def bootstrap(
                 ]
             except Exception:  # noqa: S110 (a window that does not answer lists nothing)
                 pass
-        titles = [str(d["title"]) for d in documents if d["unsaved"]] + streamlit.unsaved()
+        titles = [str(d["title"]) for d in documents if d["unsaved"]] + hooks.unsaved()
         return {
             "tables": tables,
             "documents": documents,
@@ -764,6 +758,7 @@ def bootstrap(
         audit=ws.audit,
         live=live,
         stop=on_shutdown or (lambda: None),
+        record=JsonFile(state_dir / "extensions.json" if audit_log else None),
     )
     update_helper.kept = extensions.kept_wheels
     updates = Updates(
@@ -926,6 +921,12 @@ def bootstrap(
             projects.type_of,
         ),
         switched_on=on_extensions,
+        hooks=hooks,
+        data_export=data_export,
+        documents=documents,
+        project_files=project_files,
+        export_writer=export_writer,
+        process_event=process_event,
         session_log=session_log,
         variables=variables,
         explorer=explorer,
@@ -939,18 +940,13 @@ def bootstrap(
         extensions=extensions,
         claude=claude,
         context_md=context_md,
-        streamlit=streamlit,
-        # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
-        controllers=Controllers(streamlit, app_files, streamlit_runner, project_files),
-        # A cell's lineage back to the data, each step's value from its kernel, a live page or the grid.
         lineage=Lineage(
             ws,
-            streamlit,
+            hooks,
             datasets.origins,
             documents.read,
             project_files,
             workbench.lineage_values,
-            app_files.read_trace,
         ),
         projects=projects,
         sab_projects=sab_projects,

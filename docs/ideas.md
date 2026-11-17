@@ -4602,3 +4602,61 @@ IntelliSense, `pac canvas` or what current pac uses).
 **Open:** app_navigate does not know the `codeapp` area (navigation's AREAS is the base's list; the agent
 works through the `powerapps_` tools); Settings' Extensions section (the extensions branch) and this
 extension's Install there come with that branch's merge.
+
+
+## The Streamlit extension: preinstalled, a package of its own (the owner, 2026-11-17; built, branch ext-streamlit)
+
+"It's not an edition now it's the streamlit extension. Preinstalled" / "build the other extensions as well".
+Streamlit was listed as preinstalled but was part of the base package. Now it is `swissarmybench-streamlit`
+(extensions/streamlit/, the base's version, entry point `streamlit = "swissarmybench_streamlit.extension"`),
+plugged in like Accounting and Power Apps, and installed with every install.
+
+**Built:**
+1. **The package** with the Cosmic Python layers inside it: domain (streamlit_cells, controllers, thin_cells,
+   app_settings), services (streamlit, streamlit_ports, streamlit_documents with the Workbench's AppFile,
+   controllers), adapters (streamlit_files), server (streamlit_apps, routes_streamlit, routes_controllers),
+   commands.py (every streamlit_* tool and the Workbench's canvas and live-cell commands: workbench_new_app,
+   workbench_canvas*, workbench_live_*), extension.py (describe, MODE with the beginners' title, for_whom,
+   explain and example, AREAS, STARTERS, SECRET_PATHS, routes, stop, scaffold, project_app), and its 52
+   starters (Streamlit, Components, Controllers, Text and layout).
+2. **The base without it** is the BI base: the base's mode offers no canvas, the rail's Apps area hides, the
+   Workbench sends no document to /streamlit and offers no New Streamlit app, a `.stapp.json` says which
+   extension opens it, a Python cell that calls Streamlit is a plain cell, a new BI project has no canvas and
+   no Streamlit requirement, a `streamlit` project is refused plainly, the agent's streamlit_* tools are not
+   listed and a call names the extension (`extensions_install id=streamlit`), and the door (/streamlit/...)
+   answers 404 naming it (every catalog extension that is off answers so on /<id>/...).
+3. **With it** everything is as before (the full suite runs with it on: tests/conftest.py puts its src on the
+   path and in PYTHONPATH and adds `streamlit` to SWISSARMYBENCH_EXTENSIONS before the app is imported).
+4. **Preinstalled:** the installers download (or find beside a given wheel) `swissarmybench_streamlit-<v>-...whl`
+   and install it `--with` the base; build.py already builds every extension's wheel and release.yml attaches
+   dist/* (the install jobs find it beside the base's wheel; tools/smoke_install.py checks it is installed,
+   its project type is offered and its routes answer). The catalog lists Streamlit **installed**, marked
+   `preinstalled` (the card says Preinstalled), with Remove (asked first); removed, it is **available** again.
+   Every update keeps it (`--with` its wheel). An update from 0.0.17 (Streamlit built in, its updater knows
+   nothing of the package) brings it back at the new version's first start: `bring_back()` installs it once
+   through the same helper (the app restarts), unless the user removed it (extensions.json `removed`) or it was
+   tried at this version (`tried`).
+
+**Decisions:**
+- **What stayed in the base:** domain/streamlit_use.py (kernels and data.py ask "does this cell call
+  Streamlit"), server/streamlit_proxy.py (a generic live-page proxy: the Power Apps extension mounts it too; its
+  secret path is now each extension's SECRET_PATHS, the guard names none), and a new domain/cell_facts.py (a
+  cell's body, title, facts, widget calls, indented: lineage, script export and data.py use them; the
+  extension's streamlit_cells imports them). The Session page's words for the canvas's audit entries stay in
+  domain/session_log.py (they only describe entries). domain/projects.py keeps the Save as zip's README text.
+- **The base's hooks** (services/hooks.py): the open documents the windows hold, unsaved titles, `held`, a
+  canvas, a playing page's notes, kernel_stopped, stop_orphans, canvas_references, the Workbench's app file,
+  the cells shown live, a BI project's app. Every one has a plain default; the extension fills them in its
+  routes(). data.ipynb -> data.py moved out of the Streamlit service into the base (services/data_export.py).
+- **The open documents' registry is still the Streamlit service's** (windows send their cells to
+  /streamlit/apps). Without the extension the base reads saved files: data.py from the saved data.ipynb, the
+  Connections page's references from the recent files, lineage from the files. Moving that registry to a base
+  route is front-end work of its own (the manifest boundary).
+- **The BI project's canvas while the extension is on:** today's app offered the Streamlit canvas in every
+  project (BASE_MODE's canvases). The extension declares `BASE_MODE_ADDS = {"canvases": ["streamlit"]}` and
+  extensions.base_mode() adds it, so nothing changed for a user with it; the base's own BASE_MODE has none.
+- **Bring-back at first start rather than at the old version's update:** 0.0.17's updater cannot know the
+  package; a PyPI dependency cannot point at a GitHub release wheel. A copy that is not a uv tool never does it.
+
+**Open:** a front-end manifest of what is on (the rail asks `/app/modes` for the canvas kind today); the
+Session words and the zip README could move into the package when the manifest boundary lands.

@@ -19,8 +19,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from swissarmybench.domain import streamlit_cells as cells
 from swissarmybench.domain import table_cells
+from swissarmybench_streamlit.domain import streamlit_cells as cells
 
 JOINS: frozenset[str] = frozenset({"merge", "join", "concat"})
 GROUPS: frozenset[str] = frozenset(

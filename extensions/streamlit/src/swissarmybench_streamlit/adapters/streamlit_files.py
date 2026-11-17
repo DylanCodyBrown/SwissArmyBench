@@ -31,9 +31,9 @@ class AppFiles:
     @staticmethod
     def lineage_helper() -> str:
         """The text of client/lineage_values.py (standard library only): a live page carries a copy as
-        sab_lineage.py, which notes each block's values for the lineage overlay. Read as a file (the
-        adapters import nothing of the client)."""
-        own = Path(__file__).resolve().parents[1] / "client" / "lineage_values.py"
+        sab_lineage.py, which notes each block's values for the lineage overlay. Read as a file of the base
+        package's (the adapters import nothing of the client)."""
+        own = Path(html_cells.__file__).resolve().parents[1] / "client" / "lineage_values.py"
         return own.read_text(encoding="utf-8")
 
     @staticmethod

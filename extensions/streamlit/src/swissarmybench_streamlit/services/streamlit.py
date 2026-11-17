@@ -42,18 +42,24 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import app_settings as page_settings
-from swissarmybench.domain import approvals, connection_usage, controllers, notebooks, projects
+from swissarmybench.domain import approvals, connection_usage, notebooks, projects
 from swissarmybench.domain import dictionary as data_dictionary
-from swissarmybench.domain import streamlit_cells as rules
-from swissarmybench.domain.app_settings import AppSettings
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.packages import missing_packages
 from swissarmybench.domain.projects import DataCell
-from swissarmybench.domain.streamlit_cells import (
+from swissarmybench.services.agent import Approvals
+from swissarmybench.services.data_export import DataExport
+from swissarmybench.services.export import ExportWriter
+from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench_streamlit.domain import app_settings as page_settings
+from swissarmybench_streamlit.domain import controllers
+from swissarmybench_streamlit.domain import streamlit_cells as rules
+from swissarmybench_streamlit.domain.app_settings import AppSettings
+from swissarmybench_streamlit.domain.streamlit_cells import (
     Block,
     Facts,
     Fallback,
@@ -64,12 +70,8 @@ from swissarmybench.domain.streamlit_cells import (
     export_detail,
     save_as_detail,
 )
-from swissarmybench.services.agent import Approvals
-from swissarmybench.services.export import ExportWriter
-from swissarmybench.services.ports import BACKGROUND
-from swissarmybench.services.streamlit_documents import file_cells, sent_cells
-from swissarmybench.services.streamlit_ports import Files, Process, ProjectFiles, Runner
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench_streamlit.services.streamlit_documents import file_cells, sent_cells
+from swissarmybench_streamlit.services.streamlit_ports import Files, Process, ProjectFiles, Runner
 
 MAX_APPS: int = 80
 # How long an app outlives the Workbench window that opened it (a reload keeps it a minute).
@@ -179,6 +181,7 @@ class StreamlitApps:
         table_cells: Callable[[list[str] | None], Awaitable[tuple[list[notebooks.Cell], int]]],
         arrange: Callable[[Any], Awaitable[dict[str, Any]]],
         approvals: Approvals,
+        data_export: DataExport,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -193,6 +196,8 @@ class StreamlitApps:
         # The open tables named as a new notebook's Tables group (services/table_cells.py).
         self._table_cells = table_cells
         self._arrange = arrange  # a notebook's cells with its tables' cells as the grid has them now
+        # data.ipynb -> data.py: the base's (Save as and a page's tables import from it).
+        self._data_export = data_export
         self._apps: dict[str, App] = {}
         self._gone_since: dict[str, float] = {}
 
@@ -1247,56 +1252,12 @@ class StreamlitApps:
     # ===== a project's data: data.ipynb -> data.py =====
 
     async def _data_cells(self, folder: str) -> list[DataCell] | None:
-        """The cells of a project's data.ipynb as they are now: from the open document (saved or
-        not: its tables' cells follow the grid there), else from the file, with each open table's
-        read-only cell as the grid has it now. None: the folder has none."""
-        path = self._project.path(folder, projects.DATA_NOTEBOOK)
-        held = self._open_document(path)
-        if held is not None and held.every is not None:
-            return held.every
-        text = self._project.read(folder, projects.DATA_NOTEBOOK)
-        if text is None:
-            return None
-        cells, following = notebooks.read_document(text)
-        tables = [c.table for c in cells if c.role == "transformations" and c.table]
-        if tables:
-            sent = {"kind": "notebook", "cells": [c.to_json() for c in cells], "tables": tables}
-            arranged = await self._arrange(sent | {"next_cell": following, "move": False})
-            cells = notebooks.read_cells(arranged["cells"])
-        return [DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells]
+        """The cells of a project's data.ipynb as they are now (the base's services/data_export.py)."""
+        return await self._data_export.data_cells(folder)
 
     async def _data(self, folder: str, title: str) -> projects.DataModule | None:
         """data.py written again from the folder's data.ipynb (None: the folder has no data.ipynb)."""
-        try:
-            cells = await self._data_cells(folder)
-        except (notebooks.NotebookError, ValueError, OSError):
-            return None
-        if cells is None:
-            return None
-        held = self._open_document(self._project.path(folder, projects.DATA_NOTEBOOK))
-        if held is not None and held.dictionary is not None:
-            said = held.dictionary
-        else:
-            said = data_dictionary.of_notebook(self._project.read(folder, projects.DATA_NOTEBOOK))
-        made = projects.data_module(title, cells, said)
-        self._project.write(folder, projects.DATA_FILE, made.text)
-        return made
-
-    async def export_data(self, folder: str, title: str) -> dict[str, Any]:
-        """Export data.py: the project's data.ipynb's code cells in order, as a module."""
-        try:
-            made = await self._data(folder, title)
-        except PermissionError as error:
-            raise Conflict(str(error)) from None
-        if made is None:
-            return {"path": None, "names": [], "fill_in": [], "skipped": [], "requirements": []}
-        return {
-            "path": self._project.path(folder, projects.DATA_FILE),
-            "names": list(made.names),
-            "fill_in": list(made.fill_in),
-            "skipped": list(made.skipped),
-            "requirements": projects.data_requirements(made.text),
-        }
+        return await self._data_export.data(folder, title)
 
     @staticmethod
     def _for_zip(path: str, text: str) -> str:

@@ -19,7 +19,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import notebooks, streamlit_cells
+from swissarmybench.domain import notebooks
+from swissarmybench_streamlit.domain import streamlit_cells
 from tests.conftest import AGENT, AUTH, TOKEN, make_client
 from tests.fake_keyring import memory_keyring
 

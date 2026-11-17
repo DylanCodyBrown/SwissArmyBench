@@ -57,8 +57,6 @@ OLD_WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
 # workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).
 _PUBLIC_PREFIXES: tuple[str, ...] = ("/g/", "/static/")
 _PUBLIC_PATHS: frozenset[str] = frozenset({"/", "/workspace", "/catalog", "/workbench"})
-# A notebook's live Streamlit pages: the path's own secret is checked by the route.
-_SECRET_PATH: str = "/streamlit/live/"  # noqa: S105 (a path, not a secret)
 
 # The plain page for a browser that asks with no token and no valid cookie (a bookmark after a restart).
 SIGNED_OUT_PAGE: str = (
@@ -94,8 +92,8 @@ class LocalOnlyGuard:
         secret_paths: tuple[str, ...] = (),
     ) -> None:
         self._app = app
-        # Live pages whose path carries their own secret (Streamlit's; an extension's dev server's).
-        self._secret_paths: tuple[str, ...] = (_SECRET_PATH, *secret_paths)
+        # Live pages whose path carries their own secret (an extension's: Streamlit's, a dev server's).
+        self._secret_paths: tuple[str, ...] = tuple(secret_paths)
         self._token: bytes = token.encode("ascii")
         # The page's cookie value: a secret of this start's own (None: no cookie is accepted).
         self._session: bytes | None = session.encode("ascii") if session else None

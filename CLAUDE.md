@@ -105,7 +105,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
-  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it).
+  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a .sab: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs.
@@ -260,19 +260,11 @@ src/swissarmybench/
                          (among the words, in a <script>, in a tag), so data never becomes markup or
                          script; a script's `# %% [7] [html] height=320` cell (the HTML as one string
                          that does nothing); the design frame's Content-Security-Policy
-    streamlit_cells.py   a Streamlit app: its file (sales.stapp.json: pages, blocks, links; no code), a
-                         link against the app's file, a cell (what it makes and reads, by ast), the
-                         12-column grid (rows, settle), the run order (a cycle said), a page as ONE
-                         Streamlit page (slots first, blocks in name order, widget keys of their own),
-                         the tables' preamble, the export, the saved pages (pages/*.py)
+    cell_facts.py        a Python cell's facts (ast): its body, title, what it makes and reads, the modules it
+                         imports, Streamlit's widget calls, code indented under a `with` (the Streamlit
+                         extension's canvas reads the same)
     streamlit_use.py     which Python cells call Streamlit (ast): they are shown live. Standard library
                          only (a kernel's Run file reads a script by the same rule)
-    controllers.py       a cell as a controller: its contract (the header's `# Makes: region: str = "All";
-                         by_region: table = orders`, read with ast), role, widgets, query parameters; a
-                         page's defaults for a maker not on it, its check (cycles, names made twice);
-                         Test this page's plan, its AppTest runner (text) and its answer on the blocks
-    thin_cells.py        a view cell's model work (a table filtered, grouped or joined) and its move to a
-                         named cell of data.ipynb, one `from data import ...` line left
     projects.py          a project: data.py as the export of data.ipynb's code cells (imports in a plain
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
                          notebook for a zip, requirements, README, which files open
@@ -299,9 +291,6 @@ src/swissarmybench/
                          rows in a zip. Standard library only and standalone (an export can inline it)
     kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's default, a
                          chosen colour made readable in every theme, never amber
-    app_settings.py      App mode: a Streamlit app's page settings (title, icon, layout, logo, theme
-                         colours) as st.set_page_config, st.logo, .streamlit/config.toml; the live page's
-                         session state for the State panel (the tail each live page runs, its rows)
     notebook_flow.py     Notebook mode: each cell's state from the run order (notRun, edited, outOfDate
                          with the names made again) and the Outline (headings, named cells)
     intellisense.py      the editors' intelligence around Jedi: docstrings (Google, NumPy, reST) for each
@@ -435,14 +424,10 @@ src/swissarmybench/
                          app_context) and the sections changed since; SEAM for APIs and Structures
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
-    streamlit.py         Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
-                         from the open documents, saved or not, else from the files), a document's live
-                         cells; run (the tables as Parquet in a temporary folder), state (missing, out
-                         of date), install, export, data.ipynb -> data.py, Save as (the project's zip)
-    streamlit_ports.py   the ports those stand on: the app's temporary folder, a project's, the process
-    streamlit_documents.py  a document's cells as an app reads them: sent by its window, or from its file
-    controllers.py       a canvas page's controllers: the check, Test this page (the page written so each
-                         block records its error, AppTest in the app's Python), a thin cell's move plan
+    hooks.py             what an extension hands the base's services once built (late binding): the documents
+                         the Workbench windows hold, a canvas, what stops with a kernel or a window, an app's
+                         own file, the cells shown live, a new project's app; each a plain default with none on
+    data_export.py       data.ipynb -> data.py (New project, Export data.py, the Streamlit extension's Save as)
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
     sab_projects.py      a project as one .sab: new (saved first, where the user named), open (each table read
                          again with its steps; Visualizations, model, layout), save (rows only on a tick; the
@@ -486,7 +471,6 @@ src/swissarmybench/
     updates.py           the release list's one GET, update.json, the helper's and the tray's notes
     extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
                          SWISSARMYBENCH_EXTENSIONS (tests and development only)
-    streamlit_files.py   a Streamlit app's temporary folder (removed when it stops), and an export's
     projects.py          a project's folder: made, listed, its own files read and written, zipped
     sab_files.py         a .sab read (every entry checked first, counted as read) and unpacked into a working
                          folder, written atomically (a temporary file, then a replace); recent_projects.json
@@ -508,8 +492,8 @@ src/swissarmybench/
     http.py              reading requests, shaping answers, each error as its status
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
-                         projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
+                         processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
+                         projects, project_scope, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense,
                          connection_swap, variables, connection_colours, connection_tables, explorer, library). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
@@ -532,17 +516,15 @@ src/swissarmybench/
     blade_runner.py      Refresh/Test in a child process; installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
-    streamlit_apps.py    a notebook's Streamlit process: `streamlit run` in the notebook's own Python,
-                         127.0.0.1 only, ended with the server (Streamlit is never the app's dependency);
-                         Test this page's runner, in that Python (`python -I`), in a temporary folder
-    streamlit_proxy.py   the live Streamlit pages passed through this server under the app's own secret
-                         (its websocket too), so a page's frame policy stays `frame-src 'self'`
+    streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
+                         so a page's frame policy stays `frame-src 'self'`: the Streamlit extension's apps and
+                         the Power Apps extension's dev server mount it with their own prefix
     script_runner.py     Run as scheduled: `python <script> <arguments>` as a fresh process with no app
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (188 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
-                         DAX, HTML, Streamlit, Write), listed apart, found by name, Copy as your own (tests/test_starters*.py);
+  starters/              the built-in starter pack (136 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
+                         DAX, HTML, Markdown, Write; the Streamlit extension brings its 52), listed apart, found by name, Copy as your own (tests/test_starters*.py);
                          Write: 16 functions (write_to_*: one public typed function a target, for functions.py) and
                          54 calls (a cell's text: the call only, dry_run=True), for the connections that write
   client/push_client.py  push(), ensure_server()
@@ -763,6 +745,40 @@ extensions/accounting/   the Accounting extension (swissarmybench-accounting, it
                          commands.py (workbook_, template_, statements_), extension.py (describe, MODE, routes,
                          scaffold); tests in tests/test_accounting_*.py with tests/accounting_data.py (a made-up
                          reinsurer's cessions)
+extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entry point streamlit =
+                         swissarmybench_streamlit.extension; project type streamlit), PREINSTALLED: the installers
+                         and each update install it beside the base (an update from a built-in version brings it
+                         back once at its first start, extensions.json: never against the user's Remove). Without
+                         it the app is the BI base: no Apps area, no Streamlit canvas, its tools and its door say
+                         which extension they need. tests/conftest.py puts its src on the path and switches it on
+  src/swissarmybench_streamlit/
+    extension.py         ID, NAME, ADDS, MODE (the Streamlit project: canvas, families, tools), BASE_MODE_ADDS (its
+                         canvas in a BI project too, as before), STARTERS, SECRET_PATHS; routes(services) its
+                         composition root (fills the base's services/hooks.py); stop; scaffold (app.ipynb, the
+                         canvas); project_app (a BI project's canvas)
+    commands.py          the agent's streamlit_* tools and the Workbench's canvas and live-cell commands
+    domain/streamlit_cells.py  a Streamlit app: its file (sales.stapp.json: pages, blocks, links; no code), a link
+                         against the app's file, the 12-column grid (rows, settle), the run order (a cycle said), a
+                         page as ONE Streamlit page (slots first, blocks in name order, widget keys of their own),
+                         the tables' preamble, the export, the saved pages (pages/*.py), a canvas's references
+    domain/controllers.py  a cell as a controller: its contract (the header's `# Makes: region: str = "All";
+                         by_region: table = orders`, read with ast), role, widgets, query parameters; a page's
+                         defaults for a maker not on it, its check; Test this page's plan, its AppTest runner
+    domain/thin_cells.py a view cell's model work and its move to a named cell of data.ipynb
+    domain/app_settings.py  App mode: a Streamlit app's page settings (st.set_page_config, st.logo,
+                         .streamlit/config.toml); the live page's session state for the State panel
+    services/streamlit.py  Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
+                         from the open documents, saved or not, else from the files), a document's live cells;
+                         run (the tables as Parquet in a temporary folder), state, install, export, Save as
+    services/streamlit_ports.py, streamlit_documents.py  the ports; a document's cells as an app reads them,
+                         and an app's own file for the Workbench (AppFile)
+    services/controllers.py  a canvas page's controllers: the check, Test this page, a thin cell's move plan
+    adapters/streamlit_files.py  a Streamlit app's temporary folder (removed when it stops), and an export's
+    server/streamlit_apps.py  a notebook's Streamlit process: `streamlit run` in the notebook's own Python,
+                         127.0.0.1 only, ended with the server (Streamlit is never the app's dependency); Test
+                         this page's runner, in that Python (`python -I`), in a temporary folder
+    server/routes_streamlit.py, routes_controllers.py  /streamlit/* (and the live pages, /streamlit/live/<key>/)
+    starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
                          and an Open Swiss Army Bench button (starts the server when needed, opens its window)
 extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point

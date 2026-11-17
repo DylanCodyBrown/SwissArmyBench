@@ -18,14 +18,15 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.domain import controllers as ctl
-from swissarmybench.domain import streamlit_cells as rules
 from swissarmybench.domain.blades import read_blade
 from swissarmybench.domain.snippets import fill
-from swissarmybench.domain.streamlit_cells import Block, PieceCode
+from swissarmybench_streamlit.domain import controllers as ctl
+from swissarmybench_streamlit.domain import streamlit_cells as rules
+from swissarmybench_streamlit.domain.streamlit_cells import Block, PieceCode
 from tests.test_starters_streamlit import PYTHON, TABLE, _run, _script, needs_streamlit
 
-FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
+FOLDER = Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src" / "swissarmybench_streamlit"
+FOLDER = FOLDER / "starters"  # the Streamlit extension's starters
 CONTROLLERS = {
     p["name"]: p
     for p in (read_blade(f.read_text(encoding="utf-8")) for f in FOLDER.glob("controller_*.blade.py"))

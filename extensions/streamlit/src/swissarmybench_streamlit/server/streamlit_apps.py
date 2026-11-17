@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.domain.controllers import RUNNER, TEST_SECONDS
+from swissarmybench_streamlit.domain.controllers import RUNNER, TEST_SECONDS
 
 _START_SECONDS: float = 60.0
 _INSTALL_SECONDS: float = 900.0

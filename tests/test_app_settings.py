@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import app_settings as rules
-from swissarmybench.domain import streamlit_cells
+from swissarmybench_streamlit.domain import app_settings as rules
+from swissarmybench_streamlit.domain import streamlit_cells
 from tests.conftest import AUTH
 from tests.test_cli import Live, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command

@@ -22,7 +22,7 @@ from tests.test_accounting_statements import BINDINGS, make_template
 
 @pytest.fixture
 def on(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "accounting")
+    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit,accounting")  # Streamlit: preinstalled
     with make_client(tmp_path) as test_client:
         yield test_client
 
@@ -42,7 +42,7 @@ def test_the_capability_check() -> None:
 
 def test_off_nothing_of_accounting_shows(client: TestClient, tmp_path: Path) -> None:
     assert client.get("/accounting", headers=AUTH).status_code == 404
-    assert [m["type"] for m in client.get("/app/modes", headers=AUTH).json()["modes"]] == ["bi"]
+    assert [m["type"] for m in client.get("/app/modes", headers=AUTH).json()["modes"]] == ["bi", "streamlit"]
     answer = client.post(
         "/projects", json={"folder": str(tmp_path), "name": "books", "type": "accounting"}, headers=AUTH
     )
@@ -55,7 +55,8 @@ def test_off_nothing_of_accounting_shows(client: TestClient, tmp_path: Path) -> 
 def test_an_accounting_project_sets_its_mode(on: TestClient, tmp_path: Path) -> None:
     about = on.get("/accounting", headers=AUTH).json()
     assert about["mode"]["canvases"] == ["excel"] and "pivot" in about["kinds"]
-    assert [m["type"] for m in on.get("/app/modes", headers=AUTH).json()["modes"]] == ["bi", "accounting"]
+    modes = [m["type"] for m in on.get("/app/modes", headers=AUTH).json()["modes"]]
+    assert modes == ["bi", "accounting", "streamlit"]
     assert on.get("/app/mode", headers=AUTH).json()["mode"]["type"] == "bi"  # no project: the base's
     made = on.post(
         "/projects", json={"folder": str(tmp_path), "name": "books", "type": "accounting"}, headers=AUTH

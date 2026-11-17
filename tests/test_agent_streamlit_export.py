@@ -20,9 +20,9 @@ import pyarrow.parquet as pq
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.adapters.streamlit_files import AppFiles
 from swissarmybench.cli.commands import CommandError
 from swissarmybench.services import agent
+from swissarmybench_streamlit.adapters.streamlit_files import AppFiles
 from tests.conftest import AGENT, AUTH
 from tests.test_cli import Live, live  # noqa: F401 (the running server)
 from tests.test_cli import run as command
