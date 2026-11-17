@@ -2098,6 +2098,10 @@ drags; code of more than one line is pasted, one typed value):
   the chooser, the swap (the label follows, the strip's EDP → Trino and its Undo); the pick view's catalog
   tree, Write a query… in its own window, Run on Trino closes it; the strip's Use another connection… on a
   reopened project, Point these at Trino with one cell unticked (the file has the ticked one only).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python, on 26d1c50): 3,278 passed, 42 skipped, 3
+  failed in 19 minutes, all three in tests/e2e/test_streamlit_page.py: two expected the prompt's old title
+  (fixed on the base branch since, 1ca9404, merged in), one the pop-out across windows (load). After the
+  merge, test_streamlit_page.py and this branch's tests: 79 passed.
 - **Not checked:** a real ODBC-to-Trino move (two real servers, their naming differences); the Workbench
   window's own rewrite of an open, unsaved document (doc.repoint: typecheck only; the file path is
   tested); a DAX query moved between Power BI workspaces; a Python connection's table moved (its Read a
