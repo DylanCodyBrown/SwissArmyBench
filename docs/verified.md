@@ -2338,6 +2338,49 @@ Not checked (nothing real reached):
   read_blob with an s3 secret);
 - MSAL's ROPC (the stand-in's sign-in uses the standard library's POST; MSAL would look for Microsoft);
 - pypdf for a PDF's text (a Word document's text was checked).
+
+## The Data Explorer (2026-11-17, branch data-explorer)
+
+- **Rules** (tests/test_explorer.py): `cust` matches `customer_id`, `CustomerKey` (start), `id_customer` (a
+  part), `Accustomed` (inside), not `orders`; `customerid` matches `customer_id`; words spread over the path
+  but one must be in the name; the search as sent (kinds as a list or "a,b", an unknown kind refused, the
+  limit capped at 200, a 201-character search refused); 32 results grouped in order and counted with the
+  groups cut to the limit; each result's insert code (a connection's table, an open table, a quoted column
+  with its table's variable, a variable, a blade and a vault).
+- **The seam:** a stand-in "structures" provider joins the search (its path kept) and a failing provider
+  is skipped; a kind filter leaves it out.
+- **HTTP** (two made-up SQLite connections, two pasted grids, a variable): Ledger's catalog not loaded is
+  offered and Shop's searched; `customers` with `[Shop].customers` and its insert; the columns
+  `customer_id` (orders, typed INTEGER), `CustomerKey`, and the grid's `customer_id`; both loaded:
+  `customer_id` across Ledger, Shop and the grid; `column=CUSTOMER_ID` gives invoices, orders, sales;
+  the connection picker in any case; the grid's result (source, grid, variable); the variable by name with
+  no value anywhere in it; an empty search lists without catalog columns; the agent's answer the same;
+  a bad kind is a 400; `/workbench?panel=explorer` serves the window's page.
+- **Browser** (Chromium; tests/e2e/test_data_explorer.py): the pane off, then beside the data notebook;
+  `cust` grouped and counted with the SQL name's path; Insert into a SQL cell (the SELECT) and a Python cell
+  (`sab.sql(...)`); beside a script; Show tables with this column; the agent's explorer.search drives the
+  box; Ctrl+Shift+E closes it. App mode: the canvas's Streamlit cells panel lists a named cell; Starters
+  takes its place. Pop out: the window titled Data Explorer, with the rail, carries the search; a search
+  there; a table result's drag data (taken from the window's own dragstart) dropped on a SQL cell's editor
+  in the Workbench writes the SELECT; Insert from the window into the Workbench's selected cell; Move back
+  reopens the pane with the window's search and closes the window; the agent's explorer.popOut and
+  explorer.moveBack do the same. Ctrl+K on the grid page: the dialog, its results, Open the Data Explorer.
+  The older browser tests that used the Data panel follow the new places (panels, notebook kinds, groups,
+  the rail's Apps, modes, connection colours, starters, text cells, Streamlit).
+- **Structures and APIs** (after the merge): a structure's paths (lists as `[]`, a quoted key, the parts
+  of the first place with a key, the cap); an API's Return-as-table call by `[Orders API].listOrders` with
+  its columns, a plain call and a write rows call left out (a stand-in blade list); over HTTP a pasted
+  structure's `customer id` gives `$.orders[].customer.id` with its parts and parent, and an empty search
+  its name; in the browser a path's result, its Copy path title, and Open at this node showing the
+  Structures page at `$.plums[0].grower.farm_id`.
+- **Not checked:** a real drag between two browser windows (Playwright cannot; the drop is sent with the
+  data the window's dragstart set); a canvas drop of a result (not built); an API result from a real API
+  in the library (the provider is tested on its blade list); a saved structure file's Open at this node
+  (opened first through /structures/open); Load its catalog's button in a browser (the
+  route is the existing connections_load_catalog); the resize grip by pointer; Edge.
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,394 passed, 42 skipped, 1 failed in
+  22 minutes: the landing pages' test (it passed alone; its `.wb-data` check is now the Data Explorer's,
+  off on a landing page), then that file 5 passed.
 ## Writing data: the Write starters (2026-11-17, branch write-blades)
 
 - **Every starter** (tests/test_starters_write.py): the 13 Write functions are each one public function
@@ -2441,3 +2484,10 @@ Not checked (nothing real reached):
   the database forms) and six failed the same way on the branch's base (ec0d298, run alone with the same
   Chromium): the narrow window's sideways scroll, the agent's snapshot, the Application row, a script's
   HTML cell, the Power BI workspace and the swap's code following: not this branch's.
+
+- **After merging the main line (f96b8f9)** the whole suite (Chromium): 3,633 passed, 44 skipped, 9 failed
+  and 1 error. Alone, four of those passed (Visualizations' pages, Show the math, a table cell's maker, the
+  Workbench's agent test: load). The other six fail the same on f96b8f9 itself (run from its own tree):
+  a script's HTML cell (+ Cell gone from scripts), the Power BI page, a deleted connection's tables, the
+  agent snapshot, the narrow window and the Application row's Zoom (zoom moved to the status bars). None
+  of them touch the Data Explorer.

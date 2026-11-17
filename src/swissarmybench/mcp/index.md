@@ -28,12 +28,12 @@ canvas. A project is one .sab file; APIs are this computer's library.
 | `connections_`, `variables_` | databases, files, Power BI, Dataverse, Python, vaults; variables | `connections_list`, `connections_usage`, `variables_list` |
 | `apis_` | APIs: operations, calls, web call blades | `apis_search`, `apis_call`, `apis_save_call` |
 | `structures_` | JSON, YAML, XML, TOML; steps, lineage | `structures_open`, `structures_show` |
-| `catalog_` | a source's tables and columns | `catalog_search`, `catalog_columns` |
+| `catalog_`, `explorer_` | sources; find any data | `explorer_search`, `catalog_search` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_starters` |
 | `workbench_` | notebooks, scripts, kernels, the window | `workbench_run`, `workbench_lineage`, `workbench_window` |
 | `streamlit_` | the canvas, tests, export | `streamlit_block_place`, `streamlit_test` |
 | `project_` | projects: one .sab file | `project_new`, `project_import`, `project_documents` |
-| `files_`, `app_` | files; the page, getting around; context; session log; beta | `app_context`, `app_snapshot`, `app_navigate`, `app_session` |
+| `files_`, `app_` | files; the page, getting around, context, session, beta | `app_context`, `app_snapshot`, `app_navigate`, `app_session` |
 | `agent_` | yours only | `agent_context`, `agent_events`, `agent_approvals` |
 
 No prefix: `guide`, `commands`, `health`.

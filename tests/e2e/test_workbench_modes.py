@@ -139,7 +139,8 @@ def test_kind_colours_on_tabs_menus_and_settings(
     assert colour(page, ".wb-tab.mark-app .wb-tab-icon") == rgb(token(page, "app"))
     assert colour(page, ".wb-tab.mark-script .wb-tab-icon") == rgb(token(page, "script"))
     expect(page.locator(".wb-group").first).to_have_attribute("data-mark", "notebook")
-    # The Streamlit cells pane: each cell by its source document's colour.
+    # The Streamlit cells panel (the canvas's own, on its left): each cell by its source document's colour.
+    page.locator(".wb-tab.mark-app").click()
     expect(page.locator(".wb-st-doc.km-notebook .wb-st-cell")).to_have_count(3, timeout=20000)
     # Settings' Kind colours, shared by every window: the agent chooses one, every window follows.
     window(server, "palette")  # (the palette opens and closes: a smoke of the window's commands)
@@ -246,15 +247,14 @@ def test_the_starter_gallery_writes_a_named_cell_and_places_it(
     app = app_files(server, tmp_path / "sales")
     page = open_window(browser, server, app)
     expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    switch = page.locator(".wb-data-switch")
-    expect(switch).to_be_visible()
-    switch.get_by_role("button", name="Starters", exact=True).click()
+    # Starters is the canvas's other left panel (the status bar's Starters, or data.starters).
+    page.locator(".wb-status").get_by_role("button", name="Starters", exact=True).click()
     gallery = page.locator(".wb-starters-panel")
     expect(gallery.locator(".wb-starter-family")).to_have_count(5, timeout=20000)
     listed = window(server, "data.starterList")
     assert [f["family"] for f in listed] == ["Filters", "Displays", "Layout", "Interaction", "Feedback"]
     assert sum(len(f["starters"]) for f in listed) == 29
-    assert "pieces" not in page.locator(".wb-data").inner_text().lower()
+    assert "pieces" not in page.locator(".wb-mode-left").inner_text().lower()
     shot(page, "app-starters")
     done = window(
         server,

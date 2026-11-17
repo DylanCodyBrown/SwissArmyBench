@@ -49,6 +49,7 @@ GUIDE_SECTIONS: tuple[tuple[str, str], ...] = (
     ("connections", "Reading one"),
     ("connections", "Power BI workspace"),
     ("connections", "Catalogs (names and types, never values)"),
+    ("connections", "Finding data (the Data Explorer)"),
 )
 # The trims, in order: (what is left out, the note that says so).
 TRIMS: tuple[tuple[str, str], ...] = (

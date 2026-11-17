@@ -32,10 +32,13 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
   notebook (tab kinds `dataNotebook`, `appNotebook`; outside a project a plain `notebook`):
   `project_documents` and "documents" give each notebook's `role` (data, app or ""). The Notebooks page
   groups them under Data notebook and App notebooks; in a project "file.newNotebook" makes an app notebook.
-  The Data panel is not beside the data notebook ("documents" panes.data_panel "away"; Ctrl+B's
-  "view.toggleSidebar" is refused there).
+  The Data Explorer (the left pane, off until opened: "view.explorer", Ctrl+Shift+E) sits beside every
+  document; "documents" panes.data_explorer says open, closed or popped. "explorer.search" searches it
+  (as `explorer_search`), "explorer.insert" puts a result's insert code in the front document's cell,
+  "explorer.popOut" and "explorer.moveBack" move it to a window of its own and back. A canvas's
+  Streamlit cells and Starters are its own left panels ("data.streamlitCells", "data.starters").
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
-  groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data panel).
+  groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data Explorer).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;
   `workbench_move_back` brings it back.
 - Getting around: "nav.home" brings the home window (the grids) forward; "nav.back" and "nav.forward"

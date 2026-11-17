@@ -623,7 +623,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # context.md (2026-11-17) added one, app_context (app_claude's context option went to it).
     # The editors' intelligence (2026-11-17) added three: workbench_complete, workbench_signature (its
     # hover too) and workbench_problems.
-    assert size < 75_500, f"the tool list is {size} characters"
+    # The Data Explorer (2026-11-17) added one, explorer_search (its kinds, connection, column, limit).
+    assert size < 76_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

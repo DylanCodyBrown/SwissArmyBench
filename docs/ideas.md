@@ -3928,6 +3928,69 @@ treatment here", "they are not really connections, UNLESS they return a table".
 - DAX could take the columns (SELECTCOLUMNS) and simple filters (CALCULATETABLE) as SQL sources do.
 - Settings could set the query limit in the page (today an environment variable).
 
+## The Data Explorer (the owner, 2026-11-17; built, branch data-explorer)
+
+"perhaps the data pane can move to its own pane called Data Explorer that allows use to quickly search but
+column names, table name, connection to quickly find data like the structures". Then: "that Data Explorer
+should have the option to pop it out into another tab just like the structure explorer".
+
+**Built.**
+- **A pane, not the Data panel:** the Workbench's left pane (workbenchExplorer.ts), beside every document
+  (the data notebook, app notebooks, scripts, canvases, a landing page), off until opened (the status bar's
+  Data Explorer, Ctrl+Shift+E); open or closed, its width and its search are this window's (session
+  storage). Resizable by its right edge. The Data panel is gone: its tables and blade variables are
+  Explorer results; its project files sit at the Explorer's foot; "+ Table" and "+ Blade" are in its head.
+  Its Streamlit cells and Starters are App mode's left panels (workbenchModes.ts gained `where: "left"`):
+  a canvas opens with Streamlit cells; Starters is the other one. Settings' switch is **Data Explorer**
+  (`workbench.explorer`; `workbench.data`, `.tables`, `.blades` gone). Ctrl+B is gone with the fold.
+- **One search** (domain/explorer.py, services/explorer.py, GET /explorer/search, `explorer_search`):
+  connections (never a key vault: no tables, so not a connection), their loaded catalogs' tables and
+  columns (the catalog's own search, each table with its DuckDB SQL name by connection_tables.copy_name),
+  catalogs loaded with sab.load, the open tables and their columns (types, where they came from),
+  variables (name and source; never a value) and blades (their call). Any case, by parts: `cust` finds
+  `customer_id` and `CustomerKey`; `customerid` finds `customer_id`; several words may spread over the
+  path (`orders cust`) but one must be in the result's own name. Grouped in a fixed order, each counted,
+  25 a group. A connection whose catalog is not loaded is an **offer** (Load its catalog), loaded by
+  catalog_loading in the background, the search again on `catalogs_changed`.
+- **Structures and APIs** (registered once trees-apis merged): every open structure and saved structure
+  file by name; an open one's keys by their paths (`$.orders[].customer.id`, a list's items as `[]`, up to
+  2,000 a structure), each with the parts of one place that has it: **Open at this node** opens the
+  Structures page with that node selected (a saved file is opened first), **Copy path** copies the
+  pointer. A saved file that is not open is found by name only (its text is not read for a search). APIs:
+  each web call with Return as table on (web_calls.is_table: never a write rows call) by its SQL name
+  (`[Orders API].listOrders`), its method and path, and its columns with their DuckDB types; Copy SQL name,
+  Insert, Query in a notebook. A provider that fails is skipped; `register(name, provider)` adds another.
+- **Actions** (buttons, a right-click menu, Enter = the first): a table Open as grid, Preview (nothing
+  kept), Copy SQL name, Insert, Query in a notebook; a column Copy name, Insert, Show tables with this
+  column (`column=`: the same name in every connection and open table); a connection Show its tables,
+  Load its catalog; a variable Open in Variables; a blade Insert its call. **Insert** writes what the
+  cell's language writes (a SQL cell `SELECT * FROM [Shop].customers`, a Python cell
+  `sab.sql("SELECT * FROM [Shop].customers")`, a column's name, a variable as `os.environ["NAME"]`); a
+  cell of neither kind gets a new cell below. **Drag** carries the same pair (EXPLORER_DRAG; Monaco's drop
+  picks by its language).
+- **Pop out** (explorerPage.ts, /workbench?panel=explorer, "Data Explorer", with the rail): the search,
+  filters and scroll travel by a workbench handoff (kind "explorer"); the named window
+  `swissarmybench-explorer`; Insert there goes to the Workbench window's focused cell through
+  `workbench_window` (`explorer.insert`; the button's tip names the cell, `explorer.target`); a drag from it
+  drops into a cell there. **Move back** hands the search to the main window (a handoff to "main"), its
+  pane opens, the window closes. The two talk over a BroadcastChannel ("here?", "here", "gone", "back",
+  "search"), so a reloaded Workbench knows it is out, and the agent's `explorer.moveBack` and
+  `explorer.search` reach it.
+- **Home page:** Ctrl+K (Find data…, also in the palette) opens the same component in a dialog, with
+  Open the Data Explorer for its window.
+- **The agent:** `explorer_search` (names and types only), the window's `explorer.search`,
+  `explorer.insert`, `explorer.popOut`, `explorer.moveBack`, `view.explorer`; the guide's connections
+  topic has "Finding data", carried into context.md's tool guide.
+
+With the main line merged (2026-11-17), the Data panel's last rule (not beside a script or a landing
+page, a499bac and 4a19ff9) is the Explorer's default: it is off until opened, beside anything.
+
+**Decisions.** The pop-out window is a page of its own (explorer.html), not a whole Workbench window: it
+holds no documents or kernels, so it never takes a document's handoff. Catalog matching stays the catalog's
+own SQL `contains` per word (the folded `customerid` form works for open tables, variables and blades, not
+inside catalogs). A canvas drop of a result is not built (a block is a cell's link; a table has no cell to
+link to until code reads it). Fixed on the way: grid.css had one unclosed rule (`.conn-block.conn-worn.conn-two`),
+which swallowed every rule after it (the Connections page's tree styles among them).
 ## Blades and functions are two things (the owner, 2026-11-17)
 "I think we should seperate the different types of blades, function blades should be called something else but I hate the name cuts" / "when you right click in the workbench ide and insert you get two options insert a blade or insert a function".
 - **Function**: code you call (import_excel, write_sql_server): inserting one writes its def into the project's functions.py and puts only the call in the cell.

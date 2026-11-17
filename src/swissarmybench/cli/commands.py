@@ -1459,6 +1459,31 @@ def catalog_search(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "explorer_search",
+    "The Data Explorer: find data by name in connections (their loaded catalogs' tables and columns, with "
+    "DuckDB SQL names), open tables, variables, blades. Any case, by parts (cust: customer_id). Names and "
+    "types only; offers: catalogs not loaded (connections_load_catalog)",
+    opt("text", "What to look for: `cust`, `orders customer`."),
+    opt("kinds", "Only these: connections, tables, columns, structures, apis, variables, blades.", "list"),
+    opt("connection", "Only what belongs to this connection."),
+    opt("column", "A column's exact name: every table that has it, in every connection (for joins)."),
+    opt("limit", "Results per group (default 25).", "int"),
+)
+def explorer_search(a: dict[str, Any]) -> Any:
+    kinds = a.get("kinds")
+    params = {
+        "q": a.get("text") or "",
+        "kinds": ",".join(str(k) for k in kinds) if isinstance(kinds, list) else kinds,
+        "connection": a.get("connection"),
+        "column": a.get("column"),
+        "limit": a.get("limit"),
+    }
+    return api.call(
+        "GET", "/explorer/search", params={k: v for k, v in params.items() if v not in (None, "")}
+    )
+
+
+@command(
     "compare_create",
     "Line two grids up on key columns (the page's split compare). Counts only.",
     req("left", "Left grid id."),
@@ -4470,6 +4495,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ),
     ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
+    ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
     ("visualizations", "Visualizations: cards, dashboards, themes"),
     ("app", "The page itself: snapshots"),

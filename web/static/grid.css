@@ -7662,9 +7662,8 @@ body.dropping-file::after {
 
 /* ===== panels turned off in Settings (panels.ts): gone, not folded ===== */
 
-body.panel-off-workbench-data .wb-data,
-body.panel-off-workbench-tables .wb-data-section[data-panel="tables"],
-body.panel-off-workbench-blades .wb-data-section[data-panel="blades"],
+body.panel-off-workbench-explorer .wb-explorer,
+body.panel-off-workbench-explorer .wb-status .wb-explorer-toggle,
 body.panel-off-workbench-streamlit .wb-data-section[data-panel="streamlit"],
 body.panel-off-workbench-console .wb-status .wb-console-toggle,
 body.panel-off-workbench-variables .wb-status .wb-variables-toggle,
@@ -8190,25 +8189,31 @@ body.panel-off-grid-status .statusbar {
    Each document's own panels sit beside it in its group: Properties, Outline and Run settings on the
    right; State and Run history under it. Violet is the app's alone: its tab, the selected block's
    outline and the wiring. */
+/* Three columns, the document in the middle: App mode's left panel (Streamlit cells, Starters), the
+   document, the right panel (Properties, Outline, Run settings); a bottom panel under all three. */
 .wb-doc-body.mode-open {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: var(--mode-left-w, 0) minmax(0, 1fr) var(--mode-side-w, 0);
+  grid-template-rows: minmax(0, 1fr) var(--mode-bottom-h, 0);
   height: 100%;
   min-height: 0;
 }
 
+.wb-doc-body.mode-open.mode-left {
+  --mode-left-w: minmax(220px, 280px);
+}
+
 .wb-doc-body.mode-open.mode-side {
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  --mode-side-w: minmax(240px, 300px);
 }
 
 .wb-doc-body.mode-open.mode-bottom {
-  grid-template-rows: minmax(0, 1fr) minmax(140px, 38%);
+  --mode-bottom-h: minmax(140px, 38%);
 }
 
 .wb-doc-body.mode-open > :first-child,
 .wb-doc-body.mode-open > .wb-data-view:not([hidden]) {
-  grid-area: 1 / 1 / 2 / 2;
+  grid-area: 1 / 2 / 2 / 3;
   min-width: 0;
   min-height: 0;
   overflow: auto;
@@ -8218,8 +8223,16 @@ body.panel-off-grid-status .statusbar {
   display: none;
 }
 
+.wb-mode-left {
+  grid-area: 1 / 1 / 2 / 2;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
 .wb-mode-side {
-  grid-area: 1 / 2 / 2 / 3;
+  grid-area: 1 / 3 / 2 / 4;
   min-height: 0;
   overflow: auto;
   border-left: 1px solid var(--border);
@@ -8234,6 +8247,7 @@ body.panel-off-grid-status .statusbar {
   background: var(--bg);
 }
 
+.wb-mode-left[hidden],
 .wb-mode-side[hidden],
 .wb-mode-bottom[hidden] {
   display: none;
@@ -11929,4 +11943,366 @@ g.follow-pulse > path:first-of-type {
   .api-body-split {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* ===== THE DATA EXPLORER (dataExplorer.ts; the Workbench's pane workbenchExplorer.ts, its own window
+   explorerPage.ts, the grid page's Find data dialog; 2026-11-17) ===== */
+.wb-explorer {
+  gap: 10px;
+  padding: 12px 10px 10px 12px;
+}
+
+.wb-explorer .wb-data-head {
+  gap: 2px;
+}
+
+.wb-explorer .wb-data-head .spacer {
+  flex: 1;
+}
+
+.wb-explorer .wb-data-head h2 svg {
+  color: var(--muted);
+}
+
+.wb-explorer-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wb-explorer-grip {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  z-index: 5;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.wb-explorer-grip:hover,
+.wb-explorer-grip:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.ex {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.ex-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ex-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.ex-search-wrap:focus-within {
+  border-color: var(--accent);
+}
+
+.ex-search {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.ex-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.ex-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.btn.ex-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.82em;
+}
+
+.btn.ex-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.ex-connection {
+  max-width: 100%;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.82em;
+}
+
+.ex-column-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 0.85em;
+}
+
+.ex-column-chip[hidden],
+.ex-recent[hidden] {
+  display: none;
+}
+
+.ex-column-chip > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ex-recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.btn.ex-recent-item {
+  color: var(--muted);
+  font-size: 0.82em;
+}
+
+.ex-offers:empty {
+  display: none;
+}
+
+.ex-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--conn-a, transparent);
+  font-size: 0.85em;
+}
+
+.ex-offer > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ex-results {
+  flex: 1;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+  overflow: auto;
+}
+
+.ex-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 4px;
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 650;
+}
+
+.ex-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.ex-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ex-result {
+  padding: 4px 6px;
+  border-radius: 6px;
+  box-shadow: inset 3px 0 0 var(--conn-a, transparent);
+  cursor: default;
+  outline: none;
+}
+
+.ex-result:hover {
+  background: var(--surface-2);
+}
+
+.ex-result.selected {
+  background: var(--selected);
+}
+
+.ex-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+
+.ex-icon {
+  display: flex;
+  flex: none;
+  color: var(--muted);
+}
+
+.ex-name {
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-type {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.78em;
+}
+
+.ex-actions {
+  display: flex;
+  flex: none;
+  gap: 0;
+  margin-left: auto;
+  opacity: 0;
+}
+
+.ex-result:hover .ex-actions,
+.ex-result.selected .ex-actions,
+.ex-result:focus-within .ex-actions {
+  opacity: 1;
+}
+
+.ex-actions .btn.small {
+  padding: 2px 4px;
+}
+
+.ex-where {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  padding-left: 22px;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.ex-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-preview:empty {
+  display: none;
+}
+
+.ex-preview {
+  margin: 6px 0 4px 22px;
+  overflow: auto;
+  font-size: 0.85em;
+}
+
+.ex-more {
+  margin: 2px 6px;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+/* Its own window (/workbench?panel=explorer) and the grid page's Find data dialog. */
+.explorer-page {
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.ex-window {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100vh;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  font-size: calc(14px * var(--ui-zoom, 1));
+}
+
+.ex-window-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ex-window-head h1 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.ex-window-head .spacer {
+  flex: 1;
+}
+
+dialog.find-data .dialog-body {
+  display: flex;
+  height: min(70vh, 640px);
+}
+
+/* App mode's left panels (once the Data panel's): Streamlit cells and Starters. */
+.wb-mode-left .wb-st {
+  padding: 0;
+}
+
+.wb-explorer .wb-data-head h2 {
+  min-width: 0;
+  font-size: 1em;
+  white-space: nowrap;
+}
+
+.wb-explorer .wb-data-head .btn {
+  flex: none;
+  padding: 4px 5px;
+}
+
+/* Its head's "+ Table" and "+ Blade" by their icons (named in their tips), so the title fits. */
+.wb-explorer .wb-data-head .wb-data-add .btn-label {
+  display: none;
+}
+
+.wb-explorer .wb-data-head h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

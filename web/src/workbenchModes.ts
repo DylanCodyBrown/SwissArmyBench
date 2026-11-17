@@ -2,10 +2,12 @@
  * workbenchModes.ts: the Workbench's modes (2026-11-15): each document's own panels, beside it in its
  * group, so the panels follow the group they belong to (two groups side by side each keep theirs). [WIRE]
  *
- *   App       Properties (the selected block, else the page settings) on the right; State under it
+ *   App       Properties (the selected block, else the page settings) on the right; State under it;
+ *             on the left, Streamlit cells (the cells to build a page from) or Starters (2026-11-17: they
+ *             were the Data panel's, which became the Data Explorer)
  *   Notebook  Outline on the right
  *   Script    Run settings on the right; Run history under it
- *   Data      (data.ipynb) the Cells | Lineage | Dictionary switch is the document's own (workbenchData
+ *   Data      (data.ipynb) the Cells | Lineage | Dictionary switch is the document's own (workbenchDoc
  *             Mode.ts); its Outline as a notebook's
  *
  * The status bar shows the focused document's panels as toggles; a panel turned off in Settings
@@ -18,7 +20,7 @@ export interface ModePanel {
   id: string;
   title: string;
   icon: string;
-  where: "side" | "bottom";
+  where: "left" | "side" | "bottom";
   /** Its switch in Settings (Panels): "workbench.properties". */
   panel: string;
   /** Draw the panel's body (called when it opens, and on `redraw`). */
@@ -45,17 +47,20 @@ export interface ModeFrame {
 
 /** A document's panels, in its own element (`host`, the document's body in its group). */
 export function modeFrame(host: HTMLElement, changed: () => void): ModeFrame {
+  const left = h("aside", { class: "wb-mode-left", hidden: true });
   const side = h("aside", { class: "wb-mode-side", hidden: true });
   const bottom = h("section", { class: "wb-mode-bottom", hidden: true });
-  host.append(side, bottom);
+  host.append(left, side, bottom);
   const panels: ModePanel[] = [];
   const open = new Set<string>();
   const bodies = new Map<string, HTMLElement>();
 
   const layout = (): void => {
+    left.hidden = !left.childElementCount;
     side.hidden = !side.childElementCount;
     bottom.hidden = !bottom.childElementCount;
-    host.classList.toggle("mode-open", !side.hidden || !bottom.hidden);
+    host.classList.toggle("mode-open", !left.hidden || !side.hidden || !bottom.hidden);
+    host.classList.toggle("mode-left", !left.hidden);
     host.classList.toggle("mode-side", !side.hidden);
     host.classList.toggle("mode-bottom", !bottom.hidden);
   };
@@ -76,7 +81,7 @@ export function modeFrame(host: HTMLElement, changed: () => void): ModeFrame {
     const panel = panels.find((p) => p.id === id);
     if (!panel) return false;
     const want = (show ?? !open.has(id)) && panelOn(panel.panel);
-    const where = panel.where === "side" ? side : bottom;
+    const where = panel.where === "left" ? left : panel.where === "side" ? side : bottom;
     if (want && !open.has(id)) {
       // One panel a side: another one there gives way.
       for (const other of panels) if (other !== panel && other.where === panel.where && open.has(other.id)) toggle(other.id, false);

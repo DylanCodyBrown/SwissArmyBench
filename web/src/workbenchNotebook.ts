@@ -307,6 +307,10 @@ export interface NotebookView {
   approvals: () => { cell: number; name: string | null; at: string | null; changed: string[] | null }[];
   /** The selected cell's own number (null: none). */
   selectedNumber: () => number | null;
+  /** The Data Explorer's Insert: a result's code at the selected cell's cursor, as the cell's language
+   *  writes it (a SQL cell's SQL, a Python cell's Python); else a new cell below of the kind it has code
+   *  for. The cell it went into. */
+  insertCode: (insert: { sql?: string; python?: string }) => { cell: number; kind: CellKind };
   /** The document closed: free its editors, its designs' frames and its window listener. */
   dispose: () => void;
   // ----- Notebook mode
@@ -1948,6 +1952,24 @@ export function notebookView(
     runBelow: () => runEach(selected ? cells.slice(indexOf(selected)) : [...cells]),
     selected: () => (selected ? indexOf(selected) : -1),
     selectedNumber: () => selected?.number ?? null,
+    insertCode: (insert) => {
+      let cell = selected && !isApp(selected.role) ? selected : null;
+      const code = cell?.kind === "sql" ? insert.sql : cell?.kind === "code" ? insert.python : undefined;
+      if (!cell || code === undefined) {
+        const kind: CellKind = insert.python === undefined ? "sql" : "code";
+        cell = insertAt(cell ? indexOf(cell) + 1 : selected ? indexOf(selected) + 1 : cells.length, kind);
+      }
+      const text = (cell.kind === "sql" ? insert.sql : insert.python) ?? "";
+      if (!sourceOf(cell).trim()) {
+        if (cell.editor) cell.editor.setValue(text);
+        else cell.source = text;
+      } else if (cell.editor) cell.editor.insertAt(text);
+      else cell.source = `${cell.source.replace(/\n*$/, "")}\n${text}`;
+      select(cell);
+      edited();
+      typedSoon();
+      return { cell: cell.number, kind: cell.kind };
+    },
     approve: async (number, remove = false) => {
       const cell = number === undefined ? selected : byNumber(number);
       if (!cell || isHeading(cell.role)) throw new Error(number === undefined ? "No cell is selected." : `There is no cell ${number} here.`);

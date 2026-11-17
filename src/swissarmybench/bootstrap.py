@@ -80,6 +80,7 @@ from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.streamlit_apps import Runner as StreamlitRunner
 from swissarmybench.server.updater import Helper as UpdateHelper
+from swissarmybench.services import explorer as explorer_providers
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.api_explorer import Explorer as ApiExplorer
@@ -99,6 +100,7 @@ from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.context_md import ContextMd
 from swissarmybench.services.controllers import Controllers
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
+from swissarmybench.services.explorer import Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
@@ -186,6 +188,7 @@ class Services:
     panels: Panels
     session_log: SessionLog
     variables: Variables
+    explorer: Explorer
     connection_swap: ConnectionSwap
     navigation: Navigation
     kind_colours: KindColours
@@ -653,6 +656,42 @@ def bootstrap(
         kernels=workbench.kernel_count,
     )
 
+    # The Data Explorer: one search over the connections and their catalogs, the open tables, the
+    # variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
+    explorer = Explorer(ws)
+    explorer.register(
+        "connections",
+        explorer_providers.connections_provider(
+            lambda: connections.listing()["connections"], catalogs, catalog_loading.state
+        ),
+    )
+
+    def open_tables() -> list[OpenTable]:
+        out = []
+        for info in store.all():
+            grids = ws.grids.for_dataset(info.name)
+            out.append(
+                OpenTable(
+                    info.name,
+                    info.row_count,
+                    [(c.name, c.type) for c in info.columns],
+                    grids[0].id if grids else None,
+                    datasets.origins.get(info.name),
+                )
+            )
+        return out
+
+    explorer.register("grids", explorer_providers.grids_provider(open_tables))
+    explorer.register(
+        "variables", explorer_providers.variables_provider(lambda: variables.listing()["variables"])
+    )
+    explorer.register("blades", explorer_providers.blades_provider(lambda: blades.listing()["blades"]))
+    explorer.register(
+        "structures",
+        explorer_providers.structures_provider(structures.listing, lambda sid: structures.node(sid)),
+    )
+    explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
+
     async def open_work() -> dict[str, Any]:
         """What is open (the tray's menu) and what an update would lose: the tables, the Workbench
         window's documents (when one is open), the documents with unsaved changes, the kernels."""
@@ -843,6 +882,7 @@ def bootstrap(
         panels=Panels(ws),
         session_log=session_log,
         variables=variables,
+        explorer=explorer,
         connection_swap=connection_swap,
         navigation=Navigation(ws),
         script_runs=script_runs,

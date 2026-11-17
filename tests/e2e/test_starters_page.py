@@ -80,8 +80,10 @@ def orders(server: dict[str, Any]) -> Iterator[None]:
 
 
 def blades(page: Page) -> Locator:
-    """The Workbench's blade list (+ Blade), opened when it is not."""
+    """The Workbench's blade list (+ Blade, in the Data Explorer's head), opened when it is not."""
     if not page.locator(".wb-flyout:not([hidden])").count():
+        if not page.locator(".wb-explorer:not([hidden])").count():
+            page.keyboard.press("Control+Shift+E")
         page.get_by_role("button", name="Add a blade").click()
     return page.locator(".wb-flyout .blade-list")
 
@@ -322,8 +324,6 @@ def test_a_streamlit_piece_names_its_cell_shows_in_the_pane_and_goes_on_a_canvas
     expect(cells.first.locator(".wb-cell-name")).to_have_value("Region filter")
     expect(cells).to_have_count(1)
     pane = workbench.locator(".wb-st")
-    expect(pane.locator(".wb-st-cell .wb-data-label")).to_have_text(["Region filter"], timeout=20000)
-    expect(pane.locator(".wb-st-cell .wb-data-meta")).to_have_text("@cell1makes by_region · reads orders")
     # The agent inserts one too (golden rule): a new Python cell, named after the piece.
     made = window(
         server,
@@ -332,11 +332,17 @@ def test_a_streamlit_piece_names_its_cell_shows_in_the_pane_and_goes_on_a_canvas
         values={"table": "orders", "value column": "amount"},
     )
     assert made["name"] == "Total sales row" and made["kind"] == "code"
-    expect(pane.locator(".wb-st-cell .wb-data-label")).to_have_text(["Region filter", "Total sales row"])
     workbench.keyboard.press("Control+s")
     expect(workbench.locator(".wb-tab.active")).not_to_contain_text("●")
-    # From the pane onto a new app's canvas: a block called by the cell's name.
+    # From the pane (the canvas's own panel) onto a new app's canvas: a block called by the cell's name.
+    window(server, "view.explorer", show=False)  # its blade list was over the canvas's left
     window(server, "file.newApp")
+    expect(pane.locator(".wb-st-cell .wb-data-label")).to_have_text(
+        ["Region filter", "Total sales row"], timeout=20000
+    )
+    expect(pane.locator(".wb-st-cell .wb-data-meta").first).to_have_text(
+        "@cell1makes by_region · reads orders"
+    )
     pane.locator(".wb-st-cell").nth(0).drag_to(workbench.locator(".cv-board"))
     blocks = workbench.locator(".cv-block")
     expect(blocks).to_have_count(1)
@@ -391,12 +397,12 @@ def test_the_guides_page_of_five_pieces_plays_live_on_a_canvas(
     workbench.keyboard.press("Control+s")
     pane = workbench.locator(".wb-st")
     entries = pane.locator(".wb-st-cell")
-    expect(entries).to_have_count(5, timeout=20000)
     # The documented code of a piece, as the learner reads it.
     workbench.locator(".wb-cell").nth(1).scroll_into_view_if_needed()
     shot(workbench, "6-a-streamlit-pieces-documented-code")
     menu(workbench, "Workbench menu", "New Streamlit app")
     board = workbench.locator(".cv-board")
+    expect(entries).to_have_count(5, timeout=20000)
     for index in range(5):
         entries.nth(index).drag_to(board)
     expect(workbench.locator(".cv-block")).to_have_count(5)

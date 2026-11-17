@@ -34,14 +34,16 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         menu(workbench, "Workbench menu", "New notebook")
         expect(workbench.locator(".wb-status")).to_be_visible()
         expect(workbench.locator(".wb-console-toggle")).to_be_visible()
-        expect(workbench.locator(".wb-data")).to_be_visible()
+        # The Data Explorer (2026-11-17): off until opened, then beside the notebook.
+        window(server, "view.explorer", show=True)
+        expect(workbench.locator(".wb-explorer")).to_be_visible()
         # Settings, from the Workbench's "…": the same Settings as the grid page's, with Panels.
         menu(workbench, "Workbench menu", "Settings…")
         dialog = workbench.locator(".area-page[data-page='settings']")  # a page (2026-11-16)
         panels = dialog.locator("fieldset", has_text="Panels")
         expect(panels.locator("input[type=checkbox]")).to_have_count(
-            16
-        )  # the modes (2026-11-15) added six; the rail (2026-11-16) one
+            14
+        )  # the modes (2026-11-15) added six; the Data Explorer (2026-11-17) took the Data panel's three
         panels.get_by_label("Streamlit cells").uncheck()
         panels.get_by_label("Console").uncheck()
         panels.locator(".panel-page", has_text="Grid page").get_by_label("Ribbon").uncheck()
@@ -50,7 +52,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         # Gone at once, here and in the grid page: not folded, gone.
         expect(workbench.locator(".wb-st")).to_be_hidden()
         expect(workbench.locator(".wb-console-toggle")).to_be_hidden()
-        expect(workbench.locator(".wb-data-section[data-panel='tables']")).to_be_visible()
+        expect(workbench.locator(".wb-explorer")).to_be_visible()
         expect(grid.locator(".ribbon")).to_be_hidden()
         # Its command says where it went.
         with pytest.raises(urllib.error.HTTPError) as refused:
@@ -72,26 +74,26 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         grid_panels.get_by_label("Streamlit cells").check()
         grid_panels.locator(".panel-page", has_text="Grid page").get_by_label("Ribbon").check()
         expect(grid.locator(".ribbon")).to_be_visible()
-        expect(workbench.locator(".wb-st")).to_be_visible()
         expect(workbench.locator(".wb-console-toggle")).to_be_visible()
         assert window(server, "view.toggleConsole", show=True) == {"shown": True}
-        # The others, as the agent switches them: the whole Data panel, the status bars, the steps strip.
+        # The others, as the agent switches them: the Data Explorer, the status bars, the steps strip.
         everything = {
-            "workbench.data": False,
+            "workbench.explorer": False,
             "workbench.status": False,
             "grid.steps": False,
             "grid.status": False,
         }
         call(server, "PUT", "/panels", everything, agent=True)
         for gone in (
-            workbench.locator(".wb-data"),
+            workbench.locator(".wb-explorer"),
+            workbench.locator(".wb-explorer-toggle"),
             workbench.locator(".wb-status"),
             grid.locator(".statusbar"),
         ):
             expect(gone).to_be_hidden()
         expect(grid.locator(".steps-strip")).to_be_hidden()
         call(server, "PUT", "/panels", dict.fromkeys(everything, True), agent=True)
-        expect(workbench.locator(".wb-data")).to_be_visible()
+        expect(workbench.locator(".wb-explorer")).to_be_visible()
         expect(grid.locator(".statusbar")).to_be_visible()
     finally:
         call(

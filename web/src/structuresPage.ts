@@ -73,6 +73,7 @@ interface FileCard {
 let shownPage: PageElement | null = null;
 let reload: (() => void) | null = null;
 let wanted: string | null = null; // a structure to bring to the front when the page draws
+let wantedAt: Part[] | null = null; // and the node to select in it (the Data Explorer's Open at this node)
 
 registerLayer("structures", {
   isOpen: () => Boolean(shownPage?.open),
@@ -88,8 +89,9 @@ onNotice((n) => {
 });
 
 /** The Structures page, opened by the user (the rail's icon); `id`: that structure in front. */
-export function openStructures(id: string | null = null): void {
+export function openStructures(id: string | null = null, at: Part[] | null = null): void {
   wanted = id;
+  wantedAt = at;
   if (shownPage?.open) {
     reload?.();
     return;
@@ -454,6 +456,10 @@ function drawPage(): void {
         onSet: (p, v) => void step({ op: "set", path: pathText(p), value: v }),
         onRename: (p, key, to) => void step({ op: "rename", path: pathText(p), key, to }),
       });
+      if (wantedAt && nodeAt(value, wantedAt) !== undefined) {
+        selected = wantedAt;
+        wantedAt = null;
+      }
       if (selected.length && nodeAt(value, selected) !== undefined) tree.select(selected);
       else selected = [];
       split.append(h("div", { class: "structures-pane tree-pane" }, tree.element));

@@ -31,6 +31,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
+  routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
@@ -81,6 +82,7 @@ from swissarmybench.server import (
     routes_connections,
     routes_controllers,
     routes_datasets,
+    routes_explorer,
     routes_folders,
     routes_grids,
     routes_intellisense,
@@ -184,7 +186,9 @@ def create_app(
 
     async def workbench_page(request: Request) -> Response:
         # Notebooks and scripts, always in a window of their own (the grid page's Workbench tab opens it).
-        return FileResponse(settings.web_root / "workbench.html", headers={"Cache-Control": "no-store"})
+        # ?panel=explorer: the Data Explorer popped out into a window of its own.
+        page = "explorer.html" if request.query_params.get("panel") == "explorer" else "workbench.html"
+        return FileResponse(settings.web_root / page, headers={"Cache-Control": "no-store"})
 
     async def drop_silent_sessions() -> None:
         # A notebook that closes or crashes just stops reporting; the list notices within a few
@@ -250,6 +254,7 @@ def create_app(
             *routes_project_scope.routes(ctx.project_scope),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),
+            *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
             *routes_connection_colours.routes(ctx.connection_colours),

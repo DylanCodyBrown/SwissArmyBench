@@ -3,7 +3,7 @@
 associated with that connection is painted that color, cells, grids, app cells ... I even think we need tab
 groups from the grid based on connections"). A connection's colour on its card and its detail, on the grid
 tabs of its tables (grouped by connection), on a notebook cell and a script cell that use it, on a canvas
-block whose cell uses it, on the Data panel and the Session page; a change followed live. Ledger and Depot
+block whose cell uses it, on the Data Explorer and the Session page; a change followed live. Ledger and Depot
 are stood in for by SQLite files. Made-up data only.
 
 With SAB_CONNCOLOUR_SHOTS set to a folder, the tests also save screenshots there (2x)."""
@@ -219,9 +219,11 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     expect(user_cells.nth(3)).to_have_attribute("data-connections", "Depot")
     page.wait_for_function("() => document.querySelector('.wb-cell.conn-worn') !== null")
     assert worn(user_cells.nth(0)) == shown(page, server, "Ledger")
-    # The Data panel's tables wear their connection's colour too (plums, a file's, none).
-    expect(page.locator(".wb-data-card[data-connections='Depot']")).to_have_count(1)
-    expect(page.locator(".wb-data-card[data-connections]")).to_have_count(2)
+    # The Data Explorer's open tables wear their connection's colour too (plums; a file's, none).
+    window("view.explorer", show=True)
+    opened = page.locator(".ex-group[data-kind='tables'] .ex-result")
+    expect(opened.and_(page.locator("[data-connections='Depot']"))).to_have_count(1, timeout=10000)
+    window("view.explorer", show=False)
     shot(page, "4-notebook-cells")
     # Typing a connection's name into a cell marks it.
     call(server, "PUT", "/connection-colours/Ledger", {"colour": RUST})

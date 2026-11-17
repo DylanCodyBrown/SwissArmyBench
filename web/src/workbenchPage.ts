@@ -4,10 +4,11 @@
  *
  *   [TOP]      one row: the mark, the focused document's name (a dot while it has unsaved changes),
  *              Save, Save as…, and "…" (New notebook, New script, Open…, Recent, split, Commands)
- *   [DATA]     the Data panel on the left (workbenchData.ts; Ctrl+B folds it): the open tables, the
- *              blades' variables, a project's files when there is one. "+ Table" (Open file…, a
+ *   [DATA]     the Data Explorer on the left (workbenchExplorer.ts; Ctrl+Shift+E or the status bar opens
+ *              it, beside every document; off until then): one search over everything that holds data
+ *              (dataExplorer.ts), a project's files when there is one. "+ Table" (Open file…, a
  *              connection's tables, the catalog's search) and "+ Blade" open the side bar's old lists
- *              (catalogRail.ts) beside it
+ *              (catalogRail.ts) beside it. Pop out puts it in a window of its own (explorerPage.ts)
  *   [GROUPS]   the documents as tabs in groups (workbenchGroups.ts): drag a tab along a row, or to a
  *              group's edge to split it; splitters size them. The focused group's row ends with its
  *              document's controls: a notebook's "+ Cell", Run all and "…"; a script's "+ Cell", Run
@@ -23,7 +24,7 @@
  *              console (workbenchConsole.ts) on its kernel; a blade being edited; a table from the catalog
  *   [COMMANDS] every action by one name (workbenchCommands.ts): the palette (Ctrl+Shift+P), the keys, and
  *              the agent's workbench_window tool; the groups' too (split right, split down, move a tab,
- *              focus a group) and the Data panel's
+ *              focus a group) and the Data Explorer's
  *   [KEYS]     F5 runs (the file, or every cell) wherever the focus is, never reloading the window;
  *              Ctrl+S saves, Ctrl+O opens; Ctrl+Z outside an editor undoes a cell's delete or move;
  *              Ctrl+1 to Ctrl+3 (and F6) move between the panes; Ctrl+Alt+Page Up and Page Down switch
@@ -40,7 +41,7 @@
  *              (workbenchCanvas.ts): New app opens one as a tab; any Python cell is dragged onto it (onto
  *              its tab too) or copied and pasted, as a link; Play shows the page live in place
  *   [PROJECT]  a project is a folder that starts with data.ipynb (its export: data.py): New project,
- *              Open project (its files as tabs, and listed in the Data panel), Export data.py
+ *              Open project (its files as tabs, and listed at the Data Explorer's foot), Export data.py
  *   [POP OUT]  a saved document moves into a Workbench window of its own (the group's "…")
  *
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
@@ -62,11 +63,14 @@ import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./wo
 import { onProblems, problemsOf, pythonIntel, ruffOffer } from "./workbenchIntel";
 import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
-import { mountDataPanel } from "./workbenchData";
+import { mountExplorerPane } from "./workbenchExplorer";
+import { cellsPane } from "./workbenchCellsPane";
+import { EXPLORER_BROADCAST, EXPLORER_WINDOW, type ExplorerResult, type ExplorerState, openExplorerWindow } from "./dataExplorer";
+import { openVariables } from "./variablesPage";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
-import { appMark, back, canGoBack, forward, go, goHome, mountNav, setTitle, startNav, withParams } from "./nav";
+import { appMark, back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
@@ -154,7 +158,7 @@ let workspaceNames: string[] = []; // the Power BI workspaces
 let datasetNames: string[] = []; // their datasets, as a DAX cell names them: Finance/Sales model
 let bladeNames: string[] = [];
 let codeNames: { name: string; connection: string; kind: string }[] = [];
-let bladeVariables: BladeSummary[] = []; // the blades that are not connections: the Data panel's Variables
+let bladeVariables: BladeSummary[] = []; // the blades that are not connections
 let editingBlade = false;
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
@@ -177,7 +181,6 @@ async function loadConnections(): Promise<void> {
     codeNames = [];
     bladeVariables = [];
   }
-  data.setBlades(bladeVariables);
   await loadDatasets();
 }
 
@@ -249,7 +252,6 @@ function refreshTablesSoon(): void {
     void fetchTables().then(
       (found) => {
         tables = found;
-        data.setTables(found.map((t) => ({ name: t.name, variable: t.variable, rows: t.rows ?? 0, source: t.source ?? "", origin: t.origin, connection: t.connection ?? null, steps: t.steps })));
         assignTables();
       },
       () => undefined, // the server is away: the cells stay as they are
@@ -278,7 +280,7 @@ function drawTablesTool(): void {
 
 const DATA_NOTEBOOK = "data.ipynb";
 const APP_ENDING = ".stapp.json";
-// The Streamlit cells pane (the Data panel): what the server last listed, the canvas its marks are for.
+// The Streamlit cells pane (App mode's panel): what the server last listed, the canvas its marks are for.
 let paneDocuments: PaneDocument[] = [];
 let lastCanvas: Doc | null = null;
 let paneTimer: number | null = null;
@@ -372,6 +374,10 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
   doc.element.append(doc.canvas.element);
   doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
   doc.app = appPanels(doc.modes, () => doc.canvas!, appHost(doc));
+  // On its left (they were the Data panel's): the cells to build a page from, or the starter gallery.
+  doc.modes.add({ id: "cells", title: "Streamlit cells", label: "Cells", icon: "page", where: "left", panel: "workbench.streamlit", draw: (body) => body.replaceChildren(streamlitCells.element) });
+  doc.modes.add({ id: "starters", title: "Starters", icon: "star", where: "left", panel: "workbench.starters", draw: (body) => body.replaceChildren(gallery.element) });
+  doc.modes.toggle("cells", true);
   show(doc);
   return doc;
 }
@@ -418,28 +424,27 @@ interface ProjectFiles {
 let project: ProjectFiles | null = null;
 
 // A project opened or closed: the notebooks' kinds (data, app, plain) follow: their tabs, the Data
-// panel's files, the landing and the Data panel beside the data notebook.
+// Explorer's files and the landing.
 onKindColours(() => {
   drawTabs();
   if (project) listProject();
   landing.redraw();
-  followDataPanel();
   drawTop();
 });
 
-/** The project's files in the Data panel: data.ipynb, data.py set in as its output, the app's canvas,
+/** The project's files in the Data Explorer: data.ipynb, data.py set in as its output, the app's canvas,
  *  the notebooks and scripts. */
 function listProject(): void {
   setProjectFolder(project?.folder ?? null);
   refreshPane(); // the project's files are the pane's too
-  if (!project) return void data.setFiles(null);
+  if (!project) return void explorerPane.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
     const file = { path: name, icon: kindIcon(kindOfPath(name), path), word: kindOfPath(name) === "notebook" ? notebookWord(path) : undefined, open: () => void open(path) };
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
-  data.setFiles({ root: `${project.name}/`, files });
+  explorerPane.setFiles({ root: `${project.name}/`, files });
 }
 
 /** A project's files as tabs: data.ipynb first (and in front), then the app's canvas, then the rest. */
@@ -794,17 +799,17 @@ function notebookModes(doc: Doc): void {
   void refreshFlow(doc);
 }
 
-/** Present: the notebook as a document, the Data panel folded while it shows. */
-let foldedBeforePresent: boolean | null = null;
+/** Present: the notebook as a document, the Data Explorer closed while it shows. */
+let openBeforePresent: boolean | null = null;
 function present(doc: Doc, on?: boolean): boolean {
   const now = doc.notebook!.present(on);
   doc.element.classList.toggle("presenting", now);
-  if (now && foldedBeforePresent === null) {
-    foldedBeforePresent = data.collapsed();
-    if (!foldedBeforePresent) data.toggle(true);
-  } else if (!now && foldedBeforePresent !== null) {
-    if (!foldedBeforePresent) data.toggle(false);
-    foldedBeforePresent = null;
+  if (now && openBeforePresent === null) {
+    openBeforePresent = explorerPane.isOpen();
+    if (openBeforePresent) explorerPane.toggle(false);
+  } else if (!now && openBeforePresent !== null) {
+    if (openBeforePresent) explorerPane.toggle(true);
+    openBeforePresent = null;
   }
   drawControls();
   return now;
@@ -1040,6 +1045,7 @@ function moveToMain(doc: Doc): Promise<{ title: string; window: "new" | "main" }
 /** Take a document another window handed to this one: as it was there, its kernel still running. */
 async function takeDocument(id: string): Promise<void> {
   const taken = await api<{ document: Remembered & { title: string }; kernel: string | null }>(`/workbench/handoffs/${id}/take`, "POST", { window: WINDOW_ID });
+  if ((taken.document as { kind: string }).kind === "explorer") return explorerBack(taken.document as unknown as ExplorerState);
   const r = taken.document;
   const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified, r.settings) : openScript(r.path, r.text ?? "", r.modified);
   if (!r.path && r.title) doc.title = r.title;
@@ -1334,7 +1340,7 @@ function show(doc: Doc): void {
   groups.show(doc);
 }
 
-/** App mode's starter gallery (the Data panel's Starters): a click adds one to the canvas in front. */
+/** App mode's starter gallery (its Starters panel): a click adds one to the canvas in front. */
 const gallery = starterGallery((name) => {
   if (current?.canvas) void addStarter(current, name).catch((e: Error) => toast(e.message, "error"));
 });
@@ -1342,7 +1348,6 @@ const gallery = starterGallery((name) => {
 /** The focused group's document changed: everything that follows the focused document follows. */
 function focused(doc: Doc | null): void {
   current = doc;
-  if (paneReady) data.setStarters(doc?.canvas && panelOn("workbench.starters") ? gallery.element : null);
   variables.show(doc?.kernel ?? null);
   // A Streamlit app runs no code of its own: its console's place says nothing.
   if (doc?.kind === "app") layout.console.replaceChildren();
@@ -1357,23 +1362,6 @@ function focused(doc: Doc | null): void {
   assignSoon(); // a table with no document yet goes to the one in front
   if (doc?.canvas) lastCanvas = doc;
   drawPane(); // the marks are the canvas page's in front
-  followDataPanel();
-}
-
-/** The Data panel is for app notebooks and canvases only: not beside the data notebook (the owner,
- *  2026-11-16: "it should only show on app notebooks its useless in a data notebook"), not beside a
- *  script, and not on a landing page (2026-11-17: "notebooks also has data panel on the left and
- *  transformations which is not needed"; the Scripts page "I see data on the left which is uneeded"). */
-const dataAway = (): boolean => {
-  if (landing.kind()) return true;
-  if (current?.canvas) return false;
-  if (current?.notebook) return notebookRole(current.path) === "data";
-  return !!current?.script; // a script; nothing open keeps it (its "+ Table" starts the work)
-};
-
-function followDataPanel(): void {
-  if (!paneReady) return;
-  data.setAway(dataAway());
 }
 
 function close(doc: Doc, moved = false): void {
@@ -1487,7 +1475,6 @@ function showLanding(k: Kind): void {
   empty.hidden = true;
   setTitle("Workbench", KIND_WORDS[k].name);
   drawTop();
-  followDataPanel();
 }
 
 function hideLanding(): void {
@@ -1496,7 +1483,6 @@ function hideLanding(): void {
   drawEmpty();
   drawTop();
   setTitle("Workbench", current?.title ?? "");
-  followDataPanel();
   // The groups are back: Monaco and the canvas measure again.
   window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 }
@@ -1753,14 +1739,14 @@ function drawTop(): void {
 
 /** The top bar's "…": what makes a document, opens one, splits the groups, and every command. */
 function topEntries(): MenuEntry[] {
-  const folded = data.collapsed();
+  const shown = explorerPane.isOpen();
   return [
     ...newEntries(topMenu),
     null,
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
     { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
     null,
-    ...(panelOn("workbench.data") && !data.away() ? [{ label: folded ? "Expand the Data panel" : "Collapse the Data panel", icon: folded ? "expand" : "collapse", keys: "Ctrl+B", run: () => void data.toggle() }] : []),
+    ...(panelOn("workbench.explorer") ? [{ label: shown ? "Close the Data Explorer" : "Data Explorer", icon: "zoom", keys: "Ctrl+Shift+E", run: () => void runCommand("view.explorer") }] : []),
     { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
     { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
     null,
@@ -1883,6 +1869,7 @@ const variablesToggle = button("Variables", () => {
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
 installZoomInput();
+const explorerToggle = button("Data Explorer", () => void runCommand("view.explorer").catch((e: Error) => toast(e.message, "error")), { class: "ghost wb-toggle wb-explorer-toggle", pressed: false, title: "Data Explorer (Ctrl+Shift+E)" });
 // The lint's count for the document in front (errors and warnings; unused names are faded, not counted):
 // a click lists every problem, and goes to the one picked. Nothing shows while there is none.
 const problemsButton = menuButton(
@@ -1931,7 +1918,7 @@ function relint(doc: Doc): void {
   doc.script?.relint();
   doc.notebook?.relint();
 }
-layout.status.append(versionMark(), kernelHost, envHost, cursorHost, problemsButton, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
+layout.status.append(versionMark(), explorerToggle, kernelHost, envHost, cursorHost, problemsButton, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -1981,6 +1968,7 @@ function drawStatus(): void {
   }
   drawCursor();
   drawProblems();
+  explorerToggle.setAttribute("aria-pressed", String(explorerPane.isOpen() || explorerPane.popped()));
   const state = layout.state();
   consoleToggle.setAttribute("aria-pressed", String(state.console));
   variablesToggle.setAttribute("aria-pressed", String(state.right));
@@ -1992,7 +1980,7 @@ function drawStatus(): void {
   drawModeToggles(doc);
 }
 
-// ===== the Data panel: the tables, the blades' variables; the catalog and the blades beside it =====
+// ===== the Data Explorer: one search over what holds data; the catalog and the blades beside it =====
 
 function bladeDoc(name: string | null): void {
   const doc = makeDoc("blade", name ?? "New blade", null, null);
@@ -2007,16 +1995,85 @@ function bladeDoc(name: string | null): void {
   show(doc);
 }
 
-const data = mountDataPanel({
-  goToTable: (name) => goToTable(name),
-  goToCell: (document, title, cell) => void goToCell(document, title, cell).catch((e: Error) => toast(e.message, "error")),
+/** Where the Explorer's Insert goes: the focused document's selected cell (a script's cursor). */
+function explorerTarget(): { document: string | null; cell: number | null; kind: string | null } {
+  if (current?.notebook) return { document: current.title, cell: current.notebook.selectedNumber(), kind: "notebook" };
+  if (current?.script) return { document: current.title, cell: current.script.cursorCell(), kind: "script" };
+  return { document: null, cell: null, kind: null };
+}
+
+/** A Data Explorer result's code into the focused document: a notebook's selected cell (in its language:
+ *  a SQL cell's SQL, a Python cell's Python; else a new cell below), a script's cursor (Python). */
+function explorerInsert(insert: { sql?: string; python?: string }): { document: string; cell: number | null } {
+  if (current?.notebook) {
+    const done = current.notebook.insertCode(insert);
+    return { document: current.title, cell: done.cell };
+  }
+  if (current?.script) {
+    const code = insert.python ?? (insert.sql ? `sab.sql(${JSON.stringify(insert.sql)})` : "");
+    current.script.insertText(code);
+    return { document: current.title, cell: current.script.cursorCell() };
+  }
+  throw new Error("Open a notebook or a script to insert into.");
+}
+
+const explorerPane = mountExplorerPane({
+  insert: (r: ExplorerResult) => {
+    const done = explorerInsert(r.insert);
+    return Promise.resolve(done.cell ? `cell ${done.cell} of ${done.document}` : done.document);
+  },
+  target: () => {
+    const t = explorerTarget();
+    return t.document ? (t.cell ? `cell ${t.cell} of ${t.document}` : t.document) : "a notebook or a script (none is in front)";
+  },
+  showGrid: (grid) => showGridAtHome(grid),
+  openVariable: () => openVariables(),
   addTable: (anchor) => void openMenu(anchor, "Add a table", tableEntries()),
-  openBlade: (name) => bladeDoc(name),
-  toggled: () => remember(),
+  toggled: () => {
+    remember();
+    drawStatus();
+    window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize"))); // the editors measure again
+  },
+  popOut: () => void popExplorer().catch((e: Error) => toast(e.message, "error")),
 });
-(document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);
+(document.querySelector(".wb-layout") as HTMLElement).prepend(explorerPane.element);
+/** App mode's Streamlit cells panel: one list, shown in the canvas in front's panel. */
+const streamlitCells = cellsPane((document, title, cell) => void goToCell(document, title, cell).catch((e: Error) => toast(e.message, "error")));
 paneReady = true;
-followDataPanel(); // a landing page shown before the panel was made: away from the start
+
+/** An open table's grid, shown in the home window (the grids are its). */
+function showGridAtHome(grid: string): void {
+  const opened = window.open(`/g/${encodeURIComponent(grid)}#token=${encodeURIComponent(token)}`, HOME_WINDOW);
+  if (!opened) toast("The browser blocked the grid's window. Allow pop-ups for this address.", "error");
+}
+
+// ----- the Data Explorer popped out into a window of its own (explorerPage.ts), and back
+const explorerChannel = "BroadcastChannel" in window ? new BroadcastChannel(EXPLORER_BROADCAST) : null;
+explorerChannel?.addEventListener("message", (e: MessageEvent) => {
+  const said = e.data as { type?: string } | null;
+  if (said?.type === "here" && !explorerPane.popped()) explorerPane.setPopped(true);
+  if (said?.type === "gone" && explorerPane.popped()) explorerPane.setPopped(false);
+});
+// A popped-out Explorer from before a reload says it is there (else the pane is this window's again).
+if (explorerPane.popped()) {
+  explorerPane.setPopped(false);
+  explorerChannel?.postMessage({ type: "here?" });
+}
+
+/** Pop the Explorer out: its search, filters and scroll go with it (a handoff), the pane closes here. */
+async function popExplorer(): Promise<{ popped: boolean }> {
+  if (!explorerPane.popped()) await openExplorerWindow(explorerPane.explorer.state());
+  else window.open("", EXPLORER_WINDOW)?.focus();
+  explorerPane.setPopped(true);
+  return { popped: true };
+}
+
+/** The popped-out Explorer back into the pane (it hands its search back through a handoff). */
+function explorerBack(state: ExplorerState): void {
+  explorerPane.setPopped(false);
+  explorerPane.toggle(true);
+  explorerPane.explorer.setState(state);
+}
 
 /** Add API: API_<name>.py beside data.py when a project is open (else in the Workbench's folder). */
 function addApi(): Promise<void> {
@@ -2039,13 +2096,13 @@ function tableEntries(): MenuEntry[] {
   ];
 }
 
-/** The catalog beside the Data panel: a connection's tables (or the search, without one). */
+/** The catalog beside the Data Explorer: a connection's tables (or the search, without one). */
 function browse(connection?: string): void {
-  data.flyout("catalog");
+  if (!explorerPane.isOpen()) explorerPane.toggle(true);
+  explorerPane.flyout("catalog");
   if (connection) void rail.loadCatalogs(connection);
 }
 
-/** A table's click in the Data panel: its read-only cell in the focused document. */
 /** A Streamlit cells pane entry's click: its document in front (opened when it is not), the cell shown. */
 async function goToCell(document: string | null, title: string, cell: number): Promise<void> {
   let doc = docs.find((d) => (document ? d.path === document : !d.path && d.title === title));
@@ -2058,7 +2115,7 @@ async function goToCell(document: string | null, title: string, cell: number): P
   if (!viewOf(doc)?.goTo(cell)) throw new Error(`${title} has no cell ${cell} now.`);
 }
 
-// ----- the Streamlit cells pane (the Data panel): every cell that calls Streamlit, by document
+// ----- the Streamlit cells pane (App mode's panel): every cell that calls Streamlit, by document
 
 /** The canvas the pane's marks are for: the one in front, else the last one that was. */
 function markedCanvas(): Doc | null {
@@ -2067,12 +2124,14 @@ function markedCanvas(): Doc | null {
 
 /** The pane drawn from what the server last said, each cell on the marked canvas's page marked. */
 function drawPane(): void {
-  if (!paneReady) return; // the Data panel is not made yet
+  if (!paneReady) return; // the pane is not made yet
   const canvasDoc = markedCanvas();
   const state = canvasDoc?.canvas?.state();
   const front = canvasDoc?.canvas?.report() as { page?: string | null } | undefined;
   const page = state?.pages.find((p) => p.id === front?.page) ?? state?.pages[0];
-  data.setStreamlitCells(paneDocuments, new Set((page?.blocks ?? []).map((b) => `${b.document}#${b.cell}`)));
+  streamlitCells.set(paneDocuments, new Set((page?.blocks ?? []).map((b) => `${b.document}#${b.cell}`)));
+  // The canvas in front shows the list in its Streamlit cells panel.
+  if (current?.canvas) current.modes?.redraw("cells");
 }
 
 /** The pane's entries from the server, soon (the open documents', and the project's files). */
@@ -2147,8 +2206,8 @@ function goToTable(name: string): void {
 }
 
 const rail = mountRail({
-  bladesHost: data.bladesHost,
-  catalogHost: data.catalogHost,
+  bladesHost: explorerPane.bladesHost,
+  catalogHost: explorerPane.catalogHost,
   editBlade: bladeDoc,
   isEditing: () => editingBlade,
   showTable: (view) => {
@@ -2295,7 +2354,7 @@ function followKind(doc: Doc | null): void {
 }
 
 /** A kind's document in front (the one in front already, else the last opened), in its mode. None
- *  open: that kind's landing page (its address: view=list). Apps: the Data panel and its Streamlit cells
+ *  open: that kind's landing page (its address: view=list). Apps: the canvas's Streamlit cells panel
  *  pane open beside the canvas, the cells to build its page from. */
 function showKind(k: Kind): void {
   if (k === "app") appPanes();
@@ -2309,14 +2368,12 @@ function showKind(k: Kind): void {
   showLanding(k);
 }
 
-/** An app comes forward from the rail's Apps: the Data panel and its Streamlit cells pane beside the
- *  canvas, the cells to build its page from (the owner: "do we still get a cell navigator"). */
+/** An app comes forward from the rail's Apps: its Streamlit cells panel beside the canvas, the cells to
+ *  build its page from (the owner: "do we still get a cell navigator"). */
 function appPanes(): void {
-  if (panelOn("workbench.data")) {
-    data.toggle(false);
-    data.showStarters(false); // the cells; the Starters switch stays
-  }
-  if (panelOn("workbench.streamlit")) data.openStreamlit();
+  window.setTimeout(() => {
+    if (current?.canvas && panelOn("workbench.streamlit")) current.modes?.toggle("cells", true);
+  });
 }
 
 /** A reference's click on the Connections page (connectionsWindow.ts): its document here, at its cell. */
@@ -2501,7 +2558,7 @@ function documents(): unknown {
     })),
     // The tab groups in reading order: each one's documents (by index), the one in front, the focused one.
     groups: groups.list().map((g, index) => ({ index, documents: g.tabs.map((d) => docs.indexOf(d)), in_front: g.active ? docs.indexOf(g.active) : null, focused: g.focused })),
-    panes: { ...layout.state(), data_panel: data.away() ? "away" : data.collapsed() ? "collapsed" : "open" },
+    panes: { ...layout.state(), data_explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed" },
     cursor: current?.script || current?.notebook ? cursor : null,
   };
 }
@@ -2772,9 +2829,9 @@ const COMMANDS: Command[] = [
     const values = a.values && typeof a.values === "object" ? (a.values as Record<string, unknown>) : undefined;
     return addStarter(current!, name, row !== undefined ? { row, column: column ?? 1 } : undefined, values);
   } },
-  { id: "data.starters", group: "Data", title: "Data | Starters: the starter gallery in the Data panel", args: "show: true or false (default: the other way)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => {
+  { id: "data.starters", group: "Data", title: "The Starters panel beside the canvas (the starter gallery)", args: "show: true or false (default: the other way)", when: isCanvas, whyNot: NO_CANVAS, run: (a) => {
     if (!panelOn("workbench.starters")) throw new Error(turnedOff("Starters"));
-    return { starters: data.showStarters(a.show === undefined ? undefined : a.show === true) };
+    return { starters: current!.modes!.toggle("starters", a.show === undefined ? undefined : a.show === true) };
   } },
   { id: "data.starterList", agentOnly: true, group: "Data", title: "The starter gallery: the Streamlit starters by family", run: () => gallery.list() },
   { id: "notebook.runOrder", agentOnly: true, group: "Notebook", title: "The run order: each cell's makes, reads and state (notRun, edited, outOfDate with the names, current)", when: isNotebook, whyNot: "the document in front is not a notebook", run: async () => (await refreshFlow(current!))?.cells ?? [] },
@@ -2814,7 +2871,14 @@ const COMMANDS: Command[] = [
   { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
-  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", when: () => panelOn("workbench.data") && !data.away(), whyNot: panelOn("workbench.data") ? "the Data panel is only beside app notebooks and canvases, not the data notebook, scripts or a landing page" : turnedOff("The Data panel"), run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
+  { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: (a) => {
+    const show = typeof a.show === "boolean" ? a.show : undefined;
+    if (explorerPane.popped() && show !== false) {
+      window.open("", EXPLORER_WINDOW)?.focus(); // it is in its own window: that window comes forward
+      return { open: true, popped: true };
+    }
+    return { open: explorerPane.toggle(show), popped: false };
+  } },
   { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();
@@ -2856,8 +2920,31 @@ const COMMANDS: Command[] = [
   { id: "group.focusPrevious", group: "Groups", title: "Focus the previous group", when: manyGroups, whyNot: "there is one group", run: () => groups.focusGroup((groups.focusedIndex() - 1 + groups.list().length) % groups.list().length) },
   { id: "tab.moveLeft", group: "Groups", title: "Move the tab left in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), -1) },
   { id: "tab.moveRight", group: "Groups", title: "Move the tab right in its row", args: "index: a document (default: the one in front)", when: hasTabs, whyNot: "nothing is open", run: (a) => groups.reorder(docArg(a), 1) },
-  // The Data panel: tables, the blades' variables
-  { id: "data.list", agentOnly: true, group: "Data", title: "The Data panel's tables and variables", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), collapsed: data.collapsed() }) },
+  // The open tables and the blades' variables (once the Data panel's; the Data Explorer finds them)
+  { id: "data.list", agentOnly: true, group: "Data", title: "The open tables and the blades' variables (the Data Explorer finds more: explorer.search)", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed" }) },
+  // The Data Explorer (workbenchExplorer.ts, dataExplorer.ts): its search, its Insert, popping out and back
+  { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: async (a) => {
+    const kinds = Array.isArray(a.kinds) ? a.kinds.map(String) : typeof a.kinds === "string" ? a.kinds.split(",") : [];
+    const state: ExplorerState = { text: text(a, "text") ?? "", kinds, connection: text(a, "connection") ?? "", column: text(a, "column") ?? "", scroll: 0 };
+    if (explorerPane.popped()) explorerChannel?.postMessage({ type: "search", state });
+    else {
+      explorerPane.toggle(true);
+      explorerPane.explorer.setState(state);
+    }
+    const params = new URLSearchParams({ q: state.text, kinds: state.kinds.join(","), connection: state.connection, column: state.column });
+    return api(`/explorer/search?${params.toString()}`);
+  } },
+  { id: "explorer.insert", group: "Data", title: "Insert a Data Explorer result's code into the focused document (a notebook's selected cell, a script's cursor)", args: "insert: {sql, python} (a result's insert); name: the result's name", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
+    const insert = (a.insert && typeof a.insert === "object" ? a.insert : {}) as { sql?: string; python?: string };
+    if (typeof insert.sql !== "string" && typeof insert.python !== "string") throw new Error("Send insert: {sql, python}, as explorer_search's result has it.");
+    return explorerInsert({ ...(typeof insert.sql === "string" ? { sql: insert.sql } : {}), ...(typeof insert.python === "string" ? { python: insert.python } : {}) });
+  } },
+  { id: "explorer.target", agentOnly: true, group: "Data", title: "Where the Data Explorer's Insert goes: the focused document and its cell", run: () => explorerTarget() },
+  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out into a window of its own", when: () => panelOn("workbench.explorer") && isMainWindow(), whyNot: panelOn("workbench.explorer") ? "this is a popped-out window" : turnedOff("The Data Explorer"), run: () => popExplorer() },
+  { id: "explorer.moveBack", group: "Data", title: "Move the popped-out Data Explorer back into this window's pane", when: () => explorerPane.popped(), whyNot: "the Data Explorer is not popped out", run: () => {
+    explorerChannel?.postMessage({ type: "back" });
+    return { moving: true };
+  } },
   { id: "tables.transformations", group: "Tables", title: "Show a table's transformations (its read-only cell, wherever it lives)", args: "table: the table's name", run: (a) => {
     const table = text(a, "table");
     if (!table) throw new Error("Send the table's name.");
@@ -2879,8 +2966,11 @@ const COMMANDS: Command[] = [
     return { table: name };
   } },
   { id: "data.browse", group: "Data", title: "Browse a connection's tables", args: "connection: its name (default: the catalog as it is)", run: (a) => browse(text(a, "connection")) },
-  { id: "data.blades", group: "Data", title: "Show the blades and connections", run: () => data.flyout("blades") },
-  { id: "data.closeFlyout", group: "Data", title: "Close the catalog or the blades beside the Data panel", when: () => data.flyoutShown() !== null, whyNot: "neither is open", run: () => data.flyout(null) },
+  { id: "data.blades", group: "Data", title: "Show the blades and connections", run: () => {
+    if (!explorerPane.isOpen()) explorerPane.toggle(true);
+    explorerPane.flyout("blades");
+  } },
+  { id: "data.closeFlyout", group: "Data", title: "Close the catalog or the blades beside the Data Explorer", when: () => explorerPane.flyoutShown() !== null, whyNot: "neither is open", run: () => explorerPane.flyout(null) },
   { id: "data.addConnection", group: "Data", title: "Add connection…", run: () => openConnections().then(() => void rail.loadBlades()) },
   { id: "data.addApi", group: "Data", title: "Add API…", run: () => addApi() },
   { id: "view.variablesRefresh", group: "View", title: "Read the variables again", when: isCode, whyNot: "no notebook or script is in front", run: () => variables.refresh().then(() => variables.snapshot()) },
@@ -2928,7 +3018,7 @@ const WINDOW_KEYS: Record<string, string> = {
   "Ctrl+S": "file.save",
   "Ctrl+Shift+S": "file.saveAs",
   "Ctrl+O": "file.open",
-  "Ctrl+B": "view.toggleSidebar",
+  "Ctrl+Shift+E": "view.explorer",
   "Ctrl+1": "view.source",
   "Ctrl+2": "console.focus",
   "Ctrl+3": "view.variables",

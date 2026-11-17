@@ -24,7 +24,6 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from tests.e2e.test_table_cells_page import window
 from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
 # In the order of the work (the owner, 2026-11-17).
@@ -315,8 +314,8 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
     browser: Browser, server: dict[str, Any], orchard: str, tmp_path: Path
 ) -> None:
     """The owner (2026-11-16): "do we still get a cell navigator to help build the streamlit app page?"
-    Apps on the rail: the Data panel shows, its Streamlit cells pane unfolded, side by side with the
-    rail and the canvas; a cell from it drags onto the page."""
+    Apps on the rail: the canvas's Streamlit cells panel (once the Data panel's, App mode's own since
+    2026-11-17) on its left, side by side with the rail and the canvas; a cell from it drags onto the page."""
     book = tmp_path / "rail mockups.ipynb"
     cells = [{"kind": "code", "source": FILTER}, {"kind": "code", "source": TOTAL}]
     call(server, "POST", "/workbench/save", {"path": str(book), "cells": cells})
@@ -327,39 +326,37 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
         f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}&open={quote(str(book))}"
     )
     expect(workbench.locator(".wb-tab")).to_have_count(1, timeout=20000)
-    # The Data panel folded and the pane folded, as a person may have left them.
-    window(server, "view.toggleSidebar", collapsed=True)
-    expect(workbench.locator(".wb-data.collapsed")).to_be_visible()
     area(workbench, "apps").click()
     expect(workbench.get_by_role("menu")).to_have_count(0)
     workbench.locator(".wb-top").get_by_role("button", name="New Streamlit app").click()
     board = workbench.locator(".cv-board")
     expect(board).to_be_visible(timeout=20000)
     expect(current(workbench)).to_have_attribute("data-area", "apps")
-    data = workbench.locator(".wb-data")
-    expect(data).not_to_have_class(re.compile(r"\bcollapsed\b"))
-    pane = workbench.locator(".wb-st")
+    side = workbench.locator(".wb-mode-left")
+    pane = side.locator(".wb-st")
     expect(pane.locator(".wb-st-cell")).to_have_count(2, timeout=20000)
-    # Side by side: the rail, then the Data panel, then the canvas.
-    assert left_of(workbench, ".wb-data") >= right_edge(workbench) - 0.5
-    data_box = data.bounding_box()
-    assert data_box is not None and left_of(workbench, ".cv-board") >= data_box["x"] + data_box["width"] - 1
-    # The Starters switch stays.
-    expect(workbench.locator(".wb-data").get_by_role("button", name=re.compile("Starters"))).to_have_count(1)
+    # Side by side: the rail, then the cells, then the canvas.
+    assert left_of(workbench, ".wb-mode-left") >= right_edge(workbench) - 0.5
+    box = side.bounding_box()
+    assert box is not None and left_of(workbench, ".cv-board") >= box["x"] + box["width"] - 1
+    # Starters is the other left panel.
+    expect(workbench.locator(".wb-status").get_by_role("button", name="Starters", exact=True)).to_have_count(
+        1
+    )
     pane.locator(".wb-st-cell").nth(1).drag_to(board)
     expect(workbench.locator(".cv-block")).to_have_count(1, timeout=10000)
     expect(workbench.locator(".cv-block .cv-block-where")).to_have_text("rail mockups.ipynb @cell2")
     expect(pane.locator(".wb-st-cell.placed")).to_have_count(1)
     shot(workbench, "rail-apps-cells-pane")
-    # Folded again, the app chosen on the Apps page unfolds it again (no menu anywhere).
-    pane.locator("#wb-data-streamlit").click()
-    expect(pane.locator(".wb-st-list")).to_be_hidden()
+    # Closed, the app chosen on the Apps page opens it again (no menu anywhere).
+    workbench.locator(".wb-status").get_by_role("button", name="Cells", exact=True).click()
+    expect(side.locator(".wb-st")).to_have_count(0)
     area(workbench, "notebooks").click()
     area(workbench, "apps").click()
     expect(workbench.get_by_role("menu")).to_have_count(0)
     workbench.locator(".wb-landing-card").first.click()
     expect(board).to_be_visible()
-    expect(pane.locator(".wb-st-list")).to_be_visible()
+    expect(side.locator(".wb-st-list")).to_be_visible()
     workbench.context.close()
 
 

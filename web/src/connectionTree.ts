@@ -42,7 +42,7 @@ export interface Tree {
   groups: TreeGroup[];
 }
 
-const WORKBENCH_WINDOW = "swissarmybench-workbench";
+export const WORKBENCH_WINDOW = "swissarmybench-workbench";
 const SHOWN = 400; // tables drawn at once in a group (the search finds the rest)
 
 /** A query's text for a new %%sql cell on a table. */
@@ -51,7 +51,7 @@ export function cellQuery(sql: string): string {
 }
 
 /** A new %%sql cell in the Workbench (its notebook in front), else the cell's text on the clipboard. */
-async function queryInNotebook(sql: string): Promise<void> {
+export async function queryInNotebook(sql: string): Promise<void> {
   const source = cellQuery(sql);
   try {
     await api("/workbench/window", "POST", { command: "cell.insertBelow", args: { kind: "sql", source } });
