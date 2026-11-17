@@ -197,7 +197,15 @@ export interface SavedPage {
 export const savedPages = (pages: (CanvasPage | SavedPage)[]): SavedPage[] =>
   pages.map((p) => ({ id: p.id, name: p.name, blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h })) }));
 
-export interface ExportResult {
+/** The connections an export names that run only on this computer (domain/portability.py): said before it
+ * writes (the owner, 2026-11-17: "this is meant to scale to a function app or up to a hosted streamlit
+ * application"). */
+export interface LocalNotes {
+  local?: { connection: string; local: { key: string; reason: string; instead: string; words: string }[] }[];
+  local_words?: string;
+}
+
+export interface ExportResult extends LocalNotes {
   folder: string;
   files: string[];
   pages: string[];
@@ -206,7 +214,7 @@ export interface ExportResult {
   run: string;
 }
 
-export interface SaveAsResult {
+export interface SaveAsResult extends LocalNotes {
   path: string;
   project: string;
   files: string[];

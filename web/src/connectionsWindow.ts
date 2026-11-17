@@ -88,6 +88,22 @@ const LAKE_ENV: Record<string, string> = { onelake: "ONELAKE", datalake: "DATALA
 /** Those whose own code reads their tables: sab.read, and Test shows a table's first rows. */
 const readsByCode = (dialect: string): boolean => dialect === "dataverse" || LAKE_KINDS.has(dialect);
 
+/** What a connection leans on that only this computer has (domain/portability.py): an amber note (the owner,
+ * 2026-11-17: "any connector that does not scale to a function app needs to carry a warning that it will
+ * only work on your machine"). */
+interface LocalNote {
+  key: string;
+  reason: string;
+  instead: string;
+  words: string;
+}
+
+/** The notes as the form, the card's detail and the export say them: amber, one line each. */
+function localNotes(notes: LocalNote[] | undefined, extra = ""): HTMLElement | null {
+  if (!notes?.length) return null;
+  return h("div", { class: `local-only ${extra}`.trim(), role: "note" }, ...notes.map((n) => h("p", {}, icon("warning"), n.words)));
+}
+
 interface Form {
   id: string;
   label: string;
@@ -116,7 +132,11 @@ interface Form {
   /** A database: how many rows a table opens with as a grid (none: 10,000). */
   row_limit?: number | null;
   /** Ways to sign in, each its own code; `mark` is text only that code holds. */
-  sign_ins?: { label: string; mark: string; code: string }[];
+  sign_ins?: { label: string; mark: string; code: string; local?: LocalNote[] }[];
+  /** What the kind itself leans on that only this computer has (an ODBC driver, a file on this disk). */
+  local?: LocalNote[];
+  /** The note a password saved on this computer (the keyring) carries. */
+  keyring_note?: LocalNote;
   /** Where a new one's passwords are first offered from: "vault" (a Power BI dataset's app registration). */
   secrets_from?: string;
   /** SQL Server and Azure SQL (domain/sql_server.py): settings that may come from an environment variable,
@@ -192,6 +212,10 @@ interface Card {
   writes?: Writes | null;
   /** How it lists and reads its tables; "api": an API's (the APIs page has those, not this page). */
   tables_kind?: string | null;
+  /** What it leans on that only this computer has: the card's "Only works on your machine". */
+  local?: LocalNote[];
+  /** Its code is the app's earlier SQL Server code on pyodbc: Update to the new driver. */
+  update_driver?: boolean;
 }
 
 interface Writes {
@@ -641,6 +665,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-marks" }, statusPill(c), writesLabel(c.writes)),
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
           c.about?.length ? h("span", { class: "connection-card-about" }, c.about[0]) : null,
+          c.local?.length ? h("span", { class: "connection-card-local", title: c.local.map((n) => n.words).join("\n") }, icon("warning"), c.local[0]!.words) : null,
         ),
       );
     const groups: [string, (c: Card) => boolean][] = [
@@ -705,6 +730,15 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       // SQL Server's foreign keys into the ERD, as a Power BI dataset's relationships.
       c?.dialect === "sqlserver" && c.connection === "database" ? button("Import relationships", () => void importRelationships(name), { icon: "diagram" }) : null,
       dataverseSwitch(c, () => void showDetail(name)),
+      // The app's earlier SQL Server code (pyodbc and an ODBC driver): made again on mssql-python, its settings kept.
+      usage.update_driver && !readOnly
+        ? button("Update to the new driver", () => {
+            void api(`/connections/${path}/update-driver`, "POST").then(() => {
+              toast(`${name} now uses mssql-python: no ODBC driver.`);
+              void showDetail(name);
+            }, (e: Error) => toast(errorText(e), "error"));
+          }, { icon: "import", class: "primary" })
+        : null,
       c?.has_catalog ? button("Refresh catalog", () => void refresh(name).then(() => void showDetail(name)), { icon: "import" }) : null,
       config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
       readOnly
@@ -764,6 +798,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       body,
       h("div", { class: "connection-detail-top" }, backButton("Connections", urlOf(LIST)), crumbs([{ label: "Connections", url: urlOf(LIST) }, { label: name }])),
       tools,
+      localNotes(usage.local, "connection-local"),
       tested,
       usage.error && (usage.status === "failing" || usage.status === "resuming") ? h("p", { class: "status-error connection-error" }, usage.error) : null,
       h(
@@ -1095,7 +1130,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           const inVault = vaults.find((v) => v.entries.some((e) => e.env === s)) ?? vaults.find((v) => v.name === pointedAt.get(s));
           // A starter may say its passwords come from a key vault first (a Power BI dataset's app registration).
           const vaultOnly = form.secrets_from === "vault only"; // never typed into the app
-          const first = (form.secrets_from === "vault" && !editing && labels.get(s) === s) || vaultOnly ? "vault" : "keyring";
+          // A new one's password starts from a variable, never this computer's keyring (it runs only here:
+          // domain/portability.py); one saved before keeps its source.
+          const first = (form.secrets_from === "vault" && !editing && labels.get(s) === s) || vaultOnly ? "vault" : editing && saved[s] ? "keyring" : "env";
           const guess = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : first);
           const origin = vaultOnly && guess === "keyring" ? "vault" : guess;
           const from = h("select", { "aria-label": `Where ${label(s)} comes from` }, vaultOnly ? null : h("option", { value: "keyring", selected: origin === "keyring" }, "Saved on this computer"), h("option", { value: "env", selected: origin === "env" }, "An environment variable"), h("option", { value: "vault", selected: origin === "vault" }, "A key vault"));
@@ -1107,7 +1144,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
               boxLabel.textContent = label(s);
               const input = h("input", { type: "password", autocomplete: "new-password", "aria-label": label(s), placeholder: saved[s] ? "Saved" : "" });
               passwords.set(s, input);
-              slot.replaceChildren(input);
+              slot.replaceChildren(input, localNotes(form.keyring_note ? [form.keyring_note] : undefined, "password-local") ?? "");
             } else if (from.value === "env") {
               boxLabel.textContent = "Variable's name";
               passwords.delete(s);
@@ -1356,7 +1393,14 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const current = Math.max(0, ways.findIndex((w) => code.toLowerCase().includes(w.mark.toLowerCase())));
     const signInSelect = h("select", { "aria-label": "Sign in" }, ...ways.map((w, i) => h("option", { value: String(i), selected: i === current }, w.label))) as HTMLSelectElement;
     signInSelect.addEventListener("change", () => void switchSignIn(ways[Number(signInSelect.value)]!));
-    const signIn = ways.length > 1 ? h("label", { class: "field" }, h("span", {}, "Sign in"), signInSelect) : null;
+    // What the chosen way leans on that only this computer has: said beside it, amber.
+    const signInNote = h("div", { class: "sign-in-local" });
+    const noteSignIn = (): void => {
+      signInNote.replaceChildren(localNotes(ways[Number(signInSelect.value)]?.local) ?? "");
+    };
+    noteSignIn();
+    signInSelect.addEventListener("change", noteSignIn);
+    const signIn = ways.length > 1 ? h("div", {}, h("label", { class: "field" }, h("span", {}, "Sign in"), signInSelect), signInNote) : null;
     const switchSignIn = async (way: { code: string }): Promise<void> => {
       // A value typed so far, with its variable when it comes from one (SQL Server's server, a certificate).
       const typedSoFar = new Map<string, unknown>(fields.filter((f) => !f.placeholder || f.env).map((f) => [f.name, f.env ? { value: f.value, env: f.env } : f.value]));
@@ -1423,6 +1467,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       trail,
       h("h3", {}, editing ? `Edit ${editing}` : isVault ? `New ${plain(form.label)}` : `New ${plain(form.label)} connection`),
       form.note ? h("p", { class: "hint" }, form.note) : null,
+      localNotes(form.local, "form-local"),
       h("label", { class: "field" }, h("span", {}, "Name"), name),
       h("label", { class: "field" }, h("span", {}, "Description"), description),
       fieldsHost,

@@ -71,8 +71,9 @@ def test_a_notebook_reads_a_table_then_its_export_runs_by_managed_identity(
         "accounts = read_table('Sales CRM', 'account')" in text
         or 'read_table("Sales CRM", "account")' in text
     ), [line for line in text.splitlines() if "read_table(" in line]
-    # No SQL runs on it: its SQL endpoint's pyodbc is not a requirement; the managed identity needs none.
-    assert "pyodbc" not in json.dumps(done["requirements"])
+    # No SQL runs on it: its SQL endpoint's python-tds is not a requirement; the managed identity needs none.
+    needs = json.dumps(done["requirements"])
+    assert not any(p in needs for p in ("python-tds", "pyOpenSSL", "certifi", "pyodbc"))
     assert not any("azure" in r for r in done["requirements"])
     assert made_up.TOKEN not in text and made_up.IDENTITY_HEADER not in text
     python = fresh_python(tmp_path / "venv")

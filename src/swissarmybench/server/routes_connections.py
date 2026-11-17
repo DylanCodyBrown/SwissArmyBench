@@ -27,6 +27,9 @@ answer holds a password's value:
   GET    /connections/{name}/usage    one connection: where it is used (cells, canvas blocks, open grids),
                                       its configuration (never a password's value), its calls this session
   POST   /connections/{name}/used     {kind}: a Workbench kernel's call (client/connection_use.py)
+  POST   /connections/{name}/update-driver   a SQL Server or Azure SQL connection on the app's earlier
+                                      pyodbc code made again on mssql-python, its settings kept (the
+                                      card's Update to the new driver; the user's own code: refused)
 
 Removing, secrets, Refresh, favourites and export are the blade routes' (routes_blades.py).
 The use cases are services/connections.py.
@@ -52,6 +55,12 @@ from swissarmybench.services.connections import ConnectionService
 def routes(
     connections: ConnectionService, blades: BladeService, loading: CatalogLoading, usage: ConnectionUsage
 ) -> list[BaseRoute]:
+    async def update_driver(request: Request) -> Response:
+        try:
+            return json_response(await connections.update_driver(request.path_params["name"], actor(request)))
+        except Exception as error:
+            return error_response(error)
+
     async def overview(request: Request) -> Response:
         try:
             return json_response(usage.overview())
@@ -219,6 +228,7 @@ def routes(
         Route("/connections/usage", overview),
         Route("/connections/{name}/usage", used_by),
         Route("/connections/{name}/used", report, methods=["POST"]),
+        Route("/connections/{name}/update-driver", update_driver, methods=["POST"]),
         Route("/connections/test", test, methods=["POST"]),
         Route("/connections/vaults", vaults),
         Route("/connections/vaults/secrets", vault_names, methods=["POST"]),

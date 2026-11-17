@@ -18,7 +18,7 @@ import re
 import unicodedata
 from typing import Any
 
-from swissarmybench.domain import python_connections, sql_server
+from swissarmybench.domain import portability, python_connections, sql_server
 from swissarmybench.domain.blades import env_name_for_secret
 
 __all__ = ["env_name_for_secret"]  # with the rules below: a vault's secret as a variable
@@ -166,8 +166,15 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "missing": inspected.get("missing"),  # the one shape the missing-package prompt reads
         "vault_mapping": list(template.get("vault_mapping") or []),
         "vault_all": bool(template.get("vault_all")),
-        # Ways to sign in, each its own code (SQL Server, Azure SQL): the form's Sign in.
-        "sign_ins": list(template.get("sign_ins") or []),
+        # Ways to sign in, each its own code (SQL Server, Azure SQL): the form's Sign in, each with what it
+        # leans on that only this computer has (domain/portability.py; [] for a way that runs anywhere).
+        "sign_ins": portability.sign_ins(template.get("id"), template.get("sign_ins") or []),
+        # What the kind itself leans on (an ODBC driver, a file on this disk): the form's amber note.
+        "local": portability.as_json(
+            portability.check(str(template.get("code") or ""), template.get("id"), sign_in=False)
+        ),
+        # A password saved on this computer (the keyring): its note, said when that source is picked.
+        "keyring_note": portability.KEYRING.to_json(),
         # SQL Server and Azure SQL (domain/sql_server.py): the settings that may come from an environment
         # variable, those folded under Options, and those that offer a choice.
         "env_settings": sql_server.env_mappable(template.get("id")),

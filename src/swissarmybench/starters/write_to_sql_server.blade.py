@@ -27,7 +27,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
-import pyodbc  # noqa: F401 (the package this needs: the connection's driver)
+import mssql_python  # noqa: F401 (the package this needs: the connection's driver, no ODBC driver)
 
 from swissarmybench.client.write_sql import SqlServerWrite
 from swissarmybench.client.writes import WriteError
@@ -35,9 +35,7 @@ from swissarmybench.client.writes import WriteError
 
 def _append(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
     w.check_columns()  # the table's columns: computed ones refused, identity said, triggers said
-    insert = (
-        f"INSERT INTO {w.table} ({w.columns}) VALUES ({w.marks()})"  # fast_executemany, a batch a round trip
-    )
+    insert = f"INSERT INTO {w.table} ({w.columns}) VALUES ({w.marks()})"  # executemany as arrays, a batch a round trip
     w.would(insert, inserted=w.need_rows().count)
     if not dry_run:
         w.done(**w.in_transaction(lambda: {"inserted": w.insert()}))
@@ -84,7 +82,7 @@ def _upsert(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
         w.stage(keys, into="#sab_keys", distinct=True)  # the keys in a #temp table (rolled back)
         found = w.matching(keys)  # one COUNT join: the rows that will update
     w.would(
-        "CREATE TABLE #sab_stage (the target's own types), the rows into it by fast_executemany",
+        "CREATE TABLE #sab_stage (the target's own types), the rows into it by executemany (as arrays)",
         w.merge_sql(keys),
         updated=found,
         inserted=None if found is None else w.need_rows().count - found,

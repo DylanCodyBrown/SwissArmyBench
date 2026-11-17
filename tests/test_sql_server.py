@@ -1,7 +1,9 @@
-"""SQL Server and Azure SQL made robust (domain/sql_server.py): the connection's own code run against a
-stand-in for pyodbc at the seam (it records each connection string, attribute and statement, and answers
-typed rows), with a clock and a sleep of the test's own. No SQL Server runs here: the T-SQL the app sends
-is checked as text (and parsed as T-SQL). Made-up servers, databases and rows only."""
+"""SQL Server and Azure SQL made robust (domain/sql_server.py), on Microsoft's mssql-python (the owner,
+2026-11-17: "We need both Python-TDS for Dataverse and mssql for azure and sql server connections"): the
+connection's own code run against a stand-in for mssql-python at the seam (it records each connection
+string, attribute and statement, and answers typed rows, its errors shaped as mssql-python's: the server's
+words without its number), with a clock and a sleep of the test's own. tests/test_sql_server_real.py runs
+the same code against a real SQL Server when one is given. Made-up servers, databases and rows only."""
 
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ import threading
 import types
 import uuid
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
@@ -26,15 +29,32 @@ from swissarmybench.domain.blades import apply_settings, detect_settings, read_c
 from swissarmybench.domain.connection_usage import Calls, status
 from tests.conftest import AUTH
 
-# ===== the stand-in for pyodbc =====
+GOLDEN = Path(__file__).parent / "golden" / "sql_server"
+
+# ===== the stand-in for mssql-python =====
 
 
 class Error(Exception):
-    """pyodbc.Error's shape: (SQLSTATE, message)."""
+    """mssql_python.Error's shape: made of (driver_error, ddbc_error), said as one text."""
+
+    def __init__(self, driver_error: str, ddbc_error: str = "") -> None:
+        text = f"Driver Error: {driver_error}; DDBC Error: {ddbc_error}" if ddbc_error else driver_error
+        super().__init__(text)
 
 
 class OperationalError(Error):
     pass
+
+
+class Handle:
+    """mssql-python's statement handle: _cancel() is SQLCancel."""
+
+    def __init__(self, cursor: FakeCursor) -> None:
+        self.cursor = cursor
+
+    def _cancel(self) -> None:
+        self.cursor.cancelled = True
+        self.cursor.conn.server.cancelled.set()
 
 
 class FakeCursor:
@@ -43,7 +63,7 @@ class FakeCursor:
         self.description: list[tuple[Any, ...]] | None = None
         self.rows: list[tuple[Any, ...]] = []
         self.cancelled = False
-        self.fast_executemany = False
+        self.hstmt = Handle(self)
 
     def execute(self, sql: str, *params: Any) -> FakeCursor:
         self.conn.server.statements.append((sql, params))
@@ -64,10 +84,6 @@ class FakeCursor:
         rows, self.rows = self.rows[:size], self.rows[size:]
         return rows
 
-    def cancel(self) -> None:
-        self.cancelled = True
-        self.conn.server.cancelled.set()
-
     def close(self) -> None:
         pass
 
@@ -75,15 +91,11 @@ class FakeCursor:
 class FakeConnection:
     def __init__(self, server: FakeServer, text: str, attrs: dict[int, bytes] | None) -> None:
         self.server, self.text, self.attrs = server, text, attrs or {}
-        self.converters: dict[int, Any] = {}
         self.closed = False
         self.timeout = 0
 
     def cursor(self) -> FakeCursor:
         return FakeCursor(self)
-
-    def add_output_converter(self, kind: int, function: Any) -> None:
-        self.converters[kind] = function
 
     def commit(self) -> None:
         pass
@@ -94,15 +106,11 @@ class FakeConnection:
     def close(self) -> None:
         self.closed = True
 
-    def getinfo(self, what: int) -> str:
-        return "Microsoft SQL Server"
-
 
 class FakeServer:
     """What the stand-in answers: connect refusals queued, statements answered by a function."""
 
     def __init__(self) -> None:
-        self.drivers = ["ODBC Driver 18 for SQL Server"]
         self.refusals: list[BaseException] = []
         self.connections: list[FakeConnection] = []
         self.statements: list[tuple[str, tuple[Any, ...]]] = []
@@ -111,8 +119,10 @@ class FakeServer:
         self.result: tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]] = ([("n", int)], [(1,)])
         self.cancelled = threading.Event()
         self.block = False
+        self.timeouts: list[int] = []
 
     def connect(self, text: str, attrs_before: Any = None, timeout: int = 0) -> FakeConnection:
+        self.timeouts.append(timeout)
         if self.refusals:
             raise self.refusals.pop(0)
         made = FakeConnection(self, text, attrs_before)
@@ -122,7 +132,7 @@ class FakeServer:
     def answer(self, sql: str, params: tuple[Any, ...], cursor: FakeCursor) -> Any:
         if self.block:
             assert self.cancelled.wait(5), "the statement was never cancelled"
-            return OperationalError("HY008", "[HY008] Operation canceled (0) (SQLExecDirectW)")
+            return OperationalError("Operation canceled", "[Microsoft]Operation canceled")
         if self.failures:
             return self.failures.pop(0)
         if "FROM sys.columns AS c JOIN sys.types" in sql:
@@ -138,13 +148,11 @@ class FakeServer:
 @pytest.fixture
 def server(monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeServer]:
     made = FakeServer()
-    module = types.ModuleType("pyodbc")
-    module.drivers = lambda: list(made.drivers)  # type: ignore[attr-defined]
+    module = types.ModuleType("mssql_python")
     module.connect = made.connect  # type: ignore[attr-defined]
     module.Error = Error  # type: ignore[attr-defined]
-    module.SQL_DBMS_NAME = 17  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "pyodbc", module)
-    monkeypatch.delitem(sys.modules, "mssql_python", raising=False)
+    monkeypatch.setitem(sys.modules, "mssql_python", module)
+    monkeypatch.delitem(sys.modules, "pyodbc", raising=False)
     yield made
 
 
@@ -183,102 +191,141 @@ def opened(server: FakeServer) -> str:
 
 
 # ===== the errors, in plain words =====
-D18 = "[Microsoft][ODBC Driver 18 for SQL Server]"
+# As mssql-python says them (Driver Error: the SQLSTATE's words; DDBC Error: the server's own, no number):
+# the texts it gave against a real SQL Server 2022 (docs/verified.md), and Azure SQL's documented words.
+SERVER = "[Microsoft][SQL Server]"
 
-PYODBC_SAID = {
-    "18456": f"[28000] {D18}[SQL Server]Login failed for user 'sam'. (18456)",
-    "40615": f"[42000] {D18}[SQL Server]Cannot open server 'shop' requested "
-    "by the login. Client with IP address '203.0.113.7' is not allowed to access the server. (40615)",
-    "40613": f"[HY000] {D18}[SQL Server]Database 'sales' on server 'shop' is "
-    "not currently available. Please retry the connection later. (40613)",
-    "certificate": f"[08001] {D18}SSL Provider: [error:0A000086:SSL "
-    "routines::certificate verify failed:self-signed certificate] (-1) (SQLDriverConnect)",
-    "IM002": "[IM002] [unixODBC][Driver Manager]Data source name not found and no default driver specified",
-    "not found": f"[08001] {D18}TCP Provider: Error code 0x2AF9 (11001)",
-    "HYT00": f"[HYT00] {D18}Login timeout expired (0) (SQLDriverConnect)",
-    "229": f"[42000] {D18}[SQL Server]The SELECT permission was denied on the "
-    "object 'orders'. (229) (SQLExecDirectW)",
-    "3906": '[42000] [SQL Server]Failed to update database "sales" because the database is read-only. (3906)',
+
+def said(driver: str, ddbc: str) -> str:
+    return f"Driver Error: {driver}; DDBC Error: {ddbc}"
+
+
+MSSQL_SAID = {
+    "18456": said("Invalid authorization specification", f"{SERVER}Login failed for user 'sam'."),
+    "18452": said(
+        "Invalid authorization specification",
+        f"{SERVER}Login failed. The login is from an untrusted domain and cannot be used with Integrated "
+        "authentication.",
+    ),
+    "4060": said(
+        "Invalid authorization specification",
+        f'{SERVER}Cannot open database "sales" requested by the login. The login failed.',
+    ),
+    "40615": said(
+        "General error",
+        f"{SERVER}Cannot open server 'shop' requested by the login. Client with IP address '203.0.113.7' is "
+        "not allowed to access the server.",
+    ),
+    "40532": said("General error", f'{SERVER}Cannot open server "shop" requested by the login.'),
+    "40613": said(
+        "General error",
+        f"{SERVER}Database 'sales' on server 'shop' is not currently available. Please retry the connection "
+        "later.",
+    ),
+    "40501": said(
+        "General error", f"{SERVER}The service is currently busy. Retry the request after 10 seconds."
+    ),
+    "certificate": said(
+        "Client unable to establish connection",
+        "[Microsoft]SSL Provider: [error:0A000086:SSL routines::certificate verify failed:self-signed "
+        "certificate]",
+    ),
+    "not found": said("Client unable to establish connection", "[Microsoft]TCP Provider: Error code 0x2AF9"),
+    "HYT00": said("Timeout expired", "[Microsoft]Login timeout expired"),
+    "229": said(
+        "Syntax error or access violation",
+        f"{SERVER}The SELECT permission was denied on the object 'orders', database 'sales', schema 'dbo'.",
+    ),
+    "208": said("Base table or view not found", f"{SERVER}Invalid object name 'nope'."),
+    "207": said("Column not found", f"{SERVER}Invalid column name 'nope'."),
+    "1205": said(
+        "Serialization failure",
+        f"{SERVER}Transaction (Process ID 61) was deadlocked on lock resources with another process and "
+        "has been chosen as the deadlock victim. Rerun the transaction.",
+    ),
+    "3906": said(
+        "General error", f'{SERVER}Failed to update database "sales" because the database is read-only.'
+    ),
+    "driver": "No module named 'mssql_python'",
 }
 
 
-@pytest.mark.parametrize("key", sorted(PYODBC_SAID))
+@pytest.mark.parametrize("key", sorted(MSSQL_SAID))
 def test_each_error_is_said_in_plain_words_with_its_fix(key: str) -> None:
-    said = PYODBC_SAID[key]
-    assert sql_server.error_key(said) == key
+    text = MSSQL_SAID[key]
+    assert sql_server.error_key(text) == key
     words, fix = sql_server.ERRORS[key]
-    plain = sql_server.explain(said, "Linux")
+    plain = sql_server.explain(text)
     assert plain.startswith(words.split("{")[0]) and fix.split("{")[0][:30] in plain
-    assert runtime()["explain"](said).split("[")[0] == plain.split("[")[0] or key == "IM002"
+    assert runtime()["explain"](text) == plain
+
+
+def test_a_number_in_the_text_still_says_its_entry() -> None:
+    assert sql_server.error_key("[28000] Login failed for user 'sam'. (18456)") == "18456"
+    assert sql_server.error_key("[HY000] something about (40613)") == "40613"
 
 
 def test_the_firewall_names_the_address_and_the_portal() -> None:
-    plain = sql_server.explain(PYODBC_SAID["40615"])
+    plain = sql_server.explain(MSSQL_SAID["40615"])
     assert "203.0.113.7" in plain and "Networking" in plain and "private endpoint" in plain
 
 
-def test_a_missing_driver_says_the_install_command_for_this_system() -> None:
-    assert "winget install --id Microsoft.msodbcsql.18" in sql_server.explain("[IM002]", "Windows")
-    assert "brew install msodbcsql18" in sql_server.explain("[IM002]", "Darwin")
-    assert "apt-get install -y msodbcsql18" in sql_server.explain("[IM002]", "Linux")
-    assert "mssql-python" in sql_server.explain("[IM002]", "Linux")
+def test_a_missing_driver_says_the_pip_command_and_no_odbc_driver() -> None:
+    plain = sql_server.explain(MSSQL_SAID["driver"])
+    assert "pip install mssql-python" in plain and "nothing else to install" in plain
+    assert "ODBC" not in plain and "winget" not in plain and "msodbcsql" not in plain
 
 
 def test_an_error_it_does_not_know_stays_as_it_is() -> None:
-    assert (
-        sql_server.explain("[42S22] something else entirely (99999)")
-        == "[42S22] something else entirely (99999)"
-    )
+    text = said("General error", f"{SERVER}something else entirely")
+    assert sql_server.explain(text) == text
 
 
 @pytest.mark.parametrize("number", sorted(sql_server.TRANSIENT))
 def test_azures_passing_errors_are_known(number: str) -> None:
     assert sql_server.transient(f"[HY000] passing ({number})")
-    assert runtime()["passing"](OperationalError("HY000", f"passing ({number})"))
+    assert runtime()["passing"](OperationalError("General error", f"passing ({number})"))
 
 
-def test_a_refusal_does_not_pass() -> None:
-    assert not sql_server.transient(PYODBC_SAID["18456"])
+@pytest.mark.parametrize(("words", "key"), sql_server.WORDS, ids=[k for _, k in sql_server.WORDS])
+def test_azures_passing_errors_are_known_by_their_words_too(words: str, key: str) -> None:
+    text = said("General error", f"{SERVER}{words.capitalize()} (made up).")
+    assert sql_server.transient(text) == (key in sql_server.TRANSIENT)
+    assert runtime()["passing"](OperationalError("General error", f"{SERVER}{words}")) == (
+        key in sql_server.TRANSIENT
+    )
+
+
+def test_a_dropped_connection_passes_and_a_refusal_does_not() -> None:
+    assert not sql_server.transient(MSSQL_SAID["18456"])
+    assert sql_server.transient(
+        said("Communication link failure", "[Microsoft]TCP Provider: Error code 0x2746")
+    )
     assert sql_server.transient("[08S01] Communication link failure (0)")
 
 
-# ===== connecting: drivers, sign-ins, options =====
+# ===== connecting: the driver, sign-ins, options =====
 
 
-def test_the_newest_odbc_driver_is_chosen_then_17(server: FakeServer) -> None:
-    names = runtime()
-    server.drivers = ["ODBC Driver 17 for SQL Server", "ODBC Driver 18 for SQL Server"]
-    conn = names["SqlServer"]("sql01.shop.local", "sales", "windows")
-    assert opened(server).startswith("Driver={ODBC Driver 18 for SQL Server};") and conn.about()["driver"]
-    server.drivers = ["ODBC Driver 17 for SQL Server"]
-    names["SqlServer"]("sql01.shop.local", "sales", "windows")
-    assert "Driver={ODBC Driver 17 for SQL Server}" in opened(server) and "Encrypt=yes;" in opened(server)
-    with pytest.raises(names["SqlServerError"], match="strict needs ODBC Driver 18"):
-        names["SqlServer"]("sql01.shop.local", "sales", "windows", encrypt="strict")
+def test_mssql_python_is_the_one_driver_no_odbc_driver_named(server: FakeServer) -> None:
+    conn = runtime()["SqlServer"]("sql01.shop.local", "sales", "sql_login", user="sam", password="made-up")
+    assert not opened(server).startswith("Driver=") and "Driver" not in opened(server)
+    assert conn.about()["driver"] == "mssql-python"
+    assert server.timeouts[-1] == 30  # the login timeout
 
 
-def test_no_driver_says_what_to_install_never_silently(server: FakeServer) -> None:
-    names = runtime()
-    server.drivers = []
-    with pytest.raises(names["SqlServerError"], match="ODBC Driver 18 for SQL Server"):
-        names["SqlServer"]("sql01.shop.local", "sales", "windows")
-
-
-def test_mssql_python_is_used_when_there_is_no_odbc_driver(
-    server: FakeServer, monkeypatch: pytest.MonkeyPatch
+def test_a_missing_mssql_python_is_the_import_error_the_install_prompt_reads(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[str] = []
-    module = types.ModuleType("mssql_python")
+    monkeypatch.setitem(sys.modules, "mssql_python", None)  # importing it fails, as when it is not there
+    with pytest.raises(ModuleNotFoundError) as raised:
+        runtime()["SqlServer"]("sql01.shop.local", "sales", "sql_login", user="sam", password="made-up")
+    assert raised.value.name == "mssql_python"
 
-    def connect(text: str, attrs_before: Any = None, timeout: int = 0) -> FakeConnection:
-        calls.append(text)
-        return FakeConnection(server, text, attrs_before)
 
-    module.connect = connect  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "mssql_python", module)
-    server.drivers = []
-    conn = runtime()["SqlServer"]("sql01.shop.local", "sales", "windows")
-    assert not calls[0].startswith("Driver=") and conn.about()["driver"] == "mssql-python"
+def test_an_older_codes_driver_setting_is_taken_and_left_alone(server: FakeServer) -> None:
+    runtime()["SqlServer"]("sql01.shop.local", "sales", "windows", driver="ODBC Driver 17 for SQL Server")
+    assert "Driver" not in opened(server)
 
 
 def test_every_option_goes_into_the_connection_string(server: FakeServer) -> None:
@@ -309,6 +356,43 @@ def test_every_option_goes_into_the_connection_string(server: FakeServer) -> Non
     names["SqlServer"]("tcp:shop.database.windows.net,1433", "sales", "entra_default")
     assert "Server=tcp:shop.database.windows.net,1433;" in opened(server)
     assert "Authentication=ActiveDirectoryDefault;" in opened(server)
+    names["SqlServer"]("sql01.shop.local", "sales", "windows", encrypt="strict")
+    assert "Encrypt=strict;" in opened(server) and "TrustServerCertificate" not in opened(server)
+    names["SqlServer"]("sql01.shop.local", "sales", "windows", encrypt="yes")  # an older code's word
+    assert "Encrypt=mandatory;" in opened(server)
+
+
+def test_the_connection_string_uses_only_keys_mssql_python_takes(server: FakeServer) -> None:
+    allowed = {
+        "server",
+        "database",
+        "uid",
+        "pwd",
+        "authentication",
+        "trusted_connection",
+        "encrypt",
+        "trustservercertificate",
+        "hostnameincertificate",
+        "applicationintent",
+        "multisubnetfailover",
+        "connectretrycount",
+    }  # mssql_python.constants._ALLOWED_CONNECTION_STRING_PARAMS (it refuses any other key)
+    names = runtime()
+    for way in sql_server.ORDER["sqlserver"]:
+        if way in ("entra_you", "app_certificate", "managed_identity", "app_secret"):
+            continue  # a token: below
+        names["SqlServer"](
+            "sql01.shop.local",
+            "sales",
+            way,
+            user="sam",
+            password="made-up",
+            host_name_in_certificate="x",
+            read_only_intent=True,
+            multi_subnet_failover=True,
+        )
+        keys = {p.split("=", 1)[0].lower() for p in opened(server).split(";") if p}
+        assert keys <= allowed, (way, keys - allowed)
 
 
 def test_a_token_goes_beside_the_connection_string_and_is_taken_again_before_it_runs_out(
@@ -340,9 +424,9 @@ def test_a_token_goes_beside_the_connection_string_and_is_taken_again_before_it_
 def test_a_paused_serverless_database_is_waited_for_and_said(server: FakeServer, capsys: Any) -> None:
     clock = Clock()
     names = runtime(clock)
-    paused = OperationalError("HY000", PYODBC_SAID["40613"])
+    paused = OperationalError("General error", MSSQL_SAID["40613"])
     server.refusals = [paused, paused, paused]
-    conn = names["SqlServer"]("shop.database.windows.net", "sales", "windows")
+    conn = names["SqlServer"]("shop.database.windows.net", "sales", "sql_login", user="sam", password="x")
     assert clock.slept == [1, 2, 4] and len(server.connections) == 1
     assert all("resuming" in n for n in conn.notes) and "resuming" in capsys.readouterr().err
 
@@ -350,36 +434,37 @@ def test_a_paused_serverless_database_is_waited_for_and_said(server: FakeServer,
 def test_a_database_that_stays_paused_is_said_in_plain_words(server: FakeServer) -> None:
     clock = Clock()
     names = runtime(clock)
-    server.refusals = [OperationalError("HY000", PYODBC_SAID["40613"]) for _ in range(20)]
-    with pytest.raises(OperationalError) as raised:  # the driver's own class: except pyodbc.Error still works
-        names["SqlServer"]("shop.database.windows.net", "sales", "windows")
+    server.refusals = [OperationalError("General error", MSSQL_SAID["40613"]) for _ in range(20)]
+    with pytest.raises(OperationalError) as raised:  # the driver's own class: except mssql_python.Error works
+        names["SqlServer"]("shop.database.windows.net", "sales", "sql_login", user="sam", password="x")
     assert (
         sum(clock.slept) >= sql_server.RESUME_SECONDS - 16
         and sum(clock.slept) <= sql_server.RESUME_SECONDS + 16
     )
-    assert raised.value.args[0] == "HY000" and "serverless database that was paused" in raised.value.args[1]
+    assert "serverless database that was paused" in str(raised.value)
+    assert "not currently available" in str(raised.value)  # the driver's own words after
 
 
 def test_other_passing_errors_are_tried_again_a_few_times_then_said(server: FakeServer) -> None:
     clock = Clock()
     names = runtime(clock)
-    busy = OperationalError("HY000", "[HY000] Azure SQL busy (40501)")
+    busy = OperationalError("General error", MSSQL_SAID["40501"])
     server.refusals = [busy, busy]
-    names["SqlServer"]("shop.database.windows.net", "sales", "windows")
+    names["SqlServer"]("shop.database.windows.net", "sales", "sql_login", user="sam", password="x")
     assert clock.slept == [1, 2]
     server.refusals = [busy] * 10
     with pytest.raises(OperationalError, match="Azure SQL is busy"):
-        names["SqlServer"]("shop.database.windows.net", "sales", "windows")
+        names["SqlServer"]("shop.database.windows.net", "sales", "sql_login", user="sam", password="x")
     assert clock.slept[2:] == [1, 2, 4, 8]  # TRIES (5) in all
 
 
 def test_a_refused_login_is_never_tried_again(server: FakeServer) -> None:
     clock = Clock()
     names = runtime(clock)
-    server.refusals = [Error("28000", PYODBC_SAID["18456"])]
+    server.refusals = [Error("Invalid authorization specification", MSSQL_SAID["18456"])]
     with pytest.raises(Error, match="refused the sign-in") as raised:
         names["SqlServer"]("sql01.shop.local", "sales", "sql_login", user="sam", password="made-up")
-    assert clock.slept == [] and raised.value.args[0] == "28000" and "(18456)" in raised.value.args[1]
+    assert clock.slept == [] and "Login failed for user 'sam'" in str(raised.value)
     assert "made-up" not in str(raised.value)  # the password is never in the words
 
 
@@ -390,10 +475,11 @@ def test_a_read_is_run_again_on_a_new_connection_after_a_passing_error(server: F
     clock = Clock()
     names = runtime(clock)
     conn = names["SqlServer"]("sql01.shop.local", "sales", "windows")
-    server.failures = [OperationalError("08S01", "[08S01] Communication link failure (10054)")]
+    dropped = said("Communication link failure", "[Microsoft]TCP Provider: Error code 0x2746")
+    server.failures = [OperationalError(dropped)]
     cursor = conn.cursor().execute("SELECT order_id FROM dbo.orders")
     assert cursor.fetchall() == [(1,)] and len(server.connections) == 2 and clock.slept == [1]
-    server.failures = [OperationalError("08S01", "[08S01] Communication link failure (10054)")]
+    server.failures = [OperationalError(dropped)]
     with pytest.raises(OperationalError):  # a write is never run again here
         conn.cursor().execute("UPDATE dbo.orders SET amount = 1")
     assert len(server.connections) == 2
@@ -424,7 +510,7 @@ def test_a_plain_read_asks_sys_columns_once_per_table(server: FakeServer) -> Non
 
 
 TYPES = [
-    # (as SQL Server declares it, pyodbc's description: type, size, precision, scale), values, Arrow
+    # (as SQL Server declares it, mssql-python's description: type, size, precision, scale), values, Arrow
     ("int", (int, 10, 10, 0), [1, None], "int32"),
     ("bigint", (int, 19, 19, 0), [2**40], "int64"),
     ("smallint", (int, 5, 5, 0), [-3], "int16"),
@@ -446,9 +532,10 @@ TYPES = [
     ),
     ("uniqueidentifier", (str, 36, 36, 0), ["6F9619FF-8B86-D011-B42D-00C04FC964FF"], "string"),
     ("uniqueidentifier (native)", (uuid.UUID, 36, 36, 0), [uuid.UUID(int=5)], "string"),
-    ("varbinary(max)", (bytearray, 0, 0, 0), [bytearray(b"\x00\x01")], "binary"),
+    ("varbinary(max)", (bytes, 0, 0, 0), [b"\x00\x01"], "binary"),
     ("nvarchar(max)", (str, 0, 0, 0), ["Grüße, 東京"], "string"),
     ("xml", (str, 0, 0, 0), ["<a>1</a>"], "string"),
+    ("sql_variant", (str, 8000, 8000, 0), [5], "string"),
     ("geography (as text)", (str, 0, 0, 0), ["POINT (-122.3 47.6)"], "string"),
 ]
 
@@ -474,12 +561,58 @@ def test_each_type_reads_into_arrow_exactly(
     got = table.column("value").to_pylist()
     if arrow.startswith("timestamp[us, tz"):
         assert got[0] == values[0]  # the same instant (kept as UTC)
-    elif "uniqueidentifier" in declared:
+    elif "uniqueidentifier" in declared or declared == "sql_variant":
         assert got == [str(v) for v in values]
     elif arrow == "binary":
         assert got == [bytes(v) for v in values]
     else:
         assert got == values
+
+
+# mssql-python's own Arrow types (as it gave them against SQL Server 2022, docs/verified.md) made the
+# rows' path's: an instant in UTC, a time in microseconds, plain strings and bytes.
+NATIVE = [
+    (pa.timestamp("us", tz="+00:00"), "timestamp[us, tz=UTC]"),
+    (pa.timestamp("us"), "timestamp[us]"),
+    (pa.time64("ns"), "time64[us]"),
+    (pa.large_string(), "string"),
+    (pa.large_binary(), "binary"),
+    (pa.decimal128(19, 4), "decimal128(19, 4)"),
+    (pa.uint8(), "uint8"),
+]
+
+
+def test_mssql_pythons_own_arrow_batches_are_read_with_the_same_types(server: FakeServer) -> None:
+    conn = runtime()["SqlServer"]("sql01.shop.local", "sales", "windows")
+    schema = pa.schema([pa.field(f"c{i}", t, False) for i, (t, _) in enumerate(NATIVE)])
+    batch = pa.RecordBatch.from_pylist([], schema=schema)
+    asked: list[int] = []
+
+    def arrow_batch(self: FakeCursor, size: int) -> pa.RecordBatch:
+        asked.append(size)
+        return batch
+
+    FakeCursor.arrow_batch = arrow_batch  # type: ignore[attr-defined]
+    try:
+        table = conn.read_arrow("SELECT * FROM dbo.kinds")
+    finally:
+        del FakeCursor.arrow_batch  # type: ignore[attr-defined]
+    assert [str(f.type) for f in table.schema] == [want for _, want in NATIVE] and asked == [50_000]
+
+
+def test_a_column_its_arrow_cannot_read_is_read_as_rows(server: FakeServer) -> None:
+    conn = runtime()["SqlServer"]("sql01.shop.local", "sales", "windows")
+    server.result = ([("id", int), ("extra", str)], [(1, "5")])
+
+    def arrow_batch(self: FakeCursor, size: int) -> pa.RecordBatch:
+        raise RuntimeError("Unsupported data type for Arrow batch fetch for column - extra, Type - -150")
+
+    FakeCursor.arrow_batch = arrow_batch  # type: ignore[attr-defined]
+    try:
+        table = conn.read_arrow("SELECT id, extra FROM dbo.kinds")
+    finally:
+        del FakeCursor.arrow_batch  # type: ignore[attr-defined]
+    assert table.to_pylist() == [{"id": 1, "extra": "5"}]
 
 
 def test_reads_come_in_batches_and_a_value_that_does_not_fit_makes_the_column_text(
@@ -492,17 +625,6 @@ def test_reads_come_in_batches_and_a_value_that_does_not_fit_makes_the_column_te
     assert table.schema.field("code").type == pa.string() and table.column("code").to_pylist()[-1] == "X-7"
 
 
-def test_a_datetimeoffset_keeps_its_offset() -> None:
-    raw = struct.pack("<6hI2h", 2026, 3, 1, 23, 30, 5, 123456700, -5, 0)
-    found = runtime()["offset_time"](raw)
-    assert found == dt.datetime(2026, 3, 1, 23, 30, 5, 123456, dt.timezone(dt.timedelta(hours=-5)))
-
-
-def test_the_driver_is_told_how_to_read_what_it_cannot(server: FakeServer) -> None:
-    runtime()["SqlServer"]("sql01.shop.local", "sales", "windows")
-    assert set(server.connections[-1].converters) == {-155, -151, -150}
-
-
 def test_an_interrupt_cancels_the_statement_on_the_server(server: FakeServer) -> None:
     conn = runtime()["SqlServer"]("sql01.shop.local", "sales", "windows")
     cursor = conn.cursor()
@@ -510,7 +632,7 @@ def test_an_interrupt_cancels_the_statement_on_the_server(server: FakeServer) ->
     threading.Timer(0.3, _thread.interrupt_main).start()  # as the kernel's Interrupt does
     with pytest.raises(KeyboardInterrupt):
         cursor.execute("SELECT * FROM dbo.big_table")
-    assert server.cancelled.is_set()
+    assert server.cancelled.is_set()  # mssql-python's statement handle: SQLCancel
 
 
 # ===== writes: the Write starters' connection =====
@@ -527,8 +649,8 @@ def test_writes_go_through_the_primary_and_know_sql_server(server: FakeServer) -
     plain = runtime()["SqlServer"]("sql01.shop.local", "sales", "windows")
     assert for_writes(plain) is plain
     cursor = plain.cursor()
-    cursor.fast_executemany = True  # the driver's own setting, set through
-    assert cursor._inner.fast_executemany is True
+    cursor.arraysize = 7  # the driver's own setting, set through
+    assert cursor._inner.arraysize == 7
 
 
 def test_a_closed_connection_opens_again_for_the_next_try(server: FakeServer) -> None:
@@ -615,14 +737,14 @@ def test_the_app_registration_and_managed_identity_sign_in_with_the_standard_lib
     assert "client_id=c2" in asked[-1]
 
 
-def test_the_code_needs_only_pyodbc_and_for_two_ways_azure_identity() -> None:
+def test_the_code_needs_only_mssql_python_and_for_three_ways_azure_identity() -> None:
     from swissarmybench.domain.blades import needed
 
     for way in sql_server.ORDER["sqlserver"]:
         pips = [p.pip for p in needed(sql_server.code(way), lambda m: True)]
-        assert pips == (
-            ["azure-identity", "pyodbc"] if way in ("entra_you", "app_certificate") else ["pyodbc"]
-        ), way
+        identity = way in ("entra_you", "app_certificate", "entra_default")
+        assert pips == (["azure-identity", "mssql-python"] if identity else ["mssql-python"]), way
+        assert "pyodbc" not in sql_server.code(way) and "ODBC Driver" not in sql_server.code(way)
 
 
 def test_server_database_user_client_id_and_tenant_may_come_from_environment_variables() -> None:
@@ -782,7 +904,7 @@ class Warehouse:
 
     def tested(self, rows):
         Cursor().execute("SELECT 1")
-        return {{"found": "signed in", "about": {{"driver": "ODBC Driver 18 for SQL Server",
+        return {{"found": "signed in", "about": {{"driver": "mssql-python",
                  "sign_in": "entra_you", "version": "Microsoft SQL Azure (RTM) - 12.0.2000.8",
                  "edition": "SQL Azure", "service_objective": "GP_S_Gen5_1",
                  "collation": "Latin1_General_100_CS_AS", "case_sensitive": True}}}}
@@ -815,11 +937,10 @@ def test_the_card_says_the_server_and_a_failing_ones_plain_error(client: TestCli
         for c in client.get("/connections/usage", headers=AUTH).json()["connections"]
         if c["name"] == "Warehouse"
     )
-    assert card["status"] == "works" and card["about"][
-        0
-    ] == "ODBC Driver 18 for SQL Server · " + sql_server.label_of("entra_you")
+    assert card["status"] == "works"
+    assert card["about"][0] == "mssql-python · " + sql_server.label_of("entra_you")
     assert "GP_S_Gen5_1" in card["about"][1] and "Case-sensitive collation" in card["about"][2]
-    words = sql_server.explain(PYODBC_SAID["40615"])
+    words = sql_server.explain(MSSQL_SAID["40615"])
     assert client.post("/connections", json=_stand_in("Shop", fail=words), headers=AUTH).status_code == 200
     assert client.post("/blades/Shop/test", headers=AUTH).status_code != 200
     card = next(
@@ -830,7 +951,7 @@ def test_the_card_says_the_server_and_a_failing_ones_plain_error(client: TestCli
 
 def test_a_resuming_database_is_its_own_status() -> None:
     failed = Calls({"test": 1}, 1.0, "test", False)
-    assert status(failed, [], False, sql_server.explain(PYODBC_SAID["40613"])) == "resuming"
+    assert status(failed, [], False, sql_server.explain(MSSQL_SAID["40613"])) == "resuming"
     assert status(failed, [], False, "something else") == "failing"
 
 
@@ -849,10 +970,10 @@ def test_the_card_words() -> None:
     ]
 
 
-def test_dataverse_signs_its_sql_endpoint_in_with_the_same_token_code() -> None:
-    from swissarmybench.domain import dataverse
+def test_onelakes_sql_endpoint_signs_in_with_the_same_token_code() -> None:
+    from swissarmybench.domain import lakes
 
-    assert sql_server.TOKEN_CODE in dataverse.YOU
+    assert sql_server.TOKEN_CODE in lakes.SQL_ENDPOINT
 
 
 def test_the_robust_code_is_told_from_an_older_one() -> None:
@@ -861,3 +982,85 @@ def test_the_robust_code_is_told_from_an_older_one() -> None:
         'import pyodbc\nconn = pyodbc.connect("Driver={ODBC Driver 18 for SQL Server};")'
     )
     assert sql_server.way_of(sql_server.code("app_certificate")) == "app_certificate"
+
+
+# ===== an older connection, on pyodbc: Update to the new driver =====
+# tests/golden/sql_server/old_<way>.txt: the code the app made before (pyodbc, an ODBC driver found), as a
+# saved connection holds it, with made-up settings; new_<way>.txt: what Update to the new driver makes of it.
+OLD_WAYS = ["sql_login", "windows", "entra_you", "app_secret", "managed_identity", "app_certificate"]
+
+
+@pytest.mark.parametrize("way", OLD_WAYS)
+def test_an_older_code_is_told_and_made_again_with_the_same_settings(way: str) -> None:
+    old = (GOLDEN / f"old_{way}.txt").read_text(encoding="utf-8")
+    assert sql_server.is_old(old) and sql_server.is_robust(old)
+    new = sql_server.upgraded(old)
+    assert new == (GOLDEN / f"new_{way}.txt").read_text(encoding="utf-8")
+    assert not sql_server.is_old(new) and "pyodbc" not in new and "driver=" not in new
+    assert sql_server.way_of(new) == way
+    tail = old[old.index("conn = SqlServer(") :]
+    for line in tail.splitlines():
+        if "driver=" not in line:
+            assert line in new, line  # every setting the user gave, as it was
+    compile(new, f"<{way}>", "exec")
+
+
+def test_the_new_code_after_an_update_is_todays_starter_code() -> None:
+    old = (GOLDEN / "old_sql_login.txt").read_text(encoding="utf-8")
+    new = sql_server.upgraded(old)
+    start = new.index("conn = SqlServer(")
+    assert (
+        new[:start] == sql_server.code("sql_login")[: sql_server.code("sql_login").index("conn = SqlServer(")]
+    )
+
+
+def test_todays_code_and_a_connection_of_the_users_own_are_never_rewritten() -> None:
+    for way in sql_server.ORDER["sqlserver"]:
+        assert not sql_server.is_old(sql_server.code(way))
+    own = 'import pyodbc\nconn = pyodbc.connect("Driver={ODBC Driver 18 for SQL Server};Server=x;")'
+    assert not sql_server.is_old(own)
+    with pytest.raises(ValueError, match="not the earlier SQL Server code"):
+        sql_server.upgraded(own)
+
+
+@pytest.mark.parametrize("way", sorted(sql_server.ORDER["sqlserver"]))
+def test_each_ways_code_is_its_golden_file(way: str) -> None:
+    """The generated connection code per sign-in, as a golden file (tests/golden/sql_server/code_<way>.txt):
+    a change to it is a change to every new SQL Server connection."""
+    assert sql_server.code(way) == (GOLDEN / f"code_{way}.txt").read_text(encoding="utf-8")
+
+
+def test_the_card_offers_update_to_the_new_driver_and_the_agent_can_do_it(client: TestClient) -> None:
+    from tests.conftest import AGENT
+
+    old = (GOLDEN / "old_windows.txt").read_text(encoding="utf-8")
+    body = {"name": "Ledger", "kind": "sql", "template": "sqlserver", "dialect": "sqlserver", "code": old}
+    assert client.post("/connections", json=body, headers=AUTH).status_code == 200
+
+    def card() -> dict[str, Any]:
+        cards = client.get("/connections/usage", headers=AUTH).json()["connections"]
+        return next(c for c in cards if c["name"] == "Ledger")
+
+    before = card()
+    assert before["update_driver"] is True
+    assert [x["key"] for x in before["local"]] == ["windows"]  # Windows sign-in: this machine's only
+    answer = client.post("/connections/Ledger/update-driver", headers=AGENT)  # the agent's, as the user's
+    assert answer.status_code == 200
+    assert answer.json() == {"name": "Ledger", "changed": True, "driver": "mssql-python"}
+    code = client.get("/connections/Ledger", headers=AUTH).json()["code"]
+    assert code == (GOLDEN / "new_windows.txt").read_text(encoding="utf-8")
+    assert card()["update_driver"] is False
+    again = client.post("/connections/Ledger/update-driver", headers=AUTH).json()
+    assert again == {"name": "Ledger", "changed": False}
+
+
+def test_update_to_the_new_driver_never_rewrites_the_users_own_code(client: TestClient) -> None:
+    own = 'import pyodbc\n\nconn = pyodbc.connect("Driver={ODBC Driver 18 for SQL Server};Server=sql01;")\n'
+    body = {"name": "Own", "kind": "sql", "template": "sqlserver", "dialect": "sqlserver", "code": own}
+    assert client.post("/connections", json=body, headers=AUTH).status_code == 200
+    answer = client.post("/connections/Own/update-driver", headers=AUTH)
+    assert answer.status_code == 400 and "left as it is" in answer.text
+    assert client.get("/connections/Own", headers=AUTH).json()["code"] == own
+    cards = client.get("/connections/usage", headers=AUTH).json()["connections"]
+    card = next(c for c in cards if c["name"] == "Own")
+    assert card["update_driver"] is False and [x["key"] for x in card["local"]] == ["odbc"]

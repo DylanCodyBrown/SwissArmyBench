@@ -45,7 +45,7 @@ what the connection's code makes:
     your own Python         a connection made of it (an Add API one among them): DuckDB, in this
                             Python, over the tables its List the tables names, each read by its Read a
                             table the first time a cell names it
-    a Dataverse environment its read-only SQL endpoint (T-SQL, port 5558, through pyodbc); when an
+    a Dataverse environment its read-only SQL endpoint (T-SQL, port 5558, through python-tds); when an
                             environment has it off, the error says so and gives the sab.read line
                             that reads the table through the Web API instead
     a Power BI workspace    one of its datasets, named after the connection and a slash

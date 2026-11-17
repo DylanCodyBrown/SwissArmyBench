@@ -275,6 +275,10 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     page.locator(".connection-type", has_text="Trino").click()
     not_now(page)
     drawn()
+    # A new password comes from a variable at first (the keyring runs only here: 2026-11-17); typed for
+    # this computer, its box is labelled.
+    dialog.get_by_role("combobox", name="Password comes from").select_option("keyring")
+    drawn()
     assert labels() == [
         "Name",
         "Description",
@@ -309,6 +313,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     not_now(page)
     dialog.get_by_role("combobox", name="Sign in").select_option(label="User name and password (SQL login)")
     expect(dialog.get_by_role("textbox", name="User")).to_be_visible()
+    dialog.get_by_role("combobox", name="Password comes from").select_option("keyring")
     dialog.locator("details.connection-options > summary").click()
     found = labels()
     assert found[2:4] == ["Server", "Database"]

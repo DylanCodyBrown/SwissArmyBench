@@ -450,7 +450,8 @@ def test_sql_server_and_azure_sql_sign_in_every_way(template: str) -> None:
     for label, (mark, code) in ways.items():
         assert mark in code and sum(mark in other for _, other in ways.values()) == 1  # tells them apart
         names = {s.name for s in detect_settings(code)}
-        assert {"server", "database", "trust server certificate", "encryption", "driver"} <= names, label
+        assert {"server", "database", "trust server certificate", "encryption"} <= names, label
+        assert "driver" not in names, label  # mssql-python only: no ODBC driver to choose
         passwords = read_code(code).secrets
         wanted = ["password"] if "password" in label else ["client secret"] if "secret" in label else []
         assert passwords == wanted
@@ -458,7 +459,12 @@ def test_sql_server_and_azure_sql_sign_in_every_way(template: str) -> None:
 
 def test_the_form_offers_the_ways_to_sign_in_new_and_saved(client: TestClient) -> None:
     types = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
-    assert types["sqlserver"]["sign_ins"][0]["label"] == "Windows sign-in"
+    # The first: one that runs on a Function App or a hosted Streamlit app as well as here (2026-11-17).
+    assert types["sqlserver"]["sign_ins"][0]["label"] == "User name and password (SQL login)"
+    assert (
+        types["azuresql"]["sign_ins"][0]["label"]
+        == "Microsoft Entra: app registration, its secret from a key vault"
+    )
     assert types["postgres"]["sign_ins"] == []
     mfa = next(w for w in types["azuresql"]["sign_ins"] if "as you" in w["label"])
     body = {

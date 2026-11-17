@@ -212,3 +212,29 @@ def test_save_as_that_would_write_a_pasted_tables_rows_waits_for_the_users_allow
     with allowing(live) as asked:
         command("streamlit_save_as", app=app, path=str(tmp_path / "again.zip"))
     assert asked == []
+
+
+# ===== a connection that runs only on this computer: said before the export writes =====
+
+
+def test_the_export_says_each_connection_that_runs_only_on_this_computer_before_it_writes(
+    served: tuple[TestClient, FakeRunner], tmp_path: Path
+) -> None:
+    from swissarmybench.domain import sql_server
+
+    client, _ = served
+    body = {"name": "Warehouse", "kind": "sql", "template": "sqlserver", "dialect": "sqlserver"}
+    _ok(client.post("/connections", json=body | {"code": sql_server.code("windows")}, headers=AUTH))
+    app = _app_with_orders(client, tmp_path)
+    # The pages name no connection: nothing to say.
+    looked = _ok(client.post(f"/streamlit/apps/{app}/export", headers=AUTH, json={"check": True}))
+    assert looked == {"local": [], "local_words": ""}
+    # A page's code that names one (as sab.sql and sab.connection do): its reasons, before it writes.
+    apps = client.app.state.ctx.streamlit  # type: ignore[attr-defined]
+    said = apps.local(['import swissarmybench as sab\nw = sab.connection("Warehouse")'])
+    assert [n["connection"] for n in said["local"]] == ["Warehouse"]
+    assert said["local_words"].startswith("Only works on your machine, not on a Function App")
+    assert "Windows sign-in" in said["local_words"]
+    assert not list(tmp_path.glob("**/app.py"))  # the check wrote nothing
+    zipped = _ok(client.post(f"/streamlit/apps/{app}/save-as", headers=AUTH, json={"check": True}))
+    assert zipped == {"local": [], "local_words": ""}

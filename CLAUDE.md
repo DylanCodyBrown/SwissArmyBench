@@ -201,8 +201,8 @@ src/swissarmybench/
                          names, which source column is read as what
     dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
                          API's OData reads, paging, choice labels, the metadata as the catalog, FetchXML; SQL
-                         on the read-only SQL endpoint, TDS port 5558, pyodbc with the Entra token), its three
-                         sign-ins (as you, managed identity, an app registration whose secret is a vault's),
+                         on the read-only SQL endpoint, TDS port 5558, python-tds with the Entra token), its three
+                         sign-ins (an app registration whose secret is a vault's, managed identity, as you),
                          its Read a table, the SQL endpoint being off said plainly with the sab.read instead
     lakes.py             Lakes and SharePoint as connections (onelake, datalake, delta, sharepoint, sharepoint_docs):
                          each kind's code assembled, its sign-ins, READ (the connection's own read: columns and
@@ -227,11 +227,17 @@ src/swissarmybench/
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
                          placeholders, suggestions, written back), Blade, parse_blade, Template
-    sql_server.py        SQL Server and Azure SQL made robust: the connection's code as text (a SqlServer object:
-                         drivers found, eight sign-ins, the Entra token beside the string and refreshed, errors
-                         in plain words, passing errors tried again, a paused serverless database waited for,
-                         typed Arrow reads, SQLCancel on an interrupt, for_writes); the form's options, choices
-                         and variables; the catalog from the system views; foreign keys into the ERD; the card
+    sql_server.py        SQL Server and Azure SQL made robust: the connection's code as text (a SqlServer object on
+                         mssql-python, no ODBC driver: eight sign-ins, the Entra token beside the string and
+                         refreshed, errors in plain words by number or words, passing errors tried again, a paused
+                         serverless database waited for, mssql-python's Arrow batches typed, SQLCancel on an
+                         interrupt, for_writes); the form's options, choices and variables; the catalog from the
+                         system views; foreign keys into the ERD; the card; an older pyodbc code told apart and
+                         made again with its settings (is_old, upgraded: Update to the new driver)
+    portability.py       what runs only on this computer (an ODBC driver, Windows sign-in, Entra as you, a
+                         certificate or file on this disk, an AWS profile, the keyring): each with why and what
+                         runs on a Function App or a hosted Streamlit app instead; by kind, code and password
+                         source; the form's ways, a starter's tags, an export's warning
     certificate_files.py a certificate or keystore file setting (verify, sslrootcert, sslcert, sslkey, keystore)
                          as a path or `os.environ.get("NAME", r"<this computer's path>")`: read back, written,
                          `import os` added; blades.env_settings lists the mappings (export, Run settings)
@@ -792,8 +798,9 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          keystores), powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
                          workspace of three made-up datasets), dataverse_standin.py (a Dataverse environment's
                          Web API, its metadata and its sign-ins: a made-up company's accounts, contacts and
-                         opportunities), dataverse_tds_standin.py (its SQL endpoint at the cursor: a made-up
-                         SQLite file), orders_service.py (a made-up web service
+                         opportunities), dataverse_tds_standin.py (its SQL endpoint at python-tds's seam: a
+                         made-up SQLite file), test_sql_server_real.py (a real SQL Server when
+                         SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
                          orders service, every sign-in it takes stood in for)
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:

@@ -100,7 +100,7 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # The Write starters' drivers: imported by the functions for the notebook's own environment, not the app's.
-module = ["pyodbc", "pyodbc.*", "oracledb", "oracledb.*", "trino", "trino.*", "psycopg", "psycopg.*"]
+module = ["pyodbc", "pyodbc.*", "mssql_python", "mssql_python.*", "pytds", "pytds.*", "oracledb", "oracledb.*", "trino", "trino.*", "psycopg", "psycopg.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

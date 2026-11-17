@@ -2571,6 +2571,16 @@ def connections_dataverse_sql_endpoint(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "connections_update_driver",
+    "Update a SQL Server or Azure SQL connection from the app's earlier pyodbc code to mssql-python (no ODBC "
+    "driver), its settings kept; the user's own code is never rewritten",
+    req("name", "The connection's name (its card says update_driver)."),
+)
+def connections_update_driver(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/update-driver")
+
+
+@command(
     "connections_sql_reads",
     "The connections' tables DuckDB SQL read this session: connection, table, rows, when read",
 )

@@ -129,11 +129,16 @@ def test_the_five_kinds_are_connection_types_with_their_own_sign_ins(client: Tes
         "Username and password, with the app's client secret (ROPC)",
     ]
     assert labels("sharepoint_docs") == labels("sharepoint")
-    assert labels("onelake")[0] == "As you (Azure command line or browser)" and len(labels("onelake")) == 3
+    # A way that runs on a Function App or a hosted Streamlit app first; as you (this machine's only) last.
+    assert (
+        labels("onelake")[0] == "App registration, its secret from a key vault"
+        and len(labels("onelake")) == 3
+    )
+    assert labels("onelake")[-1] == "As you (Azure command line or browser)"
     assert "Account key, from a key vault" in labels("datalake") and "SAS token, from a key vault" in labels(
         "datalake"
     )
-    assert labels("delta")[0] == "A folder on this computer" and any(
+    assert labels("delta")[0] == "Azure: app registration, its secret from a key vault" and any(
         "Amazon S3" in s for s in labels("delta")
     )
     # Each way's code holds its own mark only (the form tells them apart by it).

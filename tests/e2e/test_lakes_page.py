@@ -84,11 +84,11 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
     expect(tiles.first.locator("svg")).to_have_count(1)  # each its own icon
     shot(page, "lakes-types.png", dialog)
 
-    # Each kind's form: its own sign-ins.
+    # Each kind's form: its own sign-ins, one that runs on a Function App or a hosted Streamlit app first.
     for label, first in (
-        ("Microsoft Fabric OneLake", "As you (Azure command line or browser)"),
-        ("Azure Data Lake Storage", "As you (Azure command line or browser)"),
-        ("Delta Lake", "A folder on this computer"),
+        ("Microsoft Fabric OneLake", "App registration, its secret from a key vault"),
+        ("Azure Data Lake Storage", "App registration, its secret from a key vault"),
+        ("Delta Lake", "Azure: app registration, its secret from a key vault"),
     ):
         dialog.locator(".connection-type", has_text=label).click()
         not_now(page, 2)
@@ -117,7 +117,14 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
     expect(code).to_have_value(
         re.compile(re.escape(f'tenant_id = os.environ.get("SHAREPOINT_TENANT_ID", "{made_up.TENANT}")'))
     )
-    # The password: kept in this computer's keyring, never in the code.
+    # The password: from a variable at first (it runs anywhere); here kept in this computer's keyring
+    # (said, amber), never in the code.
+    source = dialog.get_by_role("combobox", name="Where Password comes from")
+    expect(source).to_have_value("env")
+    source.select_option("keyring")
+    expect(dialog.locator(".password-local")).to_contain_text(
+        "its password is saved in this computer's keyring"
+    )
     dialog.locator('input[type="password"]').first.fill(made_up.PASSWORD)
     dialog.get_by_role("button", name="Test connection").click()
     result = dialog.locator(".connection-result")

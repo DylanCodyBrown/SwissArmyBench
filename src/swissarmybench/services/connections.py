@@ -462,6 +462,23 @@ class ConnectionService:
         saved = await self.save(body, blade.name, who)
         return {"name": saved["name"], "changed": True}
 
+    async def update_driver(self, name: str, who: str) -> dict[str, Any]:
+        """A SQL Server or Azure SQL connection whose code is the app's earlier one (pyodbc and an ODBC
+        driver) made again on Microsoft's mssql-python with the same settings (the card's Update to the
+        new driver; domain/sql_server.py upgraded). Its sign-in, settings and password sources stay; a
+        connection of the user's own code is never rewritten (refused)."""
+        blade = self._blades.get(name)
+        if not sql_server.is_old(blade.code):
+            if sql_server.is_robust(blade.code):
+                return {"name": blade.name, "changed": False}
+            raise BladeError(
+                f"{blade.name}'s code is not the SQL Server code the app made, so it is left as it is: "
+                "change its driver in its file."
+            )
+        body = blade.to_json() | {"code": sql_server.upgraded(blade.code)}
+        saved = await self.save(body, blade.name, who)
+        return {"name": saved["name"], "changed": True, "driver": "mssql-python"}
+
     async def read_for_query(
         self, name: str, place: dict[str, str], pushed: table_rules.Pushed, most: int
     ) -> TableRead:

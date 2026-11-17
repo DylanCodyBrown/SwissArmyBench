@@ -155,32 +155,33 @@ def suggested_env(kind: str | None, setting: str) -> str | None:
 
 # ===== the code =====
 
-# The token beside the ODBC connection string: the one code SQL Server's and Dataverse's use too.
-_TDS = (
+# The token beside the connection string: the one code SQL Server's uses too (domain/sql_server.py). A
+# Fabric SQL endpoint is Azure SQL's kind of endpoint, so Microsoft's mssql-python reads it (the owner,
+# 2026-11-17: "mssql for azure and sql server connections"; "odbc does not work on function apps").
+SQL_ENDPOINT = (
     "\n"  # noqa: S608 (code: its names are quoted where they are made)
     + TOKEN_CODE
     + r'''
 
 class Tds:
-    """T-SQL on a Fabric SQL endpoint (a warehouse, or a lakehouse's SQL analytics endpoint): pyodbc and
-    Microsoft's ODBC Driver 18, port 1433, signed in with the Entra token."""
+    """T-SQL on a Fabric SQL endpoint (a warehouse, or a lakehouse's SQL analytics endpoint): Microsoft's
+    mssql-python (its own driver inside: nothing else installed), port 1433, signed in with the Entra
+    token."""
 
     def __init__(self, server, database, token):
         self.server, self.database, self.token, self.sql = server, database, token, None
 
     def connection(self):
         if self.sql is None:
-            pyodbc = importlib.import_module("pyodbc")
-            parts = {"Driver": "{ODBC Driver 18 for SQL Server}", "Server": f"{self.server},1433",
-                     "Database": self.database, "Encrypt": "yes", "TrustServerCertificate": "no"}
+            import mssql_python  # a missing one: the import's own error, the app's Install prompt
+
+            parts = {"Server": f"{self.server},1433", "Database": self.database, "Encrypt": "mandatory",
+                     "TrustServerCertificate": "no"}
             text = "".join(f"{k}={v};" for k, v in parts.items())
             try:
-                self.sql = pyodbc.connect(text, attrs_before={1256: token_struct(self.token())})
+                self.sql = mssql_python.connect(text, attrs_before={1256: token_struct(self.token())})
             except Exception as error:  # the driver's own error class
                 said = str(error)
-                if re.search(r"IM002|Can't open lib|Data source name not found", said):
-                    raise LakeError("Fabric's SQL endpoint needs Microsoft's ODBC Driver 18 for SQL Server "
-                                    "on this computer.") from None
                 raise LakeError(f"Fabric's SQL endpoint refused: {said.splitlines()[0][:300]}") from None
         return self.sql
 
@@ -316,7 +317,7 @@ sql_endpoint = ""
 
 def _onelake(way: str) -> str:
     return (
-        _HEAD + _ONELAKE_PLACE + _ENTRA[way] + _BODY + _TDS + _KINDS + "\n\n"
+        _HEAD + _ONELAKE_PLACE + _ENTRA[way] + _BODY + SQL_ENDPOINT + _KINDS + "\n\n"
         'storage = Token(sign_in, "https://storage.azure.com/.default")\n'
         'warehouse = Token(sign_in, "https://database.windows.net/.default")\n'
         "conn = OneLake(workspace, item, storage, sql_endpoint, warehouse)\n"
@@ -402,10 +403,13 @@ ONELAKE_YOU: str = _onelake("you")
 DATALAKE_YOU: str = _datalake("you")
 DELTA_LOCAL: str = _delta("local")
 
+# The app registration first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as
+# you (this machine's only, domain/portability.py) last (the owner, 2026-11-17: "we want to advise against
+# any connectors that only work locally"). A saved connection keeps its own code.
 _ENTRA_WAYS: tuple[tuple[str, str, str], ...] = (
-    (entra.SIGN_INS[0][0], entra.YOU_MARK, "you"),
-    (entra.SIGN_INS[1][0], entra.MANAGED_MARK, "managed"),
     (entra.SIGN_INS[2][0], entra.APP_MARK, "app"),
+    (entra.SIGN_INS[1][0], entra.MANAGED_MARK, "managed"),
+    (entra.SIGN_INS[0][0], entra.YOU_MARK, "you"),
 )
 ONELAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
     (label, mark, _onelake(way)) for label, mark, way in _ENTRA_WAYS
@@ -416,7 +420,6 @@ DATALAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("SAS token, from a key vault", 'sas_token = secret("sas token")', _datalake("sas")),
 )
 DELTA_SIGN_INS: tuple[tuple[str, str, str], ...] = (
-    ("A folder on this computer", "# A folder on this computer", _delta("local")),
     *((f"Azure: {label[:1].lower()}{label[1:]}", mark, _delta(way)) for label, mark, way in _ENTRA_WAYS),
     ("Azure: account key, from a key vault", 'account_key = secret("account key")', _delta("key")),
     (
@@ -424,5 +427,6 @@ DELTA_SIGN_INS: tuple[tuple[str, str, str], ...] = (
         "aws_secret_access_key = secret(",
         _delta("s3key"),
     ),
+    ("A folder on this computer", "# A folder on this computer", _delta("local")),
     ("Amazon S3: a profile on this computer", 'profile = "', _delta("s3profile")),
 )

@@ -11,7 +11,10 @@ the Workbench window and the agent alike (the golden rule: `workbench_export_scr
             Add API made: services/apis.py `inline`) is written inside it, so the import still works
 
 The script holds code only (no rows, no passwords), so the agent's export asks nothing; the file goes
-where it is sent, as a Save as does.
+where it is sent, as a Save as does. Its answer names each connection it uses that leans on this computer
+(`local`, `local_words`: domain/portability.py), so the page warns before it writes ("Only works on your
+machine"; the owner, 2026-11-17: "this is meant to scale to a function app or up to a hosted streamlit
+application").
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
-from swissarmybench.domain import dataverse, notebooks
+from swissarmybench.domain import dataverse, notebooks, portability
 from swissarmybench.domain import script_export as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
@@ -162,6 +165,27 @@ class ScriptExports:
             values += saved.values()
         return pieces, values
 
+    def local_notes(self, wanted: Iterable[str]) -> list[dict[str, Any]]:
+        """Each connection named in `wanted` that will not run on a Function App or a hosted Streamlit
+        app, with why (domain/portability.py): its kind, its sign-in, a password saved in this
+        computer's keyring and in no vault it reads."""
+        everything = self._blades.all()
+        vaults = [b for b in everything if b.kind == "vault"]
+        found = []
+        for name in dict.fromkeys(wanted):
+            try:
+                blade = self._blades.get(name)
+            except KeyError:
+                continue
+            saved = self._blades.saved_secrets(blade)
+            passwords = [
+                "keyring"
+                for secret in saved
+                if not any(v.vault_all or secret in v.vault_mapping for v in vaults)
+            ]
+            found.append((blade.name, blade.code, blade.template, passwords))
+        return portability.export_notes(found)
+
     def _code_names(self) -> dict[str, str]:
         """Each connection's variable in the Workbench (shop -> Shop), as services/blades.py names them."""
         opened = [b.name for b in self._blades.all() if opens_in_code(connection_kind(b.kind, b.template))]
@@ -187,7 +211,9 @@ class ScriptExports:
         cells, path = await self._cells(body)
         stub = body.get("stub") is True
         names = self._code_names()
-        pieces, values = self._pieces(rules.references(cells, names))
+        wanted = rules.references(cells, names)
+        pieces, values = self._pieces(wanted)
+        local = self.local_notes(wanted)
         title = (path or body.get("name") or "notebook").replace("\\", "/").rsplit("/", 1)[-1]
         title = title.rsplit(".", 1)[0] if "." in title else title
         to = body.get("to") if isinstance(body.get("to"), str) and body["to"].strip() else None
@@ -227,6 +253,9 @@ class ScriptExports:
             "problems": [str(p) for p in made.problems],
             "lint": lint,
             "linted": linted is not None,  # ruff checked it (False: no ruff in the app's Python)
+            # Each connection it uses that only runs on this computer: the page asks before it writes.
+            "local": local,
+            "local_words": portability.export_words(local),
         }
         if body.get("check") is True:
             return answer | {"text": made.text}

@@ -106,25 +106,30 @@ def test_the_form_asks_for_the_address_and_signs_in_three_ways(client: TestClien
     form = types_["dataverse"]
     assert (form["label"], form["connection"], form["dialect"]) == ("Dataverse", "database", "dataverse")
     assert [(f["name"], f["value"], f["placeholder"]) for f in form["fields"]] == [
-        ("address", "https://your-org.crm.dynamics.com", True)
+        ("address", "https://your-org.crm.dynamics.com", True),
+        ("tenant_id", "my-tenant-id", True),
+        ("client_id", "my-client-id", True),
     ]
+    # The app registration first: it runs here and on a Function App or a hosted Streamlit app alike;
+    # as you (this machine's only) last (the owner, 2026-11-17).
     assert [w["label"] for w in form["sign_ins"]] == [
-        "As you (Azure command line or browser)",
-        "Managed identity (in Azure: a Function App, App Service or VM)",
         "App registration, its secret from a key vault",
+        "Managed identity (in Azure: a Function App, App Service or VM)",
+        "As you (Azure command line or browser)",
     ]
     codes = [w["code"] for w in form["sign_ins"]]
     for at, way in enumerate(form["sign_ins"]):  # each way's mark is in its own code only
         assert [way["mark"] in c for c in codes].index(True) == at and sum(
             way["mark"] in c for c in codes
         ) == 1
-    assert form["code"] == dataverse.YOU and form["secrets"] == []
+    assert form["code"] == dataverse.APP and form["secrets"] == ["client secret"]
     assert form["secrets_from"] == "vault only"
     # Its tables on the SQL endpoint (the owner, 2026-11-17): the endpoint's own catalog.
     assert form["catalog"] == {"language": "sql", "command": dataverse.SQL_CATALOG}
     assert BY_ID["dataverse"].to_json()["catalog"] == form["catalog"]
-    # Its packages, offered as the other connections offer theirs: azure-identity, and pyodbc for SQL.
-    assert {p["pip"] for p in form["packages"]} >= {"azure-identity", "pyodbc"}
+    # Its packages, offered as the other connections offer theirs: python-tds (and its TLS) for SQL.
+    assert {p["pip"] for p in form["packages"]} >= {"python-tds", "pyOpenSSL", "certifi"}
+    assert "pyodbc" not in {p["pip"] for p in form["packages"]}
 
 
 def test_each_way_to_sign_in_asks_only_for_what_it_needs() -> None:
@@ -473,18 +478,19 @@ def test_no_secret_in_any_answer_log_or_file(
             assert not any(value in text for value in NOT_TO_BE_SEEN), file
 
 
-# ===== SQL: the read-only SQL endpoint (TDS), with a stand-in for pyodbc =====
+# ===== SQL: the read-only SQL endpoint (TDS), with a stand-in for python-tds =====
 
 
 class FakeCursor:
     def __init__(self, refusal: str | None) -> None:
         self.refusal, self.rowcount, self.sent = refusal, -1, ""
+        self.params: tuple[Any, ...] = ()
         self.description: list[tuple[Any, ...]] | None = None
 
-    def execute(self, sql: str, *parameters: Any) -> None:
+    def execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
         if self.refusal:
             raise RuntimeError(self.refusal)
-        self.sent = sql
+        self.sent, self.params = sql, params
         self.description = [("name", None, None, None, None, None, None)]
 
     def fetchall(self) -> list[tuple[Any, ...]]:
@@ -495,52 +501,86 @@ class FakeCursor:
 
 
 @pytest.fixture
-def pyodbc(monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
-    """pyodbc, stood in for: what connect() was given, and the refusal its queries meet (if any)."""
-    seen = types.SimpleNamespace(calls=[], refusal=None, connect_refusal=None)
+def pytds(monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
+    """python-tds, stood in for (with certifi and pyOpenSSL): what connect() was given, the token it
+    was handed, and the refusal its queries meet (if any)."""
+    seen = types.SimpleNamespace(calls=[], refusal=None, connect_refusal=None, cursors=[])
 
-    def connect(text: str, attrs_before: dict[int, bytes] | None = None) -> Any:
-        seen.calls.append((text, attrs_before))
+    def connect(**given: Any) -> Any:
+        given["token"] = given.pop("access_token_callable")()
+        seen.calls.append(given)
         if seen.connect_refusal:
             raise RuntimeError(seen.connect_refusal)
-        made = types.SimpleNamespace(cursor=lambda: FakeCursor(seen.refusal), close=lambda: None)
-        return made
 
-    monkeypatch.setitem(sys.modules, "pyodbc", types.SimpleNamespace(connect=connect))
+        def cursor() -> FakeCursor:
+            made = FakeCursor(seen.refusal)
+            seen.cursors.append(made)
+            return made
+
+        return types.SimpleNamespace(cursor=cursor, close=lambda: None)
+
+    monkeypatch.setitem(sys.modules, "pytds", types.SimpleNamespace(connect=connect))
+    monkeypatch.setitem(sys.modules, "certifi", types.SimpleNamespace(where=lambda: "made-up.pem"))
+    monkeypatch.setitem(sys.modules, "OpenSSL", types.SimpleNamespace())
+    monkeypatch.delitem(sys.modules, "pyodbc", raising=False)
     return seen
 
 
-TDS_DISABLED = (
-    "('42000', '[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]TDS protocol endpoint is "
-    "disabled for this organization. (40000) (SQLExecDirectW)')"
-)
+TDS_DISABLED = "Msg 40000, Level 16: TDS protocol endpoint is disabled for this organization."
 
 
-def test_sql_goes_to_port_5558_with_the_token_beside_the_connection_string(
-    standin: made_up.StandIn, pyodbc: types.SimpleNamespace
+def test_sql_goes_to_port_5558_on_python_tds_with_the_token_handed_over(
+    standin: made_up.StandIn, pytds: types.SimpleNamespace
 ) -> None:
     conn = connect(standin)
     cursor = conn.cursor()
     cursor.execute("SELECT TOP 1 name FROM account")
     assert cursor.fetchall() == [("Bluefin Outfitters",)] and cursor.description[0][0] == "name"
-    text, attrs = pyodbc.calls[0]
-    assert (
-        text == "Driver={ODBC Driver 18 for SQL Server};Server=127.0.0.1,5558;"
-        "Encrypt=yes;TrustServerCertificate=no;"
-    )
-    assert "UID=" not in text and "PWD=" not in text and "Authentication=" not in text
-    sent = made_up.TOKEN.encode("utf-16-le")
-    assert attrs == {1256: len(sent).to_bytes(4, "little") + sent}  # SQL_COPT_SS_ACCESS_TOKEN
+    given = pytds.calls[0]
+    assert given == {
+        "server": "127.0.0.1",
+        "port": 5558,
+        "validate_host": True,
+        "autocommit": True,
+        "login_timeout": 30,
+        "cafile": "made-up.pem",  # certifi's authorities: TLS, the host checked
+        "token": made_up.TOKEN,  # Entra's federated authentication: no user, no password
+    }
     conn.cursor()
-    assert len(pyodbc.calls) == 1  # connected once
+    assert len(pytds.calls) == 1  # connected once
     conn.close()
 
 
+def test_a_statements_marks_are_python_tds_own() -> None:
+    found: dict[str, Any] = {}
+    start = dataverse.MANAGED.index("def marks(")
+    end = dataverse.MANAGED.index("\n\n\n", start)
+    exec(dataverse.MANAGED[start:end], found)  # noqa: S102
+    marks = found["marks"]
+    assert marks("SELECT name FROM account WHERE revenue > ? AND name = ?", (1, "x")) == (
+        "SELECT name FROM account WHERE revenue > %s AND name = %s"
+    )
+    assert marks("SELECT '?' AS q, [a?b] FROM t WHERE x LIKE '5%' AND y = ?", (1,)) == (
+        "SELECT '?' AS q, [a?b] FROM t WHERE x LIKE '5%' AND y = %s"
+    )
+    assert marks("SELECT 100 % 7", ()) == "SELECT 100 % 7"  # no parameters: as it is
+    assert marks("SELECT 100 % 7 WHERE a = ?", (1,)) == "SELECT 100 %% 7 WHERE a = %s"
+
+
+def test_the_sql_endpoint_needs_python_tds_and_no_odbc_driver() -> None:
+    from swissarmybench.domain.blades import needed
+
+    for code in (dataverse.APP, dataverse.MANAGED, dataverse.YOU):
+        pips = {p.pip for p in needed(code, lambda m: True)}
+        assert {"python-tds", "pyOpenSSL", "certifi"} <= pips and "pyodbc" not in pips
+        assert "ODBC" not in code and "pyodbc" not in code
+
+
 def test_the_sql_endpoint_being_off_is_said_plainly_with_the_read_instead(
-    standin: made_up.StandIn, pyodbc: types.SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+    standin: made_up.StandIn, pytds: types.SimpleNamespace, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conn = connect(standin)
-    pyodbc.refusal = TDS_DISABLED
+    pytds.refusal = TDS_DISABLED
     with pytest.raises(RuntimeError) as off:
         conn.cursor().execute("SELECT name FROM account")
     assert "SQL endpoint (TDS) is off in this environment" in str(off.value)
@@ -564,11 +604,9 @@ def test_the_sql_endpoint_being_off_is_said_plainly_with_the_read_instead(
         }
     ]
     # Other refusals: in plain words too.
-    pyodbc.connect_refusal = (
-        "('01000', \"[01000] [unixODBC][Driver Manager]Can't open lib 'ODBC Driver 18'\")"
-    )
+    pytds.connect_refusal = "Login failed for token-identified principal."
     conn.sql = None
-    with pytest.raises(RuntimeError, match="needs Microsoft's ODBC Driver 18"):
+    with pytest.raises(RuntimeError, match="Dataverse's SQL endpoint refused: Login failed"):
         conn.cursor()
 
 

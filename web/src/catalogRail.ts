@@ -361,7 +361,13 @@ export function mountRail(host: RailHost): Rail {
         },
       },
       h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit", python: "Python", typescript: "TypeScript", tsx: "TSX" }[language] : "Python"),
-      h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
+      h(
+        "span",
+        { class: "blade-text" },
+        h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name),
+        // Its kinds run only on this computer: said, amber (the owner, 2026-11-17).
+        starter.local?.length ? h("span", { class: "connection-card-local starter-local", title: starter.local.map((n) => n.words).join("\n") }, icon("warning"), "Only works on your machine") : null,
+      ),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );
   }

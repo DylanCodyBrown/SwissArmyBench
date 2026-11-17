@@ -43,6 +43,8 @@ export interface StarterSummary {
   placeholders?: Placeholder[];
   source: string;
   pack?: string | null;
+  /** For kinds that run only on this computer (an ODBC source, files on this disk): domain/portability.py. */
+  local?: { key: string; reason: string; instead: string; words: string }[];
 }
 
 interface SnippetFormData {

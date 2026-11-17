@@ -380,8 +380,11 @@ run code there.
 A **connection** is a database, a file or a key vault you reach: added in the app (**Connections** in
 the Application row) with a form for its type, the Python it makes shown underneath. Each password says
 where it comes from: saved on this computer (the system keyring), an environment variable, or a key
-vault. SQL Server and Azure SQL have a **Sign in** choice: Windows, a user name and password, or MFA
-(Microsoft Entra), each its own connection string, switched keeping what you typed. **Trust server
+vault. SQL Server and Azure SQL (through Microsoft's mssql-python: no ODBC driver) have a **Sign in**
+choice: a user name and password, Microsoft Entra (managed identity, an app registration, as you) or
+Windows, each its own connection string, switched keeping what you typed. A choice that works only on this
+computer (Windows sign-in, Entra as you, an ODBC driver, a file on this disk, the keyring) says so in amber:
+what the app makes is meant to run on an Azure Function App or a hosted Streamlit app too. **Trust server
 certificate** and **Encrypt** are checkboxes (SQL Server, Azure SQL, Trino). **Test connection** runs
 the form before anything is saved. A connection's **catalog** (its tables and columns) loads itself
 in the background: when the connection is saved, when Swiss Army Bench starts, and the first time a SQL
@@ -453,7 +456,7 @@ name, every column with its type. **Open as grid**, the preview and `sab.read("S
 read a table through the Web API (OData `$select`, `$filter`, `$top`, paging by `@odata.nextLink`), so
 they work in every environment with no admin setting; a choice column reads as its labels. SQL cells
 (`%%sql Sales CRM`, `sab.sql`) run T-SQL on the environment's read-only SQL endpoint (TDS, port 5558)
-through `pyodbc` and ODBC Driver 18 with the same Entra token; when an environment has that endpoint off,
+through `python-tds` (pure Python: no ODBC driver) with the same Entra token; when an environment has that endpoint off,
 the cell says so and the error panel offers the `sab.read` line instead. In Python:
 
 ```python
