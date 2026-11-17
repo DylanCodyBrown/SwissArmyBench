@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
@@ -66,6 +67,8 @@ class Ops(Protocol):
 
     def stop_in(self, folder: str) -> int: ...
 
+    def fetch(self, url: str, folder: str) -> str: ...
+
 
 def _tail(text: str, lines: int = 12) -> str:
     kept = [line for line in text.strip().splitlines() if line.strip()][-lines:]
@@ -80,6 +83,17 @@ def _why(output: str) -> str:
 
 def _gone(ops: Ops, pid: int) -> bool:
     return not ops.alive(pid)
+
+
+def local_wheels(command: list[str], ops: Ops, folder: str) -> list[str]:
+    """`command` with each `--with https://...` wheel downloaded first and given to uv as a file: the
+    helper follows the release's download redirect itself (uv failed on GitHub's in a proxied network),
+    and a download that fails is said plainly. OSError when one cannot be downloaded."""
+    found = list(command)
+    for i in range(1, len(found)):
+        if found[i - 1] == "--with" and found[i].startswith("https://"):
+            found[i] = ops.fetch(found[i], folder)
+    return found
 
 
 def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
@@ -108,9 +122,16 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
         ops.stop_in(str(plan["stop_in"]))
 
     reason = ""
+    install = list(plan["install"])
+    if any(part.startswith("https://") for part in install):
+        steps.append("download")
+        try:
+            install = local_wheels(install, ops, tempfile.mkdtemp(prefix="sab-wheels-"))
+        except OSError as error:
+            reason = f"An extension could not be downloaded: {error}"
     steps.append("install")
-    for attempt in range(INSTALL_ATTEMPTS):
-        code, output = ops.run(list(plan["install"]), environ)
+    for attempt in range(INSTALL_ATTEMPTS if not reason else 0):
+        code, output = ops.run(install, environ)
         if code == 0:
             reason = ""
             break
@@ -137,7 +158,12 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
         if waited(WAIT_FOR_START_SECONDS, lambda: ops.started(plan["info_file"], None)):
             return "restored"
     steps.append("restore")
-    code, _ = ops.run(list(plan["restore"]), environ)
+    restore = list(plan["restore"])
+    try:
+        restore = local_wheels(restore, ops, tempfile.mkdtemp(prefix="sab-wheels-"))
+    except OSError:
+        pass  # uv tries the addresses itself
+    code, _ = ops.run(restore, environ)
     if code == 0:
         ops.start(list(plan["start"]), environ)
         if waited(WAIT_FOR_START_SECONDS, lambda: ops.started(plan["info_file"], current)):
@@ -252,6 +278,19 @@ class SystemOps:
         if int(last):
             time.sleep(1.0)  # Windows lets go of a stopped program's files a moment later
         return int(last)
+
+    def fetch(self, url: str, folder: str) -> str:
+        """The wheel at `url` (this version's GitHub release) saved in `folder` under its own name."""
+        name = url.rsplit("/", 1)[-1]
+        if not name.endswith(".whl") or "/" in name or "\\" in name or name.startswith("."):
+            raise OSError(f"{url} is not a wheel's address.")
+        target = Path(folder) / name
+        try:
+            with urllib.request.urlopen(url, timeout=120) as answer, target.open("wb") as out:  # noqa: S310
+                shutil.copyfileobj(answer, out)
+        except (OSError, ValueError) as error:
+            raise OSError(f"{name}: {error}") from None
+        return str(target)
 
 
 def main(argv: list[str] | None = None) -> int:

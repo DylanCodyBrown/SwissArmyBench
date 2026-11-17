@@ -62,6 +62,14 @@ class FakeOps:
         self.did.append(f"stop {folder}")
         return 1
 
+    fetch_fails = False
+
+    def fetch(self, url: str, folder: str) -> str:
+        if self.fetch_fails:
+            raise OSError(f"{url.rsplit('/', 1)[-1]}: HTTP Error 404: Not Found")
+        self.did.append("fetch")
+        return f"{folder}/{url.rsplit('/', 1)[-1]}"
+
 
 def plan() -> dict[str, Any]:
     return rules.plan_update(
@@ -309,3 +317,32 @@ def test_the_helper_upgrades_a_uv_tool_and_the_new_version_starts(tmp_path: Path
                     if not updater._alive(pid):
                         break
                     time.sleep(0.1)
+
+
+def test_an_extension_wheel_is_downloaded_by_the_helper_and_given_to_uv_as_a_file() -> None:
+    wheel = "https://github.com/o/r/releases/download/v0.0.2/sab_ledger-0.0.2-py3-none-any.whl"
+    ran: list[list[str]] = []
+    ops = FakeOps({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
+    real_run = ops.run
+
+    def run(command: list[str], environ: dict[str, str]) -> tuple[int, str]:
+        ran.append(command)
+        return real_run(command, environ)
+
+    ops.run = run  # type: ignore[method-assign]
+    shaped = plan() | {"install": ["uv", "tool", "install", "--force", "x==0.0.2", "--with", wheel]}
+    steps: list[str] = []
+    assert updater.run(shaped, ops, steps) == "updated"
+    assert steps[:3] == ["wait", "download", "install"]
+    assert ran[0][-2] == "--with" and ran[0][-1].endswith("/sab_ledger-0.0.2-py3-none-any.whl")
+    assert not ran[0][-1].startswith("https://")
+
+
+def test_a_wheel_that_cannot_be_downloaded_is_said_and_the_old_version_starts_again() -> None:
+    wheel = "https://github.com/o/r/releases/download/v0.0.2/sab_ledger-0.0.2-py3-none-any.whl"
+    ops = FakeOps({"install": []}, ["0.0.1"])
+    ops.fetch_fails = True
+    shaped = plan() | {"install": ["uv", "tool", "install", "--force", "x==0.0.2", "--with", wheel]}
+    assert updater.run(shaped, ops) == "restored"
+    assert "install" not in ops.did
+    assert ops.notes[0]["reason"].startswith("An extension could not be downloaded: sab_ledger-0.0.2")
