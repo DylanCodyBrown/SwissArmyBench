@@ -1,7 +1,7 @@
 # ruff: noqa: F811
 """The Workbench redesign (2026-11-15, docs/ideas.md) in a real browser: tab groups split right and down
-by command and by drag, tabs reordered, the layout back after a reload, the Data panel folded, "+ Table"
-reaching Open file and a connection's tables, and the status bar's kernel menu.
+by command and by drag, tabs reordered, the layout back after a reload, the Data Explorer opened and
+closed, "+ Table" reaching Open file and a connection's tables, and the status bar's kernel menu.
 
 Made-up data only: a CSV of three orders in the test's own folder.
 """
@@ -230,17 +230,17 @@ def test_the_data_panel_folds_and_table_opens_a_file_and_a_connections_table(
     )
     try:
         workbench = open_workbench(browser, server)
-        panel = workbench.locator(".wb-data")
-        expect(panel.get_by_role("list", name="Tables")).to_contain_text("No tables")
-        # Fold the panel (its arrow), and it stays folded after a reload; Ctrl+B opens it again.
-        panel.get_by_role("button", name="Collapse the Data panel").click()
-        expect(panel).to_have_class(re.compile(r"\bcollapsed\b"))
-        expect(panel.get_by_role("list", name="Tables")).to_be_hidden()
+        panel = workbench.locator(".wb-explorer")
+        # The Data Explorer (2026-11-17, in the Data panel's place): off until opened; open or closed is
+        # this window's own, kept through a reload; Ctrl+Shift+E opens and closes it.
+        expect(panel).to_be_hidden()
+        workbench.keyboard.press("Control+Shift+E")
+        expect(panel).to_be_visible()
         workbench.reload()
-        expect(workbench.locator(".wb-data")).to_have_class(re.compile(r"\bcollapsed\b"), timeout=20000)
-        workbench.keyboard.press("Control+b")
-        expect(panel).not_to_have_class(re.compile(r"\bcollapsed\b"))
-        assert window(server, "view.toggleSidebar", collapsed=False) == {"collapsed": False}
+        expect(workbench.locator(".wb-explorer")).to_be_visible(timeout=20000)
+        workbench.keyboard.press("Control+Shift+E")
+        expect(panel).to_be_hidden()
+        assert window(server, "view.explorer", show=True) == {"open": True, "popped": False}
 
         # "+ Table" → Open file…: the file chooser, then the table in the panel with its rows and file.
         start(workbench)
@@ -251,24 +251,10 @@ def test_the_data_panel_folds_and_table_opens_a_file_and_a_connections_table(
         folder.fill(str(csv.parent))
         folder.press("Enter")
         chooser.locator(".file-row.file", has_text="orders.csv").dblclick()
-        card = panel.get_by_role("list", name="Tables").locator(".wb-data-card", has_text="orders")
-        expect(card).to_contain_text("3 rows", timeout=20000)
-        expect(card).to_contain_text("orders.csv")
-        # A click on it goes to its read-only cell in the notebook in front.
-        expect(workbench.locator(".wb-tcell.role-tables")).to_be_visible(timeout=20000)
-        card.click()
-        expect(workbench.locator(".wb-tcell.role-transformations.selected")).to_be_visible(timeout=10000)
-        # A step in the grid shows on the card.
-        grid = next(
-            t["grid"] for t in call(server, "GET", "/workbench/tables")["tables"] if t["name"] == "orders"
-        )
-        call(
-            server,
-            "POST",
-            f"/grids/{grid}/steps",
-            {"steps": [{"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 5}}]},
-        )
-        expect(card).to_contain_text("orders.csv · 1 step", timeout=20000)
+        # The table is an Explorer result: its rows and its file.
+        panel.locator(".ex-search").fill("orders")
+        card = panel.locator(".ex-group[data-kind='tables'] .ex-result", has_text="3 rows")
+        expect(card).to_contain_text("orders.csv", timeout=20000)
 
         # "+ Table" → a connection: its catalog beside the panel, a table there opens its page.
         wait_until(
@@ -285,7 +271,7 @@ def test_the_data_panel_folds_and_table_opens_a_file_and_a_connections_table(
         expect(item).to_be_visible(timeout=20000)
         item.click()
         expect(workbench.locator(".wb-tab[data-kind=explorer]")).to_be_visible(timeout=20000)
-        expect(workbench.get_by_role("button", name="Open as grid")).to_be_visible()
+        expect(workbench.locator(".wb-groups").get_by_role("button", name="Open as grid")).to_be_visible()
         # Escape (or a click elsewhere) puts the catalog away; "+ Blade" shows the saved blades.
         flyout.get_by_role("searchbox", name="Search the catalog").focus()
         workbench.keyboard.press("Escape")

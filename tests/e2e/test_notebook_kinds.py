@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -112,35 +111,29 @@ def test_a_projects_notebooks_wear_their_kind_on_tabs_cards_and_files(
     shot(page, "new-app-notebook")
 
 
-def test_the_data_panel_is_beside_app_notebooks_and_canvases_not_the_data_notebook(
+def test_the_data_explorer_is_beside_every_document(
     browser: Browser, server: dict[str, Any], orchard: Path
 ) -> None:
+    """The Data panel was only beside app notebooks and canvases (2026-11-16); the Data Explorer that
+    took its place (2026-11-17) is beside every document once opened: the data notebook, an app notebook, a
+    canvas (whose Streamlit cells are its own panel)."""
     page = workbench(browser, server)
     window(server, "project.open", folder=str(orchard))
-    panel = page.locator(".wb-data")
+    panel = page.locator(".wb-explorer")
     expect(tab(page, "data.ipynb")).to_be_visible(timeout=30000)
     expect(tab(page, "shop.stapp.json").or_(tab(page, "shop"))).to_have_count(1, timeout=20000)
     tab(page, "data.ipynb").click()
-    expect(panel).to_be_hidden()
-    # Its fold is not offered there: not in the top bar's menu, not as a command.
-    assert window(server, "documents")["panes"]["data_panel"] == "away"
-    with pytest.raises(urllib.error.HTTPError) as refused:
-        window(server, "view.toggleSidebar", collapsed=False)
-    assert "not the data notebook" in refused.value.read().decode()
-    page.locator(".wb-top button[aria-label='Workbench menu']").click()
-    menu = page.get_by_role("menu")
-    expect(menu).to_be_visible()
-    expect(menu.get_by_text("the Data panel")).to_have_count(0)
-    page.keyboard.press("Escape")
-    shot(page, "data-notebook-no-data-panel")
+    expect(panel).to_be_hidden()  # off until opened
+    assert window(server, "documents")["panes"]["data_explorer"] == "closed"
+    assert window(server, "view.explorer", show=True) == {"open": True, "popped": False}
+    expect(panel).to_be_visible()
+    shot(page, "data-notebook-data-explorer")
     tab(page, "pickers.ipynb").click()
     expect(panel).to_be_visible()
-    expect(panel.locator("[data-panel='tables']")).to_be_visible()
-    shot(page, "app-notebook-data-panel")
-    tab(page, "data.ipynb").click()
-    expect(panel).to_be_hidden()
     tab(page, "shop.stapp.json").or_(tab(page, "shop")).click()
     expect(panel).to_be_visible()
+    expect(page.locator(".wb-mode-left .wb-st")).to_be_visible()
+    assert window(server, "documents")["panes"]["data_explorer"] == "open"
 
 
 def test_a_notebook_outside_a_project_is_plain(browser: Browser, server: dict[str, Any]) -> None:
@@ -151,4 +144,4 @@ def test_a_notebook_outside_a_project_is_plain(browser: Browser, server: dict[st
     made = tab(page, "Untitled notebook")
     expect(made).to_have_attribute("data-kind", "notebook", timeout=20000)
     expect(made.locator(".wb-tab-icon")).to_have_attribute("data-icon", "notebook")
-    expect(page.locator(".wb-data")).to_be_visible()
+    expect(page.locator(".wb-explorer-toggle")).to_be_visible()

@@ -63,7 +63,7 @@ The page has these parts:
 ### Getting around
 
 - **The rail** down the left of every page and window has an icon for each area: **Grids** (your tabbed tables), **Visualizations**, **ERD**, **Notebooks**, **Scripts**, **Apps** (the Streamlit canvas), **Blades**, **Connections**, **Session**, and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with the Data panel's **Streamlit cells** beside the canvas, so the cells you can place are one drag away.
+  - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top left of every page and window) takes you home: the Start view (see Projects (.sab), below). From the Workbench, the blades page or the steps window it brings the grids' window to the front (and opens it if you closed it). **Alt+Home** does the same.
@@ -127,7 +127,7 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
 
-**Panels** has a switch for each panel: in the Workbench the Data panel and its Tables, Blade variables and Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history; and on every page, the navigation rail.
+**Panels** has a switch for each panel: in the Workbench the Data Explorer, the Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history; and on every page, the navigation rail.
 
 **Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
 
@@ -418,20 +418,33 @@ their own, run in an IPython kernel on this computer.
   Transformations. In a project, **New app notebook** makes one (a project has one data notebook). A
   notebook outside a project is a plain notebook. The cells fill the width of their pane; a wide table
   in an output scrolls sideways inside its cell.
-- **The Data panel, on the left:** **Tables** lists the tables open in the grid, each with its rows,
-  its file or connection and its steps; a click goes to its read-only cell in the notebook in front,
-  and a drag puts its name in your code. **+ Table** opens a file as a table, browses a connection's
-  tables, searches the catalog, or adds a connection. **Variables** lists your blades (a click opens
-  one, a drag gives its `sab.blade` line); **+ Blade** shows your saved blades and connections. The
-  arrow (or Ctrl+B) folds the panel away. It sits beside app notebooks, Streamlit apps and scripts;
-  beside the data notebook it is not there at all, and comes back when you switch to another tab.
+- **The Data Explorer, on the left** (the status bar's **Data Explorer**, or Ctrl+Shift+E; off until
+  you open it, then beside every document, the data notebook and scripts too; drag its right edge to
+  size it). One search box finds data by name as you type: your **connections**, their **tables** and
+  **columns** (from each connection's catalog; a table shows its name for DuckDB SQL,
+  `[Shop].customers`), the **tables open in the grid** and their columns, **variables** (by name and
+  source, never a value) and **blades**. Any case, any part: `cust` finds `customer_id` and
+  `CustomerKey`. The results come grouped and counted; the chips keep one kind or a few, the picker one
+  connection, and your recent searches wait under the box. A connection whose catalog is not loaded yet
+  says so, with **Load its catalog**. On a result (its buttons, a right-click, or Enter for the first):
+  a table: **Open as grid**, **Preview** (its first rows under it, nothing kept), **Copy SQL name**,
+  **Insert** (into the selected cell, as that cell writes it: `SELECT * FROM [Shop].customers` in a
+  SQL cell, `sab.sql("SELECT * FROM [Shop].customers")` in a Python cell) and **Query in a notebook**;
+  a column: **Copy name**, **Insert** and **Show tables with this column** (every table that has it,
+  in every connection: where a join may be); a variable: **Open in Variables**; a blade: **Insert its
+  call**. Drag any result into a cell. **+ Table** opens a file, browses a connection's tables,
+  searches the catalog or adds a connection; **+ Blade** shows your saved blades and connections.
+  **Pop out** puts the Data Explorer in a window of its own (on another screen, say) with your search;
+  its Insert still goes into the Workbench's selected cell (the button's tip names it), a drag from it
+  drops into a cell there, and **Move back** brings it back into the pane. On the grid page, **Ctrl+K**
+  (Find data…) opens the same search in a dialog, with **Open the Data Explorer** for its window.
 - **Tabs, in groups, as many as you like:** drag a tab along its row to reorder it; drag it over a
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
   the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the
   bar between groups to size them; a group closes with its last tab. A tab's icon and coloured edge say
   its kind, in its kind colour: violet for an app's page, blue for a notebook (`data.ipynb` with the
   data's own icon), green for a script. The group wears its front document's colour as a thin band, and
-  so do the Data panel's files, the Streamlit cells (by the document they come from), the canvas's
+  so do the Data Explorer's project files, the Streamlit cells (by the document they come from), the canvas's
   blocks and the Recent and Move menus.
 - **Each group's row:** its tabs, then, for the group you are in, the document's controls: a
   notebook's **+ Cell** (Python, SQL, DAX, HTML, Streamlit, Markdown), **Run all** and **…**; a script's
@@ -479,7 +492,7 @@ their own, run in an IPython kernel on this computer.
 - **The agent** works the Workbench as you do: it opens, runs and saves files and kernels, and its
   `workbench_window` tool runs any palette command in the window you were last in (`documents` says
   what is open and how the groups are arranged, `commands` lists them all: splitting, moving a tab,
-  the Data panel's too).
+  the Data Explorer's too: its search, Insert, Pop out and Move back).
 
 ## Connections and key vaults
 
@@ -586,7 +599,7 @@ Every connection has a colour, and everything tied to it wears that colour as a 
 background, so text stays readable): its card on the Connections page, the grid tabs of the tables read
 from it, the notebook and script cells that use it (`%%sql Warehouse`, `%%dax`, `sab.sql`, `sab.read`,
 `sab.dax`, `sab.blade`, `sab.connection`; a cell that uses two connections wears two stripes), a table's
-read-only cell, the Streamlit canvas blocks whose cells use it, the Data panel's tables and the Session
+read-only cell, the Streamlit canvas blocks whose cells use it, the Data Explorer's results and the Session
 page's entries about it.
 
 - **Choosing one:** the round swatch on its card, or beside **Colour** on its detail. Pick from the eight
@@ -1012,7 +1025,7 @@ cells. There is no Streamlit kind of cell: write Python.
 - **Name a cell:** type a name in its head, after its number (or More: Name…; in a script, the words
   after its marker: `# %% [7] Region filter`). The name shows in the cell's head, on its block and in
   the Streamlit cells pane; links still go by the cell's number.
-- **The Streamlit cells pane** (the Data panel, under Tables and Variables) lists every cell that calls
+- **The Streamlit cells panel** (on the canvas's left; Cells in the status bar) lists every cell that calls
   Streamlit, from the open notebooks and scripts and the project's files, by name, and under **Text**
   each Markdown and HTML cell (marked **T**). Drag one onto a
   canvas to place it; click one to go to it. A cell already on the canvas page in front has a check.
@@ -1205,7 +1218,7 @@ own). The status bar shows the document in front's panels as toggles.
   pages and the zip as `st.set_page_config`, `st.logo` and `.streamlit/config.toml`. Edit's tools: undo,
   redo, align, duplicate, zoom. Play shows **Desktop**, **Tablet** or **Phone**, and **Light** or **Dark**
   for the app only. **State** (under the canvas) lists what the live page's session holds, each key with
-  its block; **Reset state** starts the page again fresh. The Data panel's **Data | Starters** switch
+  its block; **Reset state** starts the page again fresh. The canvas's **Starters** panel (on its left, Starters in the status bar)
   shows the Streamlit starters by family: drag one onto the page (or click it), fill its form, and it
   becomes a named cell of the project's mockups notebook, placed where you dropped it.
 - **Notebook:** a cell you changed since it ran says **edited**; one that reads a name made again since
@@ -1233,7 +1246,7 @@ start with `from data import orders, ...`.
 
 - **New project…** (a group's **+**, the top bar's **…**) makes the folder: data.ipynb (a cell for each open table), data.py, an
   app's canvas, requirements.txt. **Open project…** opens its files as tabs, data.ipynb first, and the
-  Data panel lists them (data.py set in under data.ipynb, as its output).
+  Data Explorer lists them at its foot (data.py set in under data.ipynb, as its output).
 - **Export data.py** (the same menus) writes data.py again from data.ipynb as it stands. Play and
   Save as do it too.
 - A table that was pasted, dropped or sent from Python cannot be read again by data.py: it is a

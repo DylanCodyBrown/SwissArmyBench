@@ -60,7 +60,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   controllers: a cell's `# Makes:` contract with types and defaults, Test this page with AppTest, thin
   cells moved to data.ipynb),
   projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), named
-  cells, the Data panel's Streamlit cells pane, tabs that pop out into windows of their own (and move
+  cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
+  window or the grid page's Ctrl+K), App mode's Streamlit cells panel, tabs that pop out into windows of their own (and move
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
   Analyze menu, Visualizations, compare's diff and tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
@@ -274,6 +275,10 @@ src/swissarmybench/
                          why), a table named in DuckDB SQL by its connection ([Finance Captive].Sales: brackets,
                          references in sqlglot's tree, resolved in any case, a shared Power BI name asking for its
                          dataset), the work sent to the source (columns, plain filters, a safe LIMIT), the limit's words
+    explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
+                         CustomerKey; customerid: customer_id), spread over a result's path; results by kind
+                         (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
+                         cut; the code a result is inserted as (a SQL cell's, a Python cell's). Names only
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -312,6 +317,9 @@ src/swissarmybench/
     connection_tables.py the contract's list and read for every kind, DuckDB SQL naming a connection's table (each
                          read: every row the query needs, counted first, refused past the limit; kept for the
                          session by what was sent, Refresh), the Connections page's tree, Open all of a dataset
+    explorer.py          the Data Explorer's search: a provider per source (connections and their loaded catalogs,
+                         the open tables, variables, blades; a connection whose catalog is not loaded offered);
+                         SEAM register("structures"/"apis") for the trees-apis branch; one failing source skipped
     apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
@@ -397,7 +405,7 @@ src/swissarmybench/
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
-                         connection_swap, variables, connection_colours, connection_tables). Every route serves
+                         connection_swap, variables, connection_colours, connection_tables, explorer). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -516,10 +524,17 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          card; pictures go to Visualizations), workbenchGroups.ts (tab groups as VS Code's
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
                          layout as data for the session restore; the tab kind registry, registerTabKind,
-                         where app pages are added), workbenchData.ts (the Data panel: the open tables,
-                         the blades' variables, the Streamlit cells pane (every cell that calls
-                         Streamlit, by name: dragged onto a canvas), a project's files once one exists (setFiles); "+ Table"
-                         and "+ Blade" open catalogRail.ts beside it; folds), workbenchMenu.ts (its drop-
+                         where app pages are added), workbenchExplorer.ts (the Data Explorer pane, which
+                         replaced the Data panel (2026-11-17): left, resizable, off until Ctrl+Shift+E, per
+                         window; a project's files at its foot (setFiles); "+ Table" and "+ Blade" open
+                         catalogRail.ts beside it; Pop out), dataExplorer.ts (the Data Explorer itself, one
+                         component for three hosts: the pane, its own window explorerPage.ts
+                         (/workbench?panel=explorer, static/explorer.html; Move back through a handoff), the
+                         grid page's Find data dialog (Ctrl+K, gridCommands.ts): one search, chips, a
+                         connection picker, recent searches, each result's actions, its drag
+                         (EXPLORER_DRAG: lazy/codeEditor.ts drops the cell's language's code)),
+                         workbenchCellsPane.ts (App mode's Streamlit cells panel: every cell that calls
+                         Streamlit, by name: dragged onto a canvas), workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
                          workbenchCommands.ts (every window action by one name: the palette, the keys, and
                          the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command
@@ -547,7 +562,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
                          notebook's kind (in a project data.ipynb the data notebook, any other an app notebook;
-                         outside one plain: notebookRole, kindIcon; the Data panel is not beside the data notebook);
+                         outside one plain: notebookRole, kindIcon);
                          projectFile.ts a project as one .sab, shared by the home page and the Workbench
                          (open, new: saved first, then Autosave; save with Keep its rows in the file, close,
                          a table's fix, the ● mark); projectImport.ts the import dialog (documents,
@@ -558,7 +573,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Query, its connections, its tables to fix), the project's group in the
                          Application row (Save, Save as, Close, Autosave) and the strip of tables to fix;
                          connectionColours.ts each connection's colour worn by whatever names it
-                         (data-connections: tabs, cells, blocks, cards, the Data panel, Session entries), the
+                         (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
                          swatch and palette; panes.ts groups the home page's tabs by connection;
                          swapConnection.ts the Table row's Connection: <name> (a table read from another
                          connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
@@ -570,7 +585,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
                          in its group, the status bar's toggles), workbenchApp.ts (App: Properties, page
-                         settings, State), workbenchStarters.ts (the Data panel's Starters gallery),
+                         settings, State), workbenchStarters.ts (App mode's Starters panel: the gallery),
                          workbenchDocModes.ts (Notebook's Outline, Script's Run settings and Run history,
                          Data's Dictionary and Lineage's place); the canvas's selection, wiring, undo,
                          align, duplicate, zoom and Play's preview are in workbenchCanvas.ts

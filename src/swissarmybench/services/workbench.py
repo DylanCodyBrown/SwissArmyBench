@@ -441,8 +441,11 @@ class Workbench:
         window opened for it takes it by the id}. Its one-time id."""
         if not isinstance(body, dict) or not isinstance(body.get("document"), dict):
             raise ValueError('Send {"document": {...}, "kernel"?, "to"?}.')
-        if body["document"].get("kind") not in ("notebook", "script", "app"):
-            raise ValueError("Only a notebook, a script or a Streamlit app moves to another window.")
+        # The Data Explorer moves too (popped out, moved back): its search and filters, never a value.
+        if body["document"].get("kind") not in ("notebook", "script", "app", "explorer"):
+            raise ValueError(
+                "Only a notebook, a script, a Streamlit app or the Data Explorer moves to another window."
+            )
         kernel = body.get("kernel")
         if kernel is not None and (not isinstance(kernel, str) or kernel not in self._running):
             raise NotFound("That kernel is not running: move the document without it.")

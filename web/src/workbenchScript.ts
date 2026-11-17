@@ -112,6 +112,8 @@ export interface ScriptView {
   setSource: (number: number, source: string) => void;
   /** The own number of the cell the cursor is in (null: not in a numbered cell). */
   cursorCell: () => number | null;
+  /** The Data Explorer's Insert: text at the cursor (a script is Python). */
+  insertText: (text: string) => void;
   /** The document closed: free its editor and its panes. */
   dispose: () => void;
 }
@@ -1022,6 +1024,10 @@ export function scriptView(
       const size = height === null ? null : Math.max(60, Math.min(2000, Math.round(height)));
       held.pane.setHeight(size);
       writeHeight(held, size);
+    },
+    insertText: (text) => {
+      editor?.insertAt(text);
+      editor?.focus();
     },
     cursorCell: () => {
       const line = editor?.cursorLine() ?? 0;

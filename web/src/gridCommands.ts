@@ -28,6 +28,10 @@ import { cellCommands } from "./cellMenu";
 import { focusedCell } from "./gridView";
 import { activateGrid, activeContext, closeGrid, compareWith, gridList, openWorkbench, renameActive, showAgentView, showErdView, showGridView } from "./panes";
 import { setGridZoom } from "./theme";
+import { api } from "./api";
+import { mountExplorer, openExplorerWindow } from "./dataExplorer";
+import { button, openDialog, toast } from "./dom";
+import { openVariables } from "./variablesPage";
 import { openPalette, setCommandSource, type Command } from "./workbenchCommands";
 
 /** The keys the page already has, shown beside the command they run. */
@@ -76,6 +80,7 @@ function commands(): Command[] {
   // The tour bubble's two buttons are a one-time offer, not commands (Tour is already in the row).
   out.push(...buttonsOf("Application", document, ".app-row button", (b) => b.closest(".tour-bubble") !== null));
   out.push({ id: "application.zoom-reset", group: "Application", title: "Zoom 100%", keys: "Ctrl+0", run: () => setGridZoom(1) });
+  out.push({ id: "application.find-data", group: "Application", title: "Find data…", keys: "Ctrl+K", run: () => openFindData() });
   out.push(...betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
   out.push(...updateCommands()); // Update to X, What's new, Check for updates
   out.push(...claudeCommands()); // Launch Claude
@@ -112,10 +117,48 @@ function commands(): Command[] {
   return out;
 }
 
-/** Ctrl+Shift+P opens the palette, wherever the cursor is. */
+/** Find data… (Ctrl+K): the Data Explorer's search in a dialog over the grids (dataExplorer.ts, the same
+ *  component as the Workbench's pane), so finding data does not need the Workbench. Insert goes into the
+ *  Workbench's selected cell; Open the Data Explorer opens its window with the same search. */
+export function openFindData(): void {
+  if (document.querySelector("dialog.find-data[open]")) return;
+  const { dialog, body, foot, close } = openDialog("Find data", true);
+  dialog.classList.add("find-data");
+  const explorer = mountExplorer({
+    insert: async (r) => {
+      const got = await api<{ result: { document: string; cell: number | null } }>("/workbench/window", "POST", { command: "explorer.insert", args: { insert: r.insert, name: r.name } });
+      return got.result.cell ? `cell ${got.result.cell} of ${got.result.document}` : got.result.document;
+    },
+    target: () => "the Workbench's selected cell",
+    showGrid: (grid) => {
+      close();
+      showGridView();
+      void activateGrid(grid);
+    },
+    openVariable: () => {
+      close();
+      openVariables();
+    },
+  });
+  body.append(explorer.element);
+  foot.append(
+    button("Open the Data Explorer", () => {
+      void openExplorerWindow(explorer.state()).then(close, (e: Error) => toast(e.message, "error"));
+    }, { icon: "popout", class: "line", title: "The Data Explorer in a window of its own, with this search" }),
+  );
+  explorer.focus();
+}
+
+/** Ctrl+Shift+P opens the palette, wherever the cursor is; Ctrl+K, Find data. */
 export function mountGridCommands(): void {
   setCommandSource(commands);
   document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      document.querySelector(".menu")?.remove();
+      openFindData();
+      return;
+    }
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "p") return;
     event.preventDefault();
     // A menu left open would sit over the palette.

@@ -478,11 +478,9 @@ def test_named_cells_show_in_the_streamlit_cells_pane_and_drag_onto_a_canvas(
     saved_notebook(server, book, None, [FILTER, TOTAL, NOTE, "threshold = 50"])
     workbench = open_window(browser, server, book)
     cells = workbench.locator(".wb-cell")
-    # The pane lists the cells that call Streamlit (not the plain one), by their first comment line.
+    # The pane (a canvas's own panel, 2026-11-17) lists the cells that call Streamlit (not the plain one).
     pane = workbench.locator(".wb-st")
     entries = pane.locator(".wb-st-cell .wb-data-label")
-    expect(entries).to_have_text(["Region filter", "Total", "Note"], timeout=20000)
-    expect(pane.locator(".wb-st-doc-name")).to_have_text(["sales.ipynb"])
     # Name a cell in its head: a click on the name area, typed, Enter.
     cells.nth(0).locator(".wb-cell-head").hover()
     cells.nth(0).locator(".wb-cell-name").click()
@@ -493,10 +491,11 @@ def test_named_cells_show_in_the_streamlit_cells_pane_and_drag_onto_a_canvas(
     # And by the palette's command, as the agent does: brackets and a hash are a name's own words.
     assert window(server, "cell.name", number=2, name="Sum [East] #1") == {"cell": 2, "name": "Sum [East] #1"}
     expect(cells.nth(1).locator(".wb-cell-name")).to_have_value("Sum [East] #1")
-    expect(entries).to_have_text(["Pick a region", "Sum [East] #1", "Note"], timeout=20000)
-    expect(pane.locator(".wb-st-cell .wb-data-meta").nth(0)).to_have_text("@cell1makes region · reads orders")
     # Drag an entry from the pane onto a new app's canvas: its block, called by the cell's name.
     window(server, "file.newApp")
+    expect(entries).to_have_text(["Pick a region", "Sum [East] #1", "Note"], timeout=20000)
+    expect(pane.locator(".wb-st-doc-name")).to_have_text(["sales.ipynb"])
+    expect(pane.locator(".wb-st-cell .wb-data-meta").nth(0)).to_have_text("@cell1makes region · reads orders")
     pane.locator(".wb-st-cell").nth(1).drag_to(workbench.locator(".cv-board"))
     blocks = workbench.locator(".cv-block")
     expect(blocks).to_have_count(1)
@@ -566,8 +565,8 @@ def test_a_tab_pops_out_with_its_unsaved_text_and_kernel_and_a_cell_drops_across
     second.keyboard.insert_text("x + 1")
     second.keyboard.press("Control+Enter")
     expect(moved.nth(1).locator(".wb-outputs .wb-text")).to_have_text("42", timeout=LONG)
-    # The popped window has the Data panel and its Streamlit cells pane, like any Workbench window.
-    expect(second.locator(".wb-st")).to_be_visible()
+    # The popped window has the Data Explorer's toggle, like any Workbench window.
+    expect(second.locator(".wb-explorer-toggle")).to_be_visible()
     # A cell dropped onto a canvas in the other window. (Playwright cannot drag between two pages:
     # the drop is sent with the same data a cell's drag carries.)
     first.get_by_role("button", name="Start an app").click()

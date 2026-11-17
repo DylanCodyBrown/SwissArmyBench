@@ -70,19 +70,18 @@ def test_a_markdown_cell_fills_its_names_and_goes_on_a_canvas_with_an_html_cell(
     summary.locator(".wb-text-bar").get_by_role("button", name="Run").click()
     expect(view.locator("strong")).to_have_text("512", timeout=20000)
 
-    # ----- the Streamlit cells pane lists both under Text, each marked T
+    # ----- onto a canvas: the text from the pane, side by side; the figures cell by its number (onto
+    # the app's tab), below them
+    window(server, "file.newApp")
+    tabs = workbench.locator(".wb-tab")
+    expect(tabs).to_have_count(2)
+    # ----- the Streamlit cells pane (the canvas's own panel) lists both under Text, each marked T
     pane = workbench.locator(".wb-st")
     expect(pane.locator(".wb-st-text-head")).to_have_text(["Text"], timeout=20000)
     texts = pane.locator(".wb-st-cell.text")
     expect(texts.locator(".wb-data-label")).to_have_text(["Orders", "KPI card"])
     expect(texts.locator(".wb-st-t")).to_have_count(2)
     expect(texts.nth(0).locator(".wb-data-meta")).to_have_text("@cell2reads total, note")
-
-    # ----- onto a canvas: the text from the pane, side by side; the figures cell by its number (onto
-    # the app's tab), below them
-    window(server, "file.newApp")
-    tabs = workbench.locator(".wb-tab")
-    expect(tabs).to_have_count(2)
     board = workbench.locator(".cv-board")
     box = board.bounding_box()
     assert box is not None

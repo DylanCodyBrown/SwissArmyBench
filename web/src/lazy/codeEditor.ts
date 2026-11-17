@@ -487,6 +487,8 @@ function addNoteAction(editor: monaco.editor.IStandaloneCodeEditor, host: HTMLEl
 
 /** The blade list's drag type: its `sab.blade(...)` line is a statement, so it lands on a line of its own. */
 const BLADE_DRAG = "application/x-sab-blade";
+/** A Data Explorer result's drag (dataExplorer.ts): {sql, python}, the code for each kind of cell. */
+const EXPLORER_DRAG = "application/x-sab-explorer";
 
 /** Text dropped on an editor, put in by the app. Monaco's own drop inserts text as a snippet, and the
  *  standalone editor applies a snippet as plain text: `orders` arrived as `orders$0`, a `$` escaped. A
@@ -508,6 +510,16 @@ function ownDrops(editor: monaco.editor.IStandaloneCodeEditor): void {
     const at = editor.getTargetAtClientPoint(e.clientX, e.clientY)?.position ?? editor.getPosition() ?? new monaco.Position(model.getLineCount(), 1);
     let range = new monaco.Range(at.lineNumber, at.column, at.lineNumber, at.column);
     let put = text;
+    // A Data Explorer result (dataExplorer.ts EXPLORER_DRAG): its code as this editor's language writes it.
+    const explored = e.dataTransfer?.getData(EXPLORER_DRAG);
+    if (explored) {
+      try {
+        const insert = JSON.parse(explored) as { sql?: string; python?: string };
+        put = (model.getLanguageId() === "sql" ? insert.sql : insert.python) ?? insert.python ?? insert.sql ?? text;
+      } catch {
+        /* the plain text, then */
+      }
+    }
     if (e.dataTransfer?.types.includes(BLADE_DRAG)) {
       const end = model.getLineMaxColumn(at.lineNumber);
       if (model.getLineContent(at.lineNumber).trim()) {
