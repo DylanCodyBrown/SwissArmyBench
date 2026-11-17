@@ -3602,3 +3602,45 @@ used, `sab.connection(...)`), Tables (every grid: source + steps as one DuckDB q
 Structures (every Structures document: source + steps; an API call re-run; Return as table ones as DuckDB
 tables). The user's cells below, untouched; data.py exports it all, so an exported app runs on its own.
 Decided (the owner, 2026-11-17): "everything in the project": every grid and Structures document, used by a page or not.
+
+## The Variables page (the owner, 2026-11-16; built, branch variables-page)
+
+The owner: "after Imported my keyvault and it made a ton on local vairables, that we actually need a workspace
+Variable page for the rail to help manage project variables"; "should be able to add new local env variables
+from the page easily and browse what is there and for variables that are not from the key vault you can see
+their current values". Then (2026-11-17): "Apis, Connections they live OUTSIDE of the project" / "so they
+become a library of connections" (Plans/library.plan.md).
+
+### Built
+- **A page on the rail** after Connections (open=variables, areaPage.ts; its own `{x}` icon): every variable
+  this computer gives or something reads, grouped by source: a key vault's entry (the vault and the
+  secret's name), a plain value (shown), the keyring (dots, **Show** on the user's click), this computer's
+  environment (shown, unless it reads as a secret: behind Show), not set (a certificate file's default
+  path said). Search; a chip per source.
+- **Uses**: connections (a password by `secret()`, a certificate or keystore file mapped to a variable, a
+  Python connection's code), notebook and script cells (`os.environ[...]`, `.get`, `getenv`, `secret()`, by
+  ast), each script's Run settings. A connection opens its card, a cell opens in the Workbench.
+- **Add variable** (prominent, in the heading row): name, value, kept as Plain value, **This computer only**
+  or Keyring (secret); a secret-looking name goes to the keyring and is refused as a plain value. Edit,
+  Rename (connections' code, a vault's mapping and Run settings follow; the notebooks and scripts still
+  reading the old name are listed, never edited), Remove (what uses it shown first; a vault entry's
+  secret stays in the vault).
+- **At once**: the values are set in the server's environment (and given back when removed or when the
+  server stops), so a connection's next run, a scheduled script and a kernel started from now on read
+  them; a change answers how many kernels run (a toast: they read it after a restart).
+- **The agent**: `variables_list` (sources, uses, plain values; never a keyring's, a secret's or a vault's
+  value), `variables_set` (`kept="keyring"`: sets a secret, never reads it back), `variables_rename`,
+  `variables_remove`. `/variables/reveal` is 403 for the agent (NOT_COMMANDS). The Session page names
+  each change, never a value.
+
+### Decisions
+- **This computer's, not the project's** (the owner, 2026-11-17, overriding the brief's project scope): the
+  page shows the same variables with or without a project open, and a .sab never holds one.
+- **Shareable and local apart** (Plans/library.plan.md): `variables.json` in the state folder holds each
+  variable's name and source and a plain value's value unless it is "this computer only"; `local/variables.json`
+  holds the local values. A keyring's value stays in the keyring (`variable/<NAME>`). Both files behind one
+  adapter (adapters/variables.py VariableFiles: sorted keys, no write when nothing changed), so the library
+  change moves them to `library/variables.toml` and `library/local/` by changing two paths (and the format).
+- A cloned file with no local values reads its local and keyring variables as Not set on that computer.
+- Show stays with the user: the golden rule's exception (no answer the agent gets holds a password's value).
+

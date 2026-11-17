@@ -602,6 +602,27 @@ these at Trino** changes the name in the ticked cells only, and nothing else (a 
 the name stays). An open notebook or script changes in the Workbench, unsaved until you save it; a table's
 own read-only cell follows its table by itself.
 
+## Variables
+
+The rail's **Variables** icon (after Connections) is every environment variable this computer gives or
+something reads, whether or not a project is open. They are this computer's, never kept in a .sab.
+
+- **Grouped by where the value comes from**: Key vault (the vault and the secret's name, never its value),
+  Plain value (shown), Keyring (dots and **Show**), Environment (this computer's own; shown, unless it
+  reads like a secret: then behind Show), Not set. Click a group's chip to see only it; search finds a
+  name, a vault, a connection or a document.
+- **What uses it**: each connection (its card opens), each notebook or script cell that reads it with
+  `os.environ`, `getenv` or `secret()` (it opens at the cell), each script's Run settings.
+- **Add variable**: a name (typed in capitals), a value and where it is kept: **Plain value**, **This
+  computer only** (a plain value that is never shared: a folder's path), or **Keyring (secret)**. A name
+  that reads like a secret (PASSWORD, TOKEN, API_KEY) goes to the keyring. Connections, scripts and
+  Workbench kernels started from now on read it at once; a running kernel after a restart.
+- **Edit**, **Rename** (connections' code and Run settings follow; the notebooks and scripts still reading
+  the old name are listed for you to change) and **Remove** (what uses it is shown first). Removing a key
+  vault's entry leaves the secret in the vault.
+- The agent can list them (never a keyring's, a secret's or a vault's value), add and change them, and
+  keep a secret in the keyring; it never reads one back. Show is yours only.
+
 ## Session: what the agent made
 
 The rail's **Session** icon (after Connections) is this session's log of what the agent made or changed: a grid opened, a step added or removed, a card on Visualizations, a relationship on the ERD, a connection or blade saved, a notebook's cell, an export (and your Allow), a project saved. Each line says when, what in plain words, and where (the area); click it to go to that thing (the grid, the card, the relationship, the connection, the notebook at its cell). It fills in live as the agent works, newest first.

@@ -10424,6 +10424,212 @@ body.sql-window dialog[open] textarea.code-input {
   }
 }
 
+/* The Variables page (variablesPage.ts): grouped by source, a row each (name, value, uses, tools). */
+.area-page-actions .variables-search {
+  width: min(280px, 40vw);
+}
+
+.variables-page {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  max-width: 1180px;
+}
+
+.variables-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.variables-sources .btn {
+  border-radius: 14px;
+}
+
+.variables-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.variables-group h2 .icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.variables-group h2 .count {
+  padding: 0 7px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.variable-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1.2fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.variable-row:hover {
+  background: var(--row-hover);
+}
+
+.variable-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.variable-badge {
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.variable-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.variable-plain,
+.variable-value .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-vault {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.variable-vault .icon-svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.variable-missing {
+  color: var(--warn);
+}
+
+.variables-page .muted {
+  color: var(--muted);
+}
+
+.variable-uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.variable-use {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 260px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.variable-use span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variable-use .icon-svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.variable-use:hover {
+  border-color: var(--accent);
+}
+
+.variable-use:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 2px;
+}
+
+.variable-tools {
+  display: flex;
+  gap: 2px;
+}
+
+.variables-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.variables-form .field input,
+.variables-form .field select {
+  min-width: 200px;
+}
+
+.variables-form-value {
+  flex: 1 1 260px;
+}
+
+.variables-form-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.variables-remove,
+.variables-still {
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .variable-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .variable-value,
+  .variable-uses {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Follow the agent: what it just made pulses softly in the theme's accent. */
 @keyframes follow-pulse {
   0% {

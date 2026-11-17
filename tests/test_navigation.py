@@ -65,6 +65,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "apps",
         "blades",
         "connections",
+        "variables",
         "session",
         "settings",
     )

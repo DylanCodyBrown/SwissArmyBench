@@ -90,6 +90,24 @@ class ScriptRuns:
         found = rules.needed(text, self._secrets_of, self._files_of)
         return {"path": full, "arguments": settings.arguments, "variables": rules.rows(settings, found)}
 
+    def every(self) -> dict[str, dict[str, dict[str, str]]]:
+        """Each script's Run settings' variables (script -> variable -> source): the Variables page."""
+        return {path: rules.read_settings(raw).variables for path, raw in self._all().items()}
+
+    def rename_variable(self, old: str, new: str) -> list[str]:
+        """A variable renamed on the Variables page: each script's Run settings follow; those changed."""
+        kept = self._all()
+        changed = []
+        for path, raw in kept.items():
+            settings = rules.read_settings(raw)
+            if old in settings.variables and new not in settings.variables:
+                variables = {new if n == old else n: s for n, s in settings.variables.items()}
+                kept[path] = rules.RunSettings(settings.arguments, variables).to_json()
+                changed.append(path)
+        if changed:
+            self._kept.write(kept)
+        return changed
+
     def set_settings(self, body: Any, who: str = "user") -> dict[str, Any]:
         if not isinstance(body, dict):
             raise rules.ScriptRunError('Send {"path", "arguments", "variables"}.')

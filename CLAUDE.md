@@ -81,6 +81,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off).
+  **Variables (the owner, 2026-11-16/17):** this computer's, never in a .sab: `variables.json` (names, sources,
+  plain values that may be shared), `local/variables.json` (values marked this computer only), a secret's
+  value in the keyring only; the values are set in the server's environment while it runs.
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
   row, value or secret), `claude.json` keeps the chosen installs and the bypass switch, and a Claude
@@ -255,6 +258,9 @@ src/swissarmybench/
     connection_swap.py   a table's connection swapped: a table matched in another catalog (name in any case,
                          schema then database; an ODBC database as Trino's catalog), a read query checked, the
                          code pointed at the new connection (the name only: ast, a %%sql/%%dax line; ticked cells)
+    variables.py         the Variables page: this computer's variables (plain, this computer only, keyring), the
+                         shareable and local halves, each variable's source (vault, value, keyring, env,
+                         missing) and uses (connections, cells by ast, Run settings), which values show, rename
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -286,6 +292,8 @@ src/swissarmybench/
     connection_swap.py   a table read from another connection with its steps kept (matched, picked, or its query
                          reviewed), every table of a deleted connection moved, the undo (old rows in memory), the
                          cells repointed (an open document in the Workbench window, else its file)
+    variables.py         the Variables page: list, add, change, rename (connections and Run settings follow),
+                         remove, Show (the user's: 403 for the agent); the values set in this server's environment
     apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
@@ -350,6 +358,8 @@ src/swissarmybench/
     sab_files.py         a .sab read (every entry checked first, counted as read) and unpacked into a working
                          folder, written atomically (a temporary file, then a replace); recent_projects.json
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
+    variables.py         the Variables page's files (variables.json shareable, local/variables.json this computer's;
+                         the library's later), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
@@ -363,7 +373,7 @@ src/swissarmybench/
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
-                         connection_swap). Every route serves
+                         connection_swap, variables). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -432,12 +442,13 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window (Grids,
-                         Visualizations, ERD, Notebooks, Scripts, Apps, Blades, Connections, Session, Settings at the
+                         Visualizations, ERD, Notebooks, Scripts, Apps, Blades, Connections, Variables, Session, Settings at the
                          bottom): a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
                          areas (the owner, 2026-11-16); areaPage.ts is a page of the rail's over any page
-                         (Settings, Connections, Session: open=settings, open=connections, open=session); sessionPage.ts the Session page
+                         (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
+                         by source, uses, Add variable, Show for a keyring secret); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); connectionsWindow.ts the

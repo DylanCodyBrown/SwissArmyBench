@@ -52,6 +52,7 @@ from swissarmybench.adapters.state_files import (
 )
 from swissarmybench.adapters.streamlit_files import AppFiles
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
+from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.domain import projects as project_rules
@@ -112,6 +113,7 @@ from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
 from swissarmybench.services.updates import Updates
+from swissarmybench.services.variables import Variables
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WorkbenchWindow
 from swissarmybench.services.workspace import Addresses, Workspace
@@ -165,6 +167,7 @@ class Services:
     script_exports: ScriptExports
     panels: Panels
     session_log: SessionLog
+    variables: Variables
     connection_swap: ConnectionSwap
     navigation: Navigation
     kind_colours: KindColours
@@ -324,7 +327,7 @@ def bootstrap(
 
     # ===== the beta log: errors, slow requests, processes, page errors and notes, redacted =====
     # (written only where the audit log is; beta mode on or off is beta.json, SWISSARMYBENCH_BETA wins)
-    secret_values = (token, *(v for v in os.environ.values() if len(v) >= 8))
+    # Read each time: the Variables page's values join the environment as they are added.
     beta = BetaLog(
         ws,
         BetaFiles(state_dir / "logs" if audit_log else None, settings.beta_log_bytes, settings.beta_log_days),
@@ -341,7 +344,7 @@ def bootstrap(
             "column": [c.name for info in store.all() for c in info.columns],
         },
         # Never in a message: the server's token, and any environment variable's value.
-        secrets=lambda: secret_values,
+        secrets=lambda: (token, *(v for v in os.environ.values() if len(v) >= 8)),
         listen=listen_for_crashes,
         now=time.time,
     )
@@ -482,6 +485,7 @@ def bootstrap(
         blade_store.use(app / "blades" if app else settings.blades_dir, keep_secrets=app is not None)
         dashboards.folder = app / "dashboards" if app else state_dir / "dashboards"
         await catalog_loading.rescope()
+        await variables.rescope()
         await live.broadcast({"type": "blades_changed"})
 
     def carry_connections(folder: str, names: list[str]) -> None:
@@ -540,6 +544,30 @@ def bootstrap(
     )
     project_scope = ProjectScope(
         sab_projects, archive, computer_blades, connections, on_saved=catalog_loading.saved
+    )
+    # The Variables page: this computer's variables (never a project's): the shareable file and the local
+    # values; their values given to this server's environment, so what it runs and starts reads them.
+    variables_file = VariableFiles(
+        state_dir / "variables.json" if audit_log else None,
+        state_dir / "local" / "variables.json" if audit_log else None,
+    )
+
+    async def save_variable_blade(data: dict[str, Any], previous: str, who: str) -> Any:
+        saved = await blades.save(data, previous, who)
+        catalog_loading.saved(str(saved["name"]))
+        return saved
+
+    variables = Variables(
+        ws,
+        variables_file,
+        VariableKeyring(),
+        ProcessEnvironment(),
+        blade_store,
+        save_variable_blade,
+        documents=lambda: usage_documents(documents, streamlit, sab_projects, project_files),
+        read=documents.read,
+        run_settings=script_runs,
+        kernels=workbench.kernel_count,
     )
 
     async def open_work() -> dict[str, Any]:
@@ -644,6 +672,7 @@ def bootstrap(
         table_cells=table_cells,
         panels=Panels(ws),
         session_log=session_log,
+        variables=variables,
         connection_swap=connection_swap,
         navigation=Navigation(ws),
         script_runs=script_runs,

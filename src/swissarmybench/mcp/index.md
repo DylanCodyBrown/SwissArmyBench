@@ -11,7 +11,7 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 3. `steps_run_sql`: one DuckDB SELECT; `grid` is that grid's view, other tables by name.
 4. `agent_events` waits for what the user does next; `agent_inbox` is what they sent you.
 
-## Tools by prefix (the app's area)
+## Tools by prefix
 | Prefix | Area | Key tools |
 |---|---|---|
 | `tabs_` | tab bar, the + query tab | `tabs_list`, `tabs_get`, `tabs_new_query` |
@@ -24,7 +24,7 @@ canvas. A project is one .sab file holding its own documents, connections and bl
 | `visualizations_` | cards, dashboards | `visualizations_add`, `visualizations_formats` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
 | `compare_` | two grids side by side, tie-out | `compare_create`, `compare_tie_out` |
-| `connections_` | databases, files, Power BI, Dataverse, own Python, APIs, vaults | `connections_list`, `connections_usage`, `connections_move_tables` |
+| `connections_`, `variables_` | databases, files, Power BI, Dataverse, own Python, APIs, vaults; variables | `connections_list`, `connections_usage`, `variables_list` |
 | `catalog_` | a source's tables and columns | `catalog_search`, `catalog_columns` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_starters` |
 | `workbench_` | notebooks, scripts, kernels, the window (tables.transformations) | `workbench_run`, `workbench_lineage`, `workbench_window`, `workbench_script_run` |
