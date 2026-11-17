@@ -61,6 +61,25 @@ the library, project folders.
 modules (variables, connections, functions, data, structures), `%load_ext swissarmybench` in each notebook.
 **Delivering a BI notebook:** open question 1.
 
+## The Report canvas: building the BI notebook's report (the owner, 2026-11-17)
+"Pdf and html canvas builders to drag cells and build reports would be amazing for data analysis"
+In the base, the BI notebook's polished report is **built on a Report canvas** (a front-end plug-in reusing the
+Streamlit canvas's machinery: blocks linked to cells, a 12-column grid, drag, resize, align, undo; and
+Visualizations' Page view and Print to PDF):
+- **Blocks are cells:** drag a cell (its output: a chart, a table formatted with a row limit, a number, Markdown
+  text) or a Visualizations card onto a page; re-running the notebook refreshes every block (the link, never a
+  copy). Text blocks for the narrative, headings, a page break, a title page, a header and footer (page numbers,
+  the source, the refresh time).
+- **Pages:** A4 or Letter, portrait or landscape, margins, the theme (Visualizations' themes).
+- **Export:** **HTML** (one self-contained file, code always hidden) and **PDF** from the same layout through the
+  browser's print engine (no new dependency). A PDF the agent or an automation makes with no button pressed
+  needs a headless renderer (Chromium headless or a PDF library): a dependency to ask the owner about then.
+- The report's design is data in the project (`report.design.json`: pages, blocks, links; no data), so it goes
+  to Git with the project.
+- **The agent:** place cells, add text, set pages, export (golden rule).
+- The Accounting extension's Excel canvas and this one share the canvas machinery (the Excel canvas lays blocks on
+  sheets instead of pages).
+
 ## Extension: Accounting (high value: built early)
 **For:** accounting work whose deliverable is an Excel workbook, built by a repeatable Python automation.
 **The workflow:** connection → data (the data notebook) → **the workbook automation** (an `.xlsx` built by Python,
