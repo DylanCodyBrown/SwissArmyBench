@@ -751,7 +751,9 @@ def test_a_new_project_starts_with_the_data_and_save_as_zips_it_without_rows(tmp
             "analysis.ipynb",
             "mockups.ipynb",
         ]
-        assert sorted(p.name for p in folder.iterdir()) == [
+        # The project's type (.sab/project.json: the base's, bi) beside its files.
+        assert json.loads((folder / ".sab" / "project.json").read_text()) == {"type": "bi"}
+        assert sorted(p.name for p in folder.iterdir() if not p.name.startswith(".")) == [
             "analysis.ipynb",
             "data.ipynb",
             "data.py",
