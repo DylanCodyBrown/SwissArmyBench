@@ -34,6 +34,8 @@ def test_cards_move_lay_out_on_pages_and_print(browser: Browser, server: dict[st
     page.add_init_script("window.print = () => { window.__printed = document.body.className; };")
     page.reload()
     try:
+        # The Apps icon shows once the mode says so and moves the icons under it: click after it.
+        expect(page.locator(".nav-rail [data-area='apps']")).to_be_visible()
         page.locator(".nav-rail [data-area='visualizations']").click()
         expect(page.locator("#ai-panel .card")).to_have_count(3)
         assert titles(page) == ["First", "Second", "Third"]
@@ -103,6 +105,8 @@ def test_the_sandbox_exports_as_one_markdown_file_with_pictures(
     )
     page = open_grid(browser, url, width=1400, height=1000)
     try:
+        # The Apps icon shows once the mode says so and moves the icons under it: click after it.
+        expect(page.locator(".nav-rail [data-area='apps']")).to_be_visible()
         page.locator(".nav-rail [data-area='visualizations']").click()
         expect(page.locator("#ai-panel .figure .main-svg").first).to_be_visible(timeout=20000)
         with page.expect_download() as download:
