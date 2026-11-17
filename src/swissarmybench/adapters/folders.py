@@ -94,13 +94,17 @@ def is_folder(path: str) -> bool:
 
 def make_folder(parent: str, name: str) -> str:
     """New folder `name` inside `parent` (name checked by domain/file_dialogs.py); its path."""
+    asked = Path(parent).expanduser()
+    if not asked.is_absolute():
+        raise ValueError("Name the folder it goes in by its whole path.")
     try:
-        base = Path(parent).expanduser().resolve()
+        base = asked.resolve()
+        found = base.is_dir()
     except OSError as error:
         raise FileNotFoundError(
             f"{parent} is not a folder this computer can open ({error.strerror})."
         ) from None
-    if not base.is_dir():
+    if not found:
         raise FileNotFoundError(f"{base} is not a folder this computer can open.")
     made = base / name
     try:
@@ -109,6 +113,8 @@ def make_folder(parent: str, name: str) -> str:
         raise FileExistsError(f"{made} is already there.") from None
     except PermissionError:
         raise PermissionError(f"This computer does not let you make a folder in {base}.") from None
+    except OSError as error:
+        raise ValueError(f"{name} cannot be made in {base} ({error.strerror}).") from None
     return str(made)
 
 
