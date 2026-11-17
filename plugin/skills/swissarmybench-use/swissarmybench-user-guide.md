@@ -746,10 +746,44 @@ version never touches your copy.
   cell, each a piece of HTML, CSS and JavaScript of its own on the page: callout banner, animated KPI
   counter, sortable table, gauge, timeline, and four that send a value back to Python (clickable cards,
   segmented slicer, copy table button, keyboard shortcuts). Nothing is fetched from the internet.
+- **Write** (below: Writing data): a Python cell that writes rows to a connection, a dry run first.
 - For the agent: `blades_starters` lists the pack, `blades_copy` copies one as yours, `blades_snippet`
   gives a snippet's blanks (or its filled text), and `workbench_snippet_insert` puts one in a cell.
 
 ![The blade list's Starters: a line for each family with its count, Streamlit open on its pieces.](images/22-starters.png)
+
+### Writing data: the Write starters
+
+Writes are cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
+for the connections that take writes. Each connection says which: its card on the Connections page reads
+**Writes** or **Read-only** (hover for the starters, or the reason), and its page says it in full. A
+Power BI model is read-only (write its source, then refresh it: Power BI refresh dataset); a key vault, a
+DuckDB file the app opens read-only and the warehouses that load through their own tools (Snowflake,
+BigQuery, Redshift, Databricks) are too.
+
+- **Databases** (SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite, Oracle, Trino, ODBC):
+  append, create table (the rows' types made the database's), replace (every row, in one transaction),
+  upsert (insert, or update where a key matches) and delete (the rows whose keys are the rows' keys).
+  SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
+  passing errors run the whole write again. PostgreSQL uses COPY and ON CONFLICT. Trino writes where the
+  catalog's connector does (Iceberg, Delta Lake, Hive), a statement at a time.
+- **Dataverse** through its Web API (its SQL endpoint is read-only): create, update, upsert (by an
+  alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
+  labels (Won, not 1).
+- **Power BI push datasets**: create one from the rows' columns, push rows (or replace them).
+- **Files**: CSV, Parquet, partitioned Parquet (a folder per value), JSON, an Excel sheet (the
+  workbook's other sheets kept). Excel write table and Excel range as table are listed here too.
+- **APIs**: the APIs page's Write rows with this call.
+
+Drop one onto a Python cell (or **Insert a snippet…**): the form asks for the connection (those of its
+kind first), the rows (an open table, or any DataFrame or DuckDB relation by its name), the target
+table and the key columns. Every one starts `dry_run = True`: run it and it says what it would do (the
+target, the rows and their types, the statements, how many rows it would insert, update or delete, the
+first 5 rows) and changes nothing. Set `dry_run = False` and run it again to write: one transaction
+where the database has them (a failure writes nothing and says which batch), the counts and the time at
+the end, and a note if the table changed since the dry run. No password goes in the cell: it signs in
+through the connection's own sign-in. An agent sets `dry_run = False` only after you told it to write,
+in your own words.
 
 ### Every table has its own cell
 

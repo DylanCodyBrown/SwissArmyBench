@@ -110,6 +110,8 @@ function likely(placeholder: Placeholder, columns: string[], taken: string[]): s
   if (placeholder.default && columns.includes(placeholder.default)) return placeholder.default;
   const words = placeholder.name.toLowerCase();
   const hints: [RegExp, RegExp][] = [
+    // A key finds a row (the Write starters): an identifier is what it wants.
+    [/^key/, /(^|_)id$|[a-z]Id$|ID$|key|number|code/i],
     [/date table/, /date|calendar/i],
     [/date|day|month|year|period/, /date|day|time|month|year|period/i],
     [/latitude/, /^lat/i],

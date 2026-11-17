@@ -252,6 +252,8 @@ src/swissarmybench/
                          hook; the user's terminal as an argument list; Desktop's config merged; install help
     session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
                          relationship, a connection, a cell), names and counts only; the filter; Follow
+    write_capability.py  what each connection kind writes (its operations, how) or why it is read-only; the Write
+                         starters each kind has (by their tags): the Connections page's Writes / Read-only
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
                          this session by kind, a card's status word, the settings it may show (no password)
@@ -408,9 +410,16 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (113 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
-                         Streamlit), listed apart, found by name, Copy as your own (tests/test_starters*.py)
+  starters/              the built-in starter pack (158 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
+                         Streamlit, Write), listed apart, found by name, Copy as your own (tests/test_starters*.py);
+                         Write: 45 Python snippets for the connections that write, a dry run first
   client/push_client.py  push(), ensure_server()
+  client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
+                         plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
+                         write_sql.py each database's quoting, marks, values, types and transaction (SqlWrite;
+                         SqlServerWrite: sys.columns' types, #temp staging, MERGE WITH (HOLDLOCK), retried whole on
+                         Azure's passing errors), write_dataverse.py ($batch change sets, choice labels, keys),
+                         write_powerbi.py (push datasets). Standard library only; the statements stay in the cell
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,

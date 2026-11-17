@@ -3686,3 +3686,68 @@ Decisions: a stripe, never a background; vaults have no colour (no tables; not o
 `/connection-colours/uses` is page plumbing (NOT_COMMANDS: the agent reads cells with connections_usage).
 Open: entries about a grid (not a connection) on the Session page are not coloured by the grid's origin;
 a removed connection's line stays in colours.toml (it returns if the name comes back).
+
+## Writing data: Write blades for the connections that write (the owner, 2026-11-17; built, branch write-blades)
+
+The owner: "Also writes are meant to be handled with blades and cells in notebooks. So really go through
+and create a set of blades that can write to each of our data sources that can be quickly copied into a
+cell". Then, the same day: "Write blades should be geared towards our connection types. Most of our
+connections don't support it"; "SQL server and azure SQL are two things I use alot so make them robust";
+"Most writes happen via api anyway" (API writes moved to the APIs page's Write rows with this call,
+branch trees-apis); and, of an idea to compile INSERT/UPDATE/DELETE written in SQL into writes: "it sound
+like a lot to get wrong with the write back an we should just build all of those as blades". So there is
+no SQL writes layer: every write is a blade, explicit in its cell.
+
+Built:
+- **What each kind writes** (domain/write_capability.py): every connection kind the app has is writable
+  (its operations and how) or read-only (why, in plain words). Writable: SQL Server, Azure SQL,
+  PostgreSQL, MySQL, MariaDB, Oracle, SQLite (the read-only connection's file opened again to write),
+  Trino (by its connector), ODBC, Dataverse (the Web API; TDS is read-only), Power BI (push datasets
+  only; a model is read-only, refresh is its action), CSV, Excel, Parquet, JSON and folder files.
+  Read-only: DuckDB (opened read-only), Snowflake, BigQuery, Redshift, Databricks (their own bulk
+  loads), Db2, Teradata, ClickHouse, SAP HANA, Vertica, SAP ASE, Access, your own Python (an API added
+  with Add API writes through the APIs page). The Connections page's card shows Writes or Read-only (the
+  starters or the reason on hover), its detail the words; `connections_list`, `connections_overview`,
+  `connections_types` carry `writes` for the agent. Tests: every writable kind has a Write starter, every
+  starter names writable kinds only, a read-only kind has none.
+- **The Write family** (45 starters, src/swissarmybench/starters/write_*.blade.py): Python snippets (a
+  new snippet language, `python`, for a Python cell; a new placeholder kind, `connection`, offered from
+  the saved connections, those of the snippet's kind first). Databases: append, create table, replace,
+  upsert, delete for SQL Server, PostgreSQL, MySQL/MariaDB, SQLite, Oracle and Trino; ODBC without upsert
+  (no one statement every driver takes). Dataverse: create, update, upsert, delete. Power BI: create push
+  dataset, push rows. Files: CSV, Parquet, partitioned Parquet, JSON, Excel sheet. Listed in Write too:
+  Excel write table, Excel range as table, Power BI refresh dataset, Power BI refresh and wait (`also`).
+- **The same shape in every cell**: `dry_run = True` the first setting (it checks, counts what it can
+  count cheaply, says the statements, shows 5 rows, changes nothing); one transaction where the target
+  has them (a failure rolls back and names its batch and rows; Trino, a push dataset and Dataverse's
+  change sets say what was written before it); counts and time at the end, and a difference from the
+  last dry run said; the connection's own sign-in (`sab.connection`), never a secret in the cell; its
+  packages imported at the top (the missing-package prompt installs them into the notebook's
+  environment). The agent's rule is in the cells and in `guide(topic="writing")`: dry_run False only
+  after the user said to write, in their own words, in this conversation.
+- **A shared helper per target, the statements in the cell** (client/writes.py: the rows staged in a
+  DuckDB of their own, the report; write_sql.py: each database's quoting, marks, values and types;
+  write_dataverse.py; write_powerbi.py). Standard library only (the plain client's rule): DuckDB and the
+  driver come from the cell's own Python.
+- **SQL Server and Azure SQL, made robust** (SqlServerWrite): the target's types from sys.columns size
+  every value (setinputsizes: varchar stays varchar, nvarchar Unicode, decimals their precision and
+  scale; NaN and NaT NULL); fast_executemany, batches sized by row width, multi-row VALUES under 2,100
+  parameters without it; upsert and delete staged in a #temp table of the target's types (COLLATE
+  DATABASE_DEFAULT), then one MERGE ... WITH (HOLDLOCK), or UPDATE then INSERT where MERGE is refused
+  (a savepoint, the same transaction); keys default to the primary key (none: refused); IDENTITY_INSERT
+  only when the rows carry the identity column and identity_insert is chosen; computed columns refused;
+  enabled triggers said in the dry run; the dry run's counts from one COUNT join against the staged keys;
+  Azure's passing errors (40613, 40197, 40501, 49918, 10928, 10929, 4221), a deadlock (1205) and a
+  dropped connection (08S01, 10053, 10054) run the whole transaction again on a fresh connection after
+  1, 2, 4 seconds.
+
+Decisions:
+- One starter per source and kind of write, not one generic writer: the cell is what the user reads and
+  changes, so the statement is in it. The helpers hold only what the starters of one target share.
+- MySQL and Oracle replace with DELETE, not TRUNCATE (theirs commits by itself); their CREATE TABLE
+  commits by itself, so a failed create drops the table again.
+- A dry run reads only (SQL Server's stages keys in tempdb, rolled back). Counts it cannot get cheaply
+  are said as uncounted (more than 200,000 keys).
+- Dataverse's atomicity is a change set (up to 1,000 rows): a batch_size of up to 1,000 is one
+  transaction; a larger write says which batches went in before a refusal.
+- No `set`/`where` translation for any target: an update by condition is a SQL cell's own statement.
