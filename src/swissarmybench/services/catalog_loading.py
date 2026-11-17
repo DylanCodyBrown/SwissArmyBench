@@ -59,6 +59,21 @@ class CatalogLoading:
             task.add_done_callback(lambda _: self._running.pop(key, None))
         return {"name": blade.name, **(self.state(blade.name) or {"state": "loaded"})}
 
+    async def ready(self, name: str) -> bool:
+        """A connection's catalog loaded, waiting for it when it is not yet (a swap matches its tables
+        there): whether it is now."""
+        blade = self._blades.get(name)
+        if blade.name.casefold() in {n.casefold() for n in self._catalogs.loaded_names()}:
+            return True
+        if not rules.has_catalog(rules.connection_kind(blade.kind, blade.template)) or not blade.has_catalog:
+            return False
+        running = self._running.get(blade.name.casefold())
+        if running is not None:
+            await asyncio.shield(running)
+        else:
+            await self._load(blade.name, "app")
+        return blade.name.casefold() in {n.casefold() for n in self._catalogs.loaded_names()}
+
     def saved(self, name: str) -> None:
         """A connection was saved: its catalog follows (the user is there, so any sign-in is too)."""
         try:

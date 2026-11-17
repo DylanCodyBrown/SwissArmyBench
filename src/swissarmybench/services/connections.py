@@ -8,6 +8,7 @@ the Add connection form: each database and file starter as fields, passwords and
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from swissarmybench.domain import connections as rules
@@ -312,9 +313,22 @@ class ConnectionService:
             return await self._tables.load_file(dataset, path, sheet, who)
         if not place["table"]:
             raise ValueError("Name the table to open.")
+        read = await self.read_table(blade, kind, place, every, body)
+        stored = await self._tables.store(
+            read.dataset, read.table, who, read.opened, read.connection, read.sql, read.dax, read.code,
+            read.place,
+        )  # fmt: skip
+        return stored | {"shown": read.shown, "total": read.total}
+
+    async def read_table(
+        self, blade: Blade, kind: str, place: dict[str, str], every: bool, body: Any
+    ) -> TableRead:
+        """A database connection's table read (its first Rows to open rows, or every row), not yet a grid:
+        its rows, how many the source holds, the name it opens under and how a notebook reads it again."""
         # Every row: asked for once (the grid's Load all rows) or always (the connection's Load all rows: 0).
         limit = None if every or blade.row_limit == 0 else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
         reads = dataverse.is_dataverse(blade.dialect)  # Dataverse: through its Web API, not its SQL
+        where = (place["database"], place["schema"], place["table"])
         if kind == "python" or reads:
             # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,
             # and the count it gave.
@@ -329,11 +343,7 @@ class ConnectionService:
             schema = "" if reads else place["schema"]  # Dataverse's one schema needs no naming
             again = python_connections.read_call(blade.name, schema, place["table"])
             dataset = self._grid_name(rules.dataset_name(place["table"]), blade.name)
-            where = (place["database"], place["schema"], place["table"])
-            stored = await self._tables.store(
-                dataset, table, who, opened, blade.name, code=again, place=where
-            )
-            return stored | {"shown": shown, "total": total}
+            return TableRead(dataset, table, opened, shown, total, blade.name, code=again, place=where)
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
         count = (
             None if every else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
@@ -363,10 +373,34 @@ class ConnectionService:
         # as the grid shows it.
         whole = limit is not None and isinstance(total, int) and total <= shown
         again = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], None)
-        where = (place["database"], place["schema"], place["table"])
         query = again if whole else sql
-        stored = await self._tables.store(dataset, table, who, opened, origin, query, dax, place=where)
-        return stored | {"shown": shown, "total": total}
+        return TableRead(dataset, table, opened, shown, total, origin, query, dax, place=where)
+
+    async def read_query(self, name: str, sql: str, body: Any = None) -> TableRead:
+        """A query of the user's run on a connection (in its own SQL; DAX on a Power BI workspace's
+        dataset, named by `body`'s "dataset"), every row it answers: a table's connection swapped
+        (services/connection_swap.py)."""
+        blade = self._blades.get(name)
+        kind = rules.connection_kind(blade.kind, blade.template)
+        if kind != "database" or dataverse.is_dataverse(blade.dialect):
+            raise BladeError(f"{blade.name} does not run SQL: pick one of its tables instead.")
+        dax = blade.dialect == powerbi.DIALECT
+        given = body if isinstance(body, dict) else {}
+        within = str(given.get("dataset") or "") if dax else ""
+        if dax and not within:
+            raise ValueError("Name the Power BI dataset the query runs on: dataset.")
+        answer = await self._blades.rows(blade, sql, None, given, within)
+        table = answer["table"]
+        if table.num_columns == 0:
+            raise BladeError("The query answered no columns, so there is nothing to show.")
+        origin = powerbi.joined_name(blade.name, within) if dax else blade.name
+        shown = int(table.num_rows)
+        return TableRead("", table, None, shown, shown, origin, sql, dax)
+
+    def blade(self, name: str) -> tuple[Blade, str]:
+        """A saved connection and its kind (database, file, python, vault)."""
+        blade = self._blades.get(name)
+        return blade, str(rules.connection_kind(blade.kind, blade.template) or "")
 
     def _grid_name(self, name: str, connection: str) -> str:
         """Its own name, or the connection's before it when that name is open from elsewhere."""
@@ -496,6 +530,22 @@ class LoadedCatalogs(Protocol):
     async def shared_tables(self, name: str) -> set[str]: ...
 
     async def schema_names(self, name: str) -> list[dict[str, Any]] | None: ...
+
+
+@dataclass(frozen=True)
+class TableRead:
+    """A connection's table read, before it is a grid."""
+
+    dataset: str  # the name it opens under
+    table: Any
+    opened: Opened | None  # its first rows only: how many the source holds
+    shown: int
+    total: int | None
+    connection: str  # the connection's name (a Power BI workspace's with its dataset: Finance/Sales)
+    sql: str = ""
+    dax: bool = False
+    code: str = ""  # the Python that reads it again (a connection with no SQL)
+    place: tuple[str, str, str] | None = None
 
 
 class RelationshipModels(Protocol):

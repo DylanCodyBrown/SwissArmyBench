@@ -164,6 +164,8 @@ NOT_COMMANDS = {
     "agent does not start another agent); 403 for the agent. app_claude reads what was found",
     "/session-log/follow": "Follow the agent is the user's switch (an agent that could turn it off could "
     "work unseen); 403 for the agent. app_session reads it",
+    "/connections/rewrite": "the Workbench window's helper for its open documents: connections_repoint does"
+    " the whole",
     "/connections/{}/used": "a Workbench kernel's count of a call (plumbing): connections_usage reads it",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
@@ -598,7 +600,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # references, configuration and calls (connections_usage).
     # Launch Claude (2026-11-16) added one, app_claude: which Claude this computer has, and what is open.
     # The Session page (2026-11-16) added one, app_session: this session's log and the Follow switch.
-    assert size < 64_500, f"the tool list is {size} characters"
+    # Swapping a table's connection (2026-11-17) added five: a table's connection, the swap and its undo,
+    # every table of a connection moved, and its cells listed or pointed at another (1,500 characters).
+    assert size < 66_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}
