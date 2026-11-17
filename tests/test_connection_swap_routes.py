@@ -270,3 +270,43 @@ def test_the_agent_swaps_moves_and_points_the_code_too(tmp_path: Path) -> None:
         assert "references" in ok(client.get("/connections/EDP/references", headers=AGENT))
         rewrite = {"kind": "line", "text": "%%sql EDP", "from": "EDP", "to": "Trino"}
         assert ok(client.post("/connections/rewrite", json=rewrite, headers=AGENT))["text"] == "%%sql Trino"
+
+
+def test_a_new_table_from_a_query_run_on_a_connection_and_run_again(tmp_path: Path) -> None:
+    """The "+" tab's Query from (the owner, 2026-11-17: "add a connection and query from that connection or
+    choose Grids to query local"): the query runs on EDP in its own SQL, the table remembers where, Run again
+    rebuilds it there, and a name in use or a write is refused."""
+    with make_client(tmp_path) as client:
+        edp, _ = connections(tmp_path)
+        ok(client.post("/connections", json=edp, headers=AUTH))
+        listed = ok(client.get("/connections", headers=AUTH))["connections"]
+        assert any(c["name"] == "EDP" and c["connection"] == "database" for c in listed)
+        sql = "SELECT region, SUM(units) AS units FROM ORDERS GROUP BY region ORDER BY region"
+        built = ok(
+            client.post(
+                "/datasets/by_region/connection-query", json={"connection": "EDP", "sql": sql}, headers=AUTH
+            )
+        )
+        assert built["dataset"] == "by_region" and built["rows"] == 3 and built["connection"] == "EDP"
+        grid = ok(client.get(f"/grids/{built['grid']}", headers=AUTH))
+        assert grid["query"] == sql and grid["query_connection"] == "EDP"
+        # A name in use is refused unless it is the tab's Run again on a table such a query made.
+        again = {"connection": "EDP", "sql": "SELECT * FROM ORDERS"}
+        assert (
+            client.post("/datasets/by_region/connection-query", json=again, headers=AUTH).status_code == 400
+        )
+        rebuilt = ok(
+            client.post("/datasets/by_region/connection-query", json=again | {"replace": True}, headers=AUTH)
+        )
+        assert rebuilt["rows"] == 4
+        # Only a read runs; an unknown connection is said.
+        write = {"connection": "EDP", "sql": "DELETE FROM ORDERS"}
+        assert client.post("/datasets/gone/connection-query", json=write, headers=AUTH).status_code == 400
+        missing = {"connection": "Nowhere", "sql": "SELECT 1"}
+        assert client.post("/datasets/gone/connection-query", json=missing, headers=AUTH).status_code in (
+            400,
+            404,
+        )
+        # The agent does the same (the golden rule).
+        agent = ok(client.post("/datasets/by_agent/connection-query", json=again, headers=AGENT))
+        assert agent["rows"] == 4

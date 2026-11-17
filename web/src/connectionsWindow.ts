@@ -536,11 +536,16 @@ registerLayer("connections", {
 });
 
 /** The Connections page (and Add API: `addApi`), opened by the user: its address pushed. */
-export async function openConnections(start: { addApi?: boolean; folder?: string } = {}): Promise<void> {
+export async function openConnections(start: { addApi?: boolean; folder?: string; types?: boolean } = {}): Promise<void> {
   if (shownWindow?.dialog.open) return;
-  const params = start.addApi ? API : LIST;
+  const params = start.addApi ? API : start.types ? TYPES : LIST;
   layerOpened("connections", params);
   await drawConnections(new URL(urlOf(params), location.href), start.folder);
+}
+
+/** Add connection's types, straight away (the "+" tab's Query from: Add a connection…). */
+export function openConnectionTypes(): Promise<void> {
+  return openConnections({ types: true });
 }
 
 async function drawConnections(at: URL, folder?: string): Promise<void> {

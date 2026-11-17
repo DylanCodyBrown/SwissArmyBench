@@ -16,8 +16,9 @@ import { api, connect, onNotice, requireSession } from "./api";
 import { watchConnectionColours } from "./connectionColours";
 import { type BladeKind, editBlade } from "./bladeEditor";
 import { mountRail, watchTheme } from "./catalogRail";
-import { betaMark, mountBeta } from "./betaNotes";
-import { installZoomInput, zoomControl } from "./zoom";
+import { mountBeta } from "./betaNotes";
+import { installZoomInput } from "./zoom";
+import { mountAppFooter } from "./appFooter";
 import { button, clear, h } from "./dom";
 import { appMark, backButton, backTo, go, type Move, mountNav, setTitle, startNav } from "./nav";
 import { mountNavRail } from "./rail";
@@ -126,5 +127,7 @@ onNotice((notice) => {
 
 // Beta mode on the blades page: the right-click notes and the Beta mark, from the start (not after an editor closes).
 mountBeta("catalog");
-document.querySelector(".cat-top")?.append(zoomControl(), betaMark());
+// The app's one footer (appFooter.ts), as on every page.
+const footer = document.querySelector<HTMLElement>("footer.statusbar");
+if (footer) mountAppFooter(footer);
 installZoomInput();

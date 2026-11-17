@@ -26,6 +26,17 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   API lives in its `apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json, source.json);
   an API's tables are its web calls with Return as table on, and it is not on the Connections page. Key vaults
   are added and listed on the Variables page, not the Connections page.
+- **Connections scale beyond this computer (the owner, 2026-11-17: "we want to advise against any connectors that
+  only work locally for the user, this is meant to scale to a function app or up to a hosted streamlit application" /
+  "any connector that does not scale to a function app needs to carry a warning that it will only work on your
+  machine").** What the app makes (a connection's code, an exported automation, a Streamlit app) must run unchanged on
+  an Azure Function App or a hosted Streamlit app: Linux, no desktop, no installed drivers, no signed-in user. So the
+  defaults are portable: SQL Server and Azure SQL on `mssql-python`, Dataverse's SQL endpoint on `python-tds`
+  ("odbc does not work on function apps"); sign-ins by managed identity, an app registration or a vault. Anything
+  that works only here (an installed ODBC driver, Windows integrated sign-in, Entra "as you", the keyring, a path on
+  this disk, a desktop app) is advised against, never the default, and carries the amber "Only works on your
+  machine: <reason>. On a Function App or hosted Streamlit app use <alternative>." wherever it is chosen or shown
+  (the form, the card, the starters, an export), and the agent sees the same.
 - **The front end and the back end (the owner, 2026-11-17): "set a boundary on what is front end and what is back
   end ... a rule that we can never modify the front end of this app" / "including the edition right in this repo and
   a separated install command".** **Editions never modify the front end.** The front end (`web/`) is one, shared
@@ -620,7 +631,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          library.ts Settings' Library (the folder, Change…,
                          Default, its counts) and the move's notices, said once; areaPage.ts is a page of the rail's over any page
                          (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
-                         by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data page (open=data, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
+                         by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); connectionsWindow.ts the
@@ -682,7 +693,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          replaced the Data panel (2026-11-17): left, resizable, off until Ctrl+Shift+E, per
                          window; a project's files at its foot (setFiles); "+ Table" and "+ Blade" open
                          catalogRail.ts beside it; Pop out), dataExplorer.ts (the Data Explorer itself, one
-                         component for three hosts: the Data page (dataPage.ts, open=data: the one place to
+                         component for three hosts: the Data Catalog page (dataPage.ts, open=data: the one place to
                          browse tables, its tree and detail side dataBrowse.ts; the pane's Pop out opens it; /workbench?panel=explorer redirects to it), the pane, the
                          grid page's Find data dialog (Ctrl+K, gridCommands.ts): one search, chips, a
                          connection picker, recent searches, each result's actions, its drag

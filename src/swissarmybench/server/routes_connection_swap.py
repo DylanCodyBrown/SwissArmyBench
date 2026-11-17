@@ -63,6 +63,13 @@ def routes(swap: ConnectionSwap) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    async def new_query(request: Request) -> Response:
+        try:
+            body = await read_json(request)
+            return json_response(await swap.new_query(request.path_params["name"], body, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
     async def rewrite(request: Request) -> Response:
         try:
             return json_response(swap.rewrite(await read_json(request)))
@@ -74,6 +81,7 @@ def routes(swap: ConnectionSwap) -> list[BaseRoute]:
         Route("/tables/{name}/connection", change, methods=["POST"]),
         Route("/tables/{name}/connection/undo", undo, methods=["POST"]),
         Route("/connections/rewrite", rewrite, methods=["POST"]),
+        Route("/datasets/{name}/connection-query", new_query, methods=["POST"]),
         Route("/connections/{name}/move", move, methods=["POST"]),
         Route("/connections/{name}/references", references),
         Route("/connections/{name}/repoint", repoint, methods=["POST"]),

@@ -330,6 +330,25 @@ def build_from_query(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "tabs_new_connection_query",
+    "New table from a query run on a connection, in the connection's own SQL (the + tab's Query from). "
+    "Opens a grid on the result; the table remembers the connection and the query.",
+    req("name", "Name of the new dataset."),
+    req("connection", "The connection the query runs on (a database connection)."),
+    req("sql", "One read query in the connection's own SQL (DAX on a Power BI workspace)."),
+    opt("dataset", "A Power BI workspace's dataset the DAX runs on."),
+    opt("replace", "Rebuild a table an earlier connection query made (the tab's Run again).", "bool"),
+)
+def build_from_connection_query(a: dict[str, Any]) -> Any:
+    body: dict[str, Any] = {"connection": a["connection"], "sql": a["sql"]}
+    if a.get("dataset"):
+        body["dataset"] = a["dataset"]
+    if a.get("replace"):
+        body["replace"] = True
+    return api.call("POST", f"/datasets/{_q(a['name'])}/connection-query", body)
+
+
+@command(
     "datasets_python_sessions",
     "Python sessions (notebooks, scripts) reporting tables to the grid, and their tables.",
 )

@@ -79,10 +79,11 @@ import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, projectOpen, setProjectFolder } from "./kindColours";
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
-import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
-import { installZoomInput, zoomControl } from "./zoom";
-import { updateCommands, updateMark, versionMark } from "./updates";
-import { claudeCommands, launchButton } from "./claudeLaunch";
+import { betaCommands, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
+import { installZoomInput } from "./zoom";
+import { mountAppFooter } from "./appFooter";
+import { updateCommands } from "./updates";
+import { claudeCommands } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
 import { variablesPanel } from "./workbenchVariables";
@@ -2062,7 +2063,8 @@ function relint(doc: Doc): void {
   doc.script?.relint();
   doc.notebook?.relint();
 }
-layout.status.append(versionMark(), explorerToggle, kernelHost, envHost, cursorHost, problemsButton, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
+// The app's one footer (appFooter.ts), the Workbench's own parts in its middle: the panes' switches on the right.
+mountAppFooter(layout.status, [explorerToggle, kernelHost, envHost, cursorHost, problemsButton], [consoleToggle, modeToggles, variablesToggle]);
 
 function drawCursor(): void {
   const doc = current;

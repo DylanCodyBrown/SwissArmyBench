@@ -25,7 +25,7 @@ import { dismissDialog, HOME_WINDOW, layerOpened, registerLayer, setOverTitle, w
 import { openVariables } from "./variablesPage";
 
 /** The page's name, in one place: the rail, the title. */
-export const DATA = "Data";
+export const DATA = "Data Catalog";
 /** The address's words a search rides in on. */
 const KEYS = ["q", "kinds", "connection", "column"];
 

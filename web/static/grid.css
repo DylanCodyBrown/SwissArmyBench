@@ -3003,6 +3003,26 @@ body.agent-view .titlebar {
   width: 18ch;
 }
 
+/* Query from (queryTab.ts): Grids, a connection, or Add a connection…; a built table's tray says where it runs. */
+.query-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.query-from select {
+  max-width: 26ch;
+}
+
+.query-dataset {
+  width: 16ch;
+}
+
+.query-from.fixed {
+  font-weight: 600;
+}
+
 .query-blank {
   flex: 1;
   min-height: 0;
@@ -5935,20 +5955,10 @@ body.wb-dragging-tab * {
   width: 100%;
 }
 
-/* The status bar: the focused document's kernel, environment and cursor; Console and Variables. */
+/* The Workbench's footer is the app's one footer (appFooter.ts: .statusbar's look); this keeps it in its column. */
 .wb-status {
-  display: flex;
   flex: none;
-  align-items: center;
-  gap: 4px;
-  min-height: calc(34px * var(--ui-zoom, 1));
-  padding: 0 12px;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: calc(12.5px * var(--ui-zoom, 1));
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .wb-status[hidden] {
@@ -5981,7 +5991,7 @@ body.wb-dragging-tab * {
   color: var(--error);
 }
 
-.wb-status .btn {
+.wb-status .btn:not(.zoom-control .btn) {
   min-height: 0;
   padding: 3px 8px;
   border-color: transparent;
@@ -5991,22 +6001,22 @@ body.wb-dragging-tab * {
   box-shadow: none;
 }
 
-.wb-status .btn:hover:not(:disabled) {
+.wb-status .btn:not(.zoom-control .btn):hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--fg);
 }
 
-.wb-status .btn[aria-pressed="true"] {
+.wb-status .btn:not(.zoom-control .btn)[aria-pressed="true"] {
   border-color: transparent;
   background: var(--selected);
   color: var(--fg);
 }
 
-.wb-status .btn[aria-pressed="true"]::before {
+.wb-status .btn:not(.zoom-control .btn)[aria-pressed="true"]::before {
   content: none;
 }
 
-.wb-status .btn svg {
+.wb-status .btn:not(.zoom-control .btn) svg {
   width: 13px;
   height: 13px;
 }
@@ -7691,7 +7701,7 @@ body.panel-off-workbench-variables .wb-status .wb-variables-toggle,
 body.panel-off-workbench-status .wb-status,
 body.panel-off-grid-ribbon .ribbon,
 body.panel-off-grid-steps .steps-strip,
-body.panel-off-grid-status .statusbar {
+body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusbar) {
   display: none !important;
 }
 

@@ -173,7 +173,7 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
 - `kinds=["columns"]`, `connection="Shop"` narrow it; `column="customer_id"` lists every table with that
   column in every connection (a join's hint). `offers` are connections whose catalog is not loaded:
   `connections_load_catalog`, then search again.
-- The Data page (the rail's Data, after Variables: `app_navigate(to="data")`) is the one place to browse
+- The Data Catalog page (the rail's Data Catalog, after Variables: `app_navigate(to="data")`) is the one place to browse
   tables. `explorer_browse` is its tree with nothing typed: every connection with its status (`loaded`,
   `state`: loading, none, failed) and its tables by database and schema (a Power BI workspace's datasets),
   each with its DuckDB SQL name; then the open tables and their columns, Structures' documents and paths,

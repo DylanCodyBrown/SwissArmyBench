@@ -11,7 +11,13 @@
  * definition; the steps are everything after it, and the SQL box in Table Transformations is one
  * more step on top.
  *
+ * Query from (the owner, 2026-11-17: "add a connection and query from that connection or choose Grids to
+ * query local"): Grids runs the query in DuckDB over the open tables; a connection runs it there, in its own
+ * SQL (POST /datasets/{name}/connection-query), and the table remembers where, so Run again goes back there;
+ * Add a connection… opens the Connections page's types, and the new one is offered when it is saved.
+ *
  * ROUTING: [TRAY TOGGLE]  -> setOpen()                  (one row, or the editor too)
+ *          [QUERY FROM]   -> sourcePicker()             (Grids, each connection that runs SQL, Add a connection…)
  *          [TABLE NAME]   -> panes.renameDraft()        (the draft only; a built table keeps its name)
  *          [RUN]          -> runDraft() / runAgain()    (Ctrl+Enter in the editor too)
  *          [STATUS]       -> report(): the rows built, or the server's reason
@@ -19,7 +25,8 @@
  *          [BLANK GRID]   -> read-only, empty until the draft's first Run
  */
 import { createGrid, type GridApi } from "ag-grid-community";
-import { api } from "./api";
+import { api, onNotice } from "./api";
+import { openConnectionTypes } from "./connectionsWindow";
 import { button, clear, formatCount, h, icon, toast } from "./dom";
 import { contextOf, currentDraft, finishDraft, gridList, onAgentView, onPaneCreated, onPaneDropped, renameDraft, viewingQuery, type Context } from "./panes";
 import { effectiveTheme, gridTheme, onThemeChange } from "./theme";
@@ -32,6 +39,8 @@ interface Built {
   version: number;
   rows: number;
   /** The connections' tables the query named ([Finance Captive].Sales), each read once a session. */
+  /** The connection the query ran on (Query from), when not the grids. */
+  connection?: string;
   connection_reads?: { connection: string; as: string; rows: number; cut: boolean; read_at: string; cached: boolean; sent?: { filters: string; limit: number | null } }[];
 }
 
@@ -52,6 +61,19 @@ function offerRefresh(built: Built): void {
   });
 }
 
+/** Where a query runs: "" is Grids (DuckDB over the open tables), else a connection's name. */
+interface Source {
+  connection: string;
+  /** A Power BI workspace's dataset, for DAX. */
+  dataset: string;
+}
+
+/** A connection the picker offers: one that runs a query in its own SQL. */
+interface QueryConnection {
+  name: string;
+  dax: boolean;
+}
+
 interface Tray {
   element: HTMLElement;
   editor: SqlEditor;
@@ -66,6 +88,9 @@ let draftTray: Promise<Tray> | null = null;
 let nameInput: HTMLInputElement;
 let blankGrid: GridApi | null = null;
 let drawnSerial = 0;
+/** The draft's Query from: Grids until the user picks a connection. */
+const draftSource: Source = { connection: "", dataset: "" };
+let drawPicker: (() => Promise<void>) | null = null;
 // Monaco has one theme for every editor, so any editor can switch it.
 let lastEditor: SqlEditor | null = null;
 // Each built table's tray, by grid id, so a closed tab frees its editor.
@@ -76,6 +101,7 @@ export function mountQueryTab(element: HTMLElement): void {
   onAgentView(() => { if (viewingQuery()) void showDraft(); });
   onPaneCreated(attachTray);
   onPaneDropped((ctx) => dropTray(ctx.id));
+  onNotice((notice) => { if (notice.type === "blades_changed") void drawPicker?.(); });
   onThemeChange(() => {
     lastEditor?.setTheme(effectiveTheme());
     blankGrid?.setGridOption("theme", gridTheme());
@@ -109,7 +135,10 @@ async function buildDraft(): Promise<Tray> {
     maxlength: "64",
     oninput: () => renameDraft(nameInput.value.trim()),
   });
-  const tray = await createTray("", () => void runDraft(), hint(), nameInput);
+  const picker = sourcePicker();
+  const tray = await createTray("", () => void runDraft(), hint(), nameInput, picker.element);
+  drawPicker = picker.draw;
+  void picker.draw();
   const gridHost = h("div", { class: "query-blank" });
   clear(
     host,
@@ -136,9 +165,9 @@ async function runDraft(): Promise<void> {
     nameInput.focus();
     return;
   }
-  const built = await build(tray, name, false);
+  const built = await build(tray, name, false, { ...draftSource });
   if (!built) return;
-  toast(`Built ${built.dataset}: ${rowsText(built.rows)}.`);
+  toast(`Built ${built.dataset}: ${rowsText(built.rows)}${built.connection ? ` from ${built.connection}` : ""}.`);
   await finishDraft(built.grid, built.dataset);
 }
 
@@ -149,6 +178,7 @@ function attachTray(ctx: Context): void {
   let loaded: string | null = null; // the query the tray last took from the server
   const sync = async (): Promise<void> => {
     const query = ctx.state.info?.query ?? null;
+    const on = (ctx.state.info as { query_connection?: string | null } | null)?.query_connection ?? "";
     if (query === null) {
       // Not a query's table (or a push under its name replaced it): no tray.
       clear(slot);
@@ -159,7 +189,8 @@ function attachTray(ctx: Context): void {
     const tray = trays.get(ctx.id);
     if (!tray) {
       loaded = query;
-      const pending = createTray(query, () => void pending.then((t) => runAgain(ctx, t)), hint(ctx.dataset));
+      const label = on ? h("span", { class: "query-from fixed", title: `This query runs on ${on}, in its own SQL` }, `on ${on}`) : undefined;
+      const pending = createTray(query, () => void pending.then((t) => runAgain(ctx, t)), on ? `Runs on ${on}` : hint(ctx.dataset), undefined, label);
       trays.set(ctx.id, pending);
       const created = await pending;
       if (trays.get(ctx.id) === pending) slot.append(created.element);
@@ -185,13 +216,68 @@ function dropTray(id: string): void {
 
 async function runAgain(ctx: Context, tray: Tray): Promise<void> {
   // The server tells every page (dataset_updated); main.ts reloads this grid, steps and all.
-  await build(tray, ctx.dataset, true);
+  const on = (ctx.state.info as { query_connection?: string | null } | null)?.query_connection ?? "";
+  await build(tray, ctx.dataset, true, { connection: on, dataset: "" });
+}
+
+// ===== QUERY FROM: Grids, a connection, or a new one =====
+
+/** The draft's picker: Grids (the open tables, in DuckDB), each connection that runs SQL, Add a connection…;
+ *  a Power BI workspace asks for its dataset beside it. */
+function sourcePicker(): { element: HTMLElement; draw: () => Promise<void> } {
+  const ADD = "\u0000add";
+  const select = h("select", { class: "query-source", "aria-label": "Query from" });
+  const dataset = h("input", { type: "text", class: "query-dataset", "aria-label": "Power BI dataset", placeholder: "Dataset", spellcheck: "false", hidden: true });
+  let known: QueryConnection[] = [];
+  const sync = (): void => {
+    const picked = known.find((c) => c.name === draftSource.connection);
+    dataset.hidden = !picked?.dax;
+    select.title = picked ? `The query runs on ${picked.name}, in its own SQL` : "The query runs in DuckDB over the open grids";
+    void draftTray?.then((tray) => tray.report(picked ? `Runs on ${picked.name}, in its own SQL${picked.dax ? " (DAX)" : ""}` : hint()));
+  };
+  const draw = async (): Promise<void> => {
+    try {
+      const { connections } = await api<{ connections: { name: string; connection: string; tables_kind?: string | null }[] }>("/connections");
+      // A database connection runs a query in its own SQL; Dataverse's Web API side does not (only its SQL endpoint).
+      known = connections
+        .filter((c) => c.connection === "database" && c.tables_kind !== "dataverse_web")
+        .map((c) => ({ name: c.name, dax: c.tables_kind === "powerbi" }));
+    } catch {
+      known = [];
+    }
+    if (draftSource.connection && !known.some((c) => c.name === draftSource.connection)) draftSource.connection = "";
+    clear(
+      select,
+      h("option", { value: "" }, "Grids (the open tables)"),
+      ...(known.length ? [h("optgroup", { label: "Connections" }, ...known.map((c) => h("option", { value: c.name }, c.name)))] : []),
+      h("option", { value: ADD }, "Add a connection…"),
+    );
+    select.value = draftSource.connection;
+    sync();
+  };
+  select.addEventListener("change", () => {
+    if (select.value === ADD) {
+      select.value = draftSource.connection;
+      void openConnectionTypes();
+      return;
+    }
+    draftSource.connection = select.value;
+    void draftTray?.then((tray) => {
+      // A connection's own SQL: start from a plain SELECT, not the grids' table names.
+      if (draftSource.connection && tray.editor.value().trim() === firstQuery().trim()) tray.editor.setValue("SELECT *\nFROM ");
+      else if (!draftSource.connection && tray.editor.value().trim() === "SELECT *\nFROM") tray.editor.setValue(firstQuery());
+      tray.editor.focus();
+    });
+    sync();
+  });
+  dataset.addEventListener("input", () => { draftSource.dataset = dataset.value.trim(); });
+  return { element: h("span", { class: "query-from" }, h("span", { class: "query-from-label" }, "from"), select, dataset), draw };
 }
 
 // ===== THE TRAY =====
 
 /** A bar (collapse, the draft's name, the green Run, the status) over the SQL editor. */
-async function createTray(initial: string, onRun: () => void, firstStatus: string, name?: HTMLInputElement): Promise<Tray> {
+async function createTray(initial: string, onRun: () => void, firstStatus: string, name?: HTMLInputElement, from?: HTMLElement): Promise<Tray> {
   const element = h("section", { class: "query-tray", "data-open": "true", "aria-label": "The query that builds this table" });
   const editorHost = h("div", { class: "sql-editor" });
   const status = h("span", { class: "sql-status", role: "status" }, firstStatus);
@@ -206,7 +292,7 @@ async function createTray(initial: string, onRun: () => void, firstStatus: strin
     toggle.setAttribute("aria-expanded", String(open));
     toggle.title = label;
   };
-  element.append(h("div", { class: "query-tray-bar" }, toggle, h("strong", {}, name ? "New table" : "Query"), name ?? null, run, status), editorHost);
+  element.append(h("div", { class: "query-tray-bar" }, toggle, h("strong", {}, name ? "New table" : "Query"), name ?? null, from ?? null, run, status), editorHost);
   const editor = await openEditor(editorHost, initial, onRun);
   lastEditor = editor;
   return {
@@ -249,12 +335,14 @@ async function openEditor(editorHost: HTMLElement, initial: string, onRun: () =>
 }
 
 /** POST the tray's query; the tray says Running…, then the rows built or the server's reason. */
-async function build(tray: Tray, name: string, replace: boolean): Promise<Built | null> {
+async function build(tray: Tray, name: string, replace: boolean, source: Source = { connection: "", dataset: "" }): Promise<Built | null> {
   const sql = tray.editor.value().trim();
   if (!sql) return null;
   tray.busy(true);
   try {
-    const built = await api<Built>(`/datasets/${encodeURIComponent(name)}/query`, "POST", { sql, replace });
+    const built = source.connection
+      ? await api<Built>(`/datasets/${encodeURIComponent(name)}/connection-query`, "POST", { connection: source.connection, sql, replace, ...(source.dataset ? { dataset: source.dataset } : {}) })
+      : await api<Built>(`/datasets/${encodeURIComponent(name)}/query`, "POST", { sql, replace });
     tray.report(`${rowsText(built.rows)} in ${built.dataset} (version ${built.version}).${readsText(built)}`);
     offerRefresh(built);
     return built;

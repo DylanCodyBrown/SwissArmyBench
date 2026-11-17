@@ -314,6 +314,32 @@ class ConnectionSwap:
             }
         }
 
+    async def new_query(self, name: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """New table from a query run on a connection, in its own SQL (the "+" tab's Query from: the owner,
+        2026-11-17: "add a connection and query from that connection or choose Grids to query local"):
+        {"connection", "sql", "dataset"?: a Power BI dataset for DAX, "replace"?: the tab's Run again, which
+        rebuilds only a table such a query made}. The table remembers the connection and the query, so a
+        project reads it again on open and the tab's tray runs it again."""
+        if not isinstance(body, dict):
+            raise ValueError('Send {"connection": "Warehouse", "sql": "SELECT ..."}.')
+        to = self._target(body.get("connection"))
+        sql = rules.check_read_query(body.get("sql"))
+        existing = self.ws.store.get(name)
+        if existing is not None:
+            origin = self._datasets.origins.get(name)
+            made_here = origin.kind == "connection" and bool(origin.sql) and existing.query is not None
+            if not (body.get("replace") is True and made_here):
+                raise ValueError(f"A table named {name!r} already exists; pick a new name.")
+        read = await self._connections.read_query(to, sql, {"dataset": body.get("dataset") or ""})
+        origin = Origin(
+            "connection", connection=read.connection or to, sql=read.sql or sql, dax=read.dax, whole=True
+        )
+        result = await self._datasets.store_table(name, read.table, "connection", False, who, query=sql,
+                                                  origin=origin)  # fmt: skip
+        self.ws.audit.write(who, "connection_query", name, connection=to, rows=read.table.num_rows)
+        await self._projects.changed()
+        return result | {"rows": read.table.num_rows, "connection": to}
+
     async def undo(self, name: str, who: str = "user") -> dict[str, Any]:
         """The table as it was before its last swap (its rows and where they came from)."""
         before = self._before.pop(name, None)

@@ -47,7 +47,7 @@ AREAS = [
 NAMES = [
     "Connections",
     "Variables",
-    "Data",
+    "Data Catalog",
     "Grids",
     "ERD",
     "APIs",

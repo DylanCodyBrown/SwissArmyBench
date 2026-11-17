@@ -107,6 +107,8 @@ class GridService:
             "row_count": info.row_count,
             "source_kind": info.source_kind,
             "query": info.query,
+            # A query run on a connection (the "+" tab's Query from): the connection it runs on again.
+            "query_connection": _query_connection(self._origin_of(info.name), info.query),
             # Opened from a connection with fewer rows than it holds: the grid offers the rest.
             "opened": info.opened.to_json() if info.opened else None,
             "source_columns": [{"name": c.name, "type": c.type} for c in info.columns],
@@ -458,3 +460,10 @@ class GridService:
         """The page reports how many rows are selected, for the agent's view of the grid."""
         grid.selected = int(body.get("count", 0)) if isinstance(body, dict) else 0
         return {"selected": grid.selected}
+
+
+def _query_connection(origin: Origin, query: str | None) -> str | None:
+    """The connection a table's query runs on, when the "+" tab ran it there (not DuckDB over the grids)."""
+    if query is None or origin.kind != "connection" or not origin.sql:
+        return None
+    return origin.connection
