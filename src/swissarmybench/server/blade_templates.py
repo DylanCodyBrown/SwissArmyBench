@@ -14,7 +14,7 @@ to install them.
 
 from __future__ import annotations
 
-from swissarmybench.domain import dataverse, keystores
+from swissarmybench.domain import dataverse, keystores, sql_server
 from swissarmybench.domain.blades import Template
 
 # ===== catalog queries =====
@@ -137,29 +137,15 @@ def _db(
     )
 
 
-# SQL Server and Azure SQL: one connection string, three ways to sign in (the form's Sign in). Encrypted;
-# TrustServerCertificate is the form's checkbox (yes for a server whose certificate this computer does
-# not know, such as a self-signed one).
-_WINDOWS = """    "Trusted_Connection=yes;"\n"""
-_SQL_LOGIN = """    "UID=my_user;"\n    "PWD={" + secret("password") + "};"\n"""
-_MFA = """    "Authentication=ActiveDirectoryInteractive;"\n    "UID=my_user@my-company.com;"\n"""
-_INTEGRATED = """    "Authentication=ActiveDirectoryIntegrated;"\n"""
-_AZURE_SERVER = "tcp:my-server.database.windows.net,1433"
-
-
-def _sql_server(server: str, sign_in: str) -> str:
-    return (
-        "import pyodbc\n\nconn = pyodbc.connect(\n"
-        '    "Driver={ODBC Driver 18 for SQL Server};"\n'
-        f'    "Server={server};"\n'
-        '    "Database=my_database;"\n'
-        f"{sign_in}"
-        '    "Encrypt=yes;TrustServerCertificate=no;"\n)'
-    )
-
-
-SQLSERVER_WINDOWS = _sql_server("my-server", _WINDOWS)
-AZURE_MFA = _sql_server(_AZURE_SERVER, _MFA)
+# SQL Server and Azure SQL (domain/sql_server.py): a SqlServer object signed in one of eight ways (the
+# form's Sign in), its drivers found, its errors in plain words, its passing errors tried again, its reads
+# typed exactly, its catalog from the system views.
+SQLSERVER_WINDOWS = sql_server.code("windows")
+AZURE_YOU = sql_server.code("entra_you", sql_server.AZURE_SERVER)
+_SQLSERVER_NOTE = (
+    "Needs pyodbc and Microsoft's ODBC Driver 18 (or 17) for SQL Server, or Microsoft's mssql-python "
+    "(no ODBC driver)."
+)
 
 
 # ===== a Power BI workspace: its datasets (semantic models), read with DAX =====
@@ -510,30 +496,18 @@ DATABASES: tuple[Template, ...] = (
         "SQL Server",
         "sqlserver",
         SQLSERVER_WINDOWS,
-        INFORMATION_SCHEMA,
-        "Needs Microsoft's ODBC Driver 18 for SQL Server on this computer.",
-        sign_ins=(
-            ("Windows sign-in", "Trusted_Connection=yes", SQLSERVER_WINDOWS),
-            ("User name and password", "PWD=", _sql_server("my-server", _SQL_LOGIN)),
-            ("MFA (Microsoft Entra)", "ActiveDirectoryInteractive", _sql_server("my-server", _MFA)),
-        ),
+        sql_server.CATALOG,
+        _SQLSERVER_NOTE,
+        sign_ins=sql_server.sign_ins("sqlserver"),
     ),
     _db(
         "azuresql",
         "Azure SQL Database / Synapse",
         "sqlserver",
-        AZURE_MFA,
-        INFORMATION_SCHEMA,
-        "Needs Microsoft's ODBC Driver 18 for SQL Server on this computer.",
-        sign_ins=(
-            ("MFA (Microsoft Entra)", "ActiveDirectoryInteractive", AZURE_MFA),
-            ("User name and password", "PWD=", _sql_server(_AZURE_SERVER, _SQL_LOGIN)),
-            (
-                "Windows sign-in (Microsoft Entra)",
-                "ActiveDirectoryIntegrated",
-                _sql_server(_AZURE_SERVER, _INTEGRATED),
-            ),
-        ),
+        AZURE_YOU,
+        sql_server.CATALOG,
+        _SQLSERVER_NOTE,
+        sign_ins=sql_server.sign_ins("azuresql"),
     ),
     _db(
         "postgres",

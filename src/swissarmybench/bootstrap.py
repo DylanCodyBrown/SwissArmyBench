@@ -270,10 +270,11 @@ def bootstrap(
             answer = await blade_runner.run(
                 job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
             )
-        except Exception:
-            connection_usage.record(blade.name, mode, ok=False)
+        except Exception as error:
+            connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
-        connection_usage.record(blade.name, mode, ok=True)
+        about = answer.get("about") if isinstance(answer, dict) else None
+        connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
         return answer
 
     async def vault_values(wanted: dict[str, dict[str, str]]) -> tuple[dict[str, str], list[str]]:

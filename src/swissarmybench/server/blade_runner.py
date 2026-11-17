@@ -311,13 +311,17 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         if not job.get("sql"):
             return {"path": str(value)}
         source = _within(value, job)
-        columns, rows = _sql_rows(source, job["sql"])
+        typed = getattr(source, "read_arrow", None)  # a connection that reads typed Arrow itself (SQL Server)
+        table = typed(job["sql"]) if callable(typed) else None
+        columns, rows = ([], []) if table is not None else _sql_rows(source, job["sql"])
         total = None
         if job.get("count_sql"):
             _, counted = _sql_rows(source, job["count_sql"])
-            total = int(counted[0][0]) if counted and counted[0] else None
+            total = int(counted[0][0]) if counted and counted[0] and counted[0][0] is not None else None
     finally:
         close_quietly(value)
+    if table is not None:
+        return {"arrow": _arrow_text(table), "total": total}
     arrays = []
     for i in range(len(columns)):
         values = [row[i] for row in rows]
@@ -325,11 +329,14 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
             arrays.append(pa.array(values))
         except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError):
             arrays.append(pa.array([None if v is None else str(v) for v in values], pa.string()))
-    table = pa.Table.from_arrays(arrays, names=columns)
+    return {"arrow": _arrow_text(pa.Table.from_arrays(arrays, names=columns)), "total": total}
+
+
+def _arrow_text(table: Any) -> str:
     sink = io.BytesIO()
     with ipc.new_stream(sink, table.schema) as writer:
         writer.write_table(table)
-    return {"arrow": base64.b64encode(sink.getvalue()).decode("ascii"), "total": total}
+    return base64.b64encode(sink.getvalue()).decode("ascii")
 
 
 def _within(value: Any, job: dict[str, Any]) -> Any:
@@ -558,6 +565,10 @@ def _tested(value: Any) -> dict[str, Any]:
     if module == "__blade__" and callable(tester):  # its own Test (a Dataverse environment's): rows too
         said = tester(TEST_ROWS)
         made["found"] = str(said.get("found") or "")
+        if isinstance(said.get("about"), dict):  # what the server is (SQL Server's: the card says it)
+            made["about"] = {str(k): v for k, v in said["about"].items() if isinstance(v, str | bool)}
+        if said.get("notes"):
+            made["notes"] = [str(n) for n in said["notes"]][:20]
         shown = said.get("preview")
         if isinstance(shown, dict) and shown.get("rows"):
             arrow, total = read_result(shown["rows"], shown.get("total"), TEST_ROWS)

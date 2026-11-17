@@ -108,6 +108,11 @@ interface Form {
   sign_ins?: { label: string; mark: string; code: string }[];
   /** Where a new one's passwords are first offered from: "vault" (a Power BI dataset's app registration). */
   secrets_from?: string;
+  /** SQL Server and Azure SQL (domain/sql_server.py): settings that may come from an environment variable,
+   *  those folded under Options, and those that offer a choice. */
+  env_settings?: string[];
+  options?: string[];
+  choices?: Record<string, string[]>;
 }
 
 interface Mapping {
@@ -148,7 +153,7 @@ interface Connection {
   tables_kind?: string | null;
 }
 
-type Status = "works" | "ready" | "needs" | "failing";
+type Status = "works" | "ready" | "needs" | "failing" | "resuming";
 
 interface Calls {
   total: number;
@@ -168,6 +173,10 @@ interface Card {
   missing: string[];
   catalog_state: { state: string; error?: string } | null;
   calls: Calls;
+  /** The last run's error in plain words (SQL Server's say the fix). */
+  error?: string;
+  /** What the server said it is (SQL Server's Test): driver and sign-in, version, a case-sensitive collation. */
+  about?: string[];
   /** What it writes (domain/write_capability.py): its Write starters, or why it is read-only. */
   writes?: Writes | null;
   /** How it lists and reads its tables; "api": an API's (the APIs page has those, not this page). */
@@ -231,12 +240,12 @@ interface Usage extends Card {
   };
 }
 
-const STATUS_WORDS: Record<Status, string> = { works: "Works", ready: "Ready", needs: "Needs a password", failing: "Failing" };
+const STATUS_WORDS: Record<Status, string> = { works: "Works", ready: "Ready", needs: "Needs a password", failing: "Failing", resuming: "Resuming" };
 const CALL_WORDS: Record<string, string> = { catalog: "Catalog loads", query: "Queries", read: "Table reads", test: "Tests", connect: "Connects" };
 
 /** A card's status, in a word (the reason on hover: the missing passwords, the catalog's failure). */
 function statusPill(c: Card): HTMLElement {
-  const why = c.status === "needs" ? c.missing.join(", ") : c.status === "failing" ? (c.catalog_state?.error ?? "") : "";
+  const why = c.status === "needs" ? c.missing.join(", ") : c.status === "failing" || c.status === "resuming" ? c.error || (c.catalog_state?.error ?? "") : "";
   return h("span", { class: `connection-status st-${c.status}`, title: why || undefined }, h("span", { class: "connection-status-dot", "aria-hidden": "true" }), STATUS_WORDS[c.status]);
 }
 
@@ -614,6 +623,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection])),
           h("span", { class: "connection-card-marks" }, statusPill(c), writesLabel(c.writes)),
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
+          c.about?.length ? h("span", { class: "connection-card-about" }, c.about[0]) : null,
         ),
       );
     const groups: [string, Card["connection"]][] = [
@@ -674,7 +684,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       swatch ? h("span", { class: "connection-colour" }, swatch, "Colour") : null,
       c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(name), { icon: "rows", class: "primary" }) : null,
       readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
-      button("Test", () => void testSaved(name, c && (c.connection === "python" || c.dialect === "dataverse") ? tested : undefined).then(refreshCalls), { icon: "play" }),
+      button("Test", () => void testSaved(name, c && (c.connection === "python" || c.dialect === "dataverse") ? tested : undefined).then(() => (c?.dialect === "sqlserver" ? showDetail(name) : refreshCalls())), { icon: "play" }),
+      // SQL Server's foreign keys into the ERD, as a Power BI dataset's relationships.
+      c?.dialect === "sqlserver" && c.connection === "database" ? button("Import relationships", () => void importRelationships(name), { icon: "diagram" }) : null,
       dataverseSwitch(c, () => void showDetail(name)),
       c?.has_catalog ? button("Refresh catalog", () => void refresh(name).then(() => void showDetail(name)), { icon: "import" }) : null,
       config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
@@ -703,6 +715,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       ...term("Type", c?.type ? plain(c.type) : config.type || config.dialect),
       ...(config.description ? term("Description", config.description) : []),
       ...(config.sign_in ? term("Sign in", config.sign_in) : []),
+      ...(usage.about?.length ? term("Server", h("span", { class: "connection-about" }, ...usage.about.map((line) => h("span", {}, line)))) : []),
       ...config.settings.flatMap((f) => term(words(f.name), typeof f.value === "boolean" ? (f.value ? "Yes" : "No") : String(f.value))),
       ...config.passwords.flatMap((p) => term(words(p.name), h("span", { class: p.from === "missing" ? "status-error" : "" }, passwordSource(p)))),
       ...config.variables.flatMap((v) => term(v.name, v.from === "vault" ? `${v.vault ?? ""} (${v.secret ?? ""})` : v.from)),
@@ -732,6 +745,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       h("div", { class: "connection-detail-top" }, backButton("Connections", urlOf(LIST)), crumbs([{ label: "Connections", url: urlOf(LIST) }, { label: name }])),
       tools,
       tested,
+      usage.error && (usage.status === "failing" || usage.status === "resuming") ? h("p", { class: "status-error connection-error" }, usage.error) : null,
       h(
         "div",
         { class: "connection-detail" },
@@ -896,6 +910,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const fieldsHost = h("div", { class: "connection-fields" });
     const whoHost = h("div", { class: "connection-fields connection-who" });
     const securityHost = h("div", { class: "connection-fields connection-security" });
+    const optionsHost = h("div", { class: "connection-fields connection-options-fields" });
+    const optionsBox = h("details", { class: "connection-options", hidden: true }, h("summary", {}, "Options"), optionsHost);
     const passwords = new Map<string, HTMLInputElement>();
     const codeBox = h("textarea", { class: "mono connection-code", rows: 8, spellcheck: false, "aria-label": "The Python this connection runs" }, code) as HTMLTextAreaElement;
     const result = h("div", { class: "connection-result", role: "status" });
@@ -903,7 +919,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     /** A changed field's value, written into the code by the server; the fields keep their boxes. */
     const fill = async (field: Field, value: string, env?: string | null): Promise<void> => {
       // A certificate file sends its source too: its variable, or null for a plain path.
-      const sent = field.env !== undefined ? { value, env: env === undefined ? field.env : env } : field.type === "number" ? Number(value) : value;
+      const sent = field.env !== undefined || env !== undefined ? { value, env: env === undefined ? (field.env ?? null) : env } : field.type === "number" ? Number(value) : value;
       try {
         const answer = await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code, values: { [field.id]: sent }, template: form.id || null, name: editing });
         code = answer.code;
@@ -919,7 +935,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
 
     const fileSource = (field: Field, i: number, input: HTMLInputElement): HTMLElement => {
       const label = words(field.name);
-      const from = h("select", { "aria-label": `${label} from` }, h("option", { value: "path", selected: !field.env }, "Path"), h("option", { value: "env", selected: Boolean(field.env) }, "From an environment variable")) as HTMLSelectElement;
+      const typed = CERTIFICATE_KINDS[field.name] ? "Path" : "Typed here";
+      const from = h("select", { "aria-label": `${label} from` }, h("option", { value: "path", selected: !field.env }, typed), h("option", { value: "env", selected: Boolean(field.env) }, "From an environment variable")) as HTMLSelectElement;
       const variable = h("input", { type: "text", value: field.env ?? "", placeholder: certificateVariable(name.value.trim() || form.id, field.name), "aria-label": `${label} variable`, spellcheck: false, hidden: !field.env, class: "mono" }) as HTMLInputElement;
       const path = (): string => input.value.trim() || String(fields[i]!.value);
       from.addEventListener("change", () => {
@@ -943,6 +960,14 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           tick.addEventListener("change", () => void fill(fields[i]!, tick.checked ? "yes" : "no"));
           return h("label", { class: "field field-flag" }, tick, h("span", {}, words(field.name)));
         }
+        const offered = form.choices?.[field.name];
+        if (offered?.length) {
+          // A choice (SQL Server's Encrypt, its driver): the code's own value first when it is another.
+          const now = String(field.value);
+          const pick = h("select", { "aria-label": words(field.name) }, ...[...(offered.includes(now) ? [] : [now]), ...offered].map((o) => h("option", { value: o, selected: o === now }, o))) as HTMLSelectElement;
+          pick.addEventListener("change", () => void fill(fields[i]!, pick.value));
+          return h("label", { class: "field" }, h("span", {}, words(field.name)), pick);
+        }
         const input = h("input", { type: field.type === "number" ? "number" : "text", value: field.placeholder ? "" : String(field.value), placeholder: String(field.value), "aria-label": words(field.name), spellcheck: false });
         input.addEventListener("change", () => {
           // A file connection is named after its file, picked or typed, until the user names it.
@@ -964,12 +989,15 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         if (list) input.setAttribute("list", `conn-suggest-${i}`);
         // A certificate or keystore file: its path as it is, or from an environment variable whose
         // default is the path on this computer (a function app sets the variable to the file there).
-        const source = field.env !== undefined ? fileSource(field, i, input) : null;
+        // SQL Server's server, database, user, client id and tenant too (the form's env_settings).
+        const mappable = (field.env !== undefined && (Boolean(CERTIFICATE_KINDS[field.name]) || field.name === "keystore")) || Boolean(form.env_settings?.includes(field.name));
+        const source = mappable ? fileSource(field, i, input) : null;
         return h("label", { class: `field${field.picker ? " wide" : ""}` }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, input, browse), source, list);
       });
       // The same order on every form: where, who, security (a setting the rule does not name stays
       // with "where", after the ones it does, in the code's order).
-      const part = (f: Field): string => form.field_places?.[f.name.toLowerCase()]?.part ?? "where";
+      // SQL Server's options (encryption, the driver, timeouts...) fold under Options.
+      const part = (f: Field): string => (form.options?.includes(f.name.toLowerCase()) ? "options" : (form.field_places?.[f.name.toLowerCase()]?.part ?? "where"));
       const place = (f: Field): number => form.field_places?.[f.name.toLowerCase()]?.rank ?? 9;
       const of = (wanted: string): HTMLElement[] =>
         fields
@@ -980,6 +1008,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       clear(fieldsHost, ...of("where"));
       clear(whoHost, ...of("who"));
       clear(securityHost, ...of("security"));
+      const folded = of("options");
+      clear(optionsHost, ...folded);
+      optionsBox.hidden = folded.length === 0;
     };
     drawFields(fields);
 
@@ -1305,7 +1336,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     signInSelect.addEventListener("change", () => void switchSignIn(ways[Number(signInSelect.value)]!));
     const signIn = ways.length > 1 ? h("label", { class: "field" }, h("span", {}, "Sign in"), signInSelect) : null;
     const switchSignIn = async (way: { code: string }): Promise<void> => {
-      const typedSoFar = new Map(fields.filter((f) => !f.placeholder).map((f) => [f.name, f.value]));
+      // A value typed so far, with its variable when it comes from one (SQL Server's server, a certificate).
+      const typedSoFar = new Map<string, unknown>(fields.filter((f) => !f.placeholder || f.env).map((f) => [f.name, f.env ? { value: f.value, env: f.env } : f.value]));
       try {
         const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"]; missing?: Missing | null }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
         const keep = Object.fromEntries(next.settings.filter((s) => typedSoFar.has(s.name) && s.name !== "driver").map((s) => [s.id, typedSoFar.get(s.name)]));
@@ -1376,6 +1408,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       whoHost,
       passwordsSlot,
       securityHost,
+      optionsBox,
       rowLimitField,
       secretsBox,
       installSlot,

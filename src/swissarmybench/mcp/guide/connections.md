@@ -99,6 +99,20 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   At most 100,000 rows or 1,000,000 values a query: summarize in DAX.
 - `connections_import_relationships(name, dataset)`: the dataset's joins into the relationship model.
 
+## SQL Server and Azure SQL
+- Types `sqlserver` and `azuresql` (dialect sqlserver). The code makes a `SqlServer` object: eight
+  sign-ins (`sign_ins`: Windows, SQL login, Microsoft Entra as you, Entra password, the driver's Entra
+  default, managed identity, an app registration with a vault's secret or a certificate); the driver
+  found (ODBC Driver 18, then 17, else mssql-python; none: the install command); Options: encryption
+  (mandatory, optional, strict), Trust server certificate, host name in certificate, port or instance,
+  read-only intent (on for reads; the Write starters take the primary), multi-subnet failover, timeouts.
+- Server, database, user, client id and tenant may come from an environment variable: send
+  `{"value": "...", "env": "NAME"}` for that setting (`/blades/fill`).
+- Errors come in plain words with the fix (login failed 18456, the Azure firewall 40615 with the address,
+  a paused serverless database 40613: waited for up to 60 s, the card says Resuming). Passing errors are
+  tried again on connect and on reads. Test says the driver, sign-in, version and collation (the card).
+- `connections_import_relationships(name)`: the database's foreign keys into the relationship model.
+
 ## Dataverse
 - One connection (the `dataverse` type, dialect dataverse) reaches an environment's tables: its
   `url` (https://<name>.crm.dynamics.com) and a sign-in (`sign_ins`: as you, managed identity, an app

@@ -2489,10 +2489,11 @@ def connections_datasets(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_import_relationships",
-    "Import one Power BI dataset's own relationships into the current relationship model (merged: the "
-    "dataset's wins for a join both name). Tables are named as they open as grids; an inactive "
-    "relationship stays inactive. Answers the model, what the merge changed, and what was imported.",
-    req("name", "The Power BI workspace connection's name."),
+    "Import one Power BI dataset's own relationships, or a SQL Server / Azure SQL database's foreign keys "
+    "(composite keys whole), into the current relationship model (merged: the source's wins for a join "
+    "both name). Tables are named as they open as grids; an inactive relationship (a disabled foreign key) "
+    "stays inactive. Answers the model, what the merge changed, and what was imported.",
+    req("name", "The Power BI workspace's or SQL Server connection's name."),
     opt(
         "dataset", "The dataset, by name or id (connections_datasets lists them); needed when it has several."
     ),

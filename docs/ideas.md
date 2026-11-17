@@ -4018,3 +4018,67 @@ Decisions:
   Its refreshes stay listed in the Write family (`also`): after the source is written, refresh the model.
 - No API write starter and no pointer starter: an API's read-only reason says "the APIs page's Write rows
   with this call", on its card and to the agent.
+
+## SQL Server and Azure SQL, made robust (2026-11-17, branch sql-server) — built
+
+The owner: "SQL server and azure SQL are two things I use alot so make them robust". Built in
+domain/sql_server.py; the two starters (sqlserver, azuresql) make a `SqlServer` object written as text, the
+way Dataverse and Power BI are, so the app, a Workbench kernel and an export run the same code.
+
+- **Connecting.** The driver: `driver="auto"` takes ODBC Driver 18, then 17, then Microsoft's mssql-python
+  (imported by name: only pyodbc is a package the form asks for), then any other "SQL Server" ODBC driver;
+  none: the install command for this system (winget, brew, apt/dnf with Microsoft's repository, or pip
+  install mssql-python), never a silent failure. Eight sign-ins (the form's Sign in; Azure SQL has seven,
+  no Windows): Windows (Trusted_Connection), SQL login, Entra as you (azure-identity's AzureCli, VS Code,
+  then InteractiveBrowser, chained), managed identity and app registration with a vault's secret (both the
+  standard library's requests), app registration with a certificate (azure-identity), Entra password and
+  the driver's Entra default. A token goes in SQL_COPT_SS_ACCESS_TOKEN (TOKEN_CODE, which Dataverse's SQL
+  endpoint now uses too) and is taken again, on a new connection, five minutes before it runs out.
+- **Options**, folded under Options in the form: Encryption (mandatory, optional, strict; on Driver 17
+  yes/no, strict refused in words), Trust server certificate, Host name in certificate, port or instance
+  (server\instance), Read only intent, Multi subnet failover, the driver, login and query timeouts.
+  ConnectRetryCount=3 always (the driver reconnects an idle connection).
+- **Read-only intent is on by default** (the brief): reads ask for a read replica where there is one; the
+  Write starters take `conn.for_writes()` (the same settings without it), so writes always reach the
+  primary. A `%%sql` UPDATE on a read replica gets error 3906 said with its fix (untick it).
+- **Errors in plain words** (ERRORS: number or SQLSTATE -> meaning and fix), the driver's own text after
+  them in brackets, raised as the driver's own class with its SQLSTATE first (code that catches
+  pyodbc.Error still does; the Write starters' `transient()` still reads it). SQL Server never tells a
+  client a login failure's state, so 18456 lists what the states mean and points at the server's log.
+- **Retries:** Azure's transient numbers on connect (1, 2, 4... seconds, at most 16 apart, five tries) and
+  on a read (SELECT/WITH, not SELECT INTO: again on a new connection); never a write (the Write starters
+  run the whole transaction again). 40613 (a paused serverless database) is waited for up to 60 s, each
+  wait printed ("resuming") where the code runs; the card says Resuming when the last error was that one.
+- **Reads:** `conn.read_arrow(sql)` fetches 50,000 rows a batch into Arrow typed from the driver's
+  description (decimal(p,s) and money exact, tinyint uint8, real float32, datetimeoffset an instant in
+  UTC, time, uuid as text, binary); a column whose values do not fit becomes text. Open as grid uses it
+  (server/blade_runner.py prefers a source's own read_arrow). Output converters for datetimeoffset (-155),
+  CLR types (-151) and sql_variant (-150); a plain read of one table (`SELECT [TOP n] *|[cols] FROM [s].[t]
+  [WHERE]`) writes geography, geometry and hierarchyid as `.ToString()` and sql_variant as a CAST (sys.columns
+  asked once per table).
+- **Cancel:** each statement runs on a worker thread while the caller waits; an interrupt (the kernel's
+  Interrupt) sends the cursor's cancel (SQLCancel) and re-raises.
+- **Catalog** from the system views (SQL Server 2016 and later: no CONCAT_WS, which 2016 lacks): exact
+  types, primary key, identity, computed, sparse and period columns, MS_Description, synonyms (their
+  object's columns when it is in this database), each table's rows from sys.partitions and its temporal
+  history as the table's title. One database: the connection's own (listing every database needs
+  dynamic SQL per database; not done). Open as grid counts a table's rows from sys.partitions
+  (`sql_server.count_sql`; a view is counted); a filtered count stays COUNT(*).
+- **Foreign keys into the ERD:** `connections_import_relationships` (the same route and command as a Power
+  BI dataset's) on a SQL Server connection reads sys.foreign_keys (and unique indexes: a key whose columns
+  are unique is one-to-one); composite keys whole; a disabled one inactive. The connection's page has
+  Import relationships.
+- **The card:** Test answers `about()` (driver, sign-in, @@VERSION's first line, edition, service
+  objective, collation); the card and its page say it, a case-sensitive collation once. A failing card
+  carries its last error in plain words (memory only).
+- **Environment variables** (the owner, 2026-11-17): server, database, user, client_id and tenant_id may
+  each be "From an environment variable" on these two forms. What was added, for the merge with
+  lakes-sharepoint: certificate_files.py FILE_SETTINGS (the old set) and PLACE_SETTINGS (server, database,
+  user, client_id, tenant_id), ENV_MAPPABLE their union, read and written exactly as a certificate file
+  is; Setting.to_json says `env` for a file always and for the others once mapped; the form's
+  `env_settings` (domain/connections.py, from sql_server.ENV_SETTINGS) says which fields offer the choice;
+  the page's select says "Typed here" for a value that is not a path. Any connection's code may now map
+  those five settings (apply_settings no longer refuses a server); only the two SQL Server forms offer it.
+- Not done: arrow-odbc (not measured: no server here); listing every database on the server; a live
+  "resuming" while a child process waits (the card says it after); the grid's Cancel of a connection read
+  ends its child process (the server notices the closed connection), it does not send SQLCancel.

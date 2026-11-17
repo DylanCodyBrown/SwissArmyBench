@@ -2357,3 +2357,31 @@ NOT checked:
   an ODBC source; a real Dataverse $batch (its multipart answer, alternate keys defined in a real
   environment, the 429 limits); MySQL itself
   (MariaDB stands in); a write in a notebook's own environment with the missing-package prompt.
+
+## SQL Server and Azure SQL, made robust (2026-11-17, branch sql-server)
+
+Checked here, with no SQL Server (no container could run: docker's daemon is not running in this
+environment): tests/test_sql_server.py runs the connection's own code against a stand-in for pyodbc at the
+seam (it records connection strings, the token attribute and statements, and answers typed rows), with a
+clock and sleep of the test's own: each error number in words (18456, 40615 with its address, 40613,
+certificate, IM002 per system, not found, timeout, 229, 3906), Azure's transient numbers, the resume wait
+(1, 2, 4 s) and its words, other passing errors tried five times, a refused login never retried and the
+password never in the words; the driver chosen (18, then 17; strict refused on 17; none said; mssql-python
+used with no ODBC driver); every option in the string (a password with ; and } braced); the token's struct
+and a new connection five minutes before it runs out; a read retried on a new connection, a write not;
+geography, hierarchyid and sql_variant read as text; the Arrow type of 20 declared types (golden); batches
+and a column that does not fit made text; datetimeoffset's bytes; SQLCancel on an interrupt (the main
+thread interrupted while the statement waits); for_writes and the Write starters' detect; every sign-in's
+code run (azure-identity stood in for; the app registration's and managed identity's requests stood in
+for); environment variables written and read back on server, database, user, client_id, tenant_id; the
+catalog, foreign key and count T-SQL parsed by sqlglot's tsql dialect; foreign keys (composite, unique ->
+one-to-one, disabled) as the model, and through the route into /relationships; the card's about lines and
+a failing card's words. Browser (Chromium): tests/e2e/test_sql_server_page.py (the form's eight sign-ins,
+Options folded, Encryption a choice, the tick, the server from a variable kept across a sign-in switch; a
+failing card's words; Import relationships).
+
+NOT checked: a real SQL Server or Azure SQL (the T-SQL against the system views has only been parsed, not
+run), ODBC Driver 17/18 and mssql-python themselves (mssql-python's `attrs_before` and `timeout` arguments
+are assumed, with a fallback to the string alone), Azure SQL serverless resume, Entra tokens from Microsoft,
+Windows integrated and Kerberos, the read replica routing, arrow-odbc (not measured), SQLCancel against a
+real driver.

@@ -279,12 +279,17 @@ def test_every_certificate_file_may_come_from_a_variable(code: str, name: str, v
     )
 
 
-def test_no_other_setting_comes_from_a_variable() -> None:
+def test_a_server_may_come_from_a_variable_but_a_port_may_not() -> None:
+    # A server, database, user, client id or tenant too (the owner, 2026-11-17: SQL Server's form offers
+    # them; domain/certificate_files.py PLACE_SETTINGS). A number never: its type would change.
     code = keystores.TRINO_BASIC
-    with pytest.raises(FillError, match="Only a certificate or keystore file"):
-        apply_settings(code, {setting(code, "server").id: {"value": "db", "env": "LAKE_HOST"}})
+    mapped = apply_settings(code, {setting(code, "server").id: {"value": "db", "env": "LAKE_HOST"}})
+    assert 'host=os.environ.get("LAKE_HOST", "db")' in mapped
+    assert setting(mapped, "server").env == "LAKE_HOST"
+    with pytest.raises(FillError, match="not port"):
+        apply_settings(code, {setting(code, "port").id: {"value": 443, "env": "LAKE_PORT"}})
     hand = 'import os\nimport trino\nconn = trino.dbapi.connect(host=os.environ.get("LAKE_HOST", "db"))'
-    assert all(s.name != "server" for s in detect_settings(hand))  # read as it always was: not a setting
+    assert [(s.name, s.env) for s in detect_settings(hand)] == [("server", "LAKE_HOST")]
     assert (
         certificate_files.suggested_variable("Warehouse", "certificate file") == "WAREHOUSE_CERTIFICATE_FILE"
     )

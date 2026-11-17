@@ -12,8 +12,12 @@ key: `sslcert`, `sslkey`) may be written either way:
 Mapped, the variable's value wins where it is set (a function app's Application setting names where
 the file sits there) and this computer's path is its default. The mapping lives in the code itself:
 the one place the app, a Workbench kernel, an export and a scheduled run all read. `blades.env_settings`
-lists a code's mappings as {"variable", "setting", "key", "default"}. No other setting is mapped.
-Standard library only.
+lists a code's mappings as {"variable", "setting", "key", "default"}.
+
+SQL Server and Azure SQL map more (the owner, 2026-11-17: the same "From an environment variable" on
+server, database, username, client id and tenant): PLACE_SETTINGS, written and read back the same way
+(`server=os.environ.get("WAREHOUSE_SERVER", "sql01.example.local")`); the form offers them on those two
+connections (domain/sql_server.py ENV_SETTINGS). Standard library only.
 """
 
 from __future__ import annotations
@@ -24,7 +28,10 @@ import re
 from typing import Any
 
 # The settings (their plain names, domain/blades.py KEYWORDS) that may come from a variable.
-ENV_MAPPABLE = frozenset({"certificate file", "keystore", "client certificate file", "client key file"})
+FILE_SETTINGS = frozenset({"certificate file", "keystore", "client certificate file", "client key file"})
+# Where and who (SQL Server and Azure SQL offer these: domain/sql_server.py ENV_SETTINGS).
+PLACE_SETTINGS = frozenset({"server", "database", "user", "client_id", "tenant_id"})
+ENV_MAPPABLE = FILE_SETTINGS | PLACE_SETTINGS
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 
 
@@ -65,7 +72,8 @@ def variable_choice(name: Any, setting: str, key: str) -> str | None:
         return None
     if setting not in ENV_MAPPABLE:
         raise MappingError(
-            f"Only a certificate or keystore file comes from an environment variable, not {key}."
+            "Only a certificate or keystore file, a server, a database, a user, a client id or a tenant "
+            f"comes from an environment variable, not {key}."
         )
     if not isinstance(name, str) or not _ENV_NAME.match(name.strip()):
         raise MappingError(

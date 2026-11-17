@@ -18,7 +18,7 @@ import re
 import unicodedata
 from typing import Any
 
-from swissarmybench.domain import python_connections
+from swissarmybench.domain import python_connections, sql_server
 from swissarmybench.domain.blades import env_name_for_secret
 
 __all__ = ["env_name_for_secret"]  # with the rules below: a vault's secret as a variable
@@ -111,6 +111,8 @@ _PLACES: dict[str, tuple[str, int]] = {
     "catalog": ("where", 2),
     "database": ("where", 3),
     "user": ("who", 0),
+    "tenant_id": ("who", 3),  # an app registration's (Microsoft Entra), then its client id
+    "client_id": ("who", 4),
     "keystore": ("who", 1),  # a client certificate's keystore (Trino), and its entry
     "keystore_alias": ("who", 2),
     "encrypt": ("security", 0),
@@ -166,6 +168,13 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "vault_all": bool(template.get("vault_all")),
         # Ways to sign in, each its own code (SQL Server, Azure SQL): the form's Sign in.
         "sign_ins": list(template.get("sign_ins") or []),
+        # SQL Server and Azure SQL (domain/sql_server.py): the settings that may come from an environment
+        # variable, those folded under Options, and those that offer a choice.
+        "env_settings": sql_server.env_mappable(template.get("id")),
+        "options": sql_server.options(template.get("id")),
+        "choices": {n: sql_server.choices_for(n) for n in sql_server.CHOICES}
+        if template.get("id") in sql_server.TEMPLATES
+        else {},
         # Where a new one's passwords are first offered from ("vault": the Power BI dataset's way).
         "secrets_from": str(template.get("secrets_from") or ""),
         # A saved one's Rows to open (a database, the user's own Python); none: the app's 10,000.

@@ -15,7 +15,7 @@ compare by themselves; the ERD draws the model of the open tables.
 - Prove a key before you set it: `count(*) = count(DISTINCT key)` with no blanks (`steps_run_sql`).
 - `relationships_get`, `relationships_save_tang`, `relationships_export_tang`,
   `relationships_import_tang` (without apply: what it would change).
-- A Power BI dataset's own relationships: `connections_import_relationships` (topic connections).
+- A Power BI dataset's own relationships, or a SQL Server database's foreign keys: `connections_import_relationships` (topic connections).
 - `erd_text`: the model as Mermaid. `erd_draw`: a diagram card in Visualizations.
 
 ## Compare (two grids side by side)

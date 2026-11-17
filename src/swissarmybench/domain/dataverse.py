@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import re
 
+from swissarmybench.domain.sql_server import TOKEN_CODE
+
 TEMPLATE: str = "dataverse"
 DIALECT: str = "dataverse"
 SCHEMA: str = "dbo"  # the one schema, as the SQL endpoint names its tables
@@ -165,7 +167,8 @@ def sign_in(scope):
     return answer["access_token"], time.time() + int(answer.get("expires_in", 3600))
 '''
 
-_CONNECTION = r'''
+_CONNECTION = (
+    r'''
 
 class DataverseError(RuntimeError):
     """The sign-in or Dataverse refused. The message is its own words, and what usually causes it."""
@@ -316,12 +319,9 @@ def sql_connection_string(address):
         + "TrustServerCertificate=no;"
     )
 
-
-def token_struct(token):
-    """An access token as the ODBC driver takes it: its length, then the token in UTF-16-LE."""
-    sent = token.encode("utf-16-le")
-    return struct.pack(f"<I{len(sent)}s", len(sent), sent)
-
+'''  # noqa: S608 (code: its SQL is quoted where it is made)
+    + TOKEN_CODE
+    + r'''
 
 def sql_words(error):
     """A refusal from the SQL endpoint in plain words."""
@@ -616,6 +616,7 @@ class Dataverse:
 
 
 conn = Dataverse(url, sign_in)'''
+)
 
 
 def _code(sign_in: str, imports: str = "") -> str:

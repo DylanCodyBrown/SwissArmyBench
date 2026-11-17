@@ -4339,6 +4339,10 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   margin-top: 4px;
 }
 
+.connection-fields .field-source input.mono {
+  min-width: 24ch;
+}
+
 /* Security: the certificate file sits beside Trust server certificate, in the order of the rule. */
 .connection-security .field.wide {
   grid-column: span 2;
@@ -9766,6 +9770,45 @@ body.has-rail .area-page {
 
 .connection-status.st-failing .connection-status-dot {
   background: var(--error);
+}
+
+/* A paused serverless database waking (SQL Server's 40613): waiting, not broken. */
+.connection-status.st-resuming {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.connection-status.st-resuming .connection-status-dot {
+  background: var(--warn);
+}
+
+/* What the server said it is (SQL Server's Test): the driver and sign-in under the card. */
+.connection-card-about {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-about {
+  display: grid;
+  gap: 2px;
+}
+
+.connection-error {
+  margin: 8px 0;
+}
+
+/* SQL Server's options (encryption, the driver, timeouts): folded under the form's security part. */
+.connection-options {
+  margin: 8px 0;
+}
+
+.connection-options > summary {
+  cursor: pointer;
+  font-weight: 500;
 }
 
 .area-page-title .connection-status {
