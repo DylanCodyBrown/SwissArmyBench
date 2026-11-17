@@ -11040,6 +11040,7 @@ g.follow-pulse > path:first-of-type {
   background-repeat: no-repeat;
   background-size: 100% 4px;
   box-shadow: none;
+}
 
 /* ===== a connection's tables as a tree (connectionTree.ts) ===== */
 .connection-detail-main {

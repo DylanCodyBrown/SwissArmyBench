@@ -1363,7 +1363,7 @@ const dataAway = (): boolean => {
   if (landing.kind()) return true;
   if (current?.canvas) return false;
   if (current?.notebook) return notebookRole(current.path) === "data";
-  return true; // a script, or nothing open
+  return !!current?.script; // a script; nothing open keeps it (its "+ Table" starts the work)
 };
 
 function followDataPanel(): void {
@@ -1962,6 +1962,7 @@ const data = mountDataPanel({
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);
 paneReady = true;
+followDataPanel(); // a landing page shown before the panel was made: away from the start
 
 /** Add API: API_<name>.py beside data.py when a project is open (else in the Workbench's folder). */
 function addApi(): Promise<void> {
