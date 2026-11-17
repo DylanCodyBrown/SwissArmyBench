@@ -755,7 +755,9 @@ def import_edit(text: str, line_text: str, at: tuple[int, int] | None = None) ->
                     return Edit(i + 1, len(line) + 1, i + 1, len(line) + 1, "")
                 return Edit(i + 1, len(line) + 1, i + 1, len(line) + 1, f", {wanted.group(2)}")
     where = last + 1 if last else first
-    return Edit(where, 1, where, 1, f"{line_text}\n")
+    # The first import above code: a blank line between them, as isort and Ruff want it.
+    apart = "\n" if not last and where - 1 < len(lines) and lines[where - 1].strip() else ""
+    return Edit(where, 1, where, 1, f"{line_text}\n{apart}")
 
 
 def define_fix(text: str, name: str, source: str, at: tuple[int, int] | None = None) -> Fix:

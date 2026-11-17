@@ -113,8 +113,9 @@ def answer(
     if ask == "hover":
         return _hover(script, line, column, _word(str(request["code"]), line, column), namespace)
     items = []
-    deadline = time.monotonic() + _DOC_SECONDS
-    for c in script.complete(line, column)[:_MAX_ITEMS]:
+    found = script.complete(line, column)[:_MAX_ITEMS]
+    deadline = time.monotonic() + _DOC_SECONDS  # from the list on: Jedi's first look may take longer
+    for c in found:
         group = _group(c, path, folder, namespace)
         item: dict[str, Any] = {
             "label": c.name,
@@ -137,18 +138,22 @@ def answer(
                     )
                     for p in sigs[0].params
                 ]
-        if time.monotonic() < deadline and c.type != "keyword":
+        if c.type in ("statement", "instance") and namespace is not None and c.name in namespace:
+            kind = type(namespace[c.name])
+            item["detail"] = (
+                kind.__qualname__
+                if kind.__module__ == "builtins"
+                else f"{kind.__module__.split('.')[0]}.{kind.__qualname__}"
+            )
+        if time.monotonic() < deadline and c.type not in ("keyword", "statement", "instance"):
             try:
                 doc = c.docstring(raw=True)
             except Exception:
                 doc = ""
-            if doc or item.get("detail"):
+            if doc:
+                # The panel's head shows the signature (the detail): the words come after it.
                 origin = c.module_name if group in ("library", "project", "app") else ""
-                item["documentation"] = rules.markdown_doc(
-                    str(item.get("detail") or ""), doc[:_MAX_DOC], origin
-                )
-        elif c.type in ("statement", "instance") and namespace is not None and c.name in namespace:
-            item["detail"] = type(namespace[c.name]).__name__
+                item["documentation"] = rules.markdown_doc("", doc[:_MAX_DOC], origin)
         items.append(item)
     return {"items": items}
 

@@ -251,6 +251,11 @@ src/swissarmybench/
                          session state for the State panel (the tail each live page runs, its rows)
     notebook_flow.py     Notebook mode: each cell's state from the run order (notRun, edited, outOfDate
                          with the names made again) and the Outline (headings, named cells)
+    intellisense.py      the editors' intelligence around Jedi: docstrings (Google, NumPy, reST) for each
+                         parameter's words, IPython's lines made Python of the same lines, the app's names
+                         inside strings (sab.connection("|"), os.environ["|"], secret("|"), sab.blade("|")),
+                         the small lint (compile, undefined names, unused imports, f-strings, == None, bare
+                         except) and its fixes, where an import goes, SQL's syntax by sqlglot, the ranking
     script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
                          plain value, a key vault, never a secret's value), the variables a script needs,
                          a scheduled run's plan, a run's record
@@ -340,6 +345,10 @@ src/swissarmybench/
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
                          a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
+    intellisense.py      the editors' intelligence: complete, signature, hover, lint (Jedi in the kernel or
+                         a Script over the project; the app's names; Ruff or pyflakes where there; a worker
+                         thread, a one-second budget, superseded requests skipped); what each editor shows,
+                         for the agent (workbench_complete, workbench_signature, workbench_problems)
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
     navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
@@ -412,6 +421,8 @@ src/swissarmybench/
     live_updates.py      the pages' and VS Code windows' sockets
     folders.py           a folder's contents for the file chooser
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
+    intellisense.py      Jedi's Project and Environment per folder and Python, the project's modules read,
+                         pyflakes, Ruff in the document's Python (on stdin; never installed by itself), DuckDB's parser
     packs.py             installed packs in Claude Code's plugin folder, editable ones in the blade
                          folders; writing a new marketplace and a pack's files
 
@@ -422,7 +433,7 @@ src/swissarmybench/
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
-                         structures, api_explorer,
+                         structures, api_explorer, intellisense,
                          connection_swap, variables, connection_colours, connection_tables). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
@@ -471,6 +482,8 @@ src/swissarmybench/
                          DataFrame), sab.show_structure (a dict or list as a Structures tab)
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sab.complete)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
+  client/kernel_intel.py Jedi's answers (the member list, signatures, hovers): its Interpreter over a kernel's
+                         namespace, asked in the kernel; its Script the server runs where no kernel has
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
                          <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
@@ -568,7 +581,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchKernel.ts (runs), workbenchOutputs.ts (outputs drawn as they arrive:
                          colours, `\r`, caps, input boxes), workbenchErrors.ts (the error panel: Visual
                          Studio's Exception Helper; squiggles, hover cards and Ctrl+. fixes in the editor),
-                         workbenchCompletion.ts, workbenchEnvironment.ts,
+                         workbenchCompletion.ts, workbenchIntel.ts (the editors' intelligence: the member
+                         list with its documentation panel, parameter info, quick info, the lint as you type,
+                         the status bar's Problems count and list, the Ruff offer), workbenchEnvironment.ts,
                          workbenchVariables.ts, lazy/codeEditor.ts (Monaco: line edits that keep the
                          cursor, cell links, a script's folds and marker notes),
                          workbenchTables.ts (every table's read-only cell: its state against the text it

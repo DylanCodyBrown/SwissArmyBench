@@ -181,7 +181,7 @@ def test_an_undefined_name_offers_its_import_and_the_variables_page() -> None:
     assert define.edits[0].text == 'import os\nWAREHOUSE_URL = os.environ["WAREHOUSE_URL"]\n'
     importable = {"write_sqlite": "from functions import write_sqlite"}
     [p] = rules.lint("write_sqlite(1)", importable=importable)
-    assert p.fixes[0].edits[0].text == "from functions import write_sqlite\n"
+    assert p.fixes[0].edits[0].text == "from functions import write_sqlite\n\n"
 
 
 def test_an_import_joins_its_modules_line_or_goes_after_the_imports() -> None:
@@ -194,7 +194,7 @@ def test_an_import_joins_its_modules_line_or_goes_after_the_imports() -> None:
         "text": ", write_sqlite",
     }
     assert rules.import_edit(text, "import json").line == 5
-    assert rules.import_edit("x = 1", "import json").line == 1
+    assert rules.import_edit("x = 1", "import json").text == "import json\n\n"  # apart from the code
     assert rules.import_edit('"""Doc."""\nx = 1', "import json").line == 2
 
 

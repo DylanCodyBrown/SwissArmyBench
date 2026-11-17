@@ -59,6 +59,7 @@ import { allCommands, answerAgent, type Command, openPalette, registerCommands, 
 import { following, pulse, userBusy } from "./sessionPage";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
 import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./workbenchCompletion";
+import { onProblems, problemsOf, pythonIntel, ruffOffer } from "./workbenchIntel";
 import { newEnvironment } from "./workbenchEnvironment";
 import type { Fix } from "./workbenchErrors";
 import { mountDataPanel } from "./workbenchData";
@@ -1064,9 +1065,13 @@ function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified
       if (kernel.state === "idle") lineageNoticed(); // a run ended: the lineage's values may have changed
       assignSoon(); // a started kernel has its id: the tables it sends belong to this document
     });
+    // The console: Python against the kernel's names (no lint: a line typed there runs at once).
+    const consoleIntel = pythonIntel(kernel, { notebook: true, document: () => doc.path ?? doc.title });
+    const consoleCompleter = pythonCompleter(kernel, names);
     doc.console = consoleView(kernel, () => effectiveTheme(), {
-      complete: pythonCompleter(kernel, names),
+      complete: (code, offset) => consoleIntel.complete(code, offset).then((found) => found ?? consoleCompleter(code, offset)),
       help: (code, offset) => kernel.help(code, offset),
+      intel: { signature: consoleIntel.signature, hover: consoleIntel.hover },
       f5: () => void runPrimary(doc),
       ran: () => useConsole(doc),
       // A script's runs mark its lines; a line typed in the console has only the panel's own fixes.
@@ -1878,7 +1883,55 @@ const variablesToggle = button("Variables", () => {
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
 installZoomInput();
-layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
+// The lint's count for the document in front (errors and warnings; unused names are faded, not counted):
+// a click lists every problem, and goes to the one picked. Nothing shows while there is none.
+const problemsButton = menuButton(
+  button("Problems", () => undefined, { icon: "warning", class: "ghost wb-problems" }),
+  "Problems",
+  () => {
+    const found = problemsOf(problemsKey(current));
+    const entries: MenuEntry[] = found.flatMap((s) =>
+      s.problems.map((p) => ({
+        label: `${s.place ? `${s.place}, ` : ""}line ${p.line}: ${p.message.replace(/`/g, "")}${p.code ? ` (${p.code})` : ""}`,
+        icon: p.severity === "error" ? "problem" : p.severity === "warning" ? "warning" : "info",
+        run: () => s.reveal(p.line, p.col),
+      })),
+    );
+    const listed: MenuEntry[] = entries.length ? entries : [{ label: "No problems", disabled: true }];
+    // Ruff, offered here only (quietly: never a prompt by itself): into the document's own Python.
+    const doc = current;
+    const ruff = doc ? ruffOffer(problemsKey(doc)) : null;
+    if (ruff && doc) listed.push(null, { label: "Check with Ruff too: install ruff…", icon: "import", run: () => void promptInstall(ruff, { force: true, install: kernelInstall(doc), then: () => relint(doc) }) });
+    return listed;
+  },
+  { above: true },
+);
+problemsButton.hidden = true;
+/** The key the editors' problems are kept under for a document (workbenchIntel.ts's document). */
+function problemsKey(doc: Doc | null): string {
+  if (!doc) return "\u0000none";
+  return doc.path ?? (doc.kind === "notebook" ? "Untitled notebook" : "Untitled script");
+}
+function drawProblems(): void {
+  const doc = current;
+  const found = doc && (doc.notebook || doc.script) ? problemsOf(problemsKey(doc)).flatMap((s) => s.problems) : [];
+  const errors = found.filter((p) => p.severity === "error").length;
+  const warnings = found.filter((p) => p.severity === "warning").length;
+  problemsButton.hidden = errors + warnings === 0;
+  const words = [errors ? `${errors} ${errors === 1 ? "error" : "errors"}` : "", warnings ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : ""].filter(Boolean).join(", ");
+  const label = problemsButton.querySelector(".btn-label");
+  if (label) label.textContent = words;
+  problemsButton.setAttribute("aria-label", words ? `Problems: ${words}` : "Problems");
+  problemsButton.title = words;
+  problemsButton.classList.toggle("has-errors", errors > 0);
+}
+onProblems(drawProblems);
+/** Check a document's editors again (Ruff came in). */
+function relint(doc: Doc): void {
+  doc.script?.relint();
+  doc.notebook?.relint();
+}
+layout.status.append(versionMark(), kernelHost, envHost, cursorHost, problemsButton, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -1927,6 +1980,7 @@ function drawStatus(): void {
     envHost.dataset.doc = "";
   }
   drawCursor();
+  drawProblems();
   const state = layout.state();
   consoleToggle.setAttribute("aria-pressed", String(state.console));
   variablesToggle.setAttribute("aria-pressed", String(state.right));

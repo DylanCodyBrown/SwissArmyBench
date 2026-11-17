@@ -47,6 +47,7 @@ import type { CodeEditor, LineNote, ScriptOutline } from "./lazy/codeEditor";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { type ConsoleView, loadEditors, type RunOrigin } from "./workbenchConsole";
 import { pythonCompleter } from "./workbenchCompletion";
+import { pythonIntel, showProblems } from "./workbenchIntel";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, yourFrame } from "./workbenchErrors";
 import type { Kernel } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, htmlNames, type HtmlRun, htmlState, type HtmlState, runHtml, scriptBody } from "./workbenchHtml";
@@ -57,6 +58,8 @@ import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, 
 
 export interface ScriptView {
   element: HTMLElement;
+  /** Check the text again (the lint: Ruff came in). */
+  relint: () => void;
   text: () => string;
   /** The whole text replaced, as an edit (unsaved until Save): a swap's code pointed at another connection. */
   replaceText: (text: string) => void;
@@ -779,12 +782,22 @@ export function scriptView(
 
   void loadEditors().then((m) => {
     if (disposed) return; // closed before the editor loaded
+    const python = pythonCompleter(kernel, names);
+    const docName = (): string => kernel.intel().path ?? "Untitled script";
+    const intel = pythonIntel(kernel, { notebook: false, document: docName });
+    const intelKey = `${Math.random()}`;
     editor = m.createCodeEditor(editorHost, {
       language: "python",
       value: initial,
       theme: theme(),
       keys: { f5: () => void runFile(), ctrlEnter: () => void runSelection(), shiftEnter: () => void runSelection(), f1: hooks.help },
-      complete: pythonCompleter(kernel, names),
+      complete: (text, offset) => intel.complete(text, offset).then((found) => found ?? python(text, offset)),
+      intel: {
+        signature: intel.signature,
+        hover: intel.hover,
+        lint: intel.lint,
+        onLint: (problems) => showProblems(`${docName()}\u0000${intelKey}`, disposed ? null : { document: docName(), place: "", problems, reveal: (line, column) => editor?.reveal(line, column) }),
+      },
       help: (code, offset) => kernel.help(code, offset),
       sendToAgent: (what, ask) =>
         sendToAgent(codeItem(`${currentDocument()}, ${what.startLine === what.endLine ? `line ${what.startLine}` : `lines ${what.startLine} to ${what.endLine}`}`, what, "python"), ask),
@@ -891,6 +904,7 @@ export function scriptView(
   };
 
   return {
+    relint: () => editor?.lint(),
     errorHooks,
     element: h("div", { class: "wb-script" }, editorHost),
     text: () => (editor ? editor.value() : text),

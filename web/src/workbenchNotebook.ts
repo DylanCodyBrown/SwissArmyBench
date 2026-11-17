@@ -64,6 +64,7 @@ import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { loadEditors } from "./workbenchConsole";
 import { namedConnections } from "./connectionSql";
 import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
+import { pythonIntel, showProblems } from "./workbenchIntel";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, sqlProblems, yourFrame } from "./workbenchErrors";
 import { type Kernel, runInto } from "./workbenchKernel";
 import { changedNames, type DesignPane, designPane, fillHtml, fillMarkdown, htmlNames, type HtmlRun, htmlState, type HtmlState, runFromOutputs, runHtml } from "./workbenchHtml";
@@ -213,6 +214,8 @@ const empty = (kind: CellKind = "code", connection: string | null = null): CellD
 
 export interface NotebookView {
   element: HTMLElement;
+  /** Check every cell again (the lint: Ruff came in). */
+  relint: () => void;
   cells: () => CellData[];
   /** Add a cell after the selected one (`first`: at the top). */
   add: (kind: CellKind, source?: string, first?: boolean) => void;
@@ -1143,10 +1146,14 @@ export function notebookView(
       changed();
       connectionsSoon();
       drawNamed(cell);
+      cell.editor?.lint();
     });
     namedHosts.set(cell, namedHost);
     drawNamed(cell);
-    kindPicker.addEventListener("change", () => setKind(cell, kindPicker.value as CellKind));
+    kindPicker.addEventListener("change", () => {
+      setKind(cell, kindPicker.value as CellKind);
+      cell.editor?.lint();
+    });
     if (draggable) {
       // The head drags the cell too, but not from its buttons and pickers.
       let pressed: HTMLElement | null = null;
@@ -1213,9 +1220,30 @@ export function notebookView(
       }, 0);
     });
     if (role === "transformations") kindPicker.hidden = true;
+    // The editors' intelligence: Jedi with the cells before this one (or the kernel's names once it runs),
+    // the cells after it for the lint (an import here they use is used).
+    const codeOf = (list: Cell[]): string[] => list.filter((c) => c.kind === "code" || c.kind === "sql").map((c) => (c.kind === "sql" ? `${sqlLine(c.connection)}\n${sourceOf(c)}` : sourceOf(c)));
+    const docName = (): string => kernel.intel().path ?? "Untitled notebook";
+    const intel = pythonIntel(kernel, {
+      notebook: true,
+      before: () => codeOf(cells.slice(0, Math.max(0, cells.indexOf(cell)))),
+      after: () => codeOf(cells.slice(cells.indexOf(cell) + 1)),
+      language: () => (cell.kind === "code" && cell.role !== "transformations" ? "python" : cell.kind === "sql" ? "sql" : "other"),
+      connection: () => cell.connection,
+      document: docName,
+      place: () => `cell ${cell.number}`,
+    });
+    const intelKey = `${Math.random()}`;
     void loadEditors().then((m) => {
       if (disposed || !cells.includes(cell)) return; // deleted (or the notebook closed) before its editor loaded
       cell.editor = m.createCodeEditor(editorHost, {
+        intel: {
+          signature: (text, offset) => (cell.kind === "code" ? intel.signature(text, offset) : Promise.resolve(null)),
+          hover: (text, offset) => (cell.kind === "code" ? intel.hover(text, offset) : Promise.resolve("")),
+          lint: (text) => intel.lint(text),
+          onLint: (problems) =>
+            showProblems(`${docName()}\u0000${intelKey}`, cells.includes(cell) ? { document: docName(), place: `cell ${cell.number}`, problems, reveal: (line, column) => { select(cell); cell.editor?.reveal(line, column); } } : null),
+        },
         language: LANGUAGE[cell.kind],
         value: cell.source,
         theme: theme(),
@@ -1225,7 +1253,11 @@ export function notebookView(
         placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : undefined,
         // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog,
         // DAX from its dataset's part of the workspace's catalog.
-        complete: (text, offset) => (cell.kind === "sql" ? sql(text, offset) : cell.kind === "dax" ? dax(text, offset) : cell.kind === "code" ? python(text, offset) : Promise.resolve([])),
+        complete: (text, offset) =>
+          cell.kind === "sql" ? sql(text, offset)
+          : cell.kind === "dax" ? dax(text, offset)
+          : cell.kind === "code" ? intel.complete(text, offset).then((found) => found ?? python(text, offset))
+          : Promise.resolve([]),
         help: (text, offset) => (cell.kind === "code" ? kernel.help(text, offset) : Promise.resolve("")),
         sendToAgent: (what, ask) => sendToAgent(codeItem(`cell ${indexOf(cell) + 1} of ${currentDocument()}${what.startLine === what.endLine ? `, line ${what.startLine}` : `, lines ${what.startLine} to ${what.endLine}`}`, what, LANGUAGE[cell.kind]), ask),
         actions: hooks.lineage ? [{ id: "sab.lineage", label: "Lineage", run: () => hooks.lineage!(cell.number) }] : [],
@@ -1863,6 +1895,9 @@ export function notebookView(
 
   const at = (index?: number): Cell | null => (index === undefined ? selected ?? cells[0] ?? null : cells[index] ?? null);
   return {
+    relint: () => {
+      for (const c of cells) c.editor?.lint();
+    },
     flowCells: () =>
       cells
         .filter((c) => !isApp(c.role) && !isHeading(c.role))

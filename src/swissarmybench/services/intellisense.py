@@ -153,7 +153,9 @@ class Intellisense:
         return self._cache.get(key)
 
     def _keep(self, key: tuple[Any, ...], answer: dict[str, Any]) -> dict[str, Any]:
-        if not any(answer.get(k) for k in ("late", "superseded", "error")):
+        # Not kept: a late or failed answer, and a lint without Ruff (it may be installed any moment).
+        ruffless = (answer.get("ruff") or {}).get("used") is False
+        if not ruffless and not any(answer.get(k) for k in ("late", "superseded", "error")):
             self._cache[key] = answer
             while len(self._cache) > MAX_CACHE:
                 self._cache.pop(next(iter(self._cache)))
@@ -386,8 +388,9 @@ class Intellisense:
                     {
                         "label": n["name"],
                         "kind": n["kind"],
-                        "detail": f"{n['signature'] or n['kind']} · {module}.py",
-                        "documentation": rules.markdown_doc(n["signature"], n["doc"], f"{module}.py"),
+                        "detail": n["signature"] or n["kind"],
+                        "module": module,
+                        "documentation": rules.markdown_doc("", n["doc"], f"{module}.py"),
                         "group": "project",
                         "imports": [edit.to_json()],
                         "import_line": line,
@@ -477,7 +480,11 @@ class Intellisense:
             if source is None or any(p.code == "E999" for p in own):
                 return {"problems": [p.to_json() for p in own], "ruff": self._ruff_state(python, None)}
             command = self._linters.ruff_command(python)
-            external = self._from_ruff(source, command, folder, notebook) if command else None
+            path = body.get("path")
+            where = folder or (path.rsplit("/", 1)[0] if isinstance(path, str) and "/" in path else None)
+            if where is None and isinstance(path, str) and "\\" in path:
+                where = path.rsplit("\\", 1)[0]
+            external = self._from_ruff(source, command, where, notebook) if command else None
             used = "ruff" if external is not None else None
             if external is None:
                 flakes = self._linters.pyflakes(source)
@@ -511,8 +518,8 @@ class Intellisense:
         out = []
         for d in found:
             code = str(d.get("code") or "E999")
-            if notebook and code in ("I001", "E402", "F404", "W292"):
-                continue  # a cell's imports are not a module's top
+            if notebook and code in ("I001", "E402", "F404", "W292", "B018"):
+                continue  # a cell is not a module: its imports, its last line shown as the output
             start, end = d.get("location") or {}, d.get("end_location") or {}
             fix = d.get("fix") or {}
             fixes = []

@@ -13,10 +13,12 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 _RUFF_SECONDS = 3.0
+_RUFF_AGAIN_SECONDS = 60.0
 # The package's own folder: Jedi always finds `swissarmybench` (the kernel's `sab`).
 _PACKAGE_ROOT = str(Path(__file__).resolve().parents[2])
 
@@ -100,7 +102,9 @@ class Linters:
     DuckDB's parser."""
 
     def __init__(self) -> None:
-        self._ruff: dict[str, str | None] = {}
+        # Each Python's Ruff, and when it was looked for (one not there is looked for again a minute on:
+        # it may have been installed since).
+        self._ruff: dict[str, tuple[float, str | None]] = {}
         self._duck: Any = None
         self._duck_lock = threading.Lock()
 
@@ -134,8 +138,9 @@ class Linters:
     def ruff_command(self, python: str | None) -> str | None:
         """Ruff beside the document's Python (its environment's), or its `ruff` package; None: not there."""
         python = python or sys.executable
-        if python in self._ruff:
-            return self._ruff[python]
+        kept = self._ruff.get(python)
+        if kept is not None and (kept[1] is not None or time.monotonic() - kept[0] < _RUFF_AGAIN_SECONDS):
+            return kept[1]
         found: str | None = None
         folder = os.path.dirname(python)
         for name in ("ruff", "ruff.exe"):
@@ -155,12 +160,15 @@ class Linters:
                 found = path if done.returncode == 0 and path and os.path.isfile(path) else None
             except (OSError, subprocess.SubprocessError):
                 found = None
-        self._ruff[python] = found
+        self._ruff[python] = (time.monotonic(), found)
         return found
 
     def ruff(self, text: str, command: str, folder: str | None) -> list[dict[str, Any]] | None:
-        """Ruff's diagnostics on the text (the folder's own Ruff settings apply). None: it failed."""
+        """Ruff's diagnostics on the text: the folder's own Ruff settings apply (the project's, else the
+        document's folder's); with no folder, Ruff's defaults (never the server's own working folder's).
+        None: it failed."""
         cwd = folder if folder and os.path.isdir(folder) else None
+        own = [] if cwd else ["--isolated"]
         try:
             done = subprocess.run(  # noqa: S603 (that Python's own ruff, with a fixed command)
                 [
@@ -170,6 +178,7 @@ class Linters:
                     "json",
                     "--no-cache",
                     "--exit-zero",
+                    *own,
                     "--stdin-filename",
                     "cell.py",
                     "-",

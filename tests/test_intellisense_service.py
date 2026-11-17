@@ -43,6 +43,12 @@ def tidy_names(frame):
 '''
 
 
+@pytest.fixture(autouse=True)
+def patient(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The one-second budget is for typing; under a loaded test run Jedi's first look takes longer."""
+    monkeypatch.setattr("swissarmybench.services.intellisense.BUDGET_SECONDS", 20.0)
+
+
 class NoRuff(Linters):
     def ruff_command(self, python: str | None) -> str | None:
         return None

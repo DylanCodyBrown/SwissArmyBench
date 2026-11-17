@@ -464,6 +464,25 @@ their own, run in an IPython kernel on this computer.
   full traceback is behind a toggle. In the editor the failing expression is underlined, its message
   sits at the line's end, the hover shows the explanation and Ctrl+. offers the same fixes. A SQL
   cell's error is underlined where the database pointed.
+- **Completion and checks as you type** (every notebook cell, script and the console): the member list
+  comes up as you type (or with Ctrl+Space), each name with its kind and its signature or type, and
+  the documentation panel beside it (the docstring, each parameter's words, what it returns, where it
+  comes from; Ctrl+Space again hides or shows it). Before the kernel runs, the names come from your
+  code (a notebook's cells above), your project's modules and your Python's libraries; once it has run,
+  from the live objects too (a DataFrame's columns). Inside strings it offers the app's own names:
+  connections in `sab.connection("…")`, `sab.sql("…")` and `sab.read("…")`, variables in
+  `os.environ["…"]` and `secret("…")` (with where each comes from, never a value), blades in
+  `sab.blade("…")`, structures in `sab.structure("…")`, an open table's columns in `orders["…"]`.
+  Picking a function fills in its required arguments (Tab moves through them); a name from your
+  project's functions.py, data.py and the other made modules adds its `from … import` line. While you
+  type a call, its parameter info shows each signature with the current parameter in bold and its own
+  words. Hovering a name shows its signature or type and its docstring. A moment after you stop typing
+  the code is checked: syntax errors and names nothing defines underlined in red (names earlier cells
+  or the kernel made count as defined), warnings in yellow, unused imports faded; with Ruff in the
+  document's Python its rules join in. The status bar counts errors and warnings (click it for the
+  list, a click on one goes there), and Ctrl+. offers the fixes: add the import, remove the unused
+  import, define a name from the Variables page, use the close name. A SQL cell is checked by DuckDB's
+  own parser (another database's by its dialect). Your agent sees the same list.
 - **Send to the agent:** right-click an error (its panel, or the underlined code), or select code and
   right-click, then **Send to the agent** (or **…with a question** to add your own words). It reaches
   your agent with your next message to it, through the plugin's prompt hook; the agent can also read it
