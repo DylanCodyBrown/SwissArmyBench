@@ -12,10 +12,10 @@ from typing import Any
 import duckdb
 import pytest
 from openpyxl import load_workbook
+
 from swissarmybench_accounting import design as rules
 from swissarmybench_accounting import exporter, runtime
 from swissarmybench_accounting.runtime import WorkbookError
-
 from tests import accounting_data as made_up
 
 
