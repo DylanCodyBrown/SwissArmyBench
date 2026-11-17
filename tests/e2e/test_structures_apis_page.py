@@ -77,6 +77,13 @@ def shot(page: Page, name: str) -> None:
         page.screenshot(path=str(Path(SHOTS) / f"{name}.png"))
 
 
+def shot_of(where: Any, name: str) -> None:
+    """One part of the page (the rail)."""
+    if SHOTS:
+        Path(SHOTS).mkdir(parents=True, exist_ok=True)
+        where.screenshot(path=str(Path(SHOTS) / f"{name}.png"))
+
+
 def opened(browser: Browser, url: str, dark: bool = False) -> Page:
     page = browser.new_context(
         viewport={"width": 1400, "height": 900},
@@ -111,6 +118,7 @@ def test_the_apis_page_authors_a_call_into_structures(
     expect(found.locator(".api-card")).to_have_count(2)
     expect(found.locator('.api-card[data-api="Orders"]')).to_contain_text("5 operations")
     shot(page, "apis-cards")
+    shot_of(page.locator(".nav-rail"), "rail")
 
     # One search box across every API.
     found.locator(".apis-search").fill("regions")
@@ -168,6 +176,26 @@ def test_the_apis_page_authors_a_call_into_structures(
     expect(lineage.locator("svg").first).to_be_visible(timeout=20000)
     shot(page, "structures-lineage")
     lineage.locator(".dialog-close, button[aria-label='Close']").first.click()
+
+    # Return as table, authored: the DuckDB query shows while it is on, and on the operation once saved.
+    page.locator('.nav-rail [data-area="apis"]').click()
+    found = page.locator('.area-page[data-page="apis"]')
+    found.locator('.api-card[data-api="Orders"] .api-card-open').click()
+    found.locator('.api-op[data-operation="list_orders"]').click()
+    found.locator(".api-detail .api-author").click()
+    screen = found.locator(".api-author-screen")
+    expect(screen.locator(".api-conversion")).to_be_hidden()
+    screen.get_by_label("Return as table").check()
+    screen.get_by_label("Records path").fill("$.items")
+    expect(screen.locator(".api-conversion")).to_be_visible()
+    screen.get_by_role("button", name="Save as web call").click()
+    expect(page.locator(".toast").last).to_contain_text("[Orders].list_orders", timeout=15000)
+    screen.get_by_role("button", name="Back").click()
+    found.locator('.api-op[data-operation="list_orders"]').click()
+    query = found.locator(".api-detail .api-conversion")
+    query.locator("summary").click()
+    expect(query.get_by_label("The DuckDB query")).to_have_value(re.compile(r"response", re.S))
+    shot(page, "apis-duckdb-query")
 
     # Refresh: what changed, before it is applied.
     changed = service.openapi()
@@ -291,4 +319,20 @@ def test_write_rows_with_a_call_dry_run_then_send(
     expect(structures.locator(".structures-origin")).to_contain_text("2 of 2 rows written")
     assert len(service.posted) == before + 2
     shot(page, "apis-write-rows-results")
+    page.context.close()
+
+
+def test_unnest_this_column_on_a_list_column(browser: Browser, own_server: dict[str, Any]) -> None:
+    """A list column (as an API's answer keeps them): its right-click's Unnest this column, a SQL step."""
+    answer = pd.DataFrame({"order_id": [1, 2], "lines": [["widget", "gadget"], ["bolt"]]})
+    url = push_client.push(answer, name="nested_answer", new_grid=True)
+    page = opened(browser, url)
+    page.locator(".ag-header-cell[col-id='order_id'] .sab-header-name").click(button="right")
+    expect(page.get_by_role("menuitem", name="Unnest this column")).to_have_count(0)  # not a list
+    page.keyboard.press("Escape")
+    page.locator(".ag-header-cell[col-id='lines'] .sab-header-name").click(button="right")
+    page.get_by_role("menuitem", name="Unnest this column").click()
+    expect(page.locator(".steps-strip")).to_contain_text("Unnest lines", timeout=15000)
+    expect(page.locator(".ag-row[row-index='2']").first).to_contain_text("bolt", timeout=15000)
+    shot(page, "unnest-a-list-column")
     page.context.close()

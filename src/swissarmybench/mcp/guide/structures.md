@@ -27,6 +27,7 @@ Structures page: a tree and its text, steps replayed on the original (never chan
 - `structures_save(structure)` to its file; with `name`, `format`, `folder` or `path`: Save as (the
   project's `structures/` folder by default). TOML cannot hold a null: it says so.
 - `structures_lineage(structure)`: the call (inputs and body as sent, when; a sign-in input hidden) or
-  file, each step, each grid made from it, as Mermaid too.
+  file, each step, each grid made from it, the cells that read it (sab.structure, sab.structure_table), as
+  Mermaid too.
 - In code: `sab.structure("gates")` is the saved file's value; `sab.structure_table("payload",
   "$.orders")` its records as a table. `structures_close(name, references=true)` lists where code uses it.

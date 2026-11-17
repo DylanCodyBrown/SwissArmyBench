@@ -1265,6 +1265,35 @@ def is_connection_for(code: str, module: str) -> bool:
     return f"spec_from_file_location({_q(module)}," in code
 
 
+_MADE_AT = re.compile(r'spec_from_file_location\(\s*"(API_[A-Za-z0-9_]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)')
+
+
+def made_file_of(code: str) -> tuple[str, str] | None:
+    """An API connection's made file: (its module, its path), read from the Connect code Add API wrote
+    (`spec_from_file_location("API_Orders", "C:/.../API_Orders.py")`), or None: not Add API's."""
+    found = _MADE_AT.search(code)
+    if not found:
+        return None
+    return found.group(1), json.loads(f'"{found.group(2)}"')
+
+
+def folder_of(path: str) -> str:
+    """The folder a file is in, either slash (an older connection made on Windows read here too)."""
+    cut = max(path.rfind("/"), path.rfind("\\"))
+    return path[:cut] if cut > 0 else path
+
+
+def make_into_blades_source(mark: Mapping[str, Any], beside: str | None) -> dict[str, str] | None:
+    """Where an older API connection's document is read again from, to make it into blades: the address
+    it was read from, else an openapi.json beside its made file; None: neither (the user gives it)."""
+    source = str(mark.get("source") or "")
+    if source.startswith(("http://", "https://")):
+        return {"spec_url": source}
+    if beside:
+        return {"spec_path": beside}
+    return None
+
+
 # ===== re-import: what changes =====
 
 

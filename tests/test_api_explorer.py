@@ -220,3 +220,51 @@ def test_rename_renames_the_blades_and_their_calls(client: TestClient, service: 
     blade = ok(client.get("/blades/Store.get_products", headers=AUTH))
     assert 'sab.blade("Store")' in blade["code"] and blade["web_call"]["api"] == "Store"
     assert json.loads(json.dumps(done))["was"] == "Shop"
+
+
+def test_an_older_api_connection_is_made_into_blades_only_when_asked(
+    tmp_path: Path, service: Service
+) -> None:
+    """An API connection from before the library (API_Orders.py beside a project, its connection loading
+    it): listed as older and working; Make into blades writes the library's folder and blades from the
+    document beside it, the connection keeps its name, and the old file is left where it was."""
+    from dataclasses import replace
+
+    from swissarmybench.domain import api_clients, apis
+
+    document = service.openapi()
+    project = tmp_path / "project"
+    project.mkdir()
+    with make_client(tmp_path) as client:
+        spec = replace(
+            apis.parse_spec(document, ""),
+            auth=apis.check_auth({"type": "none"}),
+            base_url=service.url + "/v1",
+        )
+        names = apis.names_for("Orders")
+        old = project / names.file
+        old.write_text(api_clients.write(spec, names), encoding="utf-8")
+        (project / "openapi.json").write_text(json.dumps(document), encoding="utf-8")
+        body = apis.connection_body(names, str(old), spec.auth, "older")
+        ok(client.post("/connections", json=body, headers=AUTH))
+        listed = ok(client.get("/apis", headers=AUTH))
+        assert listed["apis"] == [] and [o["name"] for o in listed["older"]] == ["Orders"]
+
+        made = ok(client.post("/apis/Orders/make-into-blades", json={}, headers=AGENT))
+        assert made["made_into_blades"] == "Orders" and made["left"] == str(old)
+        assert old.is_file()  # never removed
+        listed = ok(client.get("/apis", headers=AUTH))
+        assert [c["name"] for c in listed["apis"]] == ["Orders"] and listed["older"] == []
+        assert "Orders.list_orders" in made["web_calls"]
+        # Nothing beside it and no address: it says what to give.
+        (project / "openapi.json").unlink()
+        names2 = apis.names_for("Legacy")
+        legacy = project / names2.file
+        legacy.write_text(api_clients.write(spec, names2), encoding="utf-8")
+        ok(
+            client.post(
+                "/connections", json=apis.connection_body(names2, str(legacy), spec.auth, "x"), headers=AUTH
+            )
+        )
+        refused = client.post("/apis/Legacy/make-into-blades", json={}, headers=AUTH)
+        assert refused.status_code >= 400 and "spec_path" in refused.text

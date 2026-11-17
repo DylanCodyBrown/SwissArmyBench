@@ -341,8 +341,28 @@ function drawPage(): void {
 
   const returnAsTable = async (at: string): Promise<void> => {
     if (!doc || !doc.origin.api || !doc.origin.operation) return;
-    const saved = await call<{ sql_name: string | null; web_call: { records: string } }>(`/apis/${encodeURIComponent(doc.origin.api)}/calls/${encodeURIComponent(doc.origin.operation)}`, "PUT", { as_table: true, structure: doc.id, at });
-    if (saved?.sql_name) toast(`${saved.sql_name} is a table (rows at ${saved.web_call.records})`);
+    const where = `/apis/${encodeURIComponent(doc.origin.api)}/calls/${encodeURIComponent(doc.origin.operation)}`;
+    const saved = await call<{ sql_name: string | null; web_call: { records: string; conversion: string } }>(where, "PUT", { as_table: true, structure: doc.id, at });
+    if (!saved?.sql_name) return;
+    // What it became: its name in DuckDB SQL, and DuckDB's own query over the answer (the user's to change).
+    const { dialog, body: box, foot, close } = openDialog(`Return as table · ${saved.sql_name}`, true);
+    dialog.classList.add("structures-as-table");
+    const sql = h("textarea", { class: "mono api-conversion-sql", "aria-label": "The DuckDB query", rows: 8, spellcheck: "false" }) as HTMLTextAreaElement;
+    sql.value = saved.web_call.conversion;
+    box.append(
+      h("p", {}, h("code", {}, `SELECT * FROM ${saved.sql_name}`), h("span", { class: "muted" }, ` · rows at ${saved.web_call.records}`)),
+      h("label", { class: "structures-field" }, h("span", {}, "The DuckDB query"), sql),
+    );
+    foot.append(
+      button("Save the query", async () => {
+        if (await call(where, "PUT", { as_table: true, conversion: sql.value })) {
+          toast("Saved the query.");
+          close();
+        }
+      }, { icon: "save", class: "primary" }),
+      button("Copy name for SQL", () => void navigator.clipboard.writeText(saved.sql_name!).then(() => toast(`Copied ${saved.sql_name}`)), { icon: "copy" }),
+      button("Close", close, { class: "ghost" }),
+    );
   };
 
   const lineage = async (): Promise<void> => {

@@ -1703,6 +1703,18 @@ def column_remove(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "column_unnest",
+    "Unnest a LIST column (a row per item) or a STRUCT column (its fields as columns): a SQL step.",
+    req("grid", "Grid id."),
+    req("column", "The list or struct column."),
+    opt("index", "Insert at this step position.", "int"),
+)
+def column_unnest(a: dict[str, Any]) -> Any:
+    body = {"column": a["column"]} | ({"index": a["index"]} if a.get("index") is not None else {})
+    return api.call("POST", f"/grids/{_q(a['grid'])}/unnest", body)
+
+
+@command(
     "column_rename",
     "Rename columns (a rename step).",
     req("grid", "Grid id."),
@@ -2325,6 +2337,19 @@ def connections_api_choices(a: dict[str, Any]) -> Any:
 
 
 _API_KEYS = ("spec_url", "spec_path", "spec", "form", "name", "base_url", "auth", "folder")
+
+
+@command(
+    "apis_make_into_blades",
+    "Make an older API connection (apis_list's older) into blades in this computer's library: its API blade "
+    "and a web call blade per operation, from the document it was made from (or the one given).",
+    req("name", "The older API connection."),
+    opt("spec_path", "Its OpenAPI document's file, when Add API did not keep it."),
+    opt("spec_url", "Or its address."),
+)
+def apis_make_into_blades(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("spec_path", "spec_url") if a.get(k)}
+    return api.call("POST", f"/apis/{_q(a['name'])}/make-into-blades", body)
 
 
 @command(

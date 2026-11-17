@@ -3828,12 +3828,25 @@ The owner's words:
 - Check for changes is a request the user configured to their own API (an address they gave), on the
   page's opening or Refresh only: not the app's update check, and never in the background.
 - Older API connections (API_<name>.py beside a project, before the library) keep working and are listed
-  on the APIs page as older; **Make into blades** is not built yet (adding the API again from its document
-  makes the blades).
+  on the APIs page as older; **Make into blades** (on the user's click, or `apis_make_into_blades`) reads
+  the document again from the address it was made from or an openapi.json beside it (else the user picks
+  the file), makes the library's API blade and web calls under the same connection name (its variables'
+  sources kept), and leaves the old file where it is.
+- The API blade still loads the made client (`API_<name>.py`, now in the API's library folder beside its
+  blades: the signing code reused as the owner said) rather than holding it inline; the explorer reads the
+  client's mark there. Inlining it into the API blade's own code is open.
 - Header-and-rows with no types in the header come out as text (DuckDB's own detection is not run on a
   position projection); the header's types, when given, are cast with TRY_CAST.
-- Unnest this column (a LIST column's right-click as an UNNEST step) is not built: a note for the grid's
-  column menu.
+- **Unnest this column** (built after the merge): a LIST or STRUCT column's right-click in its grid, and
+  `column_unnest`, adds a SQL step the user can read and change (a list: a row per item, an empty or blank
+  list kept as a blank row; a struct: its fields as `<column>.<field>`, never clashing with a column).
+- The conversion is shown and edited: "The DuckDB query" on an operation that is a table (Save the query,
+  Make it again), in Author a call while Return as table is on, and in Return as table…'s dialog.
+- The lineage runs on to the notebook and script cells that read the structure by name (sab.structure;
+  sab.structure_table after its last grid).
+- After the merge with connection-sql: the API blade stays in `/connections` marked `tables_kind: "api"` (so
+  DuckDB SQL names its tables); the Connections page and the Grids landing leave those out, and context.md
+  lists an API in its own APIs section, not under Connections.
 
 ## A connection's tables in DuckDB SQL (the owner, 2026-11-17; built, branch connection-sql)
 

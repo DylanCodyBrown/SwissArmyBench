@@ -148,6 +148,11 @@ def test_a_project_keeps_its_structures_in_the_sab_and_opens_them_again(tmp_path
         (folder / "analysis.ipynb").write_text(notebooks.write_notebook([cell]), encoding="utf-8")
         used = ok(client.get("/structures/references?name=gates", headers=AUTH))["references"]
         assert [(r["title"], r["how"]) for r in used] == [("analysis.ipynb", "sab.structure")]
+        # Its lineage ends at the notebook cell that reads it.
+        chain = ok(client.get(f"/structures/{sid}/lineage", headers=AUTH))
+        cell = next(n for n in chain["nodes"] if n["kind"] == "cell")
+        assert cell["where"] == "analysis.ipynb @cell1" and cell["reads"] == ["gates"]
+        assert any(e["target"] == cell["id"] for e in chain["edges"])
         # sab.structure reads the saved file.
         assert (
             ok(client.get("/structures/saved?name=gates&path=$.gates[1].name", headers=AUTH))["value"]

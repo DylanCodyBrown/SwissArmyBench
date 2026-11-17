@@ -11037,6 +11037,7 @@ g.follow-pulse > path:first-of-type {
   background-repeat: no-repeat;
   background-size: 100% 4px;
   box-shadow: none;
+}
 
 /* ===== a connection's tables as a tree (connectionTree.ts) ===== */
 .connection-detail-main {
@@ -11802,6 +11803,36 @@ g.follow-pulse > path:first-of-type {
 .api-records input {
   width: 140px;
   margin-left: 6px;
+}
+
+/* Return as table's conversion: DuckDB's query over the answer, readable and editable. */
+.api-conversion {
+  margin: 8px 0 12px;
+}
+
+.api-conversion > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.api-conversion-sql {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.api-conversion-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.structures-as-table .structures-field {
+  grid-template-columns: 1fr;
+  align-items: stretch;
 }
 
 .api-signin {

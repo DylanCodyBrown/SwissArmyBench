@@ -221,6 +221,44 @@ class Apis:
         """What Add would do, written nowhere."""
         return (await self._plan(body)).to_json()
 
+    async def make_into_blades(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Make into blades: an older API connection (API_<name>.py beside a project, before the library)
+        made into this computer's library (its API blade, a web call blade per operation), from the
+        document it was made from: the address it was read from, an openapi.json beside it, or the one the
+        user gives ({"spec_path" | "spec_url" | "spec"}). Only when asked; the old file is left as it is,
+        and the connection keeps its name and its variables' sources."""
+        given = body if isinstance(body, dict) else {}
+        try:
+            found = self._connections.details(name)
+        except (LookupError, ValueError):
+            raise NotFound(f"There is no connection called {name}.") from None
+        made = apis.made_file_of(str(found.get("code") or ""))
+        if made is None:
+            raise ApiError(f"{name} is not an API connection Add API made.")
+        _, path = made
+        mark = api_clients.read_mark(self._files.read(path) or "")
+        if mark is None:
+            raise NotFound(f"{name}'s made file is not where its code says ({path}).")
+        beside = self._files.path(apis.folder_of(path), "openapi.json")
+        way = {k: given[k] for k in ("spec_path", "spec_url", "spec") if given.get(k)}
+        if not way:
+            way = (
+                apis.make_into_blades_source(mark, beside if self._files.read(beside) is not None else None)
+                or {}
+            )
+        if not way:
+            raise ApiError(
+                f"{name} was made from a document Add API did not keep: give its OpenAPI document "
+                "(spec_path or spec_url) to make it into blades."
+            )
+        request: dict[str, Any] = {"name": str(found.get("name") or name)} | way
+        if mark.get("auth"):
+            request["auth"] = mark["auth"]
+        if str(mark.get("base_url") or "").startswith(("http://", "https://")):
+            request["base_url"] = mark["base_url"]  # as it was made (a document's relative one was resolved)
+        added = await self.add(request, who)
+        return added | {"made_into_blades": request["name"], "left": path}
+
     async def add(self, body: Any, who: str = "user") -> dict[str, Any]:
         """API_<name>.py written and its connection saved, in one step."""
         plan = await self._plan(body)

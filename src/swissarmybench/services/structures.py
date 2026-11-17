@@ -302,7 +302,8 @@ class Structures:
         s = self._get(sid)
         grids = [(table, path, self.grid_steps(table)) for table, path in s.grids if self.ws.store.get(table)]
         origin = dict(s.origin) | ({"file": s.path} if s.path else {})
-        graph = rules.lineage(s.name, origin, [rules.describe(step) for step in s.steps], grids)
+        cells = self.references(s.name)["references"]  # the cells that read it by its name
+        graph = rules.lineage(s.name, origin, [rules.describe(step) for step in s.steps], grids, cells)
         return {"id": s.id, "name": s.name, "origin": s.origin, **graph.to_json()}
 
     async def close(self, sid: str, who: str = "user") -> dict[str, Any]:

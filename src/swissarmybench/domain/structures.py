@@ -28,7 +28,7 @@ import math
 import re
 import tomllib
 import xml.etree.ElementTree as ElementTree
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -821,10 +821,13 @@ def lineage(
     origin: Mapping[str, Any],
     steps: list[str],
     grids: list[tuple[str, str, list[str]]],
+    cells: Sequence[Mapping[str, Any]] = (),
 ) -> Any:
     """A structure's lineage as the Workbench's (domain/lineage.py): its source (an API call with its
-    operation, a file, a paste, a kernel's value), the structure, each step, and each grid made from it
-    (its path, then the grid's own steps). Names and words only: never a value or a secret."""
+    operation, a file, a paste, a kernel's value), the structure, each step, each grid made from it (its
+    path, then the grid's own steps), and the notebook and script cells that read it (`cells`: references
+    as connection_usage finds them; `how` sab.structure_table reads its table, after the last grid).
+    Names and words only: never a value or a secret."""
     from swissarmybench.domain.lineage import Edge, Graph, Node
 
     nodes: list[Node] = []
@@ -864,4 +867,26 @@ def lineage(
             nodes.append(Node(step, "step", words, f"grid step {n}", table=table, step=n))
             edges.append(Edge(last, step, "", "step"))
             last = step
+    tail = before
+    if grids:
+        tail = f"g{len(grids)}s{len(grids[-1][2])}" if grids[-1][2] else f"g{len(grids)}"
+    for c, ref in enumerate(cells, start=1):
+        ident = f"c{c}"
+        cell = ref.get("cell")
+        named = f" {ref['name']}" if ref.get("name") else ""
+        where = f"{ref.get('title', '')} @cell{cell}" if isinstance(cell, int) else str(ref.get("title", ""))
+        reads_table = str(ref.get("how") or "") == CALLS["structure_table"]
+        nodes.append(
+            Node(
+                ident,
+                "cell",
+                f"{'cell' if isinstance(cell, int) else 'code'}{named}".strip(),
+                where,
+                document=str(ref.get("document") or "") or None,
+                cell=cell if isinstance(cell, int) else None,
+                doc_kind=str(ref.get("kind") or "") or None,
+                reads=(name,),
+            )
+        )
+        edges.append(Edge(tail if reads_table else before, ident, str(ref.get("how") or ""), "name"))
     return Graph(tuple(nodes), tuple(edges))

@@ -44,9 +44,15 @@ def routes(apis: Apis) -> list[BaseRoute]:
     async def add(request: Request) -> Response:
         return json_response(await apis.add(await read_json(request), actor(request)))
 
+    async def make_into_blades(request: Request) -> Response:
+        body = await read_json(request)
+        name = request.path_params["name"]
+        return json_response(await apis.make_into_blades(name, body, actor(request)))
+
     return [
         Route("/apis/choices", safely(choices), methods=["GET"]),
         Route("/apis/preview", safely(preview), methods=["POST"]),
         Route("/apis/try", safely(try_it), methods=["POST"]),
         Route("/apis", safely(add), methods=["POST"]),
+        Route("/apis/{name}/make-into-blades", safely(make_into_blades), methods=["POST"]),
     ]

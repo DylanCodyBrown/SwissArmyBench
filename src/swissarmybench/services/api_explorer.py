@@ -223,12 +223,12 @@ class Explorer:
             )
         older = []
         for blade in self._blades.listing()["blades"]:
-            code = str(blade.get("code") or "")
-            if (
-                "spec_from_file_location(" in code
-                and blade.get("template") == "python"
-                and not any(c["name"].casefold() == str(blade["name"]).casefold() for c in cards)
-            ):
+            if blade.get("template") != "python":
+                continue
+            if any(c["name"].casefold() == str(blade["name"]).casefold() for c in cards):
+                continue
+            code = str(self._blades.get(str(blade["name"])).code or "")  # the listing carries no code
+            if "spec_from_file_location(" in code and "API_" in code:
                 older.append({"name": blade["name"], "older": True})
         return {"apis": cards, "older": older}
 

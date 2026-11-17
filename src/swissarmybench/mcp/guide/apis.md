@@ -31,7 +31,8 @@ from, when). APIs are not on the Connections page: the APIs page is their home.
   (nested objects as columns; a list inside a record stays a LIST); `paging` all or first. Or give
   `structure` (an answer in Structures) and they are found there.
 - DuckDB does the converting: `conversion` is its SQL over `response` (one row per page, the JSON in
-  `page`), editable.
+  `page`), editable: `apis_save_call(..., conversion="SELECT ...")` (the APIs page's "The DuckDB query").
+  A LIST or STRUCT column it leaves: `column_unnest` on its grid (a SQL step).
 - A required input with no value: the table lists `(needs <name> (<where>))`; give it in the web call.
 
 ## Writing rows
@@ -49,3 +50,7 @@ from, when). APIs are not on the Connections page: the APIs page is their home.
   `apis_apply_refresh`. `apis_rename(name, check=true)`: check for changes when the page opens.
 - `apis_rename(name, new_name)`: its blades renamed; the code that named it is listed.
 - `apis_delete(name)`: the code that uses it; `confirm=true` deletes it, after the user's Allow.
+- `apis_list`'s `older`: API connections from before the library (API_<name>.py beside a project). They
+  keep working. `apis_make_into_blades(name)` makes one into the library's blades from the address it was
+  read from or an openapi.json beside it (else give `spec_path` or `spec_url`); only when asked; the old
+  file stays.

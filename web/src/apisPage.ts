@@ -27,12 +27,13 @@
  *   [PAGE]    a page of the rail's over any page (areaPage.ts), in the address as open=apis.
  *
  * ROUTING: GET /apis, /apis/search, /apis/{name}  ·  POST/PUT /apis/{name}/calls/{op}  ·  POST /refresh,
- *          /refresh/apply, /delete  ·  PUT /check, /name  ·  Add API: addApi.ts
+ *          /refresh/apply, /delete, /make-into-blades  ·  PUT /check, /name  ·  Add API: addApi.ts
  */
 import { api, ApiError } from "./api";
 import { showAddApi } from "./addApi";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
+import { chooseFile } from "./fileChooser";
 import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { mountText, mountTree, type Part, pathText, type Value } from "./structureTree";
@@ -89,7 +90,7 @@ interface Operation {
   schemas: string[];
   blade: string | null;
   as_table: boolean;
-  table: { records: string; shape: string } | null;
+  table: { records: string; shape: string; conversion?: string } | null;
   inputs: Record<string, Record<string, Value>>;
   body_saved: Value;
   sql_name: string | null;
@@ -219,7 +220,7 @@ function drawPage(): void {
     body.replaceChildren(
       h("div", { class: "apis-cards", role: "list" }, ...got.apis.map(card)),
       ...(got.older.length
-        ? [h("section", { class: "apis-older" }, h("h2", {}, "Older API connections"), h("p", { class: "muted" }, "Made before APIs were blades; they keep working."), h("ul", {}, ...got.older.map((o) => h("li", {}, icon("plug"), o.name))))]
+        ? [h("section", { class: "apis-older" }, h("h2", {}, "Older API connections"), h("p", { class: "muted" }, "Made before APIs were blades; they keep working."), h("ul", {}, ...got.older.map((o) => h("li", {}, icon("plug"), h("span", {}, o.name), button("Make into blades", () => void makeIntoBlades(o.name), { class: "ghost api-make-blades" })))))]
         : []),
     );
     for (const c of got.apis) if (c.source.check && c.source.kind === "address") void refresh(c.name, true);
@@ -293,6 +294,27 @@ function drawPage(): void {
     }, { class: "primary" }));
     input.focus();
     input.select();
+  };
+
+  /** Make into blades: an older API connection made into the library's blades (only on this click). Its
+   * document is read again from where it was made; when Add API did not keep it, the user picks it. */
+  const makeIntoBlades = async (name: string): Promise<void> => {
+    const path = `/apis/${encodeURIComponent(name)}/make-into-blades`;
+    let done: { web_calls: string[] } | null = null;
+    try {
+      done = await api<{ web_calls: string[] }>(path, "POST", {});
+    } catch (e) {
+      if (!/spec_path/.test((e as Error).message)) {
+        toast((e as Error).message, "error");
+        return;
+      }
+      const file = await chooseFile({ title: `${name}'s OpenAPI document`, mode: "file", suffixes: [".json", ".yaml", ".yml"] });
+      if (!file) return;
+      done = await call<{ web_calls: string[] }>(path, "POST", { spec_path: file });
+    }
+    if (!done) return;
+    toast(`${name} is blades now: its API blade and ${done.web_calls.length} web calls.`);
+    await showCards();
   };
 
   const remove = async (name: string): Promise<void> => {
@@ -408,9 +430,31 @@ function drawPage(): void {
         ["POST", "PUT", "PATCH", "DELETE"].includes(op.method) ? button("Write rows with this call", () => void writeRows(got, op, right), { icon: "rows", class: "api-write" }) : null,
         op.sql_name ? h("span", { class: "api-sql" }, icon("table"), h("code", {}, `SELECT * FROM ${op.sql_name}`), button("Copy name for SQL", () => void navigator.clipboard.writeText(op.sql_name!).then(() => toast(`Copied ${op.sql_name}`)), { icon: "copy", iconOnly: true, class: "ghost" })) : h("span", { class: "muted" }, "Not a table (Return as table is off)."),
       ),
+      op.sql_name ? conversionBox(got, op) : "",
       h("section", { class: "api-inputs" }, h("h3", {}, "Inputs"), inputs, op.body ? h("div", { class: "api-two" }, treeBlock(`Body${op.body.required ? " (required)" : ""}`, op.body.schema, true), treeBlock("Example", op.body.example, false)) : ""),
       h("section", { class: "api-outputs" }, h("h3", {}, "Outputs"), ...op.responses.map((r) => h("div", { class: "api-answer" }, h("h4", {}, h("span", { class: `api-status s${r.status[0]}` }, r.status), " ", r.description), r.schema ? h("div", { class: "api-two" }, treeBlock("Schema", r.schema, true), treeBlock("Example", r.example, false)) : h("p", { class: "muted" }, "No body.")))),
       op.schemas.length ? h("p", { class: "muted" }, "Schemas: ", op.schemas.join(", ")) : "",
+    );
+  };
+
+  /** Return as table's conversion: DuckDB's own query over the pages read (`response`, one row per page,
+   * its JSON in `page`), the user's to read and change. */
+  const conversionBox = (got: Explored, op: Operation): HTMLElement => {
+    const sql = h("textarea", { class: "mono api-conversion-sql", "aria-label": "The DuckDB query", rows: 6, spellcheck: "false" }) as HTMLTextAreaElement;
+    sql.value = op.table?.conversion ?? "";
+    const save = async (made: boolean): Promise<void> => {
+      const done = await call<{ web_call: { conversion: string } }>(`/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}`, "PUT", made ? { as_table: true, records: op.table?.records ?? "$" } : { as_table: true, conversion: sql.value });
+      if (!done) return;
+      toast(made ? "The query is made again from the settings." : "Saved the query.");
+      await explore(got.name, op.id);
+    };
+    return h("details", { class: "api-conversion" },
+      h("summary", {}, "The DuckDB query"),
+      sql,
+      h("div", { class: "api-conversion-actions" },
+        button("Save the query", () => void save(false), { icon: "save" }),
+        button("Make it again", () => void save(true), { class: "ghost", title: "From the rows path and the header" }),
+      ),
     );
   };
 
@@ -486,6 +530,13 @@ function drawPage(): void {
     };
     const asTable = h("input", { type: "checkbox", "aria-label": "Return as table", checked: op.as_table }) as HTMLInputElement;
     const records = h("input", { "aria-label": "Records path", value: op.table?.records ?? "$", class: "mono", placeholder: "$.items" }) as HTMLInputElement;
+    // The conversion: DuckDB's query over the answer, shown while Return as table is on; sent only when edited.
+    const query = h("textarea", { class: "mono api-conversion-sql", "aria-label": "The DuckDB query", rows: 5, spellcheck: "false", placeholder: "Made from the rows path when saved" }) as HTMLTextAreaElement;
+    query.value = op.table?.conversion ?? "";
+    let queryEdited = false;
+    query.addEventListener("input", () => (queryEdited = true));
+    const queryBox = h("details", { class: "api-conversion", hidden: !asTable.checked }, h("summary", {}, "The DuckDB query"), query);
+    asTable.addEventListener("change", () => (queryBox.hidden = !asTable.checked));
     const result = h("div", { class: "api-send-result", role: "status" });
     const send = async (): Promise<void> => {
       result.replaceChildren(h("p", { class: "hint" }, "Sending…"));
@@ -502,8 +553,11 @@ function drawPage(): void {
       openStructures(done.structure);
     };
     const save = async (): Promise<void> => {
-      const done = await call<{ blade: string; sql_name: string | null }>(`/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}`, "PUT", { inputs: values(), ...(op.body ? { body } : {}), as_table: asTable.checked, ...(asTable.checked ? { records: records.value || "$" } : {}) });
-      if (done) toast(done.sql_name ? `Saved ${done.blade}: ${done.sql_name} is a table.` : `Saved ${done.blade}.`);
+      const done = await call<{ blade: string; sql_name: string | null; web_call: { records: string; shape: string; conversion?: string } }>(`/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}`, "PUT", { inputs: values(), ...(op.body ? { body } : {}), as_table: asTable.checked, ...(asTable.checked ? { records: records.value || "$", ...(queryEdited && query.value.trim() ? { conversion: query.value } : {}) } : {}) });
+      if (!done) return;
+      // The explorer's copy follows (Back shows it as saved).
+      Object.assign(op, { blade: done.blade, sql_name: done.sql_name, as_table: Boolean(done.sql_name), table: done.web_call });
+      toast(done.sql_name ? `Saved ${done.blade}: ${done.sql_name} is a table.` : `Saved ${done.blade}.`);
     };
     right.replaceChildren(
       h("div", { class: "api-author-screen" },
@@ -519,6 +573,7 @@ function drawPage(): void {
           button("Save as web call", () => void save(), { icon: "save" }),
           button("Back", () => showOperation(got, op, right), { class: "ghost" }),
         ),
+        queryBox,
         result,
       ),
     );
