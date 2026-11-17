@@ -844,7 +844,7 @@ def frame_of(rows, names):
 
 _HEAD = entra.IMPORTS + "\nimport duckdb\n"
 # What the Graph client borrows from the lake code: the error, Arrow, quoting, filters in DuckDB.
-_SHARED = entra.COMMON + code.STORES + code.READER
+_SHARED = entra.COMMON + code.STORES + code.DELTA + code.WRITER + code.READER
 
 
 def _code(place: str, sign_in: str, made: str) -> str:

@@ -490,6 +490,186 @@ def type_of(kind):
     return DELTA_TYPES.get(text, text.upper())
 '''
 
+WRITER: str = r'''
+
+def arrow_table(rows):
+    """Rows to write as an Arrow table: a DataFrame (pandas, polars), an Arrow table, a DuckDB relation,
+    a list of dicts."""
+    import pyarrow as pa
+
+    if isinstance(rows, pa.Table):
+        return rows
+    for name in ("to_arrow_table", "fetch_arrow_table", "to_arrow", "arrow"):
+        method = getattr(rows, name, None)
+        if callable(method) and not hasattr(rows, "to_pandas"):
+            found = method()
+            return found.read_all() if hasattr(found, "read_all") else found
+    if hasattr(rows, "to_arrow"):  # polars
+        return rows.to_arrow()
+    if hasattr(rows, "columns") and hasattr(rows, "dtypes"):  # pandas
+        return pa.Table.from_pandas(rows, preserve_index=False)
+    if isinstance(rows, list):
+        return pa.Table.from_pylist(rows)
+    raise LakeError(f"Write a DataFrame, an Arrow table or a DuckDB relation, not a {type(rows).__name__}.")
+
+
+SHORTEST_VACUUM_HOURS = 168  # seven days: what Delta keeps for readers and time travel
+
+
+class LakeWrites:
+    """What a lake writes (the Write starters call these, after their dry run): a DataFrame as a Delta
+    table (append, overwrite, merge by keys) with the deltalake package, a delete by a condition, a
+    compaction and a vacuum (each with a dry run of its own), and a Parquet or CSV file put in its place.
+    The counts a dry run says are read here, without writing (DuckDB on the table as it is)."""
+
+    def delta_url(self, path):
+        """A Delta table's address for the deltalake package (abfss://, s3://, a folder)."""
+        store = self.store
+        if isinstance(store, AzureStore):
+            full = "/".join(p for p in (store.base, path) if p)
+            return f"abfss://{store.filesystem}@{store.account}.{store.host}/{full}"
+        return store.url(path)
+
+    def deltalake(self):
+        return importlib.import_module("deltalake")  # missing: the missing-package prompt names it
+
+    def delta_table(self, path):
+        return self.deltalake().DeltaTable(self.delta_url(path), storage_options=self.options() or None)
+
+    def _changed(self, path):
+        self.found, self._views = None, False
+        self._logs.pop(path, None)
+
+    def target_path(self, table, schema=""):
+        """A write's place: an existing table's path, or a new one's (folders/name below the place)."""
+        try:
+            return self.table(table, schema)["path"]
+        except LakeError:
+            return "/".join(p for p in f"{schema}/{table}".replace("\\", "/").split("/") if p)
+
+    def write_delta(self, path, rows, mode="append", keys=(), partition_by=None):
+        """Rows written to the Delta table at `path`: appended, overwriting it, or merged by `keys` (a row
+        whose keys match is updated, any other inserted). One commit. Its counts."""
+        data = arrow_table(rows)
+        dl = self.deltalake()
+        options = self.options() or None
+        if mode in ("append", "overwrite"):
+            dl.write_deltalake(self.delta_url(path), data, mode=mode, partition_by=partition_by or None,
+                               storage_options=options)
+            self._changed(path)
+            return {"written": data.num_rows}
+        if mode != "merge" or not keys:
+            raise LakeError("A Delta write appends, overwrites, or merges by its key columns (keys=[...]).")
+        predicate = " AND ".join(f"t.{ident(k)} = s.{ident(k)}" for k in keys)
+        merged = (self.delta_table(path).merge(data, predicate, source_alias="s", target_alias="t")
+                  .when_matched_update_all().when_not_matched_insert_all().execute())
+        self._changed(path)
+        return {"inserted": int(merged.get("num_target_rows_inserted", 0)),
+                "updated": int(merged.get("num_target_rows_updated", 0))}
+
+    def delete_delta(self, path, condition):
+        """The rows matching `condition` (a SQL condition: region = 'West') deleted, in one commit."""
+        if not str(condition).strip():
+            raise LakeError("A delete names its rows: a condition such as region = 'West'.")
+        found = self.delta_table(path).delete(str(condition))
+        self._changed(path)
+        return {"deleted": int(found.get("num_deleted_rows", 0))}
+
+    def count_where(self, table, condition, schema=""):
+        """How many rows a condition matches now (a delete's dry run), by DuckDB on the table as it is."""
+        t = self.table(table, schema)
+        found, _ = self.source(t)
+        clause = f" WHERE {condition}" if str(condition).strip() else ""
+        return int(self.duck().execute(f"SELECT count(*) FROM {found}{clause}").fetchall()[0][0])
+
+    def count_matches(self, table, rows, keys, schema=""):
+        """How many of the rows' keys the table already has (a merge's updates), and the table's rows."""
+        t = self.table(table, schema)
+        found, _ = self.source(t)
+        duck = self.duck()
+        duck.register("sab_incoming", arrow_table(rows))
+        try:
+            on = " AND ".join(f"t.{ident(k)} IS NOT DISTINCT FROM s.{ident(k)}" for k in keys)
+            matched = duck.execute(
+                f"SELECT count(*) FROM sab_incoming s WHERE EXISTS (SELECT 1 FROM {found} t WHERE {on})"
+            ).fetchall()[0][0]
+            total = duck.execute(f"SELECT count(*) FROM {found}").fetchall()[0][0]
+        finally:
+            duck.unregister("sab_incoming")
+        return int(matched), int(total)
+
+    def optimize_delta(self, path, dry_run=True, target_size=128 * 1024 * 1024):
+        """Small files compacted into larger ones (one commit). The dry run: how many files there are and
+        how many are smaller than the target size."""
+        snapshot = DeltaLog(self.store, path).snapshot()
+        small = [f for f in snapshot["files"] if f["size"] < target_size]
+        if dry_run:
+            return {"files": len(snapshot["files"]), "small": len(small), "version": snapshot["version"]}
+        done = self.delta_table(path).optimize.compact(target_size=target_size)
+        self._changed(path)
+        return {"added": int(done.get("numFilesAdded", 0)), "removed": int(done.get("numFilesRemoved", 0))}
+
+    def vacuum_delta(self, path, retention_hours=SHORTEST_VACUUM_HOURS, dry_run=True, allow_shorter=False):
+        """Files no version within the retention period reads, deleted (a dry run lists them). Less than
+        seven days is refused unless `allow_shorter` (it breaks time travel and readers still reading)."""
+        hours = int(retention_hours)
+        if hours < SHORTEST_VACUUM_HOURS and not allow_shorter:
+            raise LakeError(
+                f"A vacuum keeps at least {SHORTEST_VACUUM_HOURS} hours (7 days) of files: {hours} hours would "
+                "break time travel and readers still reading. Set allow_shorter=True in the cell to do it anyway.")
+        files = self.delta_table(path).vacuum(retention_hours=hours, dry_run=bool(dry_run),
+                                              enforce_retention_duration=not allow_shorter)
+        if not dry_run:
+            self._changed(path)
+        return {"files": len(files), "retention_hours": hours, "dry_run": bool(dry_run), "listed": list(files)[:20]}
+
+    def put_file(self, path, data):
+        """Bytes put at `path` below the place, in one step: a folder here writes a new file and then puts
+        it in its place; Azure creates, appends and flushes (the ADLS Gen2 API)."""
+        store = self.store
+        if isinstance(store, LocalStore):
+            target = store.url(path)
+            os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+            partial = target + ".sab-writing"
+            with open(partial, "wb") as file:
+                file.write(data)
+            os.replace(partial, target)
+        elif isinstance(store, AzureStore):
+            full = store._full(path)
+            headers = store.headers()
+            try:
+                ask(store._address(full, "resource=file"), b"", headers, f"Creating {path}", method="PUT")
+                if data:
+                    ask(store._address(full, "action=append&position=0"), data,
+                        headers | {"Content-Type": "application/octet-stream"}, f"Writing {path}", method="PATCH")
+                ask(store._address(full, f"action=flush&position={len(data)}"), b"", headers,
+                    f"Finishing {path}", method="PATCH")
+            except AzureError as error:
+                raise LakeError(hidden(error)) from None
+        else:
+            raise LakeError("Files are written to a folder here, Azure Data Lake Storage or OneLake; for S3, "
+                            "write a Delta table.")
+        self.found, self._views = None, False
+        return {"written": len(data), "path": path}
+
+    def write_file(self, path, rows, file_format="parquet"):
+        """Rows written as one Parquet or CSV file at `path` (replacing a file of that name)."""
+        data = arrow_table(rows)
+        sink = io.BytesIO()
+        if file_format == "parquet":
+            import pyarrow.parquet as pq
+
+            pq.write_table(data, sink, compression="zstd")
+        elif file_format == "csv":
+            import pyarrow.csv as pacsv
+
+            pacsv.write_csv(data, sink)
+        else:
+            raise LakeError(f"A file is written as parquet or csv, not {file_format!r}.")
+        done = self.put_file(path, sink.getvalue())
+        return done | {"rows": data.num_rows}
+'''
+
 READER: str = r'''
 
 FILE_KINDS = {".parquet": "parquet", ".csv": "csv", ".tsv": "csv", ".txt": "csv", ".jsonl": "json",
@@ -542,7 +722,7 @@ def where_of(filters, known):
     return " AND ".join(parts), params
 
 
-class Lake:
+class Lake(LakeWrites):
     """Tables in files, read into DuckDB. Each table: {"schema" (its folders, with /), "table" (its
     name), "kind" (delta, parquet, csv, json, hive), "path" (below the place), "files"}.
 
@@ -659,7 +839,7 @@ class Lake:
             try:
                 self.duck().execute("LOAD delta")
                 found = f"delta_scan({quoted(url)}{at})"
-                self.duck().execute(f"DESCRIBE SELECT * FROM {found}")
+                self.duck().execute(f"DESCRIBE SELECT * FROM {found}").fetchall()
                 return found, "delta_scan"
             except Exception as error:  # the extension, or its reach: the next way
                 refused.append(hidden(error).splitlines()[0][:200])

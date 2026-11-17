@@ -279,6 +279,7 @@ class StandIn:
         self.docs = documents()
         self.refuse_once: set[str] = set()  # $batch request ids answered 429 once ("all": every first)
         self.downloads: list[str] = []
+        self.pending: dict[str, bytes] = {}  # a file being written (appended, not yet flushed)
         standin = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -465,6 +466,39 @@ class StandIn:
             return 206, data[a : z + 1], found | {"Content-Range": f"bytes {a}-{z}/{len(data)}"}
         return 200, data, found
 
+    def storage_write(
+        self, method: str, path: str, body: bytes, headers: dict[str, str]
+    ) -> tuple[int, Any, dict[str, str]]:
+        """The ADLS Gen2 API's write: PUT ?resource=file (a new, empty file), PATCH ?action=append (bytes at
+        a position, held until the flush), PATCH ?action=flush (the file written)."""
+        parts = urlsplit(path)
+        query = {k: v[0] for k, v in parse_qs(parts.query).items()}
+        names = [unquote(p) for p in parts.path.strip("/").split("/")]
+        self.requests.append({"what": "storage write", "method": method, "path": "/".join(names),
+                              "action": query.get("action") or query.get("resource")})  # fmt: skip
+        if not self._allowed(query, headers):
+            return 403, b"<Error><Message>Server failed to authenticate the request.</Message></Error>", {}
+        file = self.root.joinpath(*names)
+        key = str(file)
+        if method == "PUT" and query.get("resource") == "file":
+            self.pending[key] = b""
+            return 201, b"", {}
+        if method == "PATCH" and query.get("action") == "append":
+            self.pending[key] = self.pending.get(key, b"") + body
+            return 202, b"", {}
+        if method == "PATCH" and query.get("action") == "flush":
+            data = self.pending.pop(key, b"")
+            if len(data) != int(query.get("position") or 0):
+                return (
+                    400,
+                    b"<Error><Message>The flush position is not the data's length.</Message></Error>",
+                    {},
+                )
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(data)
+            return 200, b"", {}
+        return 400, b"<Error><Message>Not a write this stand-in takes.</Message></Error>", {}
+
     def listing(self, place: Path, query: dict[str, str]) -> tuple[int, Any, dict[str, str]]:
         directory = query.get("directory", "")
         start = place.joinpath(*[p for p in directory.split("/") if p])
@@ -599,6 +633,8 @@ class StandIn:
     def change(
         self, method: str, path: str, body: bytes, headers: dict[str, str]
     ) -> tuple[int, Any, dict[str, str]]:
+        if not path.startswith("/graph/"):
+            return self.storage_write(method, path, body, headers)
         if headers.get("authorization") != f"Bearer {TOKEN}":
             return (
                 401,

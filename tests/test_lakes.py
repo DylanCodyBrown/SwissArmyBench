@@ -7,6 +7,7 @@ site is reached; every value is made up."""
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -370,3 +371,134 @@ def test_filters_go_to_a_lake_as_column_op_value() -> None:
         ("qty", ">", 5),
     )
     assert pushed.where == "" and set(pushed.columns) == {"a", "b", "region", "amount", "day", "note", "qty"}
+
+
+# ===== every setting from an environment variable (the owner, 2026-11-17: "All should be mapable") =====
+
+
+def test_every_setting_maps_to_an_environment_variable_and_reads_back(client: TestClient) -> None:
+    code = way("sharepoint", "Username and password (ROPC)")
+    inspected = ok(
+        client.post("/blades/inspect", json={"code": code, "template": "sharepoint"}, headers=AUTH)
+    )
+    fields = {s["name"]: s for s in inspected["settings"]}
+    assert {n: fields[n]["suggested_env"] for n in ("tenant", "client id", "username", "site")} == {
+        "tenant": "SHAREPOINT_TENANT_ID",
+        "client id": "SHAREPOINT_CLIENT_ID",
+        "username": "SHAREPOINT_USERNAME",
+        "site": "SHAREPOINT_SITE_URL",
+    }
+    pairs = (
+        ("tenant", made_up.TENANT),
+        ("client id", made_up.CLIENT),
+        ("username", made_up.USERNAME),
+        ("site", SITE),
+    )
+    values = {fields[n]["id"]: {"value": v, "env": fields[n]["suggested_env"]} for n, v in pairs}
+    body = {"code": code, "values": values, "template": "sharepoint"}
+    filled_in = ok(client.post("/blades/fill", json=body, headers=AUTH))
+    mapped = filled_in["code"]
+    assert f'site_url = os.environ.get("SHAREPOINT_SITE_URL", "{SITE}")' in mapped
+    assert f'username = os.environ.get("SHAREPOINT_USERNAME", "{made_up.USERNAME}")' in mapped
+    # Read back into the form: each field says its variable, its value this computer's default.
+    back = {s["name"]: s for s in filled_in["settings"]}
+    assert (back["tenant"]["env"], back["tenant"]["value"]) == ("SHAREPOINT_TENANT_ID", made_up.TENANT)
+    # The mappings as the export, Run settings and the Variables page read them.
+    from swissarmybench.domain.blades import env_settings
+
+    assert {m["variable"] for m in env_settings(mapped)} == {
+        "SHAREPOINT_TENANT_ID",
+        "SHAREPOINT_CLIENT_ID",
+        "SHAREPOINT_USERNAME",
+        "SHAREPOINT_SITE_URL",
+    }
+    save(client, "Team", "sharepoint", mapped.replace('secret("password")', 'secret("SHAREPOINT_PASSWORD")'))
+    listed = str(ok(client.get("/variables", headers=AUTH)))
+    assert "SHAREPOINT_SITE_URL" in listed and "Team" in listed
+
+
+# ===== writes: what the Write starters call (dry runs read; writes change the stand-ins) =====
+
+# Where a deltalake install lives when the test Python has none (a folder put on sys.path): optional.
+LAKES_SITE = os.environ.get("SAB_DELTALAKE_PATH", "")
+
+
+def connected(code: str, secrets: dict[str, str] | None = None) -> Any:
+    from swissarmybench.adapters.blade_run import run_code
+
+    conn, _ = run_code(code, "conn", secrets or {}, "Lake")
+    return conn
+
+
+def local_lake(standin: made_up.StandIn) -> Any:
+    root = standin.root / made_up.ACCOUNT / made_up.CONTAINER
+    return connected(way("delta", "A folder on this computer").replace('r"C:\\lake"', f'r"{root}"'))
+
+
+def test_a_data_lake_writes_parquet_and_csv_files_through_the_adls_api(standin: made_up.StandIn) -> None:
+    import pyarrow as pa
+
+    conn = connected(datalake_code(), {"client secret": made_up.SECRET})
+    rows = pa.table({"region": ["North", "South"], "target": [10.5, 20.0]})
+    assert conn.write_file("targets.parquet", rows, "parquet") == {"written": conn.write_file(
+        "targets.parquet", rows, "parquet")["written"], "path": "targets.parquet", "rows": 2}  # fmt: skip
+    conn.write_file("exports/targets.csv", rows, "csv")
+    writes = [r["action"] for r in standin.seen("storage write")]
+    assert writes[:3] == ["file", "append", "flush"]
+    assert conn.rows("targets")[0].to_pylist() == [
+        {"region": "North", "target": 10.5},
+        {"region": "South", "target": 20.0},
+    ]
+    assert conn.rows("exports/targets")[1] == 2
+
+
+def test_a_delta_writes_dry_runs_count_without_writing(standin: made_up.StandIn) -> None:
+    import pyarrow as pa
+
+    conn = local_lake(standin)
+    incoming = pa.table({"order_id": [5, 6], "amount": [1.0, 2.0], "region": ["West", "West"]})
+    assert conn.count_matches("orders", incoming, ["order_id"]) == (1, 5)  # one update, five rows now
+    assert conn.count_where("orders", "region = 'North'") == 2
+    assert conn.optimize_delta("lake/orders", dry_run=True) == {"files": 4, "small": 4, "version": 1}
+    with pytest.raises(Exception, match=r"at least 168 hours \(7 days\)"):
+        conn.vacuum_delta("lake/orders", retention_hours=24)
+    assert conn.rows("orders")[1] == 5  # nothing changed
+
+
+def test_delta_writes_with_the_deltalake_package(
+    standin: made_up.StandIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import pyarrow as pa
+
+    if LAKES_SITE and Path(LAKES_SITE).is_dir():
+        monkeypatch.syspath_prepend(LAKES_SITE)
+    pytest.importorskip("deltalake")
+    conn = local_lake(standin)
+    incoming = pa.table({"order_id": [5, 6], "amount": [99.0, 7.5], "region": ["West", "West"]})
+    assert conn.write_delta("lake/orders", incoming, "merge", ["order_id"]) == {"inserted": 1, "updated": 1}
+    assert conn.rows("orders")[1] == 6
+    assert conn.write_delta("lake/orders", incoming.slice(1), "append") == {"written": 1}
+    assert conn.delete_delta("lake/orders", "order_id = 6") == {"deleted": 2}
+    assert conn.rows("orders", filters=[["order_id", "=", 5]])[0].to_pylist()[0]["amount"] == 99.0
+    assert conn.history("orders")[0]["version"] == 4  # merge, append, delete: three commits
+    assert conn.rows("orders@v1")[1] == 5  # time travel still reads the table as it was
+    assert conn.vacuum_delta("lake/orders", dry_run=True)["dry_run"] is True
+    assert conn.optimize_delta("lake/orders", dry_run=False)["added"] >= 1
+
+
+def test_sharepoint_list_writes_are_batched_and_retried_on_429(standin: made_up.StandIn) -> None:
+    conn = connected(sharepoint_code(), {"password": made_up.PASSWORD})
+    standin.refuse_once.add("all")  # the first answer to each request: 429, Retry-After 0
+    assert conn.create("Tasks", [{"Title": "Made-up new task", "Status": "Open", "Hours": 2}] * 25) == {
+        "done": 25
+    }
+    assert [r["count"] for r in standin.seen("batch")] == [20, 20, 5]  # 20 a batch; the refused ones again
+    assert len(standin.tasks) == 35
+    assert conn.update("Tasks", [{"Title": "Made-up task 02", "Status": "Done"}], key="Title") == {"done": 1}
+    assert standin.tasks[2]["Status"] == "Done"
+    assert conn.update("Tasks", [{"id": 3, "Customer_id": 2}]) == {"done": 1}
+    assert standin.tasks[3]["CustomerLookupId"] == 2
+    assert conn.delete("Tasks", [1, 4]) == {"done": 2}
+    assert 1 not in standin.tasks and len(standin.tasks) == 33
+    with pytest.raises(Exception, match="No item has Title"):
+        conn.update("Tasks", [{"Title": "nope", "Status": "Done"}], key="Title")

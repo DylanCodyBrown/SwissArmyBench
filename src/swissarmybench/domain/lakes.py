@@ -299,7 +299,7 @@ class OneLake(Lake):
 '''
 
 _HEAD = entra.IMPORTS + "\nimport duckdb\n"
-_BODY = entra.COMMON + code.STORES + code.DELTA + code.READER
+_BODY = entra.COMMON + code.STORES + code.DELTA + code.WRITER + code.READER
 _ENTRA = {"you": entra.YOU, "managed": entra.MANAGED, "app": entra.APP}
 
 # ===== OneLake =====

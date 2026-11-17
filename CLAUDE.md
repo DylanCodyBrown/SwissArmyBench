@@ -137,6 +137,17 @@ src/swissarmybench/
                          on the read-only SQL endpoint, TDS port 5558, pyodbc with the Entra token), its three
                          sign-ins (as you, managed identity, an app registration whose secret is a vault's),
                          its Read a table, the SQL endpoint being off said plainly with the sab.read instead
+    lakes.py             Lakes and SharePoint as connections (onelake, datalake, delta, sharepoint, sharepoint_docs):
+                         each kind's code assembled, its sign-ins, READ (the connection's own read: columns and
+                         filters sent), path names and @version/@time, the env variable names suggested
+    lake_code.py         the lake kinds' shared code as text: stores (a folder, ADLS Gen2/OneLake by the DFS API
+                         with a token, a SAS or a key-signed SAS; S3 by httpfs), a Delta log read here, the one
+                         reader (delta_scan, else deltalake, else the log and read_parquet over HTTPS), the writes
+    entra.py             Microsoft Entra sign-in as text for the five: as you, managed identity, an app
+                         registration (a vault's secret), ROPC (MSAL or stdlib; AADSTS codes in plain words)
+    sharepoint.py        SharePoint through Graph as text: lists (typed columns, lookups, people, $filter,
+                         $batch writes retried on 429) and documents (each library's file index, CSV/Parquet/
+                         JSON-lines files and workbook sheets and named tables as tables, kept by eTag)
     powerbi.py           a Power BI workspace: a dataset's name with its connection (Finance/Sales model),
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
@@ -426,7 +437,7 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (113 read-only .blade.py: Power BI, Dataverse, Excel, Files, DAX, HTML,
+  starters/              the built-in starter pack (118 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files, DAX, HTML,
                          Streamlit), listed apart, found by name, Copy as your own (tests/test_starters*.py)
   client/push_client.py  push(), ensure_server()
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
@@ -581,6 +592,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
                          test_architecture.py (the layers, the depth, the plain client),
+                         lake_standins.py (Entra, the ADLS Gen2 DFS API over a made-up lake, OneLake, and Graph
+                         for a made-up SharePoint site, all on 127.0.0.1),
                          trino_standin.py (a Trino over HTTPS asking for a client certificate; made-up
                          keystores), powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
                          workspace of three made-up datasets), dataverse_standin.py (a Dataverse environment's
