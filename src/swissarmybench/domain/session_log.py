@@ -294,9 +294,52 @@ RULES: dict[str, Rule] = {
     ),
     "import_blades": lambda d, x: (f"Imported {d}", "blades", _area("blades")),
     "add_api": lambda d, x: (
-        f"Added the API connection {_name(x.get('connection')) or d.split(':')[0]}",
-        "connections",
-        {"place": "connection", "name": _name(x.get("connection")) or d.split(":")[0]},
+        f"Added the API {_name(x.get('connection')) or d.split(':')[0]}",
+        "apis",
+        _area("apis"),
+    ),
+    "api_call": lambda d, x: (
+        f"Called {_name(x.get('api'))} {_name(x.get('operation'))} ({_name(x.get('status'))})",
+        "structures",
+        _area("structures"),
+    ),
+    "api_refresh": lambda d, x: (f"Read the API {_name(x.get('api'))} again", "apis", _area("apis")),
+    "api_delete": lambda d, x: (f"Deleted the API {_name(x.get('api'))}", "apis", _area("apis")),
+    # Structures: names only, never a value.
+    "structure_open": lambda d, x: (
+        f"Opened the structure {_name(x.get('structure'))}",
+        "structures",
+        _area("structures"),
+    ),
+    "structure_new": lambda d, x: (
+        f"Made the structure {_name(x.get('structure'))}",
+        "structures",
+        _area("structures"),
+    ),
+    "structure_paste": lambda d, x: (
+        f"Pasted the structure {_name(x.get('structure'))}",
+        "structures",
+        _area("structures"),
+    ),
+    "structure_step": lambda d, x: (
+        f"Added a {_name(x.get('step'))} step to {_name(x.get('structure'))}",
+        "structures",
+        _area("structures"),
+    ),
+    "structure_save": lambda d, x: (
+        f"Saved the structure {_name(x.get('structure'))}",
+        "structures",
+        _area("structures"),
+    ),
+    "structure_save_as": lambda d, x: (
+        f"Saved the structure {_name(x.get('structure'))}",
+        "structures",
+        _area("structures"),
+    ),
+    "structure_to_grid": lambda d, x: (
+        f"Opened {d} from the structure {_name(x.get('structure'))}",
+        "grids",
+        {"place": "dataset", "dataset": d},
     ),
     "load_catalog": lambda d, x: (
         f"Loaded the catalog of {d}",

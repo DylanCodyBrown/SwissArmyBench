@@ -18,6 +18,9 @@ documents them:
   GET  /api/data/v9.2/EntityDefinitions(...)/Attributes(LogicalName='salesstage')/
        Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet   a choice column's options
   GET  /api/data/v9.2/RetrieveTotalRecordCount(EntityNames=@p)?@p=["opportunity"]
+  POST /api/data/v9.2/$batch                         the Write starters: change sets of POST, PATCH (an
+                                                       upsert, or an update with If-Match: *) and DELETE,
+                                                       each all or nothing; `throttle` answers 429 first
 
 over a made-up company's sales: accounts, contacts and opportunities (6,200 of them: more than the
 5,000 a count and a page stop at), its users (systemuser, shown as User), and a private table that is
@@ -256,6 +259,8 @@ class ODataError(ValueError):
 
 
 def _matches(row: dict[str, Any], text: str) -> bool:
+    if re.search(r"\s+or\s+", text):  # a or b or c (the Write starters ask about a few keys at once)
+        return any(_matches(row, part) for part in re.split(r"\s+or\s+", text.strip()))
     for part in re.split(r"\s+and\s+", text.strip()):
         found = re.fullmatch(r"(\w+)\s+(eq|ne|gt|ge|lt|le)\s+(.+)", part.strip())
         if found is None:
@@ -275,6 +280,10 @@ class StandIn:
         self.rows = records()
         self.names = _names(self.rows)
         self.page_cap = 5000  # the most a page holds (Dataverse's own)
+        self.throttle = 0  # the next this many $batch requests are answered 429
+        self.batches: list[dict[str, Any]] = []  # each $batch: applied (all) or not (none)
+        self.made: list[str] = []  # the ids of the records made
+        self.alternate_keys = {"accountnumber", "emailaddress1"}
         standin = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -295,6 +304,17 @@ class StandIn:
 
             def do_POST(self) -> None:
                 sent = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                if self.path.split("?")[0] == f"{API}/$batch":
+                    headers = {k.lower(): v for k, v in self.headers.items()}
+                    status, text, more = standin.batch(headers, sent)
+                    data = text.encode()
+                    self.send_response(status)
+                    for key, value in more.items():
+                        self.send_header(key, value)
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
                 status, body = standin.token(self.path, sent)
                 self._send(status, body)
 
@@ -503,6 +523,142 @@ class StandIn:
             )
         top = root.get("top") or root.get("count")
         return [self.shaped(table, r, picked, labels) for r in rows[: int(top) if top else 5000]]
+
+    # ===== writes: $batch change sets (the Write starters, client/write_dataverse.py) =====
+
+    def batch(self, headers: dict[str, str], body: bytes) -> tuple[int, str, dict[str, str]]:
+        """POST $batch: each change set all or nothing, as Dataverse does. `throttle` answers the next
+        that many $batch requests 429 (Retry-After: 0); `alternate_keys` are the columns an address may
+        name a record by: accounts(accountnumber='AC-1001')."""
+        self.requests.append({"what": "batch", "authorization": headers.get("authorization", "")})
+        if headers.get("authorization") != f"Bearer {TOKEN}":
+            return 401, json.dumps(_refusal("0x80072560", "The user is not a member.")), {}
+        if self.throttle:
+            self.throttle -= 1
+            message = json.dumps(_refusal("0x80072322", "Number of requests exceeded the limit."))
+            return 429, message, {"Retry-After": "0", "Content-Type": "application/json"}
+        text = body.decode("utf-8")
+        boundary = re.search(r"boundary=(changeset_\w+)", text)
+        if boundary is None:
+            return 400, json.dumps(_refusal("0x0", "A change set is expected.")), {}
+        parts = [p for p in text.split(f"--{boundary.group(1)}") if "HTTP/1.1" in p]
+        working = {t: [dict(r) for r in rows] for t, rows in self.rows.items()}
+        answers: list[tuple[int, str]] = []
+        for part in parts:
+            request = part.split("\r\n\r\n", 1)[1]
+            head, _, sent = request.partition("\r\n\r\n")
+            lines = head.split("\r\n")
+            method, address, _ = lines[0].split(" ")
+            wanted = {k.lower(): v.strip() for k, _, v in (h.partition(":") for h in lines[1:])}
+            sent = sent.strip()
+            status, answer = self.change(
+                working, method, unquote(address.split(API + "/", 1)[1]), wanted, sent
+            )
+            if status >= 400:
+                self.batches.append({"applied": False, "requests": len(parts)})
+                return 200, self._batch_answer([(status, answer)]), {"Content-Type": "multipart/mixed"}
+            answers.append((status, answer))
+        self.rows = working
+        self.batches.append({"applied": True, "requests": len(parts)})
+        return 200, self._batch_answer(answers), {"Content-Type": "multipart/mixed"}
+
+    def change(
+        self,
+        rows: dict[str, list[dict[str, Any]]],
+        method: str,
+        place: str,
+        headers: dict[str, str],
+        sent: str,
+    ) -> tuple[int, str]:
+        found = re.fullmatch(r"(\w+)(?:\((.+)\))?", place)
+        if found is None or found.group(1) not in SETS:
+            return 404, json.dumps(_refusal("0x80060888", f"Resource not found for the segment '{place}'."))
+        table = SETS[found.group(1)]
+        primary = f"{table}id"
+        body: dict[str, Any] = json.loads(sent) if sent else {}
+        known = {c.name for c in COLUMNS[table]}
+        for name in body:
+            if name.split("@")[0] not in known:
+                message = f"An undeclared property '{name}' which only has property annotations was found."
+                return 400, json.dumps(_refusal("0x80060888", message))
+        for column in COLUMNS[table]:
+            value = body.get(column.name)
+            if column.options and value is not None and int(value) not in column.options:
+                return 400, json.dumps(
+                    _refusal("0x80040203", f"{value} is not a valid value for {column.name}.")
+                )
+        if method == "POST" and found.group(2) is None:
+            record = {c.name: None for c in COLUMNS[table]} | body
+            record[primary] = record.get(primary) or _id(0xF, len(self.made) + 1)
+            self.made.append(record[primary])
+            rows[table].append(record)
+            return 204, ""
+        key = found.group(2) or ""
+        if "=" in key:
+            field, _, literal = key.partition("=")
+            if field not in self.alternate_keys:
+                return 400, json.dumps(
+                    _refusal("0x80060888", f"'{field}' is not an alternate key of {table}.")
+                )
+            match = [r for r in rows[table] if str(r.get(field)) == str(_literal(literal))]
+        else:
+            field, match = primary, [r for r in rows[table] if str(r.get(primary)) == key]
+        if method == "DELETE":
+            if not match:
+                return 404, json.dumps(_refusal("0x80040217", f"{table} With Id = {key} Does Not Exist"))
+            rows[table].remove(match[0])
+            return 204, ""
+        if method == "PATCH":
+            if match:
+                if headers.get("if-none-match") == "*":
+                    return 412, json.dumps(
+                        _refusal("0x80040237", "A record with matching key values already exists.")
+                    )
+                match[0].update(body)
+                return (
+                    (200, json.dumps(match[0]))
+                    if "return=representation" in headers.get("prefer", "")
+                    else (204, "")
+                )
+            if headers.get("if-match") == "*":
+                return 404, json.dumps(_refusal("0x80040217", f"{table} With Id = {key} Does Not Exist"))
+            record = {c.name: None for c in COLUMNS[table]} | body
+            record[field] = _literal(key.partition("=")[2]) if "=" in key else key
+            record[primary] = record.get(primary) or _id(0xF, len(self.made) + 1)
+            self.made.append(record[primary])
+            rows[table].append(record)
+            return (
+                (201, json.dumps(record))
+                if "return=representation" in headers.get("prefer", "")
+                else (204, "")
+            )
+        return 405, json.dumps(_refusal("0x0", f"{method} is not allowed here."))
+
+    @staticmethod
+    def _batch_answer(answers: list[tuple[int, str]]) -> str:
+        words = {
+            200: "OK",
+            201: "Created",
+            204: "No Content",
+            400: "Bad Request",
+            404: "Not Found",
+            412: "Precondition Failed",
+        }
+        out = ["--batchresponse_1", "Content-Type: multipart/mixed; boundary=changesetresponse_1", ""]
+        for n, (status, body) in enumerate(answers, 1):
+            out += [
+                "--changesetresponse_1",
+                "Content-Type: application/http",
+                "Content-Transfer-Encoding: binary",
+                f"Content-ID: {n}",
+                "",
+                f"HTTP/1.1 {status} {words.get(status, 'Error')}",
+                "Content-Type: application/json; odata.metadata=minimal",
+                "",
+                body,
+            ]
+        out += ["--changesetresponse_1--", "--batchresponse_1--", ""]
+        return "\r\n".join(out)
 
     def gets(self) -> list[dict[str, Any]]:
         return [r for r in self.requests if r["what"] == "get"]

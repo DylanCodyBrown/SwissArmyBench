@@ -22,6 +22,7 @@ from swissarmybench.domain.steps import (
     describe_step,
     filter_condition,
     steps_from_json,
+    unnest_sql,
     with_header_sort,
 )
 from swissarmybench.domain.table_cells import Origin
@@ -365,6 +366,20 @@ class GridService:
         return await self.commit_steps(
             grid, info, steps, grid.settings, who, extra={"index": at}, change={"op": op, "kind": kind}
         )
+
+    async def unnest(self, grid: Grid, info: DatasetInfo, body: Any, who: str) -> dict[str, Any]:
+        """Unnest this column: {"column", "index"?}. A LIST column gives a row per item, a STRUCT one its
+        fields as columns; added as a SQL step (its text the user's to read and change)."""
+        column = body.get("column") if isinstance(body, dict) else None
+        if not isinstance(column, str) or not column:
+            raise ValueError('Send {"column": "<a list or struct column>"}.')
+        described = await self.describe(grid, info)
+        shown = {c["name"]: c["type"] for c in described["columns"]}
+        if column not in shown:
+            raise LookupError(f"{column} is not a column of this view. It has {sorted(shown)}.")
+        sql = unnest_sql(column, shown[column], list(shown))
+        step = {"kind": "sql", "params": {"sql": sql, "unnest": column}}
+        return await self.step_op(grid, info, {"op": "add", "step": step, "index": body.get("index")}, who)
 
     async def _undo(
         self, grid: Grid, info: DatasetInfo, op: str, who: str, gen: Any, client: str

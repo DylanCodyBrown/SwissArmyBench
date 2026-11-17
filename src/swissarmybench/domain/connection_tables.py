@@ -28,7 +28,7 @@ import sqlglot
 from sqlglot import exp
 
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, lakes, powerbi
+from swissarmybench.domain import dataverse, lakes, powerbi, web_calls
 from swissarmybench.domain.connection_swap import Place
 
 # How each kind of connection lists its tables and reads one (the contract's two calls).
@@ -103,18 +103,21 @@ class ConnectionSqlError(ValueError):
 
 
 def is_api(tags: Iterable[str], code: str) -> bool:
-    """An Add API connection (its tables are the API's table-returning web calls). The one place that
-    says which connections are APIs: the blades version of Add API changes only this."""
-    return "api" in {str(t).casefold() for t in tags} or (
-        "spec_from_file_location(" in code and "API_" in code
-    )
+    """An API's own blade, the connection its tables are read through (Add API's blades version: the API
+    blade is tagged `api`; its tables are exactly its web call blades with Return as table on). A web call
+    blade is never one (it is tagged `web call` as well): it is a table of its API's, not a connection.
+    An older API connection (Add API's API_<name>.py before the blades) is still one, by its code."""
+    said = {str(t).casefold() for t in tags}
+    if web_calls.TAG in said:
+        return False
+    return web_calls.API_TAG in said or ("spec_from_file_location(" in code and "API_" in code)
 
 
 def web_call_table(header: Mapping[str, object]) -> bool:
     """A web call blade that is one of its API's tables: its Return as table switch on (the blades
     version of Add API, 2026-11-17: "the gate for making it querable from DuckDB"). Nothing else of an
-    API's is a table."""
-    return header.get("kind") == "web_call" and header.get("return_as_table") is True
+    API's is a table. `header` is the blade (its `web_call` table, as its TOML header holds it)."""
+    return web_calls.is_table(header)
 
 
 def tables_kind(

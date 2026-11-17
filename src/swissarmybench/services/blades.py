@@ -18,6 +18,7 @@ import base64
 import binascii
 import re
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import replace
 from typing import Any, Protocol
 
 from swissarmybench.domain import blades as rules
@@ -40,6 +41,7 @@ from swissarmybench.domain.connections import code_names, connection_kind, opens
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.packages import blade_feature, connection_feature, missing_packages
+from swissarmybench.domain.packs import CROSS_LISTED
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.workspace import Workspace
@@ -120,6 +122,9 @@ class BladeService:
         self._packages = packages
         # Run a blade in a child process: "catalog", "test" or "analysis" (server/blade_runner.py).
         self._run_blade = run_blade
+        # A web call blade saved (its Return as table, its inputs): its API's tables are made again
+        # (services/api_explorer.py), by the API's name.
+        self.web_call_saved: list[Callable[[str], Awaitable[None]]] = []
         self._install_packages = install_packages
         # Swiss Army Bench's own Python (where Refresh runs), and the environment suggestions come from.
         self._python = python
@@ -159,6 +164,7 @@ class BladeService:
             "pinned": blade.name.casefold() in favourites,
             "source": blade.source,
             "family": blade.family,
+            "web_call": dict(blade.web_call) or None,
             "language": blade.language,
             "pack": blade.pack,
             "path": blade.path,
@@ -309,6 +315,9 @@ class BladeService:
             self._blades.set_secrets(blade.name, body["secrets"])
         self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
         await self.ws.live.broadcast({"type": "blades_changed"})
+        if blade.web_call.get("api"):
+            for told in self.web_call_saved:
+                await told(str(blade.web_call["api"]))
         return self.summary(blade)
 
     async def remove(self, name: str, who: str = "user") -> dict[str, Any]:
@@ -421,6 +430,14 @@ class BladeService:
         values = {k: v for k, v in (typed or {}).items() if v}
         more = {"place": dict(place), "limit": limit, "secrets": values}
         return await self._run_blade(blade, "read", self._typed_values(blade, data), more)
+
+    async def run_read(self, blade: Blade, command: str, table: str, body: Any) -> dict[str, Any]:
+        """A saved connection's Connect, then `command` in place of its Read a table (`table` given as
+        the table's name), in a child process as Refresh is: the APIs page's Try it (one operation
+        called through the API's own file, its secrets resolved as the connection resolves them)."""
+        typed = self._typed_values(blade, body)
+        tried = replace(blade, read_command=command)
+        return await self._run_blade(tried, "read", typed, {"place": {"table": table}, "limit": 1})
 
     async def rows(
         self, blade: Blade, sql: str | None, count: str | None, body: Any, dataset: str = ""
@@ -631,6 +648,12 @@ class BladeService:
                     "placeholders": [p.to_json() for p in snippets.placeholders(blade.code)],
                 }
             families.setdefault(blade.family or "Other", []).append(entry)
+        # A starter listed in another family too (Excel's writers in Write), marked `also`.
+        for family, names in CROSS_LISTED.items():
+            listed = {e["name"].casefold(): e for found in families.values() for e in found}
+            for name in names:
+                if name.casefold() in listed and family in families:
+                    families[family].append(listed[name.casefold()] | {"also": True})
         return {
             "pack": rules.STARTERS,
             "families": [{"family": name, "blades": found} for name, found in families.items()],
@@ -664,6 +687,8 @@ class BladeService:
         options: dict[str, Any] = (
             await self._dataset_options(dataset or "") if blade.language == "dax" else self._table_options()
         )
+        if any(p.kind == "connection" for p in snippets.placeholders(blade.code)):
+            options["connections"] = self._connection_options(blade.tags)
         return {
             "name": blade.name,
             "language": blade.language,
@@ -693,6 +718,16 @@ class BladeService:
         streamlit = blade.language == "streamlit"
         named = snippets.cell_name(blade.cell_name, given, blade.name) if streamlit else None
         return {"name": blade.name, "language": blade.language, "text": text, "cell_name": named}
+
+    def _connection_options(self, tags: Sequence[str]) -> list[str]:
+        """The saved connections' names (not key vaults), those of the snippet's own kind first (a Write
+        starter names its kinds among its tags: postgres, sqlserver...)."""
+        found = []
+        for b in self._blades.all():
+            kind = connection_kind(b.kind, b.template)
+            if kind and kind != "vault":
+                found.append((b.template not in tags, b.name.casefold(), b.name))
+        return [name for _, _, name in sorted(found)]
 
     def _table_options(self) -> dict[str, Any]:
         """The open tables, by their names in code, each with its columns."""

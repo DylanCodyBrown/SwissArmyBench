@@ -3,13 +3,13 @@
  * the click was; this says what can be done there.
  *
  *   [CELL]    Send value to Visualizations, Send the row to Visualizations, Keep these, Exclude these, View value, Copy
- *   [HEADER]  Profile to Visualizations, Distinct values to Visualizations, Profile, and the Analyze entries for it
+ *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Visualizations, Distinct values to Visualizations, Profile, and the Analyze entries for it
  */
 import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisCards";
 import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
 import { sendCards } from "./analyzeMenu";
 import { api, grid } from "./api";
-import { showMenu, toast } from "./dom";
+import { showMenu, toast, type MenuItem } from "./dom";
 import { cellValue, copySelection, focusedCell, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
 import { openColumnProfile, profileToSandbox } from "./profileView";
 import { filterByCells, keepColumns, sortColumns } from "./ribbon";
@@ -71,6 +71,10 @@ export function mountContextMenus(): void {
     // analyses. On several selected columns, the tools act on all of them.
     const cols = chosen.includes(column) ? chosen : [column];
     const others = viewColumns().map((c) => c.name).filter((n) => !cols.includes(n));
+    // A LIST or STRUCT column (an API's answer read by DuckDB keeps them): Unnest this column, a SQL step.
+    const type = viewColumns().find((c) => c.name === column)?.type ?? "";
+    const nested = /\]$/.test(type) || /^(STRUCT|LIST)[(<]/i.test(type);
+    const unnest = (): void => void state.stepOp({ column }, "unnest").catch((e: Error) => toast(e.message, "error"));
     showMenu(event.clientX, event.clientY, column, [
       ["sortup", "Sort A→Z", () => void sortColumns(cols, "asc")],
       ["sortdown", "Sort Z→A", () => void sortColumns(cols, "desc")],
@@ -79,6 +83,7 @@ export function mountContextMenus(): void {
       ["trash", "Remove", () => void keepColumns(others)],
       ["columns", "Keep only", () => void keepColumns(cols)],
       ["group", "Group by…", () => editStep("group_by", undefined, { keys: cols })],
+      ...(nested ? [["rows", "Unnest this column", unnest] as MenuItem] : []),
       "-",
       ["image", "Profile to Visualizations", () => void profileToSandbox(column)],
       ["tag", "Distinct values to Visualizations", () => void distinctToSandbox(column)],

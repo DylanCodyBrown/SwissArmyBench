@@ -3745,6 +3745,109 @@ Open: entries about a grid (not a connection) on the Session page are not colour
 a removed connection's line stays in colours.toml (it returns if the name comes back).
 
 
+## Structures and the APIs page (the owner, 2026-11-17; built, branch trees-apis)
+
+The owner's words:
+- "when an API returns data or a payload or you need to author a Json, Yaml, Xml or other type of data
+  structure, we need a place to visualize them differently like a pretty place to render it that
+  functions like the grids, where you can transform and save json configurations as well as view returned
+  payloads from apis."
+- "no see you can have json, yaml, and xml that is not a part of an api, they could be used for gates,
+  mapping, and other various things within an application unrelated to APIS"
+- "I also feel like we need to move the Api feature to its own rail Icon ... so I can easily browse and
+  explore Apis that are set up and see thier input and output structures"
+- "Apis need thier own page so they can be imported managed, refreshed when the api changes and
+  searchable" (an explorer like Django REST Framework's browsable API: built as our own design)
+- "Apis, Connections they live OUTSIDE of the project, I dont wanna have to go hunt an api every project."
+- "APIS and web calls will be built by using blades"; "they are not really connections, UNLESS they return
+  a table"; "APIs are connections but they dont get the connection treatment here".
+- "so we need an option on web call blade to return as table. This is the gate for making it querable
+  from DuckDB"; "alright just let duckdb to the conversion then"; most of his APIs are "header and rows".
+- "We should be able from the ApI page to quickly open a screen, Author an API call using an apis payload,
+  then the results will show up in the structure page retaining their lineage"
+- "rearrange the rail to make since. In order of workflow."
+
+### Built
+- **Structures** (the name is the owner's; "Trees" was refused): JSON, YAML, XML, TOML as documents (tabs),
+  a tree and its text side by side, steps replayed on the original (Pick, Filter, Rename, Remove, Set, Add,
+  Sort, Flatten; undo, redo, the strip), Open as grid at any path, Save / Save as. The project's own
+  `structures/` folder goes into the .sab, and the structures open at Save open again with the project
+  (project.json `structures.open`). `sab.structure`, `sab.structure_table`, `sab.show_structure`; the
+  Variables pane's Open in Structures; references (the connection finder's, with Structures' own calls).
+- **APIs page**: cards (base address, sign-in type, operations, tables, calls, source and when it was
+  read), one search across every API and operation (words marked), the explorer (operations by tag with
+  method badges; description as markdown drawn as DOM, no HTML; inputs; body and outputs as schema trees
+  with made-up examples; Schemas, each with where it is used), Author a call (a screen of its own: inputs
+  prefilled, the body in a tree and its JSON, checked against the schema as it is typed), Send (the answer
+  in Structures with its status, time, headers), Save as web call, Refresh (the diff, then Apply), Check
+  for changes, Rename, Delete (the code that uses it first; the agent's waits for the user's Allow).
+- **APIs as blades in this computer's library**: Add API writes `~/.swissarmybench/library/apis/<name>/`:
+  `API_<name>.py` (the made client, its signing code kept), the **API blade** (`Orders`: the client, its
+  secrets' sources named, never a value), one **web call blade** per operation (`Orders.list_orders`: its
+  inputs and body are its settings; its code calls through `sab.blade("Orders")`), `openapi.json` (the
+  document as read; a form-made API's operations written as one) and `source.json` (where it was read
+  from, when, the switch). The blade store reads that folder like a blade folder, whatever project is
+  open; a .sab never carries an API.
+- **Return as table** (off by default) is the one gate to DuckDB SQL: an API's tables are exactly its web
+  calls with it on (`web_calls.table_calls`, the contract for the connection-sql work), read through the
+  API blade's own List the tables and Read a table boxes, made again whenever a web call is saved. DuckDB
+  converts: the pages read go to `response` (one row per page, its JSON in `page`); records are unnested
+  (`unnest(r, recursive := true)` flattens nested objects; a list inside a record stays a LIST); header and
+  rows are projected by position with the header's types (`DUCKDB_TYPES`) winning. The conversion is SQL in
+  the blade's header, editable. A required input with no value: the table says `(needs <name> (<where>))`.
+- **Lineage**: a structure's origin is its call (API, operation, the inputs and body sent: a sign-in input
+  hidden; when; status), then each step, then each grid made from it with the grid's own steps, drawn with
+  domain/lineage.py's Mermaid. Run again sends the same call and keeps the steps. A grid made from it has
+  origin `structure` (its table cell loads it with `sab.structure_table(...)` once the structure is saved).
+- **Write rows with this call** (the owner: "Most writes happen via api anyway"): on a POST, PUT, PATCH or
+  DELETE, an open table's (or a Structures list's) columns mapped onto the request's fields (matched by
+  name, case and `_`/`-` ignored; nested body fields; a constant instead; a required field unmapped named
+  and blocking), a dry run first (the first three requests exactly, the rows, the calls: nothing sent),
+  then one call per row or batched (the body an array), one at a time, 429s paced by Retry-After (the API
+  blade's retries). The results: one row per input row (its key columns, status, the answer's id or a
+  chosen field, the error, the time) as a structure and a grid; Retry the failed rows sends only those;
+  the lineage is the input table, the call, the results. Saved as a web call blade in mode "write rows"
+  (its mapping in the header's `[web_call.mapping]`); in a cell: settings, the table, `dry_run = True`, one
+  call (`api.write_rows`). The agent's `apis_write_rows` dry-runs by default; sending follows the guide's
+  rule (only after the user said to write, in their own words).
+- **The rail**, in the order of the work: Connections, Variables (where the data comes from), Grids, ERD
+  (getting and shaping it), APIs, Structures (web data), Blades (tools), Notebooks, Scripts, Apps
+  (building), Visualizations (presenting), Session (the log); Settings at the bottom. The Connections page
+  lost Add API and its API cards: a line links to the APIs page.
+
+### Decisions
+- One page code constant per name (`STRUCTURES`, `APIS`); commands, files and the client are named after
+  them, so a rename is one pass.
+- XML: ElementTree with a DOCTYPE or an entity declaration refused outright (no defusedxml here).
+  Attributes are `@name`, text beside children `#text`, a repeated child a list.
+- TOML is written here (standard library: tables, arrays of tables, inline values); a null or a list at the
+  top cannot be TOML, and Save as says so (save as JSON or YAML) rather than changing the data.
+- YAML through PyYAML only when this Python has it: the one missing-package answer otherwise.
+- The text view is the steps' result, read-only while there are steps (edits there would have no place
+  in the steps); edits in the tree are steps. Text edits with no steps replace the original.
+- Check for changes is a request the user configured to their own API (an address they gave), on the
+  page's opening or Refresh only: not the app's update check, and never in the background.
+- Older API connections (API_<name>.py beside a project, before the library) keep working and are listed
+  on the APIs page as older; **Make into blades** (on the user's click, or `apis_make_into_blades`) reads
+  the document again from the address it was made from or an openapi.json beside it (else the user picks
+  the file), makes the library's API blade and web calls under the same connection name (its variables'
+  sources kept), and leaves the old file where it is.
+- The API blade still loads the made client (`API_<name>.py`, now in the API's library folder beside its
+  blades: the signing code reused as the owner said) rather than holding it inline; the explorer reads the
+  client's mark there. Inlining it into the API blade's own code is open.
+- Header-and-rows with no types in the header come out as text (DuckDB's own detection is not run on a
+  position projection); the header's types, when given, are cast with TRY_CAST.
+- **Unnest this column** (built after the merge): a LIST or STRUCT column's right-click in its grid, and
+  `column_unnest`, adds a SQL step the user can read and change (a list: a row per item, an empty or blank
+  list kept as a blank row; a struct: its fields as `<column>.<field>`, never clashing with a column).
+- The conversion is shown and edited: "The DuckDB query" on an operation that is a table (Save the query,
+  Make it again), in Author a call while Return as table is on, and in Return as table…'s dialog.
+- The lineage runs on to the notebook and script cells that read the structure by name (sab.structure;
+  sab.structure_table after its last grid).
+- After the merge with connection-sql: the API blade stays in `/connections` marked `tables_kind: "api"` (so
+  DuckDB SQL names its tables); the Connections page and the Grids landing leave those out, and context.md
+  lists an API in its own APIs section, not under Connections.
+
 ## A connection's tables in DuckDB SQL (the owner, 2026-11-17; built, branch connection-sql)
 
 The owner's words, after his agent imported a Power BI dataset's relationships (14 model_* tables) from
@@ -3910,6 +4013,14 @@ to be handled with blades and cells in notebooks".
   a Parquet or CSV file put through the DFS API (create, append, flush) or a temporary file replaced here;
   dry runs count by DuckDB on the table as it is (matches by key, rows a condition hits). SharePoint list
   items by $batch (20 a request), each 429 retried after its Retry-After; an update by id or a key column.
+- **The Write starters** (the Write family's shape: one typed function a target, and call snippets with
+  dry_run=True): **Write to a Delta table** (Delta append, overwrite, merge, delete, optimize, vacuum),
+  **Write to a lake file** (Lake Parquet file, Lake CSV file), **Write to a SharePoint list** (SharePoint
+  list create, update, delete). domain/write_capability.py marks onelake, datalake, delta and sharepoint
+  writable, sharepoint_docs read-only (its documents: the SharePoint upload file starter).
+- **The one reusable rule for environment variables**: domain/certificate_files.py `mappable(setting)`
+  (with `plain_name(identifier, keywords)` and TOP_LEVEL): every settings read, write and the form's choice
+  ask it; SQL Server's fields (branch sql-server) can join TOP_LEVEL or ENV_MAPPABLE the same way.
 
 ### Decisions
 - The five are database connections with their own dialects, not a new connection kind: every page and
@@ -3923,3 +4034,86 @@ to be handled with blades and cells in notebooks".
   front; azure-identity is the "As you" sign-in's own import (the missing-package prompt).
 - The constants of the connections' code are one tuple line (not settings the form would show).
 - The library is optional in a document's name; the index table is named by the library's display name.
+## Writing data: Write blades for the connections that write (the owner, 2026-11-17; built, branch write-blades)
+
+The owner: "Also writes are meant to be handled with blades and cells in notebooks. So really go through
+and create a set of blades that can write to each of our data sources that can be quickly copied into a
+cell". Then, the same day: "Write blades should be geared towards our connection types. Most of our
+connections don't support it"; "SQL server and azure SQL are two things I use alot so make them robust";
+"Most writes happen via api anyway" (API writes moved to the APIs page's Write rows with this call,
+branch trees-apis); and, of an idea to compile INSERT/UPDATE/DELETE written in SQL into writes: "it sound
+like a lot to get wrong with the write back an we should just build all of those as blades". So there is
+no SQL writes layer: every write is a blade, explicit in its cell.
+
+Built:
+- **What each kind writes** (domain/write_capability.py): every connection kind the app has is writable
+  (its operations and how) or read-only (why, in plain words). A kind is connection_tables' tables kind
+  (TABLE_KINDS: database, powerbi, dataverse, dataverse_web, python, api, file, folder), and for a
+  database or a file its form's template; a test holds every tables kind to writable, read-only or "by
+  its template". Writable: SQL Server, Azure SQL,
+  PostgreSQL, MySQL, MariaDB, Oracle, SQLite (the read-only connection's file opened again to write),
+  Trino (by its connector), ODBC, Dataverse (the Web API; TDS is read-only, whichever way the connection reads),
+  CSV, Excel, Parquet, JSON and folder files.
+  Read-only: Power BI (refresh is its action: write the source, then refresh), DuckDB (opened read-only), Snowflake, BigQuery, Redshift, Databricks (their own bulk
+  loads), Db2, Teradata, ClickHouse, SAP HANA, Vertica, SAP ASE, Access, your own Python, an API (the APIs page's
+  Write rows with this call, branch trees-apis). The Connections page's card shows Writes or Read-only (the
+  starters or the reason on hover), its detail the words; `connections_list`, `connections_overview`,
+  `connections_types` carry `writes` for the agent. Tests: every writable kind has a Write starter, every
+  starter names writable kinds only, a read-only kind has none.
+- **The Write family** (56 starters, src/swissarmybench/starters/write_*.blade.py): 13 functions, one
+  a target (`write_to_*.blade.py`: Write to SQL Server, Write to SQLite, ... Write to an Excel sheet), and
+  43 calls, one an operation (SQLite upsert, ...): Python snippets (a new snippet language, `python`, for a Python cell; a new placeholder kind, `connection`, offered from
+  the saved connections, those of the snippet's kind first). Databases: append, create table, replace,
+  upsert, delete for SQL Server, PostgreSQL, MySQL/MariaDB, SQLite, Oracle and Trino; ODBC without upsert
+  (no one statement every driver takes). Dataverse: create, update, upsert, delete. Files: CSV, Parquet, partitioned Parquet, JSON, Excel sheet. Listed in Write too:
+  Excel write table, Excel range as table, Power BI refresh dataset, Power BI refresh and wait (`also`).
+- **A function a target, a call a cell** (the owner, 2026-11-17: function blades will be written into the
+  project's functions.py and a cell gets only the call: "the only thing inserted into the notebook is
+  Importexcel() not the entire blade"). Each Write function is ONE public function with a typed
+  signature (`write_sql_server(connection: str, table: str, rows: Any, mode: str = "append", keys:
+  Sequence[str] = (), batch_size: int = 1000, identity_insert: bool = False, dry_run: bool = True) ->
+  SqlServerWrite`), private helpers (`_upsert`, a mode each), its imports and constants: nothing runs on
+  import, so it drops into functions.py as it is (a test holds every one to that). A Write starter's text
+  is the call only, its placeholders filled by the form and `dry_run=True` its last argument. Until
+  functions.py exists the call is reached as the Excel starters are, one line before it:
+  `write_sqlite = sab.blade("Write to SQLite")`; **the functions.py branch replaces that line** (an
+  import from functions.py, or nothing). The Connections page's "Writes:" lists the calls.
+- **The same shape in every write**: `dry_run=True` the default (it checks, counts what it can
+  count cheaply, says the statements, shows 5 rows, changes nothing); one transaction where the target
+  has them (a failure rolls back and names its batch and rows; Trino and Dataverse's
+  change sets say what was written before it); counts and time at the end, and a difference from the
+  last dry run said; the connection's own sign-in (`sab.connection`), never a secret in the cell; its
+  packages imported at the function's top (the missing-package prompt installs them into the notebook's
+  environment). The agent's rule is in the calls, the functions' docstrings, every description and in `guide(topic="writing")`: dry_run False only
+  after the user said to write, in their own words, in this conversation.
+- **A shared helper per target, the statements in the function** (client/writes.py: the rows staged in a
+  DuckDB of their own, the report; write_sql.py: each database's quoting, marks, values and types;
+  write_dataverse.py). Standard library only (the plain client's rule): DuckDB and the
+  driver come from the cell's own Python.
+- **SQL Server and Azure SQL, made robust** (SqlServerWrite): the target's types from sys.columns size
+  every value (setinputsizes: varchar stays varchar, nvarchar Unicode, decimals their precision and
+  scale; NaN and NaT NULL); fast_executemany, batches sized by row width, multi-row VALUES under 2,100
+  parameters without it; upsert and delete staged in a #temp table of the target's types (COLLATE
+  DATABASE_DEFAULT), then one MERGE ... WITH (HOLDLOCK), or UPDATE then INSERT where MERGE is refused
+  (a savepoint, the same transaction); keys default to the primary key (none: refused); IDENTITY_INSERT
+  only when the rows carry the identity column and identity_insert is chosen; computed columns refused;
+  enabled triggers said in the dry run; the dry run's counts from one COUNT join against the staged keys;
+  Azure's passing errors (40613, 40197, 40501, 49918, 10928, 10929, 4221), a deadlock (1205) and a
+  dropped connection (08S01, 10053, 10054) run the whole transaction again on a fresh connection after
+  1, 2, 4 seconds.
+
+Decisions:
+- One starter per source and kind of write, not one generic writer: the cell is what the user reads and
+  changes, so the statement is in it. The helpers hold only what the starters of one target share.
+- MySQL and Oracle replace with DELETE, not TRUNCATE (theirs commits by itself); their CREATE TABLE
+  commits by itself, so a failed create drops the table again.
+- A dry run reads only (SQL Server's stages keys in tempdb, rolled back). Counts it cannot get cheaply
+  are said as uncounted (more than 200,000 keys).
+- Dataverse's atomicity is a change set (up to 1,000 rows): a batch_size of up to 1,000 is one
+  transaction; a larger write says which batches went in before a refusal.
+- No `set`/`where` translation for any target: an update by condition is a SQL cell's own statement.
+- Power BI is read-only (the owner's example, 2026-11-17: "Power BI read-only (refresh is the action)"):
+  the push-dataset starters an earlier pass made were removed, so a read-only kind has no Write starter.
+  Its refreshes stay listed in the Write family (`also`): after the source is written, refresh the model.
+- No API write starter and no pointer starter: an API's read-only reason says "the APIs page's Write rows
+  with this call", on its card and to the agent.

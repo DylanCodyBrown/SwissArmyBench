@@ -502,3 +502,53 @@ def test_sharepoint_list_writes_are_batched_and_retried_on_429(standin: made_up.
     assert 1 not in standin.tasks and len(standin.tasks) == 33
     with pytest.raises(Exception, match="No item has Title"):
         conn.update("Tasks", [{"Title": "nope", "Status": "Done"}], key="Title")
+
+
+# ===== the Write starters on these kinds (the Write family: a function, and a call with dry_run) =====
+
+
+def write_function(name: str, conn: Any, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """A Write starter's function, its sab.connection given the live connection (as a kernel's would)."""
+    import swissarmybench
+    from swissarmybench.domain.blades import read_blade
+
+    folder = Path(swissarmybench.__file__).parent / "starters"
+    blade = read_blade((folder / f"{name}.blade.py").read_text(encoding="utf-8"))
+    monkeypatch.setattr(swissarmybench, "connection", lambda _name: conn, raising=False)
+    space: dict[str, Any] = {}
+    exec(compile(blade["code"], name, "exec"), space)  # noqa: S102 (the starter pack's own code)
+    return space[blade["variable"]]
+
+
+def test_the_write_starters_dry_run_then_write_to_the_stand_ins(
+    standin: made_up.StandIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import pandas as pd
+
+    lake = connected(datalake_code(), {"client secret": made_up.SECRET})
+    write_lake_file = write_function("write_to_lake_file", lake, monkeypatch)
+    frame = pd.DataFrame({"region": ["North", "West"], "target": [1.5, 2.5]})
+    dry = write_lake_file("Sales Lake", "exports/targets.parquet", frame)
+    assert str(dry).startswith("Dry run: nothing was written.") and not standin.seen("storage write")
+    done = write_lake_file("Sales Lake", "exports/targets.parquet", frame, dry_run=False)
+    assert "Wrote exports/targets.parquet on Sales Lake: written 2 rows" in str(done)
+    assert lake.rows("exports/targets")[1] == 2
+
+    lists = connected(sharepoint_code(), {"password": made_up.PASSWORD})
+    write_list = write_function("write_to_sharepoint_list", lists, monkeypatch)
+    change = pd.DataFrame({"Title": ["Made-up task 04"], "Status": ["Open"]})
+    plan = write_list("Team", "Tasks", change, mode="update", key="Title")
+    assert "update 1 row" in str(plan) and standin.tasks[4]["Status"] == "Done"
+    write_list("Team", "Tasks", change, mode="update", key="Title", dry_run=False)
+    assert standin.tasks[4]["Status"] == "Open"
+
+    delta = local_lake(standin)
+    write_delta = write_function("write_to_delta", delta, monkeypatch)
+    incoming = pd.DataFrame({"order_id": [5, 6], "amount": [9.0, 1.0], "region": ["West", "West"]})
+    merge = write_delta("Lake", "lake/orders", incoming, mode="merge", keys=["order_id"])
+    assert "update 1 row, insert 1 row" in str(merge) and delta.rows("orders")[1] == 5
+    with pytest.raises(Exception, match="at least 168 hours"):
+        write_delta("Lake", "lake/orders", mode="vacuum", retention_hours=1)
+    assert "delete 2 rows" in str(
+        write_delta("Lake", "lake/orders", mode="delete", condition="region = 'North'")
+    )

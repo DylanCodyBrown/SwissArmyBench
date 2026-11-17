@@ -1,6 +1,7 @@
 """Snippets: blades that are text to drop into a cell (docs/ideas.md, the starter pack, 2026-11-15).
 
-A snippet is a piece of DAX, HTML, Markdown or Streamlit (Python) with **placeholders** for the names
+A snippet is a piece of DAX, HTML, Markdown, Streamlit or plain Python (the Write starters) with
+**placeholders** for the names
 it needs.
 Dropped on a cell of its language (or picked from the cell's menu), a small form asks for each one,
 prefilled from the cell's dataset or the open tables, and the text goes in at the cursor, filled.
@@ -24,6 +25,8 @@ declaration), by its last word:
     ... measure   a measure of the dataset (DAX)
     ... name      a Python name the piece makes (a Streamlit filter's value): it follows the column
                   placeholder with the same first words (`region` for the column Region)
+    ... connection  a connection's name (the Write starters: `sab.connection("<<connection>>")`), offered
+                  from the saved connections, those of the snippet's own kind first
     otherwise     text; a number when its default is one
 
 **Filling writes each value where it stands, safely,** by its kind and the snippet's language: DAX
@@ -45,20 +48,28 @@ from typing import Any
 
 from swissarmybench.domain import html_cells
 
-LANGUAGES: tuple[str, ...] = ("dax", "html", "markdown", "streamlit")
+LANGUAGES: tuple[str, ...] = ("dax", "html", "markdown", "streamlit", "python")
 # The cell a snippet of each language goes into, in the user's words.
-CELL_KIND: dict[str, str] = {"dax": "dax", "html": "html", "markdown": "markdown", "streamlit": "code"}
+CELL_KIND: dict[str, str] = {
+    "dax": "dax",
+    "html": "html",
+    "markdown": "markdown",
+    "streamlit": "code",
+    "python": "code",
+}
 CELL_WORDS: dict[str, str] = {
     "dax": "a DAX cell",
     "html": "an HTML cell",
     "markdown": "a Markdown cell",
     "streamlit": "a Python cell",
+    "python": "a Python cell",
 }
 LANGUAGE_WORDS: dict[str, str] = {
     "dax": "DAX",
     "html": "HTML",
     "markdown": "Markdown",
     "streamlit": "Streamlit",
+    "python": "Python",
 }
 # A typed value in Markdown: the marks that would format, link or fill a name are escaped (a backslash;
 # markup as HTML's own references), the rest is as typed, so "Made-up, 2026-01-31" reads as it is.
@@ -68,7 +79,7 @@ _MARKDOWN_REFERENCES: dict[str, str] = {"&": "&amp;", "<": "&lt;", ">": "&gt;"}
 PLACEHOLDER: re.Pattern[str] = re.compile(r"<<\s*([a-z][a-z0-9_ ]{0,39}?)\s*(?::\s*([^<>\n]{0,200}?)\s*)?>>")
 # An opening `<<` that does not start a well-formed placeholder (a typing slip in a snippet).
 _OPENING: re.Pattern[str] = re.compile(r"<<(?!<)")
-KINDS: tuple[str, ...] = ("table", "column", "measure", "name", "number", "text")
+KINDS: tuple[str, ...] = ("table", "column", "measure", "name", "connection", "number", "text")
 _NUMBER: re.Pattern[str] = re.compile(r"-?\d+(\.\d+)?")
 # A default made of other placeholders' values: `by_{column}`.
 _TEMPLATE: re.Pattern[str] = re.compile(r"\{([a-z][a-z0-9_ ]{0,39})\}")
@@ -114,7 +125,7 @@ def _prefix(name: str) -> str:
 def kind_of(name: str, default: str = "") -> str:
     """What a placeholder asks for, by its name's last word (and a default that is a number)."""
     last = (_words(name) or [""])[-1]
-    if last in ("table", "column", "measure", "name"):
+    if last in ("table", "column", "measure", "name", "connection"):
         return last
     if last == "number" or (default and _NUMBER.fullmatch(default)):
         return "number"
@@ -299,7 +310,7 @@ def _written(value: str, place: str, language: str, kind: str, label: str) -> st
         doubled = {"string": '"', "table": "'", "bracket": "]"}.get(place)
         if doubled:
             return value.replace(doubled, doubled * 2)
-    elif language == "streamlit" and place in ("string", "f-string"):
+    elif language in ("streamlit", "python") and place in ("string", "f-string"):
         written = value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "\\'")
         return written.replace("{", "{{").replace("}", "}}") if place == "f-string" else written
 
@@ -357,6 +368,7 @@ def fill(text: str, language: str, values: Mapping[str, Any]) -> str:
     places = {
         "dax": _dax_places,
         "streamlit": _python_places,
+        "python": _python_places,
         "html": _html_places,
         "markdown": _markdown_places,
     }[language](text)

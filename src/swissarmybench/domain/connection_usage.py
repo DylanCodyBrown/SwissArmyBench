@@ -119,7 +119,7 @@ def _python_tree(code: str) -> ast.Module | None:
         return None
 
 
-def _aliases(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
+def _aliases(tree: ast.Module, calls: Mapping[str, str] = _NAMED_FIRST) -> tuple[set[str], dict[str, str]]:
     """The names the module goes by here (`import swissarmybench as sab`), and its functions imported
     by name (`from swissarmybench import sql as run_sql` -> {"run_sql": "sql"})."""
     modules = {"sab", _MODULE}
@@ -131,7 +131,7 @@ def _aliases(tree: ast.Module) -> tuple[set[str], dict[str, str]]:
                     modules.add(alias.asname or alias.name)
         elif isinstance(node, ast.ImportFrom) and node.module == _MODULE:
             for alias in node.names:
-                if alias.name in _NAMED_FIRST:
+                if alias.name in calls:
                     functions[alias.asname or alias.name] = alias.name
     return modules, functions
 
@@ -144,13 +144,13 @@ def _named(call: ast.Call) -> str | None:
     return None
 
 
-def _python_calls(code: str) -> list[tuple[int, int, str, str]]:
+def _python_calls(code: str, calls: Mapping[str, str] = _NAMED_FIRST) -> list[tuple[int, int, str, str]]:
     """Every call of the client's that names a connection: (line, column, how, the connection's name),
     in the code's order (ast: never in a comment or in another string)."""
     tree = _python_tree(code)
     if tree is None:
         return []
-    modules, functions = _aliases(tree)
+    modules, functions = _aliases(tree, calls)
     found: list[tuple[int, int, str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -158,22 +158,22 @@ def _python_calls(code: str) -> list[tuple[int, int, str, str]]:
         func = node.func
         word: str | None = None
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in modules:
-            word = func.attr if func.attr in _NAMED_FIRST else None
+            word = func.attr if func.attr in calls else None
         elif isinstance(func, ast.Name):
             word = functions.get(func.id)
         named = _named(node) if word else None
         if word and named is not None and _base(named):
-            found.append((node.lineno, node.col_offset, _NAMED_FIRST[word], _base(named)))
+            found.append((node.lineno, node.col_offset, calls[word], _base(named)))
     return sorted(found, key=lambda f: (f[0], f[1]))
 
 
-def python_uses(code: str, connection: str) -> list[Use]:
+def python_uses(code: str, connection: str, calls: Mapping[str, str] = _NAMED_FIRST) -> list[Use]:
     """Where Python code names `connection` in a call of the client's (ast: never in a comment or in
-    another string)."""
+    another string). `calls`: the client's functions that name it first (a structure's: sab.structure)."""
     lines = code.split("\n")
     return [
         Use(how, _short(lines[line - 1] if 0 < line <= len(lines) else ""))
-        for line, _, how, named in _python_calls(code)
+        for line, _, how, named in _python_calls(code, calls)
         if same_name(named, connection)
     ]
 
@@ -192,9 +192,11 @@ def cell_connections(kind: str, source: str, named: str | None) -> list[str]:
     return out
 
 
-def cell_uses(kind: str, source: str, named: str | None, connection: str) -> list[Use]:
+def cell_uses(
+    kind: str, source: str, named: str | None, connection: str, calls: Mapping[str, str] = _NAMED_FIRST
+) -> list[Use]:
     """A notebook cell's uses: a SQL or DAX cell by its first line, Python by its calls."""
-    if kind in ("sql", "dax"):
+    if kind in ("sql", "dax") and calls is _NAMED_FIRST:
         if named and same_name(_base(named), connection):
             return [
                 Use(
@@ -204,28 +206,32 @@ def cell_uses(kind: str, source: str, named: str | None, connection: str) -> lis
             ]
         return []
     if kind == "code":
-        return python_uses(source, connection)
+        return python_uses(source, connection, calls)
     return []
 
 
-def notebook_references(path: str, title: str, text: str, connection: str) -> list[Reference]:
+def notebook_references(
+    path: str, title: str, text: str, connection: str, calls: Mapping[str, str] = _NAMED_FIRST
+) -> list[Reference]:
     """Every cell of a notebook's file that uses the connection."""
     cells, _ = notebooks.read_document(text)
     found: list[Reference] = []
     for cell in cells:
-        for use in cell_uses(cell.kind, cell.source, cell.connection, connection):
+        for use in cell_uses(cell.kind, cell.source, cell.connection, connection, calls):
             table = cell.role not in ("", "maker")
             found.append(Reference(path, title, "notebook", use.how, use.line, cell.number, cell.name, table))
     return found
 
 
-def script_references(path: str, title: str, text: str, connection: str) -> list[Reference]:
+def script_references(
+    path: str, title: str, text: str, connection: str, calls: Mapping[str, str] = _NAMED_FIRST
+) -> list[Reference]:
     """Every cell of a script that uses the connection (its main code too: no number)."""
     found: list[Reference] = []
     for cell in table_cells.parse_script(text).cells:
         if cell.html:
             continue
-        for use in python_uses(cell.source, connection):
+        for use in python_uses(cell.source, connection, calls):
             name = table_cells.marker_name(cell.title) if cell.title and not cell.role else None
             table = cell.role not in ("", "maker", "imports")
             found.append(Reference(path, title, "script", use.how, use.line, cell.number, name, table))
@@ -265,12 +271,14 @@ def canvas_references(
     return found
 
 
-def document_references(path: str, title: str, text: str, connection: str) -> list[Reference]:
+def document_references(
+    path: str, title: str, text: str, connection: str, calls: Mapping[str, str] = _NAMED_FIRST
+) -> list[Reference]:
     """A notebook's or a script's references by its kind (an app's need its cells: canvas_references)."""
     if notebooks.kind_of(path) == "notebook":
-        return notebook_references(path, title, text, connection)
+        return notebook_references(path, title, text, connection, calls)
     if notebooks.kind_of(path) == "script":
-        return script_references(path, title, text, connection)
+        return script_references(path, title, text, connection, calls)
     return []
 
 

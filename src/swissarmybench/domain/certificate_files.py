@@ -21,7 +21,8 @@ from __future__ import annotations
 import ast
 import json
 import re
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, TypeGuard
 
 # A connection's own top-level settings by the name its code gives them (the lake and SharePoint kinds,
 # domain/lakes.py; Dataverse's and Power BI's tenant and client ids too): their plain names. Each may come
@@ -49,6 +50,20 @@ TOP_LEVEL: dict[str, str] = {
 ENV_MAPPABLE = frozenset(
     {"certificate file", "keystore", "client certificate file", "client key file"} | set(TOP_LEVEL.values())
 )
+
+
+def mappable(setting: str | None) -> TypeGuard[str]:
+    """Whether a setting (its plain name) may come from an environment variable, its value this
+    computer's default: a certificate or keystore file, and every setting of TOP_LEVEL. The one rule the
+    settings' reading, writing and the form's "From an environment variable" share."""
+    return setting in ENV_MAPPABLE
+
+
+def plain_name(identifier: str, keywords: Mapping[str, str]) -> str | None:
+    """A top-level name's setting (tenant_id -> tenant; host -> server by `keywords`), or None."""
+    return TOP_LEVEL.get(identifier) or keywords.get(identifier.casefold())
+
+
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 
 
@@ -87,7 +102,7 @@ def variable_choice(name: Any, setting: str, key: str) -> str | None:
     """The variable sent for a setting: a name, or None (a plain path)."""
     if name is None or (isinstance(name, str) and not name.strip()):
         return None
-    if setting not in ENV_MAPPABLE:
+    if not mappable(setting):
         raise MappingError(
             f"Only a certificate or keystore file comes from an environment variable, not {key}."
         )

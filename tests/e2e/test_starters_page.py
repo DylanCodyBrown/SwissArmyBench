@@ -135,6 +135,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
             "Controllers5",
             "Text and layout9",
             "Components9",
+            "Write60",
         ]
     )
     expect(listed.locator(".starter-item")).to_have_count(0)

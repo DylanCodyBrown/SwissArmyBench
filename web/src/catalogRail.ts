@@ -348,7 +348,7 @@ export function mountRail(host: RailHost): Rail {
           ]);
         },
       },
-      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit" }[language] : "Python"),
+      h("span", { class: `blade-kind ${snippet ? `snippet ${language}` : "other"}` }, icon(snippet ? (LANGUAGE_ICONS[language] ?? "copy") : "bolt"), snippet ? { dax: "DAX", html: "HTML", markdown: "Markdown", streamlit: "Streamlit", python: "Python" }[language] : "Python"),
       h("span", { class: "blade-text" }, h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name)),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );
@@ -1128,7 +1128,7 @@ export function mountRail(host: RailHost): Rail {
 
 /** Each blade kind's icon, each starter family's, each snippet language's (dom.ts ICONS). */
 const BLADE_ICONS: Record<string, string> = { sql: "sql", other: "bolt", vault: "key", secret: "key", analysis: "fit", snippet: "copy" };
-const LANGUAGE_ICONS: Record<string, string> = { dax: "formula", html: "html", markdown: "markdown", streamlit: "page" };
+const LANGUAGE_ICONS: Record<string, string> = { dax: "formula", html: "html", markdown: "markdown", streamlit: "page", python: "code" };
 const FAMILY_ICONS: Record<string, string> = {
   "Power BI": "powerbi",
   Excel: "excel",
@@ -1140,4 +1140,5 @@ const FAMILY_ICONS: Record<string, string> = {
   Controllers: "sliders",
   "Text and layout": "align",
   Components: "group",
+  Write: "export",
 };

@@ -706,6 +706,180 @@ _RUNTIME = '''
         status, got, raw = self._send(method, self._url(path, params, query), headers, body, form, cookies)
         return self._decoded(got, raw)
 
+    def request(
+        self, method: str, path: str, inputs: Optional[Dict[str, Any]] = None, body: Any = None
+    ) -> Any:
+        """One call as a web call blade makes it: `inputs` {"path", "query", "header", "cookie"} by name,
+        a JSON `body`. The answer decoded (JSON when it is); its status, headers and time in self.last."""
+        given = inputs or {}
+        started = time.monotonic()
+        url = self._url(path, given.get("path"), given.get("query"))
+        try:
+            status, got, raw = self._send(
+                method.upper(), url, given.get("header"), body, False, given.get("cookie")
+            )
+        except self.Error as error:
+            took = round((time.monotonic() - started) * 1000)
+            self.last = {"status": error.status, "headers": {}, "ms": took}
+            raise
+        self.last = {"status": status, "headers": got, "ms": round((time.monotonic() - started) * 1000)}
+        return self._decoded(got, raw)
+
+    def pages(
+        self,
+        method: str,
+        path: str,
+        inputs: Optional[Dict[str, Any]] = None,
+        body: Any = None,
+        paging: str = "all",
+        paging_by: Optional[Dict[str, str]] = None,
+    ) -> List[Any]:
+        """Every page of a call's answer (paging "first": the first only): a next link (the answer's
+        own, @odata.nextLink, nextUri, a Link header) or the call's page token, number or offset."""
+        given = inputs or {}
+        query = dict(given.get("query") or {})
+        url: Optional[str] = self._url(path, given.get("path"), query)
+        out: List[Any] = []
+        seen = set()
+        first = 0
+        while url and len(out) < self.max_pages:
+            started = time.monotonic()
+            status, got, raw = self._send(
+                method.upper(), url, given.get("header"), body, False, given.get("cookie")
+            )
+            self.last = {"status": status, "headers": got, "ms": round((time.monotonic() - started) * 1000)}
+            answer = self._decoded(got, raw)
+            out.append(answer)
+            if paging != "all":
+                break
+            listed = self._rows_of(answer, "")
+            mark = json.dumps(answer, default=str, sort_keys=True)[:2000]
+            if mark in seen:
+                break
+            seen.add(mark)
+            first = first or len(listed)
+            follow = answer.get("nextUri") if isinstance(answer, dict) else None
+            if isinstance(follow, str) and follow:
+                url = urllib.parse.urljoin(url, follow)
+                continue
+            url = self._next(url, got, answer, listed, first, path, given.get("path"), query, paging_by or {})
+        return out
+
+    def table(
+        self,
+        method: str,
+        path: str,
+        inputs: Optional[Dict[str, Any]] = None,
+        body: Any = None,
+        conversion: str = "SELECT * FROM response",
+        paging: str = "all",
+        paging_by: Optional[Dict[str, str]] = None,
+        limit: Optional[int] = None,
+        describe: bool = False,
+    ) -> Any:
+        """A call's answer as a table, made by DuckDB: every page read, then `conversion` (DuckDB's own
+        SQL over `response`, one row per page, its JSON in `page`). A DataFrame when pandas is here."""
+        import os as _os
+        import tempfile as _tempfile
+
+        import duckdb
+
+        handle, name = _tempfile.mkstemp(prefix="sab-pages-", suffix=".ndjson")
+        try:
+            with _os.fdopen(handle, "w", encoding="utf-8") as out:
+                for page in self.pages(method, path, inputs, body, paging, paging_by):
+                    out.write(json.dumps({"page": page}, default=str) + "\\n")
+            con = duckdb.connect()
+            quoted = name.replace("'", "''")
+            con.execute(
+                "CREATE VIEW response AS SELECT * FROM read_json_auto('"
+                + quoted
+                + "', format='newline_delimited')"
+            )
+            if describe:  # its columns and DuckDB's types (List the tables)
+                return [(str(r[0]), str(r[1])) for r in con.sql("DESCRIBE " + conversion).fetchall()]
+            found = con.sql(conversion)
+            if limit is not None:
+                found = found.limit(int(limit))
+            try:
+                import pandas  # noqa: F401
+
+                return found.df()
+            except ImportError:
+                return found.arrow()
+        finally:
+            try:
+                _os.remove(name)
+            except OSError:
+                pass
+
+    def write_rows(
+        self,
+        method: str,
+        path: str,
+        table: Any,
+        mapping: Dict[str, Dict[str, Any]],
+        settings: Optional[Dict[str, Any]] = None,
+        dry_run: bool = True,
+    ) -> Any:
+        """Write a table's rows with this call: each request field from a column ({"column": name}) or a
+        constant ({"value": ...}), one call per row or batched (settings {"batch": True, "batch_size"}).
+        dry_run (the default): the first three requests, the rows and the calls, nothing sent. Sent: one
+        answer per call (its rows, status, body, error, time), one at a time, 429s paced by Retry-After."""
+        if hasattr(table, "to_json") and hasattr(table, "columns"):
+            rows = json.loads(table.to_json(orient="records", date_format="iso"))
+        elif hasattr(table, "to_pylist"):
+            rows = table.to_pylist()
+        else:
+            rows = [dict(r) for r in table]
+        said = settings or {}
+
+        def one(row: Dict[str, Any]) -> Tuple[Dict[str, Any], Any]:
+            inputs: Dict[str, Any] = {}
+            body: Dict[str, Any] = {}
+            for field, source in mapping.items():
+                value = row.get(source["column"]) if "column" in source else source.get("value")
+                place, _, rest = field.partition(".")
+                if place == "body":
+                    node = body
+                    parts = rest.split(".")
+                    for part in parts[:-1]:
+                        node = node.setdefault(part, {})
+                    node[parts[-1]] = value
+                else:
+                    inputs.setdefault(place, {})[rest] = value
+            return inputs, (body or None)
+
+        single = [one(r) for r in rows]
+        if said.get("batch"):
+            size = int(said.get("batch_size") or 100)
+            calls = [
+                {"rows": list(range(s, min(s + size, len(single)))), "inputs": single[s][0],
+                 "body": [b for _, b in single[s : s + size]]}
+                for s in range(0, len(single), size)
+            ]
+        else:
+            calls = [{"rows": [n], "inputs": i, "body": b} for n, (i, b) in enumerate(single)]
+        if dry_run:
+            first = [{"inputs": c["inputs"], "body": c["body"]} for c in calls[:3]]
+            return {"rows": len(rows), "calls": len(calls), "first": first}
+        answers = []
+        for call in calls:
+            started = time.monotonic()
+            try:
+                answer, error = self.request(method, path, call["inputs"], call["body"]), ""
+                status = int(getattr(self, "last", {}).get("status") or 0)
+            except self.Error as failure:
+                answer, status, error = None, failure.status, failure.text
+            took = round((time.monotonic() - started) * 1000)
+            said = {"rows": call["rows"], "status": status, "body": answer, "error": error, "ms": took}
+            answers.append(said)
+        return answers
+
+    def rows(self, answer: Any, at: str = "") -> Any:
+        """A call's answer as a table: its rows (at `at`, or wherever a list of them is) as a DataFrame."""
+        return self._frame(self._rows_of(answer, at))
+
     def _auth_post(self, url: str, fields: Dict[str, Any], as_json: bool = False) -> Dict[str, Any]:
         """A sign-in request (not signed itself): its JSON answer."""
         data = json.dumps(fields).encode() if as_json else urllib.parse.urlencode(fields).encode()
@@ -1152,11 +1326,7 @@ def methods(text: str) -> dict[str, str]:
             if (
                 isinstance(item, ast.FunctionDef)
                 and not item.name.startswith("_")
-                and item.name
-                not in (
-                    "tables",
-                    "read",
-                )
+                and item.name not in ("tables", "read", "request", "rows", "pages", "table", "write_rows")
             ):
                 doc = ast.get_docstring(item) or ""
                 where = next((line for line in doc.splitlines() if re.match(r"^[A-Z]+ /", line)), doc[:80])

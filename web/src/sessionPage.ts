@@ -62,6 +62,8 @@ const AREA_NAMES: Record<string, string> = {
   apps: "Apps",
   blades: "Blades",
   connections: "Connections",
+  apis: "APIs",
+  structures: "Structures",
   project: "Project",
 };
 const AREA_ICONS: Record<string, string> = {
@@ -73,6 +75,8 @@ const AREA_ICONS: Record<string, string> = {
   apps: "page",
   blades: "blade",
   connections: "plug",
+  apis: "apis",
+  structures: "structures",
   project: "folder",
 };
 /** How long an action waits for the user to leave a box or a dialog before it is only counted. */

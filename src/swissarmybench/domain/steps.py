@@ -926,6 +926,8 @@ def _describe_step(step: Step) -> str:
     if kind == "categorize":
         return f"Categorize {p.get('column')} into {p.get('as')} ({len(p.get('rules', []))} rules)"
     if kind == "sql":
+        if isinstance(p.get("unnest"), str):
+            return f"Unnest {p['unnest']} (SQL)"
         text = " ".join(str(p.get("sql", "")).split())
         return f"SQL: {text if len(text) <= 120 else text[:117] + '...'}"
     return kind
@@ -947,3 +949,82 @@ def describe_settings(settings: ViewSettings) -> str:
         if value
     ]
     return ", ".join(on) if on else "defaults"
+
+
+# ----- Unnest this column: a LIST or STRUCT column (an API's answer read by DuckDB keeps nested
+# lists and objects as such) opened up by a SQL step the user can read and change. -----
+
+
+def _top_level(text: str) -> list[str]:
+    """`a INTEGER, b STRUCT(c INTEGER, d VARCHAR)` split at its top-level commas."""
+    parts, depth, start, quoted = [], 0, 0, False
+    for i, ch in enumerate(text):
+        if ch == '"':
+            quoted = not quoted
+        elif quoted:
+            continue
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(text[start:i].strip())
+            start = i + 1
+    parts.append(text[start:].strip())
+    return [p for p in parts if p]
+
+
+def struct_fields(type_text: str) -> list[str] | None:
+    """A STRUCT type's field names, in order (DuckDB writes `STRUCT(id INTEGER, "a b" VARCHAR)`), or None
+    when the type is not a STRUCT."""
+    text = type_text.strip()
+    if not text.upper().startswith("STRUCT(") or not text.endswith(")"):
+        return None
+    names = []
+    for part in _top_level(text[len("STRUCT(") : -1]):
+        if part.startswith('"'):
+            end = part.index('"', 1)
+            while end + 1 < len(part) and part[end + 1] == '"':  # "" inside a quoted name
+                end = part.index('"', end + 2)
+            names.append(part[1:end].replace('""', '"'))
+        else:
+            names.append(part.split(None, 1)[0])
+    return names
+
+
+def unnest_kind(type_text: str) -> str | None:
+    """ "list" (a LIST or fixed-size ARRAY: one row per item), "struct" (one column per field), or None."""
+    text = type_text.strip()
+    if text.endswith("]") and "[" in text:
+        return "list"
+    if text.upper().startswith(("LIST(", "LIST<")):
+        return "list"
+    return "struct" if struct_fields(text) is not None else None
+
+
+def unnest_sql(column: str, type_text: str, others: Sequence[str] = ()) -> str:
+    """Unnest this column as a SQL step's text over `grid`. A list: one row per item, a row whose list is
+    empty or blank kept with a blank (DuckDB's unnest alone drops it). A struct: its fields as columns named
+    `<column>.<field>` (never clashing with the grid's own columns). `others` are the view's other
+    columns' names."""
+    kind = unnest_kind(type_text)
+    q = quote(column)
+    if kind == "list":
+        return f"SELECT * REPLACE (unnest(CASE WHEN len({q}) > 0 THEN {q} ELSE [NULL] END) AS {q}) FROM grid"
+    if kind == "struct":
+        taken = {o.casefold() for o in others if o != column}
+        made = []
+        for field_name in struct_fields(type_text) or []:
+            name, n = f"{column}.{field_name}", 2
+            while name.casefold() in taken:
+                name, n = f"{column}.{field_name} ({n})", n + 1
+            taken.add(name.casefold())
+            made.append(f"{q}[{_sql_text(field_name)}] AS {quote(name)}")
+        if not made:
+            raise StepError(None, f"{column} has no fields to unnest.")
+        return f"SELECT * EXCLUDE ({q}), {', '.join(made)} FROM grid"
+    raise StepError(None, f"{column} is {type_text}: only a list or a struct column can be unnested.")
+
+
+def _sql_text(text: str) -> str:
+    return "'" + text.replace("'", "''") + "'"

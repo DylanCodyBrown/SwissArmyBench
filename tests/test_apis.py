@@ -433,9 +433,10 @@ def test_the_exporter_pastes_a_made_file_inline(service: Service, tmp_path: Path
     text = api_clients.write(spec_of(service, {"type": "none"}), apis.names_for("Orders"))
     (tmp_path / "API_Orders.py").write_text(text, encoding="utf-8")
     (tmp_path / "API_Mine.py").write_text("x = 1\n", encoding="utf-8")  # not made by Add API: left alone
-    from swissarmybench.adapters.apis import ApiFiles, SpecSource
+    from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
 
-    apis_service = Apis(None, ApiFiles(), SpecSource(), None, lambda: str(tmp_path))  # type: ignore[arg-type]
+    library = ApiLibrary(tmp_path / "library")
+    apis_service = Apis(None, ApiFiles(), SpecSource(), None, library, None, lambda: "")  # type: ignore[arg-type]
     cells = ["from API_Orders import OrdersApi\nimport API_Mine", "%time x = 1", "import API_Orders"]
     found = apis_service.inline(str(tmp_path), cells)
     assert [f["module"] for f in found] == ["API_Orders"]
@@ -761,9 +762,9 @@ def test_add_api_writes_the_client_and_its_connection_in_one_step(
     choices = client.get("/apis/choices", headers=AGENT).json()
     assert [t["id"] for t in choices["auth_types"]] == list(apis.AUTH_TYPES)
     assert [p["id"] for p in choices["presets"]] == ["azure", "aws", "google"]
-    project = tmp_path / "shop"
-    project.mkdir()
-    body = {"spec_url": service.url + "/openapi.json", "folder": str(project)}
+    # This computer's library, whatever project is open (the owner, 2026-11-17).
+    project = tmp_path / "state" / "library" / "apis" / "Orders"
+    body = {"spec_url": service.url + "/openapi.json"}
 
     # Preview: what it would write, written nowhere.
     seen = client.post("/apis/preview", json=body, headers=AGENT)
@@ -789,40 +790,47 @@ def test_add_api_writes_the_client_and_its_connection_in_one_step(
     text = (project / "API_Orders.py").read_text(encoding="utf-8")
     assert api_clients.is_made(text) and standin.API_KEY not in text
     form = client.get("/connections/Orders", headers=AGENT).json()
-    assert (
-        form["read"] == {"command": "conn.read(table, limit)"}
-        and form["catalog"]["command"] == "conn.tables()"
-    )
+    assert form["read"] is None and form["catalog"] is None  # no tables until a web call is switched on
     assert (
         f'spec_from_file_location("API_Orders", {json.dumps(str(project / "API_Orders.py"))})' in form["code"]
     )
     assert [r["name"] for r in form["reads"]] == ["ORDERS_URL", "ORDERS_API_KEY"]
+    # A web call blade per operation, beside it in the library; not one is a table until switched on.
+    operations = ("list_orders", "create_order", "get_order", "list_clients", "list_regions")
+    assert set(added.json()["web_calls"]) == {f"Orders.{o}" for o in operations}
+    assert (project / "orders_list_orders.blade.py").is_file() and (project / "openapi.json").is_file()
+    listed = client.get("/connections", headers=AUTH).json()["connections"]
+    assert [c["tables_kind"] for c in listed if c["name"] == "Orders"] == ["api"]  # not on the page: an API's
+    none_yet = client.post("/connections/Orders/tables", json={}, headers=AGENT)
+    assert none_yet.status_code == 400 and "no List the tables" in none_yet.text
 
-    # Test, the catalog, a preview and Open as grid: as for any connection from your own Python.
-    tested = client.post("/blades/Orders/test", json={}, headers=AUTH)
-    assert tested.status_code == 200, tested.text
-    assert tested.json()["tables"] == 3 and tested.json()["preview"]["table"] == "orders"
+    # Return as table on list_orders: the one gate to SQL (its records at $.items, every page read).
+    on = client.put(
+        "/apis/Orders/calls/list_orders", json={"as_table": True, "records": "$.items"}, headers=AGENT
+    )
+    assert on.status_code == 200, on.text
+    assert on.json()["sql_name"] == "[Orders].list_orders"
+    form = client.get("/connections/Orders", headers=AGENT).json()
+    assert "api.table(" in form["read"]["command"] and "api = conn" in form["catalog"]["command"]
     tables = client.post("/connections/Orders/tables", json={}, headers=AGENT)
     assert tables.status_code == 200, tables.text
     assert [(t["schema"], t["table"], len(t["columns"])) for t in tables.json()["tables"]] == [
-        ("sales", "orders", 3),
-        ("sales", "clients", 2),
-        ("api", "regions", 1),
+        ("", "list_orders", 3)
     ]
     columns = client.get(
-        "/catalogs/Orders/columns", params={"schema": "sales", "table": "orders"}, headers=AUTH
+        "/catalogs/Orders/columns", params={"schema": "", "table": "list_orders"}, headers=AUTH
     ).json()["columns"]
     assert [(c["column"], c["type"]) for c in columns] == [
-        ("order_id", "integer"),
-        ("amount", "number"),
-        ("status", "string"),
+        ("order_id", "BIGINT"),
+        ("amount", "DOUBLE"),
+        ("status", "VARCHAR"),
     ]
     opened = client.post(
-        "/connections/Orders/open", json={"schema": "sales", "table": "orders"}, headers=AGENT
+        "/connections/Orders/open", json={"schema": "", "table": "list_orders"}, headers=AGENT
     )
     assert opened.status_code == 200, opened.text
     grid = client.get(f"/grids/{opened.json()['grid']}", headers=AUTH).json()
-    assert grid["dataset"] == "orders" and grid["row_count"] == 10  # its Rows to open
+    assert grid["dataset"] == "list_orders" and grid["row_count"] == 10  # its Rows to open
     rows = client.get(
         f"/grids/{opened.json()['grid']}/rows", params={"start": 0, "end": 3}, headers=AUTH
     ).json()
@@ -840,7 +848,8 @@ def test_re_import_shows_the_changes_then_writes_and_keeps_the_mapping(
 ) -> None:
     service.mode = "api_key_header"
     service.key_name = "x-functions-key"
-    body = {"spec": json.dumps(service.openapi()), "base_url": service.url + "/v1", "folder": str(tmp_path)}
+    body = {"spec": json.dumps(service.openapi()), "base_url": service.url + "/v1"}
+    folder = tmp_path / "state" / "library" / "apis" / "Orders"
     mapping = [{"name": "ORDERS_API_KEY", "from": "keyring"}]
     first = client.post(
         "/apis",
@@ -862,14 +871,14 @@ def test_re_import_shows_the_changes_then_writes_and_keeps_the_mapping(
         "base_url": False,
         "any": True,
     }
-    assert "list_regions" in (tmp_path / "API_Orders.py").read_text()  # not written by a preview
+    assert "list_regions" in (folder / "API_Orders.py").read_text()  # not written by a preview
     done = client.post("/apis", json=again, headers=AUTH)
     assert done.status_code == 200, done.text
-    assert "list_regions" not in (tmp_path / "API_Orders.py").read_text()
+    assert "list_regions" not in (folder / "API_Orders.py").read_text()
     form = client.get("/connections/Orders", headers=AUTH).json()
     assert form["variables"] == mapping  # kept: the same connection, changed
-    tables = client.post("/connections/Orders/tables", json={}, headers=AUTH).json()["tables"]
-    assert [t["table"] for t in tables] == ["orders", "clients"]
+    assert client.get("/blades/Orders.list_regions", headers=AUTH).status_code == 404  # its web call went
+    assert client.get("/blades/Orders.list_orders", headers=AUTH).status_code == 200
 
 
 def test_a_file_or_a_name_that_is_not_add_apis_is_never_taken(client: TestClient, tmp_path: Path) -> None:
@@ -878,21 +887,22 @@ def test_a_file_or_a_name_that_is_not_add_apis_is_never_taken(client: TestClient
         "base_url": "https://shop.example.com",
         "endpoints": [{"path": "/products", "table": True}],
     }
-    (tmp_path / "API_Shop.py").write_text("# my own code\n", encoding="utf-8")
-    taken = client.post("/apis", json={"form": form, "folder": str(tmp_path)}, headers=AUTH)
+    folder = tmp_path / "state" / "library" / "apis" / "Shop"
+    folder.mkdir(parents=True)
+    (folder / "API_Shop.py").write_text("# my own code\n", encoding="utf-8")
+    taken = client.post("/apis", json={"form": form}, headers=AUTH)
     assert taken.status_code == 409 and "Add API did not make it" in taken.text
-    assert (tmp_path / "API_Shop.py").read_text() == "# my own code\n"
+    assert (folder / "API_Shop.py").read_text() == "# my own code\n"
     other = {"name": "Shop", "kind": "other", "template": "python", "variable": "conn", "code": "conn = 1"}
     assert client.post("/connections", json=other, headers=AUTH).status_code == 200
-    (tmp_path / "API_Shop.py").unlink()
-    taken = client.post("/apis", json={"form": form, "folder": str(tmp_path)}, headers=AUTH)
+    (folder / "API_Shop.py").unlink()
+    taken = client.post("/apis", json={"form": form}, headers=AUTH)
     assert taken.status_code == 409 and "A connection is named Shop" in taken.text
-    assert not (tmp_path / "API_Shop.py").exists()
+    assert not (folder / "API_Shop.py").exists()
     for bad, status, why in (
         ({"folder": str(tmp_path)}, 400, "one way"),
         ({"form": form, "spec_url": "https://x.example.com/o.json"}, 400, "one way"),
         ({"spec_path": str(tmp_path / "missing.json")}, 404, "is not a file"),
-        ({"form": form, "folder": str(tmp_path / "nowhere")}, 404, "is not there"),
         # YAML: read where PyYAML is (no paths: 400); where it is not, the missing-package answer (422, the
         # "Install PyYAML?" prompt's shape).
         ({"spec": "openapi: 3.0.0\npaths: {}\n"}, 400 if HAS_YAML else 422, "no paths|without PyYAML"),
@@ -901,14 +911,14 @@ def test_a_file_or_a_name_that_is_not_add_apis_is_never_taken(client: TestClient
         assert answer.status_code == status and any(w in answer.text for w in why.split("|")), answer.text
 
 
-def test_with_no_project_the_file_goes_in_the_workbenchs_folder(client: TestClient, tmp_path: Path) -> None:
+def test_the_file_goes_in_this_computers_library(client: TestClient, tmp_path: Path) -> None:
     form = {
         "title": "Shop",
         "base_url": "https://shop.example.com",
         "endpoints": [{"path": "/products", "table": True}],
     }
     plan = client.post("/apis/preview", json={"form": form}, headers=AUTH).json()
-    assert plan["path"] == str((tmp_path / "home" / "SwissArmyBench" / "API_Shop.py").resolve())
+    assert plan["path"] == str(tmp_path / "state" / "library" / "apis" / "Shop" / "API_Shop.py")
 
 
 def test_try_it_reads_an_endpoints_first_rows_before_add_and_writes_nothing(
@@ -1007,24 +1017,36 @@ def test_in_a_notebook_the_connection_is_the_client_and_a_sql_cell_reads_its_tab
 
     service.mode = "bearer"
     monkeypatch.setenv("ORDERS_TOKEN", standin.BEARER)
-    body = {"spec_url": service.url + "/openapi.json", "auth": {"type": "bearer"}, "folder": str(tmp_path)}
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{live}/apis",
-        data=json.dumps(body).encode(),
-        method="POST",
-        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(request, timeout=60) as answer:  # noqa: S310 (loopback)
-        assert answer.status == 200
+    body = {"spec_url": service.url + "/openapi.json", "auth": {"type": "bearer"}}
+
+    def send(method: str, path: str, payload: Any) -> None:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{live}{path}",
+            data=json.dumps(payload).encode(),
+            method=method,
+            headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=60) as answer:  # noqa: S310 (loopback)
+            assert answer.status == 200
+
+    send("POST", "/apis", body)
+    # Return as table on three web calls: they are the API's tables, and nothing else is.
+    send("PUT", "/apis/Orders/calls/list_orders", {"as_table": True, "records": "$.items"})
+    send("PUT", "/apis/Orders/calls/list_clients", {"as_table": True, "records": "$"})
+    send("PUT", "/apis/Orders/calls/list_regions", {"as_table": True, "records": "$"})
     conn = sab.connection("Orders")
     assert type(conn).__name__ == "OrdersApi" and conn.get_order(3)["amount"] == 7.5
-    rows = sab.read("Orders", "orders", limit=4)
+    # A web call blade, run here: through its API blade, its inputs its settings.
+    send("PUT", "/apis/Orders/calls/get_order", {"inputs": {"order_id": 3}})
+    assert sab.blade("Orders.get_order")["amount"] == 7.5
+    rows = sab.read("Orders", "list_orders", limit=4)
     assert list(rows["order_id"]) == [1, 2, 3, 4]
     # A SQL cell on it: DuckDB here, over the tables it names, each read by Read a table.
     counted = sql_cell.sql(
-        "Orders", "SELECT status, count(*) AS n FROM orders GROUP BY status ORDER BY status"
+        "Orders", "SELECT status, count(*) AS n FROM list_orders GROUP BY status ORDER BY status"
     )
     assert counted.to_dict("records") == [{"status": "open", "n": 17}, {"status": "shipped", "n": 8}]
-    joined = sql_cell.sql("Orders", 'SELECT count(*) AS n FROM sales.clients, "regions"')
+    joined = sql_cell.sql("Orders", "SELECT count(*) AS n FROM list_clients, list_regions")
     assert int(joined["n"][0]) == 21
-    assert "orders" in sql_cell.tables(sql_cell.connection("Orders"))
+    assert "list_orders" in sql_cell.tables(sql_cell.connection("Orders"))
+    assert "create_order" not in sql_cell.tables(sql_cell.connection("Orders"))

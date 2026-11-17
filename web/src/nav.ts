@@ -553,7 +553,7 @@ function agentUrl(n: NavNotice): string {
     settings: { open: "settings", at: null, type: null, name: null },
     connections: { open: "connections", at: null, type: null, name: null },
     add_connection: { open: "connections", at: "types", type: null, name: null },
-    add_api: { open: "connections", at: "api", type: null, name: null },
+    add_api: { open: "apis", at: null, type: null, name: null }, // the APIs page (its Add API: apisPage.ts)
   };
   if (n.to && layer[n.to]) return withParams(layer[n.to]!);
   // A connection's detail on the Connections page: where it is used, its configuration, its calls.

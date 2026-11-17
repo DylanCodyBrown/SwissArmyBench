@@ -67,6 +67,17 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
     }
   };
 
+  /** A dict or a list in Structures (the owner, 2026-11-17): sent from the kernel, a tab of that page. */
+  const openInStructures = async (name: string): Promise<void> => {
+    if (!kernel?.id) return;
+    try {
+      await api(`/workbench/kernels/${kernel.id}/structure`, "POST", { name });
+      toast(`${name} is open in Structures.`);
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
+
   const draw = (): void => {
     if (!kernel || !kernel.id) {
       clear(body, h("p", { class: "hint" }, kernel ? "Not started" : "Nothing open"));
@@ -119,7 +130,7 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
                 h("td", {}, h("code", {}, v.name)),
                 h("td", { class: "wb-vars-type", title: v.type }, v.type.split(".").pop() ?? v.type),
                 h("td", { class: "num", title: v.size }, v.size.replace(/^([\d,]+) rows? by ([\d,]+) columns?$/, "$1 × $2")),
-                h("td", { title: v.value }, h("span", { class: "wb-vars-value" }, v.value), v.table ? button(`Open ${v.name} as a grid`, () => void openAsGrid(v.name), { icon: "export", iconOnly: true, class: "ghost", title: "Open as grid" }) : null),
+                h("td", { title: v.value }, h("span", { class: "wb-vars-value" }, v.value), v.table ? button(`Open ${v.name} as a grid`, () => void openAsGrid(v.name), { icon: "export", iconOnly: true, class: "ghost", title: "Open as grid" }) : null, !v.table && /^(dict|list|tuple)$/.test(v.type) ? button(`Open ${v.name} in Structures`, () => void openInStructures(v.name), { icon: "structures", iconOnly: true, class: "ghost", title: "Open in Structures" }) : null),
               ),
             ),
             true,

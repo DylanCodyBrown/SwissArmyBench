@@ -101,9 +101,9 @@ export class PageState {
   }
 
   /** One change the server makes to the steps itself: undo, redo, or a step removed by its id. */
-  async stepOp(body: Record<string, unknown>): Promise<GridInfo> {
+  async stepOp(body: Record<string, unknown>, route = "step-ops"): Promise<GridInfo> {
     const mine = (this.gen += 1);
-    const info = await api<GridInfo>(`${this.base}/step-ops`, "POST", { ...body, gen: mine, client: clientId });
+    const info = await api<GridInfo>(`${this.base}/${route}`, "POST", { ...body, gen: mine, client: clientId });
     if (mine < this.stepsGen) return this.info ?? info; // a newer change already answered
     this.stepsGen = mine;
     this.info = info;
