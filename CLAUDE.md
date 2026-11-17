@@ -71,7 +71,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   (so an MCP tool) in the same change. The only exceptions: the agent cannot answer its own approval
   requests, and no answer the app gives it holds a password's value (`/blades/{name}/python` stays
   refused), and a project's Delete (to the trash) and Show in folder are the user's own (the owner,
-  2026-11-17: "the agent cannot delete"). Code the agent runs in a Workbench kernel can read what that Python can, which the owner
+  2026-11-17: "the agent cannot delete"), and so is a system file dialog (it opens on the user's screen; the
+  agent passes paths to every command directly). Code the agent runs in a Workbench kernel can read what that Python can, which the owner
   accepted; `tests/test_cli.py` NOT_COMMANDS lists the routes without a command and why.
 - **The original plan:** [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md).
   Follow its section 0 working agreements: typed Python, tests first for semantics, ask before
@@ -116,7 +117,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
-  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at).
+  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs.
@@ -366,6 +367,12 @@ src/swissarmybench/
                          why), a table named in DuckDB SQL by its connection ([Finance Captive].Sales: brackets,
                          references in sqlglot's tree, resolved in any case, a shared Power BI name asking for its
                          dataset), the work sent to the source (columns, plain filters, a safe LIMIT), the limit's words
+    file_dialogs.py      the system's own file dialog (the owner, 2026-11-17): a request checked, the tool per system
+                         (Windows: Tk's IFileDialog, else PowerShell's Forms dialogs and IFileOpenDialog for a folder;
+                         macOS: osascript, else Tk; Linux: kdialog on KDE, zenity, kdialog, else Tk; none without
+                         a display or with SWISSARMYBENCH_SYSTEM_DIALOGS=off), each tool's command line (values as
+                         arguments or an environment variable, never in a script's text), its answer read; the
+                         recent folders per kind of pick (dialogs.json); New folder's name
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -421,7 +428,9 @@ src/swissarmybench/
     structures.py        Structures: open (a file, a paste, New, an API's answer, a kernel's value), the text
                          view, steps, Open as grid, Save and Save as (the project's structures/), the project's
                          files and the ones open (project.json), sab.structure's read, references, lineage
-    folders.py           the page's file chooser (a folder's names: real paths)
+    folders.py           the page's own file picker (a folder's names: real paths; its quick places; New folder)
+    file_dialogs.py      the system's own file dialog on the user's click (403 for the agent), the picker's places
+                         and recent folders per kind of pick
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
                          a document moving to another window (handoffs: its state and its kernel)
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
@@ -515,7 +524,8 @@ src/swissarmybench/
     variables.py         the Variables page's files (the library's variables.toml, shareable; local/variables.toml,
                          this computer's), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets
-    folders.py           a folder's contents for the file chooser
+    folders.py           a folder's contents for the page's own picker (hidden ones on request), its places (Home,
+                         Desktop, Documents, Downloads), New folder
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
     intellisense.py      Jedi's Project and Environment per folder and Python, the project's modules read,
                          pyflakes, Ruff in the document's Python (on stdin; never installed by itself), DuckDB's parser
@@ -546,6 +556,8 @@ src/swissarmybench/
                          Install and Remove an extension the same way (launch_change)
     routes_updates.py    the update check, its switch, Update to X, the tray's menu, start at sign-in
     routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)
+    dialog_runner.py     the system's file dialog in a short-lived child process: one at a time, ten minutes at
+                         most, the start folder the nearest that is there; GET /dialogs says whether one opens
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
                          starting it detached; SWISSARMYBENCH_CLAUDE_STANDIN's stand-in for tests
     blade_runner.py      Refresh/Test in a child process; installing packages
@@ -662,7 +674,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
                          its form and the Insert a snippet… picker;
-                         fileChooser.ts picks real paths. missingPackages.ts is the one missing-package
+                         fileChooser.ts picks real paths: the system's own dialog first (GET /dialogs, POST
+                         /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
+                         recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package
                          prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
                          Not now, no nagging this session), used by every place that finds one; The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition: the top row, each group's controls, the

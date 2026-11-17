@@ -63,7 +63,7 @@ def choose(page: Page, folder: Path, file: str | None = None) -> None:
     where.fill(str(folder))
     where.press("Enter")
     if file:
-        chooser.locator(".file-row.file", has_text=file).click()
+        chooser.locator(".file-row.file", has_text=file).dblclick()
     else:
         chooser.get_by_role("button", name="Choose this folder").click()
 

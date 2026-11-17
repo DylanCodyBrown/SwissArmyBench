@@ -230,9 +230,9 @@ def test_new_projects_folder_picker_opens_before_the_projects_folder_exists(
     page.locator("#start-view").get_by_role("button", name="New project").first.click()
     page.get_by_role("button", name="Choose another folder…").click()
     chooser = page.locator("dialog.file-chooser")
-    expect(chooser.locator(".file-row").first).to_be_visible(timeout=10000)
+    expect(chooser.get_by_role("textbox", name="Folder")).not_to_have_value("", timeout=10000)
     expect(chooser.get_by_role("status")).to_contain_text("does not exist yet")
-    expect(chooser.get_by_role("combobox", name="Start from").locator("option")).not_to_have_count(0)
+    expect(chooser.get_by_role("navigation", name="Places").locator(".file-place")).not_to_have_count(0)
     chooser.get_by_role("button", name="Cancel").click()
     page.context.close()
 

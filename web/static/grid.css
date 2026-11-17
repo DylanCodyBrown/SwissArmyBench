@@ -4633,9 +4633,127 @@ dialog.missing-packages {
   letter-spacing: 0.04em;
 }
 
-.file-chooser .file-path {
+/* ----- the page's own file picker (fileChooser.ts): places down the side, the path, the list */
+dialog.file-chooser {
+  width: min(980px, calc(100vw - 32px));
+}
+
+.file-chooser-body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.file-places {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  max-height: min(560px, 62vh);
+  overflow: auto;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+
+.file-place-group {
+  display: grid;
+  gap: 1px;
+}
+
+.file-place-group h3 {
+  margin: 0 0 2px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.file-place {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-place span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-place svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.file-place:hover {
+  background: var(--row-hover);
+}
+
+.file-place[aria-current] {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.file-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.file-bar,
+.file-chooser .file-path,
+.file-tools {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+.file-bar {
+  align-items: flex-start;
+}
+
+.file-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.file-crumb {
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.file-crumb + .file-crumb::before {
+  content: "›";
+  margin-right: 6px;
+  color: var(--muted);
+}
+
+.file-crumb:hover {
+  background: var(--row-hover);
+}
+
+.file-crumb.current {
+  font-weight: 600;
+  cursor: default;
 }
 
 .file-chooser .file-path input {
@@ -4643,31 +4761,77 @@ dialog.missing-packages {
   min-width: 0;
 }
 
+.file-tools input[type="search"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-hidden {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .file-list {
   list-style: none;
-  margin: 8px 0;
-  padding: 0;
-  height: min(420px, 55vh);
+  margin: 0;
+  padding: 2px 0;
+  height: min(380px, 48vh);
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
+  background: var(--surface);
+}
+
+.file-list:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
 }
 
 .file-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 76px;
+  align-items: center;
   gap: 12px;
   padding: 4px 10px;
   cursor: pointer;
+  user-select: none;
 }
 
-.file-row:hover,
-.file-row:focus-visible {
+.file-row:hover {
   background: var(--row-hover);
 }
 
-.file-row.folder .file-name {
-  font-weight: 600;
+.file-row[aria-selected="true"] {
+  background: var(--selected);
+}
+
+.file-list:focus .file-row[aria-selected="true"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.file-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-name svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.file-row.folder .file-name svg {
+  color: var(--accent);
 }
 
 .file-row.muted {
@@ -4675,10 +4839,56 @@ dialog.missing-packages {
   cursor: default;
 }
 
+.file-new input {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-empty {
+  padding: 18px 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
 .file-meta {
   color: var(--muted);
   font-size: 0.85em;
   white-space: nowrap;
+}
+
+.file-size {
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .file-chooser-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .file-places {
+    display: flex;
+    max-height: none;
+    padding: 0 0 6px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .file-place-group {
+    display: flex;
+  }
+
+  .file-place-group h3 {
+    display: none;
+  }
+
+  .file-row {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .file-date {
+    display: none;
+  }
 }
 
 /* ----- Add API (addApi.ts): the source, the sign-in, and what it would write */

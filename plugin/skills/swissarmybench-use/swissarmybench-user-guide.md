@@ -84,6 +84,19 @@ The page has these parts:
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**.
 - **The browser tab** names the place: the table's name, "Visualizations", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
 
+### Choosing a file or folder
+
+Every Open, Save as, Locate and "Change…" opens **your computer's own file dialog** (Windows' Explorer dialog, the Mac's Finder panel, your Linux desktop's dialog), so the paths, favourites and shortcuts you know are there. Cancel it and nothing happens. If it opened behind the browser, look for it on the taskbar; a second click while it is open says "A file dialog is already open".
+
+When the app cannot open one (a server with no desktop, or `SWISSARMYBENCH_SYSTEM_DIALOGS=off`), it shows its own picker instead:
+
+- **Places** down the side: Home, Desktop, Documents, Downloads, your projects folder, your library, the folders you picked from recently for this kind of file, and the drives.
+- **The path** as a breadcrumb (click any part) and as a box you can type or paste into (Enter goes); **Up** goes to the folder above.
+- **Filter** narrows the folder as you type; **Hidden files** shows the hidden ones; **New folder** (when choosing a folder or saving) makes one and opens it.
+- A click selects, a **double-click** (or Enter) opens a folder or picks a file. The arrow keys, Home and End move, Backspace goes up, Escape closes.
+
+An agent never opens a file dialog on your screen: it passes paths to its commands directly.
+
 ### Projects: a folder
 
 A project is a **folder**: its notebooks, scripts, apps and structures are ordinary files you can open in
