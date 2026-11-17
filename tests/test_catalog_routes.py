@@ -229,6 +229,7 @@ def test_inspect_templates_and_install_checks(client: TestClient) -> None:
     templates = client.get("/blades/templates", headers=AUTH).json()["templates"]
     assert len(templates) >= 30 and {t["group"] for t in templates} == {
         "Databases",
+        "Lakes and SharePoint",
         "Files",
         "Vaults",
         "Your own code",  # a connection made of the user's own Python

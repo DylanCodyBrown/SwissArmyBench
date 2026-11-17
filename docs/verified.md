@@ -2298,6 +2298,46 @@ NOT checked:
   Power BI or Dataverse connection's live catalog in the file (the made-up state covers the naming); APIs
   and Structures (their branch); the file's write load during the browser suite beyond its passing.
 
+## Lakes and SharePoint as connections (2026-11-17, branch lakes-sharepoint)
+
+Checked here, against tests/lake_standins.py (one server on 127.0.0.1: Entra's token endpoint and a managed
+identity's, the ADLS Gen2 DFS API over a made-up lake on disk, a OneLake workspace on the same API, Graph
+for a made-up SharePoint site), made-up data only:
+- each kind lists and reads through the contract and by name in DuckDB SQL (tests/test_connection_kinds.py,
+  tests/test_lakes.py): Delta tables read by their log here (a checkpoint, then commits) over HTTPS with
+  DuckDB's httpfs and a header secret; a local Delta Lake by DuckDB's own delta_scan (DuckDB 2.0.0, its
+  delta extension installed); Parquet, CSV and hive-partitioned folders; OneLake's Tables/ and Files/;
+  SharePoint lists (typed columns, lookups and people, paging, $filter on indexed columns, a refused filter
+  applied by DuckDB); a library's file index, a workbook's sheets and named table, a CSV and a Parquet
+  document (each downloaded once, by eTag);
+- a filter on a partition column reads only that partition's files (the stand-in's requests);
+- time travel by version and by day; a version past the last, and a version of a CSV, refused plainly;
+- ROPC: the token endpoint takes grant_type=password; a wrong password is AADSTS50126 in plain words, an MFA
+  account AADSTS50076; the password, the client secret, the token, the account key and the identity header
+  are in no answer and no file of the state folder; a SAS's signature is never shown (sig=****);
+- the account key signs an account SAS here, which the stand-in verifies with the made-up key;
+- every setting mapped to an environment variable, read back into the form, listed by env_settings and on
+  the Variables page;
+- writes: Parquet and CSV files through the DFS API's create, append and flush; the Delta dry runs (counts,
+  vacuum's refusal under 7 days); real Delta writes (merge, append, delete, optimize, vacuum's dry run) with
+  deltalake 1.6.6 on a folder here (SAB_DELTALAKE_PATH: the package is not the app's; the test skips without
+  it); SharePoint list items created (25: two batches of 20 and 5, each first answered 429), updated by
+  id and by a key column, deleted;
+- the browser (Chromium): the Lakes and SharePoint group and its five icons, each lake form's sign-ins, a
+  SharePoint lists connection made through the form (ROPC first, the tenant from SHAREPOINT_TENANT_ID,
+  the password from SHAREPOINT_PASSWORD), Test's first rows, the trees of a data lake (each table's words,
+  a Preview) and a document library (by folder; a sheet opened as a grid).
+
+Not checked (nothing real reached):
+- a real Fabric workspace (OneLake's DFS endpoint, a lakehouse's Delta tables, a warehouse's SQL endpoint
+  through pyodbc and ODBC Driver 18), a real storage account, a real SharePoint tenant or Graph;
+- DuckDB's azure extension (abfss://, the access_token provider) and delta_scan against real Entra tokens:
+  the stand-in moves the storage to http://127.0.0.1, where that extension's delta_scan does not go, so the
+  log-read path is what runs there;
+- the deltalake package against Azure or S3 (only on a folder here), and S3 at all (DuckDB's glob and
+  read_blob with an s3 secret);
+- MSAL's ROPC (the stand-in's sign-in uses the standard library's POST; MSAL would look for Microsoft);
+- pypdf for a PDF's text (a Word document's text was checked).
 ## Writing data: the Write starters (2026-11-17, branch write-blades)
 
 - **Every starter** (tests/test_starters_write.py): the 13 Write functions are each one public function

@@ -286,7 +286,7 @@ def test_a_server_may_come_from_a_variable_but_a_port_may_not() -> None:
     mapped = apply_settings(code, {setting(code, "server").id: {"value": "db", "env": "LAKE_HOST"}})
     assert 'host=os.environ.get("LAKE_HOST", "db")' in mapped
     assert setting(mapped, "server").env == "LAKE_HOST"
-    with pytest.raises(FillError, match="not port"):
+    with pytest.raises(FillError, match="port cannot come from an environment variable"):
         apply_settings(code, {setting(code, "port").id: {"value": 443, "env": "LAKE_PORT"}})
     hand = 'import os\nimport trino\nconn = trino.dbapi.connect(host=os.environ.get("LAKE_HOST", "db"))'
     assert [(s.name, s.env) for s in detect_settings(hand)] == [("server", "LAKE_HOST")]

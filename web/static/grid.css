@@ -4336,10 +4336,16 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
 
 /* A certificate or keystore file's source: its path, or an environment variable (its default the path). */
 .connection-fields .field-source {
+  flex-wrap: wrap; /* a narrow field: the variable under the choice, never over the next field */
   margin-top: 4px;
 }
 
+.connection-fields .field-source select {
+  flex: none;
+}
+
 .connection-fields .field-source input.mono {
+  flex: 1;
   min-width: 24ch;
 }
 
@@ -11151,9 +11157,15 @@ g.follow-pulse > path:first-of-type {
   white-space: nowrap;
 }
 
-.conn-tree-group-name .count {
+.conn-tree-group-name .count,
+.conn-tree-title {
   color: var(--muted);
   font-size: 12px;
+}
+
+.conn-tree-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .conn-tree-group-name .icon-svg,

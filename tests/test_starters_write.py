@@ -107,10 +107,10 @@ def connection(monkeypatch: pytest.MonkeyPatch) -> Callable[[Callable[[], Any]],
 # ===== every Write starter =====
 
 
-def test_the_write_family_is_43_calls_and_13_functions() -> None:
+def test_the_write_family_is_54_calls_and_16_functions() -> None:
     calls = [read_blade_file(p) for p in WRITERS]
     functions = [read_blade_file(p) for p in FUNCTIONS]
-    assert len(calls) == 43 and len(functions) == 13
+    assert len(calls) == 54 and len(functions) == 16  # the lakes' and SharePoint's: 11 and 3
     assert {b["family"] for b in calls + functions} == {"Write"}
     assert {b["language"] for b in calls} == {"python"} and {b["kind"] for b in calls} == {"snippet"}
     assert {b["kind"] for b in functions} == {"other"}
@@ -163,7 +163,7 @@ def test_a_write_function_is_one_typed_public_function_and_nothing_runs_on_impor
 def test_a_write_starter_is_the_call_only_and_its_function_lists_its_packages(path: Path) -> None:
     blade = read_blade_file(path)
     names = [p.name for p in placeholders(blade["code"])]
-    assert "table" in names
+    assert "table" in names or "delta" in blade["tags"]  # a Delta delete, optimize, vacuum: no rows
     text = fill(blade["code"], "python", VALUES)
     tree = ast.parse(text)
     fetch, call = tree.body  # `write_x = sab.blade("Write to ...")` (until functions.py), then the call
@@ -222,6 +222,11 @@ def test_every_kind_of_connection_tables_is_writable_read_only_or_decided_by_its
         "api": "read-only",
         "file": "template",
         "folder": "writable",
+        "onelake": "writable",
+        "datalake": "writable",
+        "delta": "writable",
+        "sharepoint": "writable",
+        "sharepoint_docs": "read-only",
     }
     api = write_capability.capability("python", tables_kind="api")
     assert api["words"] == "Read-only: an API writes through the APIs page's Write rows with this call"

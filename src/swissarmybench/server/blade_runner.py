@@ -31,7 +31,7 @@ from typing import Any
 import pyarrow.ipc as ipc
 
 from swissarmybench.adapters.blades import BladeStore
-from swissarmybench.domain import dataverse, python_connections
+from swissarmybench.domain import dataverse, lakes, python_connections
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import TEST_ROWS
 
@@ -68,6 +68,18 @@ def payload(
             # mode "read": which table, and how many rows (None: every row)
             "place": (extra or {}).get("place"),
             "limit": (extra or {}).get("limit"),
+        }
+    elif lakes.is_kind(blade.dialect) and mode == "read":
+        # A lake's or SharePoint's table, by the connection's own read: the columns and filters a DuckDB
+        # query sends it, its rows as Arrow.
+        python = {
+            "read": lakes.READ,
+            "set": {},
+            "keyring": [],
+            "place": (extra or {}).get("place"),
+            "limit": (extra or {}).get("limit"),
+            "columns": (extra or {}).get("columns"),
+            "filters": (extra or {}).get("filters"),
         }
     elif dataverse.is_dataverse(blade.dialect) and mode == "read":
         # A Dataverse environment's table, through its Web API: the connection's own read.
@@ -414,11 +426,17 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
             limit,
             secrets,
             job["label"],
+            python.get("columns") or None,
+            python.get("filters") or None,
+            frame=False,
         )
+        # How the connection read it (the lake kinds say: delta_scan, deltalake, its log, read_parquet).
+        meta = getattr(getattr(result, "schema", None), "metadata", None) or {}
+        how = meta.get(b"sab_read", b"").decode("utf-8", "replace")
         table, total = read_result(result, total, limit)
     finally:
         close_quietly(value)
-    return {"arrow": _arrow_answer(table), "total": total}
+    return {"arrow": _arrow_answer(table), "total": total} | ({"read_with": how} if how else {})
 
 
 def _plain(value: Any) -> Any:

@@ -25,13 +25,59 @@ from __future__ import annotations
 import ast
 import json
 import re
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, TypeGuard
 
-# The settings (their plain names, domain/blades.py KEYWORDS) that may come from a variable.
+# A connection's own top-level settings by the name its code gives them (the lake and SharePoint kinds,
+# domain/lakes.py; Dataverse's and Power BI's tenant and client ids too): their plain names. Each may come
+# from an environment variable (the owner, 2026-11-17: "All should be mapable to env vars").
+TOP_LEVEL: dict[str, str] = {
+    "tenant_id": "tenant_id",  # as Dataverse and Power BI name them (the form: Tenant id, Client id)
+    "client_id": "client_id",
+    "managed_client_id": "managed identity client id",
+    "username": "username",
+    "site_url": "site",
+    "header_row": "header row",
+    "workspace": "workspace",
+    "item": "item",
+    "sql_endpoint": "sql endpoint",
+    "account": "account",
+    "container": "container",
+    "folder_in_container": "folder in container",
+    "root": "root",
+    "depth": "depth",
+    "region": "region",
+    "profile": "profile",
+    "access_key_id": "access key id",
+}
 FILE_SETTINGS = frozenset({"certificate file", "keystore", "client certificate file", "client key file"})
-# Where and who (SQL Server and Azure SQL offer these: domain/sql_server.py ENV_SETTINGS).
-PLACE_SETTINGS = frozenset({"server", "database", "user", "client_id", "tenant_id"})
-ENV_MAPPABLE = FILE_SETTINGS | PLACE_SETTINGS
+# Where and who, by domain/blades.py KEYWORDS (host= is a server): the SQL Server forms offer them
+# (domain/sql_server.py ENV_SETTINGS); a setting here says its source (`env`) only once it is mapped.
+PLACE_SETTINGS = frozenset({"server", "database", "user"})
+# The settings (their plain names, domain/blades.py KEYWORDS and TOP_LEVEL) that may come from a variable.
+ENV_MAPPABLE = FILE_SETTINGS | PLACE_SETTINGS | frozenset(TOP_LEVEL.values())
+
+
+def mappable(setting: str | None) -> TypeGuard[str]:
+    """Whether a setting (its plain name) may come from an environment variable, its value this
+    computer's default: a certificate or keystore file, a server, database or user, and every setting of
+    TOP_LEVEL. The one rule the settings' reading, writing and the form's "From an environment variable"
+    share."""
+    return setting in ENV_MAPPABLE
+
+
+def says_source(setting: str, env: str | None) -> bool:
+    """Whether a setting's answer carries its source (`env`): a mapped one always; an unmapped one when
+    the form offers the choice by itself (a file, a TOP_LEVEL setting), not a server, database or user
+    (only the SQL Server forms offer those, by their env_settings)."""
+    return bool(env) or (mappable(setting) and setting not in PLACE_SETTINGS)
+
+
+def plain_name(identifier: str, keywords: Mapping[str, str]) -> str | None:
+    """A top-level name's setting (tenant_id -> tenant; host -> server by `keywords`), or None."""
+    return TOP_LEVEL.get(identifier) or keywords.get(identifier.casefold())
+
+
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 
 
@@ -70,10 +116,10 @@ def variable_choice(name: Any, setting: str, key: str) -> str | None:
     """The variable sent for a setting: a name, or None (a plain path)."""
     if name is None or (isinstance(name, str) and not name.strip()):
         return None
-    if setting not in ENV_MAPPABLE:
+    if not mappable(setting):
         raise MappingError(
-            "Only a certificate or keystore file, a server, a database, a user, a client id or a tenant "
-            f"comes from an environment variable, not {key}."
+            f"{key} cannot come from an environment variable: a file, a server, a database, a user, an id "
+            "or a place can, a number or an on/off setting cannot."
         )
     if not isinstance(name, str) or not _ENV_NAME.match(name.strip()):
         raise MappingError(

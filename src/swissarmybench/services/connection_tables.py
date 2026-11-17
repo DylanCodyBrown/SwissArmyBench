@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as rules
+from swissarmybench.domain import lakes
 from swissarmybench.domain.blades import BladeError
 from swissarmybench.domain.catalogs import normalize_dialect
 from swissarmybench.domain.connection_swap import Place
@@ -37,6 +38,8 @@ class Places(Protocol):
     async def places(self, name: str) -> list[tuple[str, str, str]] | None: ...
 
     async def shared_tables(self, name: str) -> set[str]: ...
+
+    async def titles(self, name: str) -> dict[tuple[str, str, str], str]: ...
 
     async def columns(
         self, name: str, schema: str, table: str | None, database: str | None
@@ -71,7 +74,7 @@ class Kept:
             "cut": isinstance(self.read.total, int) and self.read.total > self.read.shown,
             "read_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(self.read_at)),
             "cached": cached,
-        }
+        } | ({"read_with": lakes.read_with(self.read.how)} if self.read.how else {})
 
 
 @dataclass
@@ -213,8 +216,9 @@ class ConnectionTables:
             _, kind = self.kind(ref.connection)
             place = rules.resolve(ref.connection, kind, ref.parts, await self.places(ref.connection))
             known = await self._known(ref.connection, place)
-            # Columns and filters go to a SQL source only (DAX, Python, files and the Web API read whole).
-            sql_source = kind in ("database", "dataverse")
+            # Columns and filters go to a SQL source, and to the lake and SharePoint kinds' own reads
+            # (DuckDB's pushdown, Graph's $select and $filter); DAX, Python, files and the Web API read whole.
+            sql_source = kind in ("database", "dataverse") or lakes.is_kind(kind)
             pushed = (
                 rules.pushdown(quoted, names, ref, known, self._dialect(ref.connection))
                 if sql_source
@@ -265,13 +269,20 @@ class ConnectionTables:
             {"state": "loaded"} if found is not None else {"state": "none"}
         )
         shared = await self._catalogs.shared_tables(saved) if found else set()
+        # What the source says of each table (a Delta table's version, size and partitions; a sheet).
+        titles = await self._catalogs.titles(saved) if found else {}
         groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for database, schema, table in found or []:
             place = Place(database, schema, table)
+            words = titles.get((database, schema, table))
             groups.setdefault((database, schema), []).append(
-                place.to_json() | {"sql": rules.copy_name(saved, place, kind, shared)}
+                place.to_json()
+                | {"sql": rules.copy_name(saved, place, kind, shared)}
+                | ({"title": words} if words else {})
             )
-        word = {"powerbi": "dataset"}.get(kind, "schema")
+        word = {"powerbi": "dataset", "sharepoint": "list"}.get(
+            kind, "folder" if kind in rules.PATH_KINDS else "schema"
+        )
         return {
             "connection": saved,
             "kind": kind,
