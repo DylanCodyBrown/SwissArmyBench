@@ -114,7 +114,7 @@ function draw(): void {
   if (!host || !listing) return;
   const read = listing;
   const empty = read.count === 0;
-  const page = h("div", { class: "start-page explorer-page" });
+  const page = h("div", { class: "start-page project-explorer-page" });
   page.append(header(read, empty));
   if (empty) {
     page.append(

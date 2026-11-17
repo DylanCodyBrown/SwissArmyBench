@@ -121,7 +121,9 @@ def test_the_types_are_explained_for_beginners_and_an_extension_brings_its_own()
     base = rules.kinds(extensions.modes(), extensions.STREAMLIT_KIND)
     assert [k["type"] for k in base] == ["bi", "streamlit"]
     assert all(k["title"] and k["for_whom"] and k["explain"] and k["example"] for k in base)
-    assert base[1]["make"] == {"type": "bi", "app": True}
+    # The Streamlit extension's own project type when it is on; else a base project with its app's canvas.
+    own_streamlit = any(m["type"] == "streamlit" for m in extensions.modes())
+    assert base[1]["make"] == ({"type": "streamlit"} if own_streamlit else {"type": "bi", "app": True})
     with_accounting = rules.kinds(
         [*extensions.modes(), {"type": "accounting", "name": "Accounting", "title": "Accounting workbook",
                                "explain": "Made up."}], extensions.STREAMLIT_KIND,
@@ -129,9 +131,8 @@ def test_the_types_are_explained_for_beginners_and_an_extension_brings_its_own()
     assert [k["type"] for k in with_accounting] == ["bi", "streamlit", "accounting"]
     assert with_accounting[2]["make"] == {"type": "accounting"}
     # The Streamlit extension's own mode, once it has one, says it instead of the base's words.
-    own = rules.kinds(
-        [*extensions.modes(), {"type": "streamlit", "title": "Its own"}], extensions.STREAMLIT_KIND
-    )
+    others = [m for m in extensions.modes() if m["type"] != "streamlit"]  # the real one left out here
+    own = rules.kinds([*others, {"type": "streamlit", "title": "Its own"}], extensions.STREAMLIT_KIND)
     assert [k["title"] for k in own if k["type"] == "streamlit"] == ["Its own"]
 
 

@@ -13269,7 +13269,7 @@ dialog.find-data .dialog-body {
 
 /* ===== the Project Explorer (projectExplorer.ts) and the project types (projectTypes.ts) ===== */
 
-.start-page.explorer-page {
+.start-page.project-explorer-page {
   max-width: 1180px;
   gap: 22px;
 }
@@ -13716,9 +13716,10 @@ dialog.new-project .dialog-body {
 }
 
 @media (max-width: 640px) {
-  .start-page.explorer-page {
+  .start-page.project-explorer-page {
     padding: 20px 16px 32px;
   }
+}
 
 /* ===== A cell another kernel runs (routedCells.ts): a table result, a TSX cell's drawing ===== */
 
