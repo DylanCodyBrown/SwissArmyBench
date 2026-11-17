@@ -12,7 +12,7 @@
  *   ?blade=refresh_sales  ·  ?blade=          a blade's screen, New blade's templates
  */
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
-import { connect, onNotice, requireSession } from "./api";
+import { api, connect, onNotice, requireSession } from "./api";
 import { watchConnectionColours } from "./connectionColours";
 import { type BladeKind, editBlade } from "./bladeEditor";
 import { mountRail, watchTheme } from "./catalogRail";
@@ -85,15 +85,21 @@ const rail = mountRail({
   showTable: () => undefined,
 });
 
+/** A starter (listed apart from the user's blades) or a blade made since the list was read. */
+async function isBlade(name: string): Promise<boolean> {
+  return api(`/blades/${encodeURIComponent(name)}`).then(() => true, () => false);
+}
+
 /** Show what an address names (a reload, Back, Forward, the agent). */
 async function showAddress(url: URL): Promise<void> {
   const blade = url.searchParams.get("blade");
   if (blade !== null) {
-    if (blade && !rail.blades().some((b) => b.name === blade)) {
+    if (blade === editorOf) return; // shown already (its own move into the address)
+    if (blade && !rail.blades().some((b) => b.name === blade) && !(await isBlade(blade))) {
       showMissing(`There is no blade called ${blade}.`);
       return;
     }
-    if (blade !== editorOf || !detail.querySelector(".blade-screen, .template-groups")) openEditor(blade || null, "replace");
+    openEditor(blade || null, "replace");
     return;
   }
   editorOf = null;
@@ -107,7 +113,7 @@ document.querySelector(".cat-top")?.prepend(appMark());
 setTitle(PAGE);
 void rail
   .loadBlades()
-  .then(() => showAddress(opened))
+  .then(() => (editorOf === null ? showAddress(opened) : undefined)) // a click while it loaded wins
   .then(() => startNav(opened));
 connect((live) => {
   if (liveNote) liveNote.textContent = live ? "" : "Not connected to the server";

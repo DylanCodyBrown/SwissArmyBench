@@ -66,6 +66,8 @@ class Blades(Protocol):
 
     def file_of(self, name: str) -> Any: ...
 
+    def in_library(self, blade: Blade) -> bool: ...
+
     def remove(self, name: str) -> None: ...
 
     def pinned(self) -> set[str]: ...
@@ -300,6 +302,10 @@ class BladeService:
         details = blade.to_json() | self.summary(blade)
         # The file it is edited in (Show its file): a blade's code is never changed by the app.
         details["file"] = str(self._blades.file_of(blade.name) or "")
+        # Its Remove: a file the app keeps (the library's); a blade folder's file is the user's to delete.
+        details["removable"] = blade.source == "saved" or (
+            blade.source == "folder" and self._blades.in_library(blade)
+        )
         if blade.code and blade.kind == "snippet":
             details["placeholders"] = [p.to_json() for p in snippets.placeholders(blade.code)]
         elif blade.code:

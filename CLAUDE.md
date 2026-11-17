@@ -46,6 +46,15 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
   Extensions page lists the extensions (Streamlit preinstalled; Accounting and Power Apps available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
+- **A blade's code is edited in its file, never in the app (the owner, 2026-11-17: "the code box is read
+  only though blades can only be edited in the folder not from the app").** The blade screen shows the code
+  read-only (Monaco, as tall as the code) with **Show its file** (the user's click; 403 for the agent); New
+  blade makes a `.blade.py` in the library's `blades/` from a template; the app writes only a file's header
+  (name, description, tags, `table`), the code's bytes untouched (PUT /blades/{name}, `blades_update`). A
+  table blade has a table name of its own ("Shouldnt the table it makes be namable by me with a realtime
+  check for available names"), checked live (GET /blades/table-name). The catalog checkbox and the blades
+  page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its just
+  tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
@@ -196,6 +205,9 @@ src/swissarmybench/
     powerbi.py           a Power BI workspace: a dataset's name with its connection (Finance/Sales model),
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
+    blade_tables.py      a table blade's own table name (names_table; the live check's answers: available, a table,
+                         a connection, another blade's table, not a valid name), a connection's listing query from
+                         its starter (listing_for), New blade's choices
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
@@ -635,8 +647,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          markdown export; cellMenu.ts the right-click menus on cells and headers;
                          tour.ts is the first-time tour (on the Start page only: a
                          spotlight card per word, then a matching game);
-                         catalogRail.ts (blades + catalog navigation) is the blades page's
-                         (catalogPage.ts, static/catalog.html); bladeEditor.ts is the save screen;
+                         catalogRail.ts (the blades list; the catalog tree only where a page gives it a
+                         place: the Workbench's "+ Table") is the blades page's (catalogPage.ts,
+                         static/catalog.html: no catalog panel since 2026-11-17); bladeEditor.ts is the
+                         blade screen (the code read-only, Show its file, Its table is called, a
+                         connection's How its tables are listed) and New blade;
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
                          connectionsWindow.ts's forms (a form per type) open in the Connections page;
                          addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the

@@ -73,6 +73,8 @@ interface BladeDetail extends BladeSummary {
   placeholders?: { name: string; label: string; kind: string }[];
   /** The file it is kept in (edited there: Show its file). */
   file?: string;
+  /** Kept by the app (the library's): Remove deletes its file. A blade folder's file is the user's. */
+  removable?: boolean;
 }
 
 interface Package {
@@ -533,6 +535,8 @@ export async function editBlade(
         codeViewer(detail.catalog.command, detail.catalog.language, "How its tables are listed"),
       )
     : null;
+  // Opened: the viewer measures itself again (it was folded away when drawn).
+  listing?.addEventListener("toggle", () => window.dispatchEvent(new Event("resize")));
 
   function body(): Record<string, unknown> {
     const out: Record<string, unknown> = { name: nameInput.value.trim(), description: descriptionInput.value.trim(), tags: splitTags(tagsInput.value) };
@@ -596,7 +600,7 @@ export async function editBlade(
         runnable ? button("Test", () => void runBlade<{ type?: string; variables?: string[] }>(savedName, "test").then((a) => a && say(a.variables ? `It works: it sets ${a.variables.join(", ")}.` : a.type ? `It works: it makes a ${a.type}.` : "It works.", "ok")), { icon: "check" }) : null,
         button("Cancel", onClosed, { class: "ghost" }),
         button("Export", () => void exportBlades(savedName), { icon: "export", class: "ghost", title: "Download as .blade.py" }),
-        readOnly ? null : button("Remove", () => void remove(), { class: "danger", icon: "trash" }),
+        detail.removable ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,
       ),
       status,
     ),
