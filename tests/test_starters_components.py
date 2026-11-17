@@ -30,10 +30,11 @@ import pytest
 
 from swissarmybench.domain.blades import read_blade
 from swissarmybench.domain.snippets import fill
-from swissarmybench.domain.streamlit_cells import facts
+from swissarmybench_streamlit.domain.streamlit_cells import facts
 from tests.test_starters_streamlit import PYTHON, TABLE
 
-FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
+FOLDER = Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src" / "swissarmybench_streamlit"
+FOLDER = FOLDER / "starters"  # the Streamlit extension's starters
 FILES = sorted(FOLDER.glob("components_*.blade.py"))
 PIECES = [read_blade(p.read_text(encoding="utf-8")) for p in FILES]
 VALUES = {

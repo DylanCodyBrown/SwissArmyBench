@@ -11,9 +11,9 @@ import json
 import subprocess
 from pathlib import Path
 
-from swissarmybench.domain import controllers as ctl
-from swissarmybench.domain import streamlit_cells as rules
-from swissarmybench.domain.streamlit_cells import Block, Fallback, PieceCode
+from swissarmybench_streamlit.domain import controllers as ctl
+from swissarmybench_streamlit.domain import streamlit_cells as rules
+from swissarmybench_streamlit.domain.streamlit_cells import Block, Fallback, PieceCode
 from tests.test_starters_streamlit import PYTHON, needs_streamlit
 
 FILTER = """# Region filter

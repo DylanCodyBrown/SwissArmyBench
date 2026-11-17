@@ -793,9 +793,12 @@ The agent has `app_update_check` and `app_update` (which waits for your Allow).
 ## Extensions
 
 Swiss Army Bench is the base; **extensions** plug into it (Plans/editions.plan.md). The rail's
-**Extensions** page lists them: **Streamlit** is preinstalled (it comes with every install); **Accounting**
-(an Excel workbook from a Python automation, statements and invoices) and **Power Apps** (code apps) are
-available. An available extension installs with one click: the app stops, the update's
+**Extensions** page lists them: **Streamlit** is preinstalled (its own package, `swissarmybench-streamlit`:
+the installers put it in beside the base, every update keeps it, and an update from a version that had it
+built in installs it once at its first start); **Accounting** (an Excel workbook from a Python automation,
+statements and invoices) and **Power Apps** (code apps) are available. Streamlit can be removed like any
+other (Remove asks first, and it is never brought back by itself); without it the app is the BI base: no Apps
+area and no Streamlit canvas, and its agent tools say which extension they need. An available extension installs with one click: the app stops, the update's
 helper runs `uv tool install --force "swissarmybench[server]==<this version>" --with <the extension's
 wheel>` (the wheel from the GitHub release of this exact version), and the app starts again; Remove is the
 same without it. An update of the base keeps each installed extension (`--with` its wheel at the new

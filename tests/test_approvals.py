@@ -220,7 +220,7 @@ def test_a_cell_that_fails_in_the_headless_run_is_an_exit_code_too(tmp_path: Pat
 
 
 def test_a_projects_zip_keeps_an_approvals_marks_but_none_of_its_rows() -> None:
-    from swissarmybench.services.streamlit import StreamlitApps
+    from swissarmybench_streamlit.services.streamlit import StreamlitApps
 
     approved = rules.approval(rules.snapshot([shown(ORDERS), printed("made-up East total\n")]))
     cells = [notebooks.Cell("code", "orders", number=1, outputs=[shown(ORDERS)], approved=approved)]

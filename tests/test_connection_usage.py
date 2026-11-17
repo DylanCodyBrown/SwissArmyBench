@@ -10,7 +10,7 @@ import pytest
 
 from swissarmybench.domain import connection_usage as usage
 from swissarmybench.domain import notebooks
-from swissarmybench.domain import streamlit_cells as canvases
+from swissarmybench_streamlit.domain import streamlit_cells as canvases
 
 
 def _plain(cells: list[notebooks.Cell]) -> str:
@@ -110,7 +110,7 @@ def test_a_canvas_block_is_a_use_when_its_cell_is_one() -> None:
     ]
     blocks = [canvases.Block("b1", "orchard.ipynb", 1), canvases.Block("b2", "orchard.ipynb", 2, column=7)]
     app = canvases.write_app([canvases.Page("p1", "Overview", blocks)])
-    found = usage.canvas_references("/work/sales.stapp.json", "sales", app, using)
+    found = canvases.canvas_references("/work/sales.stapp.json", "sales", app, using)
     assert [(r.kind, r.page, r.block, r.cell, r.line) for r in found] == [
         ("app", "Overview", "b1", 1, "orchard.ipynb @cell1")
     ]

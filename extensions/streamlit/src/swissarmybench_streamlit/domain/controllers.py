@@ -45,9 +45,9 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
-from swissarmybench.domain import streamlit_cells as cells
-from swissarmybench.domain import thin_cells
-from swissarmybench.domain.streamlit_cells import Fallback, Key
+from swissarmybench_streamlit.domain import streamlit_cells as cells
+from swissarmybench_streamlit.domain import thin_cells
+from swissarmybench_streamlit.domain.streamlit_cells import Fallback, Key
 
 TYPES: tuple[str, ...] = ("str", "int", "float", "bool", "date", "list", "table", "any")
 ROLES: tuple[str, ...] = ("filter", "action", "view")

@@ -37,7 +37,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, error_response, json_response, read_json
-from swissarmybench.services.streamlit import StreamlitApps
+from swissarmybench_streamlit.services.streamlit import StreamlitApps
 
 
 def routes(apps: StreamlitApps) -> list[BaseRoute]:

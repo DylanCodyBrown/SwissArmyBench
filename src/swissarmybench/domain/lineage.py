@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import html_cells, table_cells
-from swissarmybench.domain.streamlit_cells import WIDGETS, facts, piece_name
+from swissarmybench.domain.cell_facts import WIDGETS, facts, piece_name
 
 MAX_NODES: int = 120
 MAX_LABEL: int = 60

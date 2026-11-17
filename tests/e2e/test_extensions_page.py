@@ -1,6 +1,6 @@
 # ruff: noqa: F811
 """The rail's Extensions icon and its page (the owner, 2026-11-17): above Settings at the bottom; a card per
-extension (Streamlit Preinstalled, Accounting and Power Apps Coming, never clickable); Install's progress with
+extension (Streamlit Preinstalled with Remove, Accounting and Power Apps Available); Install's progress with
 the install itself stood in (a made-up "Ledger" extension, the server's answers routed in the browser); the
 version mark's tooltip naming the installed extensions. Made-up data only."""
 
@@ -64,7 +64,8 @@ def test_the_rail_has_extensions_above_settings_and_its_page_shows_each_kind(
     streamlit = page.locator(".extension-card[data-extension='streamlit']")
     expect(streamlit.locator(".extension-status")).to_have_text("Preinstalled")
     expect(streamlit.locator(".extension-version")).to_have_text(__version__)
-    expect(streamlit.locator("button")).to_have_count(0)
+    # Its own package, installed with every install: Remove is there (it asks first).
+    expect(streamlit.get_by_role("button", name="Remove")).to_be_visible()
     for available in ("accounting", "powerapps"):
         card = page.locator(f".extension-card[data-extension='{available}']")
         expect(card.locator(".extension-status")).to_have_text("Available")

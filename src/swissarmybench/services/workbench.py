@@ -10,17 +10,16 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import (
-    app_settings,
     approvals,
     dictionary,
     errors,
     html_cells,
     notebook_flow,
-    streamlit_cells,
 )
 from swissarmybench.domain import environments as envs
 from swissarmybench.domain import notebooks as rules
 from swissarmybench.domain.datasets import validate_name
+from swissarmybench.services.hooks import AppDocument, Hooks
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 MAX_KERNELS: int = 12
@@ -117,6 +116,7 @@ class Workbench:
         secret_names: Callable[[], list[str]] = list,
         vault_environment: Callable[[], Awaitable[tuple[dict[str, str], list[str]]]] | None = None,
         kernel_stopped: Callable[[str], Awaitable[None]] | None = None,
+        hooks: Hooks | None = None,
     ) -> None:
         self.ws = ws
         self._documents = documents
@@ -134,6 +134,8 @@ class Workbench:
         self._vault_names: set[str] = set()
         # Told when a kernel stops: the document's Streamlit process stops with it.
         self._kernel_stopped = kernel_stopped
+        # An extension's part (services/hooks.py): which cells are shown live, an app's own file.
+        self._hooks = hooks or Hooks()
         self._running: dict[str, Kernel] = {}
         # The Workbench window that started each kernel, and since when that window has been gone.
         self._owner: dict[str, str] = {}
@@ -155,6 +157,15 @@ class Workbench:
 
     # ===== files =====
 
+    def _app_document(self) -> AppDocument:
+        """An app's own file is the extension's that makes apps (none on: said plainly)."""
+        if self._hooks.app_document is None:
+            raise NotFound(
+                "A Streamlit app's file opens with the Streamlit extension: it is not installed here "
+                "(Extensions: Install)."
+            )
+        return self._hooks.app_document
+
     def home(self) -> dict[str, Any]:
         """Where Save as starts, and the recent files."""
         return {"folder": str(self._documents.default_folder), "recent": self._documents.recent()}
@@ -163,6 +174,8 @@ class Workbench:
         if not isinstance(path, str) or not path.strip():
             raise ValueError('Send {"path": "C:\\\\...\\\\analysis.ipynb"}.')
         kind = rules.kind_of(path)
+        if kind == "app":
+            self._app_document()  # said before the file is read or remembered
         try:
             text, full, modified = self._documents.read(path)
         except FileNotFoundError as error:
@@ -174,9 +187,7 @@ class Workbench:
         if kind == "notebook":
             read, next_cell = rules.read_document(text)
             # A Python cell that calls Streamlit is shown live in its cell (and never runs in the kernel).
-            live = set(
-                streamlit_cells.live_cells([(c.number or 0, c.source) for c in read if c.kind == "code"])
-            )
+            live = set(self._hooks.live_cells([(c.number or 0, c.source) for c in read if c.kind == "code"]))
             cells = [
                 c.to_json() | ({"live": True} if c.kind == "code" and c.number in live else {}) for c in read
             ]
@@ -191,18 +202,9 @@ class Workbench:
                 "next_cell": next_cell,  # the number the next new cell gets (never one used before)
             }
         if kind == "app":
-            # A Streamlit app's canvas: its pages and blocks, each block's link as a whole path.
-            try:
-                pages = streamlit_cells.read_app(text, lambda link: streamlit_cells.resolve_link(full, link))
-            except streamlit_cells.StreamlitError as error:
-                raise ValueError(str(error)) from None
-            return {
-                "path": full,
-                "kind": kind,
-                "modified": modified,
-                "pages": streamlit_cells.pages_json(pages),
-                "settings": app_settings.read_app_settings(text).to_json(),
-            }
+            # An app's canvas (the Streamlit extension's): its pages and blocks, as the extension reads them.
+            opened: dict[str, Any] = self._app_document().open(text, full)
+            return {"path": full, "kind": kind, "modified": modified} | opened
         return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python}
 
     def save(self, body: Any) -> dict[str, Any]:
@@ -220,15 +222,7 @@ class Workbench:
                 dictionary=dictionary.check(body.get("dictionary")),
             )
         elif kind == "app":
-            # Links are kept relative to the app's own file, so the two can move together.
-            try:
-                pages = streamlit_cells.read_pages(body.get("pages"))
-            except streamlit_cells.StreamlitError as error:
-                raise ValueError(str(error)) from None
-            settings = app_settings.file_line(app_settings.read_settings(body.get("settings")))
-            text = streamlit_cells.write_app(
-                pages, lambda d: streamlit_cells.relative_link(path, d), settings
-            )
+            text = self._app_document().write(body, path)
         else:
             script = body.get("text")
             if not isinstance(script, str) or len(script) > rules.MAX_CELL_CHARS * 5:

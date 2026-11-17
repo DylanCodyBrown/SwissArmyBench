@@ -13,9 +13,9 @@ import pytest
 
 from swissarmybench.client import table_cells as kernel_side
 from swissarmybench.domain import notebooks, table_cells
-from swissarmybench.domain import streamlit_cells as rules
-from swissarmybench.domain.streamlit_cells import Block, Page, PieceCode
 from swissarmybench.domain.streamlit_use import other_st, uses_streamlit, usual_name
+from swissarmybench_streamlit.domain import streamlit_cells as rules
+from swissarmybench_streamlit.domain.streamlit_cells import Block, Page, PieceCode
 
 FILTER = '# Region filter\nregion = st.selectbox("Region", sorted(orders["region"].unique()))'
 TOTAL = '# Total\nst.metric("Total", int(orders[orders["region"] == region]["amount"].sum()))'

@@ -22,8 +22,8 @@ from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
 from swissarmybench.domain import notebooks
-from swissarmybench.domain import streamlit_cells as canvas_rules
 from swissarmybench.renamed import env
+from swissarmybench_streamlit.domain import streamlit_cells as canvas_rules
 from tests.e2e.test_table_cells_page import close_tables, kernel_of, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit

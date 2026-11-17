@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from swissarmybench.domain import dictionary, notebooks, streamlit_cells
+from swissarmybench.domain import dictionary, notebooks
 from swissarmybench.domain import projects as rules
 from swissarmybench.domain.projects import DataCell, ProjectError
 from swissarmybench.services.agent import Approvals
@@ -61,16 +61,20 @@ class Projects:
         remember: Callable[[str], None],
         approvals: Approvals,
         scaffold: Callable[[str], Scaffold | None] = lambda _type: None,
+        project_app: Callable[[str], dict[str, Any]] = lambda _name: {},
     ) -> None:
         self.ws = ws
         self._files = files
         self._approvals = approvals  # the user's Allow for the agent's data.ipynb with rows in it
         # The open tables (or the ones named) as a notebook's Tables group, and its next cell number.
         self._table_cells = table_cells
-        self._export_data = export_data  # data.py from a folder's data.ipynb (services/streamlit.py)
+        self._export_data = export_data  # data.py from a folder's data.ipynb (services/data_export.py)
         self._remember = remember  # a file among the Workbench's recent ones
         # A project type's own files (an extension's: Plans/editions.plan.md), None for a type not on here.
         self._scaffold = scaffold
+        # A base project's app: {"files": {relative path: text}, "requirements": [...]} from the extension
+        # that makes apps (services/hooks.py), {} with none on.
+        self._project_app = project_app
         self.opened: str | None = None  # the folder project last made or opened (its type sets the mode)
 
     def _folder(self, body: Any) -> str:
@@ -86,7 +90,7 @@ class Projects:
         whole = self._files.folder_of(self._files.path(folder, rules.DATA_NOTEBOOK))
         return {
             "folder": whole,
-            "name": streamlit_cells.app_title(whole),
+            "name": rules.folder_title(whole),
             "data": self._files.path(folder, rules.DATA_NOTEBOOK) if rules.DATA_NOTEBOOK in names else None,
             "files": [self._files.path(folder, name) for name in rules.project_files(names)],
         }
@@ -163,9 +167,9 @@ class Projects:
                 self._files.write(folder, rules.TYPE_FILE, rules.type_file(kind))
             for relative, text in (own.get("files") or {}).items():
                 self._files.write(folder, relative, text)
-            if with_app:
-                app = f"{streamlit_cells.slug(name)}{streamlit_cells.APP_SUFFIX}"
-                self._files.write(folder, app, streamlit_cells.write_app([]))
+            made_app = self._project_app(name) if with_app else {}
+            for relative, text in (made_app.get("files") or {}).items():
+                self._files.write(folder, relative, text)
             given = exported["names"]
             first = f"from data import {', '.join(given)}" if given else "import data"
             for stem in stems:
@@ -173,7 +177,7 @@ class Projects:
                     folder, f"{stem}.ipynb", notebooks.write_notebook([notebooks.Cell("code", first)])
                 )
             needed = (
-                (["streamlit>=1.36"] if with_app else [])
+                list(made_app.get("requirements") or [])
                 + list(own.get("requirements") or [])
                 + exported["requirements"]
             )

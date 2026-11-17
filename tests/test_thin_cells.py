@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import ast
 
-from swissarmybench.domain.thin_cells import model_work
+from swissarmybench_streamlit.domain.thin_cells import model_work
 
 VIEW = """# uses orders @cell2
 # Sales by product

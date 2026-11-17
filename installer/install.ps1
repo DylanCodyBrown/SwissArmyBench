@@ -29,6 +29,8 @@ function ListTools {
 $Version = "__VERSION__"
 $Repo = "DylanCodyBrown/SwissArmyBench"
 $WheelName = "swissarmybench-$Version-py3-none-any.whl"
+# The Streamlit extension, preinstalled: its own wheel, on the same version.
+$StreamlitWheelName = "swissarmybench_streamlit-$Version-py3-none-any.whl"
 
 # throw, not exit: run as `irm ... | iex`, exit would close the person's PowerShell window.
 function Fail([string]$Message) {
@@ -65,6 +67,24 @@ if ($Wheel) {
     }
 }
 
+# 2b. The Streamlit extension (preinstalled): beside the wheel given, else the release's. Without it the
+#     app is the base alone (the Extensions page installs it later).
+$StreamlitPath = $null
+if ($Wheel) {
+    $Beside = Join-Path (Split-Path -Parent $WheelPath) $StreamlitWheelName
+    if (Test-Path $Beside) { $StreamlitPath = $Beside }
+    else { Write-Host "No $StreamlitWheelName beside the wheel: installing without the Streamlit extension (the Extensions page adds it)." }
+} else {
+    $StreamlitPath = Join-Path $Temp $StreamlitWheelName
+    $StreamlitUrl = "https://github.com/$Repo/releases/download/v$Version/$StreamlitWheelName"
+    Write-Host "Downloading $StreamlitUrl ..."
+    try { Invoke-WebRequest -Uri $StreamlitUrl -OutFile $StreamlitPath -UseBasicParsing }
+    catch {
+        $StreamlitPath = $null
+        Write-Host "Could not download the Streamlit extension: installing without it (the Extensions page adds it)."
+    }
+}
+
 # 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes (this one keeps the old commands working).
 if ((ListTools) -match '^swissarmygrid ') {
     Write-Host "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it; its old commands still work)..."
@@ -97,7 +117,8 @@ StopRunningCopies
 Write-Host "Installing the Swiss Army Bench server $Version..."
 $installed = $false
 foreach ($try in 1..3) {
-    uv tool install --force --python 3.12 "$WheelPath[server]"
+    if ($StreamlitPath) { uv tool install --force --python 3.12 "$WheelPath[server]" --with "$StreamlitPath" }
+    else { uv tool install --force --python 3.12 "$WheelPath[server]" }
     if ($LASTEXITCODE -eq 0) { $installed = $true; break }
     # Files still held (an editor's agent tools restarting, a virus scan): stop them again and retry.
     Start-Sleep -Seconds 3

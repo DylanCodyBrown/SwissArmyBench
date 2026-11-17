@@ -18,10 +18,11 @@ import pytest
 
 from swissarmybench.domain.blades import read_blade
 from swissarmybench.domain.snippets import fill
-from swissarmybench.domain.streamlit_cells import Facts, facts, run_order
 from swissarmybench.renamed import env
+from swissarmybench_streamlit.domain.streamlit_cells import Facts, facts, run_order
 
-FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
+FOLDER = Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src" / "swissarmybench_streamlit"
+FOLDER = FOLDER / "starters"  # the Streamlit extension's starters
 PIECES = [read_blade(p.read_text(encoding="utf-8")) for p in sorted(FOLDER.glob("streamlit_*.blade.py"))]
 # The made-up table's columns, by placeholder.
 VALUES = {

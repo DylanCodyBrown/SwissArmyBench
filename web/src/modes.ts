@@ -31,7 +31,7 @@ export interface ActiveMode {
   needs?: string;
 }
 
-const BASE: Mode = { type: "bi", name: "BI", deliverable: "a notebook", canvases: ["streamlit"], families: [], languages: ["python"], cell_kinds: [], tools: [], export: ["notebook"] };
+const BASE: Mode = { type: "bi", name: "BI", deliverable: "a notebook", canvases: [], families: [], languages: ["python"], cell_kinds: [], tools: [], export: ["notebook"] };
 let active: ActiveMode = { project: null, project_type: "bi", mode: BASE };
 let every: Mode[] = [BASE];
 let asked: Promise<ActiveMode> | null = null;
@@ -63,6 +63,13 @@ export function onMode(listener: (mode: ActiveMode) => void): void {
 
 /** Does the open project's mode offer this canvas kind ("excel", "streamlit")? */
 export const offersCanvas = (kind: string): boolean => active.mode.canvases.includes(kind);
+
+/** Does any mode of this app offer this canvas kind: the extension that brings it is on here (its
+ *  documents open and its pieces show, whatever project is open). */
+export const canvasAnywhere = (kind: string): boolean => every.some((m) => m.canvases.includes(kind));
+
+/** The same, once the modes are known (the rail's areas ask it). */
+export const canvasOn = (kind: string): Promise<boolean> => whenMode().then(() => canvasAnywhere(kind));
 
 /** Is a blade family one the mode shows first? (A mode with no families shows every one.) */
 export const familyShown = (family: string | null | undefined): boolean => !active.mode.families.length || active.mode.families.includes(family ?? "");

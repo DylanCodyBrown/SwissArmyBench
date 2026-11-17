@@ -46,6 +46,7 @@ import { onUnseen } from "./sessionPage";
 import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
 import { STRUCTURES } from "./structuresPage"; // the Structures page's layer, the same
 import { CODE_APP, codeAppOn } from "./codeAppPage"; // the Power Apps extension's page (a plug-in: shown while it is on)
+import { canvasOn } from "./modes";
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, the same
 import { openMenu } from "./workbenchMenu";
@@ -69,7 +70,8 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "codeapp", name: CODE_APP, icon: "codeapp", plugin: codeAppOn },
   { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
-  { area: "apps", name: "Apps", icon: "page", kind: "app" },
+  // The apps' canvas is an extension's (Streamlit, preinstalled): the area shows while a mode offers it.
+  { area: "apps", name: "Apps", icon: "page", kind: "app", plugin: () => canvasOn("streamlit") },
   { area: "visualizations", name: "Visualizations", icon: "sandbox" },
   { area: "session", name: "Session", icon: "session" }, // what the agent made this session (sessionPage.ts)
   // What plugs into the base (extensionsPage.ts), above Settings at the bottom (the owner, 2026-11-17).

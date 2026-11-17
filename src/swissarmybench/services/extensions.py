@@ -1,7 +1,8 @@
 """Extensions: the Extensions page's cards, Install and Remove (Plans/editions.plan.md; 2026-11-17).
 
-The catalog (domain/extensions.py) with each extension's status: preinstalled (Streamlit comes with every
-install), available, installed (found under the entry-point group at start), coming. Install and Remove
+The catalog (domain/extensions.py) with each extension's status: available, installed (found under the
+entry-point group at start; Streamlit, preinstalled, is installed by the installers and kept by each update),
+coming. Install and Remove
 reuse Update to X's machinery (server/updater.py): the helper waits for the app to stop, runs
 `uv tool install --force "swissarmybench[server]==<this version>" --with <each kept extension's wheel>`,
 checks the version and starts the app; on a failure the old set again and a note. The agent's install and
@@ -34,6 +35,14 @@ class ExtensionHelper(Protocol):
     def launch_change(self, wheels: list[str], before: list[str]) -> None: ...
 
 
+class Record(Protocol):
+    """A small JSON file of the state folder's (adapters/state_files.py JsonFile)."""
+
+    def read(self) -> Any: ...
+
+    def write(self, data: Any) -> None: ...
+
+
 class Extensions:
     def __init__(
         self,
@@ -46,6 +55,7 @@ class Extensions:
         live: Notifier,
         stop: Callable[[], None],
         catalog: tuple[Extension, ...] = rules.CATALOG,
+        record: Record | None = None,
     ) -> None:
         self.current = current
         self.catalog = catalog
@@ -56,6 +66,9 @@ class Extensions:
         self._live = live
         self._stop = stop
         self._changing: dict[str, str] | None = None
+        # extensions.json: the preinstalled ones the user removed (never brought back) and the bring-backs
+        # tried, by version (never twice).
+        self._record = record
 
     # ===== reading =====
 
@@ -99,19 +112,17 @@ class Extensions:
     async def install(self, body: Any, who: str) -> dict[str, Any]:
         ext, said = self._entry(body)
         status = said["status"]
-        if status == "preinstalled":
-            raise Conflict(f"{ext.name} comes with every install.")
         if status == "installed":
             raise Conflict(f"{ext.name} is installed already.")
         if status == "coming":
             raise Conflict(f"{ext.name} is coming: it cannot be installed yet.")
         before = self.installed_ids()
-        return await self._change(ext, "install", [*before, ext.id], before, who, body)
+        answer = await self._change(ext, "install", [*before, ext.id], before, who, body)
+        self._note(installed=ext.id)
+        return answer
 
     async def remove(self, body: Any, who: str) -> dict[str, Any]:
         ext, said = self._entry(body)
-        if said["status"] == "preinstalled":
-            raise Conflict(f"{ext.name} comes with every install: it cannot be removed yet.")
         if said["status"] != "installed":
             raise Conflict(f"{ext.name} is not installed.")
         before = self.installed_ids()
@@ -119,7 +130,39 @@ class Extensions:
             raise Conflict(
                 f"{ext.name} was not installed from here: remove its package the way it was installed."
             )
-        return await self._change(ext, "remove", [i for i in before if i != ext.id], before, who, body)
+        answer = await self._change(ext, "remove", [i for i in before if i != ext.id], before, who, body)
+        if "changing" in answer:
+            self._note(removed=ext.id)  # a preinstalled one stays out of every bring-back
+        return answer
+
+    def _note(self, **change: Any) -> None:
+        if self._record is not None:
+            self._record.write(rules.recorded(self._record.read(), **change))
+
+    def bring_back(self) -> dict[str, Any] | None:
+        """At start: a preinstalled extension this install lacks (an update from a version that had it built
+        in), never removed by the user, is installed once (the app restarts with it). A copy that is not an
+        installed tool, or one tried at this version already, does nothing."""
+        if self._changing or self._record is None or not self._helper.installable():
+            return None
+        wanted = rules.to_bring_back(self.catalog, self.found, self._record.read(), self.current)
+        if not wanted:
+            return None
+        for ext in wanted:
+            self._note(tried=(ext.id, self.current))
+        before = self.installed_ids()
+        after = [*before, *(e.id for e in wanted)]
+        try:
+            self._helper.launch_change(
+                rules.kept_wheels(self.catalog, after, self.current),
+                rules.kept_wheels(self.catalog, before, self.current),
+            )
+        except UpdateError:
+            return None
+        self._changing = {"id": wanted[0].id, "action": "install"}
+        self._audit.write("app", "extension_install", None, extension=wanted[0].id, version=self.current)
+        asyncio.get_running_loop().call_later(STOP_AFTER_SECONDS, self._stop)
+        return self._changing
 
     async def _change(
         self, ext: Extension, action: str, after: list[str], before: list[str], who: str, body: Any

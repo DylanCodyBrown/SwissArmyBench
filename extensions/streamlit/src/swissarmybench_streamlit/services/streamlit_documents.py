@@ -6,8 +6,9 @@ from __future__ import annotations
 from typing import Any
 
 from swissarmybench.domain import html_cells, notebooks
-from swissarmybench.domain import streamlit_cells as rules
-from swissarmybench.domain.streamlit_cells import StreamlitError
+from swissarmybench_streamlit.domain import app_settings
+from swissarmybench_streamlit.domain import streamlit_cells as rules
+from swissarmybench_streamlit.domain.streamlit_cells import StreamlitError
 
 Cells = tuple[list[tuple[int, str]], dict[int, str], dict[int, str]]
 
@@ -59,3 +60,24 @@ def file_cells(path: str, text: str) -> Cells:
         {c.number: c.name for c in found if c.name},
         {c.number: c.kind for c in found if c.kind != "code"},
     )
+
+
+class AppFile:
+    """An app's own file (sales.stapp.json) in the Workbench: its pages and blocks for a window (each block's
+    link as a whole path), and the file written from what the window sends (links relative to the file, so
+    the two move together). The base's Workbench asks it (services/hooks.py's app_document)."""
+
+    def open(self, text: str, full: str) -> dict[str, Any]:
+        try:
+            pages = rules.read_app(text, lambda link: rules.resolve_link(full, link))
+        except StreamlitError as error:
+            raise ValueError(str(error)) from None
+        return {"pages": rules.pages_json(pages), "settings": app_settings.read_app_settings(text).to_json()}
+
+    def write(self, body: dict[str, Any], path: str) -> str:
+        try:
+            pages = rules.read_pages(body.get("pages"))
+        except StreamlitError as error:
+            raise ValueError(str(error)) from None
+        settings = app_settings.file_line(app_settings.read_settings(body.get("settings")))
+        return rules.write_app(pages, lambda d: rules.relative_link(path, d), settings)

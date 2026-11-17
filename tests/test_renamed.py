@@ -18,8 +18,9 @@ from swissarmybench import renamed
 from swissarmybench.adapters.blades import KEYRING_SERVICE, OLD_KEYRING_SERVICE, BladeStore
 from swissarmybench.client import html_cells, sql_cell, table_cells
 from swissarmybench.domain import blades as blade_rules
-from swissarmybench.domain import notebooks, relationships, streamlit_cells
+from swissarmybench.domain import notebooks, relationships
 from swissarmybench.server import launcher
+from swissarmybench_streamlit.domain import streamlit_cells
 from tests.conftest import AUTH, make_client
 from tests.fake_keyring import MemoryKeyring, memory_keyring
 

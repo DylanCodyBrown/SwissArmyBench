@@ -90,8 +90,8 @@ packages = ["src/swissarmybench", "src/swissarmygrid"]
 strict = true
 python_version = "3.12"
 # Each extension's own package (extensions/<id>/src) too.
-files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/powerapps/src"]
-mypy_path = "src:extensions/accounting/src:extensions/powerapps/src"
+files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/powerapps/src", "extensions/streamlit/src"]
+mypy_path = "src:extensions/accounting/src:extensions/powerapps/src:extensions/streamlit/src"
 
 [[tool.mypy.overrides]]
 # These ship no type information (Pillow does, but the tray reads it only where it is installed).
@@ -111,7 +111,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-src = ["src", "extensions/accounting/src", "extensions/powerapps/src", "tests"]
+src = ["src", "extensions/accounting/src", "extensions/powerapps/src", "extensions/streamlit/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
@@ -163,6 +163,8 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/starters/**" = ["S310", "E501"]
 # An extension's starters too (their snippets' lines are the lines the user gets).
 "extensions/powerapps/src/swissarmybench_powerapps/starters/**" = ["E501"]
+"extensions/streamlit/src/swissarmybench_streamlit/starters/**" = ["S310", "E501"]
+"extensions/streamlit/src/swissarmybench_streamlit/commands.py" = ["E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]
 # The Accounting extension: its commands' help prose (as the base's), workbook.py's lines as the user reads
@@ -174,6 +176,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "extensions/accounting/src/swissarmybench_accounting/service.py" = ["S608", "E501"]
 "extensions/accounting/src/swissarmybench_accounting/extension.py" = ["E501"]
 "tests/test_accounting_*.py" = ["E501", "S603", "S608"]
+"tests/test_streamlit_extension.py" = ["E501", "S603", "S607", "RUF012"]
 "tests/e2e/test_accounting_page.py" = ["E501", "S603"]
 
 [tool.pytest.ini_options]

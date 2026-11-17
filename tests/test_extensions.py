@@ -35,20 +35,23 @@ CATALOG = (*rules.CATALOG, LEDGER)
 def test_the_base_catalog_has_streamlit_preinstalled_and_two_available() -> None:
     listed = {e["id"]: e for e in rules.listed(rules.CATALOG, {}, "1.2.3")}
     assert list(listed) == ["streamlit", "accounting", "powerapps"]
-    assert listed["streamlit"]["status"] == "preinstalled" and listed["streamlit"]["version"] == "1.2.3"
+    # Preinstalled, its package not here (removed, or an install without it): available, one click away.
+    assert listed["streamlit"]["status"] == "available" and listed["streamlit"]["preinstalled"] is True
+    assert listed["streamlit"]["version"] == "1.2.3" and listed["accounting"]["preinstalled"] is False
     assert listed["accounting"]["status"] == listed["powerapps"]["status"] == "available"
     assert listed["powerapps"]["version"] == "1.2.3" and listed["accounting"]["description"]
     assert all(e["status"] in rules.STATUSES for e in listed.values())
 
 
-def test_a_found_extension_is_installed_and_a_preinstalled_one_stays_preinstalled() -> None:
+def test_a_found_extension_is_installed_and_a_preinstalled_one_is_too() -> None:
     found = {
         "ledger": Found("ledger", "1.2.3"),
         "streamlit": Found("streamlit"),
         "maps": Found("maps", "0.1"),
     }
     listed = {e["id"]: e for e in rules.listed(CATALOG, found, "1.2.3")}
-    assert listed["ledger"]["status"] == "installed" and listed["streamlit"]["status"] == "preinstalled"
+    assert listed["ledger"]["status"] == "installed" and listed["streamlit"]["status"] == "installed"
+    assert listed["streamlit"]["preinstalled"] is True and listed["ledger"]["preinstalled"] is False
     # One the catalog does not list is shown all the same (its package said where it came from).
     assert listed["maps"]["status"] == "installed" and listed["maps"]["version"] == "0.1"
     assert rules.listed(CATALOG, {}, "1.2.3")[-1]["status"] == "available"
@@ -236,10 +239,7 @@ def test_install_hands_over_and_stops_the_app() -> None:
 
 def test_what_cannot_be_installed_or_removed_is_said_plainly() -> None:
     service = made(Fakes(), {"ledger": Found("ledger", "1.2.3")})
-    for body, words in (
-        ({"id": "streamlit"}, "comes with every install"),
-        ({"id": "ledger"}, "installed already"),
-    ):
+    for body, words in (({"id": "ledger"}, "installed already"),):
         with pytest.raises(Conflict, match=words):
             asyncio.run(service.install(body, "user"))
     with pytest.raises(NotFound):
@@ -296,7 +296,8 @@ def test_the_agents_install_and_remove_wait_for_the_users_allow() -> None:
 def test_the_routes_list_and_refuse_in_a_development_checkout(tmp_path: Path) -> None:
     with make_client(tmp_path, update_feeds=()) as client:
         said = client.get("/extensions", headers=AUTH).json()
-        assert [e["status"] for e in said["extensions"]] == ["preinstalled", "available", "available"]
+        # The Streamlit extension is on here (tests/conftest.py), as it is in every install.
+        assert [e["status"] for e in said["extensions"]] == ["installed", "available", "available"]
         assert said["installable"] is False and said["changing"] is None
         refused = client.post("/extensions/install", headers=AGENT, json={"id": "accounting"})
         assert refused.status_code == 409 and "development checkout" in refused.text
@@ -313,7 +314,7 @@ def test_every_extension_package_is_on_the_bases_version() -> None:
     root = Path(__file__).resolve().parents[1]
     base = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
     folders = sorted(p.parent for p in (root / "extensions").glob("*/pyproject.toml"))
-    assert [f.name for f in folders] == ["accounting", "powerapps"]
+    assert [f.name for f in folders] == ["accounting", "powerapps", "streamlit"]
     for folder in folders:
         own = tomllib.loads((folder / "pyproject.toml").read_text())["project"]
         assert own["version"] == base, folder.name

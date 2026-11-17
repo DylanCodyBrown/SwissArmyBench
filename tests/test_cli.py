@@ -185,6 +185,8 @@ NOT_COMMANDS = {
     " the whole",
     "/structures/saved": "sab.structure's read of a saved file (the client's): structures_show reads one",
     "/connections/{}/used": "a Workbench kernel's count of a call (plumbing): connections_usage reads it",
+    "/accounting/{}": "the Accounting extension is not on here: its door says so (extensions_install)",
+    "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }
@@ -194,6 +196,12 @@ def test_every_server_route_has_a_command_or_a_stated_reason(live: Live) -> None
     app = create_app(1, "t", Settings(state_dir=Path("."), export_dir=Path(".")))
     server_paths = {_normal(getattr(r, "path", "")) for r in app.routes}
     source = (Path(main.__file__).parent / "commands.py").read_text(encoding="utf-8")
+    # And each extension's that is on (the Streamlit extension, preinstalled: its commands.py).
+    from swissarmybench import extensions
+
+    for module in extensions.enabled():
+        made = Path(module.__file__ or "").with_name("commands.py")
+        source += made.read_text(encoding="utf-8") if made.is_file() else ""
     used = {_normal(p) for p in re.findall(r"f?[\"'](/[A-Za-z0-9_/{}\-\[\]'()\.]*)[\"']", source)}
     # Paths written inside f-strings: f"/grids/{_q(a['grid'])}/rows".
     used |= {_normal(re.sub(r"\{[^}]*\}", "{}", p)) for p in re.findall(r'f"(/[^"]*)"', source)}

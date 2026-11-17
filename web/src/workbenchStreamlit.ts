@@ -22,6 +22,7 @@ import { api, ApiError } from "./api";
 import { h } from "./dom";
 import type { Missing } from "./missingPackages";
 import { effectiveTheme } from "./theme";
+import { canvasAnywhere } from "./modes";
 import type { HtmlState } from "./workbenchHtml";
 
 /** A live cell's pane without a saved height. */
@@ -394,12 +395,14 @@ export class StreamlitDoc {
   }
 
   private wanted(): boolean {
+    if (!canvasAnywhere("streamlit")) return false; // the extension that runs Streamlit is not on here
     return !!this.id || !!this.doc.path() || this.doc.cells().some((c) => mayUseStreamlit(c.code));
   }
 
   /** The app on the server, opened when it is not (or when the server no longer knows it). */
   ensure(): Promise<string> {
     if (this.id) return Promise.resolve(this.id);
+    if (!canvasAnywhere("streamlit")) return Promise.reject(new Error("Streamlit apps need the Streamlit extension: install it on the Extensions page."));
     if (!this.opening) {
       const body = this.body();
       this.opening = api<AppState>("/streamlit/apps", "POST", body)

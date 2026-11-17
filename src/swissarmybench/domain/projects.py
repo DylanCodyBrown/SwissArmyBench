@@ -37,12 +37,14 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from swissarmybench.domain import dictionary, streamlit_cells, table_cells
+from swissarmybench.domain import cell_facts, dictionary, table_cells
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 DATA_NOTEBOOK: str = "data.ipynb"
 DATA_FILE: str = "data.py"
+# The Streamlit pages' text helper beside data.py (the Streamlit extension writes it): never opened.
+TEXT_FILE: str = "sab_text.py"
 REQUIREMENTS_FILE: str = "requirements.txt"
 PAGES_FOLDER: str = "pages"
 # The project's type (Plans/editions.plan.md: "a project folder's .sab/project.json records its type"):
@@ -238,7 +240,7 @@ def data_module(
         return DataModule(head, (), tuple(fill_in), tuple(skipped))
     if _wraps(body):
         text = (
-            f"{head}\n\n@_once\ndef _load():\n{streamlit_cells.indented(body)}\n\n"
+            f"{head}\n\n@_once\ndef _load():\n{cell_facts.indented(body)}\n\n"
             '    return {name: value for name, value in locals().items() if not name.startswith("_")}\n\n\n'
             "globals().update(_load())\n"
         )
@@ -365,7 +367,7 @@ def readme(
     lines: list[str] = []
     if texts:
         lines.append(
-            f"\n{streamlit_cells.TEXT_FILE} fills the {{{{ names }}}} of the pages' Markdown and HTML blocks."
+            f"\n{TEXT_FILE} fills the {{{{ names }}}} of the pages' Markdown and HTML blocks."
             " It is standard library only, so they need nothing new installed: copy it beside data.py too.\n"
         )
     if fill_in:
@@ -377,6 +379,11 @@ def readme(
     if documents:
         lines.append("\nThe notebooks and scripts the pages' cells are in: " + ", ".join(documents) + "\n")
     return README.format(title=title, pages=", ".join(pages) or "none yet", app=app, notes="".join(lines))
+
+
+def folder_title(path: str | None) -> str:
+    """A project's name from its folder's path: `C:/work/Sales` -> `Sales`."""
+    return re.split(r"[\\/]", (path or "").rstrip("\\/"))[-1] or "project"
 
 
 def project_files(names: Iterable[str]) -> list[str]:
@@ -397,6 +404,6 @@ def project_files(names: Iterable[str]) -> list[str]:
         for n in set(names)
         if n.lower().endswith((".py", ".ipynb", ".stapp.json", ".design.json"))
         and not n.startswith(".")
-        and n.lower() not in (DATA_FILE, streamlit_cells.TEXT_FILE)
+        and n.lower() not in (DATA_FILE, TEXT_FILE)
     ]
     return sorted(wanted, key=lambda n: (rank(n), n.lower()))[:MAX_FILES]

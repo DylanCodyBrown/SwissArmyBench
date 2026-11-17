@@ -39,8 +39,8 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 
 **Extensions** (the puzzle piece at the bottom of the rail, above Settings) lists what plugs into Swiss Army Bench, one card each: its name, what it is for, what it adds, its status and version.
 
-- **Preinstalled:** Streamlit comes with every install (the Apps area, the Streamlit canvas, App mode, the Streamlit and Components starters).
-- **Coming:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices) and Power Apps (code apps). Shown, not installable yet.
+- **Preinstalled:** Streamlit comes with every install, as an extension of its own (the Apps area, the Streamlit canvas, App mode, the Streamlit, Components, Controllers and Text and layout starters). Its card says **Preinstalled**, with **Remove**: without it the app is the base alone (no Apps area, no Streamlit canvas, a Streamlit app's file says which extension opens it), and **Install** brings it back. It never comes back by itself once you removed it.
+- **Available:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices) and Power Apps (code apps).
 - **Available:** **Install**, one click. The app closes, installs the extension for this same version and opens again in a window of its own; the card shows each stage while it works. If it fails, the app opens as it was and the status bar says why.
 - **Installed:** **Remove** (asked first), the same way.
 - Updates keep your installed extensions. A copy run from a source checkout (not the installer's) says what to run instead and changes nothing.

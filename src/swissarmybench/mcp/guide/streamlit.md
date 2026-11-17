@@ -1,5 +1,11 @@
 # Streamlit: the canvas and projects
 
+The Streamlit extension (`swissarmybench-streamlit`), preinstalled with every install: the installers and
+each update put it in, and the user can remove it on the Extensions page. Without it the app is the BI base:
+no Apps area, no canvas, and a `streamlit_*` call says which extension it needs (`extensions_install
+id=streamlit` waits for the user's Allow). A Streamlit project (`project_new type="streamlit"`) starts with
+data.ipynb, app.ipynb and the canvas; a BI project gets the canvas too while the extension is on.
+
 There is no Streamlit cell kind: a Python cell that calls `st.` shows live in its own cell (open tables
 are DataFrames by name, after their grid steps). It runs in the document's Streamlit app, in the
 notebook's own Python, on 127.0.0.1 only. A cell that makes a name (`region = st.selectbox(...)`)

@@ -14,14 +14,18 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import controllers, html_cells, snippets
+from swissarmybench.domain import html_cells, snippets
 from swissarmybench.domain.blades import FAMILIES, STARTERS, parse_blade, read_blade, write_blade
 from swissarmybench.domain.snippets import SnippetError, fill, placeholders
-from swissarmybench.domain.streamlit_cells import facts, text_code
+from swissarmybench_streamlit.domain import controllers
+from swissarmybench_streamlit.domain.streamlit_cells import facts, text_code
 from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
-FILES = sorted(FOLDER.glob("*.blade.py"))
+# The base's starters and the Streamlit extension's (preinstalled): one pack, as the app lists it.
+EXTENSION = Path(__file__).resolve().parents[1] / "extensions" / "streamlit" / "src"
+STREAMLIT_STARTERS = EXTENSION / "swissarmybench_streamlit" / "starters"
+FILES = sorted([*FOLDER.glob("*.blade.py"), *STREAMLIT_STARTERS.glob("*.blade.py")], key=lambda p: p.name)
 
 # What a starter's placeholders are filled with in these tests: the made-up `orders` table's columns,
 # the same names the Streamlit run tests make (tests/test_starters_streamlit.py).
@@ -81,9 +85,8 @@ def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     for blade in found:
         assert blade["description"] and len(blade["description"]) <= 90, blade["name"]
         parse_blade(blade)  # every save check passes
-        assert write_blade(parse_blade(blade).to_json()) == (FOLDER / blade["file"]).read_text(
-            encoding="utf-8"
-        )
+        here = next(f for f in FILES if f.name == blade["file"])
+        assert write_blade(parse_blade(blade).to_json()) == here.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(

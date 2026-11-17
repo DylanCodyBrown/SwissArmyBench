@@ -95,7 +95,7 @@ import { type AppHost, appPanels } from "./workbenchApp";
 import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
-import { activeMode, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
+import { activeMode, canvasAnywhere, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, copyProject, importSab, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
@@ -1614,7 +1614,7 @@ function splitDoc(doc: Doc | null, side: Side): void {
 // ===== files =====
 
 async function open(path?: string): Promise<void> {
-  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", APP_ENDING, ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])], start: sab.folder ?? current?.path ?? homeFolder }));
+  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", ...(canvasAnywhere("streamlit") ? [APP_ENDING] : []), ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])], start: sab.folder ?? current?.path ?? homeFolder }));
   if (!chosen) return;
   // Documents are the project's (the owner, 2026-11-16): a file from outside it is copied in, and the copy opens.
   if (!path && sabOpen() && sab.folder && !inFolder(chosen, sab.folder)) {
@@ -2259,6 +2259,7 @@ function refreshPane(): void {
   if (paneTimer !== null) window.clearTimeout(paneTimer);
   paneTimer = window.setTimeout(() => {
     paneTimer = null;
+    if (!canvasAnywhere("streamlit")) return; // no Streamlit cells without the extension
     const folder = project ? `?folder=${encodeURIComponent(project.folder)}` : "";
     void api<{ documents: PaneDocument[] }>(`/streamlit/cells${folder}`).then(
       (listed) => {
@@ -2687,7 +2688,7 @@ const COMMANDS: Command[] = [
   // File
   { id: "file.newNotebook", group: "File", title: "New notebook", run: () => void openNotebook(null, [], null) },
   { id: "file.newScript", group: "File", title: "New script", run: () => void openScript(null, "", null) },
-  { id: "file.newApp", group: "File", title: "New Streamlit app", run: () => {
+  { id: "file.newApp", group: "File", title: "New Streamlit app", when: () => canvasAnywhere("streamlit"), whyNot: "the Streamlit extension is not installed (Extensions: Install)", run: () => {
     const doc = openApp(null, [], null);
     return { document: doc.title };
   } },

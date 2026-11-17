@@ -2733,3 +2733,30 @@ Not checked:
 - The Windows Recycle Bin and macOS Finder trash paths, and Show in folder on a real desktop (no such
   desktop here; the freedesktop Trash was checked).
 - The installers' unregistration on a real Windows or Linux desktop (checked as text only).
+
+## The Streamlit extension, preinstalled (2026-11-17, branch ext-streamlit)
+
+Checked:
+- The whole suite with the extension on (tests/conftest.py), Chromium for the browser tests: 3954 passed,
+  45 skipped; 6 failed and 1 error under load, each passing alone (test_structures_apis_page write rows,
+  test_table_cells_page maker stays put, test_ui application row, test_workbench_feedback landing pages,
+  test_workbench_page key vault and the agent works the window) and test_performance's million-row target
+  (timing under load).
+- The BI base without it (SWISSARMYBENCH_EXTENSIONS=-streamlit): /app/modes is the base alone with no canvas,
+  /streamlit/* answers 404 naming the extension (user and agent), a new project has no canvas and no Streamlit
+  requirement, a `streamlit` project is refused plainly, a .stapp.json says which extension opens it, a cell
+  that calls Streamlit opens as a plain cell, the Extensions page offers it (Available, Install); a fresh `sab`
+  lists no streamlit_* tool and a call names the extension (tests/test_streamlit_extension.py). In Chromium:
+  no Apps area on the rail of the home page and the Workbench; with it, the card says Preinstalled with Remove.
+- The package's layers (domain without I/O or services, services without adapters or doors) and that no base
+  module imports it.
+- The real wheels: `uv build` of the base and of extensions/streamlit (its entry point in the wheel); the
+  built install.sh run on Linux with a temporary uv tool folder found the Streamlit wheel beside the base's and
+  installed both (`--with`); tools/smoke_install.py against that install passed, including the new check (the
+  extension installed and preinstalled, the streamlit type offered, /streamlit/apps answering).
+- Remove (asked first) and Install of the preinstalled extension, an update keeping its wheel, and the
+  bring-back at the first start after an update from a built-in version: with the helper stood in.
+
+NOT checked: install.ps1 on Windows (the release's job runs it), a real update from 0.0.17 to the next
+version through the bring-back (needs both released), Remove and Install of Streamlit from the released app's
+page, macOS, and Edge.

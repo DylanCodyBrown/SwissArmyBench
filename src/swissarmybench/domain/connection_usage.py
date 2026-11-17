@@ -22,12 +22,11 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field, replace
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import notebooks, table_cells
-from swissarmybench.domain import streamlit_cells as canvases
 
 CALL_KINDS: tuple[str, ...] = ("catalog", "query", "read", "test", "connect")
 STATUSES: tuple[str, ...] = ("works", "ready", "needs", "failing", "resuming")
@@ -235,39 +234,6 @@ def script_references(
             name = table_cells.marker_name(cell.title) if cell.title and not cell.role else None
             table = cell.role not in ("", "maker", "imports")
             found.append(Reference(path, title, "script", use.how, use.line, cell.number, name, table))
-    return found
-
-
-def canvas_references(
-    path: str,
-    title: str,
-    text: str,
-    using: Iterable[Reference],
-    resolve: Callable[[str, str], str] = canvases.resolve_link,
-) -> list[Reference]:
-    """Every block of a Streamlit app's canvas whose cell is one of `using` (the cells found above)."""
-    cells = [r for r in using if r.cell is not None and r.kind in ("notebook", "script")]
-    found: list[Reference] = []
-    for page in canvases.read_app(text, lambda link: resolve(path, link)):
-        for block in page.blocks:
-            hit = next(
-                (r for r in cells if r.cell == block.cell and canvases.same_file(r.document, block.document)),
-                None,
-            )
-            if hit is not None:
-                where = f"{hit.title} @cell{hit.cell}"
-                found.append(
-                    replace(
-                        hit,
-                        document=path,
-                        title=title,
-                        kind="app",
-                        line=where,
-                        page=page.name,
-                        block=block.id,
-                        table_cell=False,
-                    )
-                )
     return found
 
 
