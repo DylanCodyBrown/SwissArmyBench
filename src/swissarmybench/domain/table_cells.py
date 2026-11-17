@@ -35,6 +35,9 @@ from swissarmybench.domain.codegen import output_call, python_string, variable_n
 from swissarmybench.domain.datasets import Column, quote
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
+# A query naming a table through its connection: [Finance Captive].Sales, "Shop".orders.
+_NAMES_A_CONNECTION = re.compile(r'(?:\[[^\]\n]+\]|"[^"\n]+")\s*\.')
+
 # A link to a cell in a comment: `# see @cell7`.
 CELL_LINK: re.Pattern[str] = re.compile(r"@cell(\d+)\b")
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
@@ -1048,6 +1051,9 @@ def load_code(
         return ["import swissarmybench as sab"], f"{var} = sab.{reader}({origin.connection!r}, {text})"
     if origin.kind == "connection" and origin.connection and origin.code:
         return ["import swissarmybench as sab"], f"{var} = {origin.code}"
+    if origin.kind == "query" and origin.sql and _NAMES_A_CONNECTION.search(origin.sql):
+        # It names a connection's table ([Finance Captive].Sales): sab.sql reads it the same way.
+        return ["import swissarmybench as sab"], f"{var} = sab.sql({python_string(origin.sql.strip())})"
     if origin.kind == "query" and origin.sql:
         return [duck], f"{var} = {module}.sql({python_string(origin.sql.strip())}).df()"
     if origin.kind == "paste":

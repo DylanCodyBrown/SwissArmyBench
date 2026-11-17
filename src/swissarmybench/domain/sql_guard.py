@@ -169,6 +169,7 @@ def guard(
     grid_alias: str | None = None,
     *,
     grammar: SqlGrammar,
+    connection_tables: frozenset[str] = frozenset(),
 ) -> GuardedQuery:
     """Check `text` and rewrite its table names. `grid_sql()` gives the grid view's SQL.
 
@@ -180,9 +181,13 @@ def guard(
     raw dataset). Only a SQL step passes it: a step reads nothing but the table entering it. In
     the SQL box a dataset name, the grid's own included, reads its rows as loaded, as the user's
     Python variable of that name does.
+
+    `connection_tables`: the tables a connection's tables named in the query were read into
+    (`__sab_conn_<n>`, domain/connection_tables.py rewrote the names first); only these of the reserved
+    names are read.
     """
     try:
-        return _guard(text, datasets, grid_sql, dataset_sql, grid_alias, grammar)
+        return _guard(text, datasets, grid_sql, dataset_sql, grid_alias, grammar, connection_tables)
     except RecursionError as error:  # sqlglot parses and prints recursively
         raise SqlRefused("The query is nested too deeply.") from error
 
@@ -194,6 +199,7 @@ def _guard(
     dataset_sql: Callable[[str], str] | None,
     grid_alias: str | None,
     grammar: SqlGrammar,
+    connection_tables: frozenset[str] = frozenset(),
 ) -> GuardedQuery:
     try:
         statements = [s for s in sqlglot.parse(text, read="duckdb") if s is not None]
@@ -228,7 +234,11 @@ def _guard(
     _refuse_denied_functions(query, grammar)
     grid_names = {GRID_TABLE} if grid_alias is None else {GRID_TABLE, grid_alias}
     needs_grid, read, targets = _rewrite_tables(
-        query, datasets, grid_names if grid_sql is not None else set(), as_views=dataset_sql is not None
+        query,
+        datasets,
+        grid_names if grid_sql is not None else set(),
+        as_views=dataset_sql is not None,
+        connection_tables=connection_tables,
     )
     # DuckDB's own parse of the user's part, before the server's CTEs are added.
     try:
@@ -329,7 +339,11 @@ def _cte_names(query: exp.Expression) -> set[str]:
 
 
 def _rewrite_tables(
-    query: exp.Expression, datasets: set[str], grid_names: set[str], as_views: bool
+    query: exp.Expression,
+    datasets: set[str],
+    grid_names: set[str],
+    as_views: bool,
+    connection_tables: frozenset[str] = frozenset(),
 ) -> tuple[bool, list[str], set[str]]:
     """Point each table name at its real table (`as_views`: at the CTE of its tab's view).
     `grid_names` read the grid view (empty: there is none). Returns whether the grid view is
@@ -351,6 +365,9 @@ def _rewrite_tables(
         if table.db or table.catalog:
             raise SqlRefused(f"{table.sql()} is not allowed; use a plain dataset name.")
         name = table.name
+        if name in connection_tables:
+            targets.add(name)  # a connection's table, read into the query's DuckDB under this name
+            continue
         if name.lower().startswith(_RESERVED):
             raise SqlRefused(f"Names starting with {_RESERVED!r} are reserved.")
         named = _visible_cte(table)

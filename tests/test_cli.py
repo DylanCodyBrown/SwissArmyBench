@@ -135,6 +135,9 @@ NOT_COMMANDS = {
     "/workbench/notebook/flow": "the window's reading of an open notebook's run order: the agent reads "
     "it with workbench_window notebook.runOrder",
     "/workspace/active": "the page reports which tab is in front (page plumbing)",
+    "/connections/sql/prepare": "a Workbench kernel's %%sql asking for the connections' tables its DuckDB "
+    "query names: the agent writes the same SQL with tabs_new_query, steps_run_sql or workbench_run",
+    "/connections/sql/reads/{}": "one read's rows as Arrow for a kernel's DuckDB (the same transport)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",
     "/processes/{}/sync": "the notebook watcher's protocol",
@@ -602,7 +605,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The Session page (2026-11-16) added one, app_session: this session's log and the Follow switch.
     # Swapping a table's connection (2026-11-17) added five: a table's connection, the swap and its undo,
     # every table of a connection moved, and its cells listed or pointed at another (1,500 characters).
-    assert size < 66_000, f"the tool list is {size} characters"
+    # Connections' tables in DuckDB SQL (2026-11-17) added four: a connection's tree, Open all of a
+    # dataset, the session's reads and their Refresh (1,000 characters).
+    assert size < 67_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

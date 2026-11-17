@@ -330,7 +330,9 @@ class ConnectionService:
         its rows, how many the source holds, the name it opens under and how a notebook reads it again."""
         # Every row: asked for once (the grid's Load all rows) or always (the connection's Load all rows: 0).
         limit = None if every or blade.row_limit == 0 else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
-        reads = dataverse.is_dataverse(blade.dialect)  # Dataverse: through its Web API, not its SQL
+        # Dataverse saved for its Web API reads through it; a Dataverse on its SQL endpoint (the default
+        # since 2026-11-17, the owner: "Dataverse tds is the only method I like here") is a database.
+        reads = _web_api(blade)
         where = (place["database"], place["schema"], place["table"])
         if kind == "python" or reads:
             # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,
@@ -394,7 +396,7 @@ class ConnectionService:
         (services/connection_swap.py)."""
         blade = self._blades.get(name)
         kind = rules.connection_kind(blade.kind, blade.template)
-        if kind != "database" or dataverse.is_dataverse(blade.dialect):
+        if kind != "database" or _web_api(blade):
             raise BladeError(f"{blade.name} does not run SQL: pick one of its tables instead.")
         dax = blade.dialect == powerbi.DIALECT
         given = body if isinstance(body, dict) else {}
@@ -408,6 +410,27 @@ class ConnectionService:
         origin = powerbi.joined_name(blade.name, within) if dax else blade.name
         shown = int(table.num_rows)
         return TableRead("", table, None, shown, shown, origin, sql, dax)
+
+    async def read_place(self, name: str, place: dict[str, str], every: bool = False) -> TableRead:
+        """One of a connection's tables read, not kept (the tables contract's read, services/
+        connection_tables.py): a database's (Power BI's, Dataverse's) or a Python connection's first Rows
+        to open rows (every row with `every`), a file connection's file or sheet whole."""
+        if self._tables is None:
+            raise BladeError("Reading a table needs the datasets.")
+        blade, kind, _ = self._target(name, place)
+        if kind == "file":
+            reached = await self._blades.rows(blade, None, None, {})
+            path, sheet = rules.file_to_open(blade.template, str(reached["path"]), place.get("table", ""))
+            if blade.template == "excel" and sheet is None:
+                sheets = await self._tables.sheets(path)
+                sheet = sheets[0] if sheets else None
+            table = await self._tables.read_file(path, sheet)
+            shown = int(table.num_rows)
+            where = ("", place.get("schema", ""), place.get("table", ""))
+            return TableRead(rules.dataset_name(place.get("table") or blade.name), table, None, shown, shown,
+                             blade.name, place=where)  # fmt: skip
+        full = {k: str(place.get(k) or "") for k in ("database", "schema", "table")}
+        return await self.read_table(blade, kind, full, every, {})
 
     def blade(self, name: str) -> tuple[Blade, str]:
         """A saved connection and its kind (database, file, python, vault)."""
@@ -433,7 +456,7 @@ class ConnectionService:
             return await self._tables.peek(path, sheet, rules.PREVIEW_ROWS)
         if not place["table"]:
             raise ValueError("Name the table to preview.")
-        if kind == "python" or dataverse.is_dataverse(blade.dialect):
+        if kind == "python" or _web_api(blade):
             read = (await self._blades.read(blade, place, rules.PREVIEW_ROWS, body))["table"]
             return {"columns": list(read.column_names), "rows": [list(r.values()) for r in read.to_pylist()]}
         sql = select_sql(
@@ -598,6 +621,13 @@ class Tables(Protocol):
     async def sheets(self, path: str) -> list[str]: ...
 
     async def peek(self, path: str, sheet: str | None, rows: int) -> dict[str, Any]: ...
+
+    async def read_file(self, path: str, sheet: str | None) -> Any: ...
+
+
+def _web_api(blade: Blade) -> bool:
+    """A Dataverse connection saved for its Web API (its catalog from the metadata), not its SQL endpoint."""
+    return dataverse.is_dataverse(blade.dialect) and blade.catalog_language != "sql"
 
 
 def _plain(value: Any) -> Any:

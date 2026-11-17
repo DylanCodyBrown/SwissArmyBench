@@ -82,6 +82,7 @@ from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connection_swap import ConnectionSwap
+from swissarmybench.services.connection_tables import ConnectionTables as ConnectionTablesService
 from swissarmybench.services.connection_usage import ConnectionUsage
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.controllers import Controllers
@@ -145,6 +146,7 @@ class Services:
     connection_usage: ConnectionUsage
     apis: Apis
     catalog_loading: CatalogLoading
+    connection_tables: ConnectionTablesService
     folders: Folders
     workbench: Workbench
     models: Models
@@ -524,6 +526,11 @@ def bootstrap(
         autosave_seconds=settings.autosave_seconds,
     )
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
+    # What a connection is: its tables, listed and read one way for every kind; DuckDB SQL names them.
+    connection_tables = ConnectionTablesService(
+        ws, connections, catalogs, catalog_loading, table_reader.table_to_arrow_stream
+    )
+    datasets.connection_sql = connection_tables
     connection_swap = ConnectionSwap(
         ws,
         datasets,
@@ -631,6 +638,7 @@ def bootstrap(
         connection_usage=connection_usage,
         apis=apis,
         catalog_loading=catalog_loading,
+        connection_tables=connection_tables,
         folders=Folders(folder_listing, lambda where: ensure_own_folder(where, settings.workbench_dir)),
         workbench=workbench,
         models=models,

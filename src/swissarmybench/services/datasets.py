@@ -67,6 +67,8 @@ class DatasetService:
         self.origins = Origins()
         # Who wants to know a table arrived (its name and grid): a .sab project's steps waiting for it.
         self.stored: list[Callable[[str, str], Awaitable[None]]] = []
+        # A query's tables named through a connection, read first (services/connection_tables.py).
+        self.connection_sql: ConnectionSql | None = None
 
     # ===== the server itself =====
 
@@ -291,6 +293,15 @@ class DatasetService:
         first = table.slice(0, rows)
         return {"columns": list(first.column_names), "rows": [list(r.values()) for r in first.to_pylist()]}
 
+    async def read_file(self, path: str, sheet: str | None) -> Any:
+        """A file's whole table (a file connection's table named in DuckDB SQL): nothing is kept."""
+        ws = self.ws
+        self._refuse_own_file(path)
+        table, _ = await ws.workers.run(
+            BACKGROUND, self._reader.load_file, path, ws.settings.max_dataset_bytes, sheet
+        )
+        return table
+
     async def sheets(self, path: str) -> dict[str, Any]:
         """The sheet names of a workbook, so VS Code can ask which to load."""
         self._refuse_own_file(path)
@@ -343,10 +354,19 @@ class DatasetService:
                 return f"SELECT * FROM {quote('ds_' + dataset)}"  # noqa: S608 (a quoted dataset name)
             return ws.compiled(cursor, grid, info).sql()
 
+        prepared = await self.prepare_connections(text)
+
         def execute(cursor: Any) -> Any:
             datasets = {i.name for i in ws.store.all()}
+            for target, table in prepared.tables.items():
+                cursor.register(target, table)
             guarded = guard(
-                text, datasets, None, lambda dataset: tab_view(cursor, dataset), grammar=ws.grammar
+                prepared.sql,
+                datasets,
+                None,
+                lambda dataset: tab_view(cursor, dataset),
+                grammar=ws.grammar,
+                connection_tables=frozenset(prepared.tables),
             )
             if guarded.kind != "select":
                 raise SqlRefused(f"Write one SELECT; its result becomes {name}.")
@@ -367,7 +387,30 @@ class DatasetService:
         origin = Origin("query", sql=text)
         result = await self.store_table(name, table, "sql_result", False, who, query=text, origin=origin)
         ws.audit.write(who, "sql_query", name, query=text, rows=table.num_rows)
-        return result | {"rows": table.num_rows}
+        reads = {"connection_reads": prepared.reads} if prepared.reads else {}
+        return result | {"rows": table.num_rows} | reads
+
+    async def prepare_connections(self, text: str) -> Any:
+        """The query's connections' tables read (services/connection_tables.py), or the query as it was."""
+        if self.connection_sql is None:
+            return _Unprepared(text)
+        try:
+            return await self.connection_sql.prepare(text)
+        except ValueError as error:  # a name that is not a connection's table: said as the guard says
+            raise SqlRefused(str(error)) from None
+
+
+class ConnectionSql(Protocol):
+    """DuckDB SQL naming a connection's table (services/connection_tables.py)."""
+
+    async def prepare(self, text: str) -> Any: ...
+
+
+class _Unprepared:
+    def __init__(self, sql: str) -> None:
+        self.sql = sql
+        self.tables: dict[str, Any] = {}
+        self.reads: list[dict[str, Any]] = []
 
 
 class ConnectionTables:
@@ -422,3 +465,6 @@ class ConnectionTables:
 
     async def peek(self, path: str, sheet: str | None, rows: int) -> dict[str, Any]:
         return await self._datasets.peek_file(path, sheet, rows)
+
+    async def read_file(self, path: str, sheet: str | None) -> Any:
+        return await self._datasets.read_file(path, sheet)

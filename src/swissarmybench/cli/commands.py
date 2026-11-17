@@ -308,7 +308,10 @@ def paste(a: dict[str, Any]) -> Any:
     "New table from a query (the + tab): one SELECT over the open tables, each read as its grid shows it. "
     "Opens a grid on the result.",
     req("name", "Name of the new dataset."),
-    req("sql", "One SELECT (DuckDB dialect). Name open datasets as tables."),
+    req(
+        "sql",
+        "One SELECT (DuckDB dialect). Name open datasets as tables. Name a connection's table as [Connection].table ([Connection].dataset.table, .schema.table).",
+    ),
     opt("replace", "Rebuild a table an earlier query made (the tab's Run again).", "bool"),
 )
 def build_from_query(a: dict[str, Any]) -> Any:
@@ -474,7 +477,10 @@ def selection_stats(a: dict[str, Any]) -> Any:
     "CREATE TABLE <name> AS SELECT ... pins the result as a new dataset with its own grid. `grid` is this "
     "grid's view (after its steps); any open table by its name reads that table's rows as loaded.",
     req("grid", "Grid id: the view `grid` means in the SQL."),
-    req("sql", "One SELECT, or CREATE TABLE name AS SELECT ..."),
+    req(
+        "sql",
+        "One SELECT, or CREATE TABLE name AS SELECT ... Name a connection's table as [Connection].table ([Connection].dataset.table, .schema.table).",
+    ),
     opt("upto", "While editing step N, `grid` is the table entering that step.", "int"),
     values=True,
 )
@@ -2365,6 +2371,44 @@ def connections_open_table(a: dict[str, Any]) -> Any:
     keys = ("table", "schema", "database", "dataset", "all")
     body = {k: a[k] for k in keys if a.get(k) is not None}
     return api.call("POST", f"/connections/{_q(a['name'])}/open", body)
+
+
+@command(
+    "connections_tables",
+    "A connection's tables as the Connections page's tree: its datasets (Power BI) or schemas, each table "
+    "with its name for DuckDB SQL ([Finance Captive].Sales). Loads the catalog first when needed.",
+    req("name", "The connection's name."),
+)
+def connections_tables(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/connections/{_q(a['name'])}/tree")
+
+
+@command(
+    "connections_open_dataset",
+    "Open every table of one dataset (Power BI) or schema of a connection, each as its own grid",
+    req("name", "The connection's name."),
+    req("dataset", "The dataset or schema."),
+)
+def connections_open_dataset(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/{_q(a['name'])}/open-dataset", {"dataset": a["dataset"]})
+
+
+@command(
+    "connections_sql_reads",
+    "The connections' tables DuckDB SQL read this session: connection, table, rows, when read",
+)
+def connections_sql_reads(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/connections/sql/reads")
+
+
+@command(
+    "connections_sql_refresh",
+    "Drop this session's reads of connections' tables (one connection's, or all): the next query reads again",
+    opt("connection", "Only this connection's reads."),
+)
+def connections_sql_refresh(a: dict[str, Any]) -> Any:
+    body = {"connection": a["connection"]} if a.get("connection") else {}
+    return api.call("POST", "/connections/sql/refresh", body)
 
 
 @command(

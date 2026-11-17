@@ -37,6 +37,8 @@ class SqlBox:
         if not isinstance(text, str) or not text.strip():
             raise ValueError('Send {"sql": "SELECT ... FROM grid"}.')
         row_cap = settings.max_sql_rows
+        # A table named through its connection ([Finance Captive].model_Report) is read first.
+        prepared = await self._datasets.prepare_connections(text)
 
         def execute(cur: Any) -> Any:
             # `upto`: while editing step N, `grid` is the table entering that step. A dataset
@@ -46,8 +48,16 @@ class SqlBox:
             # `grid` reads the view cache in view order: the rows of compiled.sql(upto), without
             # running every step again (adapters/views.reading).
             names_known = {i.name for i in ws.store.all()}
+            for target, table in prepared.tables.items():
+                cur.register(target, table)
             with ws.views.reading(cur, info, grid.steps, grid.settings, upto, ordered=True) as view:
-                guarded = guard(text, names_known, lambda: view, grammar=ws.grammar)
+                guarded = guard(
+                    prepared.sql,
+                    names_known,
+                    lambda: view,
+                    grammar=ws.grammar,
+                    connection_tables=frozenset(prepared.tables),
+                )
                 timer = threading.Timer(settings.query_timeout_seconds, cur.interrupt)
                 started = time.perf_counter()
                 timer.start()
@@ -89,4 +99,4 @@ class SqlBox:
             "cap": row_cap,
             "truncated": cut,
             "milliseconds": round(elapsed, 1),
-        }
+        } | ({"connection_reads": prepared.reads} if prepared.reads else {})
