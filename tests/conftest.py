@@ -48,6 +48,7 @@ def no_folder_in_the_real_home(tmp_path_factory: pytest.TempPathFactory) -> Iter
     # Nor a tray, nor an update check (nothing leaves this computer): a test that is about them asks.
     wanted = {
         "SWISSARMYBENCH_WORKBENCH_DIR": str(tmp_path_factory.mktemp("home") / "SwissArmyBench"),
+        "SWISSARMYBENCH_PROJECTS_DIR": str(tmp_path_factory.mktemp("projects") / "Swiss Army Bench Projects"),
         "SWISSARMYBENCH_TRAY": "0",
         "SWISSARMYBENCH_UPDATE_FEED": "none",
     }
@@ -71,6 +72,7 @@ def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
         autostart_home=overrides.pop("autostart_home", tmp_path / "home"),
         # Never this machine's own SwissArmyBench folder: the app makes it the first time it is needed.
         workbench_dir=overrides.pop("workbench_dir", tmp_path / "home" / "SwissArmyBench"),
+        projects_dir=overrides.pop("projects_dir", tmp_path / "home" / "Swiss Army Bench Projects"),
         max_total_bytes=overrides.pop("max_total_bytes", 512 * 1024 * 1024),
         # Catalogs loading themselves start child processes: off unless a test is about them.
         auto_load_catalogs=overrides.pop("auto_load_catalogs", False),

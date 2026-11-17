@@ -96,7 +96,7 @@ import { type Descriptions, type DictionaryTable, described, drawDictionary, dra
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
 import { activeMode, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
-import { closeProject, mountProject, onBeforeSave, onProject, openProject as openSabProject, projectLabel, projectState, type ProjectState, reportLayout, saveFolderAsFile, saveProject } from "./projectFile";
+import { closeProject, copyProject, importSab, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
@@ -496,38 +496,26 @@ function listProject(): void {
   explorerPane.setFiles({ root: `${project.name}/`, files });
 }
 
-/** A project's files as tabs: data.ipynb first (and in front), then the app's canvas, then the rest. */
-async function showProject(found: ProjectFiles): Promise<ProjectFiles> {
-  project = found;
-  await refreshMode(); // its type's mode: the canvases and families it offers
-  listProject();
-  for (const path of found.files) await open(path);
-  const front = docs.find((d) => d.path === found.data) ?? docs.find((d) => d.path === found.files[0]);
-  if (front) show(front);
-  drawTabs();
-  return found;
-}
-
+/** Open project…: a project's folder, opened as THE project (projectFile.ts); its documents open here
+ *  (followProject). */
 async function openProject(folder?: string): Promise<ProjectFiles | null> {
-  const chosen = folder ?? (await chooseFile({ title: "Open project: choose its folder", mode: "folder", start: current?.path ?? homeFolder }));
-  if (!chosen) return null;
-  return showProject(await api<ProjectFiles>("/projects/open", "POST", { folder: chosen }));
+  const opened = await openProjectFolder(folder);
+  if (!opened?.project) return null;
+  return api<ProjectFiles>("/projects/open", "POST", { folder: opened.project.folder, remember: false });
 }
 
-/** `agent`: the agent asked (workbench_window): its request, which the server holds for the user's Allow
- * when data.ipynb would hold a pasted table's rows. */
-async function newProject(folder?: string, name?: string, notebooks: string[] = [], app = true, agent = false, type?: string): Promise<ProjectFiles | null> {
-  let where = folder;
-  let called = name;
-  if (!where || !called) {
-    // The chooser's save mode names a new folder: where it goes, and what it is called.
-    const path = await chooseFile({ title: "New project: its folder", mode: "save", start: current?.path ?? homeFolder, name: "project" });
-    if (!path) return null;
-    const at = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-    where = path.slice(0, at) || "/";
-    called = path.slice(at + 1);
+/** New project: a folder scaffolded and opened as THE project. Without a name, New project's dialog
+ *  (name, type, where). `agent`: the agent asked (workbench_window). */
+async function newProject(folder?: string, name?: string, notebooks: string[] = [], app?: boolean, agent = false, type?: string): Promise<ProjectFiles | null> {
+  if (!name) {
+    const made = await newProjectFolder();
+    if (!made?.project) return null;
+    return api<ProjectFiles>("/projects/open", "POST", { folder: made.project.folder, remember: false });
   }
-  return showProject(await (agent ? agentApi : api)<ProjectFiles>("/projects", "POST", { folder: where, name: called, notebooks, app, ...(type ? { type } : {}) }));
+  const body = { name, ...(folder ? { folder } : {}), notebooks, ...(app !== undefined ? { app } : {}), ...(type ? { type } : {}) };
+  const made = await (agent ? agentApi : api)<ProjectState & ProjectFiles>("/project/new", "POST", body);
+  await loadProject();
+  return made;
 }
 
 /** Export data.py: written again from the project's data.ipynb, as it stands here. */
@@ -608,11 +596,8 @@ function projectEntries(): MenuEntry[] {
     { label: "Open project…", icon: "folder", run: guarded(() => openProject()) },
     { label: "Export data.py", icon: "export", disabled: !open, title: open ? "Written again from data.ipynb" : "No project is open", run: guarded(exportData) },
     null,
-    { label: "Open project file…", icon: "project", title: "A .sab project", run: guarded(() => openSabProject()) },
-    ...(project && !sabOpen()
-      ? [{ label: "Save as .sab…", icon: "save", title: "This project folder as one file", run: guarded(() => saveFolderAsFile(project!.folder)) }]
-      : []),
-    ...(sabOpen() ? [{ label: "Save project as…", icon: "save", run: guarded(() => saveProject(true)) }, { label: "Close project", icon: "close", run: guarded(() => closeProject()) }] : []),
+    { label: "Open a .sab file…", icon: "project", title: "An old project file, made a folder", run: guarded(() => importSab()) },
+    ...(sabOpen() ? [{ label: "Copy project to…", icon: "copy", run: guarded(() => copyProject()) }, { label: "Close project", icon: "close", run: guarded(() => closeProject()) }] : []),
   ];
 }
 
@@ -700,7 +685,7 @@ async function followProject(state: ProjectState): Promise<void> {
  *  front); else the document. */
 function saveFront(as = false): Promise<unknown> {
   const opened = projectState().project;
-  if (opened && (!current || inFolder(current.path, opened.folder))) return saveProject(as);
+  if (opened && (!current || inFolder(current.path, opened.folder))) return as ? copyProject() : saveProject();
   return save(current, as);
 }
 
@@ -2709,15 +2694,15 @@ const COMMANDS: Command[] = [
     return openCell(path, num(a, "cell") ?? null);
   } },
   { id: "file.save", group: "File", title: "Save (the open project, when it is in front)", keys: "Ctrl+S", when: () => saves() || sabOpen(), whyNot: "nothing that saves is in front", run: () => saveFront() },
-  { id: "project.save", group: "Project", title: "Save the project (.sab)", when: sabOpen, whyNot: "no project file is open", run: () => saveProject() },
-  { id: "project.saveAs", group: "Project", title: "Save the project as… (.sab)", when: sabOpen, whyNot: "no project file is open", run: () => saveProject(true) },
+  { id: "project.save", group: "Project", title: "Save the project (its .sab/ state)", when: sabOpen, whyNot: "no project is open", run: () => saveProject() },
+  { id: "project.saveAs", group: "Project", title: "Copy the project to another folder…", when: sabOpen, whyNot: "no project is open", run: () => copyProject() },
   { id: "project.close", group: "Project", title: "Close the project", when: sabOpen, whyNot: "no project file is open", run: () => closeProject() },
-  { id: "project.openFile", group: "Project", title: "Open a project file (.sab)…", args: "path: the .sab (without it, the file chooser opens)", run: (a) => openSabProject(text(a, "path")) },
+  { id: "project.openFile", group: "Project", title: "Open a .sab file… (an old project file, made a folder)", args: "path: the .sab (without it, the file chooser opens)", run: (a) => importSab(text(a, "path")) },
   { id: "project.saveDocuments", agentOnly: true, group: "Project", title: "Save the project's documents that have unsaved changes", args: "folder: the project's folder", run: (a) => saveProjectDocuments(text(a, "folder")) },
   { id: "file.saveAs", group: "File", title: "Save a copy as…", keys: "Ctrl+Shift+S", when: saves, whyNot: "nothing that saves is in front", run: () => save(current, true) },
   { id: "file.exportScript", group: "File", title: "Export as one Python script…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "script", text(a, "path"), from.agent) },
   { id: "file.exportNotebook", group: "File", title: "Export as one notebook…", args: "path: where it goes (without it, the file chooser opens)", when: isCode, whyNot: "no notebook or script is in front", run: (a, from) => exportDocument(current, "notebook", text(a, "path"), from.agent) },
-  { id: "project.new", group: "Project", title: "New project…", args: "folder: where it goes; name: its name; notebooks: names of notebooks to make; app: false for no Streamlit app; type: an extension's project type (app_mode all) (without folder and name, the file chooser opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], a.app !== false, from.agent, text(a, "type")) },
+  { id: "project.new", group: "Project", title: "New project…", args: "name: its name; folder: where it goes (default: the projects folder); notebooks: names of notebooks to make; app: true for a Streamlit app; type: a project type (project_types) (without a name, New project's dialog opens)", run: (a, from) => newProject(text(a, "folder"), text(a, "name"), Array.isArray(a.notebooks) ? (a.notebooks as string[]) : [], typeof a.app === "boolean" ? a.app : undefined, from.agent, text(a, "type")) },
   { id: "workbook.new", group: "Workbook", title: "New Excel workbook", args: "(the Excel canvas: offered while the open project's mode names it)", when: () => offersCanvas("excel"), whyNot: "the open project's mode has no Excel canvas", run: () => openWorkbook(null).workbook!.report() },
   { id: "workbook.play", group: "Workbook", title: "Play the workbook", when: () => !!current?.workbook, whyNot: "no workbook is in front", run: () => workbookInFront().play() },
   { id: "workbook.edit", group: "Workbook", title: "Edit the workbook's blocks", when: () => !!current?.workbook, whyNot: "no workbook is in front", run: () => (workbookInFront().edit(), workbookInFront().report()) },

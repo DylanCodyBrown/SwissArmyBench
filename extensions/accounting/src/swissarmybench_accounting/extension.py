@@ -51,6 +51,14 @@ MODE: dict[str, Any] = {
     "cell_kinds": [],
     "tools": ["workbook_", "template_", "statements_"],
     "export": ["workbook.py", "workbook"],
+    # The Project Explorer's words for beginners.
+    "title": "Accounting workbook",
+    "for_whom": "For accountants who hand over the same Excel workbook every month or quarter.",
+    "explain": (
+        "Design the workbook once: sheets of tables, pivots and charts from your data. A Python automation "
+        "builds it again whenever the data changes. You get data.ipynb, workbook.design.json and workbook.py."
+    ),
+    "example": "Example: the quarterly cession statements for each reinsurer, built in one click.",
 }
 # The Accounting project's own functions, beside the Excel starters (Insert a function…).
 FUNCTIONS = [

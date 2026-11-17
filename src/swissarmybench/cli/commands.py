@@ -31,7 +31,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NamedTuple
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from swissarmybench.cli import api
 from swissarmybench.cli.api import CommandError
@@ -3729,29 +3729,20 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
 
 @command(
     "project_new",
-    "A new project: path, a .sab saved there at once (the open tables and their connections go in); folder, "
-    "a project folder (data.ipynb, data.py, a canvas, notebooks)",
-    opt("path", "Where its .sab goes (its name is the file's)."),
-    opt("autosave", "true: save quietly after each change.", "bool"),
-    opt("name", "A folder project's name."),
-    opt("folder", "A folder project: where its folder goes."),
-    opt("type", "The project's type: bi (default) or an extension's (app_mode all lists them)."),
-    opt("app", "false: no Streamlit app (data and notebooks only).", "bool"),
-    opt("notebooks", 'Notebooks to make, by name: ["analysis", "mockups"].', "json"),
-    opt("tables", "Open tables for data.ipynb (default: all).", "json"),
+    "A new project folder, scaffolded and opened (the open tables go into data.ipynb): name (in the projects "
+    "folder, or folder), or path (a new or empty folder)",
+    opt("name", "Its name (its folder's)."),
+    opt("folder", "Where its folder goes (default: the projects folder)."),
+    opt("path", "The project's own folder: new or empty."),
+    opt("type", "bi (default) or an extension's (project_types lists them)."),
+    opt("app", "true: a Streamlit app's canvas too.", "bool"),
+    opt("notebooks", 'Notebooks to make: ["analysis"].', "json"),
+    opt("autosave", "false: save only on project_save.", "bool"),
     opt("discard", "true: let the open project's unsaved changes go.", "bool"),
 )
 def project_new(a: dict[str, Any]) -> Any:
-    if a.get("folder"):
-        body = {
-            k: a[k] for k in ("folder", "name", "type", "app", "notebooks", "tables") if a.get(k) is not None
-        }
-        return api.call("POST", "/projects", body)
-    return api.call(
-        "POST",
-        "/project/new",
-        {k: a[k] for k in ("path", "autosave", "type", "app", "discard") if a.get(k) is not None},
-    )
+    keys = ("name", "folder", "path", "type", "app", "notebooks", "autosave", "discard")
+    return api.call("POST", "/project/new", {k: a[k] for k in keys if a.get(k) is not None})
 
 
 @command("project_autosave", "Autosave on or off for the open project", req("on", "true or false.", "bool"))
@@ -3789,36 +3780,51 @@ def project_import(a: dict[str, Any]) -> Any:
 
 @command(
     "project_open",
-    "Open a project: a .sab (its tables read again with their steps, Visualizations, relationships, documents) "
-    "or a project folder. Refused while unsaved changes are open, unless discard",
-    req("path", "The .sab file, or a project's folder."),
+    "Open a project's folder (tables read again with their steps, Visualizations, relationships). Refused "
+    "while unsaved changes are open, unless discard; a plain folder answers not_a_project (make: true)",
+    req("path", "The project's folder."),
+    opt("make", "true: make a plain folder a project around its files.", "bool"),
     opt("discard", "true: let the open project's unsaved changes go.", "bool"),
 )
 def project_open(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/project/open", {"path": a["path"], "discard": a.get("discard") is True})
+    body = {"path": a["path"], "discard": a.get("discard") is True, "make": a.get("make") is True}
+    return api.call("POST", "/project/open", body)
 
 
 @command(
     "project_save",
-    "Save the open project's .sab (the Workbench's documents first). Rows go in only for tables ticked in "
-    "keep_rows (pasted or pushed ones): then it waits for the user's Allow",
-    opt("keep_rows", '{"pasted_1": true}: keep that table\'s rows in the file.', "json"),
-    opt("path", "Where the .sab goes (needed the first time; Save as otherwise)."),
+    "Write the open project's .sab/ (tables, steps, Visualizations, relationships). Rows are kept only for "
+    "tables ticked in keep_rows: then it waits for the user's Allow",
+    opt("keep_rows", '{"pasted_1": true}: keep its rows in .sab/data/.', "json"),
+    opt("path", "No project open: a new or empty folder to make the open work one."),
 )
 def project_save(a: dict[str, Any]) -> Any:
     return api.call("POST", "/project/save", {k: a[k] for k in ("keep_rows", "path") if a.get(k) is not None})
 
 
 @command(
-    "project_save_as",
-    "Save the project as another .sab (a folder project as one file too)",
-    req("path", "The new .sab."),
-    opt("keep_rows", '{"pasted_1": true}: keep that table\'s rows in the file.', "json"),
-    opt("folder", "A folder project to save as one file."),
+    "project_copy",
+    "Copy project to a new or empty folder (saved first); data: its kept rows too (waits for Allow)",
+    req("path", "The new folder."),
+    opt("data", "true: copy .sab/data/ too.", "bool"),
+    opt("folder", "A project that is not open (default: the open one)."),
 )
-def project_save_as(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("path", "keep_rows", "folder") if a.get(k) is not None}
-    return api.call("POST", "/project/save", body)
+def project_copy(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST", "/project/copy", {k: a[k] for k in ("path", "data", "folder") if a.get(k) is not None}
+    )
+
+
+@command(
+    "project_import_sab",
+    "An old .sab file into a folder (each entry checked), then opened",
+    req("path", "The .sab file."),
+    opt("folder", "A new or empty folder (default: the projects folder)."),
+    opt("discard", "true: let the open project's unsaved changes go.", "bool"),
+)
+def project_import_sab(a: dict[str, Any]) -> Any:
+    keys = ("path", "folder", "discard")
+    return api.call("POST", "/project/import-sab", {k: a[k] for k in keys if a.get(k) is not None})
 
 
 @command(
@@ -3852,6 +3858,83 @@ def project_table_fix(a: dict[str, Any]) -> Any:
     return api.call(
         "POST", "/project/fix", {k: a[k] for k in ("table", "path", "remove") if a.get(k) is not None}
     )
+
+
+@command(
+    "projects_list",
+    "Every project as a card (type, counts, Git branch, times; the projects folder's and opened ones)",
+    opt("by", "opened, name, type, changed, created or custom (default: the remembered sort)."),
+    opt("descending", "true: largest first.", "bool"),
+    opt("type", "Only this type."),
+    opt("q", "Words in a name, folder or notebook."),
+)
+def projects_list(a: dict[str, Any]) -> Any:
+    query = {k: str(a[k]).lower() if isinstance(a[k], bool) else a[k] for k in ("by", "descending", "type", "q")
+             if a.get(k) is not None}  # fmt: skip
+    return api.call("GET", "/projects/explorer" + (f"?{urlencode(query)}" if query else ""))
+
+
+@command(
+    "projects_sort",
+    "The Project Explorer's sort (remembered), or its custom order: order, or move a card left/right",
+    opt("by", "opened, name, type, changed, created or custom."),
+    opt("descending", "true: largest first.", "bool"),
+    opt("order", "Custom: the projects' folders in order.", "json"),
+    opt("move", "A project's folder to move."),
+    opt("step", "-1 left, 1 right.", "int"),
+)
+def projects_sort(a: dict[str, Any]) -> Any:
+    if a.get("move"):
+        return api.call("POST", "/projects/sort", {"move": a["move"], "by": a.get("step") or 1})
+    if a.get("order") is not None:
+        return api.call("POST", "/projects/sort", {"order": a["order"]})
+    return api.call(
+        "POST", "/projects/sort", {"by": a.get("by") or "opened", "descending": a.get("descending") is True}
+    )
+
+
+@command(
+    "project_rename",
+    "Rename a project (its folder; not the open one)",
+    req("path", "The project's folder."),
+    req("name", "The new name."),
+)
+def project_rename(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/rename", {"path": a["path"], "name": a["name"]})
+
+
+@command(
+    "project_remove_from_list",
+    "Take a project off the Project Explorer (no file touched); to: where a moved one is now",
+    req("path", "The project's folder."),
+    opt("to", "Locate: its folder now (it stays listed there)."),
+)
+def project_remove_from_list(a: dict[str, Any]) -> Any:
+    if a.get("to"):
+        return api.call("POST", "/projects/locate", {"path": a["path"], "to": a["to"]})
+    return api.call("POST", "/projects/remove", {"path": a["path"]})
+
+
+@command(
+    "projects_folder_set",
+    "Settings' Projects folder, where New project puts projects (waits for the user's Allow)",
+    opt("folder", "The folder."),
+    opt("default", "true: back to the default.", "bool"),
+)
+def projects_folder_set(a: dict[str, Any]) -> Any:
+    body = {"default": True} if a.get("default") else {"folder": a.get("folder") or ""}
+    return api.call("POST", "/projects/folder", body)
+
+
+@command(
+    "project_types",
+    "The project types New project makes, each explained for beginners",
+    opt("put_away", "true/false: the page's explanations put away or shown.", "bool"),
+)
+def project_types(a: dict[str, Any]) -> Any:
+    if a.get("put_away") is not None:
+        api.call("POST", "/projects/explained", {"explained": a["put_away"] is True})
+    return api.call("GET", "/projects/types")
 
 
 @command(
@@ -4553,10 +4636,8 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
-    (
-        "project",
-        "Projects: one .sab file (tables, steps, documents, Visualizations), or a folder with data.ipynb",
-    ),
+    ("project", "Projects: a folder (its files, and .sab/: tables, steps, Visualizations, relationships)"),
+    ("projects", "The Project Explorer: every project as a card, sorted; the project types explained"),
     ("packs", "Packs: blades and tangs from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),

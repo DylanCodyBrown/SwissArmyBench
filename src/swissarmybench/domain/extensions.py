@@ -38,6 +38,7 @@ class Extension:
     adds: tuple[str, ...] = ()
     status: str = "coming"  # preinstalled | available | coming (installed is found, never written here)
     package: str = ""
+    project_type: str = ""  # the project type it adds (the Project Explorer: "needs the <name> extension")
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -67,6 +68,7 @@ CATALOG: tuple[Extension, ...] = (
         ("The Accounting project", "The Excel canvas", "Statements and invoices from templates"),
         "available",
         "swissarmybench-accounting",
+        "accounting",
     ),
     Extension(
         "powerapps",
@@ -75,6 +77,7 @@ CATALOG: tuple[Extension, ...] = (
         ("The code app project", "Dataverse and connectors", "Run live and push", "Custom connectors"),
         "available",
         "swissarmybench-powerapps",
+        "codeapp",
     ),
 )
 
@@ -238,3 +241,14 @@ def development_words(ext: Extension) -> str:
 
 def change_question(action: str, ext_name: str) -> str:
     return f"The app stops, {action} {ext_name} and starts again. Nothing is saved for you."
+
+
+def off_project_types(catalog: tuple[Extension, ...], modes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The project types of the catalog's extensions that are not on here (a project of one says "needs the
+    <Name> extension", with Install): {"project_type", "id", "name"}."""
+    on = {str(m.get("type")) for m in modes}
+    return [
+        {"project_type": e.project_type, "id": e.id, "name": e.name}
+        for e in catalog
+        if e.project_type and e.project_type not in on
+    ]

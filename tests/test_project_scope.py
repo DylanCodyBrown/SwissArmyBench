@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import time
-import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -43,9 +42,15 @@ def state(client: TestClient) -> dict[str, Any]:
     return dict(ok(client.get("/project", headers=AUTH)))
 
 
-def entries(path: Path) -> dict[str, bytes]:
-    with zipfile.ZipFile(path) as read:
-        return {name: read.read(name) for name in read.namelist()}
+def entries(folder: Path) -> dict[str, bytes]:
+    """A project folder's files, by their path in it."""
+    return {
+        p.relative_to(folder).as_posix(): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()
+    }
+
+
+def manifest_of(folder: Path) -> dict[str, Any]:
+    return dict(json.loads((folder / ".sab" / "project.json").read_text(encoding="utf-8")))
 
 
 def csv_file(tmp_path: Path) -> Path:
@@ -120,27 +125,27 @@ def test_a_password_needs_a_source_on_this_computer() -> None:
 def test_a_new_project_is_saved_first_and_opens_its_grids_with_no_tables(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         refused = client.post("/project/new", json={}, headers=AUTH)
-        assert refused.status_code == 400 and "path" in refused.text
-        gone = client.post("/project/new", json={"path": str(tmp_path / "nowhere" / "a.sab")}, headers=AUTH)
-        assert gone.status_code == 404 and state(client)["project"] is None
-        made = ok(client.post("/project/new", json={"path": str(tmp_path / "plans")}, headers=AUTH))
-        target = tmp_path / "plans.sab"
-        assert made["saved"] == str(target) and target.is_file()
+        assert refused.status_code == 400 and "name" in refused.text
+        old = client.post("/project/new", json={"path": str(tmp_path / "nowhere" / "a.sab")}, headers=AUTH)
+        assert old.status_code == 400 and state(client)["project"] is None
+        target = tmp_path / "plans"
+        made = ok(client.post("/project/new", json={"path": str(target), "autosave": False}, headers=AUTH))
+        assert made["saved"] == str(target) and (target / ".sab" / "project.json").is_file()
         assert made["project"]["name"] == "plans" and made["project"]["dirty"] is False
         assert made["project"]["autosave"] is False
-        assert json.loads(entries(target)["project.json"])["autosave"] is False
+        assert json.loads((target / ".sab" / "project.json").read_text())["autosave"] is False
         assert [r["path"] for r in made["recent"]] == [str(target)]
 
 
 def test_autosave_saves_after_a_change_and_not_when_off(tmp_path: Path) -> None:
     with make_client(tmp_path, autosave_seconds=0.05) as client:
-        target = tmp_path / "auto.sab"
-        ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
+        target = tmp_path / "auto"
+        ok(client.post("/project/new", json={"path": str(target), "autosave": False}, headers=AUTH))
         # Off: a change stays unsaved.
         ok(client.post("/datasets/orders/load", json={"path": str(csv_file(tmp_path))}, headers=AUTH))
         time.sleep(0.6)
         assert state(client)["project"]["dirty"] is True
-        assert "orders" not in json.dumps(json.loads(entries(target)["project.json"])["tables"])
+        assert "orders" not in json.dumps(manifest_of(target)["tables"])
         # On: kept in the file at once (project.json only), then the change saves quietly.
         switched = ok(client.post("/project/autosave", json={"on": True}, headers=AUTH))["project"]
         assert switched["autosave"] is True
@@ -148,11 +153,11 @@ def test_autosave_saves_after_a_change_and_not_when_off(tmp_path: Path) -> None:
             if not state(client)["project"]["dirty"]:
                 break
             time.sleep(0.05)
-        manifest = json.loads(entries(target)["project.json"])
+        manifest = manifest_of(target)
         assert manifest["autosave"] is True and [t["name"] for t in manifest["tables"]] == ["orders"]
         # Off again: the switch is kept, the next change waits for Save.
         ok(client.post("/project/autosave", json={"on": False}, headers=AUTH))
-        assert json.loads(entries(target)["project.json"])["autosave"] is False
+        assert manifest_of(target)["autosave"] is False
         ok(client.post("/datasets/more/paste", content="a\tb\n1\t2\n", headers=AUTH))
         time.sleep(0.6)
         assert state(client)["project"]["dirty"] is True
@@ -208,7 +213,7 @@ def test_documents_and_dashboards_are_each_projects_own_connections_and_blades_t
     tmp_path: Path,
 ) -> None:
     with make_client(tmp_path) as client:
-        first = tmp_path / "first.sab"
+        first = tmp_path / "first"
         made = ok(client.post("/project/new", json={"path": str(first)}, headers=AUTH))["project"]
         Path(made["folder"], "analysis.ipynb").write_text(notebook("print(1)"), encoding="utf-8")
         ok(client.post("/connections", json=warehouse(), headers=AUTH))
@@ -226,10 +231,10 @@ def test_documents_and_dashboards_are_each_projects_own_connections_and_blades_t
         assert client.get("/project/documents?kind=sheet", headers=AUTH).status_code == 400
         ok(client.post("/project/save", json={}, headers=AUTH))
         inside = entries(first)
-        assert not any(n.startswith(".sab/blades/") for n in inside)  # the library's, never the file's
-        assert any(n.startswith(".sab/dashboards/") for n in inside)
+        assert not any(n.startswith(".sab/blades/") for n in inside)  # the library's, never the project's
+        assert any(n.startswith(".sab/visualizations/") for n in inside)
 
-        second = tmp_path / "second.sab"
+        second = tmp_path / "second"
         ok(client.post("/project/new", json={"path": str(second)}, headers=AUTH))
         names = {b["name"] for b in ok(client.get("/blades", headers=AUTH))["blades"]}
         assert {"Warehouse", "Typed"} <= names  # every project has the library
@@ -251,10 +256,10 @@ def test_documents_and_dashboards_are_each_projects_own_connections_and_blades_t
 
 
 def _with_own_blades(path: Path, blades: list[dict[str, Any]]) -> None:
-    """An older app's .sab: its own connections and blades in .sab/blades (added to a saved file)."""
-    with zipfile.ZipFile(path, "a") as archive:
-        for i, blade in enumerate(blades):
-            archive.writestr(f".sab/blades/blade-{i}.json", json.dumps(blade))
+    """An older app's project: its own connections and blades in .sab/blades."""
+    (path / ".sab" / "blades").mkdir(parents=True, exist_ok=True)
+    for i, blade in enumerate(blades):
+        (path / ".sab" / "blades" / f"blade-{i}.json").write_text(json.dumps(blade), encoding="utf-8")
 
 
 # ===== import =====
@@ -262,7 +267,7 @@ def _with_own_blades(path: Path, blades: list[dict[str, Any]]) -> None:
 
 def test_import_copies_documents_connections_and_blades(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
-        source = tmp_path / "source.sab"
+        source = tmp_path / "source"
         made = ok(client.post("/project/new", json={"path": str(source)}, headers=AUTH))["project"]
         Path(made["folder"], "analysis.ipynb").write_text(notebook("print('made up')"), encoding="utf-8")
         Path(made["folder"], "load.py").write_text("print('load')\n", encoding="utf-8")
@@ -273,7 +278,7 @@ def test_import_copies_documents_connections_and_blades(tmp_path: Path) -> None:
         shop.pop("secrets")
         _with_own_blades(source, [shop, {"name": "Typed", "kind": "secret", "env_names": ["API_KEY"]}])
 
-        target = tmp_path / "target.sab"
+        target = tmp_path / "target"
         made = ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))["project"]
         folder = Path(made["folder"])
         Path(folder, "analysis.ipynb").write_text(notebook("print('mine')"), encoding="utf-8")
@@ -350,7 +355,7 @@ def test_import_copies_documents_connections_and_blades(tmp_path: Path) -> None:
             client.post(
                 "/project/import", json={"from": str(source), "documents": ["load.py"]}, headers=AUTH
             ).status_code
-            == 404
+            == 404  # no project open to copy into
         )
 
 
@@ -359,7 +364,7 @@ def test_no_password_is_ever_in_the_file_whatever_its_source(
 ) -> None:
     monkeypatch.setenv("WAREHOUSE_ENV_PASSWORD", ENV_SECRET)
     with make_client(tmp_path) as client:
-        target = tmp_path / "secrets.sab"
+        target = tmp_path / "secrets"
         ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
         # From the keyring.
         ok(client.post("/connections", json=warehouse(), headers=AUTH))
@@ -386,10 +391,9 @@ def test_no_password_is_ever_in_the_file_whatever_its_source(
         listed = {c["name"]: c for c in ok(client.get("/connections", headers=AUTH))["connections"]}
         assert all(listed[n]["needs_password"] is None for n in ("Warehouse", "Vaulted", "Environment"))
         ok(client.post("/project/save", json={}, headers=AUTH))
-        raw = target.read_bytes()
         everything = b"".join(entries(target).values())
         for value in (KEYRING_SECRET, VAULT_SECRET, ENV_SECRET):
-            assert value.encode() not in everything and value.encode() not in raw, value
+            assert value.encode() not in everything, value
         assert [n for n in entries(target) if n.startswith(".sab/blades/")] == []
         library = b"".join(p.read_bytes() for p in (tmp_path / "state" / "library").rglob("*") if p.is_file())
         for value in (KEYRING_SECRET, VAULT_SECRET, ENV_SECRET):

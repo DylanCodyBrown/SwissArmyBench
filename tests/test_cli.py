@@ -127,6 +127,12 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    "/projects": "a project type's scaffold alone, not opened (an extension's own New): project_new makes "
+    "a project folder and opens it",
+    "/projects/show": "Show in folder opens the user's own file manager: the user's click only (403 for the "
+    "agent)",
+    "/projects/delete": "Delete moves a project's folder to the trash: the user's own, on their typed name "
+    "(403 for the agent; the owner, 2026-11-17)",
     "/datasets/{}/drop": "a file dropped on the page (bytes only the browser holds): the agent opens a file"
     " by its path with datasets_load",
     "/files/dropped-sheets": "a dropped workbook's sheets: the agent asks datasets_sheets by path",
@@ -625,7 +631,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The editors' intelligence (2026-11-17) added three: workbench_complete, workbench_signature (its
     # hover too) and workbench_problems.
     # The Data Explorer (2026-11-17) added one, explorer_search (its kinds, connection, column, limit).
-    assert size < 76_500, f"the tool list is {size} characters"
+    # Projects as folders and the Project Explorer (2026-11-17) added eight, took one (project_save_as):
+    # project_copy, project_import_sab, projects_list, projects_sort, project_rename,
+    # project_remove_from_list, projects_folder_set, project_types (2,500 characters).
+    assert size < 79_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

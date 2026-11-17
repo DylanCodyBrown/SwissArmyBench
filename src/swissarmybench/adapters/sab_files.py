@@ -1,29 +1,31 @@
-"""The .sab file on disk (domain/sab_files.py has the rules; services/sab_projects.py the use cases):
-read and unpacked safely, written atomically, and the recent projects' list.
+"""A project folder on disk (domain/sab_files.py has the rules; services/sab_projects.py the use cases):
+its .sab/ state written only when its bytes change, its documents listed, a copy, an old .sab file read
+safely and unpacked into a folder (the import), and the recent projects' list.
 
-  open      every entry checked before anything is written (names, links, sizes; domain rules), then
-            unpacked into a working folder of its own in the system's temporary folder; each entry is
-            counted again as it is read, so a zip that lies about its sizes stops at the cap
-  save      a temporary file beside the target, then one replace: a crash never leaves half a .sab
-  working   a project's working folder (the temporary one is removed when it closes or the server stops)
-  recent    recent_projects.json in the state folder: paths and times only
+  state     .sab/project.json, visualizations.json, model.json, data/<table>.parquet: each written
+            atomically (a temporary file beside it, then one replace), and only when its bytes differ
+  files     the project's own documents (code and text: never data, never .sab/, no environments)
+  copy      Copy project to: the folder copied (.sab/data/ only on a tick; caches and environments left)
+  import    an old .sab: every entry checked before anything is written (names, links, sizes; domain
+            rules), then unpacked into an empty folder; each entry counted again as it is read, so a zip
+            that lies about its sizes stops at the cap
+  recent    recent_projects.json in the state folder: folder paths and times only
 
-Nothing here is written but at the user's word (Save) or the agent's (its own save, with the user's
-Allow when rows go in), and the working folders, which go when the project closes.
+Nothing here is written but at the user's word (Save, Autosave, New project, Copy project to, the import)
+or the agent's (its own, with the user's Allow when rows are kept).
 """
 
 from __future__ import annotations
 
+import io
 import json
 import os
-import re
 import secrets
 import shutil
 import stat
-import tempfile
 import zipfile
 import zlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -31,11 +33,25 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from swissarmybench.domain.project_scope import APP_FOLDER, app_entry
-from swissarmybench.domain.sab_files import EntryInfo, SabError, check_entries, check_entry, packed
+from swissarmybench.domain.sab_files import (
+    APP_GITIGNORE,
+    APP_IGNORE_FILE,
+    DASHBOARDS_FOLDER,
+    GITIGNORE,
+    GITIGNORE_FILE,
+    MANIFEST_PATH,
+    OLD_DASHBOARDS_FOLDER,
+    README_FILE,
+    EntryInfo,
+    SabError,
+    check_entries,
+    check_entry,
+    packed,
+    readme,
+)
 
 CHUNK: int = 1024 * 1024
-MAX_RECENT: int = 20
-WORKING_PREFIX: str = "sab-project-"
+MAX_RECENT: int = 100
 
 
 class _Sink:
@@ -53,15 +69,12 @@ def _is_link(info: zipfile.ZipInfo) -> bool:
 
 
 class SabArchive:
-    """Reading and writing .sab files, and the working folders they are unpacked into."""
+    """A project's folder on disk, and an old .sab file read safely (the import)."""
 
-    def __init__(
-        self, max_file_bytes: int, max_entries: int, max_total: int, temp_root: Path | None = None
-    ) -> None:
+    def __init__(self, max_file_bytes: int, max_entries: int, max_total: int) -> None:
         self.max_file_bytes = max_file_bytes
         self.max_entries = max_entries
         self.max_total = max_total
-        self._temp_root = temp_root
 
     # ===== paths =====
 
@@ -77,6 +90,10 @@ class SabArchive:
             return str(given.resolve())
         except OSError as error:
             raise FileNotFoundError(f"{path[:200]} is not a place this computer can use ({error}).") from None
+
+    @staticmethod
+    def join(folder: str, name: str) -> str:
+        return str(Path(folder).expanduser() / name)
 
     @staticmethod
     def exists(path: str) -> bool:
@@ -148,55 +165,6 @@ class SabArchive:
                 return archive.read(info).decode("utf-8-sig")
             except (zipfile.BadZipFile, zlib.error, EOFError, UnicodeDecodeError):
                 raise SabError("Its project.json is damaged: it was not opened.") from None
-
-    def unpack(self, path: str, special: set[str], name: str) -> tuple[str, str, dict[str, str]]:
-        """Every entry into a working folder of its own: the project's files into its `work` folder, the
-        special ones (Visualizations, the model, rows) beside it. The root (removed on close), the working
-        folder, and each special entry's file."""
-        root, folder = self.new_folder(name)
-        meta = Path(root) / ".meta"  # (a project's own folder name never starts with a dot)
-        meta.mkdir()
-        try:
-            with self._zip(path) as archive:
-                budget = [self.max_total]
-                found: dict[str, str] = {}
-                work = Path(folder).resolve()
-                for info in self._checked(archive):
-                    entry = check_entry(info.filename)
-                    if entry == "project.json":
-                        continue
-                    if entry in special:
-                        target = meta / secrets.token_hex(8)
-                        found[entry] = str(target)
-                    else:
-                        target = (work / entry).resolve()
-                        if not target.is_relative_to(work):
-                            raise SabError(f"The file holds an entry outside the project ({entry[:80]}).")
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                    with open(target, "wb") as out:
-                        self._read(archive, info, out, budget)
-        except BaseException:
-            self.remove(root)
-            raise
-        return root, folder, found
-
-    # ===== working folders =====
-
-    def new_folder(self, name: str) -> tuple[str, str]:
-        """A working folder of its own, named for the project, in a folder of the system's temporary
-        folder: that root (removed when the project closes) and the working folder."""
-        base = self._temp_root or Path(tempfile.gettempdir())
-        base.mkdir(parents=True, exist_ok=True)
-        root = Path(tempfile.mkdtemp(prefix=WORKING_PREFIX, dir=base))
-        named = re.sub(r"[\\/:*?\"<>|\x00-\x1f]+", "_", name).strip(" .") or "project"
-        work = root / named[:60]
-        work.mkdir()
-        return str(root), str(work)
-
-    @staticmethod
-    def remove(root: str | None) -> None:
-        if root and Path(root).name.startswith(WORKING_PREFIX):
-            shutil.rmtree(root, ignore_errors=True)
 
     def files(self, folder: str) -> list[tuple[str, int, float]]:
         """The working folder's files that go into the .sab: path inside it, size, last change."""
@@ -296,72 +264,177 @@ class SabArchive:
     # ===== rows =====
 
     @staticmethod
-    def write_rows(folder: str, table: pa.Table) -> str:
-        """A table's rows as a Parquet file in `folder` (the save's own temporary one)."""
-        target = Path(folder) / f"{secrets.token_hex(8)}.parquet"
-        pq.write_table(table, target)
-        return str(target)
-
-    @staticmethod
     def read_rows(path: str) -> pa.Table:
         return pq.read_table(path)
 
+    # ===== a project folder's .sab/ state: written only when its bytes change =====
+
     @staticmethod
-    def scratch() -> str:
-        return tempfile.mkdtemp(prefix=WORKING_PREFIX)
+    def _inside(folder: str, relative: str) -> Path:
+        root = Path(folder).expanduser().resolve()
+        target = (root / check_entry(relative)).resolve()
+        if not target.is_relative_to(root):
+            raise SabError(f"{relative[:80]} is outside the project.")
+        return target
 
-    # ===== save: atomic =====
+    def read_state(self, folder: str, relative: str) -> bytes | None:
+        """A file of the project's (its .sab/project.json, say) as bytes; None when it is not there."""
+        target = self._inside(folder, relative)
+        if not target.is_file() or target.is_symlink():
+            return None
+        if target.stat().st_size > self.max_total:
+            raise SabError(f"{relative[:80]} is too large to read.")
+        return target.read_bytes()
 
-    def write(self, target: str, entries: Sequence[tuple[str, bytes | str]]) -> str:
-        """The .sab at `target` (its folder must be there): a temporary file beside it, then one replace.
-        Each entry is bytes, or the path of a file to copy in."""
-        file = Path(target).expanduser().resolve()
-        if not file.parent.is_dir():
-            raise FileNotFoundError(f"The folder {file.parent} is not there.")
-        if file.is_dir():
-            raise FileNotFoundError(f"{file} is a folder: name a .sab file.")
-        if file.exists() and not os.access(file, os.W_OK):
-            raise PermissionError(f"{file} is read-only.")
-        partial = file.with_name(f".{file.name}.{secrets.token_hex(4)}.saving")
+    def write_state(self, folder: str, relative: str, body: bytes) -> bool:
+        """A file of the project's written whole, only when its bytes differ (a save that changes nothing
+        changes no byte): a temporary file beside it, then one replace. True when it was written."""
+        root = Path(folder).expanduser().resolve()
+        if not root.is_dir():
+            raise FileNotFoundError(f"The project's folder {root} is not there.")
+        target = self._inside(folder, relative)
+        if target.is_file():
+            if target.stat().st_size == len(body) and target.read_bytes() == body:
+                return False
+            if not os.access(target, os.W_OK):
+                raise PermissionError(f"{target} is read-only.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(f".{target.name}.{secrets.token_hex(4)}.saving")
         try:
-            with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as out:
-                for name, body in entries:
-                    entry = check_entry(name)
-                    if isinstance(body, bytes):
-                        out.writestr(entry, body)
-                    else:
-                        out.write(body, entry)
-            with open(partial, "rb+") as written:
-                os.fsync(written.fileno())
-            os.replace(partial, file)
+            partial.write_bytes(body)
+            os.replace(partial, target)
         except BaseException:
             partial.unlink(missing_ok=True)
             raise
-        return str(file)
+        return True
 
-    def replace_manifest(self, target: str, text: str) -> None:
-        """The .sab's project.json replaced, every other entry as it was (a switch kept in the file without
-        saving anything else): a temporary file beside it, then one replace."""
-        file = Path(target).expanduser().resolve()
-        partial = file.with_name(f".{file.name}.{secrets.token_hex(4)}.saving")
+    def remove_state(self, folder: str, relative: str) -> bool:
+        """One of the app's own files in .sab/ taken away (Visualizations emptied, a row tick taken off)."""
+        if not check_entry(relative).startswith(APP_FOLDER + "/"):
+            raise SabError(f"{relative[:80]} is not the app's own.")
+        target = self._inside(folder, relative)
+        if target.is_file():
+            target.unlink()
+            return True
+        return False
+
+    def state_names(self, folder: str, sub: str) -> list[str]:
+        """The files directly in one of .sab/'s folders (data, visualizations), as paths in the project."""
+        place = self._inside(folder, sub)
+        if not place.is_dir() or place.is_symlink():
+            return []
+        return sorted(f"{sub}/{p.name}" for p in place.iterdir() if p.is_file() and not p.is_symlink())
+
+    @staticmethod
+    def rows_bytes(table: pa.Table) -> bytes:
+        """A table's rows as Parquet (the same rows, the same bytes)."""
+        sink = io.BytesIO()
+        pq.write_table(table, sink)
+        return sink.getvalue()
+
+    def move_old_dashboards(self, folder: str) -> bool:
+        """A project from before folders keeps its saved dashboards in .sab/dashboards: moved once into
+        .sab/visualizations (when that is not there yet)."""
+        old = self._inside(folder, OLD_DASHBOARDS_FOLDER)
+        new = self._inside(folder, DASHBOARDS_FOLDER)
+        if old.is_dir() and not old.is_symlink() and not new.exists():
+            old.rename(new)
+            return True
+        return False
+
+    def ensure_ignored(self, folder: str, name: str) -> list[str]:
+        """The scaffold's Git files: .sab/.gitignore (the app's: always), and the project's .gitignore and
+        README.md only when it has none (a file there is never written over). The ones written."""
+        written: list[str] = []
+        if self.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8")):
+            written.append(APP_IGNORE_FILE)
+        for relative, text in ((GITIGNORE_FILE, GITIGNORE), (README_FILE, readme(name))):
+            target = self._inside(folder, relative)
+            if not target.exists():
+                self.write_state(folder, relative, text.encode("utf-8"))
+                written.append(relative)
+        return written
+
+    # ===== a project's folder: what it is, a new one, a copy =====
+
+    @staticmethod
+    def top_names(folder: str) -> list[str]:
+        """The folder's own files by name, and .sab/project.json when it is there (is it a project?)."""
+        root = Path(folder).expanduser()
         try:
-            with self._zip(str(file)) as source, zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as out:
+            names = [e.name for e in os.scandir(root) if e.is_file()]
+        except OSError:
+            return []
+        if (root / MANIFEST_PATH).is_file():
+            names.append(MANIFEST_PATH)
+        return sorted(names)
+
+    @staticmethod
+    def empty_folder(path: str) -> str:
+        """A new project's folder: made (with its parents), or one that is there and empty. Refused in
+        words for a file, or a folder that holds something (open it as a project instead)."""
+        target = Path(path).expanduser().resolve()
+        if target.exists() and not target.is_dir():
+            raise FileExistsError(f"{target} is a file: pick a folder.")
+        if target.is_dir() and any(target.iterdir()):
+            raise FileExistsError(f"{target} is not empty: pick an empty folder, or open it as a project.")
+        target.mkdir(parents=True, exist_ok=True)
+        return str(target)
+
+    @staticmethod
+    def copy_project(source: str, target: str, data: bool) -> str:
+        """Copy project to: the whole folder into `target` (a new or empty folder), its .sab/data only when
+        `data`; environments and caches stay behind (they are this computer's)."""
+        root = Path(source).expanduser().resolve()
+        into = Path(target).expanduser().resolve()
+        if into == root or into.is_relative_to(root):
+            raise FileExistsError("Copy the project to a folder outside it.")
+        if into.exists() and (not into.is_dir() or any(into.iterdir())):
+            raise FileExistsError(f"{into} is not empty: pick a new or empty folder.")
+        leave = {"__pycache__", ".venv", "venv", "node_modules", ".ipynb_checkpoints", ".mypy_cache"}
+
+        def ignored(where: str, names: list[str]) -> set[str]:
+            here = Path(where).resolve()
+            skipped = {n for n in names if n in leave or n.endswith(".saving")}
+            if not data and here == root / APP_FOLDER:
+                skipped.add("data")
+            return skipped
+
+        into.parent.mkdir(parents=True, exist_ok=True)
+        if into.exists():
+            into.rmdir()
+        shutil.copytree(root, into, symlinks=True, ignore=ignored)
+        return str(into)
+
+    # ===== an old .sab file imported into a folder =====
+
+    def unpack_into(self, path: str, folder: str, place: Callable[[str], str | None]) -> dict[str, str]:
+        """Every entry of an old .sab (each checked first) into `folder` (made, or empty): a project file at
+        its own path, the app's own entries where `place` says ("": not written, the manifest). Each old
+        entry's new path."""
+        target = Path(self.empty_folder(folder))
+        found: dict[str, str] = {}
+        try:
+            with self._zip(path) as archive:
                 budget = [self.max_total]
-                for info in self._checked(source):
+                for info in self._checked(archive):
                     entry = check_entry(info.filename)
-                    if entry == "project.json":
-                        out.writestr(entry, text.encode("utf-8"))
+                    where = place(entry)
+                    if where == "":
                         continue
-                    with out.open(entry, "w") as sink:
-                        self._read(source, info, sink, budget)
-            os.replace(partial, file)
+                    out = self._inside(str(target), where or entry)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    with open(out, "wb") as sink:
+                        self._read(archive, info, sink, budget)
+                    found[entry] = where or entry
         except BaseException:
-            partial.unlink(missing_ok=True)
+            shutil.rmtree(target, ignore_errors=True)
             raise
+        return found
 
 
 class RecentProjects:
-    """recent_projects.json in the state folder: the last projects opened or saved, paths and times only.
+    """recent_projects.json in the state folder: the projects opened (their folders), paths and times only.
     None: kept in memory (a test's server without state files)."""
 
     def __init__(self, file: Path | None) -> None:
@@ -395,8 +468,20 @@ class RecentProjects:
         os.replace(partial, self._file)
 
     def all(self) -> list[dict[str, Any]]:
-        """Each one with whether its file is still there."""
-        return [r | {"exists": SabArchive.exists(r["path"])} for r in self._read()]
+        """Each one with whether its folder is still there (an old .sab file: `sab`, to import)."""
+        return [
+            r | {"exists": SabArchive.is_folder(r["path"]), "sab": SabArchive.exists(r["path"])}
+            for r in self._read()
+        ]
+
+    def replace(self, old: str, new: str) -> bool:
+        """A project moved or renamed: its entry follows (Locate…, Rename)."""
+        listed = self._read()
+        if not any(r["path"] == old for r in listed):
+            return False
+        moved = [r | {"path": new} if r["path"] == old else r for r in listed if r["path"] != new]
+        self._write(moved)
+        return True
 
     def add(self, path: str, when: float) -> None:
         self._write([{"path": path, "opened": when}, *(r for r in self._read() if r["path"] != path)])

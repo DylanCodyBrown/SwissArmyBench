@@ -1,25 +1,28 @@
 /**
- * projectFile.ts: a project as one .sab file, the same on the home page and in the Workbench. [STATE + WIRE]
+ * projectFile.ts: a project is a folder (the owner, 2026-11-17), the same on the home page and in the
+ * Workbench. [STATE + WIRE]
  *
  * ROUTING: [STATE]    GET /project (the open project, its unsaved mark, the tables that need a fix, the
  *                     recent ones), again on the project_changed notice and on any change a save would
  *                     write (a step, a table, a card, a relationship)
- *          [OPEN]     Open project… -> the file chooser (.sab) -> POST /project/open; unsaved work open:
- *                     asked first, and only then
- *          [NEW]      New project -> the file chooser (save: its name and folder) -> POST /project/new
- *                     (saved there at once; the same question) -> Autosave, a switch -> POST
- *                     /project/autosave
- *          [SAVE]     Save (Ctrl+S) -> POST /project/save; Save as…, and the open work with no project,
- *                     ask where (the file chooser) after the per-table "Keep its rows in the file" ticks
- *          [AUTOSAVE] the project group's switch -> POST /project/autosave
+ *          [OPEN]     Open project… -> the file chooser (a folder) -> POST /project/open; unsaved work open:
+ *                     asked first, and only then; a plain folder: "Make this folder a project?" (make)
+ *          [NEW]      New project -> its name, its type (each explained: "?"), where (the projects folder,
+ *                     or Choose another folder…) -> POST /project/new (scaffolded, opened, saved at once)
+ *          [SAVE]     Save (Ctrl+S) -> POST /project/save (.sab/; a pasted table's "Keep its rows" asked
+ *                     once); Copy project to… -> a new folder -> POST /project/copy
+ *          [AUTOSAVE] the project group's switch -> POST /project/autosave (on by default)
+ *          [IMPORT]   Open a .sab file… (one release) -> the .sab, then the folder it goes into -> POST
+ *                     /project/import-sab
  *          [CLOSE]    Close project -> POST /project/close
  *          [FIX]      a table that did not come back -> its one click: Add connection, Find <file>,
  *                     Open <notebook>, Remove, Try again -> POST /project/fix
- *          [ASKED]    a double-click on a .sab while unsaved work is open: the page asks
+ *          [ASKED]    another program asked to open a project (or an old .sab) while unsaved work is open
  */
 import { api, ApiError, onNotice, type Notice } from "./api";
 import { button, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { projectTypes, type ProjectType, typeCard } from "./projectTypes";
 
 export interface ProjectTable {
   name: string;
@@ -49,7 +52,7 @@ export interface OpenProject {
   name: string;
   path: string | null;
   folder: string;
-  temporary: boolean;
+  type: string;
   dirty: boolean;
   read_only: string | null;
   serial: number;
@@ -65,6 +68,7 @@ export interface RecentProject {
   path: string;
   opened: number;
   exists: boolean;
+  sab?: boolean;
 }
 
 export interface ProjectState {
@@ -159,45 +163,126 @@ async function withQuestion(path: string, body: Record<string, unknown>, questio
   }
 }
 
-/** Open project…: a .sab (the file chooser when no path is given). */
+type Opened = ProjectState & { not_a_project?: string; sab?: string };
+
+/** Open project…: a folder (the file chooser when no path is given). A plain folder: made a project around
+ *  its files when the user says so; an old .sab file: imported into a folder. */
 export async function openProject(path?: string): Promise<ProjectState | null> {
-  const chosen = path ?? (await chooseFile({ title: "Open project", mode: "file", suffixes: [".sab"], start: state.recent[0]?.path }));
+  const chosen = path ?? (await chooseFile({ title: "Open project", mode: "folder", start: state.recent.find((r) => r.exists)?.path }));
   if (!chosen) return null;
-  const opened = await withQuestion("/project/open", { path: chosen }, `Let them go and open ${baseName(chosen)}?`);
+  let opened = (await withQuestion("/project/open", { path: chosen }, `Let them go and open ${baseName(chosen)}?`)) as Opened | null;
   if (!opened) return null;
+  if (opened.sab) return importSab(opened.sab);
+  if (opened.not_a_project) {
+    if (!confirm(`${baseName(opened.not_a_project)} is not a project yet.\n\nMake this folder a project? Nothing in it is written over.`)) return null;
+    opened = (await withQuestion("/project/open", { path: chosen, make: true }, `Let them go and open ${baseName(chosen)}?`)) as Opened | null;
+    if (!opened) return null;
+  }
   return loadProject(); // a table that did not come back shows in the strip under the tabs, with its fix
 }
 
-/** New project: saved first, where the user says (its name is the file's), then Autosave on or off. The
- *  tables open now go into it (with no project open). */
-export async function newProject(): Promise<ProjectState | null> {
-  const picked = await chooseFile({ title: "New project", mode: "save", suffixes: [".sab"], start: state.recent[0]?.path, name: "project.sab" });
-  if (!picked) return null;
-  const path = picked.toLowerCase().endsWith(".sab") ? picked : `${picked}.sab`;
-  const made = await withQuestion("/project/new", { path }, "Let them go and start a new project?");
+/** New project: its name, its type (each explained for beginners), where it goes; scaffolded, opened and
+ *  saved at once. The tables open now (with no project) go into it. `preset`: a type chosen already (a
+ *  type's card on the home page). */
+export async function newProject(preset?: ProjectType): Promise<ProjectState | null> {
+  const chosen = await chooseNewProject(preset);
+  if (!chosen) return null;
+  const made = await withQuestion("/project/new", chosen, "Let them go and start a new project?");
   if (!made) return null;
-  const on = await chooseAutosave(false);
-  if (on) await setAutosave(true);
   return loadProject();
 }
 
-/** The Autosave choice, a switch: resolves to on or off once Done (or closed). */
-function chooseAutosave(now: boolean): Promise<boolean> {
+/** New project's dialog: resolves to what /project/new is sent, or null when closed. */
+async function chooseNewProject(preset?: ProjectType): Promise<Record<string, unknown> | null> {
+  const listed = await api<{ types: ProjectType[]; folder: string }>("/projects/types");
+  const types = listed.types.length ? listed.types : await projectTypes();
   return new Promise((resolve) => {
-    const { dialog, body, foot, close } = openDialog("Autosave");
-    dialog.classList.add("autosave-choice");
-    const box = autosaveSwitch(now);
-    body.append(box.element);
+    const { dialog, body, foot, close } = openDialog("New project", true);
+    dialog.classList.add("new-project");
+    let kind = preset ?? types[0];
+    let folder: string | null = null;
     let done = false;
-    const finish = (): void => {
+    const name = h("input", { type: "text", class: "new-project-name", "aria-label": "Name", value: "", placeholder: "Name", maxlength: "60" });
+    const where = h("span", { class: "new-project-where", title: listed.folder }, listed.folder);
+    const kinds = h("div", { class: "new-project-types", role: "radiogroup", "aria-label": "Type" });
+    const explained = h("div", { class: "new-project-explained pt-cards" });
+    explained.hidden = true;
+    const drawKinds = (): void => {
+      kinds.replaceChildren(
+        ...types.map((t) => {
+          const pick = h("button", { type: "button", role: "radio", class: "new-project-type", "aria-checked": String(t.type === kind?.type), "data-type": t.type, title: t.for_whom }, t.title || t.name);
+          pick.addEventListener("click", () => {
+            kind = t;
+            drawKinds();
+          });
+          return pick;
+        }),
+        button("What kind of project?", () => {
+          explained.hidden = !explained.hidden;
+        }, { icon: "help", iconOnly: true, class: "ghost new-project-help" }),
+      );
+    };
+    drawKinds();
+    explained.append(
+      ...types.map((t) =>
+        typeCard(t, (picked) => {
+          kind = picked;
+          drawKinds();
+          explained.hidden = true;
+          name.focus();
+        }),
+      ),
+    );
+    const other = button("Choose another folder…", () => {
+      void chooseFile({ title: "New project: where its folder goes", mode: "folder", start: folder ?? listed.folder }).then((picked) => {
+        if (!picked) return;
+        folder = picked;
+        where.textContent = picked;
+        where.title = picked;
+      });
+    }, { icon: "folder", class: "ghost" });
+    body.append(
+      h("label", { class: "field" }, h("span", {}, "Name"), name),
+      h("div", { class: "field" }, h("span", {}, "Type"), kinds),
+      explained,
+      h("div", { class: "field new-project-folder" }, h("span", {}, "In"), where, other),
+    );
+    const finish = (value: Record<string, unknown> | null): void => {
       if (done) return;
       done = true;
       close();
-      resolve(box.input.checked);
+      resolve(value);
     };
-    dialog.addEventListener("close", finish);
-    foot.append(button("Done", finish, { class: "primary" }));
+    const create = (): void => {
+      const called = name.value.trim();
+      if (!called) {
+        name.focus();
+        return;
+      }
+      finish({ name: called, ...(folder ? { folder } : {}), ...(kind?.make ?? {}) });
+    };
+    name.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") create();
+    });
+    dialog.addEventListener("close", () => finish(null));
+    foot.append(button("Cancel", () => finish(null), { class: "ghost" }), button("Create", create, { icon: "plus", class: "primary" }));
+    name.focus();
   });
+}
+
+/** Open a .sab file… (one release): an old project file unpacked into a folder the user picks (each entry
+ *  checked by the server), then opened as a project folder. */
+export async function importSab(path?: string): Promise<ProjectState | null> {
+  const file = path ?? (await chooseFile({ title: "Open a .sab file", mode: "file", suffixes: [".sab"] }));
+  if (!file) return null;
+  const stem = baseName(file).replace(/\.sab$/i, "");
+  const listed = await api<{ folder: string }>("/projects/types").catch(() => ({ folder: "" }));
+  const target = await chooseFile({ title: `${baseName(file)}: the folder it becomes`, mode: "save", start: listed.folder || folderOf(file), name: stem });
+  if (!target) return null;
+  const done = await withQuestion("/project/import-sab", { path: file, folder: target }, `Let them go and open ${stem}?`);
+  if (!done) return null;
+  toast(`${stem} is a folder now: ${target}`);
+  return loadProject();
 }
 
 /** An Autosave switch (a checkbox in the switch role). */
@@ -208,7 +293,7 @@ export function autosaveSwitch(on: boolean, changed?: (on: boolean) => void): { 
   return { element: h("label", { class: "autosave-switch" }, input, h("span", {}, "Autosave")), input };
 }
 
-/** Autosave on or off for the open project (kept in its file). */
+/** Autosave on or off for the open project (kept in its .sab/project.json). */
 export async function setAutosave(on: boolean): Promise<ProjectState> {
   await api("/project/autosave", "POST", { on });
   return loadProject();
@@ -220,16 +305,14 @@ export async function closeProject(): Promise<ProjectState | null> {
   return loadProject();
 }
 
-/** The tables with no source to read again, each with its "Keep its rows in the file" tick; resolves
- *  to the choices, or null when closed. None to choose: at once. */
-function chooseRows(project: OpenProject): Promise<Record<string, boolean> | null> {
-  const choosing = project.tables.filter((t) => t.needs_rows);
-  if (!choosing.length) return Promise.resolve({});
+/** The tables with no source to read again, each with its "Keep its rows" tick; resolves to the choices,
+ *  or null when closed. */
+function chooseRows(tables: ProjectTable[], title: string, action: string): Promise<Record<string, boolean> | null> {
   return new Promise((resolve) => {
-    const { dialog, body, foot, close } = openDialog("Save project as");
+    const { dialog, body, foot, close } = openDialog(title);
     dialog.classList.add("save-project");
     let done = false;
-    const ticks = choosing.map((t) => {
+    const ticks = tables.map((t) => {
       const box = h("input", { type: "checkbox", "data-table": t.name });
       box.checked = t.keep_rows;
       return { name: t.name, box };
@@ -238,9 +321,7 @@ function chooseRows(project: OpenProject): Promise<Record<string, boolean> | nul
       h(
         "ul",
         { class: "keep-rows" },
-        ...ticks.map(({ name, box }) =>
-          h("li", {}, h("strong", {}, name), h("label", {}, box, h("span", {}, "Keep its rows in the file"))),
-        ),
+        ...ticks.map(({ name, box }) => h("li", {}, h("strong", {}, name), h("label", {}, box, h("span", {}, "Keep its rows")))),
       ),
     );
     const finish = (value: Record<string, boolean> | null): void => {
@@ -252,50 +333,64 @@ function chooseRows(project: OpenProject): Promise<Record<string, boolean> | nul
     dialog.addEventListener("close", () => finish(null));
     foot.append(
       button("Cancel", () => finish(null), { class: "ghost" }),
-      button("Save as…", () => finish(Object.fromEntries(ticks.map(({ name, box }) => [name, box.checked]))), { icon: "save", class: "primary" }),
+      button(action, () => finish(Object.fromEntries(ticks.map(({ name, box }) => [name, box.checked]))), { icon: "save", class: "primary" }),
     );
   });
 }
 
-/** Save (as: Save as…). The first save of a project made here asks where. With no project open, the
- *  open work is saved as one. */
-export async function saveProject(as = false): Promise<ProjectState | null> {
+const askedRows = new Set<string>();
+
+/** Save: the project's .sab/ (the documents by their own Save). A pasted table's "Keep its rows" is asked
+ *  once. With no project open, the open work becomes one (New project). */
+export async function saveProject(): Promise<ProjectState | null> {
   await loadProject();
-  // No project yet: the open work becomes one (its tables go into its data.ipynb), saved where asked.
   const project = state.project;
-  if (project?.read_only) {
+  if (!project) {
+    if (!state.loose) return null;
+    return newProject();
+  }
+  if (project.read_only) {
     toast(project.read_only, "error");
     return null;
   }
-  let path: string | undefined;
   let keep: Record<string, boolean> | undefined;
-  if (as || !project?.path) {
-    const fake: OpenProject = project ?? { name: "project", path: null, folder: "", temporary: true, dirty: true, read_only: null, serial: 0, tables: state.loose_tables, problems: [], layout: {}, unsaved_documents: [], autosave: false, autosave_error: null };
-    const chosen = await chooseRows(fake);
+  const asking = project.tables.filter((t) => t.needs_rows && !t.keep_rows && !askedRows.has(t.name));
+  if (asking.length) {
+    const chosen = await chooseRows(asking, "Save project", "Save");
     if (chosen === null) return null;
+    for (const t of asking) askedRows.add(t.name);
     keep = chosen;
-    const suggested = `${project?.name && project.name !== "New project" ? project.name : "project"}.sab`;
-    const start = project?.path ?? state.recent[0]?.path;
-    const picked = await chooseFile({ title: "Save project as", mode: "save", suffixes: [".sab"], start, name: suggested });
-    if (!picked) return null;
-    path = picked.toLowerCase().endsWith(".sab") ? picked : `${picked}.sab`;
   }
-  const folder = project && !project.temporary && !project.path ? project.folder : undefined;
   for (const hook of beforeSave) await hook().catch(() => undefined);
-  const saved = await api<ProjectState & { saved: string; notes: string[] }>("/project/save", "POST", { ...(path ? { path } : {}), ...(keep ? { keep_rows: keep } : {}), ...(folder ? { folder } : {}) });
+  const saved = await api<ProjectState & { saved: string; notes: string[] }>("/project/save", "POST", keep ? { keep_rows: keep } : {});
   for (const note of saved.notes ?? []) toast(note);
   toast("Saved");
   return loadProject();
 }
 
-/** A folder project (today's: a folder with data.ipynb) saved as one .sab file. */
-export async function saveFolderAsFile(folder: string): Promise<ProjectState | null> {
-  const picked = await chooseFile({ title: "Save as .sab", mode: "save", suffixes: [".sab"], start: folder, name: `${baseName(folder)}.sab` });
-  if (!picked) return null;
-  const path = picked.toLowerCase().endsWith(".sab") ? picked : `${picked}.sab`;
-  await api("/project/save", "POST", { folder, path });
-  toast("Saved");
+/** Keep its rows… : the project's pasted tables, each ticked or not (any time, not only once). */
+export async function keepRows(): Promise<ProjectState | null> {
+  await loadProject();
+  const project = state.project;
+  const tables = project?.tables.filter((t) => t.needs_rows) ?? [];
+  if (!project || !tables.length) return null;
+  const chosen = await chooseRows(tables, "Keep rows", "Save");
+  if (chosen === null) return null;
+  await api("/project/save", "POST", { keep_rows: chosen });
   return loadProject();
+}
+
+/** Copy project to…: a new folder (saved first); its kept rows only on a tick. `folder`: a project that is
+ *  not open (the Project Explorer's card). */
+export async function copyProject(folder?: string): Promise<string | null> {
+  const source = folder ?? state.project?.folder;
+  if (!source) return null;
+  const target = await chooseFile({ title: `Copy ${baseName(source)} to`, mode: "save", start: folderOf(source), name: `${baseName(source)} copy` });
+  if (!target) return null;
+  const data = confirm("Copy the rows kept in .sab/data too?\n\nOK: with them. Cancel: without (data is sensitive).");
+  const done = await api<{ copied: string }>("/project/copy", "POST", { path: target, data, ...(folder ? { folder } : {}) });
+  toast(`Copied to ${done.copied}`);
+  return done.copied;
 }
 
 /** A table that did not come back: its one click. `addConnection` and `openNotebook` are the page's. */
@@ -306,7 +401,7 @@ export async function fixTable(problem: Problem, how: { addConnection: (name: st
   } else if (fix.kind === "remove") {
     await api("/project/fix", "POST", { table: problem.table, remove: true });
   } else if (fix.kind === "find_file") {
-    const picked = await chooseFile({ title: `Find ${fix.file ?? problem.table}`, mode: "file", suffixes: fix.suffix ? [fix.suffix] : undefined, start: state.project?.path ?? undefined });
+    const picked = await chooseFile({ title: `Find ${fix.file ?? problem.table}`, mode: "file", suffixes: fix.suffix ? [fix.suffix] : undefined, start: state.project?.folder ?? undefined });
     if (!picked) return;
     await api("/project/fix", "POST", { table: problem.table, path: picked });
   } else if (fix.kind === "add_connection") {
@@ -325,11 +420,18 @@ export async function fixTable(problem: Problem, how: { addConnection: (name: st
   if (still) toast(still.message, "error");
 }
 
-/** Another program asked to open a .sab (a double-click) while unsaved work is open: ask once. */
+/** Another program asked to open a project (`swissarmybench open`) while unsaved work is open: ask once.
+ *  An old .sab file: its import. */
 export async function answerAsked(): Promise<void> {
   const asked = state.asked;
   if (!asked || askedShown === asked) return;
   askedShown = asked;
+  if (/\.sab$/i.test(asked)) {
+    await api("/project/open", "POST", { cancel: true });
+    await importSab(asked).catch((e: Error) => toast(e.message, "error"));
+    askedShown = null;
+    return;
+  }
   const lost = wouldLose() ?? "There are unsaved changes.";
   if (confirm(`${lost}\n\nLet them go and open ${baseName(asked)}?`)) {
     await api("/project/open", "POST", { path: asked, discard: true });

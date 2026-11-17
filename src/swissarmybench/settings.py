@@ -63,6 +63,14 @@ def _workbench_dir() -> Path:
     return Path(override) if override else workbench_folder()
 
 
+def _projects_dir() -> Path:
+    """The projects folder (the Project Explorer's): "Swiss Army Bench Projects" in the home folder until
+    Settings' Projects folder names another (projects.json); SWISSARMYBENCH_PROJECTS_DIR overrides it (tests,
+    so none lands in a real home)."""
+    override = env("SWISSARMYBENCH_PROJECTS_DIR")
+    return Path(override) if override else Path.home() / "Swiss Army Bench Projects"
+
+
 def _claude_dir() -> Path:
     """Claude Code's folder, where installed plugins (packs) live: SWISSARMYBENCH_CLAUDE_DIR (tests),
     else Claude Code's own CLAUDE_CONFIG_DIR, else ~/.claude."""
@@ -179,13 +187,12 @@ class Settings:
     beta_slow_seconds: float = 2.0
     beta_log_days: int = 7
     beta_log_bytes: int = 20 * MIB
-    # A .sab project file (domain/sab_files.py): the largest file opened, how many entries it may hold,
-    # and how much it may unpack to (its rows' Parquet included). Each entry is counted as it is read.
+    # An old .sab project file imported into a folder (domain/sab_files.py): the largest file read, how many
+    # entries it may hold, and how much it may unpack to (its rows' Parquet included), each entry counted as
+    # it is read; and a project folder's .sab/ files read at most that.
     max_project_file_bytes: int = 4 * GIB
     max_project_entries: int = 5_000
     max_project_unpacked_bytes: int = 8 * GIB
-    # Where a .sab's working folder goes while it is open (None: the system's temporary folder).
-    project_temp_dir: Path | None = None
     # Autosave (the project's switch): how often it looks; a change saves once it has settled for a look.
     autosave_seconds: float = 2.0
     # context.md (services/context_md.py), Launch Claude's folder's live picture: its size at most (trimmed in
@@ -204,6 +211,7 @@ class Settings:
     # Where the Workbench's Save as starts: the user's own folder, made the first time it is needed
     # (the file chooser's first look at it, or a save into it).
     workbench_dir: Path = field(default_factory=_workbench_dir)
+    projects_dir: Path = field(default_factory=_projects_dir)
     # Claude Code's folder: installed plugins that carry blades and tangs (packs) are read from here.
     claude_dir: Path = field(default_factory=_claude_dir)
 

@@ -357,13 +357,16 @@ SENSIBLE: dict[str, Factory] = {
     "visualizations_code": lambda s: {"card": s.card(s.scratch_grid())},
     "app_snapshot": lambda s: {"area": "ribbon", "out": str(s.tmp / "snap.png")},
     "agent_events": lambda s: {"seconds": 1, "limit": 1},
-    # Projects (.sab): never the sweep's own tables closed. A scratch grid is an unsaved change, so
-    # opening, starting or closing a project is refused; a save goes into the sweep's own folder.
+    # Projects (folders): never the sweep's own tables closed. A scratch grid is an unsaved change, so
+    # opening or closing a project is refused; New and Save are named an old .sab (refused: a project is a
+    # folder); the projects folder, when changed, is the sweep's own.
     "project_open": lambda s: (s.scratch_grid(), {"path": str(s.tmp / "none.sab")})[1],
     "project_close": lambda s: (s.scratch_grid(), {})[1],
-    "project_new": lambda s: (s.scratch_grid(), {})[1],
+    "project_new": lambda s: (s.scratch_grid(), {"path": str(s.tmp / "sweep.sab")})[1],
     "project_save": lambda s: {"path": str(s.tmp / "sweep.sab")},
-    "project_save_as": lambda s: {"path": str(s.tmp / "sweep_as.sab")},
+    "project_copy": lambda s: {"path": str(s.tmp / "copy")},
+    "project_import_sab": lambda s: {"path": str(s.tmp / "none.sab")},
+    "projects_folder_set": lambda s: {"folder": str(s.tmp / "projects")},
 }
 
 # Arguments named the same mean the same thing in every command.

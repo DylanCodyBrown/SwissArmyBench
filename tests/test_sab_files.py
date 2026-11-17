@@ -1,12 +1,14 @@
-"""The .sab project file's rules (domain/sab_files.py) and its reading and writing (adapters/sab_files.py):
-project.json's round trip, unknown fields kept, a newer format read-only, zip safety (paths outside the
-project, links, sizes), what goes into the file, the save is atomic. Made-up data only."""
+"""A project folder's rules (domain/sab_files.py) and its files (adapters/sab_files.py): .sab/project.json's
+round trip (stable: sorted, no timestamp), unknown fields kept, a newer format read-only, a type-only file,
+the old .sab's zip safety for the import (paths outside the project, links, sizes), what is the project's
+own, .sab/ written only when its bytes change, the scaffold's Git files. Made-up data only."""
 
 from __future__ import annotations
 
 import json
 import stat
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 
 import pyarrow as pa
@@ -54,10 +56,12 @@ def test_project_json_round_trips() -> None:
     text = rules.write_manifest(manifest)
     raw = json.loads(text)
     assert raw["swissarmybench"] == "project" and raw["format"] == rules.FORMAT
-    assert raw["app_version"] == "0.0.7" and raw["name"] == "sales"
+    assert raw["app_version"] == "0.0.7" and "name" not in raw and "saved" not in raw
+    assert list(raw) == sorted(raw)  # sorted keys: the same project is the same bytes
     again, read_only = rules.read_manifest(text)
     assert read_only is None
-    assert again == manifest
+    assert again == replace(manifest, name="Project", saved="")
+    assert rules.write_manifest(again) == text
     assert again.special() == {"project.json", "data/pasted_1.parquet", rules.VISUALIZATIONS, rules.MODEL}
     assert [t.source.label() for t in again.tables] == [
         "orders.csv",
@@ -102,7 +106,7 @@ def test_a_file_saved_before_the_sandbox_was_renamed_reads_its_cards() -> None:
 def test_a_newer_format_opens_read_only_with_a_plain_message() -> None:
     raw = json.loads(rules.write_manifest(_manifest())) | {"format": rules.FORMAT + 1, "app_version": "9.0"}
     manifest, read_only = rules.read_manifest(json.dumps(raw))
-    assert manifest.name == "sales"
+    assert manifest.tables[0].name == "orders"
     assert read_only is not None and "9.0" in read_only and "read-only" in read_only
     for bad in ("{}", "[]", "not json", json.dumps({"swissarmybench": "tang", "format": 1})):
         with pytest.raises(SabError):
@@ -252,15 +256,55 @@ def test_a_notebook_goes_in_without_its_outputs() -> None:
     assert "North" not in text and "print(orders)" in text
 
 
-# ===== the archive =====
+def test_a_type_only_project_json_is_a_project_with_no_tables_yet() -> None:
+    manifest, read_only = rules.read_manifest(json.dumps({"type": "accounting"}), folder=True)
+    assert read_only is None and manifest.tables == () and manifest.autosave is True
+    assert json.loads(rules.write_manifest(manifest))["type"] == "accounting"
+    with pytest.raises(SabError):
+        rules.read_manifest(json.dumps({"type": "accounting"}))  # an old .sab's must say it is one
+
+
+def test_an_old_sabs_entries_go_to_their_places_in_the_folder() -> None:
+    old = Manifest(
+        "sales",
+        tables=(TableEntry("pasted_1", Source("pasted", rows=True), rows_file="data/pasted_1.parquet"),),
+        visualizations=rules.VISUALIZATIONS,
+        model=rules.MODEL,
+    )
+    places = {e: rules.old_entry_place(e, old) for e in (
+        "project.json", rules.VISUALIZATIONS, rules.MODEL, "data/pasted_1.parquet",
+        ".sab/dashboards/q1.json", ".sab/blades/shop.json", "data.ipynb", "pages/1_Sales.py",
+    )}  # fmt: skip
+    assert places == {
+        "project.json": "",
+        rules.VISUALIZATIONS: ".sab/visualizations.json",
+        rules.MODEL: ".sab/model.json",
+        "data/pasted_1.parquet": ".sab/data/pasted_1.parquet",
+        ".sab/dashboards/q1.json": ".sab/visualizations/q1.json",
+        ".sab/blades/shop.json": None,
+        "data.ipynb": None,
+        "pages/1_Sales.py": None,
+    }
+    found = {
+        rules.VISUALIZATIONS: ".sab/visualizations.json",
+        "data/pasted_1.parquet": ".sab/data/pasted_1.parquet",
+    }
+    new = rules.converted(old, found)
+    assert new.visualizations == ".sab/visualizations.json" and new.model is None and new.autosave is True
+    assert new.tables[0].rows_file == ".sab/data/pasted_1.parquet"
+
+
+def test_a_folder_is_a_project_by_its_sab_or_its_data_notebook() -> None:
+    assert rules.is_project([".sab/project.json"]) and rules.is_project(["data.ipynb", "notes.md"])
+    assert not rules.is_project(["notes.md", "orders.csv"])
+
+
+# ===== the folder on disk, and an old .sab read for the import =====
 
 
 def _archive(tmp_path: Path, **limits: int) -> SabArchive:
     return SabArchive(
-        limits.get("file", 10_000_000),
-        limits.get("entries", 100),
-        limits.get("total", 10_000_000),
-        tmp_path / "temp",
+        limits.get("file", 10_000_000), limits.get("entries", 100), limits.get("total", 10_000_000)
     )
 
 
@@ -275,7 +319,36 @@ def _zip(path: Path, entries: dict[str, bytes], link: str | None = None) -> Path
     return path
 
 
-def test_a_sab_unpacks_into_a_working_folder_of_its_own(tmp_path: Path) -> None:
+def test_state_is_written_only_when_its_bytes_change_and_never_outside(tmp_path: Path) -> None:
+    archive = _archive(tmp_path)
+    folder = tmp_path / "sales"
+    folder.mkdir()
+    assert archive.write_state(str(folder), ".sab/project.json", b"{}") is True
+    first = (folder / ".sab" / "project.json").stat().st_mtime_ns
+    assert archive.write_state(str(folder), ".sab/project.json", b"{}") is False
+    assert (folder / ".sab" / "project.json").stat().st_mtime_ns == first
+    assert archive.write_state(str(folder), ".sab/project.json", b'{"a": 1}') is True
+    assert archive.read_state(str(folder), ".sab/project.json") == b'{"a": 1}'
+    assert archive.read_state(str(folder), ".sab/model.json") is None
+    with pytest.raises(SabError):
+        archive.write_state(str(folder), "../evil.py", b"x")
+    with pytest.raises(SabError):
+        archive.remove_state(str(folder), "data.ipynb")  # only the app's own files go
+    assert [p.name for p in folder.rglob("*.saving")] == []
+
+
+def test_the_scaffolds_git_files_never_write_over_the_users(tmp_path: Path) -> None:
+    archive = _archive(tmp_path)
+    folder = tmp_path / "sales"
+    folder.mkdir()
+    (folder / "README.md").write_text("Mine.\n")
+    assert archive.ensure_ignored(str(folder), "sales") == [".sab/.gitignore", ".gitignore"]
+    assert (folder / "README.md").read_text() == "Mine.\n"
+    assert ".sab/data/" in (folder / ".gitignore").read_text()
+    assert archive.ensure_ignored(str(folder), "sales") == []
+
+
+def test_an_old_sab_unpacks_into_an_empty_folder_its_own_entries_in_their_places(tmp_path: Path) -> None:
     archive = _archive(tmp_path)
     manifest = rules.write_manifest(_manifest()).encode()
     path = _zip(
@@ -288,21 +361,18 @@ def test_a_sab_unpacks_into_a_working_folder_of_its_own(tmp_path: Path) -> None:
             rules.MODEL: b"{}",
         },
     )
-    assert json.loads(archive.manifest(str(path)))["name"] == "sales"
-    root, folder, found = archive.unpack(str(path), _manifest().special(), "sales")
-    work = Path(folder)
-    assert work.name == "sales" and work.parent == Path(root) and Path(root).parent == tmp_path / "temp"
-    assert (work / "data.ipynb").read_bytes() == b"{}" and (work / "pages" / "1_Sales.py").exists()
-    assert not (work / "data").exists() and not (work / "project.json").exists()  # the special entries
-    assert (
-        set(found) == {"data/pasted_1.parquet", rules.MODEL}
-        and Path(found[rules.MODEL]).read_bytes() == b"{}"
-    )
-    archive.remove(root)
-    assert not Path(root).exists()
+    old, _ = rules.read_manifest(archive.manifest(str(path)))
+    target = tmp_path / "into"
+    found = archive.unpack_into(str(path), str(target), lambda entry: rules.old_entry_place(entry, old))
+    assert (target / "data.ipynb").read_bytes() == b"{}" and (target / "pages" / "1_Sales.py").exists()
+    assert not (target / "project.json").exists() and not (target / "data").exists()
+    assert (target / ".sab" / "model.json").read_bytes() == b"{}"
+    assert found["data/pasted_1.parquet"] == ".sab/data/pasted_1.parquet"
+    with pytest.raises(FileExistsError):  # a folder that holds something: nothing written into it
+        archive.unpack_into(str(path), str(target), lambda entry: None)
 
 
-def test_a_zip_that_reaches_outside_lies_about_sizes_or_links_is_not_opened(tmp_path: Path) -> None:
+def test_a_zip_that_reaches_outside_lies_about_sizes_or_links_is_not_imported(tmp_path: Path) -> None:
     archive = _archive(tmp_path, total=1000)
     manifest = rules.write_manifest(Manifest("x")).encode()
     for name, entries, link in (
@@ -313,12 +383,12 @@ def test_a_zip_that_reaches_outside_lies_about_sizes_or_links_is_not_opened(tmp_
     ):
         path = _zip(tmp_path / name, entries, link)
         with pytest.raises(SabError):
-            archive.unpack(str(path), set(), "x")
+            archive.unpack_into(str(path), str(tmp_path / f"into-{name}"), lambda entry: None)
+        assert not (tmp_path / f"into-{name}").exists()  # nothing left behind
     (tmp_path / "plain.sab").write_bytes(b"not a zip")
     with pytest.raises(SabError, match="not a zip"):
         archive.manifest(str(tmp_path / "plain.sab"))
-    # Nothing was left behind: every working folder made for them is gone.
-    assert list((tmp_path / "temp").iterdir()) == []
+    assert not (tmp_path / "evil.py").exists()
 
 
 def test_an_entry_that_unpacks_to_more_than_it_says_stops(tmp_path: Path) -> None:
@@ -335,47 +405,59 @@ def test_an_entry_that_unpacks_to_more_than_it_says_stops(tmp_path: Path) -> Non
             at = raw.find(signature, at + 4)
     path.write_bytes(bytes(raw))
     with pytest.raises(SabError):
-        archive.unpack(str(path), set(), "x")
-    assert list((tmp_path / "temp").iterdir()) == []
+        archive.unpack_into(str(path), str(tmp_path / "into"), lambda entry: None)
+    assert not (tmp_path / "into").exists()
 
 
-def test_the_save_is_atomic_a_failure_leaves_the_old_file_whole(tmp_path: Path) -> None:
-    archive = _archive(tmp_path)
-    target = tmp_path / "sales.sab"
-    archive.write(str(target), [("project.json", b"{}"), ("data.ipynb", b"first")])
-    first = target.read_bytes()
-
-    def entries() -> list[tuple[str, bytes | str]]:
-        return [("project.json", b"{}"), ("data.ipynb", b"second")]
-
-    broken = [*entries(), ("../evil.py", b"x")]  # refused half way through the zip
-    with pytest.raises(SabError):
-        archive.write(str(target), broken)
-    assert target.read_bytes() == first
-    assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".saving")] == []
-    archive.write(str(target), entries())
-    with zipfile.ZipFile(target) as read:
-        assert read.read("data.ipynb") == b"second"
-
-
-def test_rows_go_through_parquet(tmp_path: Path) -> None:
+def test_rows_go_through_parquet_the_same_rows_the_same_bytes(tmp_path: Path) -> None:
     archive = _archive(tmp_path)
     table = pa.table({"region": ["North", "South"], "units": [3, 5]})
-    path = archive.write_rows(str(tmp_path), table)
-    assert archive.read_rows(path).to_pylist() == table.to_pylist()
+    body = archive.rows_bytes(table)
+    assert archive.rows_bytes(table) == body
+    (tmp_path / "rows.parquet").write_bytes(body)
+    assert archive.read_rows(str(tmp_path / "rows.parquet")).to_pylist() == table.to_pylist()
 
 
-def test_the_recent_list_keeps_paths_and_times_only(tmp_path: Path) -> None:
+def test_copy_project_leaves_kept_rows_and_caches_behind_unless_ticked(tmp_path: Path) -> None:
+    archive = _archive(tmp_path)
+    source = tmp_path / "sales"
+    (source / ".sab" / "data").mkdir(parents=True)
+    (source / ".sab" / "data" / "t.parquet").write_bytes(b"PAR1")
+    (source / ".sab" / "project.json").write_text("{}")
+    (source / "__pycache__").mkdir()
+    (source / "data.ipynb").write_text("{}")
+    archive.copy_project(str(source), str(tmp_path / "copy"), data=False)
+    assert (tmp_path / "copy" / "data.ipynb").is_file() and (
+        tmp_path / "copy" / ".sab" / "project.json"
+    ).is_file()
+    assert (
+        not (tmp_path / "copy" / ".sab" / "data").exists()
+        and not (tmp_path / "copy" / "__pycache__").exists()
+    )
+    archive.copy_project(str(source), str(tmp_path / "whole"), data=True)
+    assert (tmp_path / "whole" / ".sab" / "data" / "t.parquet").is_file()
+    with pytest.raises(FileExistsError):
+        archive.copy_project(str(source), str(source / "inside"), data=False)
+
+
+def test_the_recent_list_keeps_folders_and_times_only(tmp_path: Path) -> None:
     listed = RecentProjects(tmp_path / "state" / "recent_projects.json")
-    there = tmp_path / "sales.sab"
-    there.write_bytes(b"x")
-    listed.add(str(tmp_path / "gone.sab"), 1.0)
+    there = tmp_path / "sales"
+    there.mkdir()
+    old = tmp_path / "older.sab"
+    old.write_bytes(b"x")
+    listed.add(str(tmp_path / "gone"), 1.0)
     listed.add(str(there), 2.0)
-    listed.add(str(tmp_path / "gone.sab"), 3.0)  # opened again: first
-    assert [(Path(r["path"]).name, r["exists"]) for r in listed.all()] == [
-        ("gone.sab", False),
-        ("sales.sab", True),
+    listed.add(str(old), 2.5)
+    listed.add(str(tmp_path / "gone"), 3.0)  # opened again: first
+    assert [(Path(r["path"]).name, r["exists"], r["sab"]) for r in listed.all()] == [
+        ("gone", False, False),
+        ("older.sab", False, True),
+        ("sales", True, False),
     ]
     saved = json.loads((tmp_path / "state" / "recent_projects.json").read_text())
     assert all(set(r) == {"path", "opened"} for r in saved)
-    assert listed.remove(str(tmp_path / "gone.sab")) and not listed.remove(str(tmp_path / "gone.sab"))
+    assert listed.replace(str(tmp_path / "gone"), str(there)) and next(
+        r["path"] for r in listed.all()
+    ) == str(there)
+    assert listed.remove(str(there)) and not listed.remove(str(there))

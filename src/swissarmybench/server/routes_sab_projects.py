@@ -1,12 +1,14 @@
-"""Projects as one .sab file (services/sab_projects.py), for the home page, the Workbench and the agent
-(the golden rule).
+"""A project is a folder (services/sab_projects.py), for the home page, the Workbench and the agent (the
+golden rule).
 
 GET  /project               the open project (its unsaved mark, tables that need a fix), the recent ones
-POST /project/new           {"path", "autosave"?, "discard"?}: a new project, saved there at once
-POST /project/autosave      {"on"}: autosave on or off (kept in the project's file)
-POST /project/open          {"path", "discard"?, "ask"?} | {"cancel": true}: a .sab (or a project folder)
-POST /project/save          {"keep_rows"?, "path"?, "folder"?}: Save (path: Save as; folder: a folder
-                            project saved as one .sab)
+POST /project/new           {"name", "folder"?, "path"?, "type"?, "app"?, "notebooks"?, "autosave"?,
+                            "discard"?}: a new project folder, scaffolded, opened, its .sab/ written
+POST /project/autosave      {"on"}: autosave on or off (kept in .sab/project.json)
+POST /project/open          {"path", "make"?, "discard"?, "ask"?} | {"cancel": true}: a project's folder
+POST /project/save          {"keep_rows"?}: .sab/ written (no project open: {"path"} makes the work one)
+POST /project/copy          {"path", "data"?, "folder"?}: Copy project to (a new or empty folder)
+POST /project/import-sab    {"path", "folder"?, "discard"?}: an old .sab file into a folder, then opened
 POST /project/close         {"discard"?}
 POST /project/fix           {"table", "path"?, "remove"?}: a table that did not come back
 POST /project/layout        {"window", "layout", "unsaved"?}: a window's layout, for the next save
@@ -47,6 +49,12 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
     async def save(request: Request) -> Response:
         return json_response(await projects.save(await read_json(request), actor(request)))
 
+    async def copy(request: Request) -> Response:
+        return json_response(await projects.copy(await read_json(request), actor(request)))
+
+    async def import_sab(request: Request) -> Response:
+        return json_response(await projects.import_sab(await read_json(request), actor(request)))
+
     async def close(request: Request) -> Response:
         return json_response(await projects.close(await read_json(request), actor(request)))
 
@@ -68,6 +76,8 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
         Route("/project/open", safely(open_project), methods=["POST"]),
         Route("/project/save", safely(save), methods=["POST"]),
         Route("/project/close", safely(close), methods=["POST"]),
+        Route("/project/copy", safely(copy), methods=["POST"]),
+        Route("/project/import-sab", safely(import_sab), methods=["POST"]),
         Route("/project/fix", safely(fix), methods=["POST"]),
         Route("/project/autosave", safely(autosave), methods=["POST"]),
         Route("/project/layout", safely(layout), methods=["POST"]),

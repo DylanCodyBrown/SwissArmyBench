@@ -3,7 +3,7 @@
  * layer and the blades page. [WIRE] (The owner, 2026-11-16: "now objects are project scoped any notebooks
  * scripts or apps will have to be imported from another project".)
  *
- * ROUTING: [FROM]    Another project… (the file chooser: a .sab), A project folder…, or a loose notebook,
+ * ROUTING: [FROM]    Another project… (the file chooser: a project folder), A .sab file… (an old one), or a loose notebook,
  *                    script or app… (connections and blades go into the library, Plans/library.plan.md)
  *                    -> POST /project/import/sources
  *          [PICK]    what it offers of the kind asked for, each a tick -> Import -> POST /project/import
@@ -107,8 +107,8 @@ export function openImport(kind: ImportKind): Promise<Imported | null> {
     const sources = h(
       "div",
       { class: "import-from" },
-      button("Another project…", () => void chooseFile({ title: "Import from a project", mode: "file", suffixes: [".sab"] }).then(show), { icon: "project" }),
-      button("A project folder…", () => void chooseFile({ title: "Import from a project folder", mode: "folder" }).then(show), { icon: "folder" }),
+      button("Another project…", () => void chooseFile({ title: "Import from a project", mode: "folder" }).then(show), { icon: "project" }),
+      button("A .sab file…", () => void chooseFile({ title: "Import from an old .sab file", mode: "file", suffixes: [".sab"] }).then(show), { icon: "folder" }),
       kind === "documents" ? button("A file…", () => void chooseFile({ title: "Import a notebook, script or app", mode: "file", suffixes: DOCUMENT_SUFFIXES }).then(show), { icon: "notebook" }) : null,
     );
     body.append(sources, list);

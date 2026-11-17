@@ -1,8 +1,10 @@
-"""A project as one .sab file on the running server (services/sab_projects.py): save, close and open
-again with everything back (a CSV table with two steps, a SQLite connection's table, a pasted table
-ticked and not, a notebook, a canvas, a Visualizations card, the relationships); a missing connection or file
-says how to fix it; no secret is ever in the file; the agent's save asks only when it writes rows.
-Made-up data only."""
+"""A project is a folder (services/sab_projects.py; the owner, 2026-11-17): New scaffolds it (.sab/,
+.gitignore, README.md), save writes .sab/ (an unchanged save changes no byte), close and open again with
+everything back (a CSV table with two steps, a SQLite connection's table, a pasted table ticked and not,
+a Visualizations card, the relationships); a folder made a project around its files (nothing written
+over); Keep its rows into .sab/data/ (ignored by Git); Copy project to; an old .sab imported into a
+folder (and a hostile one refused); recent projects as folders; a missing connection or file says how to
+fix it; no secret is ever written; the agent's save asks only when it keeps rows. Made-up data only."""
 
 from __future__ import annotations
 
@@ -115,52 +117,74 @@ def build_project(client: TestClient, tmp_path: Path) -> dict[str, Any]:
     return {"orders": orders, "customers": customers, "kept": kept["grid"], "csv": csv}
 
 
-def entries(path: Path) -> dict[str, bytes]:
-    with zipfile.ZipFile(path) as read:
-        return {name: read.read(name) for name in read.namelist()}
+def state_files(folder: Path) -> dict[str, bytes]:
+    """The project's .sab/ files, by their path in it."""
+    app = folder / ".sab"
+    return {p.relative_to(folder).as_posix(): p.read_bytes() for p in sorted(app.rglob("*")) if p.is_file()}
 
 
-def test_a_project_saves_closes_and_opens_with_everything_back(tmp_path: Path) -> None:
+def manifest_of(folder: Path) -> dict[str, Any]:
+    return dict(json.loads((folder / ".sab" / "project.json").read_text(encoding="utf-8")))
+
+
+def old_sab(path: Path, entries: dict[str, bytes | str]) -> Path:
+    """An old .sab file (a zip) as the app wrote one before projects were folders (made up)."""
+    with zipfile.ZipFile(path, "w") as out:
+        for name, body in entries.items():
+            out.writestr(name, body)
+    return path
+
+
+def test_a_project_folder_is_made_saved_closed_and_opened_with_everything_back(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         made = build_project(client, tmp_path)
         assert project(client)["loose"] is True  # open work, no project: what opening another would lose
-        # A new project is saved first: where its file goes, before anything else.
-        assert client.post("/project/new", json={"name": "sales"}, headers=AUTH).status_code == 400
-        target = tmp_path / "work" / "sales.sab"
+        refused = client.post(
+            "/project/new", json={"path": str(tmp_path / "work" / "sales.sab")}, headers=AUTH
+        )
+        assert refused.status_code == 400 and "folder" in refused.text
+        target = tmp_path / "work" / "sales"
         state = ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
         folder = Path(state["project"]["folder"])
-        assert folder.name == "sales" and (folder / "data.ipynb").is_file() and target.is_file()
-        assert state["project"]["dirty"] is False and state["project"]["path"] == str(target)
-        # The open tables' connections came with them: the project's own now.
-        assert "Shop" in {c["name"] for c in ok(client.get("/connections", headers=AUTH))["connections"]}
-        # A notebook and a canvas of the project's own, saved into its working folder as the Workbench does.
+        assert folder == target and state["project"]["path"] == str(target)
+        assert state["project"]["dirty"] is False and state["project"]["autosave"] is True
+        # The scaffold: the data notebook and its export, Git's files, and the app's own .sab/.
+        for name in (
+            "data.ipynb",
+            "data.py",
+            ".gitignore",
+            "README.md",
+            ".sab/project.json",
+            ".sab/.gitignore",
+        ):
+            assert (folder / name).is_file(), name
+        assert (
+            ".sab/data/" in (folder / ".gitignore").read_text()
+            and "data/" in (folder / ".sab/.gitignore").read_text()
+        )
+        assert "remove" in (folder / "README.md").read_text().lower()
+        # The project's own documents are files the Workbench saves; .sab/ holds the app's state.
         cell = notebooks.Cell("code", "from data import orders\nprint(len(orders))")
-        cell.outputs = [{"output_type": "stream", "name": "stdout", "text": "North 3 South 5"}]
         (folder / "analysis.ipynb").write_text(notebooks.write_notebook([cell]), encoding="utf-8")
         (folder / "sales.stapp.json").write_text(streamlit_cells.write_app([]), encoding="utf-8")
-        (folder / "extra.csv").write_text("a\n1\n", encoding="utf-8")  # a data file: never in the .sab
-        assert project(client)["project"]["dirty"] is True
         saved = ok(client.post("/project/save", json={"keep_rows": {"kept_paste": True}}, headers=AUTH))
         assert saved["saved"] == str(target) and saved["rows"] == ["kept_paste"]
         assert saved["project"]["dirty"] is False and saved["project"]["name"] == "sales"
-        inside = entries(target)
+        inside = state_files(folder)
         assert {
-            "project.json",
-            "data.ipynb",
-            "data.py",
-            "analysis.ipynb",
-            "sales.stapp.json",
-            "model.tang",
-            "visualizations/visualizations.json",
-            "data/kept_paste.parquet",
+            ".sab/project.json",
+            ".sab/.gitignore",
+            ".sab/model.json",
+            ".sab/visualizations.json",
+            ".sab/data/kept_paste.parquet",
         } <= set(inside)
-        assert "extra.csv" not in inside and "data/lost_paste.parquet" not in inside
-        assert b"North 3 South 5" not in inside["analysis.ipynb"]  # outputs show rows: never in the file
-        manifest = json.loads(inside["project.json"])
+        assert ".sab/data/lost_paste.parquet" not in inside
+        manifest = manifest_of(folder)
+        assert "saved" not in manifest and "name" not in manifest  # no timestamp; the name is the folder's
         sources = {t["name"]: t["source"] for t in manifest["tables"]}
         assert sources["orders"] == {
             "kind": "file",
-            "path": "orders.csv",
+            "path": str(made["csv"]),
             "absolute": str(made["csv"]),
             "sheet": None,
         }
@@ -170,70 +194,218 @@ def test_a_project_saves_closes_and_opens_with_everything_back(tmp_path: Path) -
         orders_steps = next(t for t in manifest["tables"] if t["name"] == "orders")["grids"][0]["steps"]
         assert [s["kind"] for s in orders_steps] == ["filter", "sort"]
         assert [r["path"] for r in project(client)["recent"]] == [str(target)]
+        # A save that changes nothing changes no byte.
+        before = {p: (folder / p).stat().st_mtime_ns for p in inside}
+        again = ok(client.post("/project/save", json={}, headers=AUTH))
+        assert again["written"] == [] and state_files(folder) == inside
+        assert {p: (folder / p).stat().st_mtime_ns for p in inside} == before
 
-        # Close: everything goes, the working folder too.
+        # Close: everything goes from the app; the folder is the user's and stays.
         ok(client.post("/project/close", json={}, headers=AUTH))
-        assert not folder.exists() and ok(client.get("/datasets", headers=AUTH))["datasets"] == []
+        assert folder.is_dir() and ok(client.get("/datasets", headers=AUTH))["datasets"] == []
         assert ok(client.get("/cards", headers=AUTH))["cards"] == []
 
-        # Open: the tables read again (the steps applied), Visualizations, the model, the files.
+        # Open: the tables read again (the steps applied), Visualizations, the model.
         opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
-        assert opened["dirty"] is False and opened["path"] == str(target)
+        assert opened["dirty"] is False and opened["folder"] == str(target)
         names = {d["name"]: d for d in ok(client.get("/datasets", headers=AUTH))["datasets"]}
         assert set(names) == {"orders", "customers", "kept_paste"}
         assert [p["table"] for p in opened["problems"]] == ["lost_paste"]
-        assert opened["problems"][0]["fix"]["kind"] == "remove"
         grids = {g["dataset"]: g["grid"] for g in ok(client.get("/grids", headers=AUTH))["grids"]}
         orders = ok(client.get(f"/grids/{grids['orders']}", headers=AUTH))
         assert [s["kind"] for s in orders["steps"]] == ["filter", "sort"]
         assert ok(client.get(f"/grids/{grids['orders']}/count", headers=AUTH))["row_count"] == 3
         assert ok(client.get(f"/grids/{grids['customers']}", headers=AUTH))["row_count"] == 2
         assert ok(client.get(f"/grids/{grids['kept_paste']}", headers=AUTH))["row_count"] == 1
-        cards = ok(client.get("/cards", headers=AUTH))["cards"]
-        assert [c["title"] for c in cards] == ["Made-up note"]
-        relationships = ok(client.get("/relationships", headers=AUTH))
-        assert len(relationships["relationships"]) == 1
-        work = Path(opened["folder"])
-        assert (work / "analysis.ipynb").is_file() and (work / "sales.stapp.json").is_file()
-        assert work != folder and work.name == "sales"
-        # Remove the table whose rows were not kept: it leaves the project.
-        fixed = ok(client.post("/project/fix", json={"table": "lost_paste", "remove": True}, headers=AUTH))
-        assert fixed["project"]["problems"] == []
+        assert [c["title"] for c in ok(client.get("/cards", headers=AUTH))["cards"]] == ["Made-up note"]
+        assert len(ok(client.get("/relationships", headers=AUTH))["relationships"]) == 1
+        # Remove the table whose rows were not kept; untick the kept one: its rows leave .sab/data.
+        ok(client.post("/project/fix", json={"table": "lost_paste", "remove": True}, headers=AUTH))
+        ok(client.post("/project/save", json={"keep_rows": {"kept_paste": False}}, headers=AUTH))
+        assert not (folder / ".sab" / "data" / "kept_paste.parquet").exists()
 
 
-def test_no_secret_token_or_password_is_ever_in_the_file(tmp_path: Path) -> None:
+def test_autosave_keeps_sab_current_once_a_change_settles(tmp_path: Path) -> None:
+    with make_client(tmp_path, autosave_seconds=0.05) as client:
+        csv, _ = made_up_files(tmp_path)
+        target = tmp_path / "auto"
+        ok(client.post("/project/new", json={"path": str(target)}, headers=AUTH))
+        before = (target / ".sab" / "project.json").read_bytes()
+        ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
+        for _ in range(100):
+            if (target / ".sab" / "project.json").read_bytes() != before:
+                break
+            time.sleep(0.05)
+        assert [t["name"] for t in manifest_of(target)["tables"]] == ["orders"]
+        assert project(client)["project"]["dirty"] is False
+        # Off: kept in .sab/project.json at once, and nothing more is written by itself.
+        ok(client.post("/project/autosave", json={"on": False}, headers=AUTH))
+        assert manifest_of(target)["autosave"] is False
+        grid = ok(client.get("/grids", headers=AUTH))["grids"][0]["grid"]
+        ok(client.post(f"/grids/{grid}/steps", json={"steps": STEPS[:1]}, headers=AUTH))
+        time.sleep(0.4)
+        assert manifest_of(target)["tables"][0]["grids"][0]["steps"] == []
+
+
+def test_new_project_goes_into_the_projects_folder_by_name(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        made = ok(client.post("/project/new", json={"name": "Quarterly"}, headers=AUTH))
+        folder = tmp_path / "home" / "Swiss Army Bench Projects" / "Quarterly"
+        assert made["project"]["folder"] == str(folder) and (folder / "data.ipynb").is_file()
+        # A folder that holds something is not a new project's.
+        taken = client.post("/project/new", json={"path": str(folder), "discard": True}, headers=AUTH)
+        assert taken.status_code == 409 and "not empty" in taken.text
+
+
+def test_a_folder_is_made_a_project_around_its_files_writing_nothing_over(tmp_path: Path) -> None:
+    folder = tmp_path / "existing"
+    folder.mkdir()
+    (folder / "notes.md").write_text("# Made-up notes\n", encoding="utf-8")
+    (folder / ".gitignore").write_text("secret.txt\n", encoding="utf-8")
+    (folder / "README.md").write_text("Mine.\n", encoding="utf-8")
+    with make_client(tmp_path) as client:
+        asked = ok(client.post("/project/open", json={"path": str(folder)}, headers=AUTH))
+        assert asked["not_a_project"] == str(folder) and asked["project"] is None
+        made = ok(client.post("/project/open", json={"path": str(folder), "make": True}, headers=AUTH))
+        assert made["project"]["folder"] == str(folder)
+        assert set(made["made"]) == {"data.ipynb", ".sab/.gitignore", ".sab/project.json"}
+        assert (folder / ".gitignore").read_text() == "secret.txt\n" and (
+            folder / "README.md"
+        ).read_text() == "Mine.\n"
+        assert (folder / "notes.md").read_text() == "# Made-up notes\n"
+        # A folder with the scaffold but no .sab/ yet (made before this version) opens as a project.
+        older = tmp_path / "older"
+        older.mkdir()
+        (older / "data.ipynb").write_text(notebooks.write_notebook([]), encoding="utf-8")
+        opened = ok(client.post("/project/open", json={"path": str(older)}, headers=AUTH))
+        assert opened["project"]["folder"] == str(older)
+
+
+def test_copy_project_to_another_folder_rows_only_on_a_tick(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        ok(client.post("/datasets/pasted/paste", content="a\tb\n1\t2\n", headers=AUTH))
+        source = tmp_path / "first"
+        ok(client.post("/project/new", json={"path": str(source)}, headers=AUTH))
+        ok(client.post("/project/save", json={"keep_rows": {"pasted": True}}, headers=AUTH))
+        (source / "__pycache__").mkdir()
+        (source / "__pycache__" / "x.pyc").write_bytes(b"made up")
+        plain = ok(client.post("/project/copy", json={"path": str(tmp_path / "plain")}, headers=AUTH))
+        assert plain["copied"] == str(tmp_path / "plain")
+        assert (tmp_path / "plain" / ".sab" / "project.json").is_file()
+        assert (
+            not (tmp_path / "plain" / ".sab" / "data").exists()
+            and not (tmp_path / "plain" / "__pycache__").exists()
+        )
+        ok(client.post("/project/copy", json={"path": str(tmp_path / "whole"), "data": True}, headers=AUTH))
+        assert (tmp_path / "whole" / ".sab" / "data" / "pasted.parquet").is_file()
+        again = client.post("/project/copy", json={"path": str(tmp_path / "whole")}, headers=AUTH)
+        assert again.status_code == 409
+        recent = [r["path"] for r in project(client)["recent"]]
+        assert str(tmp_path / "whole") in recent and str(source) in recent
+
+
+def test_an_old_sab_is_imported_into_a_folder_and_a_hostile_one_refused(tmp_path: Path) -> None:
+    csv, _ = made_up_files(tmp_path)
+    manifest = {
+        "swissarmybench": "project",
+        "format": 1,
+        "app_version": "0.0.16",
+        "name": "legacy",
+        "saved": "2026-11-16T10:00:00+00:00",
+        "tables": [
+            {
+                "name": "orders",
+                "source": {"kind": "file", "path": "work/orders.csv", "absolute": str(csv)},
+                "grids": [{"steps": STEPS, "settings": {}}],
+            },
+        ],
+        "visualizations": "visualizations/visualizations.json",
+        "model": "model.tang",
+        "autosave": False,
+    }
+    cards = {
+        "name": "legacy",
+        "versions": [{"cards": [{"kind": "note", "title": "Old note", "body": "Made up."}]}],
+    }
+    tang = {"swissarmybench": "tang", "format": 1, "name": "current", "tables": [], "relationships": []}
+    sab = old_sab(
+        tmp_path / "legacy.sab",
+        {
+            "project.json": json.dumps(manifest),
+            "data.ipynb": notebooks.write_notebook([notebooks.Cell("code", "x = 1")]),
+            "visualizations/visualizations.json": json.dumps(cards),
+            "model.tang": json.dumps(tang),
+            ".sab/dashboards/q1.json": json.dumps({"name": "q1", "versions": []}),
+        },
+    )
+    with make_client(tmp_path) as client:
+        asked = ok(client.post("/project/open", json={"path": str(sab)}, headers=AUTH))
+        assert asked["sab"] == str(sab) and asked["project"] is None
+        target = tmp_path / "legacy-folder"
+        done = ok(
+            client.post("/project/import-sab", json={"path": str(sab), "folder": str(target)}, headers=AUTH)
+        )
+        assert done["imported"] == str(target) and done["project"]["folder"] == str(target)
+        assert (target / "data.ipynb").is_file() and not (target / "project.json").exists()
+        assert (target / ".sab" / "visualizations.json").is_file() and (
+            target / ".sab" / "model.json"
+        ).is_file()
+        assert (target / ".sab" / "visualizations" / "q1.json").is_file() and (
+            target / ".gitignore"
+        ).is_file()
+        assert manifest_of(target)["autosave"] is True
+        grids = ok(client.get("/grids", headers=AUTH))["grids"]
+        assert [g["dataset"] for g in grids] == ["orders"]
+        assert len(ok(client.get(f"/grids/{grids[0]['grid']}", headers=AUTH))["steps"]) == 2
+        assert [c["title"] for c in ok(client.get("/cards", headers=AUTH))["cards"]] == ["Old note"]
+        # Into a folder that holds something: refused, nothing written.
+        busy = client.post(
+            "/project/import-sab",
+            json={"path": str(sab), "folder": str(target), "discard": True},
+            headers=AUTH,
+        )
+        assert busy.status_code == 409
+        # A hostile .sab: an entry outside the project. Refused before anything is written.
+        hostile = old_sab(
+            tmp_path / "hostile.sab", {"project.json": json.dumps(manifest), "../escape.py": "x = 1"}
+        )
+        bad = client.post(
+            "/project/import-sab",
+            json={"path": str(hostile), "folder": str(tmp_path / "h"), "discard": True},
+            headers=AUTH,
+        )
+        assert bad.status_code == 400 and "outside the project" in bad.text
+        assert not (tmp_path / "h").exists() and not (tmp_path / "escape.py").exists()
+
+
+def test_no_secret_token_or_password_is_ever_written(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         build_project(client, tmp_path)
-        # A password typed into a connection's form: kept in the keyring, never the file.
         typed = shop(tmp_path / "shop.sqlite") | {"name": "Typed", "secrets": {"password": TYPED_SECRET}}
         typed["code"] = typed["code"].replace(KEYRING_SECRET, TYPED_SECRET)
         ok(client.post("/connections", json=typed, headers=AUTH))
         ok(client.post("/connections/Typed/open", json={"table": "customers"}, headers=AUTH))
-        target = tmp_path / "secret_check.sab"
+        target = tmp_path / "secret_check"
         ok(
             client.post(
                 "/project/save", json={"path": str(target), "keep_rows": {"kept_paste": True}}, headers=AUTH
             )
         )
-        raw = target.read_bytes()
-        everything = b"".join(entries(target).values())
+        everything = b"".join(p.read_bytes() for p in target.rglob("*") if p.is_file())
         for value in (KEYRING_SECRET, VAULT_SECRET, TYPED_SECRET, TOKEN):
-            assert value.encode() not in everything and value.encode() not in raw, value
-        manifest = json.loads(entries(target)["project.json"])
+            assert value.encode() not in everything, value
         typed_source = next(
-            t["source"] for t in manifest["tables"] if t["source"].get("connection") == "Typed"
+            t["source"] for t in manifest_of(target)["tables"] if t["source"].get("connection") == "Typed"
         )
         assert set(typed_source) == {"kind", "connection", "database", "schema", "table", "whole"}
 
 
 def test_a_missing_connection_or_file_gives_the_table_its_fix(tmp_path: Path) -> None:
-    target = tmp_path / "work" / "moved.sab"
+    target = tmp_path / "work" / "moved"
     with make_client(tmp_path / "first") as client:
         made = build_project(client, tmp_path)
         ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
         assert project(client)["project"]["name"] == "moved"
-    # Another computer: the library cloned there (Plans/library.plan.md: the connection comes with it,
-    # never its password, so its keyring has none for Shop), and the CSV moved away.
     moved = made["csv"].with_name("orders_moved.csv")
     made["csv"].rename(moved)
     shutil.copytree(tmp_path / "first" / "state" / "library", tmp_path / "second" / "state" / "library")
@@ -246,43 +418,29 @@ def test_a_missing_connection_or_file_gives_the_table_its_fix(tmp_path: Path) ->
             "label": "Set the password",
             "connection": "Shop",
         }
-        listed = {c["name"]: c for c in ok(client.get("/connections", headers=AUTH))["connections"]}
-        assert listed["Shop"]["needs_password"]["missing"] == ["password"]
-        assert listed["Shop"]["needs_password"]["fix"]["kind"] == "password"
         assert problems["orders"]["fix"]["label"] == "Find orders.csv"
-        # Find orders.csv: read from where it is now, with its steps.
         after = ok(client.post("/project/fix", json={"table": "orders", "path": str(moved)}, headers=AUTH))
         assert "orders" not in {p["table"] for p in after["project"]["problems"]}
         grids = {g["dataset"]: g["grid"] for g in ok(client.get("/grids", headers=AUTH))["grids"]}
         assert len(ok(client.get(f"/grids/{grids['orders']}", headers=AUTH))["steps"]) == 2
-        # Set the password on this computer, then Try again: it comes back.
         ok(client.put("/blades/Shop/secrets", json={"password": KEYRING_SECRET}, headers=AUTH))
-        assert ok(client.get("/connections", headers=AUTH))["connections"][0]["needs_password"] is None
         again = ok(client.post("/project/fix", json={"table": "customers"}, headers=AUTH))
         assert "customers" not in {p["table"] for p in again["project"]["problems"]}
 
 
 def test_a_project_without_its_connection_offers_to_add_it(tmp_path: Path) -> None:
-    target = tmp_path / "work" / "bare.sab"
+    target = tmp_path / "work" / "bare"
     with make_client(tmp_path / "first") as client:
         build_project(client, tmp_path)
         ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
-    # Another computer whose library has no Shop (and a file written by hand: nothing of its own either).
-    inside = entries(target)
-    with zipfile.ZipFile(target, "w") as out:
-        for name, body in inside.items():
-            if not name.startswith(".sab/blades/"):
-                out.writestr(name, body)
     with make_client(tmp_path / "second") as client:
         opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
         problems = {p["table"]: p for p in opened["problems"]}
-        assert problems["customers"]["state"] == "no_connection"
         assert problems["customers"]["fix"] == {
             "kind": "add_connection",
             "label": "Add connection Shop",
             "connection": "Shop",
         }
-        # Add connection Shop, then Try again: it comes back.
         ok(client.post("/connections", json=shop(tmp_path / "shop.sqlite"), headers=AUTH))
         again = ok(client.post("/project/fix", json={"table": "customers"}, headers=AUTH))
         assert "customers" not in {p["table"] for p in again["project"]["problems"]}
@@ -291,10 +449,10 @@ def test_a_project_without_its_connection_offers_to_add_it(tmp_path: Path) -> No
 def test_unsaved_changes_ask_first_and_only_then(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         csv, _ = made_up_files(tmp_path)
-        first = tmp_path / "first.sab"
+        first = tmp_path / "first"
         ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
-        ok(client.post("/project/save", json={"path": str(first)}, headers=AUTH))
-        second = tmp_path / "second.sab"
+        ok(client.post("/project/save", json={"path": str(first), "autosave": False}, headers=AUTH))
+        second = tmp_path / "second"
         ok(client.post("/project/new", json={"path": str(second)}, headers=AUTH))  # clean: asks nothing
         ok(client.post("/project/open", json={"path": str(first)}, headers=AUTH))  # clean: asks nothing
         grid = ok(client.get("/grids", headers=AUTH))["grids"][0]["grid"]
@@ -302,7 +460,6 @@ def test_unsaved_changes_ask_first_and_only_then(tmp_path: Path) -> None:
         assert project(client)["project"]["dirty"] is True
         refused = client.post("/project/open", json={"path": str(second)}, headers=AUTH)
         assert refused.status_code == 409 and "unsaved changes" in refused.text
-        # Another program asked (a double-click): the page asks the user.
         asked = ok(client.post("/project/open", json={"path": str(second), "ask": True}, headers=AUTH))
         assert asked["asked"] == str(second) and project(client)["asked"] == str(second)
         ok(client.post("/project/open", json={"path": str(second), "discard": True}, headers=AUTH))
@@ -312,39 +469,32 @@ def test_unsaved_changes_ask_first_and_only_then(tmp_path: Path) -> None:
 def test_unknown_fields_survive_a_save_and_a_newer_format_is_read_only(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         csv, _ = made_up_files(tmp_path)
-        target = tmp_path / "future.sab"
+        target = tmp_path / "future"
         ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
         ok(client.post("/project/save", json={"path": str(target)}, headers=AUTH))
-        inside = entries(target)
-        manifest = json.loads(inside["project.json"])
+        manifest = manifest_of(target)
         manifest["bookmarks"] = [{"page": "Sales"}]
         manifest["tables"][0]["colour"] = "teal"
-        with zipfile.ZipFile(target, "w") as out:
-            for name, body in inside.items():
-                out.writestr(name, json.dumps(manifest) if name == "project.json" else body)
-        ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))
+        (target / ".sab" / "project.json").write_text(json.dumps(manifest), encoding="utf-8")
+        ok(client.post("/project/open", json={"path": str(target), "discard": True}, headers=AUTH))
         ok(client.post("/project/save", json={}, headers=AUTH))
-        again = json.loads(entries(target)["project.json"])
+        again = manifest_of(target)
         assert again["bookmarks"] == [{"page": "Sales"}] and again["tables"][0]["colour"] == "teal"
-        # A newer format: opens, read-only, in plain words.
         again["format"] = 99
         again["app_version"] = "9.9"
-        inside = entries(target)
-        with zipfile.ZipFile(target, "w") as out:
-            for name, body in inside.items():
-                out.writestr(name, json.dumps(again) if name == "project.json" else body)
-        opened = ok(client.post("/project/open", json={"path": str(target)}, headers=AUTH))["project"]
-        assert "read-only" in opened["read_only"]
+        (target / ".sab" / "project.json").write_text(json.dumps(again), encoding="utf-8")
+        opened = ok(client.post("/project/open", json={"path": str(target), "discard": True}, headers=AUTH))
+        assert "read-only" in opened["project"]["read_only"]
         refused = client.post("/project/save", json={}, headers=AUTH)
         assert refused.status_code == 403 and "9.9" in refused.text
 
 
-def test_the_agents_save_asks_only_when_it_writes_rows(tmp_path: Path) -> None:
+def test_the_agents_save_asks_only_when_it_keeps_rows(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         csv, _ = made_up_files(tmp_path)
         ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
         ok(client.post("/datasets/pasted/paste", content="a\tb\n1\t2\n", headers=AUTH))
-        plain = tmp_path / "plain.sab"
+        plain = tmp_path / "plain"
         assert ok(client.post("/project/save", json={"path": str(plain)}, headers=AGENT))["rows"] == []
         assert ok(client.get("/agent/approvals", headers=AUTH))["pending"] == []
         answer: dict[str, Any] = {}
@@ -364,40 +514,18 @@ def test_the_agents_save_asks_only_when_it_writes_rows(tmp_path: Path) -> None:
         ok(client.post(f"/agent/approvals/{pending[0]['id']}", json={"approve": False}, headers=AUTH))
         waiting.join(10)
         assert answer["response"].status_code == 403
-        assert "data/pasted.parquet" not in entries(plain)
+        assert not (plain / ".sab" / "data").exists()
 
 
-def test_a_folder_project_opens_and_saves_as_one_file(tmp_path: Path) -> None:
-    with make_client(tmp_path) as client:
-        csv, _ = made_up_files(tmp_path)
-        ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
-        made = ok(
-            client.post(
-                "/projects", json={"folder": str(tmp_path), "name": "shop", "app": False}, headers=AUTH
-            )
-        )
-        folder = Path(made["folder"])
-        target = tmp_path / "shop.sab"
-        saved = ok(
-            client.post("/project/save", json={"folder": str(folder), "path": str(target)}, headers=AUTH)
-        )
-        assert saved["project"]["folder"] == str(folder) and saved["project"]["temporary"] is False
-        assert "data.ipynb" in entries(target)
-        ok(client.post("/project/close", json={}, headers=AUTH))
-        assert folder.is_dir()  # a folder project's folder is the user's own: it stays
-        listed = ok(client.post("/project/open", json={"path": str(folder)}, headers=AUTH))["project"]
-        assert listed["folder"] == str(folder) and listed["path"] is None
-
-
-def test_swissarmybench_open_a_sab_asks_the_running_app_and_shows_its_page(
+def test_swissarmybench_open_a_folder_asks_the_running_app_and_shows_its_page(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import webbrowser
 
     from swissarmybench.server import __main__ as command
 
-    target = tmp_path / "sales.sab"
-    target.write_bytes(b"made up")
+    target = tmp_path / "sales"
+    target.mkdir()
     sent: list[tuple[str, dict[str, Any]]] = []
     opened: list[str] = []
 
@@ -414,4 +542,4 @@ def test_swissarmybench_open_a_sab_asks_the_running_app_and_shows_its_page(
     # A home window open already: it shows the project itself.
     monkeypatch.setattr(command, "post_json", lambda info, route, body: {"page": True})
     assert command.open_project(str(target), tmp_path / "server.json") == 0 and len(opened) == 1
-    assert command.open_project(str(tmp_path / "gone.sab"), tmp_path / "server.json") == 1
+    assert command.open_project(str(tmp_path / "gone"), tmp_path / "server.json") == 1

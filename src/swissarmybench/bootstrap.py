@@ -44,6 +44,7 @@ from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModu
 from swissarmybench.adapters.library import LibraryFolder
 from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.packs import PackFolders
+from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
 from swissarmybench.adapters.state_files import (
@@ -64,6 +65,7 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import context_md as context_rules
+from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import python_connections
@@ -121,6 +123,7 @@ from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
+from swissarmybench.services.project_explorer import ProjectExplorer
 from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
@@ -191,6 +194,7 @@ class Services:
     lineage: Lineage
     projects: Projects
     sab_projects: SabProjects
+    project_explorer: ProjectExplorer
     project_scope: ProjectScope
     script_exports: ScriptExports
     panels: Panels
@@ -546,19 +550,18 @@ def bootstrap(
         approvals=approvals,
         scaffold=_scaffold_of,
     )
-    # A project as one .sab file: unpacked into a working folder while open, written back on Save.
+    # A project is a folder: its .sab/ state written beside its files; an old .sab read for the import.
     archive = SabArchive(
         settings.max_project_file_bytes,
         settings.max_project_entries,
         settings.max_project_unpacked_bytes,
-        settings.project_temp_dir,
     )
 
     async def use_project(folder: str | None) -> None:
-        """The open project's saved dashboards (in its working folder's .sab folder), or this computer's with
-        none open. Connections, APIs, vaults, blades and variables are the library's, whatever is open."""
+        """The open project's saved dashboards (its .sab/visualizations), or this computer's with none open.
+        Connections, APIs, vaults, blades and variables are the library's, whatever is open."""
         app = Path(folder) / APP_FOLDER if folder else None
-        dashboards.folder = app / "dashboards" if app else state_dir / "dashboards"
+        dashboards.folder = app / "visualizations" if app else state_dir / "dashboards"
         await catalog_loading.rescope()
         await variables.rescope()
         await live.broadcast({"type": "blades_changed"})
@@ -577,10 +580,12 @@ def bootstrap(
 
     library = Library(ws, library_folder, blade_store, approvals, library_moved)
 
+    recent_projects = RecentProjects(state_dir / "recent_projects.json" if audit_log else None)
+    explorer_ready: list[ProjectExplorer] = []  # set once built (below): the projects folder New uses
     sab_projects = SabProjects(
         ws,
         archive,
-        RecentProjects(state_dir / "recent_projects.json" if audit_log else None),
+        recent_projects,
         datasets,
         connections,
         cards,
@@ -595,7 +600,25 @@ def bootstrap(
         scope=use_project,
         adopt=library.adopt_project,
         autosave_seconds=settings.autosave_seconds,
+        projects_folder=lambda: explorer_ready[0].folder() if explorer_ready else str(settings.projects_dir),
     )
+    # The Project Explorer (the home page): every project in one place, sortable, the types explained.
+    project_explorer = ProjectExplorer(
+        ws,
+        ExplorerFiles(),
+        ExplorerSettings(state_dir / "projects.json" if audit_log else None),
+        recent_projects,
+        sab_projects,
+        approvals,
+        default_folder=str(settings.projects_dir),
+        modes=extension_modules.modes,
+        streamlit=extension_modules.STREAMLIT_KIND,
+        off=lambda: {
+            str(e["project_type"]): e
+            for e in extension_rules.off_project_types(extension_rules.CATALOG, extension_modules.modes())
+        },
+    )
+    explorer_ready.append(project_explorer)
     # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
     structures = Structures(
         ws,
@@ -954,6 +977,7 @@ def bootstrap(
         ),
         projects=projects,
         sab_projects=sab_projects,
+        project_explorer=project_explorer,
         project_scope=project_scope,
         # Export as one Python script: the document's cells, its connections' own code, ruff's check.
         script_exports=ScriptExports(

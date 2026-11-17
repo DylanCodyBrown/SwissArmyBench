@@ -5,22 +5,23 @@
  * project file … ask about autosave … we start in grids"; "new here take a tour should be on the project
  * page and no where else".)
  *
- * ROUTING: [START]    /workspace?view=start: New project, Open project…, the recent projects (a click
- *                     opens one; a missing one says so, with Remove from the list), and the tour (only
- *                     here). Shown with no project open; the mark (Home) brings it back
+ * ROUTING: [START]    /workspace?view=start: the Project Explorer (projectExplorer.ts: every project as a
+ *                     card, sorted, the types explained), and the tour (only here). Shown with no project
+ *                     open; the mark (Home) brings it back
  *          [GRIDS]    /workspace?view=grids: Grids with no table open while a project is: Open a file,
  *                     Paste, Query (the "+" tab), the project's connections (each its catalog) and the
  *                     catalog, and the project's tables that did not come back, each with its fix
  *          [PROJECT]  in the Application row, before Zoom: the project's name (● with unsaved changes),
- *                     Save (Ctrl+S), Save as…, Close, the Autosave switch
+ *                     Save (Ctrl+S), Copy to…, Close, the Autosave switch
  *          [FIXES]    a strip under the tabs, only while a table did not come back: its one click
- *          [ASKED]    a double-click on a .sab with unsaved work open: the page asks
+ *          [ASKED]    `swissarmybench open <folder>` with unsaved work open: the page asks
  */
 import { api, onNotice, token } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { visit, withParams } from "./nav";
 import { gridList, newQueryTab, onAgentView, setEmptyView, showGridsLanding, showStartView, viewingLanding, viewingStart } from "./panes";
-import { answerAsked, autosaveSwitch, baseName, closeProject, fixTable, folderOf, loadProject, mountProject, newProject, onBeforeSave, onProject, openProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, when } from "./projectFile";
+import { answerAsked, autosaveSwitch, closeProject, copyProject, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave } from "./projectFile";
+import { drawExplorer, mountExplorer, refreshExplorer } from "./projectExplorer";
 import { openFile } from "./openFile";
 import { tourButton } from "./tour";
 import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
@@ -65,6 +66,7 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
   paste = home.paste;
   // With no table open: the Grids landing while a project is open, else the Start view.
   setEmptyView(() => (projectState().project ? "grids" : "start"));
+  mountExplorer(element, showGrids, () => tourButton());
   mountProject();
   onConnectionChange(() => {
     if (lastState) drawFixes(lastState);
@@ -97,7 +99,7 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
       if ((e.target as Element | null)?.closest?.(".monaco-editor")) return;
       e.preventDefault();
-      guard(() => saveProject(e.shiftKey))();
+      guard(() => (e.shiftKey ? copyProject() : saveProject()))();
     }
   });
 }
@@ -116,59 +118,8 @@ async function loadConnections(): Promise<void> {
 function draw(state: ProjectState): void {
   if (!host) return;
   if (viewingLanding()) return drawLanding(state);
-  const projects = state.recent;
-  clear(
-    host,
-    h(
-      "div",
-      { class: "start-page" },
-      h(
-        "section",
-        { class: "start-section", "aria-label": "Start" },
-        h("div", { class: "start-head" }, h("h2", {}, "Start"), tourButton()),
-        h(
-          "div",
-          { class: "start-actions" },
-          button("New project", guard(() => newProject().then((s) => showGrids(s))), { icon: "plus", class: "start-action" }),
-          button("Open project…", guard(() => openProject().then((s) => showGrids(s))), { icon: "folder", class: "start-action" }),
-        ),
-      ),
-      projects.length
-        ? h(
-            "section",
-            { class: "start-section", "aria-label": "Recent projects" },
-            h("h2", {}, "Recent"),
-            h(
-              "ul",
-              { class: "start-list" },
-              ...projects.map((r) =>
-                h(
-                  "li",
-                  { class: `start-item ${r.exists ? "" : "missing"}`, "data-path": r.path },
-                  h(
-                    "button",
-                    {
-                      type: "button",
-                      class: "start-open",
-                      title: r.path,
-                      disabled: !r.exists,
-                      onclick: guard(() => openProject(r.path).then((s) => showGrids(s))),
-                    },
-                    icon("project"),
-                    h("span", { class: "start-name" }, baseName(r.path).replace(/\.sab$/i, "")),
-                    h("span", { class: "start-folder" }, folderOf(r.path)),
-                  ),
-                  r.exists ? h("span", { class: "start-when" }, when(r.opened)) : h("span", { class: "start-missing" }, "Missing"),
-                  r.exists
-                    ? null
-                    : button("Remove from the list", guard(() => api("/project/recent/remove", "POST", { path: r.path }).then(() => loadProject())), { icon: "close", iconOnly: true, class: "ghost" }),
-                ),
-              ),
-            ),
-          )
-        : null,
-    ),
-  );
+  drawExplorer();
+  void refreshExplorer();
 }
 
 /** The catalog page, on one connection's catalog (or all of them). */
@@ -229,9 +180,9 @@ function drawGroup(state: ProjectState): void {
   // In the Application row (the owner, 2026-11-16): the project's name, then its tools, before Zoom.
   clear(
     group,
-    h("strong", { class: "project-name", title: project.path ?? project.name }, projectLabel(project)),
+    h("strong", { class: "project-name", title: project.folder }, projectLabel(project)),
     button("Save", guard(() => saveProject()), { icon: "save", class: "ribbon-btn", title: project.read_only ?? "Save (Ctrl+S)" }),
-    button("Save as…", guard(() => saveProject(true)), { icon: "folder", class: "ribbon-btn", title: "Save as (Ctrl+Shift+S)" }),
+    button("Copy to…", guard(() => copyProject()), { icon: "copy", class: "ribbon-btn", title: "Copy project to another folder (Ctrl+Shift+S)" }),
     button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
     autosave.element,
   );

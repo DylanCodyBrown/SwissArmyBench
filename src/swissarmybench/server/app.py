@@ -27,7 +27,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_streamlit.py      a Streamlit app's canvas (pages, blocks), live cells, run, export, Save as
   routes_controllers.py    a canvas page's controllers: the check, Test this page, a thin cell's move
   routes_projects.py       projects: a new one, its files, Export data.py
-  routes_sab_projects.py   a project as one .sab file: new, open, save, close, the recent ones, a fix
+  routes_sab_projects.py   a project is a folder: new, open, save, copy, an old .sab imported, close, a fix
+  routes_project_explorer.py  the Project Explorer: every project as a card, sorted, the types explained
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
   routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
@@ -100,6 +101,7 @@ from swissarmybench.server import (
     routes_packs,
     routes_panels,
     routes_processes,
+    routes_project_explorer,
     routes_project_scope,
     routes_projects,
     routes_regression,
@@ -231,7 +233,7 @@ def create_app(
         checker.cancel()
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.streamlit.stop_all()  # nor a Streamlit process, nor its temporary folder
-        await ctx.sab_projects.stop()  # nor an open .sab's working folder
+        await ctx.sab_projects.stop()
         for extension in ctx.switched_on:  # nor an extension's processes (a code app's dev server)
             stop = getattr(extension, "stop", None)
             if callable(stop):
@@ -268,6 +270,7 @@ def create_app(
             *routes_controllers.routes(ctx.controllers),
             *routes_projects.routes(ctx.projects),
             *routes_sab_projects.routes(ctx.sab_projects),
+            *routes_project_explorer.routes(ctx.project_explorer),
             *routes_project_scope.routes(ctx.project_scope),
             *routes_script_export.routes(ctx.script_exports),
             *routes_panels.routes(ctx.panels),

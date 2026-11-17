@@ -40,6 +40,14 @@ MODE: dict[str, Any] = {
     "cell_kinds": ["typescript", "tsx"],
     "tools": ["powerapps_"],
     "export": ["push"],
+    # The Project Explorer's words for beginners.
+    "title": "Power Apps code app",
+    "for_whom": "For developers building a business app their organisation runs in Power Apps.",
+    "explain": (
+        "Write the app in TypeScript and React, with Dataverse and connectors as its data. Run it live here, "
+        "then push it to your environment. You get a code app's folder with power.config.json."
+    ),
+    "example": "Example: an expense approval app for your team.",
 }
 
 STARTERS = str(Path(__file__).resolve().parent / "starters")

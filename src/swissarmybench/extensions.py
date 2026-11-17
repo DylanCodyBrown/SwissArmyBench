@@ -43,6 +43,30 @@ BASE_MODE: dict[str, Any] = {
     "cell_kinds": [],
     "tools": [],
     "export": ["notebook"],
+    # The Project Explorer's words for beginners (the owner, 2026-11-17): each mode brings its own.
+    "title": "Analysis",
+    "for_whom": "For anyone exploring data and handing over what they found.",
+    "explain": (
+        "Explore your data in notebooks: tables from files and connections, SQL that shapes them, charts "
+        "and statistics. You get data.ipynb for the tables, notebooks for the analysis, and Visualizations "
+        "for the report."
+    ),
+    "example": "Example: a quarter's sales by region, checked and charted for the finance team.",
+}
+# A Streamlit app, for beginners: a base project with its app's canvas (until the Streamlit extension brings
+# its own project type, whose mode then says it). `make` is what New project sends for it.
+STREAMLIT_KIND: dict[str, Any] = {
+    "type": "streamlit",
+    "name": "Streamlit app",
+    "title": "Streamlit app",
+    "deliverable": "a Streamlit app",
+    "for_whom": "For people who want others to click through their data in a small web app.",
+    "explain": (
+        "Make the tables in data.ipynb, then place your notebooks' cells on pages: charts, tables, filters "
+        "and buttons. You get data.ipynb, an app canvas and pages/*.py that run anywhere Streamlit runs."
+    ),
+    "example": "Example: a sales dashboard where each manager picks their region.",
+    "make": {"type": "bi", "app": True},
 }
 _MODE_FIELDS = ("canvases", "families", "languages", "cell_kinds", "tools", "export")
 
@@ -91,7 +115,9 @@ def enabled() -> list[ModuleType]:
 def _mode(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict) or not isinstance(raw.get("type"), str):
         return None
-    mode = dict(BASE_MODE) | {k: v for k, v in raw.items() if k in BASE_MODE}
+    mode = dict(BASE_MODE) | {k: v for k, v in raw.items() if k in BASE_MODE or k == "make"}
+    for key in ("title", "for_whom", "explain", "example"):  # an extension's own words, or none
+        mode[key] = str(raw.get(key) or "")
     for key in _MODE_FIELDS:
         value = mode.get(key)
         mode[key] = [str(v) for v in value] if isinstance(value, list | tuple) else []

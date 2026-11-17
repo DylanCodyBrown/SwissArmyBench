@@ -1,32 +1,36 @@
-"""The .sab project file: one file that holds a whole project (the owner, 2026-11-16: "a proprietary
-format for projects where they can be saved in a .sab file and this file can be opened from any session
-to get back to project you are working on"). Pure rules, no I/O.
+"""A project is a folder (the owner, 2026-11-17: "I think we need to just consider entire folders projects
+and take out the .sab" / "that way we can share entire projects in git repos nativly"). Pure rules, no I/O.
 
-A .sab is a zip, like .docx or .pbix:
+Everything the user works on is ordinary files at the project's top (data.ipynb, data.py, notebooks,
+scripts, apps, structures/, pages/), saved by their own Save. The app's own state is a hidden folder
+beside them, plain and stable text that reads well in a diff:
 
-    project.json            the format, the app version that wrote it, the project's name, and
-                            the tables: each with its name, its source and its grids' steps;
-                            the open tabs; the Workbench's documents, modes and layout; the diagram
-    data.ipynb, *.ipynb,    the project's own files at their paths (code and text only: never a data
-    *.py, pages/*.py, ...   file, which would carry rows)
-    visualizations/visualizations.json
-                            Visualizations: its cards (what a chart showed is not kept: it redraws);
-                            sandbox/sandbox.json in a file saved before the Sandbox was renamed
-    model.tang              the relationships
-    data/<table>.parquet    only the tables ticked "Keep its rows in the file"
+    .sab/project.json        the format, the type, the tables (each with its source and its grids' steps),
+                             the open tabs, the Workbench's documents and layout, the diagram, autosave;
+                             sorted keys, no timestamp: a save that changes nothing changes no byte
+    .sab/visualizations.json Visualizations as it was left (its cards; what a chart showed redraws)
+    .sab/visualizations/     the saved dashboards (one JSON file each)
+    .sab/model.json          the relationships (the ERD)
+    .sab/data/<table>.parquet only the tables ticked "Keep its rows": ignored by Git (.sab/.gitignore and the
+                             scaffold's .gitignore), since data is sensitive
 
-The owner's two choices (2026-11-16): "one file holds it all", and "rows only on a tick": a table keeps
-where it came from and its steps, and is read again on open; a pasted or pushed table has no source,
-so its rows go in only when ticked. A connection is named, never embedded: no secret, token or
-password is ever written. Fields this version does not know are kept when the file is saved again; a
-file of a newer format opens read-only.
+A table keeps where it came from and its steps, and is read again on open; a pasted or pushed table has no
+source, so its rows are kept only when ticked. A connection is named, never embedded: no secret, token or
+password is ever written. Fields this version does not know are kept when saved again; a project of a
+newer format opens read-only.
 
-  sources    where each table came from (Origin) as the file says it: a connection with its table or
-             query, a file (relative to the .sab when it sits nearby), the notebook that makes it, a
-             "+" tab's query, or pasted/pushed with rows true or false
-  manifest   project.json read (leniently: unknown fields kept) and written
-  entries    a zip entry's name checked: no `..`, no absolute path, no drive, no link; sizes capped
-  packed     which of a working folder's files go into the file
+The .sab file (a zip; 2026-11-16 to 2026-11-17) is read for one release as an import: every entry checked
+(no `..`, no absolute path, no drive, no link, sizes), unpacked into a folder the user picked and turned
+into `.sab/` and files (`converted`).
+
+  sources    where each table came from (Origin) as the project says it: a connection with its table or
+             query, a file (relative to the project when it sits inside or beside it), the notebook that
+             makes it, a "+" tab's query, or pasted/pushed with rows true or false
+  manifest   .sab/project.json read (leniently: unknown fields kept; a type-only file read as a project
+             with no tables yet) and written (stable)
+  entries    a .sab zip entry's name checked: no `..`, no absolute path, no drive, no link; sizes capped
+  packed     which of a folder's files are the project's own documents (code and text, never data)
+  scaffold   .sab/.gitignore, the project's .gitignore and README.md (written only when absent)
   fixes      a table that could not come back: its state and the one click that fixes it
 """
 
@@ -49,13 +53,21 @@ FORMAT: int = 1
 MARK_KEY: str = "swissarmybench"
 MARK: str = "project"
 SUFFIX: str = ".sab"
-MANIFEST: str = "project.json"
+APP_FOLDER: str = ".sab"
+MANIFEST: str = "project.json"  # an old .sab's entry, and the name inside .sab/
+MANIFEST_PATH: str = f"{APP_FOLDER}/{MANIFEST}"
+MODEL_PATH: str = f"{APP_FOLDER}/model.json"
+VISUALIZATIONS_PATH: str = f"{APP_FOLDER}/visualizations.json"
+DASHBOARDS_FOLDER: str = f"{APP_FOLDER}/visualizations"  # the saved dashboards
+OLD_DASHBOARDS_FOLDER: str = f"{APP_FOLDER}/dashboards"  # before projects were folders: moved on open
+DATA_FOLDER: str = f"{APP_FOLDER}/data"
+# An old .sab's own entries (read for one release, as an import).
 MODEL: str = "model.tang"
 VISUALIZATIONS: str = "visualizations/visualizations.json"
 # The Sandbox's entry and manifest key before it became Visualizations (the owner, 2026-11-16): read for
 # one release, never written.
 OLD_SANDBOX: str = "sandbox/sandbox.json"
-ROWS_FOLDER: str = "data"
+ROWS_FOLDER: str = DATA_FOLDER
 STRUCTURES_FOLDER: str = "structures"
 MAX_NAME: int = 100
 MAX_ENTRY_NAME: int = 400
@@ -392,14 +404,18 @@ def _table(raw: Any) -> TableEntry | None:
     )
 
 
-def read_manifest(text: str) -> tuple[Manifest, str | None]:
-    """project.json, and why it opens read-only (None: it does not). Unknown fields are kept."""
+def read_manifest(text: str, folder: bool = False) -> tuple[Manifest, str | None]:
+    """project.json, and why it opens read-only (None: it does not). Unknown fields are kept. `folder`: a
+    project folder's .sab/project.json, where a file with only a type (a project made but never opened,
+    or an extension's own) is a project with no tables yet."""
     try:
         raw = json.loads(text)
     except ValueError:
-        raise SabError("This file is not a project (its project.json is not JSON).") from None
+        raise SabError("This is not a project (its project.json is not JSON).") from None
+    if folder and isinstance(raw, dict) and MARK_KEY not in raw:
+        raw = raw | {MARK_KEY: MARK, "format": FORMAT}
     if not isinstance(raw, dict) or raw.get(MARK_KEY) != MARK:
-        raise SabError("This file is not a Swiss Army Bench project.")
+        raise SabError("This is not a Swiss Army Bench project.")
     version = raw.get("format")
     if not isinstance(version, int) or isinstance(version, bool) or version < 1:
         raise SabError("This project's format is not one this version reads.")
@@ -435,20 +451,20 @@ def read_manifest(text: str) -> tuple[Manifest, str | None]:
         diagram=_mapping(raw.get("diagram")),
         visualizations=entry("visualizations") or entry("sandbox"),
         model=entry("model"),
-        autosave=raw.get("autosave") is True,
+        autosave=raw.get("autosave") is not False if folder else raw.get("autosave") is True,
         extra={k: v for k, v in raw.items() if k not in _KNOWN},
     )
     return manifest, read_only
 
 
 def write_manifest(manifest: Manifest) -> str:
-    """project.json's text. What an earlier read kept that this version does not know goes back in."""
+    """.sab/project.json's text: sorted keys, no timestamp, so the same project is the same bytes (a save
+    that changes nothing changes nothing in Git). The project's name is its folder's: not written. What an
+    earlier read kept that this version does not know goes back in."""
     body: dict[str, Any] = dict(manifest.extra) | {
         MARK_KEY: MARK,
         "format": FORMAT,
         "app_version": manifest.app_version,
-        "name": manifest.name,
-        "saved": manifest.saved,
         "tables": [t.to_json() for t in manifest.tables],
         "tabs": dict(manifest.tabs),
         "workbench": dict(manifest.workbench),
@@ -457,7 +473,40 @@ def write_manifest(manifest: Manifest) -> str:
         "model": manifest.model,
         "autosave": manifest.autosave,
     }
-    return json.dumps(body, indent=1, ensure_ascii=False, default=str) + "\n"
+    return json.dumps(body, indent=1, ensure_ascii=False, sort_keys=True, default=str) + "\n"
+
+
+def converted(manifest: Manifest, found: Mapping[str, str]) -> Manifest:
+    """An old .sab's manifest as a project folder's: its Visualizations, model and rows at their places in
+    .sab/ (`found`: each old entry's new path, for the ones that were in the file)."""
+    tables = tuple(
+        replace(t, rows_file=found.get(t.rows_file)) if t.rows_file else t for t in manifest.tables
+    )
+    return replace(
+        manifest,
+        tables=tables,
+        visualizations=VISUALIZATIONS_PATH if manifest.visualizations in found else None,
+        model=MODEL_PATH if manifest.model in found else None,
+        autosave=True,
+    )
+
+
+def old_entry_place(entry: str, manifest: Manifest) -> str | None:
+    """Where an old .sab's own entry goes in the project folder (None: a project file, at its own path; ""
+    for the manifest, written new). Rows, Visualizations and the model into .sab/; its saved dashboards
+    into .sab/visualizations/; its own blades kept at .sab/blades (the library takes them in on open)."""
+    if entry == MANIFEST:
+        return ""
+    if entry == manifest.visualizations:
+        return VISUALIZATIONS_PATH
+    if entry == manifest.model:
+        return MODEL_PATH
+    rows = {t.rows_file for t in manifest.tables if t.rows_file}
+    if entry in rows:
+        return f"{DATA_FOLDER}/{posixpath.basename(entry)}"
+    if entry.startswith(OLD_DASHBOARDS_FOLDER + "/"):
+        return f"{DASHBOARDS_FOLDER}/{posixpath.basename(entry)}"
+    return None
 
 
 def carried(earlier: Manifest | None, name: str, table: TableEntry) -> TableEntry:
@@ -602,3 +651,49 @@ def fix_for(table: str, source: Source, problem: str) -> dict[str, Any]:
     if problem == "no_rows":
         return _fix(table, problem, "Its rows were not kept in the file", "remove", "Remove")
     return _fix(table, "failed", problem[:300], "retry", "Try again")
+
+
+# ===== the scaffold's Git files: data stays out by default =====
+
+# .sab/.gitignore: the app's own folder, so always the app's to write.
+APP_IGNORE_FILE: str = f"{APP_FOLDER}/.gitignore"
+APP_GITIGNORE: str = (
+    "# Swiss Army Bench: a table's rows kept on a tick stay out of Git (data is sensitive).\ndata/\n"
+)
+GITIGNORE_FILE: str = ".gitignore"
+README_FILE: str = "README.md"
+GITIGNORE: str = """\
+# Swiss Army Bench: rows kept with "Keep its rows" stay on this computer (data is sensitive).
+# Remove this line to commit them on purpose.
+.sab/data/
+
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+"""
+
+
+def readme(name: str) -> str:
+    """The project's README.md (written only when it has none)."""
+    return f"""\
+# {name}
+
+A Swiss Army Bench project: open this folder with Swiss Army Bench (Open project), or work on its files
+in any editor. It is ordinary files, so it can be a Git repository.
+
+- `data.ipynb` makes the tables; `data.py` is its export (do not edit it by hand).
+- `.sab/` is the app's own state: `project.json` (each table's source and steps, the tabs and windows),
+  `visualizations.json` and `visualizations/` (Visualizations and its saved dashboards), `model.json`
+  (the relationships).
+- `.sab/data/` holds a table's rows only when you ticked Keep its rows. Data is sensitive, so
+  `.gitignore` and `.sab/.gitignore` keep it out of Git; remove those lines to commit data on purpose.
+- No password, token or secret is ever written here: a connection is named, and each computer finds its
+  password in its own keyring, environment or key vault.
+"""
+
+
+def is_project(names: Iterable[str]) -> bool:
+    """A folder the app treats as a project by its top's names: its .sab/project.json, or the scaffold's
+    data notebook."""
+    found = set(names)
+    return MANIFEST_PATH in found or project_rules.DATA_NOTEBOOK in found
