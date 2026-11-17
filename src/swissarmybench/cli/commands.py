@@ -1143,7 +1143,8 @@ def blades_list(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_get",
-    "One blade whole: its code, settings, catalog command, packages",
+    "One blade whole: its code (read-only: edited in its file), settings, table name, how a connection's "
+    "tables are listed, packages",
     req("name", "The blade's name."),
 )
 def blades_get(a: dict[str, Any]) -> Any:
@@ -1152,7 +1153,7 @@ def blades_get(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_templates",
-    "Starter blades for databases, files, vaults and analyses; give an id for one's full code",
+    "Starter connections (databases, files, vaults) and analyses; give an id for one's full code",
     opt("id", "A starter's id, for its code and catalog query."),
 )
 def blades_templates(a: dict[str, Any]) -> Any:
@@ -1162,57 +1163,47 @@ def blades_templates(a: dict[str, Any]) -> Any:
     return [{k: t[k] for k in ("id", "label", "group", "kind")} for t in listed]
 
 
-_BLADE_ARGS = (
-    opt("code", 'Python ending in the variable it makes; secret("name") where a password goes.'),
-    opt("variable", "The variable sab.blade returns (default: the last one assigned)."),
-    opt("dialect", "For sql: sqlserver, postgres, mysql, sqlite, duckdb, snowflake, oracle, trino or other."),
-    opt("description", "What it loads, and for which app."),
-    opt("tags", "Words to find it by.", "list"),
-    opt("catalog", '{"language": "sql" or "python", "command": "..."}: lists the source\'s columns.', "json"),
-    opt("vault_mapping", 'For vault: [{"env": "VAR", "secret": "name in the vault"}].', "json"),
-    opt("vault_all", "For vault: every secret it holds, each under its own name (needs names()).", "bool"),
-    opt("env_names", "For secret: the environment variable names.", "list"),
-    opt("template", "The starter it came from (blades_templates)."),
-    opt("folder", "Save it as a .blade.py file in this blade folder (new blades)."),
-    opt("secrets", '{"name": "value"}: passwords to save in the system keyring (never shown back).', "json"),
-)
-_BLADE_KEYS = (
-    "name",
-    "kind",
-    "code",
-    "variable",
-    "dialect",
-    "description",
-    "tags",
-    "catalog",
-    "vault_mapping",
-    "vault_all",
-    "env_names",
-    "template",
-    "folder",
-    "secrets",
-)
-
-
 @command(
-    "blades_create",
-    "Save a new blade (sql, other, vault, secret or analysis)",
-    req("name", "A new name."),
-    req("kind", "sql, other, vault, secret or analysis."),
-    *_BLADE_ARGS,
+    "blades_new",
+    "New blade: a .blade.py file in the library's blades/ folder from a template (no template: the choices). "
+    "Its code is then edited in the file, never through the app",
+    opt("template", "table, code, secret, snippet, or an analysis starter's id (none: the list)."),
+    opt("name", "Its name (default: the template's)."),
+    opt("table", "Its table's name, for a table blade (blades_table_name_check first)."),
 )
-def blades_create(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/blades", {k: a[k] for k in _BLADE_KEYS if a.get(k) is not None})
+def blades_new(a: dict[str, Any]) -> Any:
+    if not a.get("template"):
+        return api.call("GET", "/blades/new")
+    body = {k: a[k] for k in ("template", "name", "table") if a.get(k) is not None}
+    return api.call("POST", "/blades/new", body)
 
 
 @command(
     "blades_update",
-    "Change a blade: send it whole as blades_get gave it, changed (a new name renames it)",
+    "Change a blade's name, description, tags or table name (its file's header; its code is edited in the "
+    "file, never here)",
     req("name", "Its name now."),
-    req("blade", "The blade as blades_get gave it, with your changes.", "json"),
+    opt("new_name", "A new name (renames it)."),
+    opt("description", "What it loads, and for which app."),
+    opt("tags", "Words to find it by.", "list"),
+    opt("table", 'The name its result gets as a table ("": the name its code makes).'),
 )
 def blades_update(a: dict[str, Any]) -> Any:
-    return api.call("PUT", f"/blades/{_q(a['name'])}", a["blade"])
+    body = {k: a[k] for k in ("description", "tags", "table") if a.get(k) is not None}
+    if a.get("new_name"):
+        body["name"] = a["new_name"]
+    return api.call("PUT", f"/blades/{_q(a['name'])}", body)
+
+
+@command(
+    "blades_table_name_check",
+    "Is a table name free for a blade's result? available, or why not (a table, a connection, another "
+    "blade's table, not a valid name)",
+    req("name", "The table name."),
+    opt("blade", "The blade it is for (it may keep its own)."),
+)
+def blades_table_name_check(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/blades/table-name", params={"name": a["name"], "blade": a.get("blade")})
 
 
 @command(
@@ -4107,8 +4098,8 @@ def app_audit(a: dict[str, Any]) -> Any:
     req(
         "to",
         "the rail: grids, visualizations, erd, notebooks, scripts, apps, blades, connections, "
-        "variables, session, settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog: "
-        "catalog[:<name>/<schema>/<table>], blade:<name>, new_blade",
+        "variables, session, settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog "
+        "(the blades page): blade:<name>, new_blade",
     ),
     opt("window", "home (default), catalog or workbench."),
     opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),

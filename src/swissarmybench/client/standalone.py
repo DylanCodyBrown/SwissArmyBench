@@ -160,6 +160,7 @@ def spec(name: str) -> dict[str, Any]:
         "kind": blade.kind,
         "code": blade.code,
         "variable": blade.variable,
+        "table": blade.table,  # its table's name (sab.blade registers its result under it)
         "secrets": secrets,
         "vault_mapping": blade.vault_mapping,
         "vault_all": blade.vault_all,

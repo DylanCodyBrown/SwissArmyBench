@@ -21,9 +21,9 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
+from swissarmybench.domain import blade_tables, dataverse, lakes, python_connections, snippets
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
-from swissarmybench.domain import dataverse, lakes, python_connections, snippets
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
@@ -44,7 +44,7 @@ from swissarmybench.domain.packages import blade_feature, connection_feature, mi
 from swissarmybench.domain.packs import CROSS_LISTED
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
-from swissarmybench.services.workspace import Workspace
+from swissarmybench.services.workspace import Refused, Workspace
 
 _PIP_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._\-]{0,99}(\[[A-Za-z0-9,._\-]{1,100}\])?")
 
@@ -61,6 +61,10 @@ class Blades(Protocol):
     def get(self, name: str) -> Blade: ...
 
     def save(self, data: Any, previous_name: str | None = None) -> Blade: ...
+
+    def set_header(self, name: str, changes: Mapping[str, Any]) -> Blade: ...
+
+    def file_of(self, name: str) -> Any: ...
 
     def remove(self, name: str) -> None: ...
 
@@ -113,8 +117,11 @@ class BladeService:
         install_packages: Callable[[list[str]], Awaitable[tuple[int | None, str]]],
         python: str,
         environ: Mapping[str, str],
+        reveal: Callable[[str], None] | None = None,
     ) -> None:
         self.ws = ws
+        # Show its file: the system's file manager at a blade's file (server/file_manager.py); the user's.
+        self._reveal = reveal
         self._blades = blades
         self._catalogs = catalogs
         self._templates = templates
@@ -169,6 +176,9 @@ class BladeService:
             "pack": blade.pack,
             "path": blade.path,
             "updated_at": blade.updated_at,
+            # A table of its own (domain/blade_tables.py): the name its result gets ("" for its code's).
+            "names_table": blade_tables.names_table(blade.kind, blade.template, blade.web_call),
+            "table": blade.table,
         }
 
     def settings_of(
@@ -288,6 +298,8 @@ class BladeService:
     def details(self, name: str) -> dict[str, Any]:
         blade = self._blades.get(name)
         details = blade.to_json() | self.summary(blade)
+        # The file it is edited in (Show its file): a blade's code is never changed by the app.
+        details["file"] = str(self._blades.file_of(blade.name) or "")
         if blade.code and blade.kind == "snippet":
             details["placeholders"] = [p.to_json() for p in snippets.placeholders(blade.code)]
         elif blade.code:
@@ -309,7 +321,107 @@ class BladeService:
 
     # ===== saving =====
 
+    # ===== a blade's table name (the owner, 2026-11-17: "a realtime check for available names") =====
+
+    def table_name_check(self, name: str, blade: str | None = None) -> dict[str, Any]:
+        """Whether `name` is free for `blade`'s table: against a table's name rule, DuckDB's reserved words,
+        the open tables, every connection's name and every other blade's table name. The page's live check
+        and the agent's blades_table_name_check."""
+        everything = self._blades.all()
+        connections = [
+            b.name for b in everything if connection_kind(b.kind, b.template) not in (None, "vault")
+        ]
+        tables = {b.name: b.table for b in everything if b.table}
+        return blade_tables.check_name(
+            name,
+            blade=blade,
+            open_tables=[info.name for info in self.ws.store.all()],
+            connections=connections,
+            blade_tables=tables,
+            reserved=self.ws.grammar.reserved,
+        ).to_json()
+
+    def _table_free(self, table: Any, blade: str | None) -> None:
+        if isinstance(table, str) and table.strip():
+            answer = self.table_name_check(table, blade)
+            if not answer["available"]:
+                raise BladeError(str(answer["said"]))
+
+    # ===== a blade's code is edited in its file (the owner, 2026-11-17) =====
+
+    # What the app changes in a blade: its file's header only, never its code.
+    HEADER_FIELDS: tuple[str, ...] = ("name", "description", "tags", "table")
+
+    async def update(self, name: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """Change a blade's name, description, tags or table name (its file's header; the code's bytes as
+        they were). Anything else sent must be as it is: a blade's code is edited in its file."""
+        if not isinstance(body, dict):
+            raise BladeError('Send {"name", "description", "tags", "table"}.')
+        blade = self._blades.get(name)
+        now = blade.to_json()
+        for key, value in body.items():
+            if key in self.HEADER_FIELDS or key == "secrets" or key not in now:
+                continue
+            if key in ("path", "pack", "source", "created_at", "updated_at"):
+                continue
+            if value != now[key]:
+                where = self._blades.file_of(blade.name)
+                raise BladeError(
+                    f"{blade.name}'s {key} is edited in its file ({where}), never in the app: the app "
+                    "changes only its name, description, tags and table name."
+                )
+        changes = {k: body[k] for k in self.HEADER_FIELDS if k in body}
+        if "table" in changes and str(changes["table"] or "").strip():
+            if not blade_tables.names_table(blade.kind, blade.template, blade.web_call):
+                raise BladeError(
+                    f"{blade.name} names no table of its own (a connection's are named through it)."
+                )
+            self._table_free(changes["table"], str(changes.get("name") or blade.name))
+        saved = self._blades.set_header(blade.name, changes) if changes else blade
+        if isinstance(body.get("secrets"), dict) and body["secrets"]:
+            self._blades.set_secrets(saved.name, body["secrets"])
+        self.ws.audit.write(who, "save_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
+        await self.ws.live.broadcast({"type": "blades_changed"})
+        return self.summary(saved)
+
+    def new_blades(self) -> dict[str, Any]:
+        """What New blade offers (domain/blade_tables.py)."""
+        return {"choices": blade_tables.new_blades(self._templates)}
+
+    async def new(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """New blade: a new .blade.py file in the library's blades/ folder from the template picked, to be
+        edited in the user's own editor (Show its file). {"template", "name", "table"?}."""
+        if not isinstance(body, dict) or not isinstance(body.get("template"), str):
+            raise BladeError(
+                'Send {"template": "table", "name": "My table"} (the choices: blades_new_choices).'
+            )
+        choice = blade_tables.new_blade(body["template"], self._templates)
+        name = body.get("name")
+        taken = {b.name.casefold() for b in self._blades.all()}
+        wanted = name.strip() if isinstance(name, str) and name.strip() else choice.named or choice.label
+        if not (isinstance(name, str) and name.strip()) and wanted.casefold() in taken:
+            wanted = _free_name(wanted, taken)
+        table = body.get("table") if isinstance(body.get("table"), str) else ""
+        self._table_free(table, wanted)
+        saved = self._blades.save(choice.data(wanted, str(table or "").strip()))
+        self.ws.audit.write(who, "new_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
+        await self.ws.live.broadcast({"type": "blades_changed"})
+        return self.summary(saved) | {"file": str(self._blades.file_of(saved.name) or "")}
+
+    async def show_file(self, name: str, who: str = "user") -> dict[str, Any]:
+        """Show its file: the system's file manager at the blade's file. The user's click only (the same as
+        the Project Explorer's Show in folder)."""
+        if who == "agent":
+            raise Refused("Show its file opens the user's own file manager: it is the user's click.")
+        path = self._blades.file_of(name)
+        if path is None or self._reveal is None:
+            raise BladeError(f"{name} has no file to show.")
+        self._reveal(str(path))
+        return {"shown": str(path)}
+
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
+        if isinstance(body, dict):
+            self._table_free(body.get("table"), str(body.get("name") or previous or ""))
         blade = self._blades.save(body, previous)
         if isinstance(body, dict) and isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(blade.name, body["secrets"])
@@ -589,6 +701,10 @@ class BladeService:
             "kind": blade.kind,
             "code": blade.code,
             "variable": blade.variable,
+            # Its table's name (domain/blade_tables.py): sab.blade registers its result under it.
+            "table": blade.table
+            if blade_tables.names_table(blade.kind, blade.template, blade.web_call)
+            else "",
             "secrets": self._blades.saved_secrets(blade),
             "vault_mapping": blade.vault_mapping,
             "vault_all": blade.vault_all,

@@ -287,6 +287,14 @@ def blade_insert(name: str, variable: str | None, kind: str, signature: str | No
     return {"python": f"{variable} = {call}"}
 
 
+def blade_table_insert(name: str, variable: str, table: str) -> dict[str, str]:
+    """A blade's table by its own name: SQL names it; Python makes it (a function blade's, by a call:
+    `sab.blade` registers what the call returns under the table's name)."""
+    call = f"sab.blade({py_string(name)})"
+    python = f"{variable} = {call}" if variable else call
+    return {"sql": sql_identifier(table), "python": python}
+
+
 # ===== a structure's names and paths (Structures: JSON, YAML, XML, TOML) =====
 
 MAX_STRUCTURE_PATHS: int = 2000  # paths one structure gives the search

@@ -25,19 +25,9 @@ def test_each_window_names_the_places_it_has() -> None:
     assert rules.place("catalog", "diagram") == {"window": "catalog", "to": "erd"}
     assert rules.place("home", "grid:g1") == {"window": "home", "to": "grid", "grid": "g1"}
     assert rules.place("home", "add_api") == {"window": "home", "to": "add_api"}
-    assert rules.place("catalog", "catalog") == {"window": "catalog", "to": "catalog"}
-    assert rules.place("catalog", "catalog:Warehouse/sales/orders") == {
-        "window": "catalog",
-        "to": "catalog",
-        "catalog": "Warehouse",
-        "schema": "sales",
-        "table": "orders",
-    }
-    assert rules.place("catalog", "catalog:Warehouse") == {
-        "window": "catalog",
-        "to": "catalog",
-        "catalog": "Warehouse",
-    }
+    # The blades page's catalog panel went (the owner, 2026-11-17): its views are no places.
+    with pytest.raises(rules.NavigationError):
+        rules.place("catalog", "catalog:Warehouse/sales/orders")
     assert rules.place("catalog", "blade:refresh_sales") == {
         "window": "catalog",
         "to": "blade",
@@ -106,7 +96,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         ("home", "grid:", "cannot go to 'grid:'"),
         ("catalog", "blade:", "cannot go to 'blade:'"),
         ("workbench", "connection:", "cannot go to 'connection:'"),
-        ("catalog", "catalog:Warehouse//orders", "catalog:<name>/<schema>/<table>"),
+        ("catalog", "catalog:Warehouse", "The catalog window cannot go to 'catalog:Warehouse'"),
         ("home", "grid:" + "g" * 600, "longer than 512"),
     ],
 )

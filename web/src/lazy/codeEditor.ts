@@ -658,6 +658,11 @@ export interface CodeEditorOptions {
   /** `@cell7` in a comment is a link: a click goes there, a hover shows the cell's first line. */
   cellLinks?: CellLinks;
   readOnly?: boolean;
+  /** What typing in a read-only editor says (default: a table's read-only cell's words). */
+  readOnlyMessage?: string;
+  /** The host's height follows the text (line numbers on): at least `min` lines, at most `maxShare` of the
+   *  window's height, then it scrolls (a blade's read-only code). */
+  fit?: { min: number; maxShare: number };
   /** The right-click menu's Send to the agent: the selected code, or the error under the cursor. */
   sendToAgent?: (what: { text: string; startLine: number; endLine: number; problem: Problem | null }, withQuestion: boolean) => void;
   /** More of the right-click menu's own entries (Lineage): each run with the line it was opened on. */
@@ -768,8 +773,19 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     placeholder: options.placeholder,
     readOnly: options.readOnly ?? false,
     // A read-only cell says nothing when typed in: its head says why.
-    readOnlyMessage: { value: "This cell follows the grid: change the table's steps there." },
+    readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the grid: change the table's steps there." },
   });
+  if (options.fit) {
+    const fit = options.fit;
+    const size = (): void => {
+      const line = editor.getOption(monaco.editor.EditorOption.lineHeight);
+      const wanted = Math.max(editor.getContentHeight(), fit.min * line + 8);
+      host.style.height = `${Math.round(Math.min(wanted, window.innerHeight * fit.maxShare))}px`;
+    };
+    editor.onDidContentSizeChange(size);
+    window.addEventListener("resize", size);
+    size();
+  }
   const model = editor.getModel();
   if (model && (options.complete || options.help || options.cellLinks || options.intel)) {
     completers.set(model, { complete: options.complete, help: options.help, intel: options.intel });

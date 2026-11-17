@@ -562,6 +562,55 @@ textarea.code-box {
   color: var(--ok);
 }
 
+/* The blade screen (bladeEditor.ts): the code read-only, as tall as it is (Monaco sets the height). */
+.blade-code {
+  min-width: 0;
+}
+
+.blade-code pre.blade-code-plain {
+  max-height: 70vh;
+}
+
+.blade-code-monaco {
+  width: 100%;
+  min-height: 80px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.blade-file-path {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.blade-kind-line {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Its table's name, and the live check under it ("available", or why not). */
+.table-name-check {
+  min-height: 1.4em;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.table-name-check.ok {
+  color: var(--ok);
+}
+
+.table-name-check.error {
+  color: var(--error);
+}
+
+.blade-listing > summary {
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 600;
+}
+
 /* In a dialog the dialog's own head names the screen: the editor's and picker's headings would repeat it. */
 dialog .dialog-body > h2:first-child {
   display: none;

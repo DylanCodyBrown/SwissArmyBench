@@ -119,10 +119,14 @@ def duckdb_grammar() -> SqlGrammar:
                 "AND NOT bool_or(function_type IN ('scalar', 'aggregate', 'macro'))"
             ).fetchall()
             keywords = connection.execute("SELECT keyword_name FROM duckdb_keywords()").fetchall()
+            reserved = connection.execute(
+                "SELECT keyword_name FROM duckdb_keywords() WHERE keyword_category = 'reserved'"
+            ).fetchall()
             _grammar = SqlGrammar(
                 parse=_parse,
                 table_functions=frozenset(str(r[0]).lower() for r in functions),
                 keywords=frozenset(str(r[0]).lower() for r in keywords),
+                reserved=frozenset(str(r[0]).lower() for r in reserved),
             )
         return _grammar
 

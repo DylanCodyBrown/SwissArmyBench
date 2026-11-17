@@ -1,7 +1,7 @@
 # Grids and steps
 
 The grid page: one tab per open grid (Visualizations, ERD and Workbench are the rail's, left); + makes a
-table from a query. Over the grid, the Application row (Settings, Connections, Blades and catalog), then
+table from a query. Over the grid, the Application row (Settings, Connections, Blades), then
 the ribbon's Table and Column rows. A cell's tools are on its right-click menu. Under the title, the
 steps strip counts the grid's steps; Edit steps opens them in a tab of their own.
 
@@ -50,7 +50,7 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
   own; each lands on its kind's page of documents), `blades`, `connections` (the Connections page),
   `session` (the Session page), `settings` (the Settings page); `connection:<name>` (a connection's detail: where it is used, its
   configuration, its calls); the home window's `query`, `grid:<id>`; `add_connection`, `add_api`.
-  The blades page (`window="catalog"`): `catalog:<name>/<schema>/<table>`, `blade:<name>`, `new_blade`.
+  The blades page (`window="catalog"`): `blade:<name>`, `new_blade` (a connection's tables: `connection:<name>`).
   Views are in the page's address, so the user's Back undoes your move too.
 - `app_session(who, limit)`: the Session page's log, newest first: what you made or changed this session
   (who=agent, the default; user; both), each entry's words, area and object (a grid, a card, a

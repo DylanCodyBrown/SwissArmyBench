@@ -345,6 +345,10 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         lines.append("vault_all = true  # every secret in the vault, each under its own name")
     if kind != "secret":
         lines.append(f"variable = {_toml_string(str(blade.get('variable') or ''))}")
+        if kind == "other" and blade.get("table"):
+            lines.append(
+                f"table = {_toml_string(str(blade['table']))}  # its table's name, wherever it lands"
+            )
         try:
             secrets = read_code(str(blade.get("code", ""))).secrets
         except BladeCodeError:
@@ -483,6 +487,8 @@ def read_blade(text: str) -> dict[str, Any]:
             where = f" on line {error.lineno}" if error.lineno else ""
             raise PortableError(f"The blade's code is not valid Python{where}: {error.msg}.") from None
         blade |= {"code": code, "variable": str(header.get("variable") or "")}
+        if kind == "other" and isinstance(header.get("table"), str) and header["table"]:
+            blade["table"] = header["table"]
         if kind == "sql":
             blade["dialect"] = str(header.get("dialect") or "other")
         if isinstance(header.get("row_limit"), int):
@@ -524,6 +530,36 @@ def read_blade(text: str) -> dict[str, Any]:
     if isinstance(header.get("family"), str) and header["family"]:
         blade["family"] = header["family"]
     return blade
+
+
+def with_header(text: str, blade: dict[str, Any]) -> str:
+    """`text` (a blade's file) with its header written again from `blade` (its JSON): the lines before the
+    header and every byte after it (the code, its line ends included) as they were. A blade's code is edited
+    in its file, never by the app (the owner, 2026-11-17)."""
+    lines = text.splitlines(keepends=True)
+    bare = [line.rstrip("\r\n") for line in lines]
+    start = _header_start(bare)
+    end = None if start is None else next((i for i in range(start + 1, len(bare)) if bare[i] == _CLOSE), None)
+    if start is None or end is None:
+        raise PortableError(f"This file has no {HEADER_TYPE} header to change.")
+    newline = "\r\n" if lines[start].endswith("\r\n") else "\n"
+    header = ["# /// " + HEADER_TYPE]
+    for line in "\n".join(_header_lines(blade)).split("\n"):
+        header.append("# " + line if line else "#")
+    header.append(_CLOSE)
+    return "".join(lines[:start]) + newline.join(header) + newline + "".join(lines[end + 1 :])
+
+
+# A blade's table name: a dataset's name (domain/datasets.py NAME_PATTERN), so it opens as a grid as it is.
+_TABLE_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
+TABLE_NAME_RULE: str = "use 1 to 64 letters, digits, '_' or '-'"
+
+
+def check_table_name(name: str) -> str:
+    """A blade's table name as written, or "" for none; BladeError when no table can have it."""
+    if name and not _TABLE_NAME.fullmatch(name):
+        raise BladeError(f"not a valid name: {TABLE_NAME_RULE}")
+    return name
 
 
 def _found(file: str, data: bytes) -> Found:
@@ -1187,6 +1223,9 @@ class Blade:
     # a copy.
     family: str = ""
     web_call: dict[str, Any] = field(default_factory=dict)  # a web call blade's (domain/web_calls.py)
+    # The name of the table its result is (`table = "..."` in its header; domain/blade_tables.py): "" for
+    # the name its code makes.
+    table: str = ""
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
     pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace
     created_at: float = 0.0
@@ -1250,6 +1289,7 @@ class Blade:
             "cell_name": self.cell_name,
             "family": self.family,
             "web_call": dict(self.web_call) or None,
+            "table": self.table,
             "path": self.path,
             "pack": self.pack,
             "source": self.source,
@@ -1428,6 +1468,8 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
             blade.catalog_language, blade.catalog_command = language, command
     if kind == "other" and data.get("web_call"):  # a WebCallError is a ValueError: said as one
         blade.web_call = web_calls.check_web_call(data["web_call"])
+    if kind == "other" and not blade.web_call:
+        blade.table = check_table_name(_text(data, "table", 200).strip())
     if kind == "other" and blade.template == python_connections.TEMPLATE:
         blade.row_limit = _row_limit(data)
         try:  # its Read a table box, and where each variable its three boxes read comes from

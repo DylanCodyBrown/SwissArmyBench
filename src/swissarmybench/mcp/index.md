@@ -29,7 +29,7 @@ A project is one .sab file; connections, APIs, vaults, blades, variables: the li
 | `apis_` | APIs: operations, calls, web call blades | `apis_search`, `apis_call`, `apis_save_call` |
 | `structures_` | JSON, YAML, XML, TOML; steps, lineage | `structures_open`, `structures_show` |
 | `catalog_`, `explorer_` | find any data | `explorer_search`, `catalog_search` |
-| `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_starters` |
+| `blades_`, `packs_` | saved code (its file), starters, packs | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
 | `streamlit_` | Streamlit (preinstalled extension) | `streamlit_block_place`, `streamlit_test` |
 | `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |

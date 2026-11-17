@@ -166,6 +166,8 @@ NOT_COMMANDS = {
     "/agent/context": "current_table",
     "/beta/page-errors": "a page's own error report (page plumbing): app_beta_log reads them",
     "/blades/{}/python": "its answer holds the saved password values for sab.blade: never the agent's",
+    "/blades/{}/show": "Show its file opens the user's own file manager at a blade's file: the user's click "
+    "only (403 for the agent), as the Project Explorer's Show in folder",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
@@ -899,26 +901,33 @@ def test_sab_saves_a_snapshot_to_a_file_and_prints_where(
 # ===== blades: the agent saves them as the user does =====
 
 
-def test_the_agent_saves_a_blade_as_the_user_does_and_reads_it_back(live: Live) -> None:
-    """The golden rule: blades_create saves at once (no Allow), blades_get gives the code back."""
-    starters = run("blades_templates")
-    assert {"id": "sqlite", "label": "SQLite", "group": "Databases", "kind": "sql"} in starters
-    code = run("blades_templates", id="sqlite")["code"]
-    made = run(
-        "blades_create",
-        name="Bakery DB",
-        kind="sql",
-        dialect="sqlite",
-        code=code,
-        tags=["bakery"],
-        template="sqlite",
+def test_the_agent_makes_a_blade_as_the_user_does_and_reads_it_back(live: Live) -> None:
+    """The golden rule: blades_new makes a file from a template at once (no Allow), blades_get gives the code
+    back; blades_update changes the header only, never the code (the owner, 2026-11-17), and a table name is
+    checked as the page checks it."""
+    choices = run("blades_new")["choices"]
+    assert {"id": "table", "label": "A table (a DataFrame)", "group": "Blades", "kind": "other"} in choices
+    made = run("blades_new", template="table", name="Monthly sales", table="monthly_sales")
+    assert made["name"] == "Monthly sales" and made["table"] == "monthly_sales" and made["names_table"]
+    code = run("blades_get", name="Monthly sales")["code"]
+    assert "def make_table" in code
+    assert run("blades_table_name_check", name="monthly_sales", blade="Other")["said"] == (
+        "monthly_sales is Monthly sales's table"
     )
-    assert made["name"] == "Bakery DB" and made["connection"] == "database"
-    assert run("blades_get", name="Bakery DB")["code"] == code
+    assert run("blades_table_name_check", name="monthly_sales", blade="Monthly sales")["available"]
+    changed = run(
+        "blades_update",
+        name="Monthly sales",
+        description="Sales by month",
+        tags=["sales"],
+        table="sales_by_month",
+    )
+    assert changed["table"] == "sales_by_month" and changed["tags"] == ["sales"]
+    assert run("blades_get", name="Monthly sales")["code"] == code
+    with pytest.raises(Exception, match="not a valid name"):
+        run("blades_update", name="Monthly sales", table="select")
     [listed] = run("blades_list")["blades"]
-    assert (
-        listed["name"] == "Bakery DB" and listed["tags"] == ["bakery"] and listed["code_name"] == "bakery_db"
-    )
+    assert listed["name"] == "Monthly sales" and listed["description"] == "Sales by month"
 
 
 def test_the_agent_works_the_workbench_as_the_user_does(live: Live, tmp_path: Path) -> None:

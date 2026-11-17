@@ -1,8 +1,10 @@
 /**
- * catalogRail.ts: the blades and catalog navigation of the blades page. [VIEW]
+ * catalogRail.ts: the blades list of the blades page, and the Workbench's blades and catalog. [VIEW]
  *
- * Blades (saved code that reaches outside Python to load something) above the Catalog (a source
- * database's names and types, as a tree: schema -> table or view -> column and its type, searchable).
+ * Blades (saved code that reaches outside Python to load something; starters by family), and, where the
+ * page gives it a place (the Workbench's "+ Table"), the Catalog (a source database's names and types, as
+ * a tree: schema -> table or view -> column and its type, searchable). The blades page has no catalog
+ * panel (the owner, 2026-11-17): a connection's tables are on the Connections page and in the Data Explorer.
  * The page that mounts it decides where a table's details and the blade editor show. A drag gives
  * plain text: a name, a query, or a blade's sab.blade line, to drop into Jupyter or an editor.
  *
@@ -164,7 +166,9 @@ function previewOf(view: TableView): HTMLElement {
 
 export interface RailHost {
   bladesHost: HTMLElement;
-  catalogHost: HTMLElement;
+  /** Where the catalog tree goes (the Workbench's "+ Table"); none on the blades page, whose catalog
+   *  panel went (the owner, 2026-11-17: a connection's tables are on the Connections page). */
+  catalogHost?: HTMLElement;
   /** Open the blade editor: a saved blade by name, or a new one (null). */
   editBlade(name: string | null): void;
   /** True while the editor holds unsaved work: the tree then keeps the page as it is. */
@@ -627,6 +631,7 @@ export function mountRail(host: RailHost): Rail {
   });
 
   function renderCatalogSection(): void {
+    if (!catalogHost) return;
     clear(
       catalogHost,
       h("div", { class: "rail-head" }, h("h2", { id: "catalog-title" }, "Catalog")),

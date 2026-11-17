@@ -304,6 +304,21 @@ def blades_provider(listing: Callable[[], list[dict[str, Any]]]) -> Provider:
                     more={"blade_kind": b.get("kind")},
                 )
             )
+            table = b.get("table") if b.get("names_table") else None
+            if isinstance(table, str) and table:
+                # Its table by its own name (domain/blade_tables.py): `sab.blade` makes it that variable.
+                found.results.append(
+                    Result(
+                        "blades",
+                        table,
+                        path=[name],
+                        detail=f"{name}'s table",
+                        icon="rows",
+                        sql=rules.sql_identifier(table),
+                        insert=rules.blade_table_insert(name, str(b.get("variable") or ""), table),
+                        more={"blade_kind": b.get("kind"), "blade": name},
+                    )
+                )
         return found
 
     return provide

@@ -28,7 +28,7 @@ import json
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -42,6 +42,7 @@ from swissarmybench.domain.blades import (
     file_name,
     is_blade,
     read_blade,
+    with_header,
     write_blade,
 )
 from swissarmybench.renamed import env
@@ -70,12 +71,16 @@ class BladeStore:
         starters: Path | None = None,
         made: Callable[[], object] | None = None,
         more_starters: Callable[[], list[Path]] | None = None,
+        listing: Callable[[Blade], tuple[str, str] | None] | None = None,
     ) -> None:
         # The library (Plans/library.plan.md): saved blades are its connections/, vaults/ and blades/ files;
         # an API's blades (its API blade, its web call blades) are files in its apis/<name>/ folder, read like
         # a blade folder's and written back into their own files. Whether or not a project is open (the
         # owner, 2026-11-17: "Apis, Connections they live OUTSIDE of the project").
         self.folder = folder
+        # A connection saved with no query that lists its tables gets its starter's as it is read
+        # (domain/blade_tables.py listing_for): a connection's tables are always listed.
+        self._listing = listing
         self._made = made or (lambda: None)  # the library's README.md and .gitignore, on its first write
         # The extensions' own starter blades (each an extension's STARTERS folder, while it is on).
         self._more_starters = more_starters or (lambda: [])
@@ -357,23 +362,83 @@ class BladeStore:
         """A saved blade's file in the library (None: not a saved one)."""
         return self._saved_paths().get(name.casefold())
 
+    def _listed(self, blade: Blade) -> Blade:
+        """The blade, a connection with no listing query given its starter's (nothing is written)."""
+        if blade.has_catalog or self._listing is None:
+            return blade
+        found = self._listing(blade)
+        if found is None:
+            return blade
+        return replace(blade, catalog_language=found[0], catalog_command=found[1])
+
     def all(self) -> list[Blade]:
         """Saved blades, folder blades and pack blades; a saved blade comes first when two share a
         name, then the first folder's (a clone being edited), then an installed pack's."""
         by_name: dict[str, Blade] = {}
         for blade in [*self._saved(), *self._scan()]:
             by_name.setdefault(blade.name.casefold(), blade)
-        return sorted(by_name.values(), key=lambda b: b.name.casefold())
+        return sorted((self._listed(b) for b in by_name.values()), key=lambda b: b.name.casefold())
 
     def get(self, name: str) -> Blade:
         path = self._saved_paths().get(name.casefold())
         blade = self._cached(path) if path is not None else None
         if blade is not None:
-            return blade
+            return self._listed(blade)
         for found in [*self._scan(), *self.starters()]:
             if found.name.casefold() == name.casefold():
-                return found
+                return self._listed(found)
         raise KeyError(name)
+
+    def file_of(self, name: str) -> Path | None:
+        """The file a blade is kept in (the library's, a blade folder's, a pack's or a starter's)."""
+        blade = self.get(name)
+        return Path(blade.path) if blade.path else self.saved_file(blade.name)
+
+    def set_header(self, name: str, changes: Mapping[str, Any]) -> Blade:
+        """Change a blade's name, description, tags or table name: its file's header only, the code's bytes
+        untouched (domain/blades.py with_header). Nothing is written when nothing changes. A starter's and a
+        pack's are read-only."""
+        with self._lock:
+            blade = self.get(name)
+            if blade.pack == rules.STARTERS:
+                raise BladeError(f"{blade.name} is a starter (read-only): copy it as your own to change.")
+            if blade.pack:
+                raise BladeError(f"{blade.name} comes from the pack {blade.pack}: change it in that pack.")
+            path = self.file_of(blade.name)
+            if path is None:
+                raise BladeError(f"{blade.name} has no file to change.")
+            raw = path.read_bytes()
+            bom = raw.startswith(b"\xef\xbb\xbf")
+            text = raw.decode("utf-8-sig")
+            before = parse_blade(read_blade(text.replace("\r\n", "\n")), blade)
+            after = parse_blade(read_blade(text.replace("\r\n", "\n")) | dict(changes), blade)
+            same = before.to_json() | {"updated_at": 0} == after.to_json() | {"updated_at": 0}
+            if same:
+                return blade
+            renamed = after.name.casefold() != blade.name.casefold()
+            if renamed:
+                try:
+                    taken: Blade | None = self.get(after.name)
+                except KeyError:
+                    taken = None
+                if taken is not None:
+                    raise BladeError(f"A blade named {taken.name!r} already exists. Pick another name.")
+            written = (b"\xef\xbb\xbf" if bom else b"") + with_header(text, after.to_json()).encode("utf-8")
+            temporary = path.with_name(path.name + ".tmp")
+            descriptor = os.open(
+                temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, path.stat().st_mode & 0o777
+            )
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(written)
+            os.replace(temporary, path)
+            self._seen.pop(str(path), None)
+            if renamed:
+                for secret in blade.secrets:
+                    value = self._secret(blade.name, secret)
+                    if value is not None:
+                        self._set_secret(after.name, secret, value)
+                    self._delete_secret(blade.name, secret)
+            return self.get(after.name)
 
     def save(self, data: Any, previous_name: str | None = None) -> Blade:
         """Save a new blade, or replace `previous_name` (which may be a rename). A folder blade is saved

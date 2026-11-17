@@ -1,7 +1,9 @@
-"""The system's own file manager and trash, for the Project Explorer's Show in folder and Delete (the user's
-clicks only: services/project_explorer.py refuses the agent). Here because only server/ starts processes.
+"""The system's own file manager and trash, for the Project Explorer's Show in folder and Delete and a
+blade's Show its file (the user's clicks only: the services refuse the agent). Here because only server/
+starts processes.
 
   show   the folder in Explorer, the Finder, or the desktop's own file manager (xdg-open)
+  reveal a file in its folder (a blade's Show its file)
   trash  the folder to the Recycle Bin (SHFileOperationW with FOF_ALLOWUNDO), the Finder's Trash
          (osascript), or the freedesktop Trash (files/ and its .trashinfo): never a plain delete
 """
@@ -38,6 +40,17 @@ def show(folder: str) -> None:
     else:
         command = "open" if sys.platform == "darwin" else "xdg-open"
         subprocess.Popen([command, folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603
+
+
+def reveal(path: str) -> None:
+    """A file in its folder, selected where the system can (a blade's Show its file): Explorer's /select,
+    the Finder's -R, else the desktop's file manager on its folder."""
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", f"/select,{path}"])  # noqa: S603, S607 (the user's own file, their click)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603, S607
+    else:
+        show(str(Path(path).parent))
 
 
 def _windows_recycle(path: str) -> None:

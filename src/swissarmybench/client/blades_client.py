@@ -2,6 +2,7 @@
 
     sab.load(columns_frame, name="Warehouse", dialect="sqlserver")   # a searchable catalog
     conn = sab.blade("Warehouse")                                     # a saved blade, run here
+    sab.blade("Monthly sales")      # a table blade: its result is also the variable its table name says
     sab.blade("Azure vault")        # a vault blade: sets its environment variables, gives their names
     sab.blade("Warehouse login")    # a secret blade: asks for any value this Python does not have yet
     api = sab.connection("Orders API")                                # a connection (the same, by its name)
@@ -14,9 +15,11 @@ names it set, not the values. Standard library only, like the rest of the client
 
 from __future__ import annotations
 
+import functools
 import getpass
 import json
 import os
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -173,6 +176,43 @@ def blade(name: str) -> Any:
     made = _made(spec)[0]
     if spec["kind"] != "vault":  # a connection's (the app counts only those), in a Workbench kernel only
         connection_use.report(str(spec["name"]), "connect")
+    return _named(made, str(spec.get("table") or ""))
+
+
+def _is_table(value: Any) -> bool:
+    """A DataFrame-like table (pandas, polars, Arrow), as client/sql_cell.py reads one by its name."""
+    module = type(value).__module__.split(".")[0]
+    return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
+
+
+def register_table(name: str, value: Any) -> Any:
+    """A blade's table under its own name (its header's `table = "..."`): in Jupyter, IPython or a Workbench
+    kernel it is the variable `name`, so DuckDB SQL (%%sql, sab.sql) names it, the Workbench's Variables
+    and the Open list show it, and Open as grid opens it by that name. Elsewhere it is only returned."""
+    if not name or not _is_table(value):
+        return value
+    module = sys.modules.get("IPython")
+    get = getattr(module, "get_ipython", None) if module is not None else None
+    shell = get() if callable(get) else None
+    if shell is not None and isinstance(getattr(shell, "user_ns", None), dict):
+        shell.user_ns[name] = value
+    return value
+
+
+def _named(made: Any, table: str) -> Any:
+    """What a blade made, its table registered under `table`: a table at once, a function's table each
+    time it is called."""
+    if not table:
+        return made
+    if _is_table(made):
+        return register_table(table, made)
+    if callable(made) and not isinstance(made, type):
+
+        @functools.wraps(made)
+        def table_of(*args: Any, **kwargs: Any) -> Any:
+            return register_table(table, made(*args, **kwargs))
+
+        return table_of
     return made
 
 
