@@ -113,7 +113,13 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     # The form saves it on the SQL endpoint (the owner, 2026-11-17), which needs pyodbc and a real TDS
     # endpoint (tests/test_connection_kinds.py stands in for it at its cursor). The rest of this test is a
     # connection saved for the Web API before then: it keeps working, and its detail offers the switch.
-    old = {"name": "Sales CRM", "kind": "sql", "template": "dataverse", "dialect": "dataverse", "code": typed}
+    old: dict[str, Any] = {
+        "name": "Sales CRM",
+        "kind": "sql",
+        "template": "dataverse",
+        "dialect": "dataverse",
+        "code": typed,
+    }
     old |= {"variable": "conn", "catalog": {"language": "python", "command": "catalog = conn.catalog()"}}
     call(server, "PUT", "/connections/Sales%20CRM", old)
     page.locator(".nav-rail [data-area='connections']").click()
