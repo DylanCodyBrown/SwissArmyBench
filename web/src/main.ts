@@ -53,7 +53,11 @@ import { showInSandbox } from "./sandboxShow";
 import type { Move } from "./nav";
 import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, showStartView, viewingStart } from "./panes";
 import { mountStart } from "./startView";
-import { mountRibbon, setStepsRow, zoomControl } from "./ribbon";
+import { mountRibbon, setStepsRow } from "./ribbon";
+import { installZoomInput } from "./zoom";
+
+// Ctrl + wheel, Ctrl+= / Ctrl+- / Ctrl+0 from the first moment (zoom.ts); the control is in the status bar.
+installZoomInput();
 import { openColumnProfile } from "./profileView";
 import { mountFileDrop } from "./openFile";
 import { mountOpenMenu } from "./openMenu";
@@ -322,7 +326,7 @@ async function start(): Promise<void> {
       "div",
       { class: "ribbon-group", role: "toolbar", "aria-label": "Application tools" },
       h("div", { class: "ribbon-caption" }, h("strong", {}, "Application")),
-      h("div", { class: "ribbon-tools" }, projectGroup, zoomControl()), // Settings, Connections, Blades: the rail's; the tour: Start's
+      h("div", { class: "ribbon-tools" }, projectGroup), // Settings, Connections, Blades: the rail's; the tour: Start's
     ),
   );
   const fixes = h("div", { class: "project-fixes", "aria-label": "Tables to fix", hidden: true });
@@ -377,12 +381,6 @@ async function start(): Promise<void> {
   await showPlace(opened);
   startNav(opened);
 
-  document.addEventListener("keydown", (e) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    if (e.key === "=" || e.key === "+") { e.preventDefault(); stepZoom(1); }
-    else if (e.key === "-") { e.preventDefault(); stepZoom(-1); }
-    else if (e.key === "0") { e.preventDefault(); setGridZoom(1); }
-  });
   document.addEventListener("paste", (e) => {
     // With nothing focused the target is the document itself, which has no closest().
     const target = e.target instanceof Element ? e.target : null;

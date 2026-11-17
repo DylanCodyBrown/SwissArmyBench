@@ -2770,11 +2770,14 @@ body.agent-view .titlebar {
   background: var(--raised);
 }
 
-/* Grid zoom at the end of the ribbon's Table row. */
-.ribbon-zoom {
-  margin-left: 8px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
+/* The zoom in every status bar, beside Beta (zoom.ts). */
+.status-zoom {
+  gap: 2px;
+}
+
+.status-zoom .btn {
+  min-height: 0;
+  padding: 0 4px;
 }
 
 .mcp-prompt {

@@ -128,22 +128,6 @@ function tool(label: string, icon: string, action: () => void, options: { title?
   return b;
 }
 
-/** Grid zoom, on the Application row: - 100% +  (Ctrl+= / Ctrl+- / Ctrl+0 work anywhere). Built once;
- *  its percentage follows every zoom step (a zoom step notifies the theme listeners). */
-export function zoomControl(): HTMLElement {
-  const percent = (): string => `${Math.round(gridZoom() * 100)}%`;
-  const out = h("output", { "aria-live": "polite", title: "Grid zoom (Ctrl+0 resets)" }, percent());
-  onThemeChange(() => { out.textContent = percent(); });
-  return h(
-    "span",
-    { class: "zoom-control ribbon-zoom", role: "group", "aria-label": "Grid zoom" },
-    h("span", { class: "zoom-label", "aria-hidden": "true" }, "Zoom"),
-    button("Zoom out", () => stepZoom(-1), { icon: "minus", iconOnly: true, title: "Zoom out (Ctrl+-)" }),
-    out,
-    button("Zoom in", () => stepZoom(1), { icon: "plus", iconOnly: true, title: "Zoom in (Ctrl+=)" }),
-  );
-}
-
 function render(): void {
   if (!host || !state.info) return;
   const columns = viewColumns();

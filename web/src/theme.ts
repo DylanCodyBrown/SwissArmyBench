@@ -119,6 +119,16 @@ export function stepZoom(direction: 1 | -1): void {
 
 document.documentElement.style.setProperty("--ui-zoom", String(zoom));
 
+// Another window's zoom: every window shows the same one.
+window.addEventListener("storage", (event) => {
+  if (event.key !== "swissarmybench.zoom" || !event.newValue) return;
+  const next = Number(event.newValue);
+  if (!next || next === zoom) return;
+  zoom = next;
+  document.documentElement.style.setProperty("--ui-zoom", String(zoom));
+  for (const listener of listeners) listener();
+});
+
 /** The grid's row height in pixels at this zoom. Given to AG Grid as its `rowHeight` option as well as in
  * the theme: measured from the theme's CSS alone, AG Grid can read its own 42px default before that CSS
  * is in place and keep it for every row after the first (the first row 32px, the rest 42px, a gap

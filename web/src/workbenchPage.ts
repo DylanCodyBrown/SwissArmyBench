@@ -74,6 +74,7 @@ import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, noteboo
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
+import { installZoomInput, zoomControl } from "./zoom";
 import { updateCommands, updateMark, versionMark } from "./updates";
 import { claudeCommands, launchButton } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
@@ -1874,7 +1875,8 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
+installZoomInput();
+layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
