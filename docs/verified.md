@@ -2217,6 +2217,7 @@ Checked (made-up data; Chromium for the browser tests):
   and saved on an operation (browser), the lineage on to the notebook cell that reads a structure
   (tests/test_structures_routes.py). The main line's grid.css had lost one closing brace in its merge
   (`.conn-block.conn-worn.conn-two`), which unstyled everything after it (Structures and APIs): put back.
+- The whole suite after the merge, Chromium: 3,523 passed, 42 skipped (23 minutes).
 
 NOT checked:
 - A real company API (only the made-up services on 127.0.0.1), and OAuth sign-ins through Send.
