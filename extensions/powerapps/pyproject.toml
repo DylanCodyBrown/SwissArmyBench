@@ -1,11 +1,11 @@
 [project]
 name = "swissarmybench-powerapps"
-version = "0.0.15"
+version = "0.0.16"
 description = "Swiss Army Bench's Power Apps extension: Power Apps code apps, built with Microsoft's own command lines."
 license = "MIT OR Apache-2.0"
 requires-python = ">=3.12"
 # The base's version, released together (one version line for the base and its extensions).
-dependencies = ["swissarmybench[server]==0.0.15"]
+dependencies = ["swissarmybench[server]==0.0.16"]
 
 # The base finds it here (swissarmybench/extensions.py): its description, mode, door and commands.
 [project.entry-points."swissarmybench.extensions"]
