@@ -168,6 +168,32 @@ for _mark, _value in (
     PRELUDE = PRELUDE.replace(_mark, _value)
 
 
+# The kernel's `sab` for the editor's language service (Monaco's TypeScript), so a cell's member lists and
+# parameter info know it.
+DECLARATIONS = """\
+/** A table result: its columns, DuckDB's types, its rows (as JSON reads them), how many. */
+interface SabTable extends Iterable<Record<string, unknown>> {
+  readonly id: string;
+  readonly columns: string[];
+  readonly types: string[];
+  readonly rows: Record<string, unknown>[];
+  readonly total: number;
+}
+/** The data notebook's DuckDB (one for the SQL and TypeScript cells): the open tables are views by name. */
+declare const sab: {
+  /** A query; as a tagged template, its values are bound as parameters. */
+  sql(query: string): Promise<SabTable>;
+  sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<SabTable>;
+  /** An array of objects (or a result) as a DuckDB table of this name. */
+  table(name: string, rows: Record<string, unknown>[] | SabTable): Promise<SabTable>;
+  /** The tables and views DuckDB holds. */
+  tables(): Promise<string[]>;
+  /** DuckDB's own connection (@duckdb/node-api). */
+  readonly db: unknown;
+};
+"""
+
+
 def _js(value: Any) -> str:
     """A value as a JavaScript literal (JSON is one; `</` and the line separators made safe too)."""
     return (

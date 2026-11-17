@@ -35,6 +35,7 @@ GET    /powerapps/runs[/{run}]       this session's runs, their output          
 
 The data notebook (phase 2: services/notebook.py):
 GET    /powerapps/notebook                 its kernels, Deno, the data notebook's path   powerapps_notebook
+GET    /powerapps/notebook/types           the kernel's `sab` for the editor (text)       (the editor's)
 POST   /powerapps/notebook/open            the data notebook (made the first time)       powerapps_notebook open=
 POST   /powerapps/notebook/run             {path, kind, code, cell, stream?}             powerapps_ts_run
 POST   /powerapps/notebook/complete        {path, code, offset}: Deno's completions      (the editor's)
@@ -61,6 +62,7 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server import streamlit_proxy
 from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench_powerapps.domain import ts_notebook as ts_rules
 from swissarmybench_powerapps.services.notebook import TsNotebooks
 from swissarmybench_powerapps.services.powerapps import PowerApps
 
@@ -221,6 +223,9 @@ def notebook_routes(
     async def state(r: Request) -> Any:
         return notebook.state()
 
+    async def types(r: Request) -> Response:
+        return Response(ts_rules.DECLARATIONS, media_type="text/plain; charset=utf-8")
+
     async def open_data(r: Request) -> Any:
         return await notebook.open_data_notebook(actor(r))
 
@@ -284,6 +289,7 @@ def notebook_routes(
 
     return [
         Route("/powerapps/notebook", door(state)),
+        Route("/powerapps/notebook/types", types),
         Route("/powerapps/notebook/open", door(open_data), methods=["POST"]),
         Route("/powerapps/notebook/run", run, methods=["POST"]),
         Route("/powerapps/notebook/complete", door(complete), methods=["POST"]),

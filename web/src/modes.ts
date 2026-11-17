@@ -12,6 +12,20 @@
  */
 import { api } from "./api";
 
+/** Where a cell kind runs in this mode when not in the Python kernel (an extension's kernel): its words, its
+ *  editor's language, the route a run is posted to (a stream of output records, as a kernel's), the route that
+ *  draws it (a page for the HTML cells' frame), the route that opens a table result as a grid, the editor's
+ *  declarations, the install of a tool it lacks. */
+export interface CellRoute {
+  name: string;
+  language: string;
+  run: string;
+  preview?: string;
+  grid?: string;
+  types?: string;
+  install?: string;
+}
+
 export interface Mode {
   type: string;
   name: string;
@@ -22,6 +36,7 @@ export interface Mode {
   cell_kinds: string[];
   tools: string[];
   export: string[];
+  cell_routes?: Record<string, CellRoute>;
 }
 
 export interface ActiveMode {
@@ -63,6 +78,9 @@ export function onMode(listener: (mode: ActiveMode) => void): void {
 
 /** Does the open project's mode offer this canvas kind ("excel", "streamlit")? */
 export const offersCanvas = (kind: string): boolean => active.mode.canvases.includes(kind);
+
+/** Where a cell of this kind runs in the open project's mode (null: the Python kernel, as always). */
+export const cellRoute = (kind: string): CellRoute | null => active.mode.cell_routes?.[kind] ?? null;
 
 /** Is a blade family one the mode shows first? (A mode with no families shows every one.) */
 export const familyShown = (family: string | null | undefined): boolean => !active.mode.families.length || active.mode.families.includes(family ?? "");

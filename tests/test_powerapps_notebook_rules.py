@@ -226,7 +226,10 @@ def test_the_code_app_mode_says_where_each_cell_kind_runs(monkeypatch: pytest.Mo
     mode = extensions.mode_of("codeapp")
     assert mode["cell_routes"]["typescript"] == {
         "name": "TypeScript", "language": "typescript", "run": "/powerapps/notebook/run",
+        "grid": "/powerapps/notebook/grid", "types": "/powerapps/notebook/types",
+        "install": "/powerapps/tools/install",
     }  # fmt: skip
+    assert "declare const sab" in rules.DECLARATIONS
     assert mode["cell_routes"]["tsx"]["preview"] == "/powerapps/notebook/preview"
     assert mode["cell_routes"]["sql"]["run"] == "/powerapps/notebook/run"
     assert extensions.mode_of(None)["cell_routes"] == {}

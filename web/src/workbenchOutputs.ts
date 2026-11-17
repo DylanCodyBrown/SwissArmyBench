@@ -198,6 +198,34 @@ function drawData(data: Record<string, unknown>, dark: boolean): HTMLElement {
   return withSandbox(drawPlain(data, dark), data);
 }
 
+/** A table result of another kernel (a mode's TypeScript or SQL cell): its columns, types, first rows and
+ *  total, drawn as a table here (data, never markup); Open as grid writes it whole. */
+export const TABLE_MIME = "application/vnd.swissarmybench.table+json";
+interface TableBundle {
+  id: string;
+  columns: string[];
+  types: string[];
+  rows: Record<string, unknown>[];
+  total: number;
+}
+
+function drawTable(bundle: TableBundle, open: ((id: string) => void) | undefined): HTMLElement {
+  const columns = Array.isArray(bundle.columns) ? bundle.columns.map(String) : [];
+  const rows = Array.isArray(bundle.rows) ? bundle.rows : [];
+  const cell = (value: unknown): string => (value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value));
+  const table = h(
+    "table",
+    { class: "wb-result-table" },
+    h("thead", {}, h("tr", {}, ...columns.map((c, i) => h("th", { scope: "col", title: bundle.types?.[i] ?? "" }, c)))),
+    h("tbody", {}, ...rows.map((r) => h("tr", {}, ...columns.map((c) => h("td", {}, cell(r[c])))))),
+  );
+  const total = Number(bundle.total) || rows.length;
+  const said = `${total.toLocaleString()} row${total === 1 ? "" : "s"}, ${columns.length} column${columns.length === 1 ? "" : "s"}${total > rows.length ? `: the first ${rows.length.toLocaleString()} shown` : ""}`;
+  const foot = h("div", { class: "wb-result-foot" }, h("span", { class: "hint" }, said));
+  if (open && bundle.id) foot.append(button("Open as grid", () => open(bundle.id), { icon: "export", class: "ghost wb-to-grid" }));
+  return h("figure", { class: "wb-figure wb-result" }, h("div", { class: "wb-result-scroll" }, table), foot);
+}
+
 /** A result that is a table (a DataFrame's HTML: pandas and polars both draw a <table>). */
 const isTable = (data: Record<string, unknown>): boolean => /<table[\s>]/i.test(text(data["text/html"] ?? ""));
 
@@ -416,7 +444,10 @@ export function outputArea(dark: () => boolean, grew: () => void = () => undefin
       }
       rich++;
       const open = errors?.openResult;
-      element.append(withGrid(drawData((o.data as Record<string, unknown>) ?? {}, dark()), o, open && ((n) => open(n))));
+      const data = (o.data as Record<string, unknown>) ?? {};
+      const table = data[TABLE_MIME] as TableBundle | undefined;
+      if (table && typeof table === "object") element.append(drawTable(table, errors?.openTable));
+      else element.append(withGrid(drawData(data, dark()), o, open && ((n) => open(n))));
     }
   };
 

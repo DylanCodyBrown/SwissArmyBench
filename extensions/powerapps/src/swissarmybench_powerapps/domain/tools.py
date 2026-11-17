@@ -100,7 +100,6 @@ TOOLS: dict[str, Tool] = {
                 # Deno's installation page (2026-07-09) lists npm on every system; it runs without a shell.
                 "linux": "npm install --global deno",
             },
-            phase=2,
         ),
     )
 }

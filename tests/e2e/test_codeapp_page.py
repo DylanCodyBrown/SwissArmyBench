@@ -4,7 +4,8 @@ recorded fakes (tests/powerapps_fakes.py) and the environment's connectivity ser
 the rail's Code App area only while the extension is on, New code app, its sources and generated files, a
 generated service in the Workbench's TypeScript editor, the connectors and one's operations, Run live in its
 pane, Push, a custom connector's dry run, the runs; the code app mode in the Workbench (New makes a
-TypeScript file, the TypeScript and TSX cells offered as coming) and the blade families. Made-up data only.
+TypeScript file) and the blade families (the data notebook: tests/e2e/test_codeapp_notebook.py). Made-up
+data only.
 
 With SWISSARMYBENCH_CODEAPP_SHOTS set to a folder, the tests also save screenshots there (2x)."""
 
@@ -122,7 +123,7 @@ def test_the_code_app_page_from_new_app_to_push(browser: Browser, server: dict[s
     expect(area).to_be_visible(timeout=20000)
     expect(area).to_have_attribute("aria-current", "page")
     expect(page.locator(".ca-tool[data-tool='pa']")).to_contain_text("1.4.2")
-    expect(page.locator(".ca-tool[data-tool='deno']")).to_contain_text("phase 2")
+    expect(page.locator(".ca-tool[data-tool='deno'] .ca-install")).to_be_visible()  # the data notebook's
     shot(page, "codeapp-empty")
     # New code app: its name, its environment (pac env list), its folder.
     page.locator(".ca-new").click()

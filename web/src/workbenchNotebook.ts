@@ -62,6 +62,8 @@ import { renderMarkdown } from "./markdown";
 import { draggedSnippet, type FilledSnippet, fillSnippet, pickSnippet, refusal, SNIPPET_CELL, SNIPPET_DRAG, type SnippetLanguage } from "./starters";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { loadEditors } from "./workbenchConsole";
+import { type CellRoute, cellRoute } from "./modes";
+import { openRoutedTable, previewRouted, routedTypes, runRouted } from "./routedCells";
 import { namedConnections } from "./connectionSql";
 import { datasetsWanted, daxCompleter, isWorkspace, pythonCompleter, sqlCompleter } from "./workbenchCompletion";
 import { pythonIntel, showProblems } from "./workbenchIntel";
@@ -79,7 +81,7 @@ export function sqlLine(connection: string | null): string {
   return /\s/.test(connection) ? `%%sql '${connection.replace(/'/g, "'\"'\"'")}'` : `%%sql ${connection}`;
 }
 
-export type CellKind = "code" | "sql" | "dax" | "html" | "markdown";
+export type CellKind = "code" | "sql" | "dax" | "html" | "markdown" | "typescript" | "tsx";
 export interface CellData {
   kind: CellKind;
   source: string;
@@ -192,9 +194,17 @@ export interface FlowCell {
 /** What Undo puts back. */
 type Undo = { kind: "delete"; data: CellData; at: number; filler: Cell | null } | { kind: "move"; cell: Cell; from: number };
 
-const LANGUAGE: Record<CellKind, "python" | "sql" | "dax" | "markdown" | "html"> = { code: "python", sql: "sql", dax: "dax", markdown: "markdown", html: "html" };
-const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", dax: "DAX", html: "HTML", markdown: "Markdown" };
-const KINDS: CellKind[] = ["code", "sql", "dax", "html", "markdown"];
+const LANGUAGE: Record<CellKind, "python" | "sql" | "dax" | "markdown" | "html" | "typescript" | "tsx"> = { code: "python", sql: "sql", dax: "dax", markdown: "markdown", html: "html", typescript: "typescript", tsx: "tsx" };
+const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", dax: "DAX", html: "HTML", markdown: "Markdown", typescript: "TypeScript", tsx: "TSX" };
+const KINDS: CellKind[] = ["code", "sql", "dax", "html", "markdown", "typescript", "tsx"];
+/** Kinds another kernel runs, offered only where the open project's mode names a route for them (modes.ts). */
+const ROUTED: CellKind[] = ["typescript", "tsx"];
+/** The kinds a cell's picker offers: the Python kernel's, the mode's own, and the cell's own kind. */
+const offeredKinds = (own: CellKind): CellKind[] => KINDS.filter((k) => !ROUTED.includes(k) || k === own || cellRoute(k) !== null);
+/** Where a cell runs when not in the Python kernel: a TypeScript or TSX cell by its kind, a DuckDB SQL cell
+ *  (no connection of its own) where the mode runs SQL in its kernel; null: the Python kernel. */
+const routeOf = (cell: { kind: CellKind; connection: string | null }): CellRoute | null =>
+  cell.kind === "sql" ? (cell.connection ? null : cellRoute("sql")) : ROUTED.includes(cell.kind) ? cellRoute(cell.kind) : null;
 /** The kinds with two faces: the code while it is edited, what it draws when it is not. */
 const drawn = (kind: CellKind): boolean => kind === "html";
 /** A Python cell that calls Streamlit: it has two faces, like an HTML cell (its code, the live page). */
@@ -625,7 +635,7 @@ export function notebookView(
     const tools = kind === "code" ? pieceTools(hooks.streamlit) : null;
     const design = designPane({
       dark,
-      height: drawn(kind) || kind === "code" ? height : null,
+      height: drawn(kind) || kind === "code" || kind === "tsx" ? height : null,
       resized: () => edited(),
       run: () => void run(cell()),
       ...(tools ? { fit: PIECE_HEIGHT, tools: tools.elements } : {}),
@@ -705,6 +715,14 @@ export function notebookView(
     }
     if (cell.role === "transformations") return runTransformations(cell);
     if (cell.kind === "html") return runHtmlCell(cell);
+    if (cell.kind === "tsx") return runPreview(cell);
+    const route = routeOf(cell);
+    if (route) return runOnRoute(cell, route);
+    if (ROUTED.includes(cell.kind)) {
+      cell.area.set([]);
+      cell.area.notice(`${KIND_NAMES[cell.kind]} cells run in a project whose mode has them (a code app's data notebook).`, "error");
+      return false;
+    }
     if (await liveNow(cell)) return runPieces(cell);
     if (!cell.source.trim()) return true;
     cell.area.set([]);
@@ -728,6 +746,81 @@ export function notebookView(
     } finally {
       cell.element.classList.remove("running");
     }
+  };
+
+  // ===== cells another kernel runs (the mode's routes: routedCells.ts) =====
+
+  /** A TypeScript cell, or a DuckDB SQL cell where the mode runs SQL in its kernel: run on the route. */
+  const runOnRoute = async (cell: Cell, route: CellRoute): Promise<boolean> => {
+    if (!cell.source.trim()) return true;
+    cell.area.set([]);
+    cell.element.classList.remove("output-hidden");
+    cell.count.textContent = "[*]";
+    cell.element.classList.add("running");
+    try {
+      const ranCode = cell.source;
+      const body = { path: kernel.intel().path, kind: cell.kind === "sql" ? "sql" : "typescript", code: cell.source, cell: cell.number };
+      let done;
+      try {
+        done = await runRouted(route, body, (o) => cell.area.add(o), () => void run(cell));
+      } catch (e) {
+        cell.area.notice((e as Error).message, "error");
+        done = { ok: false, execution_count: null, error: (e as Error).message };
+      }
+      cell.area.finish();
+      cell.ranSource = ranCode;
+      cell.runOrder = ++runs;
+      hooks.ran?.();
+      cell.execution_count = done.execution_count;
+      cell.count.textContent = !done.ok ? "[!]" : done.execution_count ? `[${done.execution_count}]` : "[ ]";
+      cell.element.classList.toggle("failed", !done.ok);
+      edited();
+      void checkApproval(cell);
+      return done.ok;
+    } finally {
+      cell.element.classList.remove("running");
+    }
+  };
+
+  /** A TSX cell: drawn with the project's own React in the HTML cells' frame, under its code. */
+  const runPreview = async (cell: Cell): Promise<boolean> => {
+    const route = cellRoute("tsx");
+    cell.area.set([]);
+    if (!route?.preview) {
+      cell.area.notice("TSX cells are drawn in a project whose mode has them (a code app's data notebook).", "error");
+      return false;
+    }
+    if (!cell.source.trim()) return true;
+    cell.count.textContent = "[*]";
+    cell.element.classList.add("running");
+    try {
+      const html = await previewRouted(route, { path: kernel.intel().path, source: cell.source, cell: cell.number }, () => void run(cell));
+      if (html === null) return false;
+      cell.design?.show(html);
+      cell.element.classList.add("previewed");
+      cell.element.classList.remove("failed");
+      cell.count.textContent = "[ ]";
+      cell.ranSource = cell.source;
+      cell.runOrder = ++runs;
+      return true;
+    } catch (e) {
+      cell.element.classList.remove("previewed");
+      cell.element.classList.add("failed");
+      cell.count.textContent = "[!]";
+      cell.area.notice((e as Error).message, "error");
+      return false;
+    } finally {
+      cell.element.classList.remove("running");
+    }
+  };
+
+  /** The route's declarations known to the editor's TypeScript service (once). */
+  const knowTypes = (kind: CellKind): void => {
+    const route = cellRoute(kind);
+    if (!route) return;
+    void Promise.all([routedTypes(route), loadEditors()]).then(([text, m]) => {
+      if (text) m.typescriptNotebook(text);
+    });
   };
 
   // ===== approved outputs: the notebook as the test surface =====
@@ -820,7 +913,7 @@ export function notebookView(
     cell.kind = kind;
     cell.kindPicker.value = kind;
     cell.part.textContent = "";
-    cell.element.classList.remove("kind-code", "kind-sql", "kind-dax", "kind-markdown", "kind-html", "kind-streamlit", "stale");
+    cell.element.classList.remove("kind-code", "kind-sql", "kind-dax", "kind-markdown", "kind-html", "kind-streamlit", "kind-typescript", "kind-tsx", "previewed", "stale");
     cell.element.classList.add(`kind-${kind}`);
     if (cell.htmlRun && (kind === "markdown" || kind === "html")) cell.htmlRun = undefined; // the other kind's values
     if (wasHtml || drawn(kind)) {
@@ -840,6 +933,7 @@ export function notebookView(
     // %sql_connect placeholder while the cell ran on the first connection).
     if (hasSource(kind)) cell.connectionPicker.dispatchEvent(new Event("focus"));
     cell.editor?.setLanguage(LANGUAGE[kind]);
+    if (ROUTED.includes(kind)) knowTypes(kind);
     relabel();
     edited();
     typedSoon();
@@ -997,6 +1091,10 @@ export function notebookView(
       goTo: (f) => (self ? hooksOf(self).goTo(f) : false),
       openGrid: hooks.openGrid,
       openResult: (n) => hooks.openResult?.(n, resultName(self?.editor?.value() ?? self?.source ?? "")),
+      openTable: (id) => {
+        const route = self ? routeOf(self) : null;
+        if (route) void openRoutedTable(route, kernel.intel().path, id, self?.name ? self.name.replace(/\W+/g, "_") : undefined);
+      },
     });
     const view = h("div", { class: "wb-markdown-view" });
     // A Markdown cell with names: its state above its text, as an HTML cell's design bar.
@@ -1004,7 +1102,7 @@ export function notebookView(
     const textRun = button("Run", () => void run(cell), { icon: "play", class: "ghost wb-design-run", title: "Run: fill the names from the kernel (Ctrl+Enter)" });
     const textBar = { element: h("div", { class: "wb-design-bar wb-text-bar" }, textStatus, h("span", { class: "spacer" }), textRun), status: textStatus, run: textRun };
     const count = h("span", { class: "wb-count" }, data.execution_count ? `[${data.execution_count}]` : "[ ]");
-    const kindPicker = h("select", { "aria-label": "Cell kind" }, ...KINDS.map((k) => h("option", { value: k, selected: k === data.kind }, KIND_NAMES[k]))) as HTMLSelectElement;
+    const kindPicker = h("select", { "aria-label": "Cell kind" }, ...offeredKinds(data.kind).map((k) => h("option", { value: k, selected: k === data.kind }, KIND_NAMES[k]))) as HTMLSelectElement;
     const connectionPicker = h("select", { "aria-label": "Connection", class: "wb-connection", title: "Connection" }) as HTMLSelectElement;
     const fillConnections = (): void => {
       // A DAX cell: only Power BI workspaces' datasets; a SQL cell: every other connection.
@@ -1254,7 +1352,7 @@ export function notebookView(
         grow: true,
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
-        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : undefined,
+        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : cell.kind === "typescript" ? "TypeScript" : cell.kind === "tsx" ? "TSX: export default function ..." : undefined,
         // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog,
         // DAX from its dataset's part of the workspace's catalog.
         complete: (text, offset) =>
@@ -1283,6 +1381,7 @@ export function notebookView(
       if (hooks.cursor) cell.editor.onCursor(hooks.cursor);
       if (cell.wantsFocus) focusEditor(cell);
     });
+    if (ROUTED.includes(cell.kind)) knowTypes(cell.kind);
     if (cell.kind === "markdown" && cell.source.trim()) showMarkdown(cell);
     else if (cell.kind === "html") {
       if (cell.source.trim()) showDesign(cell);
@@ -1380,7 +1479,7 @@ export function notebookView(
     table: c.table,
     grouped: c.grouped,
     steps: c.role === "transformations" ? c.steps : null,
-    height: twoFaced(c) ? (c.design?.height() ?? null) : null,
+    height: twoFaced(c) || c.kind === "tsx" ? (c.design?.height() ?? null) : null,
     ...(isLive(c) ? { live: true } : {}),
     ...(c.name ? { name: c.name } : {}),
     ...(c.approved ? { approved: c.approved } : {}),
@@ -1828,7 +1927,9 @@ export function notebookView(
    *  added or moved, only the tables' cells and the uses lines follow. */
   const arrange = async (move: boolean): Promise<void> => {
     const relevant = tableInfos.length > 0 || cells.some((c) => c.role !== "") || cells.some((c) => c.kind !== "markdown" && withUses(sourceOf(c), null, usesForm(c.kind)) !== sourceOf(c));
-    if (!relevant) return;
+    // A mode whose SQL runs in its own kernel (a code app's data notebook): the open tables are that kernel's
+    // views already, so the Python kernel's Tables group is not made here.
+    if (!relevant || cellRoute("sql")) return;
     const mine = ++asked;
     const at = version;
     const body = {

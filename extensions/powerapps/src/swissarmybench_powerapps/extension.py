@@ -44,9 +44,29 @@ MODE: dict[str, Any] = {
     "tools": ["powerapps_"],
     "export": ["push"],
     "cell_routes": {
-        "typescript": {"name": "TypeScript", "language": "typescript", "run": "/powerapps/notebook/run"},
-        "tsx": {"name": "TSX", "language": "typescript", "run": "", "preview": "/powerapps/notebook/preview"},
-        "sql": {"name": "SQL", "language": "sql", "run": "/powerapps/notebook/run"},
+        "typescript": {
+            "name": "TypeScript",
+            "language": "typescript",
+            "run": "/powerapps/notebook/run",
+            "grid": "/powerapps/notebook/grid",
+            "types": "/powerapps/notebook/types",
+            "install": "/powerapps/tools/install",
+        },
+        "tsx": {
+            "name": "TSX",
+            "language": "tsx",
+            "run": "",
+            "preview": "/powerapps/notebook/preview",
+            "types": "/powerapps/notebook/types",
+            "install": "/powerapps/tools/install",
+        },
+        "sql": {
+            "name": "SQL",
+            "language": "sql",
+            "run": "/powerapps/notebook/run",
+            "grid": "/powerapps/notebook/grid",
+            "install": "/powerapps/tools/install",
+        },
     },
 }
 

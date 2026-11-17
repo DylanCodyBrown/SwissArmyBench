@@ -44,11 +44,12 @@ BASE_MODE: dict[str, Any] = {
     "tools": [],
     "export": ["notebook"],
     # The cell kinds this mode runs somewhere else than the Python kernel: {kind: {name, language, run
-    # (the route a run is posted to), preview (a route that draws it, or "")}}; a base kind too (a
+    # (the route a run is posted to), preview (a route that draws it), grid (a table result opened as a
+    # grid), types (the editor's declarations), install (a missing tool installed)}}; a base kind too (a
     # DuckDB SQL cell run in the mode's kernel). The page reads them as data, never which mode it is.
     "cell_routes": {},
 }
-_ROUTE_FIELDS = ("name", "language", "run", "preview")
+_ROUTE_FIELDS = ("name", "language", "run", "preview", "grid", "types", "install")
 _MODE_FIELDS = ("canvases", "families", "languages", "cell_kinds", "tools", "export")
 
 

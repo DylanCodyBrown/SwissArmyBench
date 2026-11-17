@@ -95,7 +95,7 @@ import { type AppHost, appPanels } from "./workbenchApp";
 import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
-import { activeMode, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
+import { activeMode, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, mountProject, onBeforeSave, onProject, openProject as openSabProject, projectLabel, projectState, type ProjectState, reportLayout, saveFolderAsFile, saveProject } from "./projectFile";
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
@@ -1902,10 +1902,15 @@ function cellEntries(doc: Doc): MenuEntry[] {
     { label: "DAX", icon: "group", title: "A query on a Power BI workspace's dataset", run: add("dax") },
     { label: "HTML", icon: "image", title: "A design drawn from its HTML", run: add("html") },
     { label: "Markdown", icon: "edit", run: add("markdown") },
-    // The open project's mode's own cell kinds (a code app: TypeScript and TSX): offered, not yet run here.
+    // The open project's mode's own cell kinds (a code app: TypeScript and TSX): run where its routes say;
+    // a kind with no route yet is offered as coming.
     ...activeMode().mode.cell_kinds
       .filter((k) => !["code", "python", "sql", "dax", "html", "markdown"].includes(k))
-      .map((k) => ({ label: `${LANGUAGE_WORDS[k] ?? k} (coming)`, icon: "code", disabled: true, title: "Coming: a later version runs these cells", run: () => undefined })),
+      .map((k) =>
+        cellRoute(k) && (k === "typescript" || k === "tsx")
+          ? { label: cellRoute(k)!.name || (LANGUAGE_WORDS[k] ?? k), icon: k === "tsx" ? "image" : "code", title: k === "tsx" ? "A React component, drawn" : "Run in the data notebook's kernel", run: add(k) }
+          : { label: `${LANGUAGE_WORDS[k] ?? k} (coming)`, icon: "code", disabled: true, title: "Coming: a later version runs these cells", run: () => undefined },
+      ),
   ];
 }
 
@@ -3298,6 +3303,8 @@ onNotice((notice) => {
 window.addEventListener("message", (e: MessageEvent) => {
   const said = e.data as { sab?: unknown; path?: unknown } | null;
   if (e.origin === location.origin && said?.sab === "codefile" && typeof said.path === "string") void openCodeFileDoc(said.path);
+  // A document by its path (the Code App page's data notebook).
+  if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => toast(err.message, "error"));
 });
 void Promise.all([
   loadPanels(),
