@@ -74,6 +74,7 @@ import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, noteboo
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaMark, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
+import { installZoomInput, zoomControl } from "./zoom";
 import { updateCommands, updateMark, versionMark } from "./updates";
 import { claudeCommands, launchButton } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
@@ -1354,9 +1355,16 @@ function focused(doc: Doc | null): void {
   followDataPanel();
 }
 
-/** The Data panel is for app notebooks, canvases and scripts: beside the data notebook it is not there
- *  (the owner, 2026-11-16: "it should only show on app notebooks its useless in a data notebook"). */
-const dataAway = (): boolean => !landing.kind() && !!current?.notebook && notebookRole(current.path) === "data";
+/** The Data panel is for app notebooks and canvases only: not beside the data notebook (the owner,
+ *  2026-11-16: "it should only show on app notebooks its useless in a data notebook"), not beside a
+ *  script, and not on a landing page (2026-11-17: "notebooks also has data panel on the left and
+ *  transformations which is not needed"; the Scripts page "I see data on the left which is uneeded"). */
+const dataAway = (): boolean => {
+  if (landing.kind()) return true;
+  if (current?.canvas) return false;
+  if (current?.notebook) return notebookRole(current.path) === "data";
+  return !!current?.script; // a script; nothing open keeps it (its "+ Table" starts the work)
+};
 
 function followDataPanel(): void {
   if (!paneReady) return;
@@ -1844,7 +1852,9 @@ function drawControls(): void {
   const scheduled = doc.script ? button(scheduling.has(doc) ? "Running…" : "Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
   if (scheduled) scheduled.disabled = scheduling.has(doc);
   const view = dataViews.get(doc)?.view ?? "cells";
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
+  // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
+  // shouldnt be"): cells are a notebook's.
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -1867,7 +1877,8 @@ const variablesToggle = button("Variables", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
-layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
+installZoomInput();
+layout.status.append(versionMark(), kernelHost, envHost, cursorHost, h("span", { class: "spacer" }), updateMark(), zoomControl(), betaMark(), launchButton(), consoleToggle, modeToggles, variablesToggle);
 
 function drawCursor(): void {
   const doc = current;
@@ -1951,6 +1962,7 @@ const data = mountDataPanel({
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(data.element);
 paneReady = true;
+followDataPanel(); // a landing page shown before the panel was made: away from the start
 
 /** Add API: API_<name>.py beside data.py when a project is open (else in the Workbench's folder). */
 function addApi(): Promise<void> {
@@ -2748,7 +2760,7 @@ const COMMANDS: Command[] = [
   { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
-  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", when: () => panelOn("workbench.data") && !data.away(), whyNot: panelOn("workbench.data") ? "the Data panel is not beside the data notebook" : turnedOff("The Data panel"), run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
+  { id: "view.toggleSidebar", group: "View", title: "Collapse or expand the Data panel", keys: "Ctrl+B", args: "collapsed: true or false (default: the other way)", when: () => panelOn("workbench.data") && !data.away(), whyNot: panelOn("workbench.data") ? "the Data panel is only beside app notebooks and canvases, not the data notebook, scripts or a landing page" : turnedOff("The Data panel"), run: (a) => ({ collapsed: data.toggle(typeof a.collapsed === "boolean" ? a.collapsed : undefined) }) },
   { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();

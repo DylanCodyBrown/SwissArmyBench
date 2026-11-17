@@ -10,6 +10,7 @@
  */
 import { api, type Budget } from "./api";
 import { betaMark } from "./betaNotes";
+import { zoomControl } from "./zoom";
 import { launchButton } from "./claudeLaunch";
 import { updateMark, versionMark } from "./updates";
 import { clear, formatCount, h } from "./dom";
@@ -28,7 +29,7 @@ export function mountBottomBar(host: HTMLElement): void {
   selection = h("span", { "aria-live": "polite" });
   meter = h("button", { type: "button", class: "meter", onclick: () => showTables() });
   live = h("span", { id: "live" });
-  clear(host, versionMark(), rows, selection, h("span", { class: "grow" }), meter, live, updateMark(), betaMark(), launchButton(), h("span", { class: "credit" }, "Created by Dylan Brown"));
+  clear(host, versionMark(), rows, selection, h("span", { class: "grow" }), meter, live, updateMark(), zoomControl(), betaMark(), launchButton(), h("span", { class: "credit" }, "Created by Dylan Brown"));
   state.on("selection", render);
   state.on("info", render);
   onAgentView(render);
