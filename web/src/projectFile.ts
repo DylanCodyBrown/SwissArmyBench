@@ -245,7 +245,7 @@ async function chooseNewProject(preset?: ProjectType): Promise<Record<string, un
       h("label", { class: "field" }, h("span", {}, "Name"), name),
       h("div", { class: "field" }, h("span", {}, "Type"), kinds),
       explained,
-      h("div", { class: "field new-project-folder" }, h("span", {}, "In"), where, other),
+      h("div", { class: "new-project-folder" }, h("span", {}, "In"), where, other),
     );
     const finish = (value: Record<string, unknown> | null): void => {
       if (done) return;
