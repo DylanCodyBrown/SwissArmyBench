@@ -2875,3 +2875,38 @@ Checked on Linux in a container, each in its own uv tool folder and home:
 
 NOT checked: macOS and Windows desktops, the tray during these restarts, Edge, a code app against a real Power
 Platform environment.
+
+## The Data page (2026-11-17, branch data-page)
+
+Checked (Chromium, made-up SQLite connections; tests/test_explorer.py, tests/e2e/test_data_page.py):
+- The rail's Data sits after Variables (the rail test's order and its keys); a click lands on the page
+  (open=data), the area is marked, the search has the focus; Back takes the page away, Forward brings it.
+- With nothing typed: each connection with its status (2 tables; Not loaded for one whose catalog was taken
+  away, a look never loading it), its schema, its tables, a table's columns and types when it opens; the open
+  tables with their columns and a structure with its paths (HTTP); Load loads the catalog in the background
+  and the status follows (1 table). The filters (a kind, a connection) narrow the browse (HTTP).
+- The detail side: columns with types and nulls (NOT NULL said No), From, the SQL name, the %%sql and Python
+  code. Copy SQL name puts `[Orchard…].orders` on the clipboard; Open as grid opens its tab.
+- A search narrows the tree: the matching tables under their connection and schema, the matched columns
+  (CustomerKey, customer_id) under their tables; a connection with no match is not drawn.
+- With a Workbench window open: Insert shows and goes into its selected cell; Query in a notebook adds a
+  %%sql cell; a column's drag carries `{"sql": "CustomerKey", "python": "\"CustomerKey\""}`, and a table's
+  drag dropped into a cell there writes its SELECT. Without one, Insert is not shown.
+- The keyboard: Down from the search into the tree, Right opens, Down to a table, Enter opens it as a grid;
+  / focuses the search.
+- The pane's Pop out opens `/workspace?open=data&q=orders` in a window of its own with the search and closes
+  the pane; the agent's explorer.popOut too. `/workbench?panel=explorer` redirects there (302, the #token
+  kept). Ctrl+K's Open the Data page takes the dialog's search to the page.
+- The agent: explorer_browse and explorer_table answer what the page shows (names only, never a value);
+  app_navigate knows data.
+- Screenshots, light and dark (2x): the page fills the window right of the rail, the tree and the detail
+  side side by side, no strip under them.
+- The whole suite with Chromium: 4044 passed, 49 skipped, 3 failed under load. Alone:
+  test_data_page's Workbench test passes (twice); test_sandbox_pages' first test clicked the rail while the
+  Apps icon appeared and moved the icons under it (fixed in the test: it waits for Apps); test_table_cells_page's
+  maker test fails one run in two on the base (601944d) too.
+
+NOT checked: a Power BI workspace and a SQL Server connection on the page (Import its relationships is
+offered by rule, unit-tested; the request is the Connections page's own), Edge, a real drag between two
+windows (Playwright carries the drag's data across instead), narrow windows (the detail goes under the tree
+by a media rule, not looked at).
