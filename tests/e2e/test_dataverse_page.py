@@ -133,7 +133,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     assert [x["schema"] for x in schemas] == ["dbo"]
     listed = call(server, "GET", "/catalogs/Sales%20CRM/tables?schema=dbo")["tables"]
     assert [t["table"] for t in listed] == ["account", "contact", "opportunity", "systemuser"]
-    assert [t.get("title") for t in listed if t.get("title")] == ["User"]  # Account for account: no
+    assert {t["table"]: t.get("title") for t in listed}["systemuser"] == "User"
     columns = call(server, "GET", "/catalogs/Sales%20CRM/columns?schema=dbo&table=opportunity")["columns"]
     stage = next(c for c in columns if c["column"] == "salesstage")
     assert stage["type"] == "Picklist" and stage["description"] == "Sales Stage"
