@@ -512,5 +512,6 @@ def test_a_scripts_html_cell_shows_its_design_under_its_marker(
     namespace: dict[str, Any] = {}
     exec(text, namespace)  # noqa: S102 (the file still runs as plain Python)
     assert namespace["total"] == 42
-    add_cell(workbench, "HTML")
+    # A script has no "+ Cell" (the owner, 2026-11-17): the agent's html.add is how a script gains one.
+    window(server, "html.add")
     expect(lines).to_contain_text("# %% [4] [html]", timeout=20000)

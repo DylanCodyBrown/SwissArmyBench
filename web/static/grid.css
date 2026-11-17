@@ -1353,6 +1353,20 @@ table.small td.num {
   flex: 1;
 }
 
+/* A narrow window never scrolls sideways because of the status bar (zoom joined it, 2026-11-17): the bar
+   clips its own overflow, and the least needed parts give way first. */
+.statusbar {
+  overflow: hidden;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .statusbar .credit,
+  .statusbar .claude-launch-label {
+    display: none;
+  }
+}
+
 .meter {
   display: inline-flex;
   align-items: center;

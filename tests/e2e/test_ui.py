@@ -1912,7 +1912,8 @@ def test_an_agent_snapshot_follows_what_the_user_has_done(
         f"/grids/{grid_of(orders_url)}/steps",
         {"steps": [{"kind": "filter", "params": {"column": "region", "op": "eq", "value": "North"}}]},
     )
-    wait_for_cell(page, 0, "region", "North")
+    # The second row: the first was North before the filter too (waiting on it raced the redraw).
+    wait_for_cell(page, 1, "region", "North")
     after, _ = snapshot_while_page_runs(page, server, {"area": "grid"})
     assert before != after, "the picture did not change when the grid did"
 
@@ -2298,8 +2299,8 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     table_row = page.locator(".ribbon .ribbon-group").first
     assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
-    # On the Visualizations tab the ribbon goes, the Application row stays.
+    # On the Visualizations tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
     page.locator(".nav-rail [data-area='visualizations']").click()
     expect(page.locator(".ribbon")).to_be_hidden()
-    expect(app.get_by_role("button", name="Zoom out", exact=True)).to_be_visible()
+    expect(page.locator(".statusbar").get_by_role("button", name="Zoom out", exact=True)).to_be_visible()
     page.close()

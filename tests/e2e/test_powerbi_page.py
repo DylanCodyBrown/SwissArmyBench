@@ -100,8 +100,8 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     dialog.get_by_role("button", name="Save").click()
     row = dialog  # its detail
     expect(row.locator(".connection-config")).to_contain_text("Power BI workspace")
-    # Relationships are a dataset's: the detail offers none (the catalog does, on each dataset).
-    expect(row.get_by_role("button", name="Import its relationships")).to_have_count(0)
+    # Relationships are a dataset's: the detail's table tree offers Import its relationships on each
+    # dataset (connections in DuckDB SQL, 2026-11-17), never one for the whole workspace.
     # Saved: its catalog loads itself.
     wait_until(lambda: any(c["name"] == "Finance" for c in call(server, "GET", "/catalogs")["catalogs"]))
 
@@ -265,7 +265,8 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     # first dataset; the agent adds one on a dataset it names. The file runs as it is.
     start(workbench, "New script")
     expect(workbench.locator(".wb-script-editor .monaco-editor")).to_be_visible(timeout=20000)
-    add_cell(workbench, "DAX")
+    # A script has no "+ Cell" (the owner, 2026-11-17): the agent's cell.addDax adds one.
+    window("cell.addDax")
     wait_until(lambda: "[dax]" in window("doc.read")["text"])
     window("cell.addDax", dataset="Finance/Sales model", source="EVALUATE TOPN(2, 'Customer')")
     text = window("doc.read")["text"]

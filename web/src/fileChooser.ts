@@ -58,8 +58,14 @@ export function chooseFile(options: ChooseOptions): Promise<string | null> {
     const saveName = h("input", { type: "text", "aria-label": "File name", value: options.name ?? "", spellcheck: false });
     const choose = button(options.mode === "folder" ? "Choose this folder" : options.mode === "save" ? "Save here" : "Choose", () => pick(), { class: "primary", icon: "check" });
 
+    // A click on the main button before the first folder is read waits for it (it was lost before).
+    let early = false;
     const pick = (): void => {
-      if (!shown) return;
+      if (!shown) {
+        early = true;
+        status.textContent = "Loading…";
+        return;
+      }
       if (options.mode === "folder") finish(shown.path);
       else if (options.mode === "save") {
         const name = saveName.value.trim();
@@ -91,6 +97,10 @@ export function chooseFile(options: ChooseOptions): Promise<string | null> {
       }
       if (mine !== asked) return;
       shown = found;
+      if (early) {
+        early = false;
+        window.setTimeout(pick); // after this folder is drawn
+      }
       const at = found;
       // A path typed while this folder was being read is kept: the answer once replaced it, so the
       // Enter that followed opened this folder instead of the one typed.

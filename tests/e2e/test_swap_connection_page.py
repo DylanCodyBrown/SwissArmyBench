@@ -203,7 +203,16 @@ def test_a_deleted_connections_tables_move_from_the_strip_and_the_code_follows_w
     expect(page.locator(".project-fix[data-table='ORDERS']").filter(has_text="No connection")).to_have_count(
         0
     )
-    saved = ["".join(c["source"]) for c in json.loads(book.read_text(encoding="utf-8"))["cells"]]
+
+    def cells() -> list[str]:
+        return ["".join(c["source"]) for c in json.loads(book.read_text(encoding="utf-8"))["cells"]]
+
+    # The page's toast comes before the file is written: wait for the file itself.
+    for _ in range(100):
+        if cells()[0].startswith("%%sql Trino"):
+            break
+        page.wait_for_timeout(100)
+    saved = cells()
     assert saved[0].startswith("%%sql Trino") and "sab.sql('EDP'" in saved[1] and saved[2] == "note = 'EDP'"
     state = call(server, "GET", "/tables/ORDERS/connection")
     assert state["connection"] == "Trino" and state["open"] is True
