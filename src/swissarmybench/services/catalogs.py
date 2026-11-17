@@ -36,6 +36,8 @@ class Catalogs(Protocol):
 
     def shared_tables(self, cur: Any, name: str) -> set[str]: ...
 
+    def places(self, cur: Any, name: str, limit: int = 50_000) -> list[tuple[str, str, str]]: ...
+
     def tables(
         self,
         cur: Any,
@@ -128,6 +130,17 @@ class CatalogService:
         except KeyError:
             return set()
         found: set[str] = await self._on_worker(lambda cur: self._catalogs.shared_tables(cur, name))
+        return found
+
+    async def places(self, name: str) -> list[tuple[str, str, str]] | None:
+        """Every table of a loaded catalog as (database, schema, table); None when it is not loaded."""
+        try:
+            self._catalogs.get(name)
+        except KeyError:
+            return None
+        found: list[tuple[str, str, str]] = await self._on_worker(
+            lambda cur: self._catalogs.places(cur, name)
+        )
         return found
 
     async def schema_names(self, name: str) -> list[dict[str, Any]] | None:

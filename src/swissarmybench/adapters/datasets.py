@@ -82,6 +82,14 @@ def split_json_to_arrow(payload: Any) -> pa.Table:
     return check_table(pa.Table.from_arrays(arrays, names=columns))
 
 
+def table_to_arrow_stream(table: pa.Table) -> bytes:
+    """A table as an Arrow IPC stream (a connection's table sent to a Workbench kernel's DuckDB)."""
+    sink = pa.BufferOutputStream()
+    with ipc.new_stream(sink, table.schema) as writer:
+        writer.write_table(table)
+    return bytes(sink.getvalue().to_pybytes())
+
+
 def arrow_stream_to_table(body: bytes, max_bytes: int) -> pa.Table:
     """Read an Arrow IPC stream, stopping as soon as the decoded size passes `max_bytes`.
 

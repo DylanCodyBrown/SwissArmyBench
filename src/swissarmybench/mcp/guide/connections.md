@@ -59,6 +59,22 @@ a variable by its name.
 - In code: `workbench_run(kind="sql", connection=name)` runs a SQL cell in the source's own SQL; files
   and DataFrames are read with DuckDB.
 
+## A connection's tables in DuckDB SQL
+A connection is something that exposes tables (a key vault is not one). Name one in any DuckDB SQL as
+`[Finance Captive].Sales` (or `"Finance Captive".Sales`): `tabs_new_query`, `steps_run_sql`, a `%%sql`
+cell with no connection, `sab.sql(query)`. Joins across connections work.
+- Database: `[C].table`, `[C].schema.table`, `[C].database.schema.table`, any case. Power BI:
+  `[C].table` when one dataset has it, else `[C]."Sales model".table` (the error names the datasets).
+  Files and folders: `[C].<sheet or file>`. Python and API connections: their List the tables names.
+- Every row the query needs is read (never Rows to open): its columns and plain filters go to a SQL
+  source, a LIMIT only when safe; the count is asked first, and past SWISSARMYBENCH_MAX_QUERY_ROWS
+  (5,000,000) it is refused: add a WHERE. Each answer's `connection_reads`: rows, `read_at`, `sent`.
+- Reads are kept for the session: `connections_sql_reads`; `connections_sql_refresh` reads again.
+- `connections_tables(name)`: the tree (datasets or schemas, each table's `sql` name).
+  `connections_open_dataset(name, dataset)`: every table of one as its own grid.
+- Dataverse lists and reads its tables on its SQL endpoint; one saved for the Web API:
+  `connections_dataverse_sql_endpoint`.
+
 ## Swapping a table's connection (the Table row's Connection…)
 - `table_connection(table)`: its connection (`exists` false: deleted, or not on this computer), how it
   is read (`table`: a catalog table, its `place`; `query`: its `sql`), the `others`, `undo`.
@@ -88,8 +104,9 @@ a variable by its name.
   `url` (https://<name>.crm.dynamics.com) and a sign-in (`sign_ins`: as you, managed identity, an app
   registration whose client secret is a vault's entry; a typed secret is refused).
 - Its catalog: one schema, dbo; each table's display name is `title` in `catalog_tables`.
-- `connections_open_table(name, table)` and `connections_preview_table` read through the Web API (no
-  admin setting needed); choice columns arrive as labels. In code: `sab.read(name, table)`,
+- Its tables are listed and read on its read-only SQL endpoint (TDS; the owner's choice). One saved
+  for the Web API still reads through it; `connections_dataverse_sql_endpoint` moves it. When the
+  endpoint is off, its administrator turns it on in the Power Platform admin center. In code: `sab.read(name, table)`,
   `conn.read(table, columns=, filter=, order_by=, limit=)` (OData), `conn.fetch(fetch_xml)`.
 - SQL (`workbench_run(kind="sql", connection=name)`) is T-SQL on its read-only SQL endpoint: when that
   is off, the error says so and gives the sab.read line instead.

@@ -74,6 +74,10 @@ def connect(standin: made_up.StandIn) -> Any:
     return conn
 
 
+# A connection saved for the Web API (the default before 2026-11-17): it keeps working.
+WEB_API_CATALOG = {"language": "python", "command": "catalog = conn.catalog()"}
+
+
 def saved_connection(client: TestClient, standin: made_up.StandIn, **more: Any) -> str:
     """The vault, then a Dataverse connection whose client secret is that vault's entry."""
     vault: dict[str, Any] = {"name": "Team vault", "kind": "vault", "template": "azure_key_vault"}
@@ -87,9 +91,8 @@ def saved_connection(client: TestClient, standin: made_up.StandIn, **more: Any) 
         "vault_secret": "crm-client-secret",
     }
     code = client.post("/connections/source", json=body, headers=AUTH).json()["code"]
-    template = BY_ID["dataverse"].to_json()
     saved = {"name": "Sales CRM", "kind": "sql", "template": "dataverse", "dialect": "dataverse"}
-    saved |= {"code": code, "variable": "conn", "catalog": template["catalog"]} | more
+    saved |= {"code": code, "variable": "conn", "catalog": WEB_API_CATALOG} | more
     answer = client.post("/connections", json=saved, headers=AUTH)
     assert answer.status_code == 200, answer.text
     return str(code)
@@ -117,7 +120,9 @@ def test_the_form_asks_for_the_address_and_signs_in_three_ways(client: TestClien
         ) == 1
     assert form["code"] == dataverse.YOU and form["secrets"] == []
     assert form["secrets_from"] == "vault only"
-    assert form["catalog"] == {"language": "python", "command": "catalog = conn.catalog()"}
+    # Its tables on the SQL endpoint (the owner, 2026-11-17): the endpoint's own catalog.
+    assert form["catalog"] == {"language": "sql", "command": dataverse.SQL_CATALOG}
+    assert BY_ID["dataverse"].to_json()["catalog"] == form["catalog"]
     # Its packages, offered as the other connections offer theirs: azure-identity, and pyodbc for SQL.
     assert {p["pip"] for p in form["packages"]} >= {"azure-identity", "pyodbc"}
 
@@ -137,9 +142,13 @@ def test_each_way_to_sign_in_asks_only_for_what_it_needs() -> None:
 
 
 def test_the_client_secret_is_never_typed_into_the_app(client: TestClient, standin: made_up.StandIn) -> None:
-    template = BY_ID["dataverse"].to_json()
-    draft = {"name": "Sales CRM", "kind": "sql", "template": "dataverse", "dialect": "dataverse"}
-    draft |= {"code": app_code(standin), "variable": "conn", "catalog": template["catalog"]}
+    draft: dict[str, Any] = {
+        "name": "Sales CRM",
+        "kind": "sql",
+        "template": "dataverse",
+        "dialect": "dataverse",
+    }
+    draft |= {"code": app_code(standin), "variable": "conn", "catalog": WEB_API_CATALOG}
     typed = draft | {"secrets": {"client secret": made_up.SECRET}}
     for path in ("/connections/test", "/connections"):
         refused = client.post(path, json=typed, headers=AGENT)
@@ -446,7 +455,6 @@ def test_no_secret_in_any_answer_log_or_file(
     call("POST", "/blades/Sales%20CRM/refresh", {}, AGENT)
     call("POST", "/connections/Sales%20CRM/open", {"table": "account"}, AGENT)
     call("POST", "/connections/Sales%20CRM/preview", {"table": "contact"}, AGENT)
-    template = BY_ID["dataverse"].to_json()
     draft = {
         "name": "Sales CRM",
         "kind": "sql",
@@ -454,7 +462,7 @@ def test_no_secret_in_any_answer_log_or_file(
         "dialect": "dataverse",
         "code": code,
     }
-    call("POST", "/connections/test", draft | {"variable": "conn", "catalog": template["catalog"]}, AGENT)
+    call("POST", "/connections/test", draft | {"variable": "conn", "catalog": WEB_API_CATALOG}, AGENT)
     refused = client.post("/connections/Sales%20CRM/open", json={"table": "nope"}, headers=AGENT)
     answers.append(refused.text)
     for text in answers:

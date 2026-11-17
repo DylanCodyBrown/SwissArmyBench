@@ -2184,3 +2184,47 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** the high-contrast and dark themes in a browser (the colours per theme are unit-tested);
   a Session entry's stripe in a browser (the attribute is set by the same rule as the cards); dragging a
   group head; Monaco's stripe colour in a script after a theme change.
+
+
+## A connection's tables in DuckDB SQL (2026-11-17, branch connection-sql)
+
+- **The rules** (tests/test_connection_tables.py): brackets quote a connection's name only (a list index
+  and a string stay); references found in sqlglot's tree and resolved in any case, a Power BI table two
+  datasets share asking for its dataset, a database name two schemas share asking for its schema, an
+  unknown name suggesting the near one and listing what there is; the rewrite keeps each table's alias; a
+  web call blade is a table only with return_as_table.
+- **Over HTTP** (two SQLite connections and the Power BI stand-in, made-up data): one DuckDB query joining
+  a Power BI dataset's Sales with two SQLite connections' tables (the right totals; the stand-in saw
+  EVALUATE); the second query kept from the session's read (the stand-in not asked again), Refresh reads
+  again; the grid's read-only cell reads `sab.sql(<query>)`; Date shared by two datasets refused with
+  both names, an unknown table listing the tables, a key vault "not a connection"; the agent's same SQL;
+  the tree (datasets, each table's SQL name), Open all of a dataset (4 grids), a kernel's prepare and the
+  Arrow read. **Never a cut table:** 15,000 rows joined (a 10,000-row cut would give other counts), only
+  the used columns sent; `region = 'South' AND order_id > 3000` sent (4,000 rows came back, not 15,000), a
+  LIMIT sent alone and not with GROUP BY, ORDER BY or an unsent `<>`; past the limit (set to 10,000) the
+  table refused with its count and how to narrow it, the narrowed query answered.
+- **Every kind** (tests/test_connection_kinds.py): every starter template has a tables kind or a reason;
+  the 113 built-in starters are none; each kind lists (its tree) and reads (`SELECT count(*) FROM
+  [Kind].<table>` in the "+" tab) on a stand-in: SQLite, the Power BI stand-in, Dataverse's SQL endpoint
+  stood in for at its cursor (a made-up SQLite file reading `SELECT TOP n` and INFORMATION_SCHEMA), the
+  Dataverse Web API stand-in, a Python connection, an API connection (a Python one tagged api), a
+  workbook's sheet, a folder's file by its name without .csv. The endpoint off said plainly (no Web
+  API); a Web API connection's card offers the switch, and after it reads on the SQL endpoint.
+- **In a real kernel** (tests/test_connection_sql_kernel.py): `%%sql -> by_manager` with no connection
+  joins `[Shop].orders` with the kernel's DataFrame, its output saying the read; `sab.sql(query)` the same;
+  an unknown table in the app's words.
+- **In the browser** (Chromium, tests/e2e/test_connection_sql_page.py): the Connections page's tree
+  (search, Preview, Copy name on the clipboard, Open all with its confirm, three grids); a `%%sql` cell on
+  DuckDB completing `[Sh` to `[Shop].` and `ord` to `orders`, its head showing Shop, running to a
+  DataFrame. Pictures: connection-tree.png, sql-cell-names-a-connection.png.
+- **Not checked:** the owner's real Power BI workspace ("Finance Captive") and its 14 model_* tables; a
+  real Dataverse SQL endpoint (TDS, pyodbc, ODBC Driver 18 and the Entra token: stood in for at the cursor
+  only); filters sent to SQL Server, Trino, Snowflake or Oracle (written by sqlglot, run here on SQLite
+  only); very large tables (the count-first and the limit on 15,000 rows, not millions; memory for a
+  multi-million-row read); a Python connection's or the Web API's limit-plus-one read past the limit;
+  Query in a notebook with the Workbench window open (the clipboard path is the one run); connection
+  colours on the cell's head (another branch).
+- **The whole suite** (Chromium, Streamlit 1.67 in its own Python): 3,314 passed, 42 skipped, 2 failed in
+  21 minutes; both were tests of this branch's own changes (the Add API test looked for an API's card on
+  the Connections page, where APIs no longer show; the Dataverse page test loaded its catalog through the
+  form's new SQL endpoint default, which needs pyodbc): fixed, those two files then 4 passed.

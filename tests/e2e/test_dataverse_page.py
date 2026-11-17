@@ -105,10 +105,26 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     token = next(r for r in standin.requests if r["what"] == "token")
     assert token["form"]["client_secret"] == made_up.SECRET and token["tenant"] == made_up.TENANT
     assert made_up.SECRET not in dialog.inner_text() and made_up.SECRET not in code.input_value()
+    typed = code.input_value()
     dialog.get_by_role("button", name="Save").click()
     saved = dialog.locator(".connection-config")  # its detail
     expect(saved).to_contain_text("Dataverse")
     expect(saved.locator(".connection-in-code")).to_contain_text('sab.read("Sales CRM", table)')
+    # The form saves it on the SQL endpoint (the owner, 2026-11-17), which needs pyodbc and a real TDS
+    # endpoint (tests/test_connection_kinds.py stands in for it at its cursor). The rest of this test is a
+    # connection saved for the Web API before then: it keeps working, and its detail offers the switch.
+    old: dict[str, Any] = {
+        "name": "Sales CRM",
+        "kind": "sql",
+        "template": "dataverse",
+        "dialect": "dataverse",
+        "code": typed,
+    }
+    old |= {"variable": "conn", "catalog": {"language": "python", "command": "catalog = conn.catalog()"}}
+    call(server, "PUT", "/connections/Sales%20CRM", old)
+    page.locator(".nav-rail [data-area='connections']").click()
+    dialog.locator(".connection-card[data-connection='Sales CRM']").click()
+    expect(dialog.get_by_role("button", name="Web API (switch to the SQL endpoint)")).to_be_visible()
     wait_until(lambda: any(c["name"] == "Sales CRM" for c in call(server, "GET", "/catalogs")["catalogs"]))
 
     # The catalog: one schema, its tables; a display name shows where it says more than the name.

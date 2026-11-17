@@ -263,6 +263,10 @@ src/swissarmybench/
     variables.py         the Variables page: this computer's variables (plain, this computer only, keyring), the
                          shareable and local halves, each variable's source (vault, value, keyring, env,
                          missing) and uses (connections, cells by ast, Run settings), which values show, rename
+    connection_tables.py what a connection is: the tables contract (each kind's way to list and read; NO_TABLES and
+                         why), a table named in DuckDB SQL by its connection ([Finance Captive].Sales: brackets,
+                         references in sqlglot's tree, resolved in any case, a shared Power BI name asking for its
+                         dataset), the work sent to the source (columns, plain filters, a safe LIMIT), the limit's words
 
   services/              the use cases, one service class per feature, given their ports
     ports.py             the shared ports: SqlSession, Views, Datasets, Jobs, Audit, Notifier
@@ -298,6 +302,9 @@ src/swissarmybench/
                          cells repointed (an open document in the Workbench window, else its file)
     variables.py         the Variables page: list, add, change, rename (connections and Run settings follow),
                          remove, Show (the user's: 403 for the agent); the values set in this server's environment
+    connection_tables.py the contract's list and read for every kind, DuckDB SQL naming a connection's table (each
+                         read: every row the query needs, counted first, refused past the limit; kept for the
+                         session by what was sent, Refresh), the Connections page's tree, Open all of a dataset
     apis.py              Add API: preview, add (the file and its connection in one step), inline (the exporter)
     folders.py           the page's file chooser (a folder's names: real paths)
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
@@ -379,7 +386,7 @@ src/swissarmybench/
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage, streamlit,
                          projects, project_scope, panels, navigation, controllers, kind_colours, script_runs, session_log,
-                         connection_swap, variables, connection_colours). Every route serves
+                         connection_swap, variables, connection_colours, connection_tables). Every route serves
                          the agent too (the golden rule) but answering approvals and /blades/{name}/python
     security.py          the guard: 127.0.0.1, the token, Host and Origin
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
@@ -437,7 +444,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (267 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (282 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
@@ -458,7 +465,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); connectionsWindow.ts the
-                         Connections page (cards, a card's detail: references, configuration, calls);
+                         Connections page (cards, a card's detail: references, configuration, calls; no APIs);
+                         connectionTree.ts a connection's tables as a tree in its detail (search, Open, Preview,
+                         Copy name, Open all, Import its relationships, Query in a notebook); connectionSql.ts the
+                         connections a DuckDB query names (a SQL cell's head) and their completion;
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
                          its documents as cards, Scripts' and Notebooks' Transformations cards first, Notebooks'
                          under Data notebook and App notebooks; New and Open… in the top bar);
@@ -564,7 +574,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          keystores), powerbi_standin.py (Power BI and its sign-in stood in for on this computer: a
                          workspace of three made-up datasets), dataverse_standin.py (a Dataverse environment's
                          Web API, its metadata and its sign-ins: a made-up company's accounts, contacts and
-                         opportunities), orders_service.py (a made-up web service
+                         opportunities), dataverse_tds_standin.py (its SQL endpoint at the cursor: a made-up
+                         SQLite file), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
                          orders service, every sign-in it takes stood in for)
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:

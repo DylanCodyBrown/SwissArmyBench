@@ -3686,3 +3686,84 @@ Decisions: a stripe, never a background; vaults have no colour (no tables; not o
 `/connection-colours/uses` is page plumbing (NOT_COMMANDS: the agent reads cells with connections_usage).
 Open: entries about a grid (not a connection) on the Session page are not coloured by the grid's origin;
 a removed connection's line stays in colours.toml (it returns if the name comes back).
+
+
+## A connection's tables in DuckDB SQL (the owner, 2026-11-17; built, branch connection-sql)
+
+The owner's words, after his agent imported a Power BI dataset's relationships (14 model_* tables) from
+his workspace connection "Finance Captive" and could not open the tables: "regardless, the app needs to
+make it easy for me as the user to use that connection to get those tables" / "right now it does not" /
+"I feel like I should be able to write duckdb as Select * from [Finance Captive].EntityName" / "once the
+connection is in the book". Then: "I think we need to ensure any connection is that way, it exposes tables
+that we can write duckdb against" / "that is the definition of a connection here". On Dataverse: "Dataverse
+tds is the only method I like here". On APIs: "APIs are connections but they dont get the connection
+treatment here", "they are not really connections, UNLESS they return a table".
+
+### Built
+- **The contract** (domain/connection_tables.py, services/connection_tables.py): every kind of connection
+  lists its tables and reads one through the same two calls, `places` and `read`. TABLE_KINDS says how
+  each kind does it: database (its catalog, a SELECT in its SQL), powerbi (datasets, then tables; DAX),
+  dataverse (the SQL endpoint's INFORMATION_SCHEMA and T-SQL), dataverse_web (a connection saved for the
+  Web API), python (List the tables, Read a table), api (an Add API connection's table-returning calls),
+  file (the file or a workbook's sheets), folder (its files). NO_TABLES says why the rest have none: a
+  key vault is "not a connection: a source of secrets for variables". tests/test_connection_kinds.py goes
+  through every starter (blade_templates.py and starters/) and each kind on a made-up stand-in, so a new
+  kind cannot be added without its tables.
+- **DuckDB SQL names them by the connection**: `[Finance Captive].Sales`, `"Finance Captive".Sales`,
+  `[Finance Captive]."Sales model".Date` (Power BI, when two datasets share a name; the error names the
+  datasets), `[C].schema.table`, `[C].database.schema.table` (any case, an exact spelling wins a tie),
+  `[Exports].orders` (a folder's orders.csv). Square brackets are rewritten to quotes for a connection's
+  name only, outside strings and comments, before sqlglot or DuckDB see them. Where: the "+" tab's query
+  and the SQL box (the app's locked DuckDB: each read is registered as `__sab_conn_<n>`, the guard lets
+  exactly those through), a notebook's `%%sql` cell whose connection is **DuckDB** and `sab.sql(query)`
+  (the kernel's DuckDB: the app reads each table and sends it as Arrow; the kernel's own DataFrames join
+  in by name). The agent writes the same SQL through tabs_new_query and steps_run_sql.
+- **Never a cut table** (the coordinator's correctness rule, 2026-11-17): a query reads every row it
+  needs, never the connection's Rows to open (that is for opening a grid). The columns the query uses and
+  its plain filters (a column compared with values: `=`, `IN` for text; `<`, `>`, `<>`, BETWEEN for
+  numbers and dates; IS NULL) go to a SQL source in its own dialect; DuckDB applies them again. A LIMIT
+  goes only for one table with no join, group, distinct, order, window or aggregate and every condition
+  sent. The source counts first (with the filters); past `max_connection_query_rows` (5,000,000;
+  SWISSARMYBENCH_MAX_QUERY_ROWS) it is refused with the table, the count and "add a WHERE that narrows
+  it". DAX, Python, the Web API and files read whole (Python and the Web API at most the limit plus one).
+- **Read once a session**, kept by (connection, table, what was sent): each answer's `connection_reads`
+  says the rows, when, the filters and LIMIT sent; the "+" tab's line and a cell's output show it; the "+"
+  tab's toast and `connections_sql_refresh` drop the reads.
+- **The Connections page's tree** (connectionTree.ts, in a card's detail): datasets or schemas and their
+  tables with a search; each table Open, Preview, Copy name; a group Open all (a confirm with the count,
+  each its own grid), Import its relationships (Power BI), Query in a notebook (a new `%%sql` cell, or the
+  cell on the clipboard when no Workbench is open). The catalog loads when it is not (its state said). The
+  Grids landing's connections open it. APIs are not on the Connections page (their own page has them) but
+  their tables are in SQL and its completion.
+- **In a notebook**: a DuckDB `%%sql` cell shows the connections it names in its head (connection colours
+  can paint `.wb-sql-conn`); completion offers the connections after `[`, then a connection's datasets or
+  schemas and tables after `[Name].` (from its tree, never loading a catalog to complete).
+- **A grid from such a query** keeps its query as its origin: a project reopens it by running it again,
+  and its read-only cell reads `sab.sql(<the query>)`.
+- **Dataverse on its SQL endpoint**: the starter's catalog is INFORMATION_SCHEMA on the endpoint, and its
+  tables open, preview and read in SQL with T-SQL; the endpoint off says so plainly (its administrator
+  turns it on in the Power Platform admin center; no fallback to the Web API). A connection saved for the
+  Web API keeps working; its detail has **Web API (switch to the SQL endpoint)** (one click,
+  `connections_dataverse_sql_endpoint`). The Web API stays for FetchXML, choice labels and `sab.read`.
+- **The agent**: connections_tables, connections_open_dataset, connections_sql_reads,
+  connections_sql_refresh, connections_dataverse_sql_endpoint; the query tools' help says the naming; the
+  index and the connections guide.
+
+### Decisions
+- A SQL **step** does not name connections: a step reads only the table entering it (guard_step), and its
+  generated Python must not reach a connection on every view. Joining a connection's table into a grid is
+  the "+" tab's query (or the SQL box's pin).
+- `%%sql` with no connection and no `%sql_connect` default is DuckDB; with a default it still runs there.
+  A new SQL cell still starts on the first connection, unless its text names a connection's table.
+- Text filters go only as `=` and `IN`: a source comparing text without case (SQL Server) or ordering it
+  another way would otherwise leave rows out; with `=` it can only send more, and DuckDB filters again.
+- The kernel fetches each read from the app as Arrow (GET /connections/sql/reads/{id}); a query naming no
+  connection never asks the app (a cheap look for `FROM x.` first).
+- API: today's Add API connection is a Python connection tagged "api" (its List the tables are its
+  table-returning calls); `is_api` is the one place to change when web call blades with **Return as
+  table** arrive (`web_call_table(header)` is written against that header already).
+
+### Next
+- A function blade that returns a table could be named in SQL the same way (`[My blade].result`).
+- DAX could take the columns (SELECTCOLUMNS) and simple filters (CALCULATETABLE) as SQL sources do.
+- Settings could set the query limit in the page (today an environment variable).

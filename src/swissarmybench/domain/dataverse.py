@@ -47,6 +47,21 @@ TDS_OFF_MARK: str = "SQL endpoint (TDS) is off"
 # sab.read in a notebook (the app's read takes both).
 READ: str = "conn.rows(table, limit=limit, frame=True)"
 CATALOG: str = "catalog = conn.catalog()"
+# Its tables on the read-only SQL endpoint (the owner, 2026-11-17: "Dataverse tds is the only method I
+# like here"): the endpoint's own catalog, and a T-SQL SELECT to read one (domain/catalogs.py select_sql).
+# The starter's default; a connection saved with CATALOG (the Web API's metadata) keeps working, and its
+# card offers the switch (SQL_ENDPOINT_WORDS).
+SQL_CATALOG: str = """SELECT TABLE_SCHEMA AS table_schema, TABLE_NAME AS table_name,
+       'BASE TABLE' AS table_type, COLUMN_NAME AS column_name, DATA_TYPE AS data_type,
+       IS_NULLABLE AS is_nullable, ORDINAL_POSITION AS ordinal_position
+FROM INFORMATION_SCHEMA.COLUMNS
+ORDER BY TABLE_NAME, ORDINAL_POSITION"""
+WEB_API_WORDS: str = "Web API (switch to the SQL endpoint)"
+
+
+def on_sql_endpoint(catalog_language: str | None) -> bool:
+    """A Dataverse connection whose tables are listed and read on its SQL endpoint (its catalog is SQL)."""
+    return catalog_language == "sql"
 
 
 def is_dataverse(dialect: str | None) -> bool:
@@ -380,9 +395,9 @@ class Dataverse:
     TABLE_FIELDS = "LogicalName,EntitySetName,DisplayName,PrimaryIdAttribute,PrimaryNameAttribute"
     COLUMN_FIELDS = "LogicalName,AttributeType,AttributeTypeName,DisplayName,AttributeOf,IsValidForRead"
     TDS_OFF = (
-        "Dataverse's SQL endpoint (TDS) is off in this environment. An admin turns on \"Enable TDS "
-        "endpoint\" in the Power Platform admin center (the environment's Settings, then Product, "
-        "then Features). Until then, read a table through the Web API: conn.read(\"account\")."
+        "Dataverse's SQL endpoint (TDS) is off in this environment. The environment's administrator "
+        "turns on \"Enable TDS endpoint\" in the Power Platform admin center (the environment's "
+        "Settings, then Product, then Features)."
     )
 
     def __init__(self, address, sign_in):
