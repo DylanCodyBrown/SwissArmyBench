@@ -12,6 +12,7 @@ data only."""
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import re
 import sqlite3
@@ -413,10 +414,11 @@ def test_wrong_columns_keys_and_connections_are_refused_in_plain_words(shop: Pat
     twice = pd.DataFrame({"order_id": [1, 1], "region": ["a", "b"], "amount": [1.0, 2.0]})
     with pytest.raises(WriteError, match="1 keys are shared by more than one row"):
         run(cell("write_sqlite_upsert", dry_run=True), orders=twice)
-    with pytest.raises(
-        WriteError, match="Warehouse is a SQLite connection: this starter writes to PostgreSQL"
-    ):
-        run(cell("write_postgresql_append", dry_run=True), orders=ORDERS)
+    if importlib.util.find_spec("psycopg"):  # the starter imports its driver first (its package's mark)
+        with pytest.raises(
+            WriteError, match="Warehouse is a SQLite connection: this starter writes to PostgreSQL"
+        ):
+            run(cell("write_postgresql_append", dry_run=True), orders=ORDERS)
     with pytest.raises(WriteError, match="orders is already on Warehouse"):
         run(cell("write_sqlite_create_table", dry_run=True), orders=ORDERS)
 
