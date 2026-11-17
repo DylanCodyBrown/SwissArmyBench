@@ -26,6 +26,20 @@ environments list and custom connectors. Every run is on the Code App page's Run
 - `powerapps_connectors(q)`: the environment's connectors; `powerapps_connector(name)`: its operations,
   inputs and outputs (read-only; `operation_id` is the generated service's method).
 
+## The data notebook (TypeScript and SQL on one DuckDB)
+- `powerapps_notebook(open=true)`: the code app's `data.ipynb` (made the first time); `interrupt`, `restart`,
+  `stop` its kernel. Deno runs it (missing: the `missing` answer; `powerapps_tools(install="deno")`).
+- `powerapps_ts_run(code, kind="typescript"|"sql")`: one kernel, one DuckDB. The open tables are views by
+  name; ``await sab.sql`SELECT ... ${value}` `` binds values; `sab.table("name", rows)`; a query naming
+  `[Connection].table` reads it first. A table output: columns, types, first rows, `total`, `id`.
+- `powerapps_ts_grid(id, name)`: that result, every row, as a grid.
+- `powerapps_data_ts`: data.ts from the saved notebook (its TypeScript exported, typed results);
+  `use_in_app=true` writes `src/data.ts`.
+- `powerapps_tsx_preview(source)`: a TSX cell (its `export default`, `// props: {...}` on line 1) as one page
+  for the HTML cells' frame, with the app's own React (`npm install` first).
+- `powerapps_dataverse_grid(source)`: a Dataverse source as a grid through the library's Dataverse
+  connection for the app's environment; with none, `needs` says which to add.
+
 ## Run, push, custom connectors
 - `powerapps_run_live`: the dev server, in the Code App page's pane; its `play_url` opens in the user's own
   browser (connectors answer only inside Power Apps). `stop=true` stops it.

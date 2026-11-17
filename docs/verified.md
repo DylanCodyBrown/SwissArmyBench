@@ -2703,3 +2703,54 @@ routes (the buttons' calls) against that running app.
 
 NOT checked: Windows and macOS installs (the installers' own jobs run on Linux and Windows in release.yml;
 Install from the page was not run there), the tray's menu during Install, and Edge.
+
+## The Power Apps extension, phase 2: the data notebook on Deno (2026-11-17, branch ext-powerapps-2)
+
+Relied on (read 2026-11-17):
+- Deno's **Jupyter kernel** documentation (docs.deno.com/runtime/reference/cli/jupyter, last updated
+  2026-08-26): `deno jupyter`; the kernel runs with `--allow-all` ("a temporary limitation"); rich output
+  through an object's `Symbol.for("Jupyter.display")` method returning a MIME bundle; `npm:` imports.
+- `deno jupyter --help` (Deno 2.9.6, here): `--kernel` and `--conn <file>` start the kernel (the kernelspec's
+  argv the app writes). Its own warning: "deno jupyter is unstable and might change in the future".
+- Deno's **installation** page (2026-07-09): `npm install -g deno` on every system, `brew install deno`,
+  `winget install DenoLand.Deno`, the shell installers.
+- DuckDB's **Node.js (Neo) client** documentation (duckdb.org/docs/2.0/clients/node_neo/overview; no date on
+  the page, latest stable 2.0.0): `DuckDBInstance.create(":memory:")`, `instance.connect()`,
+  `runAndReadAll`, `columnNames()`, `columnTypes()` (each `toString()`), `getRowObjectsJson()`, named
+  parameters as an object to `run`. npm's dist-tags (2026-11-17): latest `2.0.0-r.1`.
+- `deno bundle --help` (2.9.6): `--platform browser`, `--format esm`, `--no-remote`, `--no-npm`, `--config`,
+  `-o` (experimental, says Deno); it fetches esbuild from npm once.
+
+Checked here, with a real **Deno 2.9.6** (from npm, in a scratch folder) and the app's Python:
+- The kernel through jupyter_client: state shared between runs, top-level await, `npm:@duckdb/node-api@2.0.0-r.1`
+  imported and run (DuckDB 2.0 as in the app's Python), a `Symbol.for("Jupyter.display")` bundle as an
+  execute_result, `console.log` and `console.error` as streams, an error as `ename`/`evalue`/`traceback`
+  (`at <anonymous>:line:col`), completion (`Deno.ver` -> `version`). Plain values come with colour codes
+  (taken out). **Deno's kernel refuses an ipc address** (`invalid host ... invalid char found in FQDN`): it
+  listens on 127.0.0.1 with signed messages. **A folder with a package.json and node_modules (a code app)
+  makes Deno refuse an `npm:` specifier the package.json does not list**; `DENO_NO_PACKAGE_JSON=1` (set for
+  the kernel) lets it fetch DuckDB's package as anywhere else.
+- DuckDB in that kernel: JSON rows give BIGINT as strings ("36") and DOUBLE as numbers; `read_json_auto` of
+  a JSON-lines file; `COPY (...) TO ... (FORMAT parquet)`; `read_parquet` views of the app's Parquet;
+  DuckDB 2.0's error words `Catalog Error: Table with name X does not exist!` with `LINE 1:` and a caret.
+- `deno bundle` with a deno.json mapping `react` and `react-dom` to a node_modules folder (React 19.2.0,
+  installed from npm in a scratch folder) and `jsx: react-jsx`: 12 modules, about 190 KB; the page drawn in
+  Chromium under the HTML cells' FRAME_POLICY (no request, the button's state changing on a click).
+- tests/test_powerapps_notebook.py's real-Deno test (SWISSARMYBENCH_TEST_DENO, SWISSARMYBENCH_TEST_REACT):
+  a SQL cell over a pasted table, `sab.table` seen by the next SQL cell (one DuckDB), a tagged template's
+  parameter, Open as grid (every row), data.ts's row type from the kernel, an error, and a TSX preview with
+  the real React: passed.
+- Everything else with Deno stood in by tests/deno_fake.py (a real Jupyter kernel answering with Deno 2.9.6's
+  recorded outputs; `deno bundle` writing a small script): the door, the agent's commands, Deno missing as
+  the missing-package answer, the kernel's key-only route, Use in app, Dataverse sources (no connection: what
+  to add; one whose address matches, case and a trailing slash aside: opened through it), and the browser
+  (tests/e2e/test_codeapp_notebook.py, Chromium: the Code App page's Data notebook, a SQL and a TypeScript
+  cell's tables, Open as grid, a TSX cell drawn in the design frame with its props, an error in the panel,
+  Use in app).
+
+NOT checked: a real environment or tenant (the Dataverse connection's own read was stood in; the match by the
+environment's address comes from the recorded `pac env list`), real connectors (the bridge was not built:
+docs/ideas.md says why), Deno on Windows and macOS (its install commands are the documented ones, not run),
+`deno bundle` of a real Vite code app's node_modules (a scratch React 19.2.0 install stood in), React 18
+projects, Monaco's TypeScript service in a cell across many cells (drawn, not measured), a notebook with
+thousands of rows in a table result (the first 200 are drawn; the rest is Open as grid), Edge.

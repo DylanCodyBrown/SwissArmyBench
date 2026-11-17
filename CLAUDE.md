@@ -768,7 +768,8 @@ vscode-extension/        the optional VS Code extension (TypeScript): the uv ins
 extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
                          powerapps = swissarmybench_powerapps.extension; project type codeapp): Power Apps code
                          apps built with Microsoft's own command lines (pa for the app, pac for environments and
-                         custom connectors); docs/ideas.md "The Power Apps extension, phase 1"
+                         custom connectors); docs/ideas.md "The Power Apps extension, phase 1" and "phase 2" (the data
+                         notebook: TypeScript, SQL and TSX cells on Deno's kernel and one DuckDB, data.ts)
   src/swissarmybench_powerapps/
     extension.py         what the base reads: ID, NAME, ADDS, MODE (the code app mode as data), AREAS, routes,
                          commands, STARTERS, SECRET_PATHS, SESSION_RULES, stop; its composition root
@@ -780,15 +781,29 @@ extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; en
                          .sab/project.json type
     domain/connectors.py a connector in the APIs explorer's model (read-only), custom connector files from an
                          OpenAPI document (Swagger 2.0, the sign-in as connection parameters, no secret)
+    domain/ts_notebook.py the data notebook's kernel (phase 2): the `sab` prelude (DuckDB's Node package: sab.sql,
+                         sab.table), a SQL cell as `await sab.sql(...)`, the open tables' views, a result's id,
+                         outputs cleaned, an error as the panel's detail, the editor's declarations
+    domain/data_ts.py    data.ts from the TypeScript cells (exported declarations, kernel cells left, npm: imports
+                         plain, row types from DuckDB's types)
+    domain/tsx_preview.py a TSX cell drawn: its props line, the bundler's deno.json (the project's own React), the
+                         one page for the HTML cells' frame (FRAME_POLICY)
+    services/notebook.py the data notebook: a Deno kernel per notebook (its temporary folder), runs, the open
+                         tables as Parquet views, a connection's tables (the kernel's key route), Open as grid,
+                         data.ts and Use in app, TSX previews, Dataverse sources into grids
     services/powerapps.py the use cases: runs (streamed, kept for the session, audited), sign-in, environments,
                          new and open, sources, connectors, Run live, Push, versions, custom connectors
     adapters/runner.py   child processes (time limits, lines as they come, stdin closed), a free port
     adapters/files.py    the code app's folder, the connector files, powerapps.json (the last code app opened)
+    adapters/deno_kernel.py Deno's Jupyter kernel through jupyter_client (127.0.0.1, signed; DENO_NO_PACKAGE_JSON)
+    adapters/notebook_files.py the notebook's temporary folder, Parquet read and written
     adapters/environment_api.py  a connector's definition from the connectivity service (pac's token, in memory)
     server/routes.py     /powerapps/* and the dev server's live pages (/powerapps/live/<key>/, the live proxy)
     starters/            TypeScript and React snippet starters (families TypeScript, React, Connectors)
 web/src/codeAppPage.ts   (a plug-in) the rail's Code App page: tools, sign-in, project, connectors (the APIs
                          explorer's look), Run live's pane, Push, custom connectors, runs; shown while on
+web/src/routedCells.ts   a cell another kernel runs, by the routes the mode declares (MODE cell_routes): a run's
+                         stream, a TSX cell's page, Open as grid of a table result, the editor's declarations
 web/src/workbenchCodeFile.ts (a plug-in) a code app's file in the Workbench's editor: Monaco's TypeScript
                          service (ts.worker.js) over the project's files; New TypeScript file in the code app mode
 ```

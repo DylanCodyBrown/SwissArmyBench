@@ -4593,7 +4593,7 @@ running app (Local Play) that takes requests from the bench and calls the servic
 browser, signed in; (b) Dataverse alone from the notebook through the existing Dataverse connection (the
 Web API or TDS), which needs no host. Not checked against a running host (no tenant here).
 
-**Phase 2, not now:** the data notebook's TypeScript and TSX cells on Deno's Jupyter kernel with DuckDB's
+**Phase 2 (built since: "The Power Apps extension, phase 2" below; the bridge decided against there):** the data notebook's TypeScript and TSX cells on Deno's Jupyter kernel with DuckDB's
 Node package (`@duckdb/node-api`) sharing one DuckDB with the SQL cells; `data.ts` as data.py is today;
 TSX previews (the `components` canvas) with sample props from made-up data or a table's first rows; TSX
 blades bound to Dataverse; TypeScript functions; the bridge above; canvas apps (`.msapp` source, Power Fx
@@ -4602,3 +4602,79 @@ IntelliSense, `pac canvas` or what current pac uses).
 **Open:** app_navigate does not know the `codeapp` area (navigation's AREAS is the base's list; the agent
 works through the `powerapps_` tools); Settings' Extensions section (the extensions branch) and this
 extension's Install there come with that branch's merge.
+
+## The Power Apps extension, phase 2: the data notebook on Deno (the owner, 2026-11-17; built, branch ext-powerapps-2)
+
+The owner: "we can use Dataverse to get the grids and transform the data with typescript ... Then we just get
+a data notebook with SQL and typescript cells ... on the back of duck db"; "build the other extensions as well".
+
+**Built:** a code app's data notebook (`data.ipynb` in the code app's folder): TypeScript, SQL and TSX cells;
+Open as grid of any table result; data.ts and Use in app; TSX previews; Dataverse sources into grids; the
+agent's `powerapps_notebook`, `powerapps_ts_run`, `powerapps_ts_grid`, `powerapps_data_ts`,
+`powerapps_tsx_preview`, `powerapps_dataverse_grid`. Extension: domain `ts_notebook.py`, `data_ts.py`,
+`tsx_preview.py`; services `notebook.py`; adapters `deno_kernel.py`, `notebook_files.py`. Base: two cell kinds
+in `domain/notebooks.py` (`typescript`, `tsx`: OTHER_KERNEL), a mode field `cell_routes` (extensions.py), and
+in `web/` the generic `routedCells.ts` with the notebook, outputs, modes and Code App page wired to it.
+
+**Decisions:**
+1. **One Deno kernel per notebook runs both TypeScript and SQL** (`deno jupyter --kernel`, driven by
+   jupyter_client as the base's kernels are), so the two kinds share one DuckDB (`@duckdb/node-api` 2.0.0-r.1,
+   the same DuckDB 2.0 as the app's Python): a SQL cell is `await sab.sql("...")` in that kernel. A SQL cell
+   with a connection of its own (`%%sql Warehouse`) still runs in the Python kernel, in the database's SQL.
+2. **The mode says where a kind runs, as data** (`MODE["cell_routes"]`: name, language, run, preview, grid,
+   types, install). The front end never names the extension: `routedCells.ts` posts to the routes the mode
+   declared, and a kind with no route is not offered (or said plainly when a notebook has one).
+3. **The kernel's `sab`:** `sab.sql` (a string, or a tagged template whose values are bound as `$p1...`
+   parameters, never written into the SQL), `sab.table(name, rows)` (an array of objects as a DuckDB table,
+   through a JSON-lines file in the notebook's temporary folder), `sab.tables()`, `sab.db`. A table result
+   is one MIME bundle (`application/vnd.swissarmybench.table+json`: columns, DuckDB's types, the first 200
+   rows, the total, an id) drawn as a plain table (data, never markup).
+4. **The open tables** (a tab in the grid, after its steps) are views by their names over Parquet files in
+   the notebook's temporary folder, written again only when one changed (the Streamlit run's mark); never
+   in the project. The Python kernel's Tables group is not made in such a notebook (its tables are views).
+5. **Connections' tables:** a query naming `[Connection].table` asks this server first through the kernel's
+   own route (`/powerapps/notebook/prepare/<key>`: a secret path like Run live's, the key per notebook, no
+   token in the kernel); the base's `connection_tables.prepare` reads each table and the extension writes it
+   as Parquet beside the views.
+6. **Open as grid** writes the result whole by its id (`COPY (...) TO ... (FORMAT parquet)` in the kernel),
+   read here and stored as a table; the file is removed. Only an id of the form `r<n>` is accepted.
+7. **Errors:** Deno's error record plus the error panel's detail in the base's shape (a frame per
+   `<anonymous>:line:col` in the cell, a ReferenceError's "Run the cell that makes ...", a DuckDB error's
+   place by the base's `sql_position`, DuckDB 2.0's "Table with name X does not exist" read too).
+8. **Editor:** TypeScript and TSX cells use Monaco's own TypeScript service (the phase 1 worker), the
+   kernel's `sab` declared from the route `types`; each cell is a script, so a name one cell declares is
+   known in the next; top-level await and a name declared again are not flagged.
+9. **data.ts** (Use in app writes `src/data.ts`): each TypeScript cell's top-level declarations exported in
+   the notebook's order; a cell using the kernel (`sab.`, `Deno.`, DuckDB, a `jsr:` import) left in the
+   notebook with a comment; `npm:pkg@x` imports made the package's plain name, gathered once; typed results:
+   each name a cell made that holds a table result now (asked of the kernel) gets `XRow` and `X = XRow[]`
+   from DuckDB's types as JSON reads them (BIGINT, DECIMAL and dates as strings). It reads the notebook as
+   saved (the agent's and the page's), or the cells sent.
+10. **TSX previews:** the cell's default export bundled by `deno bundle` for the browser (no remote, no npm
+    downloads; a deno.json in the temporary folder resolves `react` and `react-dom` to the project's own
+    node_modules, JSX for React's automatic runtime), one document with the props inline, shown in the HTML
+    cells' design frame (design.html, its FRAME_POLICY: nothing over the network). Props: the first line's
+    `// props: {...}`, worked out in the notebook's kernel and passed as JSON.
+11. **Dataverse into grids:** a Dataverse source's environment address is the environment's URL (`pac env
+    list`, listed once if not yet); the library's Dataverse connection whose `url` has that host opens the
+    table through the base's Open (TDS where the connection uses the SQL endpoint); with none, the answer
+    names the connection to add.
+12. **Deno is a tool like the others now** (Install on the strip): Linux installs with `npm install --global
+    deno` (Deno's own page lists npm everywhere; it runs without a shell). `DENO_NO_PACKAGE_JSON=1` for the
+    kernel: the code app's package.json is the app's, and read, Deno refuses every npm: specifier it does not
+    list.
+
+**The connector bridge (phase 2's first route from the spike): not built, on purpose.** A bridge inside the
+running app would have to take requests from this server while the app runs under Local Play, which is
+`make.powerapps.com` in the user's own browser: that page reaching `http://127.0.0.1:<port>` crosses Private
+Network Access (a public page asking a local address needs a preflight this server would have to answer
+with `Access-Control-Allow-Private-Network` and an allowed origin of Microsoft's), and the bridge would then
+let any process that can reach it make the user's signed-in app call any connector operation. That opens
+the server to an outside origin (the posture: our own Origin only) and hands out the user's connector
+access; neither can be checked without a tenant. Dataverse from the notebook goes through the Dataverse
+connection instead (route b), which is built.
+
+**Open:** the Workbench's kernel controls (Interrupt, Restart, the status bar's kernel) act on the Python
+kernel; the Deno kernel's are the agent's `powerapps_notebook` and end with the server. A notebook closed in
+the Workbench keeps its Deno kernel until the server stops. TSX blades bound to Dataverse, TypeScript
+functions and canvas apps remain later work.
