@@ -27,29 +27,34 @@ from swissarmybench.client import push_client
 from tests.e2e.test_table_cells_page import window
 from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
+# In the order of the work (the owner, 2026-11-17).
 AREAS = [
+    "connections",
+    "variables",
     "grids",
-    "visualizations",
     "erd",
+    "apis",
+    "structures",
+    "blades",
     "notebooks",
     "scripts",
     "apps",
-    "blades",
-    "connections",
-    "variables",
+    "visualizations",
     "session",
     "settings",
 ]
 NAMES = [
+    "Connections",
+    "Variables",
     "Grids",
-    "Visualizations",
     "ERD",
+    "APIs",
+    "Structures",
+    "Blades",
     "Notebooks",
     "Scripts",
     "Apps",
-    "Blades",
-    "Connections",
-    "Variables",
+    "Visualizations",
     "Session",
     "Settings",
 ]
@@ -193,26 +198,28 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
 ) -> None:
     page = home_page(browser, orchard)
     # One stop in the Tab order: the current area's.
-    assert [area(page, a).get_attribute("tabindex") for a in AREAS] == ["0"] + ["-1"] * (len(AREAS) - 1)
+    stops = [area(page, a).get_attribute("tabindex") for a in AREAS]
+    assert stops == ["0" if a == "grids" else "-1" for a in AREAS]  # the current area's (the grids)
     area(page, "grids").focus()
     tip = area(page, "grids").locator(".nav-rail-tip")
     expect(tip).to_be_visible()  # the name shows on keyboard focus, not only on hover
     expect(tip).to_contain_text("Grids")
-    page.keyboard.press("ArrowDown")
-    expect(area(page, "visualizations")).to_be_focused()
-    expect(area(page, "visualizations").locator(".nav-rail-tip")).to_be_visible()
-    page.keyboard.press("Enter")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(current(page)).to_have_attribute("data-area", "visualizations")
-    area(page, "visualizations").focus()
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")  # the order of the work (2026-11-17): Grids, then the ERD
     expect(area(page, "erd")).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    page.keyboard.press("ArrowUp")
+    expect(area(page, "erd").locator(".nav-rail-tip")).to_be_visible()
+    page.keyboard.press("Enter")
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
+    expect(current(page)).to_have_attribute("data-area", "erd")
+    area(page, "erd").focus()
+    page.keyboard.press("ArrowDown")
+    expect(area(page, "apis")).to_be_focused()
+    for _ in range(4):
+        page.keyboard.press("ArrowUp")  # the ERD, the grids, Variables, Connections
+    expect(area(page, "connections")).to_be_focused()
     page.keyboard.press("ArrowUp")  # past the first: round to Settings
     expect(area(page, "settings")).to_be_focused()
     page.keyboard.press("Home")
-    expect(area(page, "grids")).to_be_focused()
+    expect(area(page, "connections")).to_be_focused()
     # Alt+Home is Home (the Start view, 2026-11-16), wherever the focus is; the rail marks no area there.
     page.keyboard.press("Alt+Home")
     expect(page.locator(".workspace")).to_have_attribute("data-view", "start")

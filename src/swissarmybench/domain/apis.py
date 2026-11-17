@@ -56,7 +56,7 @@ OFFSET_PARAMETERS: tuple[str, ...] = ("offset", "skip", "$skip", "start")
 # The client's own names: no operation or argument takes them.
 RESERVED: frozenset[str] = frozenset(
     {"self", "body", "max_rows", "tables", "read", "base_url", "timeout", "retries", "backoff", "max_pages"}
-    | {"request", "rows", "pages", "table", "last"}  # the runtime's own, for web call blades
+    | {"request", "rows", "pages", "table", "last", "write_rows"}  # the runtime's own, for web call blades
 )
 _WORD = re.compile(r"[A-Za-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")

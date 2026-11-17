@@ -204,7 +204,7 @@ class Structures:
         if s is not None:
             s.version += 1
         if action:
-            self.ws.audit.write(who, action, None, structure=s.name if s else None, **details)
+            self.ws.audit.write(who, action, None, **({"structure": s.name if s else None} | details))
         await self.ws.live.broadcast({"type": "structures_changed", "id": s.id if s else None, "who": who})
 
     def _add(

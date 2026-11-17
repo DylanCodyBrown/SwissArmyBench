@@ -2530,6 +2530,37 @@ def apis_save_call(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "apis_write_rows",
+    "Write a table's rows with a POST/PUT/PATCH/DELETE operation: a dry run by default (the first three "
+    "requests, the rows, the calls, the fields unmapped); dry_run=false sends, only after the user said to "
+    "write, in their own words; save=true saves it as a web call blade",
+    req("name", "The API."),
+    req("operation", "The operation."),
+    opt("table", "An open table's name."),
+    opt("structure", "Or a Structures document's id, with path."),
+    opt("path", "Its list's path ($.items)."),
+    opt(
+        "mapping",
+        '{"body.customer.name": {"column": "name"}, "query.dry": {"value": true}}; else by name.',
+        "json",
+    ),
+    opt("batch", "One call for many rows (the body an array).", "bool"),
+    opt("batch_size", "Rows per batched call.", "int"),
+    opt("key_columns", "Columns the results keep.", "json"),
+    opt("response_field", "The answer's field to keep (id).", "str"),
+    opt("dry_run", "False sends.", "bool"),
+    opt("retry", "A results structure: its failed rows only.", "str"),
+    opt("save", "Save it as a web call blade.", "bool"),
+)
+def apis_write_rows(a: dict[str, Any]) -> Any:
+    keys = ("table", "structure", "path", "mapping", "batch", "batch_size", "key_columns", "response_field",
+            "dry_run", "retry")  # fmt: skip
+    body = {k: a[k] for k in keys if a.get(k) is not None}
+    where = f"/apis/{_q(a['name'])}/calls/{_q(a['operation'])}/write"
+    return api.call("PUT" if a.get("save") else "POST", where, body)
+
+
+@command(
     "apis_refresh",
     "Read an API's source again: what changed (operations, parameters, fields), nothing written; "
     "apis_apply_refresh writes it",

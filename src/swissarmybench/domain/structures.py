@@ -830,6 +830,11 @@ def lineage(
     nodes: list[Node] = []
     edges: list[Edge] = []
     kind = str(origin.get("kind") or "new")
+    if kind == "api" and origin.get("input"):
+        nodes.append(
+            Node("in", "table", str(origin["input"]), "the rows written", table=str(origin["input"]))
+        )
+        edges.append(Edge("in", "src", "rows", "table"))
     if kind == "api":
         label = f"{origin.get('method', '')} {origin.get('path', '')}".strip()
         where = f"{origin.get('api', '')} · {origin.get('operation', '')}"

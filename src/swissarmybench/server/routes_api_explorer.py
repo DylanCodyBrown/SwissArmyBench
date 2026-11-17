@@ -5,6 +5,8 @@ GET  /apis/search?q=                     every API's operations matching the wor
 GET  /apis/{name}?operation=             an API's operations (inputs, outputs, examples), its schemas
 POST /apis/{name}/calls/{operation}      {"inputs", "body"?}: the call sent, its answer opened in Structures
 PUT  /apis/{name}/calls/{operation}      the authored call saved as its web call blade (Return as table...)
+POST /apis/{name}/calls/{operation}/write  Write rows with this call: the dry run (the default), or sent:
+                                         the results as a grid and a structure; PUT saves it as a blade
 POST /apis/{name}/refresh                its source read again: what changed (nothing written)
 POST /apis/{name}/refresh/apply          what Refresh showed, written
 PUT  /apis/{name}/check                  {"on"}: check for changes when the page opens
@@ -58,6 +60,18 @@ def routes(explorer: Explorer) -> list[BaseRoute]:
         answer = await explorer.save_call(name(request), request.path_params["op"], body, actor(request))
         return json_response(answer)
 
+    async def write(request: Request) -> Response:
+        body = await read_json(request)
+        return json_response(
+            await explorer.write_rows(name(request), request.path_params["op"], body, actor(request))
+        )
+
+    async def save_write(request: Request) -> Response:
+        body = await read_json(request)
+        return json_response(
+            await explorer.save_write(name(request), request.path_params["op"], body, actor(request))
+        )
+
     async def refresh(request: Request) -> Response:
         return json_response(await explorer.refresh(name(request), actor(request)))
 
@@ -83,6 +97,8 @@ def routes(explorer: Explorer) -> list[BaseRoute]:
         Route("/apis/{name}", safely(describe), methods=["GET"]),
         Route("/apis/{name}/calls/{op}", safely(send), methods=["POST"]),
         Route("/apis/{name}/calls/{op}", safely(save_call), methods=["PUT"]),
+        Route("/apis/{name}/calls/{op}/write", safely(write), methods=["POST"]),
+        Route("/apis/{name}/calls/{op}/write", safely(save_write), methods=["PUT"]),
         Route("/apis/{name}/refresh", safely(refresh), methods=["POST"]),
         Route("/apis/{name}/refresh/apply", safely(apply), methods=["POST"]),
         Route("/apis/{name}/check", safely(check), methods=["PUT"]),

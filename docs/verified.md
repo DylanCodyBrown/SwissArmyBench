@@ -2184,3 +2184,35 @@ drags; code of more than one line is pasted, one typed value):
 - **Not checked:** the high-contrast and dark themes in a browser (the colours per theme are unit-tested);
   a Session entry's stripe in a browser (the attribute is set by the same rule as the cards); dragging a
   group head; Monaco's stripe colour in a script after a theme change.
+
+
+## Structures and the APIs page (2026-11-17, branch trees-apis)
+
+Checked (made-up data; Chromium for the browser tests):
+- Domain: every step on a made-up gates file, a field mapping and an orders payload; paths (quoted keys,
+  indexes, `[*]`); JSON's error line; XML round trip and the DOCTYPE/ENTITY refusal; TOML written and read
+  back by tomllib, its null refusal (tests/test_structures.py, 40).
+- Web calls: each response shape (records, envelopes, OData, header and rows in five spellings, a header
+  row first, nested under data or result) found; DuckDB's conversion run on paged data (the header read
+  once, the header's types, a header row skipped, nested objects flattened, a list kept); the settings
+  checked; the tables contract (tests/test_web_calls.py, 21).
+- HTTP: open, paste, steps, undo/redo, the text view, Save and Save as in each format, Open as grid's rows,
+  a .sab with a structure saved and opened again, references, sab.structure's read
+  (tests/test_structures_routes.py); the APIs page against tests/api_standins.py: cards, search across two
+  APIs, an operation's inputs and outputs, a call with a body edited as a step, its answer and lineage,
+  Open as grid in the chain, Run again, Save as web call, Return as table as the only way into SQL, a
+  required input named, Refresh's diff then apply, rename, delete with references first
+  (tests/test_api_explorer.py); Add API's earlier tests moved to the library (tests/test_apis.py), a SQL
+  cell over three switched-on web calls in a real kernel-less Python.
+- Browser (tests/e2e/test_structures_apis_page.py): the rail's APIs page, its cards, search, explorer,
+  Author a call (a body edit in the tree followed by the text, a schema error and its fix), Send into
+  Structures, the lineage drawn, Refresh's diff applied; the Structures page's tree and text in step, a
+  Filter step from a node, a tree edit as a step, Open as grid, a step removed. The rail's new order
+  (tests/e2e/test_rail_page.py, tests/test_navigation.py).
+
+NOT checked:
+- A real company API (only the made-up services on 127.0.0.1), and OAuth sign-ins through Send.
+- Very large documents in Edge (the tree shows 200 items of a list at a time and folds past depth 2; a
+  50 MB document was not tried in a browser), and Edge itself (Chromium only here).
+- Make into blades for older API connections (not built).
+- `sab.structure` outside the app (it reads a file of that name beside the working folder).

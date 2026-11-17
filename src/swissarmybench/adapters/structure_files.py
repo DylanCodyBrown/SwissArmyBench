@@ -25,9 +25,12 @@ from swissarmybench.domain.structures import StructureError
 class StructureFiles:
     def full(self, path: str) -> str:
         file = Path(path).expanduser()
-        if not file.is_file():
-            raise FileNotFoundError(f"{path[:300]} is not a file.")
-        return str(file.resolve())
+        try:
+            if file.is_file():
+                return str(file.resolve())
+        except OSError:
+            pass  # a name the system cannot hold: not a file
+        raise FileNotFoundError(f"{path[:300]} is not a file.")
 
     def read(self, path: str) -> str:
         file = Path(path)

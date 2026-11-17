@@ -60,7 +60,7 @@ import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError } from "./missingPackages";
 import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
-import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
+import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
 
 interface Field {
@@ -510,10 +510,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     if (shownWindow?.dialog === dialog) shownWindow = null;
   });
   let drawing = 0;
-  /** The heading row's actions: Add connection and Add API, on the cards only. */
+  /** The heading row's actions: Add connection, on the cards only (Add API is the APIs page's, 2026-11-17). */
   const listActions = (on: boolean): void => {
     actions.replaceChildren(
-      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Add API", () => move(API, showApi), { icon: "plus" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts)
+      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts)
     );
   };
   const detailUrl = (name: string): string => urlOf({ at: "detail", type: null, name });
@@ -584,6 +584,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
             }),
           )
         : h("p", { class: "empty-note" }, "No connections"),
+      // APIs are connections that do not get the connection treatment (the owner, 2026-11-17).
+      h("p", { class: "connections-apis-link muted" }, h("button", { type: "button", class: "link", onclick: () => runArea("apis") }, "APIs are on the APIs page")),
     );
   };
 

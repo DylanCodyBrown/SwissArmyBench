@@ -34,6 +34,15 @@ from, when). APIs are not on the Connections page: the APIs page is their home.
   `page`), editable.
 - A required input with no value: the table lists `(needs <name> (<where>))`; give it in the web call.
 
+## Writing rows
+- `apis_write_rows(name, operation, table)`: a dry run (the default): the mapping (matched by name),
+  `missing` (required fields nothing fills), the first three requests, the rows and the calls. Nothing is
+  sent. `dry_run=false` sends: only after the user said to write, in their own words, in this
+  conversation. `mapping` `{"body.customer.name": {"column": "name"}, "query.dry": {"value": true}}`,
+  `batch=true` (one call, the body an array), `key_columns`, `response_field`. The results: a structure
+  and a grid (status, the answer's field, the error per row); `retry=<results structure>` sends the failed
+  rows again. `save=true` keeps it as a web call blade (mode "write rows").
+
 ## Managing
 - `apis_refresh(name)`: the source read again (an address or a file it was added from): operations
   added, removed and changed (parameters, body and response fields). Nothing is written until

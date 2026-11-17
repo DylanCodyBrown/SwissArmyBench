@@ -318,14 +318,33 @@ def check_web_call(raw: Any) -> dict[str, Any]:
     out["paging_by"] = {str(k): str(v) for k, v in by.items()} if isinstance(by, Mapping) else {}
     said = raw.get("conversion")
     out["conversion"] = str(said) if isinstance(said, str) and said.strip() else ""
+    out["mode"] = str(raw.get("mode") or "call")
+    if out["mode"] not in ("call", "write rows"):
+        raise WebCallError('A web call\'s mode is "call" or "write rows".')
+    if out["mode"] == "write rows":
+        from swissarmybench.domain import write_rows
+
+        mapping = raw.get("mapping") or {}
+        if (
+            isinstance(mapping, Mapping)
+            and mapping
+            and all(isinstance(v, str) and v.startswith(("column ", "value ")) for v in mapping.values())
+        ):
+            mapping = write_rows.mapping_of_header(mapping)  # as the blade's header writes it
+        try:
+            out["mapping"] = write_rows.check_mapping(mapping)
+            out |= write_rows.check_settings(raw)
+        except write_rows.WriteError as error:
+            raise WebCallError(str(error)) from None
+        out["as_table"] = False  # a write is never a table
     if out["as_table"] and not out["conversion"]:
         out["conversion"] = conversion(out)
     return out
 
 
 HEADER_KEYS_WRITTEN: tuple[str, ...] = (
-    "api", "operation", "method", "path", "as_table", "shape", "records", "header", "flatten", "paging",
-    "conversion",
+    "api", "operation", "method", "path", "mode", "as_table", "shape", "records", "header", "flatten",
+    "paging", "conversion", "batch", "batch_size", "response_field",
 )  # fmt: skip
 
 
@@ -335,6 +354,8 @@ def header_lines(call: Mapping[str, Any]) -> list[str]:
     def text(value: Any) -> str:
         if isinstance(value, bool):
             return "true" if value else "false"
+        if isinstance(value, int):
+            return str(value)
         return json.dumps(str(value), ensure_ascii=False)  # a TOML basic string
 
     lines = ["", "[web_call]  # an API's one endpoint; as_table: Return as table (its API's table in SQL)"]
@@ -342,6 +363,13 @@ def header_lines(call: Mapping[str, Any]) -> list[str]:
     if call.get("paging_by"):
         lines += ["", "[web_call.paging_by]  # how its pages are asked for: token, page or offset"]
         lines += [f"{name} = {text(value)}" for name, value in dict(call["paging_by"]).items()]
+    if call.get("key_columns"):
+        lines.append("key_columns = [" + ", ".join(text(k) for k in call["key_columns"]) + "]")
+    if call.get("mapping"):
+        from swissarmybench.domain.write_rows import mapping_header
+
+        lines += ["", "[web_call.mapping]  # request field = column NAME, or value <JSON>"]
+        lines += [f"{text(field)} = {text(said)}" for field, said in mapping_header(call["mapping"]).items()]
     if call.get("columns"):
         lines += ["", "[web_call.columns]  # column = its DuckDB type (empty: DuckDB decides)"]
         lines += [f"{text(name)} = {text(kind)}" for name, kind in dict(call["columns"]).items()]

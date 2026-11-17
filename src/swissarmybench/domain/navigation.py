@@ -24,15 +24,19 @@ WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench")
 # scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids; home
 # (the mark) is the Start view (projects as one .sab file, 2026-11-16), a place of its own.
 AREAS: tuple[str, ...] = (
+    # In the order of the work (the owner, 2026-11-17): where data comes from, getting and shaping it, web
+    # data, tools, building, presenting, the log; Settings at the bottom.
+    "connections",
+    "variables",
     "grids",
-    "visualizations",
     "erd",
+    "apis",
+    "structures",
+    "blades",
     "notebooks",
     "scripts",
     "apps",
-    "blades",
-    "connections",
-    "variables",
+    "visualizations",
     "session",
     "settings",
 )

@@ -586,6 +586,7 @@ def bootstrap(
         approvals,
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
         to_thread=asyncio.to_thread,
+        reader=table_reader,
     )
     structures.rerun = api_explorer.run_again
     blades.web_call_saved.append(api_explorer.tables_changed)

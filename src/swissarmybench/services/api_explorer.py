@@ -27,9 +27,11 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import api_clients, api_explorer, apis, web_calls
+from swissarmybench.domain import write_rows as write_rules
 from swissarmybench.domain.apis import ApiError
 from swissarmybench.domain.structures import get as structure_get
 from swissarmybench.services.apis import Apis
+from swissarmybench.services.ports import BACKGROUND
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 
 _SECRETISH = ("key", "token", "secret", "password", "authorization", "signature", "cookie")
@@ -75,7 +77,9 @@ class Explorer:
         approvals: Approvals,
         now: Callable[[], str],
         to_thread: Callable[..., Awaitable[Any]],
+        reader: Any = None,  # adapters/datasets.py: query_table(cursor, sql), an open table's rows
     ) -> None:
+        self._reader = reader
         self.ws = ws
         self._add = add
         self._library = library
@@ -179,6 +183,7 @@ class Explorer:
                     }
                 )
         base = api["mark"].get("base_url") or explored["base_url"]
+        explored["auth"] = (api["mark"].get("auth") or {}).get("type") or explored["auth"]
         return explored | {
             "name": api["name"],
             "source": api["source"],
@@ -434,6 +439,182 @@ class Explorer:
             form["read"] = {"command": "api = conn\n" + read}
         await self._connections.save(form, name, who)
 
+    # ===== Write rows with this call =====
+
+    async def _input_rows(self, given: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str]:
+        """The rows to write: an open table's (a grid's dataset), or a Structures document's list."""
+        if given.get("table"):
+            name = str(given["table"])
+            info = self.ws.store.get(name)
+            if info is None or self._reader is None:
+                raise NotFound(f"{name} is not an open table.")
+            table = await self.ws.workers.run(
+                BACKGROUND,
+                self._reader.query_table,
+                self.ws.store.cursor(),
+                f"SELECT * FROM {info.table}",  # noqa: S608 (a quoted name)
+            )
+            return [dict(r) for r in table.to_pylist()], name
+        if given.get("structure"):
+            node = self._structures.node(str(given["structure"]), str(given.get("path") or "$"))
+            if not isinstance(node, list) or not all(isinstance(r, dict) for r in node):
+                raise ApiError("That is not a list of records: point at one (path).")
+            return [dict(r) for r in node], str(given["structure"])
+        raise ApiError('Name the rows: {"table": an open table} or {"structure": an id, "path": "$.items"}.')
+
+    async def write_rows(self, name: str, operation: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """Write a table's rows with this call: {"table" | "structure"+"path", "mapping"? (else matched by
+        name), "batch"?, "batch_size"?, "key_columns"?, "response_field"?, "dry_run"? (true by default),
+        "retry"? (a results structure: its failed rows only)}. A dry run sends nothing."""
+        given = dict(body) if isinstance(body, dict) else {}
+        explored = self._explored(name)
+        op = self._operation(explored, operation)
+        if op["method"] not in ("POST", "PUT", "PATCH", "DELETE"):
+            raise ApiError(
+                f"{op['method']} {op['path']} does not write: rows go to a POST, PUT, PATCH or DELETE."
+            )
+        retried: list[int] | None = None
+        if given.get("retry"):
+            earlier = self._structures.describe(str(given["retry"]))
+            origin = earlier.get("origin") or {}
+            write = origin.get("write") or {}
+            if origin.get("operation") != op["id"] or not write:
+                raise ApiError("That is not this call's results: Retry the failed rows from its results.")
+            retried = write_rules.failed(self._structures.node(str(given["retry"]), "$"))
+            given = {**write.get("request", {}), "dry_run": given.get("dry_run", False)}
+        rows, source = await self._input_rows(given)
+        columns = list(dict.fromkeys(k for r in rows[:500] for k in r))
+        body_tree = (op.get("body") or {}).get("schema")
+        mapping = (
+            write_rules.check_mapping(given["mapping"], columns)
+            if given.get("mapping")
+            else write_rules.auto_map(columns, body_tree, op.get("parameters") or [])
+        )
+        settings = write_rules.check_settings(given)
+        lacking = write_rules.missing(mapping, body_tree, op.get("parameters") or [])
+        chosen = rows if retried is None else [rows[n] for n in retried if n < len(rows)]
+        answer: dict[str, Any] = {
+            "mapping": mapping,
+            "missing": lacking,
+            "columns": columns,
+            "settings": settings,
+        }
+        if given.get("dry_run", True) is not False:
+            return answer | {"dry_run": True} | write_rules.dry_run(chosen, mapping, settings)
+        if lacking:
+            raise ApiError(f"Map every required field first: {', '.join(lacking)}.")
+        command = "\n".join(
+            [
+                "api = conn",
+                "import json as _json",
+                f"_rows = _json.loads({json.dumps(json.dumps(chosen, default=str))})",
+                f"_answers = api.write_rows({json.dumps(op['method'])}, {json.dumps(op['path'])}, _rows, "
+                f"_json.loads({json.dumps(json.dumps(mapping))}),",
+                f"    _json.loads({json.dumps(json.dumps(settings))}), False)",
+                "[{'answers': _json.dumps(_answers, default=str)}]",
+            ]
+        )
+        started = self._now()
+        ran = await self._blades.run_read(self._api_blade(explored["name"]), command, "", {})
+        answers = json.loads(ran["table"].to_pylist()[0]["answers"])
+        result_rows = write_rules.results(chosen, answers, settings)
+        if retried is not None:
+            for r in result_rows:
+                r["row"] = retried[r["row"]]
+        good = sum(1 for r in result_rows if 200 <= int(r["status"]) < 300)
+        origin = {
+            "kind": "api",
+            "api": explored["name"],
+            "operation": op["id"],
+            "method": op["method"],
+            "path": op["path"],
+            "at": started,
+            "status": 200 if good == len(result_rows) else 207,
+            "said": f"{good} of {len(result_rows)} rows written",
+            "input": source,
+            "write": {
+                "rows": len(chosen),
+                "calls": len(answers),
+                "request": {
+                    k: v
+                    for k, v in given.items()
+                    if k
+                    in (
+                        "table",
+                        "structure",
+                        "path",
+                        "mapping",
+                        "batch",
+                        "batch_size",
+                        "key_columns",
+                        "response_field",
+                    )
+                }
+                | {"mapping": mapping},
+            },
+        }
+        title = f"{explored['name']} {op['id']} results"
+        opened = await self._structures.from_api(title, result_rows, origin, who)
+        grid = await self._structures.open_as_grid(opened["id"], {"path": "$"}, who)
+        self.ws.audit.write(
+            who, "api_write_rows", None, api=explored["name"], operation=op["id"], rows=len(chosen)
+        )
+        return {
+            "written": good,
+            "failed": len(result_rows) - good,
+            "rows": len(chosen),
+            "calls": len(answers),
+            "structure": opened["id"],
+            "grid": grid.get("grid"),
+            "dataset": grid.get("dataset"),
+        }
+
+    async def save_write(self, name: str, operation: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """The write saved as its web call blade, mode "write rows" (its mapping in the header)."""
+        given = dict(body) if isinstance(body, dict) else {}
+        explored = self._explored(name)
+        op = self._operation(explored, operation)
+        blade_name = web_calls.name_of(explored["name"], f"write_{op['id']}")[:64]
+        settings = write_rules.check_settings(given)
+        mapping = write_rules.check_mapping(given.get("mapping") or {})
+        call = web_calls.check_web_call(
+            {
+                "api": explored["name"],
+                "operation": op["id"],
+                "method": op["method"],
+                "path": op["path"],
+                "mode": "write rows",
+                "mapping": mapping,
+                **settings,
+            }
+        )
+        try:
+            before = self._blades.get(blade_name)
+        except (KeyError, LookupError, ValueError):
+            before = None
+        blade = {
+            "name": blade_name,
+            "kind": "other",
+            "code": write_rules.code(
+                explored["name"],
+                op["method"],
+                op["path"],
+                mapping,
+                settings,
+                str(given.get("table") or "rows"),
+            ),
+            "variable": "result",
+            "description": f"Write rows with {op['method']} {op['path']}",
+            "tags": [web_calls.API_TAG, web_calls.TAG],
+            "web_call": call,
+        }
+        if before is None:
+            blade["library_folder"] = (
+                "apis/" + str(explored["folder"]).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+            )
+        saved = await self._blades.save(blade, blade_name if before is not None else None, who)
+        return {"blade": saved.get("name", blade_name), "web_call": call}
+
     # ===== refresh =====
 
     async def refresh(self, name: str, who: str = "user") -> dict[str, Any]:
@@ -454,7 +635,7 @@ class Explorer:
         new_doc = self._sources.document(text)
         new_spec = apis.parse_spec(new_doc, where or address)
         old_doc = self._document(api)
-        old = api_explorer.explore(old_doc, apis.parse_spec(old_doc, ""))
+        old = api_explorer.explore(old_doc, apis.parse_spec(old_doc, where or address))
         new = api_explorer.explore(new_doc, new_spec)
         diff = api_explorer.diff(old, new)
         self._refreshed[api["name"].casefold()] = {"kind": kind, "address": address}
