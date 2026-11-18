@@ -1,12 +1,12 @@
 [project]
 name = "swissarmybench-streamlit"
-version = "0.0.21"
+version = "0.0.22"
 description = "Swiss Army Bench's Streamlit extension: Streamlit apps built from your notebooks' cells (preinstalled)."
 license = "MIT OR Apache-2.0"
 requires-python = ">=3.12"
 # The base's version, released together (one version line for the base and its extensions). Streamlit itself
 # is never this app's dependency: an app runs in the notebook's own Python.
-dependencies = ["swissarmybench[server]==0.0.21"]
+dependencies = ["swissarmybench[server]==0.0.22"]
 
 # The base finds it here (swissarmybench/extensions.py): its description, mode, door and commands.
 [project.entry-points."swissarmybench.extensions"]

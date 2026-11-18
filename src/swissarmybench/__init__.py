@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from swissarmybench.client.watcher import start as watch
     from swissarmybench.client.watcher import stop as unwatch
 
-__version__: str = "0.0.21"
+__version__: str = "0.0.22"
 __all__ = [
     "DatasetTooLargeError",
     "ServerNotRunningError",
