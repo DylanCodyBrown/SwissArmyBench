@@ -71,6 +71,39 @@ class NotChecked:
         return {"portable": None, "reason": rules.NOT_CHECKED, "instead": ""}
 
 
+class CardPortability:
+    """Seam B, wired: a connection card's "local" list (services/connection_usage.py, domain/portability.py's
+    rule): none is portable; any is "Only works on your machine" with its reasons and what works instead."""
+
+    def __init__(self, cards: Callable[[], Iterable[Mapping[str, Any]]]) -> None:
+        self._cards = cards
+
+    def verdict(self, connection: Mapping[str, Any]) -> dict[str, Any]:
+        card = next((c for c in self._cards() if c.get("name") == connection.get("name")), None)
+        if card is None:
+            return NotChecked().verdict(connection)
+        local = list(card.get("local") or [])
+        if not local:
+            return {"portable": True, "reason": "", "instead": ""}
+        return {
+            "portable": False,
+            "reason": "; ".join(str(item.get("reason", "")) for item in local),
+            "instead": "; ".join(dict.fromkeys(str(item.get("instead", "")) for item in local)),
+        }
+
+
+class BothTables:
+    """Seam A, wired: the ERD's tables in the project (services/relationship_scope.py: open tables, the
+    project's saved tables, names in its documents) and the outline's own finder ([Connection].table)."""
+
+    def __init__(self, scope: Callable[[], set[str] | None], own: UsedTables) -> None:
+        self._scope = scope
+        self._own = own
+
+    def used(self, project: str) -> set[str]:
+        return (self._scope() or set()) | self._own.used(project)
+
+
 class OutlineFiles(Protocol):
     """The project folder (adapters/sab_files.py's SabArchive)."""
 

@@ -33,7 +33,7 @@ In short: the project reads from 1 connection. Each is named here; its password 
 ### Connections
 
 - `Shop`: SQLite
-  - Portability: Not checked yet.
+  - Portability: Only works on your machine: it reads a file on this computer's disk; its password is saved in this computer's keyring. On a Function App or hosted Streamlit app use a storage account: a OneLake, Data Lake or SharePoint connection; a key vault, or an environment variable (the app's own settings there).
   - Needs: `password` (this computer's keyring)
   - Used by: `data.ipynb`, `suppliers`
 
@@ -187,8 +187,10 @@ In short: what to install, how each script runs, and whether it runs unchanged o
 
 ### Ready for a Function App or a hosted Streamlit app
 
-- [ ] `Shop`: Not checked yet.
+- [ ] `Shop`: Only works on your machine: it reads a file on this computer's disk; its password is saved in this computer's keyring. On a Function App or hosted Streamlit app use a storage account: a OneLake, Data Lake or SharePoint connection; a key vault, or an environment variable (the app's own settings there).
 
 ## 8. Open issues
 
-None.
+In short: what to sort out before the project is shared or deployed.
+
+- Connection `Shop`: Only works on your machine: it reads a file on this computer's disk; its password is saved in this computer's keyring. On a Function App or hosted Streamlit app use a storage account: a OneLake, Data Lake or SharePoint connection; a key vault, or an environment variable (the app's own settings there).

@@ -126,7 +126,7 @@ from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
-from swissarmybench.services.project_outline import ProjectOutline
+from swissarmybench.services.project_outline import BothTables, CardPortability, ProjectOutline
 from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
@@ -951,8 +951,8 @@ def bootstrap(
             out.append({"name": listed["name"], "cards": last.get("cards") or []})
         return out
 
-    # The project's outline, ARCHITECTURE.md: its two seams (the tables it uses; each connection's
-    # portability) keep their defaults here until the branches building them are merged.
+    # The project's outline, ARCHITECTURE.md: its two seams wired to the ERD's tables in the project
+    # (services/relationship_scope.py) and the connection cards' portability (domain/portability.py).
     project_outline = ProjectOutline(
         ws,
         archive,
@@ -968,6 +968,8 @@ def bootstrap(
         run_settings=script_runs.settings,
         app_pages=lambda path, text: hooks.app_pages(path, text),
     )
+    project_outline.used_tables = BothTables(project_tables.used, project_outline.used_tables)
+    project_outline.portability = CardPortability(lambda: connection_usage.overview()["connections"])
     # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
     for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
         beta.process("server", str(event["event"]), event.get("code"), None, str(event.get("reason") or ""))

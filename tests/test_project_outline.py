@@ -366,3 +366,25 @@ def test_apis_dashboards_and_app_pages_have_their_lines_and_their_lineage() -> N
         ids["app.ipynb"],
         ids["sales.stapp.json"],
     ) in edges
+
+
+def test_the_seams_wired_cards_portability_and_both_tables() -> None:
+    """Seam B reads a connection card's "local" list; seam A joins the ERD's tables with the outline's own."""
+    from swissarmybench.services.project_outline import BothTables, CardPortability
+
+    cards = [
+        {"name": "Shop", "local": []},
+        {"name": "Desk", "local": [{"reason": "it reads a file on this disk", "instead": "a storage account"}]},
+    ]
+    portability = CardPortability(lambda: cards)
+    assert portability.verdict({"name": "Shop"})["portable"] is True
+    desk = portability.verdict({"name": "Desk"})
+    assert desk == {"portable": False, "reason": "it reads a file on this disk", "instead": "a storage account"}
+    assert portability.verdict({"name": "Gone"})["portable"] is None  # no card: not judged
+
+    class Own:
+        def used(self, project: str) -> set[str]:
+            return {"[Shop].orders"}
+
+    assert BothTables(lambda: {"customers"}, Own()).used("x") == {"customers", "[Shop].orders"}
+    assert BothTables(lambda: None, Own()).used("x") == {"[Shop].orders"}  # no project open for the ERD
