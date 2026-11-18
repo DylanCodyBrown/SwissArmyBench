@@ -1,11 +1,11 @@
 [project]
 name = "swissarmybench-git"
-version = "0.0.25"
+version = "0.0.26"
 description = "Swiss Army Bench's Git extension: GitHub sync for the meta store and shared projects, and the Source Control page."
 license = "MIT OR Apache-2.0"
 requires-python = ">=3.12"
 # The base's version, released together (one version line for the base and its extensions).
-dependencies = ["swissarmybench[server]==0.0.25"]
+dependencies = ["swissarmybench[server]==0.0.26"]
 
 # The base finds it here (swissarmybench/extensions.py): its description, rail area, door and commands.
 [project.entry-points."swissarmybench.extensions"]
