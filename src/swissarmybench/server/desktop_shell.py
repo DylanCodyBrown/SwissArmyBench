@@ -133,7 +133,7 @@ def downloads_folder() -> str:
     )
 
 
-class Bridge(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyproject)
+class Bridge(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
     """Calls from other threads (the channel) handed to the window thread."""
 
     open_page = Signal(str)  # a page of the app, no token
@@ -141,7 +141,7 @@ class Bridge(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (py
     quit = Signal()
 
 
-class Page(QWebEnginePage):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyproject)
+class Page(QWebEnginePage):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
     """One window's page: what loads inside, new windows, the shell's console lines, print, close."""
 
     def __init__(self, shell: Shell, window: AppWindow) -> None:
@@ -184,7 +184,7 @@ class Page(QWebEnginePage):  # type: ignore[misc]  # Qt's classes are Any to myp
                 self.shell.changed()
 
 
-class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyproject)
+class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
     """A page of the app in a window of its own."""
 
     def __init__(self, shell: Shell, ident: int, popup: bool = False) -> None:
@@ -246,7 +246,7 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
             ("Ctrl+W", self.close),
             ("Ctrl+Shift+B", lambda: shell.open_in_browser(self)),
         ):
-            QShortcut(QKeySequence(keys), self, activated=action)
+            QShortcut(QKeySequence(keys), self, action)
 
     # ----- where it goes -----
 
@@ -429,7 +429,7 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
             self.tell(f"{name} could not be printed.")
 
 
-class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyproject)
+class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
     """The app's windows and its channel, in one QApplication."""
 
     def __init__(
