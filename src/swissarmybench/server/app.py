@@ -89,6 +89,7 @@ from swissarmybench.server import (
     routes_connection_tables,
     routes_connections,
     routes_datasets,
+    routes_desktop,
     routes_explorer,
     routes_extensions,
     routes_file_dialogs,
@@ -97,6 +98,7 @@ from swissarmybench.server import (
     routes_intellisense,
     routes_kind_colours,
     routes_library,
+    routes_lifecycle,
     routes_lineage,
     routes_modes,
     routes_navigation,
@@ -194,6 +196,8 @@ def create_app(
             # The blades page: the agent's app_navigate to the catalog window goes to it.
             catalog=websocket.query_params.get("catalog") == "1",
             window=websocket.query_params.get("window"),
+            # The agent's event socket is not a window of the app (the server's life counts windows).
+            page=websocket.query_params.get("agent") != "1",
         )
         try:
             while True:
@@ -247,7 +251,11 @@ def create_app(
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
+        # The server's life follows the app's windows (services/lifecycle.py): only a server that can stop.
+        life = asyncio.create_task(ctx.lifecycle.run_forever()) if on_shutdown is not None else None
         yield
+        if life is not None:
+            life.cancel()
         shared.cancel()
         context_md.cancel()
         autosave.cancel()
@@ -311,6 +319,8 @@ def create_app(
             *routes_script_runs.routes(ctx.script_runs),
             *routes_beta_log.routes(ctx.beta),
             *routes_updates.routes(ctx.updates, ctx.extensions.names),
+            *routes_lifecycle.routes(ctx.lifecycle),
+            *routes_desktop.routes(ctx.desktop),
             *routes_extensions.routes(ctx.extensions),
             *routes_claude.routes(ctx.claude),
             *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares, ctx.project_tables),
@@ -330,7 +340,12 @@ def create_app(
         ],
         middleware=[
             Middleware(
-                LocalOnlyGuard, port=port, token=token, session=session_secret, secret_paths=secret_paths
+                LocalOnlyGuard,
+                port=port,
+                token=token,
+                session=session_secret,
+                secret_paths=secret_paths,
+                activity=ctx.lifecycle.request,
             ),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
         ],

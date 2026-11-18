@@ -31,9 +31,8 @@ SERVER_PACKAGES = (
     "xlsxwriter",
     "pytz",
     "websockets",
-    # The tray icon (the plan's decision 6).
-    "pystray",
-    "PIL",
+    # The desktop app (the owner, 2026-11-18): Qt for Python.
+    "PySide6",
 )
 # The plain client: every module `import swissarmybench`, `sab`, `sab.push`, `sab.blade` can reach.
 CLIENT_MODULES = (
@@ -201,6 +200,9 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
     allowed = {
         "bootstrap.py",
         "server/__main__.py",
+        # The desktop app's own process (2026-11-18): its channel and desktop.json, as __main__ its file.
+        "server/desktop.py",
+        "server/desktop_shell.py",
         "server/blade_runner.py",
         "client/blades_client.py",
         "client/standalone.py",

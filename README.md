@@ -2,10 +2,11 @@
 
 (Installed and run as `swissarmybench`, alias `sab`.)
 
-A local server that shows any tabular data in live browser grids, with analysis built in. You
-push a DataFrame from Python and get a URL; open it in Chrome, Edge or VS Code's built-in
-browser. Everything stays on your machine: 127.0.0.1 only, a token on every data request, data
-in memory, nothing sent anywhere.
+A desktop app for any tabular data: live grids, notebooks, SQL and analysis, in windows of its own
+(PySide6, the pages drawn by Qt WebEngine) over a local Python server that runs while the app is open. You
+push a DataFrame from Python and its grid opens; the same pages open in a browser too, if you want a tab.
+Everything stays on your machine: 127.0.0.1 only, a token on every data request, data in memory, nothing
+sent anywhere.
 
 What a grid page does:
 - **Grid:** scroll millions of rows (the server sends only the rows on screen). A header can
@@ -226,8 +227,19 @@ irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/latest/download/in
 curl -LsSf https://github.com/DylanCodyBrown/SwissArmyBench/releases/latest/download/install.sh | sh
 ```
 
-The installer sets up uv when it is missing, then downloads the release's wheel and installs the server
-with its own Python. Give it a wheel path to install one you downloaded instead.
+The installer sets up uv when it is missing, then downloads the release's wheel and installs the app with its
+own Python, adds it to the Start menu (Windows; `-DesktopShortcut` adds a desktop shortcut too), to
+`~/Applications` (macOS: a small `Swiss Army Bench.app` that runs the `swissarmybench` command; no icon of its
+own yet) or to the applications menu (Linux: a `.desktop` entry and its icon), and opens it once (not with
+`--no-start`/`-NoStart`, on a build machine or with no display). Give it a wheel path to install one you
+downloaded instead. `sh install.sh --uninstall` (`install.ps1 -Uninstall`) removes the app, its launcher and its
+uv tool; your projects and `~/.swissarmybench` stay.
+
+**Size.** The desktop app is Qt for Python with Qt WebEngine (Chromium inside: `PySide6-Essentials`,
+`PySide6-Addons` and `PySide6-WebEngine` 6.12, LGPLv3). Measured on Linux x86-64 with Python 3.12, the `[server]`
+install grew from **499 MB** (0.0.21, the browser version) to **1,146 MB** (Qt WebEngine adds 667 MB; the tray's
+pystray and Pillow, 20 MB, went). On Windows x64 the three Qt wheels download as 82, 41 and 132 MB. Windows on
+ARM has no Qt WebEngine in 6.12: there `swissarmybench` opens the browser instead.
 
 Or straight from PyPI, with [uv](https://docs.astral.sh/uv/):
 
@@ -243,8 +255,8 @@ uv tool install --force "swissarmybench-<version>-py3-none-any.whl[server]"   # 
 uv pip install "swissarmybench-<version>-py3-none-any.whl"                    # the client, in any Python environment
 ```
 
-The server install gives the `swissarmybench` command (start, stop, status), the `sab` agent
-command and `swissarmybench-mcp`. The client install is standard library only, so it goes into any
+The server install gives the `swissarmybench` command (the app; `open`, `start`, `stop`, `status`), the `sab`
+agent command and `swissarmybench-mcp`. The client install is standard library only, so it goes into any
 project's environment without touching that project's own packages:
 
 ```python
@@ -313,12 +325,12 @@ Or the demo data:
 .venv\Scripts\python examples\push_demo.py --rows 1000000
 ```
 
-`swissarmybench start` opens the page in your browser (`--no-browser` not to) and prints its full address,
-including the `#token=` part; `swissarmybench open` opens it again while it runs. In VS Code: Ctrl+Shift+P, then
-**Simple Browser: Show**, then paste the address. Once open, the page clears the token from the address
-bar and keeps a cookie of its own (HttpOnly, SameSite=Strict, good until the server restarts), so a reload
-or a bookmark of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to open the app
-from its tray or with `swissarmybench open`.
+`swissarmybench` opens the desktop app (it starts its server); `swissarmybench start` runs the server in the
+console and opens the app's window (`--no-window` not to) and prints the page's full address, including the
+`#token=` part. `swissarmybench open --browser` opens the app in the browser instead (in VS Code: Ctrl+Shift+P,
+**Simple Browser: Show**, then paste the address). Once open, a page clears the token from the address bar and
+keeps a cookie of its own (HttpOnly, SameSite=Strict, good until the server restarts), so a reload or a bookmark
+of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to open the app again.
 
 ## Projects: a folder
 
@@ -791,41 +803,50 @@ other entries kept). Both are found wherever they are installed, a company's own
 registry, Start menu, Store, /Applications and Spotlight, .desktop files, PATH, npm). Settings, Claude
 chooses the install and turns on bypass permissions. The agent reads (`app_claude`); only the user launches.
 
-## The tray icon and updates
+## The desktop app, its server's life, and updates
 
-`swissarmybench start` also puts Swiss Army Bench's icon in the system tray (Windows and macOS; Linux on
-a desktop that has a tray), as its own process; `--no-tray` leaves it out, and `swissarmybench tray`
-starts it alone. One tray at a time. **A click** opens the page. **A right click** lists what is open (each
-table, each Workbench document; a • marks unsaved changes), then Open the Workbench, Open the blades page,
-Restart, Start with Windows (Open at login on macOS and Linux) and Stop and quit. With the server stopped
-the menu offers Start.
+Swiss Army Bench is a desktop app (the owner, 2026-11-18: "It's not an extension it is the app framework now
+and it should have been since the start"). `swissarmybench` (or the Start menu's, Applications', the
+applications menu's Swiss Army Bench) opens it: one process (`server/desktop_shell.py`), each page a window
+with a Qt WebEngine view, every window on one persistent profile in `~/.swissarmybench/desktop/profile`
+(cookies, local storage, the cache).
 
-**It starts itself and stays running.** The installers turn on start at sign-in, start the app in the
-background and open its page once (`-NoAutostart -NoStart` on Windows, `--no-autostart --no-start` on
-macOS and Linux install only; a build machine, `CI` set, never gets either). At sign-in the tray starts,
-and it starts the server in the background, with no window and no browser. The sign-in entry is a
-Startup folder shortcut to the uv tool's `pythonw.exe -m swissarmybench.server tray` on Windows, a
-LaunchAgent (`~/Library/LaunchAgents/com.swissarmybench.tray.plist`, RunAtLoad) on macOS, and an XDG
-autostart entry (`~/.config/autostart/swissarmybench.desktop`) on Linux.
+- **window.open** becomes a window of the app: the Workbench, a pop-out, a steps or SQL window. Chromium finds
+  a named window that is open (the home window, `sab-home`), and a page's `focus()` brings its window forward.
+  Each kind of window remembers its size and place (`desktop/windows.json`).
+- **Only the app's own address loads inside**; any other link or window.open opens in the system's browser, and
+  a frame that would load from elsewhere is refused. The clipboard is granted to the app's origin; every other
+  permission is denied.
+- **Downloads** ask with the system's Save dialog, then show their progress and **Show in folder**;
+  `window.print()` (Visualizations' Print to PDF) and Ctrl+P save a PDF where you say.
+- **Keys:** F11 full screen, F12 the developer tools (a window of their own), Alt+Left/Right back and forward,
+  F5 reload, Ctrl+W close the window (its page asked first: unsaved work says so), Ctrl+Shift+B or the
+  right-click menu's **Open in browser**: the page in the browser.
+- **The channel:** the app listens on 127.0.0.1 with a key of its own (both in `desktop.json`, beside the
+  server's connection file) so `swissarmybench open`, the server's own "open a page" and a second start of the
+  app send it pages; a page travels without its token, which the app reads from the connection file.
+- **Where the app cannot run** (no display, no Qt WebEngine) the browser opens instead, as before.
 
-```bash
-swissarmybench autostart on        # off, status; the tray's Start with Windows does the same
-swissarmybench start --background  # detached, no console window; returns at once (the page opens)
-```
-
-A server started by hand, by the tray or at sign-in never stops on its own: only **Stop and quit**,
-`swissarmybench stop` or signing out stop it (one VS Code started still ends with VS Code). If its process
-dies, the tray starts it again, at most 3 times in 5 minutes; after that the menu says **Swiss Army Bench
-stopped: Restart**, and the beta log has the crashes.
+**The server runs while the app is open** (the owner, 2026-11-18: "I wanted the server to simply run while the
+app is active and shutdown when it's not instead of all this crazy server background junk"). It stops 30
+seconds after the last window of the app closes (a reload or a slow tab never ends it), at once when the
+desktop app closes its last window, or, when the agent, VS Code or a Python session made a request in the last
+10 minutes, 10 minutes after that request with still no window open. While VS Code is connected or a request is
+under way it stays. Before it stops, an open project's unsaved changes are saved (as Autosave does); with
+Autosave off it waits. The times are settings (`SWISSARMYBENCH_LIFE_GRACE`, `_START_GRACE` (120 s before the
+first window), `_IDLE`). `app_lifecycle` tells the agent when and why. **There is no tray icon and no start at
+sign-in any more:** `swissarmybench tray`, `autostart` and `--no-tray` say so for one release, and the first
+start of this version removes an older version's sign-in entry and ends its tray (the page says so once).
 
 **Updates:** the server asks PyPI (`https://pypi.org/pypi/swissarmybench/json`, then GitHub's latest
 release if PyPI cannot be read) at start and every six hours. That one request is the only thing that
 leaves the computer, and it carries nothing but itself. A pre-release is offered only to someone on one.
-When a newer version exists, the tray's icon gets a dot, its first menu item is **Update to X** (with
-**What's new**), and the grid page's and the Workbench's status bars say **Update available**. Update to
+When a newer version exists, the grid page's and the Workbench's status bars say **Update available** (with
+**Update to X** and **What's new**). Update to
 X asks first only when notebooks have unsaved changes or kernels are running, and saves nothing for you;
 the app stops, a small helper installs the version with `uv tool install --force
-"swissarmybench[server]==X"`, and the new version starts with its tray and its page. If it fails, the old
+"swissarmybench[server]==X"` (the app's windows close: the helper ends the app by `desktop.json`), and the new
+version's app opens. If it fails, the old
 version starts again and says why. **Settings, Updates, Check for updates** turns the check off (kept).
 The agent has `app_update_check` and `app_update` (which waits for your Allow).
 

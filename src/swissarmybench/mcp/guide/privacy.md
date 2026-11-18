@@ -61,7 +61,7 @@ password.
 - `app_claude` reads which Claude Code and Claude Desktop were found and which is chosen. Launching,
   choosing the install and bypass permissions are the user's: 403.
 
-## Updates, the tray, start at sign-in
+## Updates, and the server's life
 - The one request that leaves the computer, by the owner's call: the update check (PyPI's JSON, then
   GitHub's latest release), at start and every six hours, carrying nothing but itself.
 - `app_update_check` reads the version running, the latest and whether an update is available; `now`
@@ -74,8 +74,11 @@ password.
   `extensions_install(id=...)` and `extensions_remove(id=...)` wait for the user's Allow, then the app
   stops, uv installs this version with the kept extensions, and it starts again (as `app_update`).
   A development checkout answers 409 with what to run instead.
-- `app_autostart(on=...)`: start at sign-in (the tray, which starts the server and starts it again if it
-  dies). The user's tray icon has the same switch.
+- The server runs while the app is open: it stops 30 s after the last window closes (at once when the
+  desktop app closes), or 10 minutes after your last request (or VS Code's, or a Python session's) with no
+  window open; an open project with unsaved changes is saved first, or with Autosave off the stop waits.
+  `app_lifecycle` says the windows open, the last client, what is busy or holds it, and the seconds left.
+  There is no tray and no start at sign-in any more.
 
 ## GitHub Copilot (an extension, off until installed)
 - Installed from the Extensions page, it gives the Workbench's editors Copilot's ghost text. `copilot_status`
@@ -87,3 +90,12 @@ password.
   script), never outputs, rows or variables' values; nothing while off, before sign-in, or for a project
   marked private (`project_private(on=true)`, which waits for Allow). Telemetry is off. Completions are the
   editor's: you have your own model and `workbench_complete`.
+
+## The desktop app
+- Swiss Army Bench is a desktop app: each page in a window of its own (Qt WebEngine); the browser is
+  possible too (`swissarmybench open --browser`). The pages are the same: every tool works as before.
+- `desktop_status`: whether the app runs and its windows (kind, title, page; never a token).
+  `desktop_open(page="home"|"workbench"|"blades")` opens that page in a window (the app started if
+  needed); then `app_navigate` moves it.
+- Only the app's own address loads inside; any other link opens in the user's browser. Downloads ask where to
+  save with the system's dialog; `table_export` stays the way to write a file yourself.

@@ -5490,3 +5490,95 @@ seems like it kills functionality"); Electron keeps everything (Chromium, as the
 installer per system; Tauri is small but has pywebview's gaps. The owner's call: "Just keep it as is". The app
 stays a local server with browser pages; a desktop shell remains possible later as a thin layer (Electron) over
 the same server and pages, with nothing rewritten.
+
+## Swiss Army Bench as a desktop app on PySide6; the server's life follows the app; the tray gone (the owner, 2026-11-18; built, branch ext-desktop)
+
+**The owner's words, in order.** After weighing pywebview ("seems like it kills functionality"), Electron, Tauri,
+a native Rust shell and a PWA: "I like the pyside6. Can we just build it side by side here as an optional install
+version?" Then, while it was built as an optional extension: "The thing that is giving me heartburn is how the
+server has to be managed separate. I wanted the server to simply run while the app is active and shutdown when
+it's not instead of all this crazy server background junk", with "Stay up while they're busy" for the agent, VS
+Code and Python, and the tray and start at sign-in: "Remove them entirely". Then: "We should just package this as
+the desktop app pyside6", and "Change that to the primary install. It's not an extension it is the app framework
+now and it should have been since the start".
+
+**The options weighed.** pywebview draws with the system's own engine (WebView2 on Windows, WebKit on macOS,
+WebKitGTK on Linux): three engines, each with its own gaps (named windows, downloads, printing), the reason it
+"kills functionality". Electron and Tauri are a second toolchain (Node.js or Rust) and a second runtime beside the
+Python one, with an installer of their own. A PWA is still the browser's window and its rules. **PySide6 with Qt
+WebEngine** is Chromium on every system (the engine the browser tests already run), installed with uv like
+everything else, driven from Python in the app's own package: window.open, downloads, printing, permissions and
+the profile are all in reach. Its cost is its size.
+
+**Decisions (the app).**
+- **The primary install, not an extension.** The shell first built as `extensions/desktop` (swissarmybench-desktop)
+  moved into the base: domain/desktop.py (rules), adapters/desktop.py (its channel and record), services/desktop.py
+  (desktop_status, desktop_open), server/desktop.py (starting it, telling it to open a page; no Qt),
+  server/desktop_shell.py (the Qt app), routes_desktop.py. No catalog entry, no extension hooks.
+- **PySide6 is the `[server]` extra's**, pinned: `PySide6-Essentials==6.12.0`, `PySide6-Addons==6.12.0`,
+  `PySide6-WebEngine==6.12.0.140` (released 2026-10-08). Since 6.12 Qt WebEngine is a wheel of its own (WebEngine
+  needs Addons, Addons needs Essentials); the `PySide6` meta-package would add `PySide6-Pdf`, unused. pystray and
+  Pillow went with the tray. **Size** (Linux x86-64, Python 3.12, measured): the `[server]` install 499 MB before,
+  1,146 MB after (PySide6 667 MB). Windows x64 downloads 82 + 41 + 132 MB. 6.12 has no Qt WebEngine for Windows on
+  ARM (its WebEngine wheel is empty): there the browser opens.
+- **Opening it:** `swissarmybench` (no arguments) and `swissarmybench open [folder]` open the app;
+  `open --browser` (and the right-click menu's **Open in browser**, Ctrl+Shift+B) a browser tab on the same server.
+  `swissarmybench start` runs the server and opens the app's window (`--no-window` not; `--no-browser` is its old
+  name). VS Code's start (no command, SWISSARMYBENCH_STARTED_BY=vscode) and the older `swissarmybench --port N` stay
+  the server only. Where the app cannot run (no display, no Qt WebEngine) the browser opens, as before.
+- **The app is a process of its own**, one at a time (its lock, desktop.json): one QApplication, each page a
+  QMainWindow with a QWebEngineView, all on one persistent profile in `desktop/profile`. It starts the server when
+  none runs (`start --no-window`); a second start hands its page to the first. **The channel:** 127.0.0.1, a port the
+  system picks and a fresh key, both in desktop.json (owner-only). One JSON line each way: `{"open": page}` or
+  `{"status": true}`. The token never travels on it or on a command line: a page is its path and fragment without
+  the token, and the app adds the running server's token from its connection file. Chosen over the live-updates
+  socket because `swissarmybench open` and a starting app must reach it with no server running.
+- **window.open** is QWebEnginePage.createWindow: a new app window. Named windows (nav.ts's `sab-home`,
+  `swissarmybench-workbench`) are found by Chromium itself, as in a browser; a page's `focus()` of another window
+  raises it (a small script the app adds to each page reports focus() and window.name on the console; nothing in
+  web/). The app's own opens reuse the window named `sab-home` for the home page, or a window showing the same page.
+- **Inside and outside:** only `http://127.0.0.1:<port>` (and about:blank, about:srcdoc, a blob: of that origin)
+  loads inside; http, https and mailto elsewhere open in the system's browser; a frame that loads one by itself is
+  refused; data: only in a frame; file:, javascript: and the rest refused. A window.open to elsewhere closes its
+  empty window.
+- **Permissions:** the clipboard for the app's origin only; every other permission denied, asked every time.
+- **Downloads:** a Save dialog (QFileDialog, the suggested name, in Downloads), then the progress and **Show in
+  folder**. **Print to PDF:** window.print() and Ctrl+P ask where, then printToPdf.
+- **Keys** a browser had: F12 developer tools (a window of their own), F11 full screen, Alt+Left/Right back and
+  forward, F5 and Ctrl+R reload, Ctrl+W close. **Closing a window asks its page first** (RequestClose: the
+  Workbench's beforeunload says when work is unsaved). Window titles are the page's, never its address (Chromium's
+  first title carries the token). Each kind of window remembers its size, place and maximized state.
+- **File dialogs:** `/dialogs/choose` stays: on Windows it already is the system's IFileDialog (Tk's), on macOS the
+  system's own, on Linux zenity or kdialog; a QFileDialog would show the same.
+- **The launcher:** the installers add the app with its icon: Windows a Start menu shortcut to the tool's
+  `pythonw.exe -m swissarmybench.server app` (no console; `-DesktopShortcut` a desktop one too; the .ico written by
+  `swissarmybench icon`, made with the standard library); macOS `~/Applications/Swiss Army Bench.app`, a small
+  bundle whose executable runs `swissarmybench` (no icon of its own yet); Linux a `.desktop` entry and an SVG icon
+  in `~/.local/share`. They open the app once at the end (not with --no-start, on a build machine or with no
+  display); `--uninstall` / `-Uninstall` removes the launcher and the tool.
+- **Updates** are the pages' Update notice only. The helper waits for the server, ends the app (desktop.json's pid,
+  `end_pids`), installs, and its start step (`start`) opens the new version's app. Chosen over the app reloading
+  itself: the new version's Qt and code must be the ones running.
+
+**Decisions (the server's life, services/lifecycle.py).**
+- The app's windows are the pages' sockets on /ws (not VS Code's openers, not the agent's event socket). The last
+  one closed: the server stops **30 s** later (a reload or a slow tab never ends it); before the first one,
+  **120 s**; the desktop app's last window closed: at once (2 s), as it tells the server (POST /lifecycle/closed).
+- A **client that is not a page** (each request with the token, not the pages' cookie: the agent, VS Code, a push,
+  a kernel's report) keeps it up **10 minutes** after its last request with still no window. VS Code connected or a
+  request under way (not a listener that waits by design) is **busy**: no stop. Settings (and
+  SWISSARMYBENCH_LIFE_GRACE, _START_GRACE, _IDLE) hold the times; the test suite sets them to a day.
+- **Unsaved work:** the stop first saves an open project with unsaved changes as Autosave does; with Autosave off
+  it does not stop (`held`, said by app_lifecycle) until a window comes back and the user decides. Tables with no
+  project are not held for (they came from files, connections and pushes); a Workbench window's unsaved document
+  asks when its window closes.
+- The agent, VS Code and a push do **not** start a server (as before this change: the client only connects; VS
+  Code's extension starts it). The plain client stays standard library only with no process started.
+- **The tray and start at sign-in are gone**: server/tray.py, server/autostart.py, /updates/tray, /autostart,
+  app_autostart (an old call says it went), the tray's watchdog, pystray and Pillow. `swissarmybench tray`,
+  `autostart` and `--no-tray`, the installers' `--no-autostart`/`-NoAutostart` are taken for one release.
+  **Migration:** the first start removes the old sign-in entry (only when it is the tray's) and ends a tray still
+  running (tray.json's pid; on Linux only a process whose command line is ours), and the page says once: "The tray
+  icon is gone: Swiss Army Bench now runs while it's open."
+- The agent: `app_lifecycle` (windows, last client, busy, held, seconds left, why), `desktop_status`,
+  `desktop_open(page)`.

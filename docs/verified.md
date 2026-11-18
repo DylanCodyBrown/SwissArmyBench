@@ -3245,3 +3245,46 @@ without a tray, a stand-in tray process that never quits written into tray.json 
 Install Git from the Extensions route: the helper ended the stand-in after about 9 s, Git installed at 0.0.21, no
 update_failed.json. Release run: build and tests, the installers on Linux, macOS and Windows, the release and PyPI.
 Not checked here: a real tray on Windows (the owner's machine).
+
+## The desktop app on PySide6, the server's life, the tray gone (2026-11-18, branch ext-desktop)
+
+Checked here (Linux container, Python 3.12, PySide6 6.12.0 with PySide6-WebEngine 6.12.0.140 installed into the
+worktree's environment; libEGL, NSS and the xcb libraries added with apt for Qt WebEngine to load):
+- **The app really run** (tests/desktop_drive.py, under `QT_QPA_PLATFORM=offscreen` in the suite and on Xvfb with
+  xcb by hand; Chromium's sandbox off as root): the app started the server itself and showed the home page with
+  the token (the page traded it for its cookie; its title never the address); a pasted made-up table drew;
+  `window.open('/workbench', name)` made a second window, the same name again no third, and the Workbench's
+  `window.open('', 'sab-home').focus()` raised the home window; an Export's blob download asked the Save dialog
+  (stood in) with "orders.csv" and the CSV landed there, the status line saying "Saved orders.csv" with Show in
+  folder; `window.print()` asked "Print to PDF" with the page's title and wrote an 85 KB PDF; a link with
+  target=_blank, a window.open with noopener and `location.href` to https://example.com each went to the
+  system's browser (stood in) and nothing loaded inside (the empty window closed); the developer tools opened in
+  a window of their own; the channel's status listed the windows (no token) and opened /catalog; another key was
+  refused; the Workbench closed at 40,50 900x640 reopened there; Open in browser handed the browser the page with
+  the token; every window closed (each page asked first): the app told the server and the server stopped.
+- **The clipboard** (writeText then readText, "North,120.50") works on Xvfb once the window has the system's
+  focus; off screen no window ever has it ("Document is not focused"), so the suite accepts either there.
+- **The app as a process** (`python -m swissarmybench.server app`): one at a time, a second start handed its page
+  and ended, the server's "open a page" went to it, and once it ended the server stopped by itself after its
+  grace (no request asked it anything meanwhile).
+- **The server's life** with a fake clock: the start grace, the 30 s grace, a reload within it, an agent's
+  request holding it ten minutes, VS Code connected and a request under way busy, the app's close at once, an open
+  project saved first (Autosave on) or held (off). And for real: a server started with a 2 s grace stayed while a
+  page socket was open and stopped after it closed.
+- **The tray's leftovers removed:** an XDG autostart entry with the tray's command, a LaunchAgent plist and a
+  Startup shortcut (made-up files under a temporary home), a stand-in tray process (ended), tray.json; the page's
+  notice said once; someone else's autostart entry left alone.
+- **install.sh** with a made-up uv: the .desktop entry and SVG icon written, the old entry removed, nothing opened
+  on a build machine, `--uninstall` removed both and ran `uv tool uninstall`; `--no-autostart` still taken.
+- **Sizes** measured with uv into fresh environments: `swissarmybench[server]==0.0.21` 499 MB; with the three Qt
+  wheels and without pystray and Pillow 1,146 MB (PySide6 667 MB).
+- Screenshots at device scale 2 on Xvfb: the home window with a made-up table, the download's status line, the
+  Workbench window, the blades window.
+
+Not checked here (only a machine of that kind can): **Windows** (install.ps1's Start menu shortcut to
+pythonw.exe, its .ico in the shortcut, the window icons, the first start's time, the installed size, Chromium's
+sandbox as a normal user, the native Save dialog, the old Startup shortcut and tray removed on a real upgrade);
+**macOS** (the ~/Applications bundle opening, Gatekeeper's word on an unsigned bundle, the Dock icon, the old
+LaunchAgent); a Linux desktop with a window manager (activation, the menu entry's icon); dragging a cell between
+two windows (needs real mouse input: not driven off screen); the release workflow's three install jobs; Windows on
+ARM (no Qt WebEngine wheel: the browser should open; not tried).

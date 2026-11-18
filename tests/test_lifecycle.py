@@ -50,7 +50,7 @@ def cli(env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
 
 def start_background(env: dict[str, str], *args: str) -> subprocess.Popen[str]:
     process = subprocess.Popen(  # noqa: S603
-        [sys.executable, "-m", "swissarmybench.server", *args],
+        [sys.executable, "-m", "swissarmybench.server", "start", *args],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -248,7 +248,7 @@ def test_only_one_server_holds_the_instance_lock(tmp_path: Path) -> None:
 def test_two_servers_started_at_once_leave_one_running(env: dict[str, str]) -> None:
     """VS Code restoring two windows starts the extension in both, and both start a server at the
     same moment, before either has written the connection file. Exactly one keeps running."""
-    command = [sys.executable, "-m", "swissarmybench.server"]
+    command = [sys.executable, "-m", "swissarmybench.server", "start"]
     racers = [
         subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)  # noqa: S603
         for _ in range(2)

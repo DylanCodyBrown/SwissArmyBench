@@ -33,9 +33,13 @@ server = [
     # The copy check runs the user's copied code exactly, `.df()` included, and the pandas copy option
     # is a pandas program: without pandas beside the server neither can be verified.
     "pandas>=2.2",
-    # The tray icon (`swissarmybench tray`; the plan's decision 6): pystray shows it, Pillow paints it.
-    "pillow>=11",
-    "pystray>=0.19.5",
+    # The desktop app (the owner, 2026-11-18: "We should just package this as the desktop app pyside6"):
+    # Qt for Python with Qt WebEngine (Chromium), LGPLv3, pinned together. Since 6.12 Qt WebEngine is a wheel
+    # of its own (WebEngine needs Addons, Addons needs Essentials); the PySide6 meta-package would add
+    # PySide6-Pdf, which nothing uses. It replaced the tray's pystray and Pillow.
+    "PySide6-Essentials==6.12.0",
+    "PySide6-Addons==6.12.0",
+    "PySide6-WebEngine==6.12.0.140",
     "sqlglot>=30.24.0",
     "starlette>=0.46",
     "uvicorn>=0.34",
@@ -94,9 +98,16 @@ files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting
 mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src"
 
 [[tool.mypy.overrides]]
-# These ship no type information (Pillow does, but the tray reads it only where it is installed).
-module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*", "pystray", "pystray.*", "PIL", "PIL.*"]
+# These ship no type information.
+module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Qt for Python: the Desktop extension's own dependency, installed only with it. Read as Any everywhere,
+# so the check is the same with it installed or not.
+module = ["PySide6", "PySide6.*", "shiboken6", "shiboken6.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 # The Write starters' drivers: imported by the functions for the notebook's own environment, not the app's.

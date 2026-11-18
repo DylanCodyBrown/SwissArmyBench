@@ -43,6 +43,7 @@ are still checked on these paths.
 from __future__ import annotations
 
 import secrets
+from collections.abc import Callable
 
 from starlette.datastructures import Headers
 from starlette.responses import HTMLResponse, PlainTextResponse
@@ -69,6 +70,15 @@ SIGNED_OUT_PAGE: str = (
 UNSAFE_METHODS: frozenset[str] = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
+def _who(path: str) -> str:
+    """Who a request with the token likely is, in words (the lifecycle's last client)."""
+    if path.startswith("/processes"):
+        return "a Python session"
+    if path.startswith(("/workbench/kernels", "/connections/sql/")):
+        return "a Workbench kernel"
+    return "a client"
+
+
 def cookie_name(port: int) -> str:
     """The page's cookie, named for the port: cookies are shared by every port of a host."""
     return f"sab_{port}"
@@ -90,8 +100,11 @@ class LocalOnlyGuard:
         token: str,
         session: str | None = None,
         secret_paths: tuple[str, ...] = (),
+        activity: Callable[[str, str, bool, bool], None] | None = None,
     ) -> None:
         self._app = app
+        # The server's life (services/lifecycle.py): each request let in, (path, who, by token, started).
+        self._activity = activity
         # Live pages whose path carries their own secret (an extension's: Streamlit's, a dev server's).
         self._secret_paths: tuple[str, ...] = tuple(secret_paths)
         self._token: bytes = token.encode("ascii")
@@ -108,7 +121,17 @@ class LocalOnlyGuard:
             return
 
         status: int | None = self._check(scope)
-        if status is None:
+        if status is None and self._activity is not None and scope["type"] == "http":
+            headers = Headers(scope=scope)
+            by_token = self._has_token(scope, headers)
+            path: str = scope["path"]
+            who = "the agent" if headers.get("x-actor") == "agent" else _who(path)
+            self._activity(path, who, by_token, True)
+            try:
+                await self._app(scope, receive, send)
+            finally:
+                self._activity(path, who, by_token, False)
+        elif status is None:
             await self._app(scope, receive, send)
         elif scope["type"] == "websocket":
             # Closing before accepting makes the server answer the upgrade with HTTP 403.

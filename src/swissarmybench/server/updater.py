@@ -6,8 +6,8 @@ The running app cannot replace its own files (on Windows a running program's fil
     the server: plan (domain/updates.py) -> this file and the plan copied to a temporary folder ->
                 started with the base Python (outside the uv tool's environment, which uv replaces),
                 detached and with no window -> the server stops
-    the helper: wait for the server's and the tray's processes to end -> uv tool install --force ->
-                the installed version checked -> the app started (it starts the tray, opens the page)
+    the helper: wait for the server to end, end the desktop app -> uv tool install --force ->
+                the installed version checked -> the app started again (the new version's window)
     on a failure: a note of why (update_failed.json, which the next server reads and shows), then the
                 old version started again, reinstalled first when it no longer starts
 
@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 WAIT_FOR_EXIT_SECONDS: float = 60.0
-END_GRACE_SECONDS: float = 6.0  # the tray's own poll is 5 s: it may still quit by itself
+END_GRACE_SECONDS: float = 3.0  # the app may close by itself first (its server stopped)
 WAIT_FOR_START_SECONDS: float = 90.0
 INSTALL_ATTEMPTS: int = 3
 INSTALL_TIMEOUT_SECONDS: float = 900.0
@@ -119,14 +119,13 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
             ops.note(plan["note_file"], {"version": version, "reason": "The app did not stop."})
             return "failed"
     for pid in plan.get("end_pids", []):
-        # The tray: it quits by itself when it hears of the update in time; else it is ended here (the app
-        # started again below brings its own).
+        # The desktop app (desktop.json): ended here; the app started again below is the new version's.
         if waited(END_GRACE_SECONDS, functools.partial(_gone, ops, int(pid))):
             continue
         steps.append("end")
         ops.end(int(pid))
         if not waited(WAIT_FOR_EXIT_SECONDS, functools.partial(_gone, ops, int(pid))):
-            ops.note(plan["note_file"], {"version": version, "reason": "The tray icon did not stop."})
+            ops.note(plan["note_file"], {"version": version, "reason": "The app's window did not close."})
             return "failed"
     if plan.get("stop_in"):
         # Windows: any other program still running from the tool's folder (an editor's MCP server)
@@ -231,7 +230,7 @@ class SystemOps:
         return _alive(pid)
 
     def end(self, pid: int) -> None:
-        """End a process (the tray) that is still running: TerminateProcess on Windows, SIGTERM elsewhere."""
+        """End a process (the desktop app) still running: TerminateProcess on Windows, SIGTERM elsewhere."""
         if pid <= 0:
             return
         try:
@@ -354,9 +353,10 @@ def uv_tool_prefix(prefix: Path) -> bool:
     return (prefix / "uv-receipt.toml").is_file()
 
 
-def _tray_pid(tray_file: Path) -> int:
+def _app_pid(record: Path) -> int:
+    """The desktop app's process id (desktop.json, beside the connection file) while it runs, else 0."""
     try:
-        pid = json.loads(tray_file.read_text(encoding="utf-8")).get("pid")
+        pid = json.loads(record.read_text(encoding="utf-8")).get("pid")
     except (OSError, ValueError, AttributeError):
         return 0
     return pid if isinstance(pid, int) and _alive(pid) else 0
@@ -405,7 +405,7 @@ class Helper:
         from swissarmybench.domain.updates import plan_update
 
         uv = self._ready()
-        tray = _tray_pid(self.info_file.with_name("tray.json"))
+        app = _app_pid(self.info_file.with_name("desktop.json"))
         plan = plan_update(
             version=version,
             current=__version__,
@@ -414,7 +414,7 @@ class Helper:
             tool_python=sys.executable,
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
             wait_pids=[os.getpid()],
-            end_pids=[tray],
+            end_pids=[app],
             info_file=str(self.info_file),
             note_file=str(self.note_file),
             # This very tool is the one replaced, wherever its folder is.
@@ -440,7 +440,7 @@ class Helper:
             wheels=wheels,
             before=before,
             wait_pids=[os.getpid()],
-            end_pids=[_tray_pid(self.info_file.with_name("tray.json"))],
+            end_pids=[_app_pid(self.info_file.with_name("desktop.json"))],
             info_file=str(self.info_file),
             note_file=str(self.note_file),
             environ={"UV_TOOL_DIR": str(self.prefix.parent)},

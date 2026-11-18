@@ -6,23 +6,27 @@
 #   curl -LsSf https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.sh | sh
 #   sh install.sh                                          # download the wheel from the GitHub release
 #   sh install.sh ./swissarmybench-__VERSION__-py3-none-any.whl  # or install a wheel you downloaded
-#   sh install.sh [wheel] --no-autostart --no-start             # install only
+#   sh install.sh [wheel] --no-start                       # install only, do not open the app
+#   sh install.sh --uninstall                              # remove the app, its launcher and its tool
 #
-# At the end it takes away an earlier .sab registration (a project is a folder now), turns on start at sign-in (the tray, which starts the server), starts the app in the
-# background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
+# Swiss Army Bench is a desktop app (PySide6; its pages in Qt WebEngine) over a local server that runs while
+# it is open. The installer adds a launcher with the app's icon (Linux: a .desktop entry in
+# ~/.local/share/applications; macOS: "Swiss Army Bench.app" in ~/Applications), takes away what an earlier
+# version left (a .sab registration, the tray's start-at-sign-in entry), and opens the app once at the end:
+# never on a build machine (CI set) or with no display. --no-autostart (the tray's, gone) is still taken.
 set -eu
 
 wheel_arg=""
-autostart=1
 start_now=1
+uninstall=0
 for arg in "$@"; do
   case "$arg" in
-    --no-autostart) autostart=0 ;;
+    --no-autostart) ;;  # start at sign-in is gone (2026-11-18); taken for one release so older scripts run
     --no-start) start_now=0 ;;
+    --uninstall) uninstall=1 ;;
     *) wheel_arg="$arg" ;;
   esac
 done
-if [ -n "${CI:-}" ] || [ "${SWISSARMYBENCH_NO_AUTOSTART:-}" = "1" ]; then autostart=0; fi
 if [ -n "${CI:-}" ]; then start_now=0; fi
 
 VERSION="__VERSION__"
@@ -33,6 +37,37 @@ STREAMLIT_WHEEL="swissarmybench_streamlit-${VERSION}-py3-none-any.whl"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'Swiss Army Bench install: %s\n' "$*" >&2; exit 1; }
+
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+DESKTOP_ENTRY="$DATA/applications/swissarmybench.desktop"
+ICON="$DATA/icons/hicolor/scalable/apps/swissarmybench.svg"
+MAC_APP="$HOME/Applications/Swiss Army Bench.app"
+
+# What an older version's tray left: its start-at-sign-in entry (only when it is the tray's).
+remove_old_tray() {
+  old="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/swissarmybench.desktop"
+  if [ -f "$old" ] && grep -q "swissarmybench.server tray" "$old" 2>/dev/null; then rm -f "$old"; fi
+  plist="$HOME/Library/LaunchAgents/com.swissarmybench.tray.plist"
+  if [ -f "$plist" ]; then
+    launchctl remove com.swissarmybench.tray >/dev/null 2>&1 || true
+    rm -f "$plist"
+  fi
+}
+
+remove_launcher() {
+  rm -f "$DESKTOP_ENTRY" "$ICON"
+  update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
+  rm -rf "$MAC_APP"
+}
+
+if [ "$uninstall" = 1 ]; then
+  remove_launcher
+  remove_old_tray
+  if command -v swissarmybench >/dev/null 2>&1; then swissarmybench stop >/dev/null 2>&1 || true; fi
+  if command -v uv >/dev/null 2>&1; then uv tool uninstall swissarmybench >/dev/null 2>&1 || true; fi
+  say "Swiss Army Bench is removed (its launcher and its tool). Your projects and ~/.swissarmybench are kept."
+  exit 0
+fi
 
 # 1. uv: the installer uses uv's own install script, which puts uv in ~/.local/bin.
 if ! command -v uv >/dev/null 2>&1; then
@@ -94,17 +129,59 @@ else
 fi
 uv tool update-shell >/dev/null 2>&1 || true
 
-say ""
-say "Swiss Army Bench $VERSION is installed."
-say "  Start it:              swissarmybench start"
-say "  The Python client:     uv pip install \"$WHEEL\"   (in any project's environment)"
-say "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
-say "(Open a new terminal first if the swissarmybench command is not found.)"
-
-# 5. Start at sign-in, and start it now: the server in the background, its tray, its page opened once.
+# 5. The launcher: the app with its icon, where the system lists applications.
 bin_dir=$(uv tool dir --bin 2>/dev/null || true)
 exe="${bin_dir:-$HOME/.local/bin}/swissarmybench"
 [ -x "$exe" ] || exe="$HOME/.local/bin/swissarmybench"
+remove_old_tray
+case "$(uname -s)" in
+  Darwin)
+    mkdir -p "$MAC_APP/Contents/MacOS"
+    cat > "$MAC_APP/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>Swiss Army Bench</string>
+  <key>CFBundleIdentifier</key><string>com.swissarmybench.app</string>
+  <key>CFBundleExecutable</key><string>swissarmybench</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>LSUIElement</key><false/>
+</dict></plist>
+PLIST
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$exe" > "$MAC_APP/Contents/MacOS/swissarmybench"
+    chmod +x "$MAC_APP/Contents/MacOS/swissarmybench"
+    say "The app is in ~/Applications: Swiss Army Bench."
+    ;;
+  *)
+    mkdir -p "$(dirname "$DESKTOP_ENTRY")" "$(dirname "$ICON")"
+    cat > "$ICON" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#d52b1e"/><path d="M42 23h16v19h19v16H58v19H42V58H23V42h19z" fill="#fff"/></svg>
+SVG
+    cat > "$DESKTOP_ENTRY" <<ENTRY
+[Desktop Entry]
+Type=Application
+Name=Swiss Army Bench
+Comment=Your data in live grids, notebooks and SQL
+Exec="$exe"
+Icon=swissarmybench
+Terminal=false
+Categories=Development;Science;
+StartupWMClass=swissarmybench
+ENTRY
+    update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
+    say "The app is in your applications menu: Swiss Army Bench."
+    ;;
+esac
+
+say ""
+say "Swiss Army Bench $VERSION is installed."
+say "  Open it:               swissarmybench   (or Swiss Army Bench in your applications)"
+say "  In the browser:        swissarmybench open --browser"
+say "  The Python client:     uv pip install \"$WHEEL\"   (in any project's environment)"
+say "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
+say "  Remove it:             sh install.sh --uninstall"
+say "(Open a new terminal first if the swissarmybench command is not found.)"
 
 # 6. A project is a folder now (2026-11-17): .sab files are no longer registered. An earlier install's
 #    registration (a MIME type, its desktop entry) is taken away, for this user (XDG), so an old machine is
@@ -119,12 +196,10 @@ if [ "$(uname -s)" = "Linux" ]; then
     say "Project files (.sab) are no longer registered: a project is a folder now."
   fi
 fi
-if [ -x "$exe" ]; then
-  if [ "$autostart" = 1 ] && "$exe" autostart on >/dev/null 2>&1; then
-    say "It starts when you log in (the tray's Open at login turns that off)."
-  fi
-  if [ "$start_now" = 1 ]; then
-    "$exe" start --background >/dev/null 2>&1 || true
-    say "Starting Swiss Army Bench: its page opens in your browser."
-  fi
+# 7. Open the app once (not on a build machine, nor with no display to show it on).
+display=1
+if [ "$(uname -s)" != "Darwin" ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then display=0; fi
+if [ -x "$exe" ] && [ "$start_now" = 1 ] && [ "$display" = 1 ]; then
+  nohup "$exe" >/dev/null 2>&1 &
+  say "Opening Swiss Army Bench..."
 fi

@@ -52,6 +52,10 @@ if SCM_SRC not in sys.path:
 
 # A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
 os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")
+# A server a test starts lives for the test's whole run (services/lifecycle.py stops it once no window of the
+# app is open: the browser tests open and close pages all along). A test about its life sets its own.
+for _name in ("GRACE", "START_GRACE", "IDLE"):
+    os.environ.setdefault(f"SWISSARMYBENCH_LIFE_{_name}", "86400")
 # Nor a system file dialog (domain/file_dialogs.py): the page's own picker, on every system a test runs on.
 os.environ["SWISSARMYBENCH_SYSTEM_DIALOGS"] = "off"
 
@@ -92,8 +96,8 @@ def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
         export_dir=tmp_path / "exports",
         # Never this machine's own Claude Code plugins: a test lays out its own packs here.
         claude_dir=overrides.pop("claude_dir", tmp_path / "claude"),
-        # Never this computer's own sign-in entries: start at sign-in writes under a temporary home.
-        autostart_home=overrides.pop("autostart_home", tmp_path / "home"),
+        # Never this computer's own sign-in entries: the old ones are looked for under a temporary home.
+        legacy_home=overrides.pop("legacy_home", tmp_path / "home"),
         # Never this machine's own SwissArmyBench folder: the app makes it the first time it is needed.
         workbench_dir=overrides.pop("workbench_dir", tmp_path / "home" / "SwissArmyBench"),
         projects_dir=overrides.pop("projects_dir", tmp_path / "home" / "Swiss Army Bench Projects"),

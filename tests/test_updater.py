@@ -152,7 +152,8 @@ def test_the_server_hands_a_copy_of_the_helper_and_its_plan_to_the_base_python(t
     prefix = tmp_path / "tools" / "swissarmybench"
     prefix.mkdir(parents=True)
     (prefix / "uv-receipt.toml").write_text("[tool]\n")
-    (tmp_path / "tray.json").write_text(json.dumps({"pid": os.getpid()}))
+    record = {"pid": os.getpid(), "shell": {"port": 5000, "key": "k" * 43}}
+    (tmp_path / "desktop.json").write_text(json.dumps(record))
     spawned: list[list[str]] = []
     helper = Helper(
         tmp_path / "server.json",
@@ -179,7 +180,7 @@ def test_the_server_hands_a_copy_of_the_helper_and_its_plan_to_the_base_python(t
         "swissarmybench[server]==99.0.0",
     ]
     assert handed["wait_pids"] == [os.getpid()]  # the server
-    assert handed["end_pids"] == [os.getpid()]  # the tray: ended by the helper if it does not quit
+    assert handed["end_pids"] == [os.getpid()]  # the desktop app: ended by the helper
     assert handed["environ"] == {"UV_TOOL_DIR": str(prefix.parent)}
     assert handed["current"] == __version__
     assert handed["stop_in"] == ""  # not Windows: nothing else is stopped
@@ -355,24 +356,23 @@ def test_a_wheel_that_cannot_be_downloaded_is_said_and_the_old_version_starts_ag
     assert ops.notes[0]["reason"].startswith("An extension could not be downloaded: sab_ledger-0.0.2")
 
 
-def test_a_tray_that_stays_is_ended_and_the_install_goes_on() -> None:
-    """The tray asks the server only every few seconds, so it can miss that an update or an extension's
-    Install is under way and stay running; the helper waited for it and gave up ("The app did not stop.", on
-    the owner's Windows). Now the server is waited for, and the tray is ended after a moment's grace."""
+def test_the_desktop_app_is_ended_and_the_install_goes_on() -> None:
+    """The desktop app (desktop.json's pid) may still run when the server stops for an update: the helper
+    ends it after a moment's grace, installs, and its start step starts the new version's app."""
     made = plan() | {"wait_pids": [100], "end_pids": [200]}
 
-    class Tray(FakeOps):
+    class App(FakeOps):
         ended = False
 
         def alive(self, pid: int) -> bool:
-            return pid == 200 and not self.ended  # the server is gone; the tray stays until it is ended
+            return pid == 200 and not self.ended  # the server is gone; the app stays until it is ended
 
-    ops = Tray({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
+    ops = App({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
     assert updater.run(made, ops) == "updated"
     assert ops.did[0] == "end 200" and ops.notes == []
 
 
-def test_a_tray_that_cannot_be_ended_is_said() -> None:
+def test_an_app_that_cannot_be_ended_is_said() -> None:
     made = plan() | {"wait_pids": [100], "end_pids": [200]}
 
     class Stuck(FakeOps):
@@ -381,4 +381,4 @@ def test_a_tray_that_cannot_be_ended_is_said() -> None:
 
     ops = Stuck({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
     assert updater.run(made, ops) == "failed"
-    assert ops.notes[-1]["reason"] == "The tray icon did not stop." and "install" not in ops.did
+    assert ops.notes[-1]["reason"] == "The app's window did not close." and "install" not in ops.did

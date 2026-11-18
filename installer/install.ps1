@@ -4,11 +4,15 @@
 #   irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/download/v__VERSION__/install.ps1 | iex
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1 .\swissarmybench-__VERSION__-py3-none-any.whl
-#   ... -NoAutostart -NoStart        install only: no start at sign-in, and not started now
+#   ... -NoStart                     install only: the app is not opened now
+#   ... -DesktopShortcut             a shortcut on the desktop too (the Start menu always has one)
+#   ... -Uninstall                   remove the app, its shortcuts and its tool (your projects stay)
 #
-# At the end it takes away an earlier .sab registration (a project is a folder now), turns on start at
-# sign-in (the tray, which starts the server), starts the app in the background and opens its page once. Never on a build machine (CI set) or with SWISSARMYBENCH_NO_AUTOSTART=1.
-param([string]$Wheel = "", [switch]$NoStart, [switch]$NoAutostart)
+# Swiss Army Bench is a desktop app (PySide6; its pages in Qt WebEngine) over a local server that runs while it
+# is open. The installer adds a Start menu shortcut with the app's icon (the tool's pythonw.exe: no console
+# window), takes away what an earlier version left (a .sab registration, the tray's Startup shortcut), and
+# opens the app once at the end: never on a build machine (CI set). -NoAutostart (the tray's, gone) is taken.
+param([string]$Wheel = "", [switch]$NoStart, [switch]$NoAutostart, [switch]$DesktopShortcut, [switch]$Uninstall)
 
 $ErrorActionPreference = "Stop"
 
@@ -35,6 +39,23 @@ $StreamlitWheelName = "swissarmybench_streamlit-$Version-py3-none-any.whl"
 # throw, not exit: run as `irm ... | iex`, exit would close the person's PowerShell window.
 function Fail([string]$Message) {
     throw "Swiss Army Bench install: $Message"
+}
+
+$Programs = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+$StartShortcut = Join-Path $Programs "Swiss Army Bench.lnk"
+$DesktopLink = Join-Path ([Environment]::GetFolderPath("Desktop")) "Swiss Army Bench.lnk"
+$OldStartup = Join-Path $Programs "Startup\Swiss Army Bench.lnk"  # the tray's start at sign-in, gone
+$IconFile = Join-Path $env:LOCALAPPDATA "SwissArmyBench\swissarmybench.ico"
+
+if ($Uninstall) {
+    foreach ($link in @($StartShortcut, $DesktopLink, $OldStartup)) {
+        if (Test-Path $link) { Remove-Item -Force $link }
+    }
+    if (Test-Path $IconFile) { Remove-Item -Force $IconFile }
+    if (Get-Command swissarmybench -ErrorAction SilentlyContinue) { Quiet { swissarmybench stop } }
+    if (Get-Command uv -ErrorAction SilentlyContinue) { Quiet { uv tool uninstall swissarmybench } }
+    Write-Host "Swiss Army Bench is removed (its shortcuts and its tool). Your projects and .swissarmybench are kept."
+    return
 }
 
 # 1. uv: uv's own installer puts it in %USERPROFILE%\.local\bin.
@@ -133,12 +154,15 @@ if ($Temp) { Remove-Item -Recurse -Force $Temp -ErrorAction SilentlyContinue }
 
 Write-Host ""
 Write-Host "Swiss Army Bench $Version is installed." -ForegroundColor Green
-Write-Host "  Start it:              swissarmybench start"
+Write-Host "  Open it:               the Start menu's Swiss Army Bench, or: swissarmybench"
+Write-Host "  In the browser:        swissarmybench open --browser"
 Write-Host "  The Python client:     uv pip install `"$WheelName`"   (in any project's environment)"
 Write-Host "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
+Write-Host "  Remove it:             powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall"
 Write-Host "(Open a new terminal first if the swissarmybench command is not found.)"
 
-# 5. Start at sign-in, and start it now: the server in the background, its tray, its page opened once.
+# 5. The Start menu shortcut (and the desktop's on -DesktopShortcut): the tool's pythonw.exe running the app,
+#    with no console window, and the app's icon.
 function ToolBin {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -164,13 +188,29 @@ function UnregisterProjectFiles {
 }
 try { if (UnregisterProjectFiles) { Write-Host "Project files (.sab) are no longer registered: a project is a folder now." } }
 catch { }
-if (Test-Path $Exe) {
-    if (-not $NoAutostart -and -not $BuildMachine -and $env:SWISSARMYBENCH_NO_AUTOSTART -ne "1") {
-        Quiet { & $Exe autostart on }
-        if ($LASTEXITCODE -eq 0) { Write-Host "It starts when you sign in (the tray's Start with Windows turns that off)." }
+if (Test-Path $OldStartup) { Remove-Item -Force $OldStartup }  # an older version's tray at sign-in
+$ToolsDir = (ToolDir) | Select-Object -First 1
+$Pythonw = $null
+if ($ToolsDir) { $Pythonw = Join-Path $ToolsDir "swissarmybench\Scripts\pythonw.exe" }
+if ($Pythonw -and (Test-Path $Pythonw)) {
+    New-Item -ItemType Directory -Force -Path (Split-Path $IconFile) | Out-Null
+    if (Test-Path $Exe) { Quiet { & $Exe icon $IconFile } }
+    $shell = New-Object -ComObject WScript.Shell
+    $links = @($StartShortcut)
+    if ($DesktopShortcut) { $links += $DesktopLink }
+    foreach ($link in $links) {
+        $s = $shell.CreateShortcut($link)
+        $s.TargetPath = $Pythonw
+        $s.Arguments = "-m swissarmybench.server app"
+        $s.WorkingDirectory = $env:USERPROFILE
+        $s.Description = "Swiss Army Bench"
+        if (Test-Path $IconFile) { $s.IconLocation = "$IconFile,0" }
+        $s.Save()
     }
+    Write-Host "Swiss Army Bench is in the Start menu."
+    # 7. Open the app once (not on a build machine).
     if (-not $NoStart -and -not $BuildMachine) {
-        Quiet { & $Exe start --background }
-        Write-Host "Starting Swiss Army Bench: its page opens in your browser."
+        Start-Process -FilePath $Pythonw -ArgumentList "-m", "swissarmybench.server", "app"
+        Write-Host "Opening Swiss Army Bench..."
     }
 }
