@@ -362,6 +362,24 @@ def _app_pid(record: Path) -> int:
     return pid if isinstance(pid, int) and _alive(pid) else 0
 
 
+def installed_here(prefix: Path) -> dict[str, list[str]]:
+    """Each distribution in the environment at `prefix` (the app's own uv tool) with its Requires-Dist lines:
+    its site-packages (lib/python3.x/site-packages, or Lib/site-packages on Windows), read, never imported."""
+    import importlib.metadata as metadata
+
+    folders = [
+        str(p)
+        for p in (*prefix.glob("lib/python*/site-packages"), prefix / "Lib" / "site-packages")
+        if p.is_dir()
+    ]
+    found: dict[str, list[str]] = {}
+    for dist in metadata.distributions(path=folders) if folders else ():
+        name = dist.metadata["Name"] if dist.metadata else None
+        if name:
+            found[str(name)] = list(dist.requires or [])
+    return found
+
+
 class Helper:
     """Starts the helper for an update (services/updates.py's UpdateHelper)."""
 
@@ -374,6 +392,7 @@ class Helper:
         uv: Callable[[], str | None] = find_uv,
         windows: bool = sys.platform == "win32",
         kept: Callable[[str], list[str]] | None = None,
+        own: Callable[[], list[str]] | None = None,
     ) -> None:
         self.info_file = info_file
         self.note_file = note_file
@@ -383,6 +402,17 @@ class Helper:
         self.windows = windows
         # The installed extensions' wheels at a version (services/extensions.py): an update keeps them.
         self.kept: Callable[[str], list[str]] = kept or (lambda version: [])
+        # The user's own packages here (what Install now added: azure-identity), kept `--with` across the new
+        # environment uv makes (the owner, 2026-11-18: "im having to reinstall all of the imports").
+        self.own: Callable[[], list[str]] = own or self._own_here
+
+    def _own_here(self) -> list[str]:
+        from swissarmybench.domain.updates import own_packages
+
+        try:
+            return own_packages(installed_here(self.prefix))
+        except Exception:  # noqa: BLE001 - never stop an update for this: it only keeps extras
+            return []
 
     def installable(self) -> bool:
         """A uv tool's install (the installer's), not a development checkout."""
@@ -405,6 +435,7 @@ class Helper:
         from swissarmybench.domain.updates import plan_update
 
         uv = self._ready()
+        own = self.own()
         app = _app_pid(self.info_file.with_name("desktop.json"))
         plan = plan_update(
             version=version,
@@ -421,8 +452,8 @@ class Helper:
             environ={"UV_TOOL_DIR": str(self.prefix.parent)},
             # Windows: what else runs from its folder (an editor's MCP server) is stopped first.
             stop_in=str(self.prefix) if self.windows else "",
-            wheels=tuple(self.kept(version)),
-            restore_wheels=tuple(self.kept(__version__)),
+            wheels=(*self.kept(version), *own),
+            restore_wheels=(*self.kept(__version__), *own),
         )
         self._hand_over(plan.to_json())
 
@@ -432,13 +463,14 @@ class Helper:
         from swissarmybench.domain.extensions import plan_change
 
         uv = self._ready()
+        own = self.own()
         plan = plan_change(
             current=__version__,
             uv=uv,
             tool_python=sys.executable,
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
-            wheels=wheels,
-            before=before,
+            wheels=[*wheels, *own],
+            before=[*before, *own],
             wait_pids=[os.getpid()],
             end_pids=[_app_pid(self.info_file.with_name("desktop.json"))],
             info_file=str(self.info_file),

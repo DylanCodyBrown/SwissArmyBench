@@ -5591,3 +5591,13 @@ while an update exists; red "Update failed" with the reason), and leaves the sta
 first: "Swiss Army Bench closes, installs X and opens again by itself", with What's new, and lists unsaved
 documents and running kernels when there are any (Update and restart). The server's POST /updates/install now
 always answers the user's first ask with {"confirm": ...}; the agent's still waits for the user's Allow.
+
+## Your own packages kept across updates and extension changes (the owner, 2026-11-18)
+
+"everytime I add an extension or update, im having to reinstall all of the imports" (`No module named 'azure'`):
+`uv tool install --force` makes the app's environment again from the app and its extensions only, so what
+Install now had added went. Now the helper (server/updater.py) reads the app's own environment just before and
+passes the user's packages `--with` to the new one and to the restore: the packages nothing of the app's needs
+(swissarmybench, its extensions and everything they need at any depth), only the tops (azure-identity, not the
+azure-core it brings), so uv resolves their needs again (domain/updates.py `own_packages`). Read from the
+environment, not a list kept, so packages installed before this fix are kept too.

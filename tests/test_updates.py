@@ -460,3 +460,33 @@ def test_the_app_is_named_swiss_army_bench(tmp_path: Path) -> None:
     with make_client(tmp_path, update_feeds=()) as client:
         said = client.get("/updates", headers=AUTH).json()
         assert said["name"] == "Swiss Army Bench" and "Streamlit" in said["extensions"]
+
+
+def test_the_users_own_packages_are_what_nothing_of_the_apps_needs() -> None:
+    """The owner (2026-11-18): every update and extension install lost what Install now had added (azure)."""
+    from swissarmybench.domain.updates import own_packages, package_key
+
+    installed = {
+        "swissarmybench": [
+            "duckdb>=1",
+            "pyside6-essentials==6.12.0; sys_platform != 'x'",
+            'pyyaml; extra == "server"',
+        ],
+        "swissarmybench_streamlit": ["swissarmybench==0.0.23"],
+        "duckdb": [],
+        "PySide6_Essentials": ["shiboken6==6.12.0"],
+        "shiboken6": [],
+        "PyYAML": [],
+        "azure-identity": ["azure-core>=1.31", "msal>=1.30"],
+        "azure-core": ["requests>=2.21"],
+        "msal": ["requests"],
+        "requests": [],
+        "Azure.KeyVault.Secrets": ["azure-core"],
+        "pip": [],
+    }
+    # Only the tops: azure-core, msal and requests come back with them.
+    assert own_packages(installed) == ["azure-identity", "azure-keyvault-secrets"]
+    assert package_key("Azure.KeyVault_Secrets") == "azure-keyvault-secrets"
+    assert own_packages({"swissarmybench": ["requests"], "requests": []}) == []  # needed by the app: not ours
+    # Two that only need each other: both kept rather than lost.
+    assert own_packages({"swissarmybench": [], "a-pkg": ["b-pkg"], "b-pkg": ["a-pkg"]}) == ["a-pkg", "b-pkg"]

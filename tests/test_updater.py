@@ -382,3 +382,45 @@ def test_an_app_that_cannot_be_ended_is_said() -> None:
     ops = Stuck({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
     assert updater.run(made, ops) == "failed"
     assert ops.notes[-1]["reason"] == "The app's window did not close." and "install" not in ops.did
+
+
+def test_an_update_and_an_extension_change_keep_the_users_own_packages(tmp_path: Path) -> None:
+    """The owner (2026-11-18): "everytime I add an extension or update, im having to reinstall all of the
+    imports" (No module named 'azure'): what Install now added goes `--with` into the new environment."""
+    prefix = tmp_path / "tools" / "swissarmybench"
+    site = prefix / "lib" / "python3.12" / "site-packages"
+    for name, requires in {
+        "swissarmybench": ["duckdb>=1"],
+        "duckdb": [],
+        "azure_identity": ["azure-core>=1.31"],
+        "azure_core": [],
+    }.items():
+        info = site / f"{name}-1.0.dist-info"
+        info.mkdir(parents=True)
+        lines = [
+            f"Name: {name.replace('_', '-')}",
+            "Version: 1.0",
+            *(f"Requires-Dist: {r}" for r in requires),
+        ]
+        (info / "METADATA").write_text("Metadata-Version: 2.1\n" + "\n".join(lines) + "\n")
+    (prefix / "uv-receipt.toml").write_text("[tool]\n")
+    spawned: list[list[str]] = []
+    helper = Helper(
+        tmp_path / "server.json", tmp_path / "n.json", prefix=prefix, spawn=spawned.append, uv=lambda: "uv"
+    )
+    assert helper.own() == ["azure-identity"]
+    helper.launch("99.0.0", "pypi")
+    update = json.loads(Path(spawned[-1][-1]).read_text())
+    assert update["install"][-2:] == ["--with", "azure-identity"]
+    assert update["restore"][-2:] == ["--with", "azure-identity"]  # a failed update gets them back too
+    helper.launch_change(["https://example.invalid/ledger.whl"], [])
+    change = json.loads(Path(spawned[-1][-1]).read_text())
+    assert change["install"][-4:] == [
+        "--with",
+        "https://example.invalid/ledger.whl",
+        "--with",
+        "azure-identity",
+    ]
+    assert change["restore"][-2:] == ["--with", "azure-identity"]
+    for handed in spawned:
+        shutil.rmtree(Path(handed[-1]).parent)

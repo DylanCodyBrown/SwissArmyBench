@@ -330,3 +330,58 @@ def update_question(version: str, at_risk: dict[str, Any]) -> str:
     if kernels:
         lines.append(f"{kernels} running kernel{'s stop' if kernels != 1 else ' stops'}.")
     return "\n".join(lines)
+
+
+# ===== the user's own packages, kept across an update or an extension's Install and Remove =====
+# The owner (2026-11-18): "everytime I add an extension or update, im having to reinstall all of the imports":
+# `uv tool install --force` makes the app's environment again from the app and its extensions only, so what
+# Install now put there (azure-identity for a connection) went. What nothing of the app's needs is the user's,
+# and goes `--with` into the new environment.
+
+_APP_ROOTS = ("swissarmybench", "swissarmygrid")
+_TOOLING = frozenset({"pip", "setuptools", "wheel", "uv"})
+_REQUIREMENT_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def package_key(name: str) -> str:
+    """A distribution's name as packaging compares them (PEP 503): azure_identity, Azure.Identity: azure-identity."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def own_packages(installed: dict[str, list[str]]) -> list[str]:
+    """The packages in the app's environment that nothing of the app's needs: the user's own.
+    `installed`: each distribution's name and its Requires-Dist lines. The app's own (swissarmybench and every
+    swissarmybench-* extension) and all they need, at any depth, under any extra or marker (taken broadly: a
+    package both need comes back with the app anyway), are not the user's; nor is pip's tooling. Only the tops
+    are given (azure-identity, not the azure-core it brings): uv resolves what they need again."""
+    needs = {package_key(name): requires for name, requires in installed.items()}
+    seen: set[str] = set()
+    stack = [key for key in needs if key.startswith(_APP_ROOTS)]
+    while stack:
+        key = stack.pop()
+        if key in seen:
+            continue
+        seen.add(key)
+        for line in needs.get(key, []):
+            match = _REQUIREMENT_NAME.match(line)
+            if match:
+                stack.append(package_key(match.group(1)))
+    own = {key for key in needs if key not in seen and key not in _TOOLING}
+    brought = {
+        package_key(match.group(1))
+        for key in own
+        for line in needs[key]
+        if (match := _REQUIREMENT_NAME.match(line))
+    }
+    tops = own - brought
+    # Packages that only bring each other (a cycle) would have no top: each kept then, rather than lost.
+    reached: set[str] = set()
+    stack = list(tops)
+    while stack:
+        key = stack.pop()
+        if key not in reached:
+            reached.add(key)
+            stack += [
+                package_key(m.group(1)) for line in needs.get(key, []) if (m := _REQUIREMENT_NAME.match(line))
+            ]
+    return sorted(tops | (own - reached))
