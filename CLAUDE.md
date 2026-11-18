@@ -765,8 +765,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          bladeAnalysis.ts analysis blades (your own analyses) in the Analyze menu;
                          sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
                          markdown export; cellMenu.ts the right-click menus on cells and headers;
-                         tour.ts is the first-time tour (on the Start page only: a
-                         spotlight card per word, then a matching game);
+                         tour.ts is the first-time tour (on the Start page only: a card per
+                         place in the rail's order that goes there and lights up the real control,
+                         two made-up tables staged and closed again, back to where it started; then
+                         a matching game; nav.ts returnTo);
                          catalogRail.ts (the blades list; the catalog tree only where a page gives it a
                          place: the Workbench's "+ Table") is the blades page's (catalogPage.ts,
                          static/catalog.html: no catalog panel since 2026-11-17); bladeEditor.ts is the

@@ -3304,3 +3304,19 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   the app open, `/lifecycle` said "a window is open" and no client; one request with the token and no browser
   mark counted as a client; the app ended, the server still up 60 s later (held by that request) and stopped
   595 s after the close, 10 minutes after the request.
+
+## The guided tour (2026-11-18, branch tour-guided)
+
+- **In the browser (tests/e2e/test_tour.py, Chromium 1440x900):** opened from the Start page; with the user's own
+  `tour_orders` open, the tour's tables arrive as `tour_orders_2` and `tour_customers` tabs; Connections opens its
+  page and the spotlight's box is the Add connection button's (6 px round it); Grid: the tour's orders in front, its
+  tab lit; Steps reads "1 step"; Compare puts the two side by side (data-split on) and lights the Compare row; Left
+  goes back to Analyze with the split gone; ERD shows the ERD view; Notebooks lights the rail icon with the ERD left
+  in place; Agent scrolls Settings to its Claude section and lights it. Escape mid-tour: the Start view again, the
+  two tour tables closed on the server and as tabs, the user's `tour_orders` still open. A second run to the end:
+  the game's five rounds, Start, the same clean-up.
+- **By hand (screenshots, device scale 2):** every card walked at 1440x900; the card sits beside a rail icon,
+  under a page's button, above Settings' Claude section.
+- **Not checked:** a narrow window (420px) with the guided moves; the desktop app (Qt WebEngine) run; a user who had
+  two tables side by side when the tour started gets one side replaced by the tour's while it runs (the address
+  comes back, the split does not).

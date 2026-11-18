@@ -5582,3 +5582,37 @@ the profile are all in reach. Its cost is its size.
   icon is gone: Swiss Army Bench now runs while it's open."
 - The agent: `app_lifecycle` (windows, last client, busy, held, seconds left, why), `desktop_status`,
   `desktop_open(page)`.
+
+## The guided tour (the owner, 2026-11-18; built, branch tour-guided)
+
+The owner: "the tutorial needs to move and highlight the item it is talking about, so the tutorial might need to
+stage a couple tables in the grid then remove them. it will need to navigate to pages as it goes and those
+descriptions could use a bit more detail". A front-end change on the owner's word (web/src/tour.ts).
+
+**Decisions.**
+- **Each card goes to its place** with the rail's own moves (nav.ts `runArea`, as a rail click; the grids by
+  panes.ts `activateGrid` and, for Compare, Key Finder and Relationships, `splitWith(..., quiet)` so the two tour
+  tables sit side by side with no key picker). It waits up to 2.5 s for the control, scrolls it into view and lights
+  it up; a control that never comes leaves the card in the middle with "Not here right now." The spotlight follows
+  its control while the page settles (every 300 ms; a control drawn again is found again).
+- **Back** shows the previous card, which goes to its own place (Analyze after Compare: one table again).
+- **Closing** (Escape, Skip, the last card's Start) goes back to the history entry the tour started on (nav.ts
+  `returnTo`: the entries it made go, and the start address is put back where a table's arrival replaced it), then
+  closes exactly the tables it opened (`DELETE /datasets/{name}`, the Open list's close). A table that arrives while
+  the tour is already closed is closed at once.
+- **The staged tables:** a dozen made-up customers (`tour_customers`: customer_id, name, city) and a dozen orders
+  (`tour_orders`: order_id, customer_id, product, quantity, amount, order_date), pasted as Ctrl+V pastes
+  (`POST /datasets/{name}/paste`, tab-separated). A name an open table has gets `_2`, `_3`... The orders are sorted by
+  amount (one step) so Steps has one to light up; the step goes with the table.
+- **The cards, in the rail's order:** Hi!, Connections, APIs, Variables, Data Catalog, Grid, Ribbon, Steps, Profile,
+  Analyze (fit test, outliers, regression and time series folded into it: they all pointed at its one button),
+  Compare, Key Finder, Relationships (was "Saved set"), ERD, Structures, Blades, Notebooks, Scripts, Apps (only while
+  its rail icon shows), Visualizations, Session, Extensions, Settings, Agent (Settings' Claude section). Gone: Table
+  cell (in Notebooks' words), Fit test, Outliers, Regression, Time series, Data (now Data Catalog), Pack. Blades,
+  Notebooks, Scripts and Apps are other pages (the blades page, the Workbench window): their cards light the rail's
+  icon, the card beside it, and say so. Each card's words: what it is, when you'd use it, how to reach it; a short
+  `clue` of its own is the game's (the long words name the place, which would give the answer away).
+- `where` went (the tour goes there itself). The keys are heard on the window while the tour is open (a page that
+  takes the focus does not take them); Enter outside the card is Next.
+- **The agent (golden rule), 2026-11-18:** the tour is a page-only teaching aid; no command, as nothing it does is
+  work the agent would want (app_navigate and the table commands already do each move).
