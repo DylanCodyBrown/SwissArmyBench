@@ -134,6 +134,13 @@ terminal (it starts the app when it is not running).
   .sab folder keeps itself current a moment after each change; its switch is in the project's group of
   the Application row. A save that changes nothing changes no file. **Copy to…** (Ctrl+Shift+S) copies
   the whole folder somewhere new.
+- **Export outline** (the project's group, and the Workbench's project menu) writes **ARCHITECTURE.md**
+  at the project's top for someone joining it, then offers **Download**: the same eight sections in every
+  project (overview and folder layout, data sources with how each signs in, the tables with their columns'
+  names and types and an ER diagram, each table's steps as one DuckDB query, the lineage as a flowchart,
+  the notebooks, scripts, apps and dashboards, what to install and how scripts run, open issues). It holds
+  names and types only, never a row or a value from your data; an export that changes nothing changes no
+  file. The purpose comes from README.md's first paragraph.
 - **Rows only on a tick, and never into Git by default.** A pasted or pushed table has no source to read
   again: the first Save asks **Keep its rows** for each one (off unless you tick it). Kept rows go into
   `.sab/data/`, which the project's `.gitignore` leaves out: data is sensitive. Remove that line to

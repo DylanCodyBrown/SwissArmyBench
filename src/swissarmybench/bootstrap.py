@@ -126,6 +126,7 @@ from swissarmybench.services.panels import Panels
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
+from swissarmybench.services.project_outline import ProjectOutline
 from swissarmybench.services.project_scope import ProjectScope
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
@@ -198,6 +199,7 @@ class Services:
     sab_projects: SabProjects
     project_explorer: ProjectExplorer
     project_scope: ProjectScope
+    project_outline: ProjectOutline
     script_exports: ScriptExports
     panels: Panels
     session_log: SessionLog
@@ -934,6 +936,38 @@ def bootstrap(
         documents=lambda: project_scope.documents()["documents"],
         context_md=context_md,
     )
+    modes = Modes(
+        extension_modules.modes,
+        lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
+        projects.type_of,
+    )
+
+    def saved_dashboards() -> list[dict[str, Any]]:
+        """The open project's saved dashboards: each one's name and its last version's cards."""
+        out = []
+        for listed in dashboards.names():
+            body = dashboards.read(str(listed["name"])) or {"versions": []}
+            last = body["versions"][-1] if body["versions"] else {}
+            out.append({"name": listed["name"], "cards": last.get("cards") or []})
+        return out
+
+    # The project's outline, ARCHITECTURE.md: its two seams (the tables it uses; each connection's
+    # portability) keep their defaults here until the branches building them are merged.
+    project_outline = ProjectOutline(
+        ws,
+        archive,
+        project=lambda: sab_projects.state().get("project"),
+        mode=lambda: modes.active()["mode"],
+        connections=lambda: connection_usage.overview()["connections"],
+        usage=connection_usage.usage,
+        table_cells=table_cells.listing,
+        origin_of=datasets.origins.get,
+        kernel_document=workbench.document_of,
+        relationships=models.current,
+        dashboards=saved_dashboards,
+        run_settings=script_runs.settings,
+        app_pages=lambda path, text: hooks.app_pages(path, text),
+    )
     # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
     for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
         beta.process("server", str(event["event"]), event.get("code"), None, str(event.get("reason") or ""))
@@ -1003,11 +1037,7 @@ def bootstrap(
         intellisense=intellisense,
         table_cells=table_cells,
         panels=Panels(ws),
-        modes=Modes(
-            extension_modules.modes,
-            lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
-            projects.type_of,
-        ),
+        modes=modes,
         switched_on=on_extensions,
         hooks=hooks,
         data_export=data_export,
@@ -1040,6 +1070,7 @@ def bootstrap(
         sab_projects=sab_projects,
         project_explorer=project_explorer,
         project_scope=project_scope,
+        project_outline=project_outline,
         # Export as one Python script: the document's cells, its connections' own code, ruff's check.
         script_exports=ScriptExports(
             ws,

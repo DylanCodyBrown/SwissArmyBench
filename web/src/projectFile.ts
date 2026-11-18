@@ -13,6 +13,7 @@
  *                     once); Copy project to… -> a new folder -> POST /project/copy
  *          [AUTOSAVE] the project group's switch -> POST /project/autosave (on by default)
  *          [CLOSE]    Close project -> POST /project/close
+ *          [OUTLINE]  Export outline -> POST /project/outline (ARCHITECTURE.md at its top), then Download
  *          [FIX]      a table that did not come back -> its one click: Add connection, Find <file>,
  *                     Open <notebook>, Remove, Try again -> POST /project/fix
  *          [ASKED]    another program asked to open a project while unsaved work is open
@@ -372,6 +373,24 @@ export async function copyProject(folder?: string): Promise<string | null> {
   const done = await api<{ copied: string }>("/project/copy", "POST", { path: target, data, ...(folder ? { folder } : {}) });
   toast(`Copied to ${done.copied}`);
   return done.copied;
+}
+
+/** Export outline (the owner, 2026-11-17): ARCHITECTURE.md written at the project's top (only when its
+ *  bytes change), then its Download offered. */
+export async function exportOutline(): Promise<string | null> {
+  if (!state.project) return null;
+  const done = await api<{ file: string; path: string; written: boolean; text: string }>("/project/outline", "POST", {});
+  toast(`${done.file} ${done.written ? "written" : "is up to date"}`, "info", {
+    label: "Download",
+    run: () => {
+      const link = h("a", { href: URL.createObjectURL(new Blob([done.text], { type: "text/markdown" })), download: done.file, class: "outline-download" });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    },
+  });
+  return done.path;
 }
 
 /** A table that did not come back: its one click. `addConnection` and `openNotebook` are the page's. */

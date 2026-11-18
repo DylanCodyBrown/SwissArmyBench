@@ -3820,6 +3820,20 @@ def project_documents(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "project_outline",
+    "The open project's outline as markdown (ARCHITECTURE.md: sources, tables, steps, lineage, "
+    "deliverables, running it, open issues)",
+    opt("write", "true: write ARCHITECTURE.md at the project's top, as Export outline does.", "bool"),
+)
+def project_outline(a: dict[str, Any]) -> Any:
+    if a.get("write"):
+        done = api.call("POST", "/project/outline", {})
+        return {k: done[k] for k in ("file", "path", "written")} | {"text": done["text"]}
+    payload, _ = api.fetch_bytes("GET", "/project/outline")
+    return payload.decode("utf-8")
+
+
+@command(
     "project_import",
     "Copy into the open project from another project folder, a loose file or this computer's saved "
     'connections and blades ("computer"); list: what it offers',

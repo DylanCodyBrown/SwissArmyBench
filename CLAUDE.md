@@ -373,6 +373,10 @@ src/swissarmybench/
                          Relationships, Variables, Documents, Windows, Tool guide), every name as code (data),
                          the budget's trims in order (columns, catalog lists, guide topics, long lists), each
                          section's digest and the prompt hook's "context.md changed: ..." line
+    project_outline.py   the project's outline, ARCHITECTURE.md (the owner, 2026-11-17): the same eight sections
+                         every time (Overview, Data sources, Data model with a Mermaid erDiagram, Transformations
+                         as DuckDB SQL, Lineage as a flowchart LR, Deliverables, Running it with the Function App
+                         checklist, Open issues), "None." when empty; names and types only; the same bytes
     session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
                          relationship, a connection, a cell), names and counts only; the filter; Follow
     write_capability.py  what each connection kind writes (its operations, how) or why it is read-only; the Write
@@ -483,6 +487,9 @@ src/swissarmybench/
     context_md.py        context.md kept current: gathered from the services, looked at after a notice (every
                          2 s), written once a change settled; what the agent last read (launch, prompt,
                          app_context) and the sections changed since; SEAM for APIs and Structures
+    project_outline.py   the outline gathered (build) and written as ARCHITECTURE.md at the project's top, only
+                         when its bytes change (write); seams: UsedTables.used(project) (the tables the project
+                         uses) and Portability.verdict(connection) (default: "Not checked yet")
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     hooks.py             what an extension hands the base's services once built (late binding): the documents
@@ -566,7 +573,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
-                         projects, project_scope, panels, navigation, kind_colours, script_runs, session_log,
+                         projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, explorer, library). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
@@ -764,7 +771,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
                          (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
                          for the types explained, where; save, Keep its rows asked once; Copy project to…;
-                         close; a table's fix; the ● mark); projectTypes.ts the types for
+                         close; a table's fix; the ● mark; Export outline: ARCHITECTURE.md, then Download);
+                         projectTypes.ts the types for
                          beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
                          the home page's Project Explorer (cards, sort and dragged custom order, filters, the
                          types strip, the empty state, a card's menu; Settings' Projects folder);

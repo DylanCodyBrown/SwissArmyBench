@@ -20,7 +20,7 @@ import { api, onNotice, token } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { visit, withParams } from "./nav";
 import { gridList, newQueryTab, onAgentView, setEmptyView, showGridsLanding, showStartView, viewingLanding, viewingStart } from "./panes";
-import { answerAsked, autosaveSwitch, closeProject, copyProject, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave } from "./projectFile";
+import { answerAsked, autosaveSwitch, closeProject, copyProject, exportOutline, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave } from "./projectFile";
 import { drawExplorer, mountExplorer, refreshExplorer } from "./projectExplorer";
 import { openFile } from "./openFile";
 import { tourButton } from "./tour";
@@ -183,6 +183,7 @@ function drawGroup(state: ProjectState): void {
     h("strong", { class: "project-name", title: project.folder }, projectLabel(project)),
     button("Save", guard(() => saveProject()), { icon: "save", class: "ribbon-btn", title: project.read_only ?? "Save (Ctrl+S)" }),
     button("Copy to…", guard(() => copyProject()), { icon: "copy", class: "ribbon-btn", title: "Copy project to another folder (Ctrl+Shift+S)" }),
+    button("Export outline", guard(() => exportOutline()), { icon: "outline", class: "ribbon-btn", title: "ARCHITECTURE.md: the project for someone joining it" }),
     button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
     autosave.element,
   );

@@ -108,6 +108,9 @@ def _cells_of(path: str, text: str) -> tuple[DocCell, ...]:
     return tuple(found)
 
 
+document_cells = _cells_of  # the project's outline reads a document's cells the same way
+
+
 def _sent_cells(sent: Any) -> tuple[DocCell, ...]:
     """A notebook's cells as its window sends them: {number, kind, source, name?, role?, table?,
     connection?}."""
