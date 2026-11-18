@@ -4,9 +4,11 @@
  *
  * The same frame, order and look everywhere: the version on the left, then the page's own items (a grid's rows and
  * selection on the home page; the kernel, environment, cursor, Problems and the panes' switches in the Workbench;
- * nothing on the Blades page), then on the right the update notice, the zoom, Beta, Launch Claude and the credit.
+ * nothing on the Blades page), then on the right an extension's marks (areaMarks.ts: the open project out of sync),
+ * the update notice, the zoom, Beta, Launch Claude and the credit.
  * A page passes only its own items; everything else is drawn here, so no page can drift from the others.
  */
+import { areaMarks } from "./areaMarks";
 import { betaMark } from "./betaNotes";
 import { launchButton } from "./claudeLaunch";
 import { h } from "./dom";
@@ -22,6 +24,7 @@ export function mountAppFooter(host: HTMLElement, items: Node[] = [], end: Node[
     ...items,
     h("span", { class: "grow" }),
     ...end,
+    areaMarks(),
     updateMark(),
     zoomControl(),
     betaMark(),

@@ -1277,3 +1277,92 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
     dispose: () => editor.dispose(),
   };
 }
+
+// ===== the Source Control page's diff editor (Monaco's own: the diff VS Code shows) =====
+
+/** A read-only side-by-side (or inline) diff of two texts, with VS Code's default diff options, F7 and
+ *  Shift+F7 for the next and previous change, and VS Code's Modern themes' editor colours. */
+export interface DiffViewer {
+  show: (original: string, modified: string, path: string) => void;
+  next: () => void;
+  previous: () => void;
+  setInline: (inline: boolean) => void;
+  inline: () => boolean;
+  changes: () => number;
+  setTheme: (theme: string) => void;
+  dispose: () => void;
+}
+
+// VS Code's Dark Modern and Light Modern editor colours (Code - OSS, extensions/theme-defaults, MIT licence,
+// Copyright (c) Microsoft Corporation), over Monaco's vs and vs-dark.
+let modernThemes = false;
+function defineModernThemes(): void {
+  if (modernThemes) return;
+  modernThemes = true;
+  monaco.editor.defineTheme("vscode-dark-modern", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [],
+    colors: { "editor.background": "#1F1F1F", "editor.foreground": "#CCCCCC", "editorLineNumber.foreground": "#6E7681", "editorLineNumber.activeForeground": "#CCCCCC", "editorGutter.background": "#1F1F1F" },
+  });
+  monaco.editor.defineTheme("vscode-light-modern", {
+    base: "vs",
+    inherit: true,
+    rules: [],
+    colors: { "editor.background": "#FFFFFF", "editor.foreground": "#3B3B3B", "editorLineNumber.foreground": "#6E7681", "editorLineNumber.activeForeground": "#171184", "editorGutter.background": "#FFFFFF" },
+  });
+}
+const MODERN: Record<string, string> = { light: "vscode-light-modern", dark: "vscode-dark-modern", "hc-light": "hc-light", "hc-dark": "hc-black" };
+
+export function createDiffViewer(host: HTMLElement, theme: string): DiffViewer {
+  defineModernThemes();
+  // VS Code's diffEditor defaults: side by side, whitespace at the ends ignored, the + and - indicators,
+  // the original read-only, the split resizable, inline when the space is narrow, the advanced algorithm.
+  const editor = monaco.editor.createDiffEditor(host, {
+    theme: MODERN[theme] ?? "vscode-light-modern",
+    automaticLayout: true,
+    readOnly: true,
+    originalEditable: false,
+    renderSideBySide: true,
+    ignoreTrimWhitespace: true,
+    renderIndicators: true,
+    enableSplitViewResizing: true,
+    useInlineViewWhenSpaceIsLimited: true,
+    renderOverviewRuler: true,
+    diffAlgorithm: "advanced",
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize: 14,
+    renderMarginRevertIcon: false,
+  });
+  let models: monaco.editor.ITextModel[] = [];
+  let inline = false;
+  const go = (where: "next" | "previous"): void => editor.goToDiff(where);
+  for (const side of [editor.getModifiedEditor(), editor.getOriginalEditor()]) {
+    side.addCommand(monaco.KeyCode.F7, () => go("next"));
+    side.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F7, () => go("previous"));
+  }
+  return {
+    show: (original, modified, path) => {
+      const lower = path.toLowerCase();
+      const language = monaco.languages.getLanguages().find((l) => (l.extensions ?? []).some((x) => lower.endsWith(x)))?.id ?? "plaintext";
+      const old = models;
+      models = [monaco.editor.createModel(original, language), monaco.editor.createModel(modified, language)];
+      editor.setModel({ original: models[0]!, modified: models[1]! });
+      for (const m of old) m.dispose();
+    },
+    next: () => go("next"),
+    previous: () => go("previous"),
+    setInline: (on) => {
+      inline = on;
+      editor.updateOptions({ renderSideBySide: !on, useInlineViewWhenSpaceIsLimited: !on });
+    },
+    inline: () => inline,
+    changes: () => editor.getLineChanges()?.length ?? 0,
+    setTheme: (t) => monaco.editor.setTheme(MODERN[t] ?? "vscode-light-modern"),
+    dispose: () => {
+      editor.dispose();
+      for (const m of models) m.dispose();
+    },
+  };
+}

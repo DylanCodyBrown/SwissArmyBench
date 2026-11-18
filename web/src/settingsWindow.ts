@@ -17,6 +17,8 @@
  *                                 server's, for every window; kept across restarts)
  *          [SESSION]              Follow the agent (kept across restarts; the user's switch) -> sessionPage.ts
  *          [LIBRARY]              the library folder: where, Change…, Default, what is in it -> library.ts
+ *          [GITHUB]               signed in, each folder's repository and sync words, Clone, Connect, Pull, Push
+ *                                 (shown while the backend names a Source Control area) -> scmPage.ts
  *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
@@ -25,6 +27,7 @@
 import { betaSection } from "./betaNotes";
 import { updatesSection } from "./updates";
 import { librarySection } from "./library";
+import { githubSettingsSection } from "./scmPage";
 import { projectsFolderSection } from "./projectExplorer";
 import { claudeSection } from "./claudeLaunch";
 import { openAreaPage, type PageElement } from "./areaPage";
@@ -160,6 +163,7 @@ function drawSettings(): void {
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     librarySection(),
+    githubSettingsSection(),
     projectsFolderSection(),
     panelsSection(),
     kindColoursSection(),

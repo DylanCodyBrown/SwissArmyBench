@@ -46,13 +46,14 @@ import { onUnseen } from "./sessionPage";
 import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
 import { STRUCTURES } from "./structuresPage"; // the Structures page's layer, the same
 import { CODE_APP, codeAppOn } from "./codeAppPage"; // the Power Apps extension's page (a plug-in: shown while it is on)
+import { SCM, scmOn } from "./scmPage"; // the Source Control page (a plug-in: shown while the backend names its area)
 import { canvasOn } from "./modes";
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, the same
 import { openMenu } from "./workbenchMenu";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "settings" | "data";
+export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -74,6 +75,8 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   // The apps' canvas is an extension's (Streamlit, preinstalled): the area shows while a mode offers it.
   { area: "apps", name: "Apps", icon: "page", kind: "app", plugin: () => canvasOn("streamlit") },
+  // An extension's area the backend names (GET /app/areas), as VS Code's activity bar has it.
+  { area: "scm", name: SCM, icon: "source-control", plugin: scmOn },
   { area: "visualizations", name: "Visualizations", icon: "sandbox" },
   { area: "session", name: "Session", icon: "session" }, // what the agent made this session (sessionPage.ts)
   // What plugs into the base (extensionsPage.ts), above Settings at the bottom (the owner, 2026-11-17).
@@ -81,7 +84,7 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
-const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "data"];
+const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "scm", "data"];
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;

@@ -26,6 +26,7 @@ import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { baseName, copyProject, newProject, openProject, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
+import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
 
 export interface ProjectCard {
   path: string;
@@ -281,6 +282,7 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
         h("span", {}, short(c.path)),
         c.git?.repository ? h("span", { class: "explorer-git", title: "Git repository" }, icon("branch"), c.git.branch ?? "Git") : null,
       ),
+      syncLine(c),
     ),
     menuButton(c, read, openIt),
   );
@@ -321,7 +323,22 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
   return element;
 }
 
+/** A shared card's sync words (GitHub sync, where the backend has it): "↑2 to push", "↓1 behind", "Conflicts: 1". */
+function syncLine(c: ProjectCard): HTMLElement | null {
+  if (c.where !== "shared" || c.missing) return null;
+  const line = h("p", { class: "explorer-sync", hidden: true });
+  void sharedSync().then((status) => {
+    const words = cardWords(status, c.name);
+    line.hidden = !words;
+    line.textContent = words ?? "";
+    syncFor.set(c.path, cardActions(status, c.path));
+  });
+  return line;
+}
+const syncFor = new Map<string, { label: string; run: () => Promise<unknown> }[]>();
+
 function menuButton(c: ProjectCard, read: Listing, openIt: () => void): HTMLElement {
+
   const menu = h("div", { class: "explorer-menu", role: "menu" });
   menu.hidden = true;
   const item = (label: string, act: () => void, cls = ""): HTMLElement =>
@@ -367,6 +384,18 @@ function menuButton(c: ProjectCard, read: Listing, openIt: () => void): HTMLElem
     const show = menu.hidden;
     for (const other of document.querySelectorAll<HTMLElement>(".explorer-menu")) other.hidden = true;
     menu.hidden = !show;
+    if (show && c.where === "shared") {
+      // A shared card's Pull and Push (GitHub sync, where the backend has it), known once its words came.
+      for (const old of menu.querySelectorAll(".explorer-sync-item")) old.remove();
+      const copy = [...menu.querySelectorAll<HTMLElement>(".explorer-menu-item")].find((b) => b.textContent === "Make a local copy");
+      for (const a of syncFor.get(c.path) ?? []) {
+        const run = guard(async () => {
+          await a.run();
+          await refreshExplorer();
+        });
+        copy?.before(item(a.label, run, "explorer-sync-item"));
+      }
+    }
     if (show) menu.querySelector<HTMLElement>("button")?.focus();
   }, { icon: "more", iconOnly: true, class: "ghost explorer-more" });
   toggle.addEventListener("click", (e) => e.stopPropagation());
@@ -404,7 +433,12 @@ async function copyTo(c: ProjectCard, path: string, words: string): Promise<void
   }
 }
 
-const share = (c: ProjectCard): Promise<void> => copyTo(c, "/projects/share", `${c.name} is shared`);
+const share = async (c: ProjectCard): Promise<void> => {
+  await copyTo(c, "/projects/share", `${c.name} is shared`);
+  // "Push it to GitHub now?" when the shared projects folder is connected.
+  const shared = listing?.shared_folder;
+  if (shared) await offerPush(`${shared.replace(/[\\/]+$/, "")}/${c.name}`, c.name);
+};
 const copyLocal = (c: ProjectCard): Promise<void> => copyTo(c, "/projects/copy-local", `A local copy of ${c.name} is made`);
 
 async function rename(c: ProjectCard): Promise<void> {

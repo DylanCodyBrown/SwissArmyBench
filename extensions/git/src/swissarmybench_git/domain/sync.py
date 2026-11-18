@@ -432,10 +432,10 @@ def pull_words(taken: int, merged: int, deleted: int, conflicts: int, kept: int)
         said.append(f"{deleted} deleted")
     if kept:
         said.append(f"{plural(kept, 'file')} deleted on GitHub kept here (changed here)")
-    text = ", ".join(said) or "Up to date"
+    text = ", ".join(said)
     if conflicts:
-        text += f". {plural(conflicts, 'conflict')}: resolve and Push"
-    return text
+        return (f"{text}. " if text else "") + f"{plural(conflicts, 'conflict')}: resolve and Push"
+    return text or "Up to date"
 
 
 def device_answer(answer: Mapping[str, Any]) -> tuple[str, Any]:
