@@ -70,6 +70,15 @@ export function windowlessPython(python: string, platform: string, exists: (file
   return exists(pythonw) ? pythonw : python;
 }
 
+/**
+ * The Open button's command: `<the uv tool's python> -m swissarmybench.server open`, which opens the desktop app (its home
+ * window comes forward when it is open already; the app starts the server it owns), or the browser where the app cannot
+ * run. On Windows pythonw.exe, so no console window appears.
+ */
+export function openCommand(python: string, platform: string, exists: (file: string) => boolean): { command: string; args: string[] } {
+  return { command: windowlessPython(python, platform, exists), args: ["-m", serverModule(python, "server"), "open"] };
+}
+
 /** The same file named two ways? Windows paths ignore case and either slash. */
 export function samePath(a: string, b: string, platform: string): boolean {
   const normalize = platform === "win32" ? path.win32.normalize : path.posix.normalize;

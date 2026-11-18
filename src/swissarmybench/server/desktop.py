@@ -9,6 +9,8 @@ and it starts the server it owns.
                       desktop_open): sent to the running app over its channel; the app started with the
                       page when none runs. False where the app cannot run (no Qt WebEngine, Linux with no
                       display): the caller opens the browser instead.
+  show(address)       a grid a push or open_grid made with nothing showing it and no VS Code window to
+                      ask (the running server's LiveUpdates.fallback): the app, else the browser.
   main(page)          the app's process: one at a time (its lock, desktop.json); a second start hands its
                       page to the first and ends.
 """
@@ -20,6 +22,7 @@ import importlib.util
 import os
 import sys
 import time
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +33,7 @@ from swissarmybench.server.lifecycle import AlreadyStartingError, InstanceLock, 
 from swissarmybench.server.updater import detached
 
 RECORD_WAIT_SECONDS = 20.0
+QUIT_WAIT_SECONDS = 5.0
 NO_APP = (
     "The desktop app cannot open here: it needs Qt WebEngine (PySide6) and a desktop to show its windows on. "
     "`swissarmybench open --browser` opens the app in the browser."
@@ -129,6 +133,37 @@ def open_page(address: str, info_file: Path | None = None) -> bool:
         return True
     # An app is starting: its channel comes up in a moment.
     return tell({"open": page}, info_file, wait=RECORD_WAIT_SECONDS) is not None
+
+
+def show(address: str, info_file: Path | None = None) -> bool:
+    """A page nothing shows yet (a push or open_grid with no VS Code window to ask): the desktop app (started
+    when none runs), else the browser where the app cannot run. False only when neither opened."""
+    if open_page(address, info_file):
+        return True
+    try:
+        return bool(webbrowser.open(address))
+    except webbrowser.Error:
+        return False
+
+
+def quit_app(info_file: Path | None = None, wait: float = QUIT_WAIT_SECONDS) -> bool:
+    """`swissarmybench stop`: the running app asked to quit (every window closed, each one's place kept, the
+    server told), waited for up to `wait` seconds. True when an app ran and has ended."""
+    found = running_app(info_file)
+    if found is None:
+        return False
+    try:
+        ask(found[1], found[2], {"quit": True})
+    except OSError:
+        return False
+    deadline = time.monotonic() + wait
+    # Ended: its record gone (the app removes it last) or its process gone. (An app the server started is the
+    # server's child: until the server reaps it, its process id still answers.)
+    while record_file(info_file).shell() is not None and process_alive(found[0]):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
 
 
 def status(info_file: Path | None = None) -> dict[str, Any]:

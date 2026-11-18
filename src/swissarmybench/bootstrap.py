@@ -61,7 +61,7 @@ from swissarmybench.adapters.state_files import (
 )
 from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
 from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
-from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
+from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note
 from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
@@ -933,7 +933,7 @@ def bootstrap(
     explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
 
     async def open_work() -> dict[str, Any]:
-        """What is open (the tray's menu) and what an update would lose: the tables, the Workbench
+        """What is open and what an update would lose: the tables, the Workbench
         window's documents (when one is open), the documents with unsaved changes, the kernels."""
         tables = [{"grid": g.id, "name": g.dataset} for g in ws.grids.all() if store.get(g.dataset)]
         documents: list[dict[str, Any]] = []
@@ -1136,9 +1136,6 @@ def bootstrap(
     )
     project_outline.used_tables = BothTables(project_tables.used, project_outline.used_tables)
     project_outline.portability = CardPortability(lambda: connection_usage.overview()["connections"])
-    # What the tray saw while no server ran (a crash, its restarts, giving up): into the beta log now.
-    for event in take_server_events(state_dir / "server_events.json" if audit_log else None):
-        beta.process("server", str(event["event"]), event.get("code"), None, str(event.get("reason") or ""))
 
     # The system's own file dialog on the user's click (server/dialog_runner.py), and the page's own picker's
     # quick places and recent folders per kind of pick (dialogs.json: paths only).

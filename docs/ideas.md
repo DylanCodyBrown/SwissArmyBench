@@ -5671,3 +5671,46 @@ the home page". A front-end change on the owner's word.
 - **Smaller rail icons:** 24px (from 28), the item height clamp(34px, (100vh - 40px) / 19, 46px), the current bar
   8px from each end, the Session count moved to sit on the smaller icon's corner; `--rail-w` stays 60px.
 - **The tour** starts from Projects and returns there; a new second card, Projects, lights the mark on the rail.
+
+## Desktop quick wins and desktop enhancements (the owner, 2026-11-18: "Agreed"; built, branch desktop-wins)
+
+The survey of the desktop app (read only) listed small fixes; each was checked before it was changed.
+
+### Part A: the small fixes
+
+- **Startup:** server/__main__.py imported uvicorn and the whole app (create_app: bootstrap, every route) at its top,
+  which the app's own process (launcher -> __main__.main -> the desktop shell) never uses. Both, and the heartbeat
+  filter, now load inside `start()` (uvicorn's Server subclass is made there too). `import
+  swissarmybench.server.__main__`: 0.56-0.60 s before, 0.13 s after (importtime, warm); a process that imports it,
+  0.60-0.66 s before, 0.16-0.19 s after. What is left is adapters/state_files.py importing domain/relationships
+  (sqlglot, about 0.1 s) for `info_file_path`: left as it is (shared file).
+- **A push or open_grid with nothing to show it:** only VS Code's openers were asked, so with only the app (or a
+  Workbench window) open nothing showed it. LiveUpdates.ask_opener now falls back to `fallback`, set by the running
+  server (`start`, unless SWISSARMYBENCH_NO_BROWSER=1, which the tests set): server/desktop.py `show` opens the
+  workspace on the grid in the desktop app (started when it is not open), else the browser. The push client's words
+  no longer say the app lives in VS Code.
+- **Tray leftovers removed:** `take_server_events` and server_events.json (nothing writes it since the tray went),
+  SWISSARMYBENCH_TRAY in the updater's test, the Bridge's unused open_address, AppWindow.popup, LiveUpdates'
+  test-only openers_gone_for. Words fixed: the signed-out page ("from its launcher"), app_navigate's home notice,
+  routes_desktop, app.py, bootstrap's open_work, services/updates.py, updates.ts, install.ps1.
+- **A clean quit over the app's channel:** `{"quit": true}` closes every window without asking its page, keeps
+  each window's place (windows.json), tells the server closed and ends the app. `swissarmybench stop` quits the app
+  first, then stops the server (the installers already run it); the update's helper asks the app to quit before it
+  would end it (SystemOps.quit, standard library: it speaks the channel itself), and ends it only when it is still
+  there 5 s later. **Unsaved work:** an update already warned in the page (updates.ts: the restart and what would be
+  lost) and `stop` is the user's own word in a terminal, so both quit with closing set: no page is asked.
+- **No blocking on the window thread:** the shell trusts the server that answered once (its process id and token,
+  while that process lives and the connection file names it): opening a page makes no request. Finding the server
+  and starting it runs on a thread of its own that tells the window thread when it answered (the 300 ms timer and
+  its 2 s health checks went). Closing the last window posts /lifecycle/closed from a thread (2 s limit; the
+  process waits for it at its end; server/lifecycle.py post_json, not a copy). The first window shows at once with
+  a plain "Starting…" page while the server comes up, and the first page loads into it.
+- **VS Code's button opened Chrome:** it now runs `<the uv tool's python> -m swissarmybench.server open` (the app,
+  else the browser), pythonw.exe on Windows; core/chrome.ts and the `chromePath` setting are gone (nothing else
+  used them). Should that command not start, the button falls back to the server and the default browser.
+- **Print to PDF in Visualizations was real:** Qt's window.print() returns at once while the Save dialog is up and
+  fires no afterprint, so the page's 1.5 s fallback took its print layout and its `@page` size away before
+  printToPdf ran: the PDF came out A4 (594.96 x 840.96 pt) with the whole page in it. Now the shell fires
+  `afterprint` once the PDF is written (or the dialog is cancelled), the page waits for it in the app (`sabApp`
+  marks the app; the browser keeps its 1.5 s), and Chromium takes the page's `@page` size: Letter landscape comes
+  out 792 x 612 pt.

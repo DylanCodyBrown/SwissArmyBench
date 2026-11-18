@@ -1,6 +1,6 @@
 """The Desktop extension's HTTP door (services/desktop.py). Every route serves the agent too.
 
-GET    /desktop          the shell: running, its tray icon, its windows (kind, title, page)   desktop_status
+GET    /desktop          the shell: running, its windows (kind, title, page)   desktop_status
 POST   /desktop/open     {page: home | workbench | blades}: opened in the shell                desktop_open
 """
 

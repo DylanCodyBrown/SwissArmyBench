@@ -82,7 +82,7 @@ class GridService:
         grid = ws.grids.create(dataset)
         ws.audit.write(who, "open_grid", dataset, grid=grid.id)
         await ws.live.broadcast({"type": "grid_shown", "grid": grid.id, "dataset": dataset})
-        # Nothing shows it yet: VS Code opens the workspace, as for a push.
+        # Nothing shows it yet: VS Code opens the workspace, else the desktop app, as for a push.
         shown = ws.live.shown_or_opening(grid.id) or await ws.live.ask_opener(ws.addresses.workspace(grid))
         return {
             "grid": grid.id,

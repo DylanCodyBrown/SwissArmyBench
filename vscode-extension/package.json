@@ -52,17 +52,7 @@
         "id": "swissarmybench",
         "label": "Swiss Army Bench"
       }
-    ],
-    "configuration": {
-      "title": "Swiss Army Bench",
-      "properties": {
-        "swissarmybench.chromePath": {
-          "type": "string",
-          "default": "",
-          "description": "Google Chrome's full path, for opening Swiss Army Bench in its own window. Empty: the usual places, then the default browser."
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

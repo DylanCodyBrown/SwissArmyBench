@@ -3,7 +3,7 @@
 Accepts a pandas DataFrame, a Polars DataFrame, a PyArrow table, a DuckDB relation, anything
 else that speaks the Arrow C stream interface, or a list of dicts ("records").
 
-The dataset name, which is also the browser tab's title, comes from:
+The dataset name, which is also the grid tab's title, comes from:
 1. `name=` when given;
 2. otherwise the variable you passed: `push(orders)` names the dataset "orders";
 3. otherwise "data".
@@ -11,9 +11,10 @@ The dataset name, which is also the browser tab's title, comes from:
 With pyarrow installed (the normal case) the data travels as an Arrow stream, which keeps
 real column types (dates stay dates). Without it a pandas frame goes as orient="split" JSON.
 
-Swiss Army Bench lives in VS Code. Its extension starts the server when VS Code opens and shows
-the grids there; this client only connects to that server and never starts one or opens a
-browser, so every script, notebook and agent reaches the one server the extension keeps current.
+Swiss Army Bench is a desktop app: `swissarmybench` opens it, and it starts the server it owns (VS Code's
+extension can start the same server). This client only connects to that server and never starts one or
+opens a window: the server shows a pushed table itself (in a VS Code window when one is connected, else in
+the app), so every script, notebook and agent reaches the one server.
 """
 
 from __future__ import annotations
@@ -36,8 +37,8 @@ _MIB: int = 1024 * 1024
 _NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _TIMEOUT_SECONDS: float = 300.0
 NOT_RUNNING: str = (
-    "Swiss Army Bench isn't running. Start it with the swissarmybench command (installed with uv), or "
-    "VS Code's Open Swiss Army Bench button."
+    "Swiss Army Bench isn't running. Open the app (the swissarmybench command, or its launcher in the "
+    "Start menu or Applications), or VS Code's Open Swiss Army Bench button."
 )
 
 
@@ -88,8 +89,8 @@ def _healthy(info: dict[str, Any]) -> bool:
 
 
 def ensure_server() -> dict[str, Any]:
-    """The running server's connection info. The server is VS Code's to start (its extension
-    does it when VS Code opens), so this only connects: with none running it raises, saying so.
+    """The running server's connection info. The server is the app's to start (or VS Code's extension's),
+    so this only connects: with none running it raises, saying so.
     A connection file that names no live server (left by a crash) counts as not running."""
     info = _read_info()
     if info is not None and _healthy(info):
@@ -321,10 +322,10 @@ def push(
     `_process` and `_follow` are the watcher's: which session pushes, and whether this is a refresh
     of an open table (no jump to the front, refused if the table was closed).
 
-    The grid shows in VS Code: the server has the extension open the workspace when nothing
-    shows it yet, so pushing again in a loop refreshes one tab instead of opening many.
-    `start_server` and `open` no longer do anything (VS Code starts the server and shows the
-    grids); they stay so code written for earlier versions still runs.
+    The grid shows in the app: when nothing shows it yet the server opens the workspace (a VS Code window
+    when one is connected, else the desktop app), so pushing again in a loop refreshes one tab instead of
+    opening many. `start_server` and `open` no longer do anything (the app starts the server and the
+    server shows the grids); they stay so code written for earlier versions still runs.
     """
     name = name or caller_variable_name(data, _frame or _caller()) or "data"
     if not _NAME.fullmatch(name):
@@ -394,7 +395,7 @@ def push(
         reason = getattr(error, "reason", None) or error
         raise ServerNotRunningError(
             f"No Swiss Army Bench server at port {info['port']} ({reason}): it stopped while "
-            "this push was on its way. Click Swiss Army Bench in VS Code's status bar to start it again."
+            "this push was on its way. Open Swiss Army Bench again (the swissarmybench command) to start it."
         ) from error
     return str(result.get("grid_url") or "")  # a refresh of a table whose tab was closed has none
 

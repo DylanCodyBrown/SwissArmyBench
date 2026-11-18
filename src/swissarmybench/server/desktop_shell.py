@@ -28,7 +28,7 @@ import json
 import os
 import sys
 import threading
-import urllib.request
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -63,7 +63,7 @@ from PySide6.QtWidgets import (
 
 from swissarmybench.adapters.desktop import JsonState, Listener, RecordFile, new_key
 from swissarmybench.domain import desktop as rules
-from swissarmybench.server.lifecycle import read_info, running_server
+from swissarmybench.server.lifecycle import post_json, process_alive, read_info, running_server
 from swissarmybench.server.updater import detached
 
 APP_NAME = "Swiss Army Bench"
@@ -73,6 +73,8 @@ SHELL_SCRIPT = """
 (() => {
   if (window.__sabShell) return;
   window.__sabShell = true;
+  // The page knows it is in the desktop app (the browser's keys become the app's; print waits for the PDF).
+  Object.defineProperty(window, "sabApp", { value: Object.freeze({ app: true }), enumerable: false });
   const say = (m) => console.info("__MARK__" + JSON.stringify(m));
   const focus = window.focus;
   window.focus = function () { say({ focus: true }); return focus.call(window); };
@@ -85,6 +87,16 @@ MARK_RED = QColor(0xD5, 0x2B, 0x1E)
 DOT_BLUE = QColor(0x25, 0x63, 0xEB)
 SERVER_WAIT_MS = 60_000
 STATUS_HIDE_MS = 30_000
+CLOSED_TIMEOUT_SECONDS = 2.0
+# window.print() returns at once in Qt (the Save dialog and the PDF come after): the page is told when it is
+# over, as a browser's afterprint, so it keeps its print layout (and its @page size) until then.
+AFTER_PRINT = "window.dispatchEvent(new Event('afterprint')); true"
+# The first window while the server comes up (a page of its own: nothing of the app's is there yet).
+STARTING_HTML = """<!doctype html><html><head><meta charset="utf-8"><title>Swiss Army Bench</title><style>
+:root { color-scheme: light dark; }
+body { margin: 0; height: 100vh; display: grid; place-items: center; font: 15px system-ui, sans-serif;
+  background: Canvas; color: GrayText; }
+</style></head><body><p>Starting…</p></body></html>"""
 
 AskSave = Callable[[QWidget | None, str, str, str], str]
 OpenOutside = Callable[[QUrl], object]
@@ -137,7 +149,7 @@ class Bridge(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy withou
     """Calls from other threads (the channel) handed to the window thread."""
 
     open_page = Signal(str)  # a page of the app, no token
-    open_address = Signal(str)  # a full address
+    server_up = Signal(bool)  # the server answered (True), or did not start in time
     quit = Signal()
 
 
@@ -153,6 +165,8 @@ class Page(QWebEnginePage):  # type: ignore[misc,unused-ignore]  # Any to mypy w
         self, url: QUrl | str, kind: QWebEnginePage.NavigationType, main_frame: bool
     ) -> bool:
         address = url.toString() if isinstance(url, QUrl) else str(url)
+        if self.window.starting and main_frame and address.startswith("data:"):
+            return True  # the shell's own Starting… page (setHtml)
         clicked = kind == QWebEnginePage.NavigationType.NavigationTypeLinkClicked
         verdict = rules.decide(address, self.shell.port, main_frame=main_frame, clicked=clicked)
         if verdict == rules.INSIDE:
@@ -164,8 +178,7 @@ class Page(QWebEnginePage):  # type: ignore[misc,unused-ignore]  # Any to mypy w
         return False
 
     def createWindow(self, kind: QWebEnginePage.WebWindowType) -> QWebEnginePage:
-        popup = kind == QWebEnginePage.WebWindowType.WebDialog
-        return self.shell.new_window(popup=popup).page
+        return self.shell.new_window().page
 
     def javaScriptConsoleMessage(
         self, level: QWebEnginePage.JavaScriptConsoleMessageLevel, text: str, line: int, source: str
@@ -187,11 +200,11 @@ class Page(QWebEnginePage):  # type: ignore[misc,unused-ignore]  # Any to mypy w
 class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
     """A page of the app in a window of its own."""
 
-    def __init__(self, shell: Shell, ident: int, popup: bool = False) -> None:
+    def __init__(self, shell: Shell, ident: int) -> None:
         super().__init__()
         self.shell = shell
         self.ident = ident
-        self.popup = popup
+        self.starting = False  # showing the shell's Starting… page while the server comes up
         self.name = ""
         self.kind = ""
         self.fresh = True  # nothing of the app shown yet (a window.open's about:blank)
@@ -422,11 +435,16 @@ class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy
 
     def _printed(self, path: str, ok: bool) -> None:
         name = Path(path).name
+        self.after_print()
         if ok:
             self.tell(f"Saved {name}", str(Path(path).parent))
             self.shell.printed.append(path)
         else:
             self.tell(f"{name} could not be printed.")
+
+    def after_print(self) -> None:
+        """The page's afterprint: its print layout ends now that the PDF is written (or was not wanted)."""
+        self.page.runJavaScript(AFTER_PRINT)
 
 
 class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
@@ -461,14 +479,17 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         self._waiting: list[str] = []
         self.bridge = Bridge()
         self.bridge.open_page.connect(self.open_page)
-        self.bridge.open_address.connect(self.open_address)
+        self.bridge.server_up.connect(self._server_up)
         self.profile = self._profile()
         self.start_server = start_server or (lambda: detached(server_command()))
         self.bridge.quit.connect(self.quit)
         self.closing = False
-        self._wait_timer = QTimer(self)
-        self._wait_timer.timeout.connect(self._server_up)
-        self._waited = 0
+        # The server that answered once (its process id and token): trusted while that process lives and the
+        # connection file still names it, so opening a page never waits on a request (the window thread).
+        self._trusted: tuple[int, str] | None = None
+        self._watching = False
+        self._starting: AppWindow | None = None
+        self.told: list[threading.Thread] = []
 
     # ----- the profile -----
 
@@ -512,31 +533,49 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         port = info.get("port") if info else None
         return port if isinstance(port, int) else 0
 
-    def server_running(self) -> bool:
-        return running_server(self.info_file) is not None
+    def trusted(self, info: dict[str, Any] | None) -> bool:
+        """Is `info` (the connection file) the server that already answered, its process still alive? No
+        request: the window thread never waits on one."""
+        if info is None or self._trusted is None:
+            return False
+        pid, token = info.get("pid"), info.get("token")
+        return (pid, token) == self._trusted and isinstance(pid, int) and process_alive(pid)
 
-    def ensure_server(self) -> None:
-        """The server, when none is running (the app owns its life: it stops once the app closes)."""
-        if not self.server_running():
-            self.start_server()
+    def _watch_server(self) -> None:
+        """Off the window thread: the server started when none answers (the app owns its life: it stops once
+        the app closes), then waited for; `server_up` says how it went."""
+        started = False
+        deadline = time.monotonic() + SERVER_WAIT_MS / 1000
+        while time.monotonic() < deadline:
+            found = running_server(self.info_file)
+            if found is not None:
+                pid, token = found.get("pid"), found.get("token")
+                if isinstance(pid, int) and isinstance(token, str):
+                    self._trusted = (pid, token)
+                self.bridge.server_up.emit(True)
+                return
+            if not started:
+                started = True
+                self.start_server()
+            time.sleep(0.3)
+        self.bridge.server_up.emit(False)
 
     def tell_server_closed(self) -> None:
-        """The app's last window closed: the server stops as soon as nothing else holds it."""
+        """The app's last window closed: the server stops as soon as nothing else holds it. Sent off the
+        window thread with a short limit (the process waits for it at its end: the thread is no daemon)."""
         info = read_info(self.info_file)
         if info is None:
             return
-        request = urllib.request.Request(
-            f"http://127.0.0.1:{info['port']}/lifecycle/closed",
-            data=b"{}",
-            method="POST",
-            headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
-        )
-        try:
-            # The app's own server, on 127.0.0.1, at the port its connection file names.
-            with urllib.request.urlopen(request, timeout=3) as answer:  # noqa: S310
-                answer.read()
-        except OSError:
-            pass
+
+        def send() -> None:
+            try:
+                post_json(info, "/lifecycle/closed", {}, timeout=CLOSED_TIMEOUT_SECONDS)
+            except (OSError, ValueError):
+                pass
+
+        thread = threading.Thread(target=send, name="sab-closed")
+        thread.start()
+        self.told.append(thread)
 
     def open_in_browser(self, window: AppWindow) -> None:
         """The window's page in the system's browser (the browser stays possible: Open in browser)."""
@@ -554,29 +593,38 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
 
     def open_page(self, page: str) -> None:
         """A page of the app (no token): its address made from the running server's connection file. The
-        server not running yet: it is started, and the page opens once it answers."""
+        server not known to answer yet: it is looked for (and started) off the window thread, a first window
+        says Starting… meanwhile, and the page opens once the server answers."""
         info = read_info(self.info_file)
-        if info is None or not self.server_running():
-            self._waiting.append(page)
-            if not self._wait_timer.isActive():
-                self.ensure_server()
-                self._waited = 0
-                self._wait_timer.start(300)
+        if info is not None and self.trusted(info):
+            self.port = int(info["port"])
+            self.open_address(rules.address_of(page, self.port, str(info["token"])))
             return
-        self.port = int(info["port"])
-        self.open_address(rules.address_of(page, self.port, str(info["token"])))
+        self._waiting.append(page)
+        if not self.windows and self._starting is None:
+            self._show_starting(page)
+        if not self._watching:
+            self._watching = True
+            threading.Thread(target=self._watch_server, name="sab-server-wait", daemon=True).start()
 
-    def _server_up(self) -> None:
-        self._waited += 300
-        if self.server_running():
-            self._wait_timer.stop()
-            waiting, self._waiting = self._waiting, []
+    def _show_starting(self, page: str) -> None:
+        window = self.new_window()
+        window.starting = True
+        window.kind = rules.kind_of(page)
+        window.page.setHtml(STARTING_HTML)
+        window.place()
+        self._starting = window
+
+    def _server_up(self, ok: bool) -> None:
+        self._watching = False
+        waiting, self._waiting = self._waiting, []
+        if ok:
             for page in waiting:
                 self.open_page(page)
-        elif self._waited >= SERVER_WAIT_MS:
-            self._wait_timer.stop()
-            self._waiting.clear()
-            print("Swiss Army Bench did not start.", file=sys.stderr)
+            return
+        print("Swiss Army Bench did not start.", file=sys.stderr)
+        if self._starting is not None:
+            self._starting.page.setHtml(STARTING_HTML.replace("Starting…", "Swiss Army Bench did not start."))
 
     def open_address(self, address: str) -> AppWindow | None:
         """A full address: the app's page goes to its window (raised, loaded when it says more), or a new
@@ -586,6 +634,15 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         if rules.decide(address, port) != rules.INSIDE or address.startswith("about:"):
             self.outside(QUrl(address))
             return None
+        starting, self._starting = self._starting, None
+        if starting is not None and starting.ident in self.windows:
+            # The first page goes into the window that said Starting….
+            starting.starting = False
+            starting.kind = rules.kind_of(address)
+            starting.page.load(QUrl(address))
+            starting.bring_forward()
+            self.changed()
+            return starting
         found = [rules.Open(w.ident, w.name, w.page.url().toString()) for w in self.windows.values()]
         ident, load = rules.target(address, found)
         if ident is not None:
@@ -601,8 +658,8 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         self.changed()
         return window
 
-    def new_window(self, popup: bool = False) -> AppWindow:
-        window = AppWindow(self, self._next, popup)
+    def new_window(self) -> AppWindow:
+        window = AppWindow(self, self._next)
         self._next += 1
         self.windows[window.ident] = window
         self.changed()
@@ -611,6 +668,13 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
     def closed(self, window: AppWindow) -> None:
         self.windows.pop(window.ident, None)
         self.changed()
+        if window is self._starting:
+            # The Starting… window closed before the server answered: nothing more opens; the app ends.
+            self._starting = None
+            self._waiting.clear()
+            if not self.windows and not self.closing:
+                QTimer.singleShot(0, self.app.quit)
+            return
         if not self.windows and not self.closing and not window.fresh:
             # The app's last window closed: the server stops as soon as nothing else holds it; the app ends.
             self.tell_server_closed()
@@ -649,9 +713,12 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         return {"running": True, "pid": os.getpid(), "windows": windows}
 
     def heard(self, said: dict[str, Any]) -> dict[str, Any]:
-        """The channel's message (on its thread): open a page, or what is open."""
+        """The channel's message (on its thread): open a page, quit, or what is open."""
         if "open" in said:
             self.bridge.open_page.emit(str(said["open"]))
+            return {"ok": True}
+        if said.get("quit") is True:
+            self.bridge.quit.emit()
             return {"ok": True}
         return self.status()
 
@@ -695,13 +762,21 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         chosen = self.save_dialog(window, "Print to PDF", start, "PDF (*.pdf)")
         if chosen:
             window.print_to(chosen if chosen.lower().endswith(".pdf") else f"{chosen}.pdf")
+        else:
+            window.after_print()
 
     # ----- the end -----
 
     def quit(self) -> None:
+        """The channel's quit (`swissarmybench stop`, an update's helper): every window closed without asking
+        its page (an update warned in the page first; a stop from a terminal is the user's own word), each
+        window's place kept (windows.json), the server told, the app ended."""
+        had = bool(self.windows)
         self.closing = True
         for window in list(self.windows.values()):
             window.close()
+        if had:
+            self.tell_server_closed()
         self.app.quit()
 
     def shutdown(self) -> None:

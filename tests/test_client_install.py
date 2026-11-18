@@ -181,19 +181,34 @@ def test_the_window_last_in_front_opens_the_workspace() -> None:
     assert asyncio.run(live.ask_opener("http://u")) is False  # no window: nothing to ask
 
 
-def test_the_server_counts_how_long_vscode_has_been_gone(monkeypatch: pytest.MonkeyPatch) -> None:
-    clock = [100.0]
-    monkeypatch.setattr(live_updates, "monotonic", lambda: clock[0])
-    live = LiveUpdates()  # just started: no window yet
-    clock[0] = 110.0
-    assert live.openers_gone_for() == 10.0
-    window: Any = object()
-    live.add(window, opener=True)
-    clock[0] = 500.0
-    assert live.openers_gone_for() == 0.0
-    live.discard(window)  # the last VS Code window closed
-    clock[0] = 505.0
-    assert live.openers_gone_for() == 5.0
+def test_with_no_vscode_window_the_desktop_app_shows_the_grid() -> None:
+    """A push or open_grid with only the app (or a Workbench window) open: no VS Code opener answers, so the
+    running server's fallback (the desktop app, else the browser) shows the workspace."""
+    shown: list[str] = []
+    live = LiveUpdates()
+    assert asyncio.run(live.ask_opener("http://u")) is False  # tests: no fallback, nothing opens
+
+    def show(url: str) -> bool:
+        shown.append(url)
+        return True
+
+    live.fallback = show
+    assert asyncio.run(live.ask_opener("http://u")) is True and shown == ["http://u"]
+
+    class Window:
+        async def send_json(self, message: dict[str, str]) -> None:
+            pass
+
+    window: Any = Window()
+    live.add(window, opener=True)  # a VS Code window is asked first, the app not at all
+    assert asyncio.run(live.ask_opener("http://v")) is True and shown == ["http://u"]
+
+    def broken(url: str) -> bool:
+        raise OSError("no display")
+
+    live.discard(window)
+    live.fallback = broken
+    assert asyncio.run(live.ask_opener("http://w")) is False
     # VS Code's windows are not the app's: the server's life (services/lifecycle.py) counts them as busy.
     assert live.windows() == 0 and live.openers() == 0
 

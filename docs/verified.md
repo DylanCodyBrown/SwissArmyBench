@@ -3349,3 +3349,22 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   landing row). Failed under load and passed alone: test_copilot_page's private project, test_streamlit_page (four,
   one other when run as a file), test_table_cells_page's maker that stays put.
 - **Not checked:** the desktop app (Qt WebEngine) run by hand; a narrow window (420 px) with the smaller rail.
+
+## Desktop quick wins and desktop enhancements (2026-11-18, branch desktop-wins)
+
+- **Startup time:** `python -X importtime -c "import swissarmybench.server.__main__"`, warm: 0.54-0.56 s cumulative
+  before, 0.13 s after; a process importing it (five runs): 0.60-0.66 s before, 0.16-0.19 s after.
+- **Unit:** tests/test_client_install.py (no VS Code window: the fallback shows the workspace; VS Code asked first;
+  a failing fallback is False), tests/test_desktop.py (`show`: the app, else the browser; `stop` quits the app over
+  a real channel, then the server), tests/test_desktop_rules.py (`{"quit": true}`), tests/test_updater.py (the
+  helper asks the app to quit before any kill; it ends one that does not quit; SystemOps.quit speaks a real
+  channel).
+- **The real app under Xvfb** (tests/test_desktop_shell.py with SAB_TEST_QPA=xcb and xvfb-run, Chromium's sandbox
+  off): one window from the start (Starting…, then the home page in it); Print to PDF with a Save dialog that takes
+  2 s: the PDF is Letter landscape (792 x 612) and the page's afterprint came while its print layout was still on;
+  the app process quit over its channel exits 0 with windows.json holding home, catalog and workbench.
+  Before the fix the same probe gave an A4 PDF (594.96 x 840.96) and no afterprint.
+- **A push with only the server running** (no window, no VS Code; Xvfb): the push answered in 0.36 s and the
+  desktop app opened on the grid ("Grid"); `quit_app` then ended it.
+- **VS Code extension:** `npm run typecheck`, `npm test` (17 passing: the Open command line, pythonw.exe on
+  Windows, the old tool's module, no Chrome and no chromePath). The button was not clicked in a real VS Code.

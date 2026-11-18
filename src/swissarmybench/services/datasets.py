@@ -207,7 +207,8 @@ class DatasetService:
             ws.audit.write(
                 who, "push", name, rows=info.row_count, source_kind=info.source_kind, bytes=info.nbytes
             )
-            # Nothing shows it yet: VS Code opens the workspace (its window the user was last in).
+            # Nothing shows it yet: VS Code opens the workspace (its window the user was last in), else the
+            # desktop app (the browser where the app cannot run).
             watched = ws.live.shown_or_opening(grid.id) or await ws.live.ask_opener(
                 ws.addresses.workspace(grid)
             )
@@ -220,7 +221,7 @@ class DatasetService:
             "dataset": name,
             "version": info.version,
             # Whether the grid is on screen, about to be (a window an earlier push had opened), or
-            # being opened by VS Code now. False only when no VS Code window is connected.
+            # being opened now (VS Code, else the desktop app or the browser). False when nothing could.
             "watched": watched,
         }
 

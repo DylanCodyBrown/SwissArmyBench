@@ -152,7 +152,7 @@ export async function openSession(): Promise<boolean> {
 export function showSignedOut(): void {
   const page = document.createElement("main");
   page.className = "signed-out";
-  page.append("Open Swiss Army Bench from its tray icon, or run ");
+  page.append("Open Swiss Army Bench from its launcher, or run ");
   const code = document.createElement("code");
   code.textContent = "swissarmybench open";
   page.append(code, ".");

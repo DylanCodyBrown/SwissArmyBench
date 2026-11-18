@@ -44,7 +44,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
-  routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
+  routes_updates.py        the update check, its Settings switch, Update to X
   routes_extensions.py     the Extensions page: the catalog, Install and Remove (the updater's helper)
   routes_claude.py         Launch Claude: Claude Code in a terminal, or Claude Desktop (the user's only)
   streamlit_proxy.py       live pages passed through under their own secret (the extensions' Streamlit and dev

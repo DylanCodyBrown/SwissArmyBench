@@ -2,8 +2,8 @@
  * updates.ts: "Update available" in the status bars, Settings' "Check for updates", Update to X. [SHARED]
  *
  * The owner (2026-11-16): "we should add a button that appears in the tray saying an update is available
- * and you can right click to update". The tray has it (server/tray.py); the grid page's and the
- * Workbench's status bars show the same, quietly, and only while there is one (principle 7.9: never "up to
+ * and you can right click to update". The tray is gone (2026-11-18); the grid page's and the
+ * Workbench's status bars show it, quietly, and only while there is one (principle 7.9: never "up to
  * date"). The check is the server's (services/updates.py): the one request that leaves the computer.
  *
  *   [UPDATE CORNER] "Update available" in the window's top-right corner while a newer release exists

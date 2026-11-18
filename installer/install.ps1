@@ -113,8 +113,9 @@ if ((ListTools) -match '^swissarmygrid ') {
 }
 
 # 4. The server, as a uv tool in its own environment. Windows will not replace files a running program has
-#    open, so whatever runs from the installed copy stops first: the server (asked politely), its tray, and
-#    any agent tool (MCP) server an editor started from it.
+#    open, so whatever runs from the installed copy stops first: the app and its server (`swissarmybench stop`
+#    quits the app over its channel, each window's place kept, then stops the server), and any agent tool
+#    (MCP) server an editor started from it.
 function ToolDir {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"

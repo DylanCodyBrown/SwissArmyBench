@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -42,6 +43,8 @@ def main(folder: Path, shots: Path | None) -> int:
 
     def save_dialog(parent: Any, title: str, start: str, filters: str) -> str:
         asked.append((title, Path(start).name))
+        if title == "Print to PDF":
+            time.sleep(2.0)  # the user choosing a name: longer than a browser page's own 1.5 s wait
         return str(saved_to / Path(start).name)
 
     app = QApplication(sys.argv[:1])
@@ -104,6 +107,8 @@ def main(folder: Path, shots: Path | None) -> int:
         results["server_started_by_shell"] = True
         wait(lambda: rules.is_ours(home.page.url().toString(), shell.port) and loaded(home), 60, "home page")
         results["home_loaded_seconds"] = round(time.monotonic() - started, 1)
+        # One window from the start: it said Starting… while the server came up, then showed the page.
+        results["windows_at_start"] = len(shell.windows)
         results["home_kind"] = home.kind
         results["home_name"] = wait(lambda: home.name, 10, "home window's name")
         results["home_title"] = home.windowTitle()
@@ -149,12 +154,35 @@ def main(folder: Path, shots: Path | None) -> int:
         results["download_show_in_folder"] = not home._status_button.isHidden()
         shot(home, "desktop-download-saved.png")
 
-        # 5. Print to PDF: the page's window.print() (Visualizations' Print to PDF calls it).
-        js(home, "setTimeout(() => window.print(), 10); true")
+        # 5. Print to PDF: the page's window.print() (Visualizations' Print to PDF calls it, its paper's
+        # @page size set and its print layout on until afterprint): the shell fires afterprint once the PDF
+        # is written.
+        results["page_knows_the_app"] = js(home, "typeof window.sabApp === 'object' && window.sabApp.app")
+        js(
+            home,
+            "window.__after = []; const st = document.createElement('style'); st.id = 'drive-page';"
+            " st.textContent = '@page { size: 11in 8.5in; margin: 0; }'; document.head.append(st);"
+            " document.body.classList.add('drive-printing');"
+            " window.addEventListener('afterprint', () => window.__after.push("
+            "document.body.classList.contains('drive-printing')), { once: true });"
+            " setTimeout(() => window.print(), 10); true",
+        )
         pdf = wait(lambda: shell.printed, 60, "the PDF")[0]
         results["print_dialog"] = asked[-1]
         results["pdf_head"] = Path(pdf).read_bytes()[:5].decode("latin-1")
         results["pdf_size"] = Path(pdf).stat().st_size
+        boxes = re.findall(rb"/MediaBox\s*\[([^\]]*)\]", Path(pdf).read_bytes())
+        results["pdf_mediabox"] = boxes[0].decode().split() if boxes else []
+        results["afterprint"] = wait(
+            lambda: (
+                js(home, "JSON.stringify(window.__after)") != "[]"
+                and js(home, "JSON.stringify(window.__after)")
+            ),
+            10,
+            "afterprint",
+        )
+        js(home, "document.getElementById('drive-page').remove();"
+           " document.body.classList.remove('drive-printing'); true")  # fmt: skip
 
         # 6. Outside addresses: the system's browser, never inside the shell.
         count = len(shell.windows)

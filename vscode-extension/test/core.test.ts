@@ -4,9 +4,7 @@
 import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
-import { infoFile, samePath, serverModule, serverPythons, windowlessPython } from "../src/core/paths";
-import { EventEmitter } from "events";
-import { chromeCandidates, ChromeDeps, openInChrome } from "../src/core/chrome";
+import { infoFile, openCommand, samePath, serverModule, serverPythons, windowlessPython } from "../src/core/paths";
 const TOOL = "C:\\Users\\me\\AppData\\Roaming\\uv\\tools\\swissarmybench\\Scripts\\python.exe";
 
 describe("serverPythons", () => {
@@ -80,118 +78,29 @@ describe("windowlessPython", () => {
   });
 });
 
-describe("Open SAB in Chrome", () => {
-  const URL = "http://127.0.0.1:8790/workspace#token=abc";
-  /** Windows paths are built, not typed, so the backslashes cannot go wrong. */
-  const win = (...parts: string[]): string => path.win32.join(...parts);
-  const PROGRAM_FILES = "C:\\Program Files";
-  const chromeIn = (root: string): string => win(root, "Google", "Chrome", "Application", "chrome.exe");
+describe("the Open button", () => {
+  const tool = path.win32.join("C:", "Users", "x", "AppData", "Roaming", "uv", "tools", "swissarmybench", "Scripts");
 
-  /** A stand-in for child_process.spawn: records each call, and starts or fails the way the test says. */
-  function launcher(outcome: (command: string) => "start" | NodeJS.ErrnoException, present: string[] = []) {
-    const calls: { command: string; args: string[]; options: any; unrefd: boolean }[] = [];
-    const deps: ChromeDeps = {
-      exists: (p) => present.includes(p),
-      spawn: ((command: string, args: string[], options: any) => {
-        const child: any = new EventEmitter();
-        const call = { command, args, options, unrefd: false };
-        child.unref = () => (call.unrefd = true);
-        calls.push(call);
-        const result = outcome(command);
-        setImmediate(() => (result === "start" ? child.emit("spawn") : child.emit("error", result)));
-        return child;
-      }) as any,
-    };
-    return { deps, calls };
-  }
-  const missing = (): NodeJS.ErrnoException => Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
-
-  it("looks where Chrome installs on each system, and skips folders the environment does not name", () => {
-    const env = {
-      ProgramFiles: PROGRAM_FILES,
-      "ProgramFiles(x86)": "C:\\Program Files (x86)\\",
-      LocalAppData: "C:\\Users\\a\\AppData\\Local",
-    };
-    assert.deepStrictEqual(chromeCandidates("win32", env), [
-      chromeIn(PROGRAM_FILES),
-      chromeIn("C:\\Program Files (x86)"),
-      chromeIn("C:\\Users\\a\\AppData\\Local"),
-    ]);
-    assert.deepStrictEqual(chromeCandidates("win32", {}), []);
-    assert.deepStrictEqual(chromeCandidates("darwin", {}), ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]);
-    assert.ok(chromeCandidates("linux", {}).includes("google-chrome"));
+  it("runs the uv tool's `swissarmybench.server open`: the desktop app, else the browser", () => {
+    const python = "/home/x/.local/share/uv/tools/swissarmybench/bin/python";
+    assert.deepStrictEqual(openCommand(python, "linux", () => true), {
+      command: python,
+      args: ["-m", "swissarmybench.server", "open"],
+    });
   });
-
-  it("starts the first Chrome that is there, on the address, detached from VS Code", async () => {
-    const found = chromeIn(PROGRAM_FILES);
-    const { deps, calls } = launcher(() => "start", [found]);
-    const result = await openInChrome(URL, deps, "win32", { ProgramFiles: PROGRAM_FILES });
-    assert.deepStrictEqual(result, { ok: true, chrome: found });
-    assert.strictEqual(calls.length, 1);
-    assert.deepStrictEqual(calls[0].args, [URL]);
-    assert.strictEqual(calls[0].options.detached, true);
-    assert.strictEqual(calls[0].options.stdio, "ignore");
-    assert.strictEqual(calls[0].unrefd, true, "closing VS Code must not close the browser");
+  it("uses pythonw.exe on Windows (no console window), and the old tool's module name for the old tool", () => {
+    const python = path.win32.join(tool, "python.exe");
+    const pythonw = path.win32.join(tool, "pythonw.exe");
+    assert.strictEqual(openCommand(python, "win32", (f) => samePath(f, pythonw, "win32")).command, pythonw);
+    const old = path.win32.join("C:", "uv", "tools", "swissarmygrid", "Scripts", "python.exe");
+    assert.deepStrictEqual(openCommand(old, "win32", () => false).args, ["-m", "swissarmygrid.server", "open"]);
   });
-
-  it("uses the person's own path when they set one, and only that", async () => {
-    const mine = win("D:\\", "tools", "chrome.exe");
-    const { deps, calls } = launcher(() => "start", [mine]);
-    assert.deepStrictEqual(await openInChrome(URL, deps, "win32", {}, `  ${mine}  `), { ok: true, chrome: mine });
-    assert.strictEqual(calls[0].command, mine);
-  });
-
-  it("says so when the person's path does not exist, instead of trying another browser", async () => {
-    const { deps, calls } = launcher(() => "start", [chromeIn(PROGRAM_FILES)]);
-    const wrong = win("D:\\", "nope", "chrome.exe");
-    const result = await openInChrome(URL, deps, "win32", { ProgramFiles: PROGRAM_FILES }, wrong);
-    assert.strictEqual(result.ok, false);
-    if (!result.ok) {
-      assert.strictEqual(result.reason, "not-found");
-      assert.ok(result.message.includes(`chromePath setting points at ${wrong}, which does not exist`), result.message);
-    }
-    assert.strictEqual(calls.length, 0);
-  });
-
-  it("tries the next name when one is not installed, then reports that Chrome is not found", async () => {
-    const tried = launcher((command) => (command === "chromium" ? "start" : missing()));
-    const ok = await openInChrome(URL, tried.deps, "linux", {});
-    assert.deepStrictEqual(ok, { ok: true, chrome: "chromium" });
-    assert.deepStrictEqual(tried.calls.map((c) => c.command), ["google-chrome", "google-chrome-stable", "chromium"]);
-
-    const none = launcher(() => missing());
-    const result = await openInChrome(URL, none.deps, "linux", {});
-    assert.strictEqual(result.ok, false);
-    if (!result.ok) assert.match(result.message, /Google Chrome was not found/);
-  });
-
-  it("stops at an error that is not 'not installed', and says what it was", async () => {
-    const denied = Object.assign(new Error("spawn EACCES"), { code: "EACCES" });
-    const { deps, calls } = launcher(() => denied);
-    const result = await openInChrome(URL, deps, "linux", {});
-    assert.strictEqual(result.ok, false);
-    if (!result.ok) {
-      assert.strictEqual(result.reason, "failed");
-      assert.match(result.message, /EACCES/);
-    }
-    assert.strictEqual(calls.length, 1);
-  });
-
-  it("reports a launcher that throws", async () => {
-    const deps: ChromeDeps = {
-      exists: () => true,
-      spawn: (() => {
-        throw new Error("boom");
-      }) as any,
-    };
-    const result = await openInChrome(URL, deps, "darwin", {});
-    assert.strictEqual(result.ok, false);
-    if (!result.ok) assert.match(result.message, /boom/);
-  });
-
-  it("has its setting", () => {
+  it("no longer opens Chrome: no chromePath setting", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"));
-    assert.strictEqual(manifest.contributes.configuration.properties["swissarmybench.chromePath"].default, "");
+    assert.strictEqual(manifest.contributes.configuration, undefined);
+    const source = fs.readFileSync(path.resolve(__dirname, "../../src/extension.ts"), "utf8");
+    assert.ok(source.includes("openCommand(python"), "the button runs the app's own open");
+    assert.ok(!/chrome/i.test(source));
   });
 });
 

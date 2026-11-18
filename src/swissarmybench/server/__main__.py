@@ -41,15 +41,12 @@ import time
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from types import FrameType
-
-import uvicorn
+from typing import TYPE_CHECKING, Any
 
 from swissarmybench import __version__
 from swissarmybench.adapters.state_files import info_file_path, remove_info_file, write_info_file
 from swissarmybench.renamed import env, move_state_folder
 from swissarmybench.server import desktop
-from swissarmybench.server.app import create_app
 from swissarmybench.server.lifecycle import (
     AlreadyRunningError,
     AlreadyStartingError,
@@ -65,9 +62,11 @@ from swissarmybench.server.lifecycle import (
 from swissarmybench.server.lifecycle import (
     page_address as page_address,
 )
-from swissarmybench.server.routes_processes import QuietHeartbeats
 from swissarmybench.server.updater import detached
 from swissarmybench.settings import Settings
+
+if TYPE_CHECKING:
+    import uvicorn
 
 GONE_WORDS: str = (
     "There is no tray icon and no start at sign-in any more: Swiss Army Bench runs while it's open "
@@ -75,20 +74,25 @@ GONE_WORDS: str = (
 )
 
 
-class _Server(uvicorn.Server):
+def _server_class() -> Callable[[uvicorn.Config, Callable[[], None]], uvicorn.Server]:
     """uvicorn's server, but a stop by signal (Ctrl+C, the system shutting down) first lets the waiting
-    listeners answer, as `swissarmybench stop` does."""
+    listeners answer, as `swissarmybench stop` does. Made here, not at import: the app's own process (the
+    desktop shell) runs this module and never serves, so uvicorn and the app's routes load only in `start`."""
+    import uvicorn
 
-    def __init__(self, config: uvicorn.Config, on_exit: Callable[[], None]) -> None:
-        super().__init__(config)
-        self._on_exit = on_exit
+    class _Server(uvicorn.Server):
+        def __init__(self, config: uvicorn.Config, on_exit: Callable[[], None]) -> None:
+            super().__init__(config)
+            self._on_exit = on_exit
 
-    def handle_exit(self, sig: int, frame: FrameType | None) -> None:
-        try:
-            self._on_exit()
-        except Exception:  # noqa: S110 (never in the way of stopping)
-            pass
-        super().handle_exit(sig, frame)
+        def handle_exit(self, sig: int, frame: Any) -> None:
+            try:
+                self._on_exit()
+            except Exception:  # noqa: S110 (never in the way of stopping)
+                pass
+            super().handle_exit(sig, frame)
+
+    return _Server
 
 
 def main() -> None:
@@ -150,7 +154,13 @@ def main() -> None:
         print(f"Running on http://127.0.0.1:{info['port']} (process {info.get('pid')}).")
         return
     if command == "stop":
+        # The app first (its windows closed, their places kept: the user's own word, from a terminal or an
+        # installer), then its server.
+        app_quit = desktop.quit_app(path)
         if not request_stop(path):
+            if app_quit:
+                print("Stopped.")
+                return
             print("Swiss Army Bench is not running.")
             return
         for _ in range(50):
@@ -304,6 +314,10 @@ def start(port: int | None, window: bool = True) -> None:
     if existing is not None:
         raise AlreadyRunningError(existing)
     started_by = env("SWISSARMYBENCH_STARTED_BY", "cli")
+    import uvicorn
+
+    from swissarmybench.server.app import create_app
+    from swissarmybench.server.routes_processes import QuietHeartbeats
 
     listener = open_listener(port, settings.state_dir / "last_port")
     actual_port: int = listener.getsockname()[1]
@@ -322,10 +336,14 @@ def start(port: int | None, window: bool = True) -> None:
             server.should_exit = True
 
     app = create_app(actual_port, token, settings, on_shutdown=stop_soon)
+    if env("SWISSARMYBENCH_NO_BROWSER", "") != "1":
+        # A push or open_grid with nothing showing it and no VS Code window to ask: the desktop app opens
+        # the workspace (the browser where the app cannot run).
+        app.state.ctx.live.fallback = lambda address: desktop.show(address, path)
     config = uvicorn.Config(app, log_level="info", timeout_graceful_shutdown=3)
     # uvicorn has set up its loggers by now; keep the sessions' heartbeats out of the access log.
     logging.getLogger("uvicorn.access").addFilter(QuietHeartbeats())
-    server = _Server(config, release)
+    server = _server_class()(config, release)
 
     on_exit(lambda: remove_info_file(path, token))
     remember_port(settings.state_dir / "last_port", actual_port)

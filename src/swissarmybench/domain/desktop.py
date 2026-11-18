@@ -353,7 +353,9 @@ def message(key: str, said: dict[str, Any]) -> bytes:
 
 
 def read_message(line: bytes, key: str) -> dict[str, Any]:
-    """A message the shell heard, checked: its key, then one of {"open": page}, {"status": true}."""
+    """A message the shell heard, checked: its key, then one of {"open": page}, {"status": true},
+    {"quit": true} (every window closed without asking its page, each window's place kept, the server told:
+    `swissarmybench stop`, an update's helper)."""
     import hmac
 
     if len(line) > MAX_MESSAGE:
@@ -370,7 +372,9 @@ def read_message(line: bytes, key: str) -> dict[str, Any]:
         return {"open": page_of(said["open"])}
     if said.get("status") is True:
         return {"status": True}
-    raise ShellError('Send {"open": page} or {"status": true}.')
+    if said.get("quit") is True:
+        return {"quit": True}
+    raise ShellError('Send {"open": page}, {"status": true} or {"quit": true}.')
 
 
 def download_name(suggested: str) -> str:
