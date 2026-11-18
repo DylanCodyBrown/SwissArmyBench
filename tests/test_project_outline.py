@@ -374,12 +374,19 @@ def test_the_seams_wired_cards_portability_and_both_tables() -> None:
 
     cards = [
         {"name": "Shop", "local": []},
-        {"name": "Desk", "local": [{"reason": "it reads a file on this disk", "instead": "a storage account"}]},
+        {
+            "name": "Desk",
+            "local": [{"reason": "it reads a file on this disk", "instead": "a storage account"}],
+        },
     ]
     portability = CardPortability(lambda: cards)
     assert portability.verdict({"name": "Shop"})["portable"] is True
     desk = portability.verdict({"name": "Desk"})
-    assert desk == {"portable": False, "reason": "it reads a file on this disk", "instead": "a storage account"}
+    assert desk == {
+        "portable": False,
+        "reason": "it reads a file on this disk",
+        "instead": "a storage account",
+    }
     assert portability.verdict({"name": "Gone"})["portable"] is None  # no card: not judged
 
     class Own:
