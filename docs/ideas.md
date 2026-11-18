@@ -5480,3 +5480,13 @@ Code's source (main branch, 2026-11-18).
 **Open:** the OAuth App's client id (the owner registers it: Settings shows Sign in with GitHub once filled in);
 GitHub's 100 MB push limit and LFS are not handled (50 MB is the API's per-file limit and the app's); a tree
 GitHub truncates (over 100,000 entries) is refused, said.
+
+## A desktop app? Stays in the browser (the owner, 2026-11-18)
+
+The owner asked whether Swiss Army Bench should be a desktop app ("I still really want to build this as a desktop
+app ... What did I gain by keeping it in a web browser"). Weighed: pywebview (the system's web engine) breaks
+`window.open` pop-outs, dragging between windows, downloads, print to PDF and runs WebKit on Linux ("Pywebview
+seems like it kills functionality"); Electron keeps everything (Chromium, as the tests use) at about 150 MB and an
+installer per system; Tauri is small but has pywebview's gaps. The owner's call: "Just keep it as is". The app
+stays a local server with browser pages; a desktop shell remains possible later as a thin layer (Electron) over
+the same server and pages, with nothing rewritten.
