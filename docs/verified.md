@@ -3068,3 +3068,45 @@ scratchpad b/shots-drivers.
 
 NOT checked: Edge, Windows and macOS desktops, the Streamlit export's confirm in the page (its check is tested
 over HTTP), a real Azure anything.
+
+## The meta store: the shared catalog, Set up from the meta store, local and shared projects (2026-11-18, branch shared-catalog)
+
+Really ran (this container, Linux, Chromium for the browser tests):
+- tests/test_shared_catalog.py: the file is the golden text byte for byte (tests/golden/shared_catalog/
+  warehouse.json) and reads back the same; the same events in another order make the same bytes; a planted row
+  value, a relationship's note and evidence (numbers from the data) never reach it; a listing marks gone since
+  that day, back to present when listed again, the date unchanged while still gone, removed after 30 days (a
+  given date, no clock); a merge's markers and broken JSON said with the file's name; two people's independent
+  additions merged by the real `git merge-file` (git 2.x here, in the test only) with no conflict and exactly
+  the file either would write with both.
+- tests/test_shared_catalog_http.py: a real SQLite connection (a made-up file) saved, Refreshed through its child
+  process: its file written, the password (in the keyring) and a row's value absent; relationships set by the
+  agent added with keys marked, deleted by the user taken out; a dropped table gone after the next Refresh; a
+  Refresh that fails (the file moved) changes no byte; deleting the connection removes its file. A teammate's
+  file dropped into catalog/ is picked up by Refresh and told over the page's websocket ("1 connection
+  changed"), found by Explorer search and browse, drawn by the ERD's All tables, named in context.md. A file with
+  conflict markers is reported and left as it was through the next Refresh, and written again once fixed. A
+  project's open table and a table its script names are in `used_by`; taken out when the script stops naming it.
+- tests/test_library_setup.py: a teammate's meta store (two key vaults, one whose names() fails as Azure's does
+  when signed out; keyring and local variables; a connection whose password is in the teammate's keyring) cloned
+  to a second computer (a separate state folder and keyring): the checklist's items and words over HTTP, 4 then 1
+  things to set up as each value is typed; Move to a vault maps the teammate's keyring password to the readable
+  vault (the vault's mapping and the connection's code checked).
+- tests/test_shared_projects.py: projects.json's older key read as the local folder and written as
+  local_folder; both folders scanned; Local and Shared marks and the filter; New project in Shared (refused
+  until the folder is set); Share without .sab/data or .git, the original kept, opened; Make a local copy with
+  copied_from (kept through a save, shown on the card), a name taken answered 409 with a free one; a shared
+  project whose connection only works here said once; the checklist lists a shared project whose connection
+  needs a password here.
+- tests/e2e/test_meta_store_page.py (Chromium): Settings' Meta store folder (its line, the catalog's counts, the
+  checklist: 2 things, the locked vault's Sign in to Azure, SHOP_TOKEN typed once then 1 thing), the Local and
+  Shared projects folders; the Data page's "From the shared catalog" section and a teammate's table's detail;
+  the Project Explorer's marks and filter, New project's Where, Make a local copy opened and its card's
+  "Copied from". Screenshots looked at.
+- ruff check, ruff format --check, mypy, npm run typecheck and npm run build: clean.
+
+Stood in for, or not checked:
+- A real Azure Key Vault sign-in: the locked vault is made-up code that raises Azure's words. A real teammate's
+  push and pull: a copied folder and a file written into catalog/ stand in for `git pull`.
+- The 3-second watch loop itself is not timed in a test (Refresh, the same code, is); Windows paths only by the
+  rules' test (C:\\Team vs c:/team).
