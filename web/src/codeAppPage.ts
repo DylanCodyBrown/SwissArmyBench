@@ -29,6 +29,7 @@ import { api, ApiError, onNotice, type Notice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busy, busyClick, loadingBlock } from "./loading";
 import { type Missing, promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 import { mountTree, type Value } from "./structureTree";
@@ -206,7 +207,7 @@ function drawPage(): void {
         icon(t.ok ? "check" : t.phase > 1 ? "clock" : "warning"),
         h("span", {}, t.name),
         t.version ? h("span", { class: "muted" }, t.version) : null,
-        !t.ok && t.phase === 1 ? button("Install", () => void install(t), { class: "ghost ca-install" }) : null,
+        !t.ok && t.phase === 1 ? button("Install", busyClick("Installing…", () => install(t)), { class: "ghost ca-install" }) : null,
         !t.ok && t.phase > 1 ? h("span", { class: "muted" }, "phase 2") : null,
       ),
     );
@@ -216,7 +217,7 @@ function drawPage(): void {
       { class: "ca-account" },
       icon("user"),
       who === null ? button("Who is signed in?", () => void account_(), { class: "link" }) : who.signed_in ? h("span", {}, who.active ?? "") : h("span", { class: "muted" }, "Not signed in"),
-      who && !who.signed_in ? button("Sign in", () => void signIn(), { class: "primary ca-sign-in" }) : null,
+      who && !who.signed_in ? button("Sign in", busyClick("Signing in…", () => signIn()), { class: "primary ca-sign-in" }) : null,
     );
     const env = state.project.open ? h("span", { class: "ca-env", title: state.project.app?.environment_id ?? "" }, icon("globe"), state.project.environment || state.project.app?.environment_id || "") : null;
     strip.replaceChildren(h("div", { class: "ca-tools" }, ...chips), account, env ?? "");
@@ -306,7 +307,7 @@ function drawPage(): void {
         h("td", {}, s.kind === "dataverse" ? "Dataverse table" : s.kind === "table" ? `${s.display_name ?? s.connector} table` : s.display_name ?? s.connector),
         h("td", { class: "mono" }, s.table ?? ""),
         h("td", { class: "ca-row-actions" },
-          s.kind === "dataverse" ? button("Open as grid", () => void dataverseGrid(s), { icon: "table", class: "ghost ca-open-grid", title: `${s.name} as a grid, through the library's Dataverse connection` }) : null,
+          s.kind === "dataverse" ? button("Open as grid", busyClick("Opening…", () => dataverseGrid(s)), { icon: "table", class: "ghost ca-open-grid", title: `${s.name} as a grid, through the library's Dataverse connection` }) : null,
           button("Remove", () => void removeSource(s), { icon: "trash", class: "ghost ca-remove", title: `Remove ${s.name}` })),
       ),
     );
@@ -337,7 +338,7 @@ function drawPage(): void {
           button("New page", () => void newPage(), { icon: "plus", class: "ca-new-page", title: "A page's folder: its page, components, hooks, state and types, listed in src/pages.ts" }),
           h("label", { class: "ca-every-file muted", title: "Configs, generated models and services, .power/: in the folder, not listed" }, allFiles, "Show all files"),
         ),
-        h("div", { class: "ca-tree-host" }, h("p", { class: "muted" }, "…")),
+        h("div", { class: "ca-tree-host" }, loadingBlock("Loading the files…", { height: "160px" })),
       ),
     );
     void drawTree(panel.querySelector<HTMLElement>(".ca-tree-host")!);
@@ -434,16 +435,14 @@ function drawPage(): void {
     environment.addEventListener("change", () => (typed.hidden = environment.value !== ""));
     if (state?.environments) fill(state.environments);
     else void call<{ environments: Environment[] }>("/powerapps/environments").then((got) => fill(got?.environments ?? []));
-    buttons.append(button("Cancel", () => close()), button("Make it", async () => {
-      const made = button("Making…", () => undefined, { class: "primary" });
-      made.disabled = true;
-      const done = await call<Project>("/powerapps/project/new", "POST", { name: name.value, environment_id: environment.value || typed.value, parent: folder.value });
+    buttons.append(button("Cancel", () => close()), button("Make it", busyClick("Making…", async () => {
+      const done = await busy(box, `Making ${name.value}…`, call<Project>("/powerapps/project/new", "POST", { name: name.value, environment_id: environment.value || typed.value, parent: folder.value }));
       if (!done) return;
       close();
       tab = "project";
       toast(`Made ${name.value}.`);
       void load();
-    }, { class: "primary ca-make" }));
+    }), { class: "primary ca-make" }));
     name.focus();
   };
 
@@ -463,8 +462,8 @@ function drawPage(): void {
 
   const drawConnectors = async (query = ""): Promise<void> => {
     const search = h("input", { type: "search", class: "apis-search ca-search", placeholder: "Search the environment's connectors", "aria-label": "Search the environment's connectors", value: query }) as HTMLInputElement;
-    const list = h("div", { class: "apis-cards ca-connectors", role: "list" }, h("p", { class: "muted" }, "…"));
-    panel.replaceChildren(h("div", { class: "ca-section-head" }, search, button("Refresh", () => void fill(true), { icon: "reset", class: "ghost" })), list);
+    const list = h("div", { class: "apis-cards ca-connectors", role: "list" }, loadingBlock("Loading the environment's connectors…"));
+    panel.replaceChildren(h("div", { class: "ca-section-head" }, search, button("Refresh", busyClick("Refreshing…", () => busy(list, "Refreshing the connectors…", fill(true))), { icon: "reset", class: "ghost" })), list);
     let timer = 0;
     search.addEventListener("input", () => {
       window.clearTimeout(timer);
@@ -571,9 +570,9 @@ function drawPage(): void {
       h("div", { class: "ca-section-head" },
         live.running
           ? button("Stop", () => void stopLive(), { icon: "stop", class: "ca-stop" })
-          : button("Run live", () => void startLive(), { icon: "play", class: "primary ca-run-live" }),
+          : button("Run live", busyClick("Starting…", startLive), { icon: "play", class: "primary ca-run-live" }),
         live.running && live.play_url ? playButton(live.play_url) : null,
-        live.running ? h("span", { class: "muted" }, live.ready ? "Running: it reloads as you save." : "Starting…") : h("span", { class: "muted" }, "The app's dev server, here; Local Play opens it in Power Apps, where its data answers."),
+        live.running ? (live.ready ? h("span", { class: "muted" }, "Running: it reloads as you save.") : loadingBlock("Starting the dev server…", { inline: true })) : h("span", { class: "muted" }, "The app's dev server, here; Local Play opens it in Power Apps, where its data answers."),
       ),
       frame ?? h("div", { class: "ca-live-empty" }, icon("play"), h("p", { class: "muted" }, "Not running.")),
       output,
@@ -609,7 +608,7 @@ function drawPage(): void {
       h("section", { class: "ca-push" },
         h("p", {}, "Push makes a new version of ", h("strong", {}, plan.app), " in ", h("strong", {}, plan.environment), ":"),
         h("ol", { class: "ca-commands" }, ...plan.commands.map((c) => h("li", {}, h("code", {}, c)))),
-        h("div", { class: "ca-section-head" }, button("Push", () => void push(result), { icon: "upload", class: "primary ca-push-button" }), button("Versions", () => void versions(result), { icon: "clock", class: "ghost ca-versions" })),
+        h("div", { class: "ca-section-head" }, button("Push", busyClick("Pushing…", () => push(result)), { icon: "upload", class: "primary ca-push-button" }), button("Versions", () => void versions(result), { icon: "clock", class: "ghost ca-versions" })),
         result,
       ),
     );

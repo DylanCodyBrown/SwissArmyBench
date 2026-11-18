@@ -24,6 +24,7 @@
 import { api, onNotice } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { loadingBlock } from "./loading";
 import { baseName, copyProject, newProject, openProject, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
 import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
@@ -90,6 +91,7 @@ export function mountExplorer(afterOpen: (state: ProjectState | null) => void): 
 export function explorerInto(element: HTMLElement): void {
   host = element;
   if (listing) draw();
+  else clear(host, loadingBlock("Loading the projects…", { height: "240px" }));
   void refreshExplorer();
 }
 
@@ -139,7 +141,7 @@ function draw(): void {
 }
 
 function create(t?: ProjectType): void {
-  guard(() => newProject(t).then((s) => opened(s)))();
+  guard(() => newProject(t, host ?? undefined).then((s) => opened(s)))();
 }
 
 function header(read: Listing, empty: boolean): HTMLElement {
@@ -184,7 +186,7 @@ function header(read: Listing, empty: boolean): HTMLElement {
       "div",
       { class: "start-actions" },
       button("New project", () => create(), { icon: "plus", class: "start-action primary-action" }),
-      button("Open project…", guard(() => openProject().then((s) => opened(s))), { icon: "folder", class: "start-action" }),
+      button("Open project…", guard(() => openProject(undefined, host ?? undefined).then((s) => opened(s))), { icon: "folder", class: "start-action" }),
     ),
     empty ? null : h("div", { class: "explorer-tools" }, search, places, types, h("label", { class: "explorer-sort-label" }, h("span", {}, "Sort"), sort), direction),
   );
@@ -235,7 +237,7 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
     tabindex: "0",
     "aria-label": c.name,
   });
-  const openIt = guard(() => openProject(c.path).then((s) => opened(s)));
+  const openIt = guard(() => openProject(c.path, host ?? undefined).then((s) => opened(s)));
   const meta: (HTMLElement | null)[] = [];
   if (c.missing) {
     meta.push(h("p", { class: "explorer-missing" }, "Moved or deleted"));

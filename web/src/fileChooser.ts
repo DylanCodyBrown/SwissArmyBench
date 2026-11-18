@@ -18,6 +18,7 @@
  */
 import { api } from "./api";
 import { button, clear, formatCount, h, icon, openDialog, toast } from "./dom";
+import { busy } from "./loading";
 
 interface Entry {
   name: string;
@@ -201,8 +202,7 @@ function choosePage(options: ChooseOptions): Promise<string | null> {
     let early = false;
     const pick = (): void => {
       if (!shown) {
-        early = true;
-        status.textContent = "Loading…";
+        early = true; // the list is covered while the first folder is read (loading.ts)
         return;
       }
       if (options.mode === "folder") finish(shown.path);
@@ -333,12 +333,13 @@ function choosePage(options: ChooseOptions): Promise<string | null> {
       if (options.suffixes?.length) query.set("suffixes", options.suffixes.join(","));
       if (!placesDrawn) query.set("kind", kind);
       if (hidden) query.set("hidden", "1");
-      status.textContent = "Loading…";
+      status.textContent = "";
       const mine = ++asked;
       const typed = where.value; // what the path box said when this folder was asked for
       let found: Listing;
       try {
-        found = await api<Listing>(`/folders?${query}`);
+        // The list is gated while a folder is read (loading.ts): no click lands on the folder being left.
+        found = await busy(list, path ? `Reading ${path}…` : "Reading the folder…", api<Listing>(`/folders?${query}`), { errorIn: false });
       } catch (e) {
         if (mine !== asked) return;
         // The first folder asked for may not exist yet (a projects folder before its first project, a moved

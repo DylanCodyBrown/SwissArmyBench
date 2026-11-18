@@ -16,6 +16,7 @@ import { button, clear, h, isDateType, isNumericType, markStaleOnChange, openDia
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { effectiveTheme } from "./theme";
+import { busyClick, loadingBlock } from "./loading";
 
 const plotly = (): Promise<typeof import("./lazy/plotly")> => import(/* external */ "/static/build/lazy/plotly.js" as string) as Promise<typeof import("./lazy/plotly")>;
 
@@ -83,7 +84,7 @@ export async function openTimeSeries(given: Record<string, unknown> = {}): Promi
   const actions = h("span", { class: "analysis-actions" });
   const run = async (): Promise<void> => {
     const sent = { ...form.read(), split: split.value || undefined };
-    clear(results, h("p", { class: "hint" }, "Reading the series…"));
+    clear(results, loadingBlock("Reading the series…"));
     clear(actions);
     try {
       const r = await api<TimeSeriesResult>(`${grid}/time-series`, "POST", sent);
@@ -110,7 +111,7 @@ export async function openTimeSeries(given: Record<string, unknown> = {}): Promi
       clear(results, h("p", { class: "status-error" }, (e as Error).message));
     }
   };
-  body.append(h("div", {}, form.element, h("div", { class: "analysis-controls" }, field("One line per", split), button("Read", () => void run(), { icon: "play", class: "primary" }))), results);
+  body.append(h("div", {}, form.element, h("div", { class: "analysis-controls" }, field("One line per", split), button("Read", busyClick("Reading…", run), { icon: "play", class: "primary" }))), results);
   markStaleOnChange(body, results);
   foot.append(actions, button("Close", close));
   await run();
@@ -143,7 +144,7 @@ export async function openForecast(given: Record<string, unknown> = {}): Promise
       horizon: Number(horizon.value) || 12,
       predictors: rows.filter((r) => r.use.checked && r.name !== form.read().metric).map((r) => ({ column: r.name, future: r.future.value, value: r.future.value === "value" ? Number(r.value.value) : undefined })),
     };
-    clear(results, h("p", { class: "hint" }, "Forecasting…"));
+    clear(results, loadingBlock("Forecasting…"));
     clear(actions);
     try {
       const r = await api<ForecastResult>(`${grid}/forecast`, "POST", sent);
@@ -172,7 +173,7 @@ export async function openForecast(given: Record<string, unknown> = {}): Promise
       clear(results, h("p", { class: "status-error" }, (e as Error).message));
     }
   };
-  body.append(form.element, h("div", { class: "analysis-controls" }, field("Periods ahead", horizon), button("Forecast", () => void run(), { icon: "play", class: "primary" })), pool, results);
+  body.append(form.element, h("div", { class: "analysis-controls" }, field("Periods ahead", horizon), button("Forecast", busyClick("Forecasting…", run), { icon: "play", class: "primary" })), pool, results);
   markStaleOnChange(body, results);
   foot.append(actions, button("Close", close));
   await run();

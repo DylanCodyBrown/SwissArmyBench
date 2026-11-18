@@ -21,6 +21,7 @@
 import { api, ApiError, onNotice, type Notice } from "./api";
 import { button, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busy } from "./loading";
 import { projectTypes, type ProjectType, typeCard } from "./projectTypes";
 
 export interface ProjectTable {
@@ -167,28 +168,31 @@ type Opened = ProjectState & { not_a_project?: string };
 
 /** Open project…: a folder (the file chooser when no path is given). A plain folder: made a project around
  *  its files when the user says so. */
-export async function openProject(path?: string): Promise<ProjectState | null> {
+/** `gate`: what is covered while it opens (loading.ts: the Projects page), once its folder is chosen. */
+export async function openProject(path?: string, gate?: HTMLElement): Promise<ProjectState | null> {
   const chosen = path ?? (await chooseFile({ title: "Open project", mode: "folder", start: state.recent.find((r) => r.exists)?.path }));
   if (!chosen) return null;
-  let opened = (await withQuestion("/project/open", { path: chosen }, `Let them go and open ${baseName(chosen)}?`)) as Opened | null;
+  const gated = <T>(work: Promise<T>): Promise<T> => (gate ? busy(gate, `Opening ${baseName(chosen)}…`, work, { errorIn: false }) : work);
+  let opened = (await gated(withQuestion("/project/open", { path: chosen }, `Let them go and open ${baseName(chosen)}?`))) as Opened | null;
   if (!opened) return null;
   if (opened.not_a_project) {
     if (!confirm(`${baseName(opened.not_a_project)} is not a project yet.\n\nMake this folder a project? Nothing in it is written over.`)) return null;
-    opened = (await withQuestion("/project/open", { path: chosen, make: true }, `Let them go and open ${baseName(chosen)}?`)) as Opened | null;
+    opened = (await gated(withQuestion("/project/open", { path: chosen, make: true }, `Let them go and open ${baseName(chosen)}?`))) as Opened | null;
     if (!opened) return null;
   }
-  return loadProject(); // a table that did not come back shows in the strip under the tabs, with its fix
+  return gated(loadProject()); // a table that did not come back shows in the strip under the tabs, with its fix
 }
 
 /** New project: its name, its type (each explained for beginners), where it goes; scaffolded, opened and
  *  saved at once. The tables open now (with no project) go into it. `preset`: a type chosen already (a
  *  type's card on the home page). */
-export async function newProject(preset?: ProjectType): Promise<ProjectState | null> {
+export async function newProject(preset?: ProjectType, gate?: HTMLElement): Promise<ProjectState | null> {
   const chosen = await chooseNewProject(preset);
   if (!chosen) return null;
-  const made = await withQuestion("/project/new", chosen, "Let them go and start a new project?");
+  const gated = <T>(work: Promise<T>): Promise<T> => (gate ? busy(gate, `Making ${String(chosen.name ?? "the project")}…`, work, { errorIn: false }) : work);
+  const made = await gated(withQuestion("/project/new", chosen, "Let them go and start a new project?"));
   if (!made) return null;
-  return loadProject();
+  return gated(loadProject());
 }
 
 /** New project's dialog: resolves to what /project/new is sent, or null when closed. */

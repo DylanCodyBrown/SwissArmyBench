@@ -20,6 +20,7 @@ import { api } from "./api";
 import { button, h, icon, openDialog, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import type { Command } from "./workbenchCommands";
+import { busyClick } from "./loading";
 
 type Kind = "code" | "desktop";
 
@@ -287,7 +288,7 @@ export function claudeSection(): HTMLElement {
       "div",
       { class: "updates-row" },
       h("label", { class: "check" }, bypass, "Start Claude Code with bypass permissions"),
-      button("Look again", () => void load(true).then(draw), { icon: "reset", class: "ghost" }),
+      button("Look again", busyClick("Looking…", () => load(true).then(draw)), { icon: "reset", class: "ghost" }),
     ),
   );
 }

@@ -8,6 +8,7 @@ import { mdTable, type SandboxCard } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
 import { api, grid } from "./api";
 import { button, clear, h } from "./dom";
+import { loadingBlock } from "./loading";
 
 export type Sheet = "odds" | "fit_test" | "predictors" | "outliers";
 
@@ -122,7 +123,7 @@ export function cheatSheet(sheet: Sheet, columns: () => string[]): { element: HT
   const content = SHEETS[sheet];
   const checks = h("ul", { class: "cheat-checks" });
   const refresh = (): void => {
-    clear(checks, h("li", { class: "hint" }, "Checking…"));
+    clear(checks, h("li", {}, loadingBlock("Checking the table…", { inline: true })));
     void api<{ notes: ShapeNote[] }>(`${grid}/shape-check`, "POST", { analysis: sheet, columns: columns() })
       .then(({ notes }) => clear(checks, ...notes.map((n) => h("li", { class: `cheat-${n.level}` }, n.text))))
       .catch((e: Error) => clear(checks, h("li", { class: "cheat-warn" }, e.message)));

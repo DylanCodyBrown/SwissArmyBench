@@ -14,6 +14,7 @@
 import { api, token } from "./api";
 import { button, clear, h, openDialog } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busyClick, loadingBlock } from "./loading";
 
 interface Offer {
   libraries: { pip: string; label: string; group: string; imports: string; note: string }[];
@@ -77,10 +78,9 @@ export async function newEnvironment(start: { folder: string; document: string |
     const make = async (): Promise<void> => {
       const packages = [...[...boxes.values()].filter((b) => b.checked).map((b) => b.value), ...others.value.split(/[\s,]+/).filter(Boolean)];
       const imports = offer.libraries.filter((l) => packages.includes(l.pip) && l.imports).map((l) => l.imports);
-      create.disabled = true;
       log.hidden = false;
       clear(log);
-      status.textContent = "Making…";
+      clear(status, loadingBlock(`Making the environment in ${where.value.trim()}…`, { inline: true }));
       try {
         const response = await fetch("/workbench/environments", {
           method: "POST",
@@ -115,11 +115,10 @@ export async function newEnvironment(start: { folder: string; document: string |
       } catch (e) {
         status.textContent = (e as Error).message;
         status.className = "status-error";
-        create.disabled = false;
       }
     };
 
-    const create = button("Make it", () => void make(), { icon: "play", class: "primary" });
+    const create = button("Make it", busyClick("Making…", make), { icon: "play", class: "primary" });
     body.append(
       h("label", { class: "field" }, h("span", {}, "Folder"), h("span", { class: "field-row" }, where, button("Browse…", async () => {
         const folder = await chooseFile({ title: "Choose folder", mode: "folder", start: start.folder });

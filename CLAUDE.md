@@ -795,7 +795,15 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
                          recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package
                          prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
-                         Not now, no nagging this session), used by every place that finds one; The Workbench (static/workbench.html, its own
+                         Not now, no nagging this session), used by every place that finds one;
+                         loading.ts the one loading state (design principles 8.12, 2026-11-18): busy(host, words,
+                         work, {abort, onCancel, errorIn}) gates an element (inert, aria-busy, a cover over its box
+                         after 150 ms with a spinner, the words at the body's size, the time after 3 s, Cancel, the
+                         error in place), loadingBlock(words) an empty area's placeholder, busyButton/busyClick a
+                         button busy until its work ends, markBusy a button drawn busy from a view's own state; no
+                         page has loading text of its own; errorNote.ts the one error component (9.5): the word
+                         and icon, what happened, where, the fixes as buttons, Details folded with Copy, Send to the
+                         agent; showError/clearError in place, errorToast for background work; The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
                          status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a

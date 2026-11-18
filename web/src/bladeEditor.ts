@@ -13,6 +13,7 @@
 import { api, ApiError } from "./api";
 import { append, button, clear, h, openDialog, toast } from "./dom";
 import type { EditorLanguage } from "./lazy/codeEditor";
+import { busyClick, loadingBlock } from "./loading";
 import { effectiveTheme } from "./theme";
 import { exportBlades } from "./bladeLibrary";
 import { copyAsOwn } from "./starters";
@@ -325,7 +326,7 @@ export async function showFile(name: string): Promise<void> {
 /** "New blade": the templates by group. A pick makes a new .blade.py in the library's blades/ folder and
  *  shows it in its folder; `onMade` gets its name (the page opens its screen). */
 export async function showTemplatePicker(host: HTMLElement, onMade: (name: string) => void): Promise<void> {
-  clear(host, h("h2", {}, "New blade"), h("p", { class: "hint" }, "Loading..."));
+  clear(host, h("h2", {}, "New blade"), loadingBlock("Loading the templates…"));
   let all: NewChoice[];
   try {
     all = (await api<{ choices: NewChoice[] }>("/blades/new")).choices;
@@ -553,7 +554,6 @@ export async function editBlade(
       tableInput.focus();
       return;
     }
-    say("Saving...");
     try {
       const saved = await api<BladeSummary>(path(savedName), "PUT", body());
       savedName = saved.name;
@@ -596,8 +596,8 @@ export async function editBlade(
       h(
         "div",
         { class: "row-actions" },
-        readOnly ? null : button("Save", () => void save(), { class: "primary", icon: "save" }),
-        runnable ? button("Test", () => void runBlade<{ type?: string; variables?: string[] }>(savedName, "test").then((a) => a && say(a.variables ? `It works: it sets ${a.variables.join(", ")}.` : a.type ? `It works: it makes a ${a.type}.` : "It works.", "ok")), { icon: "check" }) : null,
+        readOnly ? null : button("Save", busyClick("Saving…", save), { class: "primary", icon: "save" }),
+        runnable ? button("Test", busyClick("Testing…", () => runBlade<{ type?: string; variables?: string[] }>(savedName, "test").then((a) => a && say(a.variables ? `It works: it sets ${a.variables.join(", ")}.` : a.type ? `It works: it makes a ${a.type}.` : "It works.", "ok"))), { icon: "check" }) : null,
         button("Cancel", onClosed, { class: "ghost" }),
         button("Export", () => void exportBlades(savedName), { icon: "export", class: "ghost", title: "Download as .blade.py" }),
         detail.removable ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,

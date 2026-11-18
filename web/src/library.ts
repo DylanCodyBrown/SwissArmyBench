@@ -18,6 +18,7 @@
 import { api, onNotice } from "./api";
 import { button, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busyClick } from "./loading";
 
 interface Info {
   folder: string;
@@ -167,7 +168,7 @@ export function librarySection(): HTMLElement {
         : null,
       s.projects.length ? h("h4", {}, "Shared projects") : null,
       s.projects.length ? h("ul", { class: "setup-list" }, ...s.projects.map((p) => item("todo", p.words))) : null,
-      h("div", { class: "row" }, button("Check again", () => void drawSetup(true), { icon: "reset", class: "small line" })),
+      h("div", { class: "row" }, button("Check again", busyClick("Checking…", () => drawSetup(true)), { icon: "reset", class: "small line" })),
       ),
     );
   };

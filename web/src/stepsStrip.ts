@@ -16,6 +16,7 @@
  */
 import { api, token } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
+import { busy, busyClick } from "./loading";
 import { state } from "./state";
 import type { GridInfo } from "./api";
 
@@ -44,13 +45,10 @@ function render(): void {
   const opened = info.opened;
   const loadAll = async (): Promise<void> => {
     if (!opened) return;
-    toast(`Loading every row of ${opened.table}…`);
-    try {
-      const where = { database: opened.database, schema: opened.schema, table: opened.table, all: true };
-      await api(`/connections/${encodeURIComponent(opened.connection)}/open`, "POST", where);
-    } catch (e) {
-      toast((e as Error).message, "error");
-    }
+    // The grid is gated while every row arrives (loading.ts); a failure stays over it.
+    const where = { database: opened.database, schema: opened.schema, table: opened.table, all: true };
+    const grid = document.querySelector<HTMLElement>("main.center") ?? host;
+    await busy(grid, `Loading every row of ${opened.table}…`, api(`/connections/${encodeURIComponent(opened.connection)}/open`, "POST", where));
   };
   clear(
     host,
@@ -59,7 +57,7 @@ function render(): void {
           "span",
           { class: "opened-note", role: "status" },
           `First ${opened.shown.toLocaleString()} of ${opened.total.toLocaleString()} rows`,
-          button("Load all rows", () => void loadAll(), { icon: "import", class: "ghost" }),
+          button("Load all rows", busyClick("Loading…", loadAll), { icon: "import", class: "ghost" }),
         )
       : null,
     label ? stepsCount(label, info.steps) : null,

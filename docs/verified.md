@@ -3349,3 +3349,22 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   landing row). Failed under load and passed alone: test_copilot_page's private project, test_streamlit_page (four,
   one other when run as a file), test_table_cells_page's maker that stays put.
 - **Not checked:** the desktop app (Qt WebEngine) run by hand; a narrow window (420 px) with the smaller rail.
+
+## One loading state and one error component (2026-11-18, branch uniform-loading)
+
+- **The component on its own** (tests/e2e/test_loading.py: loading.ts and errorNote.ts bundled by esbuild into a
+  bare page with grid.css, Chromium): the cover over exactly the element's box (within 1.5 px), inert and aria-busy
+  at once, a click inside refused, the words at the body's font size; no cover for 40 ms of work (a
+  MutationObserver saw none); "3 s" after three seconds; Cancel aborts (an AbortError, onCancel called, no error
+  shown); an error in place as errorNote (role alert, Error, Send to the agent), cleared by the next try, one note
+  for a second failure; errorNote's where, a fix button, Details folded with Copy, the error token's colour, a
+  warning without Send to the agent; loadingBlock keeps its height; busyButton disabled with its words and spinner,
+  a dispatched click and Enter start nothing; the dark theme's cover colour.
+- **Three places** (tests/e2e/test_loading_places.py; each request held at the browser until let go): the
+  Connections page's tree (the section covered, inert, a mouse click on its search box focuses nothing, the Used in
+  section not gated; the detail's placeholder keeps 120 px), a connection form's Test (the form inert, the button
+  "Testing…" with a spinner, a second click no second request), the Key Finder (the window gated while it
+  compares, Find keys refused, one request). Screenshots light and dark at device scale 2.
+- **Contrast:** --busy-spin against --raised and --busy-track in all four themes (test_contrast.py).
+- **Not checked:** the desktop app (Qt WebEngine) by hand; a screen reader's reading of the progressbar's name;
+  Cancel against a real slow route (no route has a server-side cancel yet).

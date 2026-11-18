@@ -28,6 +28,7 @@ import { history, pageTabs, resizeGrip } from "./canvasKit";
 import { button, clear, h, icon, toast } from "./dom";
 import { cellAt, drawSheet, letters, type Preview } from "./excelPreview";
 import { openStatements, openTemplates } from "./excelTemplates";
+import { busy as gate, markBusy } from "./loading";
 import { menuButton } from "./workbenchMenu";
 
 export const WORKBOOK_ENDING = ".design.json";
@@ -284,7 +285,8 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
     busy = true;
     drawTop();
     try {
-      const done = await call("/play", "POST");
+      // The canvas is gated while the workbook builds (loading.ts).
+      const done = await gate(middle, "Building the workbook…", call("/play", "POST"), { errorIn: false });
       mode = "play";
       draw();
       return done;
@@ -363,8 +365,9 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
     clear(top, tabs);
     const stale = mode === "play" && !!state?.out_of_date;
     const editButton = button("Edit", () => edit(), { icon: "edit", class: "cv-edit", pressed: mode === "edit" && !busy });
-    const playButton = button(busy ? "Building…" : stale ? "Out of date · Play" : "Play", () => void play(), { icon: "play", class: stale ? "cv-play cv-stale" : "cv-play", title: "Build the workbook from the open tables", pressed: mode === "play" || busy });
+    const playButton = button(stale ? "Out of date · Play" : "Play", () => void play(), { icon: "play", class: stale ? "cv-play cv-stale" : "cv-play", title: "Build the workbook from the open tables", pressed: mode === "play" || busy });
     playButton.disabled = busy || !state;
+    if (busy) markBusy(playButton, "Building…");
     const undoButton = button("Undo", () => void undo(), { icon: "undo", iconOnly: true, class: "ghost cv-undo", title: "Undo (Ctrl+Z)" });
     const redoButton = button("Redo", () => void redo(), { icon: "redo", iconOnly: true, class: "ghost cv-redo", title: "Redo (Ctrl+Shift+Z)" });
     undoButton.disabled = !changes.canUndo();

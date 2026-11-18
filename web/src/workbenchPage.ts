@@ -78,6 +78,7 @@ import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, projectOpen, setProjectFolder } from "./kindColours";
+import { markBusy } from "./loading";
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
@@ -2005,8 +2006,8 @@ function drawControls(): void {
     ? button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" })
     : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
   // Script mode: Run as scheduled (a fresh process with no app); Notebook and Data mode: the view's switch.
-  const scheduled = doc.script ? button(scheduling.has(doc) ? "Running…" : "Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
-  if (scheduled) scheduled.disabled = scheduling.has(doc);
+  const scheduled = doc.script ? button("Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
+  if (scheduled && scheduling.has(doc)) markBusy(scheduled, "Running…"); // loading.ts
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.

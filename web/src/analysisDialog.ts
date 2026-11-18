@@ -20,6 +20,7 @@ import "./timeSeriesDialog"; // registers Time series and Forecast in the Analyz
 import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDialog, toast } from "./dom";
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
+import { busyClick, loadingBlock } from "./loading";
 
 interface FitRow {
   value: string;
@@ -138,7 +139,7 @@ export async function openFitTest(columns: string[], expectedKind?: string): Pro
       return;
     }
     if (expected.value === "grid") sent.reference = { grid: others.value, column: otherColumn.value.trim() || undefined };
-    clear(results, h("p", { class: "hint" }, "Testing…"));
+    clear(results, loadingBlock("Testing the fit…"));
     try {
       const answer = await api<{ results?: FitResult[]; columns?: string[] } & FitResult>(`${grid}/fit-test`, "POST", sent);
       const list = answer.results ?? [{ ...answer, column: (answer.columns ?? []).join(" and ") }];
@@ -160,7 +161,7 @@ export async function openFitTest(columns: string[], expectedKind?: string): Pro
     }
   };
   body.append(
-    h("div", { class: "analysis-controls" }, field("Columns", chosen), field("Expected", expected), button("Test", () => void run(), { icon: "play", class: "primary" })),
+    h("div", { class: "analysis-controls" }, field("Columns", chosen), field("Expected", expected), button("Test", busyClick("Testing…", run), { icon: "play", class: "primary" })),
     referenceRow,
     cheatSheet("fit_test", picked).element,
     results,
@@ -299,7 +300,7 @@ export async function openOutliers(column?: string): Promise<void> {
   const show = button("Show these rows", () => void add(steps.show), { icon: "filter", class: "primary", title: "Keep only these rows" });
   const exclude = button("Exclude these", () => void add(steps.exclude), { icon: "exclude", title: "Leave these rows out" });
   const run = async (): Promise<void> => {
-    clear(results, h("p", { class: "hint" }, "Looking…"));
+    clear(results, loadingBlock(`Looking for outliers in ${which.value}…`));
     clear(actions);
     show.disabled = exclude.disabled = true;
     const sent: Record<string, unknown> = { column: which.value, look: look.value };
@@ -332,7 +333,7 @@ export async function openOutliers(column?: string): Promise<void> {
   };
   sync();
   body.append(
-    h("div", { class: "analysis-controls" }, field("Column", which), field("Look at", look), ...amountOnly, button("Look", () => void run(), { icon: "play" })),
+    h("div", { class: "analysis-controls" }, field("Column", which), field("Look at", look), ...amountOnly, button("Look", busyClick("Looking…", run), { icon: "play" })),
     cheatSheet("outliers", () => [which.value, by.value].filter(Boolean)).element,
     results,
   );
@@ -468,7 +469,7 @@ export async function openOdds(column?: string): Promise<void> {
         ? { column: outcomeColumn.value, values: text.split(",").map((v) => v.trim()).filter(Boolean) }
         : { column: outcomeColumn.value, op: op.value, value: Number(text) };
     }
-    clear(results, h("p", { class: "hint" }, "Counting…"));
+    clear(results, loadingBlock("Counting the odds…"));
     clear(actions);
     try {
       const answer = await api<OddsResult>(`${grid}/odds`, "POST", sent);
@@ -493,7 +494,7 @@ export async function openOdds(column?: string): Promise<void> {
   };
   sync();
   body.append(
-    h("div", { class: "analysis-controls" }, field("Column", which), field("Buckets", buckets), field("Outcome", outcomeColumn), outcomeRow, button("Count", () => void run(), { icon: "play", class: "primary" })),
+    h("div", { class: "analysis-controls" }, field("Column", which), field("Buckets", buckets), field("Outcome", outcomeColumn), outcomeRow, button("Count", busyClick("Counting…", run), { icon: "play", class: "primary" })),
     cheatSheet("odds", () => [which.value, outcomeColumn.value].filter(Boolean)).element,
     results,
   );
@@ -596,7 +597,7 @@ export async function openPredictors(target?: string): Promise<void> {
     const sent: Record<string, unknown> = { target: which.value };
     if (pool.values().length) sent.candidates = pool.values();
     if (buckets.value) sent.buckets = Number(buckets.value);
-    clear(results, h("p", { class: "hint" }, "Testing…"));
+    clear(results, loadingBlock(`Testing what predicts ${which.value}…`));
     clear(actions);
     try {
       const answer = await api<PredictorsResult>(`${grid}/predictors`, "POST", sent);
@@ -619,7 +620,7 @@ export async function openPredictors(target?: string): Promise<void> {
     }
   };
   body.append(
-    h("div", { class: "analysis-controls" }, field("Target", which), field("Buckets", buckets), button("Find", () => void run(), { icon: "play", class: "primary" })),
+    h("div", { class: "analysis-controls" }, field("Target", which), field("Buckets", buckets), button("Find", busyClick("Finding…", run), { icon: "play", class: "primary" })),
     poolSlot,
     cheatSheet("predictors", () => [which.value, ...pool.values()]).element,
     results,

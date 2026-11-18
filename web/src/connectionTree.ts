@@ -16,6 +16,7 @@
  */
 import { api, errorText } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
+import { busy, busyClick, loadingBlock, room } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
 
 interface TreeTable {
@@ -93,7 +94,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
       under.replaceChildren();
       return;
     }
-    under.replaceChildren(h("p", { class: "hint" }, "Loading…"));
+    under.replaceChildren(loadingBlock(`Reading ${t.table}…`, { height: "80px" }));
     try {
       const got = await api<{ columns: string[]; rows: unknown[][] }>(`/connections/${path}/preview`, "POST", { database: t.database, schema: t.schema, table: t.table });
       under.replaceChildren(...tablePreview({ table: t.table, schema: t.schema, columns: got.columns, rows: got.rows, total: null }));
@@ -104,9 +105,8 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
 
   const openAll = async (g: TreeGroup): Promise<void> => {
     if (!confirm(`Open all ${g.count} tables of ${g.schema}? Each opens as its own grid.`)) return;
-    toast(`Opening ${g.count} tables of ${g.schema}…`);
     try {
-      const got = await api<{ opened: unknown[]; failed: { table: string; error: string }[] }>(`/connections/${path}/open-dataset`, "POST", { dataset: g.schema });
+      const got = await busy(section, `Opening ${g.count} tables of ${g.schema}…`, api<{ opened: unknown[]; failed: { table: string; error: string }[] }>(`/connections/${path}/open-dataset`, "POST", { dataset: g.schema }), { errorIn: false });
       const failed = got.failed.length ? ` ${got.failed.length} could not: ${got.failed.map((f) => f.table).join(", ")}.` : "";
       toast(`${got.opened.length} tables of ${g.schema} are open.${failed}`, got.failed.length ? "error" : "info");
       onOpened();
@@ -116,7 +116,6 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
   };
 
   const importRelationships = async (g: TreeGroup): Promise<void> => {
-    toast(`Reading ${g.schema}'s relationships…`);
     try {
       const got = await api<{ imported: unknown[] }>(`/connections/${path}/relationships`, "POST", { dataset: g.schema });
       toast(`${got.imported.length} relationships from ${g.schema} are in the model.`);
@@ -137,8 +136,8 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
         h(
           "span",
           { class: "conn-tree-actions" },
-          button("Open", () => void open(t), { icon: "rows", class: "small" }),
-          button("Preview", () => void preview(t, under), { icon: "eye", class: "small line" }),
+          button("Open", busyClick("Opening…", () => open(t)), { icon: "rows", class: "small" }),
+          button("Preview", busyClick("Reading…", () => preview(t, under)), { icon: "eye", class: "small line" }),
           button("Copy name", () => void navigator.clipboard.writeText(t.sql).then(() => toast(`Copied ${t.sql}`)), { icon: "copy", class: "small line", title: t.sql }),
         ),
       ),
@@ -179,8 +178,8 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
                     h(
                       "span",
                       { class: "conn-tree-actions" },
-                      g.count > 1 ? button("Open all", () => void openAll(g), { icon: "grids", class: "small line" }) : null,
-                      tree!.kind === "powerbi" ? button("Import its relationships", () => void importRelationships(g), { icon: "diagram", class: "small line" }) : null,
+                      g.count > 1 ? button("Open all", busyClick("Opening…", () => openAll(g)), { icon: "grids", class: "small line" }) : null,
+                      tree!.kind === "powerbi" ? button("Import its relationships", busyClick(`Reading ${g.schema}'s relationships…`, () => importRelationships(g)), { icon: "diagram", class: "small line" }) : null,
                       first ? button("Query in a notebook", () => void queryInNotebook(first.sql), { icon: "notebook", class: "small line" }) : null,
                     ),
                   ),
@@ -196,9 +195,9 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
   search.addEventListener("input", draw);
 
   const load = async (): Promise<void> => {
-    clear(list, h("p", { class: "hint" }, "Loading the catalog…"));
+    clear(list, room());
     try {
-      tree = await api<Tree>(`/connections/${path}/tree`);
+      tree = await busy(section, `Loading ${name}'s tables…`, api<Tree>(`/connections/${path}/tree`), { errorIn: false });
       if (tree.state.state === "failed" && !tree.groups.length) {
         clear(list, h("p", { class: "status-error" }, tree.state.error ?? "The catalog did not load."));
         return;

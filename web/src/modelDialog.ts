@@ -16,6 +16,7 @@ import { api, grid } from "./api";
 import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDialog, toast } from "./dom";
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
+import { busyClick, loadingBlock } from "./loading";
 
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
 const fmt = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "number" ? (Number.isFinite(v) ? number.format(v) : "∞") : String(v));
@@ -92,7 +93,7 @@ export async function openRegression(target?: string, predictors: string[] = [],
       }
       sent.outcome = op.value === "values" ? { column: which.value, values: text.split(",").map((v) => v.trim()).filter(Boolean) } : { column: which.value, op: op.value, value: Number(text) };
     }
-    clear(results, h("p", { class: "hint" }, "Fitting…"));
+    clear(results, loadingBlock(`Fitting a model of ${which.value}…`));
     clear(actions);
     try {
       const answer = await api<RegressionResult>(`${grid}/regression`, "POST", sent);
@@ -130,7 +131,7 @@ export async function openRegression(target?: string, predictors: string[] = [],
     }
   };
   body.append(
-    h("div", { class: "analysis-controls" }, field("Target", which), h("label", { class: "analysis-field" }, h("span", {}, "Yes/no"), yesNo), outcomeRow, button("Fit", () => void run(), { icon: "play", class: "primary" })),
+    h("div", { class: "analysis-controls" }, field("Target", which), h("label", { class: "analysis-field" }, h("span", {}, "Yes/no"), yesNo), outcomeRow, button("Fit", busyClick("Fitting…", run), { icon: "play", class: "primary" })),
     pool,
     results,
   );

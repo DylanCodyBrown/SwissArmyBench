@@ -5671,3 +5671,53 @@ the home page". A front-end change on the owner's word.
 - **Smaller rail icons:** 24px (from 28), the item height clamp(34px, (100vh - 40px) / 19, 46px), the current bar
   8px from each end, the Session count moved to sit on the smaller icon's corner; `--rail-w` stays 60px.
 - **The tour** starts from Projects and returns there; a new second card, Projects, lights the mark on the rail.
+
+## One loading state that gates what is loading, and one error component (the owner, 2026-11-18; built, branch uniform-loading)
+
+The owner: "Let's improve loading things with a uniform loading form. I noticed some things say in tiny text loading
+and they don't gate the thing that is loading." Made design principles 8.12 (loading) and 9.5 (errors).
+
+- **One module, web/src/loading.ts, on every page and window.** `busy(host, words, work, {abort, onCancel,
+  errorIn})` gates exactly the element that is loading: `inert` and `aria-busy` at once (a click lands nowhere, a
+  second start waits behind the first), and after 150 ms a translucent cover over exactly its box (a sibling placed
+  each frame over the host's rectangle, so its Cancel stays clickable; the host's corners), a spinner and the words
+  at the body text's size on a raised panel ("Loading Shop's tables…", "Connecting to Warehouse…"), the time taken
+  after 3 s, Cancel when given an AbortController (the fetch's signal; `onCancel` for a server's cancel route), and
+  an error in place through errorNote.ts. Work under 150 ms draws nothing. A tall host (over 320 px) has its words
+  near its top, where the eye is. `loadingBlock(words, {height, inline})` is an empty area's placeholder (centred,
+  its height kept). `busyButton(button, work, words)` / `busyClick(words, work)` keep a button disabled with a small
+  spinner and its own words ("Testing…") until the work ends; a second click does nothing (a capturing listener
+  swallows clicks at once, the look comes after 150 ms; an icon-only button shows the spinner only). `markBusy` draws
+  a button busy from a view's own state (a canvas's Play, a query's Run) and returns what puts it back.
+- **Tokens** (grid.css, each theme): `--busy-cover` (the cover's translucent fill), `--busy-spin`, `--busy-track`;
+  the spinner's pairs are in test_contrast.py. Reduced motion: the spinner stands still (the global rule), the time
+  still counts. A busy button keeps full opacity (busy, not unavailable).
+- **Roles:** the cover's words and the placeholder are `role=progressbar` with the words as their name, not
+  `status` (a page's own status line keeps its role, so tests and screen readers find one).
+- **errorNote.ts (9.5):** `errorNote(error, extra)` draws the word and icon (Error, Warning), what happened (the
+  first sentence), where, the fixes as buttons (a missing package's refusal brings Install now), the rest folded
+  behind Details with Copy, and Send to the agent (the inbox, as the Workbench does); `warningNote`, `showError` /
+  `clearError` in place, `errorToast` for background work (Show), `errorParts` reads an ApiError, Error, string or
+  the server's JSON refusal ({error|message, where, details|traceback, missing}). loading.ts shows its errors with
+  it. The app's other error toasts and status-error lines are a separate pass (not this branch).
+- **Used everywhere the loading words were:** the Connections page (list, detail, types, form; Test and Save gate
+  the form; the detail's Test, Refresh catalog, Import relationships, Open as grid, Update to the new driver busy,
+  their failures in place), its tree (gated while it loads, Open all gated, Preview and Open busy), the Python
+  connection form, Add API (the form, Find its OpenAPI, the preview, Try it, Add gating the form), the APIs page
+  (cards' Refresh gates the card, Apply, Send, Save as web call), Structures (the page, Run again gates it), the
+  Key Finder (gated while it compares, its error in place; Compare on these and Add as relationship busy; the
+  values sample), the Data Explorer and the Data page (previews, a catalog's load, the tree's lazy branches, each
+  action button busy while its work runs), the Variables, Session and APIs pages, the blade screen (Save, Test,
+  New blade's templates), the catalog rail's Refresh and Open as grid, the Tables list, the steps strip's Load all
+  rows (the grid gated), the steps window's verify, the Analyze menu's forms (fit test, outliers, odds, find
+  predictors, regression, time series, forecast, tie-out: placeholders and busy Run buttons), the profile, the
+  Data shape check, the ERD's Find relationships and Check, the file picker's list (gated while a folder is read),
+  the Workbench's variables pane, Run as scheduled, a notebook environment's Make it, the query tab's Run, the
+  Streamlit canvas (Play and Test this page gate the canvas), the Excel canvas's Play, the Code App page (files,
+  connectors, Refresh, Make it, Run live, Install, Sign in, Push, Open as grid), Install now, the Extensions page's
+  Install and Remove, Launch Claude's Look again, the Projects page (its first load, and a project's open or new
+  gates the page once the folder is chosen), Export's Save and Download.
+- **Left as they are:** status words of background work (8.5: a catalog's "Loading its tables…" state on the Data
+  page, a kernel's "starting…"), and the Source Control page (VS Code's own look, cloned exactly).
+- **The agent:** unaffected; no new user action, so no new command (no Cancel route was added: no slow route has a
+  server-side cancel yet; `onCancel` is there for the first one).

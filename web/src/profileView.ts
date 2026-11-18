@@ -14,6 +14,7 @@ import { profileCards, tableProfileCards } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
 import { formatTemporal } from "./gridView";
 import { state } from "./state";
+import { loadingBlock } from "./loading";
 
 interface Profile {
   column: string;
@@ -166,7 +167,7 @@ export async function profileToSandbox(column: string): Promise<void> {
 export async function openTableProfile(): Promise<void> {
   const { dialog, body, foot, close } = openDialog("Profile of the whole view", true);
   dialog.classList.add("profile-window");
-  body.append(h("p", { class: "hint" }, "Profiling…"));
+  body.append(loadingBlock("Profiling the whole view…", { height: "240px" }));
   let profiled: { rows: number; duplicate_rows: number; columns: Record<string, unknown>[] } | null = null;
   try {
     const result = await api<{ rows: number; duplicate_rows: number; columns: Record<string, unknown>[] }>(`${grid}/profile${query({ upto: state.previewUpto })}`);

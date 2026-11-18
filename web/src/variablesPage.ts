@@ -28,6 +28,7 @@ import { api, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { connectionIcon, openReference } from "./connectionsWindow";
 import { append, button, h, icon, toast } from "./dom";
+import { loadingBlock } from "./loading";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 
 type Source = "vault" | "value" | "keyring" | "env" | "missing";
@@ -194,7 +195,7 @@ function drawVariables(): void {
       return;
     }
     if (!listing) {
-      list.replaceChildren(h("p", { class: "hint" }, "Loading…"));
+      list.replaceChildren(loadingBlock("Loading the variables…"));
       return;
     }
     const words = search.value.trim().toLowerCase();
