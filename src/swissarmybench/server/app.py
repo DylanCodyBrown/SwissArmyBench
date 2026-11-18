@@ -38,6 +38,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
+  routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
@@ -112,6 +113,7 @@ from swissarmybench.server import (
     routes_script_export,
     routes_script_runs,
     routes_session_log,
+    routes_shared_catalog,
     routes_snapshots,
     routes_structures,
     routes_table_cells,
@@ -244,7 +246,9 @@ def create_app(
         ctx.extensions.bring_back()  # a preinstalled extension an update from a built-in version lacks
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
+        shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
         yield
+        shared.cancel()
         context_md.cancel()
         autosave.cancel()
         pruner.cancel()
@@ -299,7 +303,8 @@ def create_app(
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
-            *routes_library.routes(ctx.library),
+            *routes_library.routes(ctx.library, ctx.library_setup),
+            *routes_shared_catalog.routes(ctx.shared_catalog),
             *routes_connection_colours.routes(ctx.connection_colours),
             *routes_session_log.routes(ctx.session_log),
             *routes_variables.routes(ctx.variables),

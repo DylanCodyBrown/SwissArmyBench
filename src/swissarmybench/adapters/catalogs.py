@@ -206,6 +206,29 @@ class CatalogStore:
         ).fetchall()
         return {str(r[0]) for r in rows}
 
+    def listing_rows(
+        self, cur: duckdb.DuckDBPyConnection, name: str
+    ) -> list[tuple[str, str, str, str, str, str, bool | None]]:
+        """Every column of the catalog as (database, schema, table, kind, column, type, nullable), in each
+        table's own order: names and types only (the shared catalog, domain/shared_catalog.py)."""
+        info = self.get(name)
+        rows = cur.execute(
+            f"""SELECT database, schema, "table", kind, "column", type, nullable FROM {info.table}
+            ORDER BY lower(database), lower(schema), lower("table"), "table", position"""  # noqa: S608
+        ).fetchall()
+        return [
+            (
+                str(r[0] or ""),
+                str(r[1] or ""),
+                str(r[2] or ""),
+                str(r[3] or "table"),
+                str(r[4] or ""),
+                str(r[5] or ""),
+                r[6] if isinstance(r[6], bool) else None,
+            )
+            for r in rows
+        ]
+
     def places(
         self, cur: duckdb.DuckDBPyConnection, name: str, limit: int = 50_000
     ) -> list[tuple[str, str, str]]:

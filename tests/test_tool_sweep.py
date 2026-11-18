@@ -365,7 +365,7 @@ SENSIBLE: dict[str, Factory] = {
     "project_new": lambda s: (s.scratch_grid(), {"path": str(s.tmp / "sweep.sab")})[1],
     "project_save": lambda s: {"path": str(s.tmp / "sweep.sab")},
     "project_copy": lambda s: {"path": str(s.tmp / "copy")},
-    "projects_folder_set": lambda s: {"folder": str(s.tmp / "projects")},
+    "projects_folders": lambda s: {"folder": str(s.tmp / "projects")},
 }
 
 # Arguments named the same mean the same thing in every command.

@@ -339,6 +339,19 @@ open issues), names and types only, never a row or a value from the data.
 **Import** copies notebooks, scripts and apps in from another project folder or a loose file; connections
 and blades are the library's, shared by every project.
 
+Projects are **Local** or **Shared**: Settings has a Local projects folder and a Shared projects folder (a folder
+you push and pull with Git, as you do the meta store). Every card says which; **Share** copies a local project
+into the shared folder and **Make a local copy** copies a shared one into yours (never its kept rows), and New
+project asks where.
+
+**The meta store** is the library folder pointed at your clone of the team's GitHub repository (Settings, **Meta
+store folder**): connections, key vaults, variables and the **shared catalog** (`catalog/<connection>.json`:
+each connection's tables, columns, keys, relationships and which projects use them; names and types only, never
+a value or a secret). The app keeps the catalog as connections are saved and listed and projects are saved, and
+reads it again when your `git pull` changes it, so a teammate's tables are findable on the Data page before
+anything is loaded. **Set up from the meta store** lists what a new computer still needs (each key vault's
+sign-in, values to type once, each connection's status). The app never runs git.
+
 ```powershell
 swissarmybench open "C:\Users\me\Documents\sales"   # a project's folder; starts the app when it is not running
 ```

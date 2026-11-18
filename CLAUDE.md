@@ -156,8 +156,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   sets, variables and connection colours live outside every project, in one folder of text files made to be a Git
   repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
   `library.json` keeps the path): `connections/`, `vaults/`, `blades/<name>.blade.py`, `apis/<name>/`,
-  `relationship-sets/`, `variables.toml`, `colours.toml`, `local/` (this computer only, git-ignored), README.md and
-  .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
+  `relationship-sets/`, `variables.toml`, `colours.toml`, `catalog/` (the shared catalog, below), `local/` (this
+  computer only, git-ignored), README.md and .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
   nothing changes no byte. Never a secret, token, password or row in it (nor in a project): a connection names
   where its password comes from (keyring, environment, vault), resolved on each computer by its name; a
   clone asks for each missing one. This computer's older stores (blades/*.json, variables.json, colours.toml,
@@ -165,12 +165,23 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   the library's tangs/, a relationship set's old name, became relationship-sets/ once, 2026-11-17);
   an older project's own `.sab/blades` are copied in as it opens (the same skipped, a different one kept as
   `<name> from <project>`, said) and its next save leaves them out. The app never runs git: **GitHub sync is
-  built in instead (the owner, 2026-11-18: "connect a local GitHub repo and push and pull and fork projects so you
+  to be built in instead (decided; branch github-sync, not yet merged) (the owner, 2026-11-18: "connect a local GitHub repo and push and pull and fork projects so you
   could work a shared project and clone it into a local project"; chose "Built-in, signed in to GitHub")**: the meta
   store and shared projects are cloned, pulled and pushed through GitHub's web API (api.github.com), signed in with
   the user's GitHub account (the token in the keyring only, never a file, an answer or a log), and only on the
   user's action (Clone, Pull, Push) or the agent's on the user's Allow; no Git installed is needed. A conflict is
   shown, never forced. "Fork" means a local copy of a shared project (Make a local copy), not a GitHub fork.
+  **The meta store (the owner, 2026-11-17/18: "a shared meta store on GitHub" / "Meta store folder in
+  settings"):** Settings calls the library folder the **Meta store folder** (a label; the code keeps `library`):
+  the user's clone of the team's repository. Its `catalog/<connection>.json` is the **shared catalog** (names,
+  types, keys, relationships, `used_by` project folder names, present or gone; never a value, count or secret),
+  written on the events (a connection saved, its tables listed, relationships changed, a project opened or saved),
+  pruned (a deleted connection's file, a table gone 30 days), byte-stable, and read again when the user's pull
+  changes it (looked at every few seconds, said once); a file with merge markers is reported and left alone.
+  **Set up from the meta store** (Settings) is a new computer's checklist: vault sign-ins, values to type once,
+  each connection's status, Move to a vault. **Local and shared projects (2026-11-18):** projects.json's
+  `local_folder` (the older `folder` key read as it) and `shared_folder` (none by default; pushed and pulled by the user); each card Local or Shared; Share and Make a local copy (`copied_from` in its project.json),
+  never .sab/data/ nor .git.
 
 ## Layout
 
@@ -290,6 +301,13 @@ src/swissarmybench/
     structures.py        Structures: JSON, YAML (the adapter's), XML (no DOCTYPE or entity) and TOML (written
                          here); paths ($.orders[3], [*]); steps replayed on the original (pick, filter, rename,
                          remove, set, add, sort, flatten); records for a grid; shapes; a structure's lineage
+    shared_catalog.py    the shared catalog (the library's catalog/<connection>.json): tables, columns, keys, relationships,
+                         used_by, present/gone; the file's text (sorted, one table per block, byte-stable), read back
+                         (merge markers and broken JSON said), a listing applied (gone since a date, pruned after N
+                         days), the model's keys and relationships added, a deletion taken out, a project's usage
+    library_setup.py     Set up from the meta store: each vault (readable, its sign-in, the variables it gives), the
+                         values to type once, each connection's status (works, needs, only works here), shared
+                         projects not set up here, the count's words, the notice
     library.py           the library's rules: its layout, which folder a blade's file goes in (vaults/,
                          connections/, blades/), README.md and .gitignore, variables.toml and local/variables.toml
                          (sorted, stable), the JSON blades from before it, "<name> from <project>", the notices
@@ -505,12 +523,18 @@ src/swissarmybench/
                          the recent list, a table's fix; unsaved changes worked out, not tracked; each open,
                          new and close points the dashboards at the project (scope); an older project's own
                          blades into the library as it opens (adopt)
-    project_explorer.py  the Project Explorer: the cards (the projects folder's and every one opened), sort and
-                         custom order (projects.json), the projects folder (the agent's on Allow), rename,
+    project_explorer.py  the Project Explorer: the cards (the local and shared projects folders' and every one
+                         opened; each Local or Shared), sort and custom order (projects.json), both projects
+                         folders (the agent's on Allow), Share (on Allow) and Make a local copy, rename,
                          remove from the list, locate; Show in folder and Delete (to the trash, on its typed
                          name) the user's only
     library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
                          once, an older project's blades taken in (the same skipped, `<name> from <project>`)
+    shared_catalog.py    the shared catalog kept on the events (saved, listed, relationships, a project's usage),
+                         pruned, the folder looked at for a pull's change (catalog_changed), a bad file left alone;
+                         the listing, one table, the ERD's model, the Explorer's tables
+    library_setup.py     Set up from the meta store: the vaults checked in child processes, the checklist, Move to
+                         a vault
     project_scope.py     the open project's documents, and import: documents from another project folder or a
                          loose file into the project; an older project's connections and blades
                          into the library (services/library.py's take)
@@ -532,6 +556,7 @@ src/swissarmybench/
     blades.py            saved blades (the library's connections/, vaults/, blades/<name>.blade.py: one portable
                          file each, written only when its text changes), blade folders (.blade.py files found
                          by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
+    shared_catalog.py    the catalog/ folder's files: stamps, read, written atomically only when the bytes change
     library.py           the library folder: where (library.json), README.md and .gitignore on first write,
                          counts, the one-time move of this computer's older stores (a dated backup), an older
                          project's .sab/blades read and dropped from its working folder
@@ -575,7 +600,8 @@ src/swissarmybench/
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
-                         connection_swap, variables, connection_colours, connection_tables, explorer, library). Every route serves
+                         connection_swap, variables, connection_colours, connection_tables, explorer, library,
+                         shared_catalog). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin
@@ -664,8 +690,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          there (no switch), and the top tabs and the Application row no longer repeat its
                          areas (the owner, 2026-11-16); extensionsPage.ts the Extensions page (open=extensions,
                          above Settings: a card per extension, Install's progress through the restart);
-                         library.ts Settings' Library (the folder, Change…,
-                         Default, its counts) and the move's notices, said once; areaPage.ts is a page of the rail's over any page
+                         library.ts Settings' Meta store folder (the library folder, Change…,
+                         Default, its counts, the shared catalog's counts, Set up from the meta store) and the
+                         notices said once (the move, a team's meta store, a pull's catalog change); areaPage.ts is a page of the rail's over any page
                          (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
                          by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
@@ -774,8 +801,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          close; a table's fix; the ● mark; Export outline: ARCHITECTURE.md, then Download);
                          projectTypes.ts the types for
                          beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
-                         the home page's Project Explorer (cards, sort and dragged custom order, filters, the
-                         types strip, the empty state, a card's menu; Settings' Projects folder);
+                         the home page's Project Explorer (cards marked Local or Shared, sort and dragged custom
+                         order, filters, the types strip, the empty state, a card's menu: Share, Make a local copy;
+                         Settings' Local and Shared projects folders);
                          projectImport.ts the import dialog (documents, connections, blades: from another
                          project folder, a file, this computer);
                          startView.ts the home page's Start view (/workspace?view=start: the Project Explorer,

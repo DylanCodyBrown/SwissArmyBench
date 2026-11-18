@@ -280,6 +280,70 @@ class OpenTable:
     origin: Origin
 
 
+def shared_catalog_provider(
+    tables: Callable[[], Any], loaded: Callable[[], set[str]], connections: Callable[[], set[str]]
+) -> Provider:
+    """The shared catalog's tables and columns (the library's catalog/, services/shared_catalog.py) of the
+    connections whose catalog is not loaded here: a teammate's tables found before anything is loaded. A
+    connection this computer does not have is "From the shared catalog: not connected here"; one it has
+    (its connection file came with the library) offers Set up this connection."""
+
+    async def provide(query: Query) -> Found:
+        found = Found()
+        if not (query.wants("tables") or query.wants("columns")) or (query.empty and not query.browse):
+            return found
+        done, here = loaded(), connections()
+        for catalog, table in tables():
+            name = catalog.connection
+            if name.casefold() in done:
+                continue  # its own catalog is loaded: the connections provider has it
+            has = name.casefold() in here
+            detail = "From the shared catalog" + ("" if has else ": not connected here")
+            more = {
+                "source": "shared",
+                "shared": True,
+                "here": has,
+                "setup": has,
+                "key": f"{name}/{table.key}",
+                "place": {"database": table.database, "schema": table.schema, "table": table.name},
+                "used_by": list(table.used_by),
+            }
+            where = [p for p in (name, table.database, table.schema) if p]
+            sql = table_rules.copy_name(
+                name, Place(table.database, table.schema, table.name), catalog.kind or "database"
+            )
+            found.results.append(
+                Result(
+                    "tables",
+                    table.name,
+                    where,
+                    connection=name,
+                    sql=sql,
+                    detail=f"{len(table.columns)} columns · {detail}",
+                    icon="rows",
+                    insert=rules.table_insert(sql),
+                    more=more,
+                )
+            )
+            for column in table.columns:
+                found.results.append(
+                    Result(
+                        "columns",
+                        column.name,
+                        [*where, table.name],
+                        connection=name,
+                        sql=sql,
+                        type=column.type,
+                        icon="columns",
+                        insert=rules.column_insert(column.name),
+                        more=more | {"table": f"{name}/{table.key}"},
+                    )
+                )
+        return found
+
+    return provide
+
+
 def grids_provider(tables: Callable[[], list[OpenTable]]) -> Provider:
     """The open tables (grids) and their columns."""
 

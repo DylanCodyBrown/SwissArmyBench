@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from swissarmybench.domain.relationships import code_of, hidden_words, named_in, used_scope
+from swissarmybench.domain.relationships import Model, code_of, hidden_words, named_in, used_scope
 from swissarmybench.services.relationships import Models
 
 # What the composition root gives: None with no project open, else the project's own table names and its
@@ -25,10 +25,14 @@ SCOPES = ("project", "all")
 
 
 class ProjectTables:
-    def __init__(self, models: Models, project: ProjectDocuments) -> None:
+    def __init__(
+        self, models: Models, project: ProjectDocuments, shared: Callable[[], Model] | None = None
+    ) -> None:
         self.models = models
         self.ws = models.ws
         self._project = project
+        # The shared catalog's model (services/shared_catalog.py): All tables draws a teammate's tables too.
+        self.shared = shared
 
     def used(self) -> set[str] | None:
         """The tables the open project uses (None: no project open)."""
@@ -52,6 +56,8 @@ class ProjectTables:
         default) or of every table ("all"). With no project open, as before (the open tables, else all)."""
         if wanted:
             return self.models.erd(wanted)
+        if scope == "all" and self.shared is not None:
+            return self.models.erd(set(), self.shared())
         drawn = self.scope(scope)
         if not drawn["project"]:
             return self.models.erd(set())

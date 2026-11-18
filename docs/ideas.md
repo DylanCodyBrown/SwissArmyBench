@@ -5248,3 +5248,90 @@ joining the project** (plain words, diagrams, a short summary per section, long 
 - Wire the two seams to the drivers and relationship-sets branches' rules.
 - A table named only through `sab.sql("Shop", "...")` Python strings in a connection's own dialect is not yet a
   used table (only DuckDB SQL's `[Connection].table`).
+
+## The meta store: a shared catalog, setup from it, local and shared projects (the owner, 2026-11-17/18; built, branch shared-catalog)
+
+The owner's words: "My next idea is a shared meta store on GitHub. It would be a json or something in the back of
+the app and any connection made in a project would save to a centralized catalog it would sync and prune in
+realtime"; on how it syncs: "No you point the app to a GitHub meta store folder on your machine. You push and pull
+as projects are created"; then (2026-11-18) "Connections are shared and the vault env vars are shared as well so
+minimal setup is required for new people", "Meta store folder in settings. And we should introduce the idea of
+local projects and shared projects and put another setting for shared projects folder in settings", and "work a
+shared project and clone it into a local project". Git: the owner is still deciding whether the app runs it; until
+then it does not (nothing here runs git, makes a network call or guesses git state).
+
+### Built
+- **The shared catalog: the library's `catalog/<connection>.json`** (domain/shared_catalog.py, adapters/ and
+  services/shared_catalog.py). One file per connection (its name made file-safe as its blade's file is): kind
+  (how it lists its tables) and starter; per table its database, schema, name, kind, columns (name, type,
+  nullable, key: primary or foreign), primary key, the relationships whose from- (else to-) table it is,
+  `used_by` (project folders' names, never paths) and `state` (present, or gone with `gone_since`, a date).
+  Never a value: no row count, profile, relationship note or evidence (they can carry numbers from the data), no
+  secret, no server address beyond the connection's own file.
+- **Byte-stable, merge-friendly.** Sorted keys, one table per block, one column or relationship per line; no time
+  that changes on every save. A test merges two people's independent additions with `git merge-file` (git in the
+  test only) and gets exactly the file either would write with both. Known limit: two people adding tables that
+  sort next to each other touch neighbouring lines (JSON's comma), which Git calls a conflict; the app then says
+  so and waits (below).
+- **Written on the event**, the user's and the agent's alike: a connection saved (BladeService.blade_saved); its
+  tables listed successfully (BladeService.tables_listed: Refresh, a catalog loading itself, the Connections
+  page's tree); the relationships in use changed (Models.listeners: "edit" takes a deleted relationship out,
+  "replace" (a project's model) only adds); a project opened or saved (its folder's name into `used_by` of the
+  tables it uses: open tables, its tables, names its documents' code says, relationship_scope's rule; out of the
+  ones it no longer uses; other projects' names left alone). Written atomically, only when its bytes change.
+- **Pruned.** A deleted connection's file goes (the hook that removes its relationships). A table a successful
+  listing no longer finds is `gone` since today; still gone 30 days later (settings.shared_catalog_prune_days)
+  it is removed. A failed listing (sign-in, offline) changes nothing.
+- **Read again after a pull.** The folder's files' stamps are looked at every 3 s (no new dependency); a file
+  changed from outside is read again, the pages told (`catalog_changed`), and the page says once "Catalog
+  updated from the library: N connections changed". Settings shows the counts and "Last change picked up from
+  the folder: <date>". A file with merge conflict markers or broken JSON is reported with its name and never
+  written over until it reads (the user finishes the merge). The app does not guess git state.
+- **Readers.** Explorer search and browse (a "From the shared catalog" section: a teammate's table "From the
+  shared catalog: not connected here", or Set up this connection when its connection file came with the
+  library); the ERD's All tables (`/relationships/erd?scope=all` merges the catalog's model under the one in
+  use); context.md's "Shared catalog" section. Agent: `catalog_shared`, `catalog_shared_table`,
+  `catalog_shared_refresh`.
+- **Set up from the meta store** (domain/ and services/library_setup.py; Settings' Meta store folder section,
+  GET /library/setup). Each key vault in vaults/ checked by its own names() in a child process (20 s at most):
+  readable, or the sign-in that fixes it ("Sign in to Azure", how: az login, then Check again) and how many
+  variables it gives ("Sign in to Azure gives 12 variables"); each value still needed here (a keyring variable,
+  a local one, a connection's password with no source here: project_scope's rule), typed once inline (the
+  keyring, local/variables.toml, the connection's own secret); each connection's status (works; needs a sign-in
+  to <vault>, its password, a value; or only works on your machine, the portability rule's words); the shared
+  projects whose connections are not set up here; the count ("3 things to set up", "Ready: 9 connections
+  work"). A connection whose password is in this computer's keyring offers **Move to a vault** (a vault's new
+  entry, the code reading it from there: the next person needs nothing). Said once when the meta store is
+  pointed at a folder that already holds connections. Agent: `library_setup`, `library_setup_move_to_vault`;
+  typing a secret's value stays the user's.
+- **Meta store folder.** Settings' Library folder is labelled Meta store folder, with "Connections, key vaults,
+  variables and the shared catalog: point it at your clone of the team's GitHub repository." A label only: the
+  code, library.json and ~/.swissarmybench/library keep their names.
+- **Local and shared projects.** Settings' Projects folder became two: Local projects folder (as before; the
+  older `folder` key of projects.json read as it, written as `local_folder`) and Shared projects folder (none by
+  default; a folder the user pushes and pulls with Git). The Project Explorer scans both; each card is Local or
+  Shared (by which folder it is under; one opened from elsewhere is Local), filtered All / Local / Shared. New
+  project asks Local or Shared (Shared offered once its folder is set). A local card's **Share** copies it into
+  the shared folder (as Copy project to: never .sab/data/, its .git left behind, the original kept), then opens
+  the copy (the agent's on Allow). A shared card's **Make a local copy** copies it into the local folder (no
+  rows, no .git, the shared one untouched; a name taken asks for another), writes `copied_from` (the shared
+  project's folder name) into its .sab/project.json, shown on the card, and opens it (no Allow: like New
+  project). Opening or making a shared project whose connections only work on this machine says so once ("2
+  connections in this shared project only work on your machine: teammates and a Function App can't use them").
+  Agent: `projects_folders` (was projects_folder_set: read for one release), `project_share`,
+  `project_copy_local`, `project_new(where="shared")`.
+
+### Decisions
+- JSON, as the brief said, rather than TOML (whose tables need no commas and would merge more cleanly still).
+- The file's `kind` is how a connection lists its tables (connection_tables.tables_kind), so the catalog names a
+  teammate's table in DuckDB SQL the way the connection would.
+- A relationship lives in its from-table's block when that table is the connection's, else in its to-table's;
+  the user's deletions are the only removals (a project closing never takes one out).
+- `used_by` counts only this computer's connections for the open project (a teammate's same-named table is not
+  marked used by a project here).
+- "A project-only connection is offered Move to the meta store": since the library, a project holds no
+  connection of its own (an older project's .sab/blades move in as it opens), so there is none to offer.
+
+### Open
+- Several meta stores at once (a personal one beside the team's) is the library plan's rule 5, not built.
+- Whether the app runs git (pull and push buttons) is the owner's open decision.

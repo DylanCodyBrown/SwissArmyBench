@@ -1,9 +1,13 @@
 """The Project Explorer: the home page's every project in one place (the owner, 2026-11-17: "Make the project
 page sortable by card with explanations of project types for beginners"). Pure rules, no I/O.
 
-  projects.json   the projects folder (Settings: Projects folder; None: the default), the custom order (folder
-                  paths), the chosen sort, the projects taken off the list, whether the type explanations
-                  were put away
+  projects.json   the local projects folder (Settings: Local projects folder; None: the default; the older
+                  single `folder` key read as it), the shared projects folder (Settings: Shared projects
+                  folder, none by default: a folder the user pushes and pulls with Git, like the meta store;
+                  the app never runs git), the custom order (folder paths), the chosen sort, the projects
+                  taken off the list, whether the type explanations were put away
+  where           a card is Shared when its folder is under the shared projects folder, else Local (one
+                  opened from elsewhere too); a filter All / Local / Shared
   cards           each project's card from its facts: name (its folder's), type (an off extension's said as
                   "needs the <Name> extension"), last opened, last changed, created, its folder, what it
                   holds (notebooks, scripts, apps, tables), Git (a repository, its branch from .git/HEAD:
@@ -44,11 +48,13 @@ class ExplorerError(ValueError):
 def read_settings(raw: Any) -> dict[str, Any]:
     """projects.json leniently: what does not read is the default."""
     raw = raw if isinstance(raw, dict) else {}
-    folder = raw.get("folder")
+    folder = raw.get("local_folder", raw.get("folder"))  # "folder": the one projects folder before 2026-11-18
+    shared = raw.get("shared_folder")
     order = raw.get("order")
     hidden = raw.get("hidden")
     return {
         "folder": folder if isinstance(folder, str) and folder.strip() else None,
+        "shared_folder": shared if isinstance(shared, str) and shared.strip() else None,
         "order": [p for p in order if isinstance(p, str)][:MAX_ORDER] if isinstance(order, list) else [],
         "sort": check_sort(raw.get("sort"), lenient=True),
         "hidden": [p for p in hidden if isinstance(p, str)][:MAX_ORDER] if isinstance(hidden, list) else [],
@@ -57,8 +63,41 @@ def read_settings(raw: Any) -> dict[str, Any]:
 
 
 def write_settings(settings: Mapping[str, Any]) -> str:
-    """projects.json's text (sorted, stable)."""
-    return json.dumps(dict(settings), indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+    """projects.json's text (sorted, stable): the local folder under its own key."""
+    out = dict(settings)
+    out["local_folder"] = out.pop("folder", None)
+    return json.dumps(out, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+WHERE: tuple[str, ...] = ("local", "shared")
+
+
+def _norm(path: str) -> str:
+    return path.replace("\\", "/").rstrip("/").casefold()
+
+
+def is_under(path: str, folder: str | None) -> bool:
+    """Whether a project's folder is inside `folder` (in any case, either slash)."""
+    if not folder:
+        return False
+    return _norm(path).startswith(_norm(folder) + "/")
+
+
+def where_of(path: str, shared_folder: str | None) -> str:
+    """Shared when under the shared projects folder, else Local."""
+    return "shared" if is_under(path, shared_folder) else "local"
+
+
+def local_only_words(count: int) -> str:
+    """Said once when a shared project is opened or made whose connections only work on this machine."""
+    if not count:
+        return ""
+    many = "connection" if count == 1 else "connections"
+    verb = "works" if count == 1 else "work"
+    return (
+        f"{count} {many} in this shared project only {verb} on your machine: "
+        "teammates and a Function App can't use them"
+    )
 
 
 def check_sort(raw: Any, lenient: bool = False) -> dict[str, Any]:
@@ -131,6 +170,7 @@ def card(
     opened: float | None,
     open_now: str | None,
     in_folder: bool,
+    where: str = "local",
 ) -> dict[str, Any]:
     """One project's card. `facts` (None: the folder is not there): type, documents, tables, head (.git/HEAD's
     text, or None), repository, changed, created. `kinds`: the types on here, by id; `off`: an extension's
@@ -142,6 +182,7 @@ def card(
         "opened": opened,
         "open": open_now == path,
         "in_folder": in_folder,
+        "where": where,
         "missing": facts is None,
     }
     if facts is None:
@@ -163,6 +204,7 @@ def card(
         "changed": facts.get("changed"),
         "created": facts.get("created"),
         "counts": counts(documents, int(facts.get("tables") or 0)),
+        **({"copied_from": str(facts["copied_from"])} if facts.get("copied_from") else {}),
         "documents": [str(d.get("name")) for d in documents][:MAX_DOCUMENT_NAMES],
         "git": {"repository": bool(facts.get("repository")), "branch": branch_of(facts.get("head"))}
         if facts.get("repository")
@@ -209,16 +251,23 @@ def sorted_cards(
     return [dict(c) for c in sorted(listed, key=lambda c: bool(c.get("missing")))]
 
 
-def filtered(cards: Sequence[Mapping[str, Any]], kind: Any = None, words: Any = None) -> list[dict[str, Any]]:
-    """The cards of one type (None: all) whose name, folder or a notebook's name holds every word."""
+def filtered(
+    cards: Sequence[Mapping[str, Any]], kind: Any = None, words: Any = None, where: Any = None
+) -> list[dict[str, Any]]:
+    """The cards of one type (None: all), Local or Shared (None: all), whose name, folder or a notebook's name
+    holds every word."""
     if kind is not None and not isinstance(kind, str):
         raise ExplorerError("type is a project type's id.")
+    if where not in (None, "", "all", *WHERE):
+        raise ExplorerError('where is "local", "shared" or "all".')
     if words is not None and (not isinstance(words, str) or len(words) > MAX_QUERY):
         raise ExplorerError("q is a few words.")
     said = [w.casefold() for w in (words or "").split() if w]
     out = []
     for c in cards:
         if kind and c.get("type") != kind:
+            continue
+        if where in WHERE and c.get("where", "local") != where:
             continue
         haystack = " ".join([str(c["name"]), str(c["path"]), *map(str, c.get("documents") or [])]).casefold()
         if all(w in haystack for w in said):

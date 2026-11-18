@@ -38,6 +38,8 @@ class Catalogs(Protocol):
 
     def places(self, cur: Any, name: str, limit: int = 50_000) -> list[tuple[str, str, str]]: ...
 
+    def listing_rows(self, cur: Any, name: str) -> list[tuple[str, str, str, str, str, str, bool | None]]: ...
+
     def tables(
         self,
         cur: Any,
@@ -149,6 +151,18 @@ class CatalogService:
             return None
         found: list[tuple[str, str, str]] = await self._on_worker(
             lambda cur: self._catalogs.places(cur, name)
+        )
+        return found
+
+    async def listing_rows(self, name: str) -> list[tuple[str, str, str, str, str, str, bool | None]] | None:
+        """Every column of a loaded catalog (database, schema, table, kind, column, type, nullable): names and
+        types only; None when it is not loaded."""
+        try:
+            self._catalogs.get(name)
+        except KeyError:
+            return None
+        found: list[tuple[str, str, str, str, str, str, bool | None]] = await self._on_worker(
+            lambda cur: self._catalogs.listing_rows(cur, name)
         )
         return found
 

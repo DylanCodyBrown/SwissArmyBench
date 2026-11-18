@@ -26,7 +26,7 @@ import json
 import secrets
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -871,6 +871,12 @@ class Models:
         self._seen: list[str] = []
         # The model before each delete or edit of the joins in use, newest last: Undo takes one back.
         self._undo: list[Model] = []
+        # Told of each change (services/shared_catalog.py): "edit" (one was deleted), "replace" (a project).
+        self.listeners: list[Callable[[str], Awaitable[None]]] = []
+
+    async def _tell(self, how: str) -> None:
+        for listener in self.listeners:
+            await listener(how)
 
     @property
     def library_files(self) -> ModelLibrary:
@@ -895,6 +901,7 @@ class Models:
         added, removed = self._told()
         self.ws.audit.write(who, "relationships", None, model=name, added=added, removed=removed)
         await self.ws.live.broadcast({"type": "relationships_updated"})
+        await self._tell("edit")
         return self.current()
 
     async def replace(self, model: Model) -> None:
@@ -903,6 +910,7 @@ class Models:
         self._undo.clear()
         self._told()
         await self.ws.live.broadcast({"type": "relationships_updated"})
+        await self._tell("replace")
 
     async def rename_table(self, old: str, new: str) -> None:
         """A table was renamed: the model names it by its new name (DatasetService.renamed)."""
@@ -951,6 +959,7 @@ class Models:
             self._remember()
             self.model = model
             await self.ws.live.broadcast({"type": "relationships_updated"})
+            await self._tell("edit")
         self.ws.audit.write(who, "relationships_update", None, changed=changed)
         return self.current() | {"changed": changed}
 
@@ -1197,18 +1206,19 @@ class Models:
         chain = path_between(self.model.relationships, start, end)
         return {"from": start, "to": end, "joins": [r.to_json() for r in chain], "found": bool(chain)}
 
-    def erd(self, wanted: set[str]) -> dict[str, Any]:
-        """The current model as Mermaid erDiagram text."""
-        columns: dict[str, list[tuple[str, str]]] = {
-            i.name: [(c.name, c.type) for c in i.columns] for i in self.ws.store.all()
-        }
-        only = wanted or (self.model.tables() & set(columns)) or None
-        if not self.model.tables():
+    def erd(self, wanted: set[str], shared: Model | None = None) -> dict[str, Any]:
+        """The current model as Mermaid erDiagram text; `shared` (the library's catalog/) under it."""
+        columns = {i.name: [(c.name, c.type) for c in i.columns] for i in self.ws.store.all()}
+        both = shared is not None and bool(shared.tables())
+        model = merge(shared, self.model) if shared is not None and both else self.model
+        columns = {t: list(c) for t, c in (shared.columns.items() if shared and both else ())} | columns
+        only = (wanted or None) if both else wanted or (model.tables() & set(columns)) or None
+        if not model.tables():
             raise ValueError(
                 "No relationships yet: apply a model from the library, import one, or set keys first."
             )
-        text = mermaid_erd(self.model, columns, only)
-        return {"mermaid": text, "tables": sorted(only or self.model.tables())}
+        text = mermaid_erd(model, columns, only)
+        return {"mermaid": text, "tables": sorted(only or model.tables())}
 
 
 def check_relationship(

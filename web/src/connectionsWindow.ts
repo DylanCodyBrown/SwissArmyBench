@@ -560,9 +560,9 @@ registerLayer("connections", {
 });
 
 /** The Connections page (and Add API: `addApi`), opened by the user: its address pushed. */
-export async function openConnections(start: { addApi?: boolean; folder?: string; types?: boolean } = {}): Promise<void> {
+export async function openConnections(start: { addApi?: boolean; folder?: string; types?: boolean; detail?: string } = {}): Promise<void> {
   if (shownWindow?.dialog.open) return;
-  const params = start.addApi ? API : start.types ? TYPES : LIST;
+  const params = start.detail ? { at: "detail", type: null, name: start.detail } : start.addApi ? API : start.types ? TYPES : LIST;
   layerOpened("connections", params);
   await drawConnections(new URL(urlOf(params), location.href), start.folder);
 }

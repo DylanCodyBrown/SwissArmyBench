@@ -155,7 +155,10 @@ async function render(): Promise<void> {
   );
   actions.append(...sizing);
   try {
-    const erd = await api<{ mermaid: string }>(`/relationships/erd?tables=${encodeURIComponent(covered.join(","))}`);
+    // All tables: every table, the shared catalog's (the library's catalog/: a teammate's) among them.
+    const erd = await api<{ mermaid: string }>(
+      inProject && showAll ? "/relationships/erd?scope=all" : `/relationships/erd?tables=${encodeURIComponent(covered.join(","))}`,
+    );
     const m = await diagrams();
     if (mine !== renders) return;
     await m.drawDiagram(slot, erd.mermaid, effectiveTheme() !== "light");

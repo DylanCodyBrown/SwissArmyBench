@@ -184,6 +184,9 @@ class ExplorerFiles:
             "head": head,
             "changed": max(times) if times else created,
             "created": created,
+            "copied_from": manifest.get("copied_from")
+            if isinstance(manifest.get("copied_from"), str)
+            else None,
         }
 
     @staticmethod

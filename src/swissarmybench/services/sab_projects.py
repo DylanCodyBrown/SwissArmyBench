@@ -91,7 +91,9 @@ class Archive(Protocol):
 
     def empty_folder(self, path: str) -> str: ...
 
-    def copy_project(self, source: str, target: str, data: bool) -> str: ...
+    def copy_project(
+        self, source: str, target: str, data: bool, git: bool = True, copied_from: str = ""
+    ) -> str: ...
 
 
 class Recent(Protocol):
@@ -192,6 +194,10 @@ class SabProjects:
         # project has opened (its open structures come back): each a key of the manifest's own.
         self.manifest_extras: list[Callable[[], dict[str, Any]]] = []
         self.opened: list[Callable[[str, Mapping[str, Any]], Awaitable[None]]] = []
+        # A project saved (its folder): the shared catalog's used_by follows (services/shared_catalog.py).
+        self.saved: list[Callable[[str], Awaitable[None]]] = []
+        # The shared projects folder (the Project Explorer's; None: not set): New project's "where": "shared".
+        self.shared_folder: Callable[[], str | None] = lambda: None
         self.on_opened: list[Callable[[str], None]] = []  # the Project Explorer's "last opened"
 
     # ===== what is open, and whether a save would change anything =====
@@ -357,6 +363,12 @@ class SabProjects:
             raise ValueError('Send {"name": the project\'s name, "folder"?: where its folder goes}.')
         name = check_folder_name(name)
         parent = body.get("folder")
+        if body.get("where") == "shared" and not (isinstance(parent, str) and parent.strip()):
+            parent = self.shared_folder()
+            if not parent:
+                raise ValueError("Set the shared projects folder in Settings first.")
+        elif body.get("where") not in (None, "", "local"):
+            raise ValueError('where is "local" (the local projects folder) or "shared".')
         if not isinstance(parent, str) or not parent.strip():
             parent = self.projects_folder()
             if not parent:
@@ -747,6 +759,8 @@ class SabProjects:
             if who != AUTOSAVE:
                 self.ws.audit.write(who, "save_project", None, tables=len(tables), rows=len(rows_tables))
         await self._changed()
+        for told in self.saved:
+            await told(current.folder)
         return self.state() | {
             "saved": current.folder,
             "written": written,
@@ -881,7 +895,14 @@ class SabProjects:
             if not await self._approvals.ask(_base(source), "copy the project with rows", detail):
                 raise Refused("The user declined (or did not answer): the project was not copied.")
         try:
-            done = await asyncio.to_thread(self._archive.copy_project, source, target, data)
+            done = await asyncio.to_thread(
+                self._archive.copy_project,
+                source,
+                target,
+                data,
+                body.get("git") is not False,
+                str(body.get("copied_from") or ""),
+            )
         except FileExistsError as error:
             raise Conflict(str(error)) from None
         self._recent.add(done, self._now())

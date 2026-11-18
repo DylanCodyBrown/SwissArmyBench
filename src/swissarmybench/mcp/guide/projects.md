@@ -8,9 +8,11 @@ and steps, the tabs and windows, autosave), `.sab/visualizations.json` and `.sab
 on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`).
 
 ## The home page: the Project Explorer
-- `projects_list(by?, descending?, type?, q?)`: every project as a card: the projects folder's (Settings'
-  Projects folder; `projects_folder_set`, which waits for Allow) and every one opened from elsewhere. Each
-  card: name, type (`needs` when its extension is off), last opened, last changed, created, its folder,
+- `projects_list(by?, descending?, type?, q?, where?)`: every project as a card: the local projects folder's
+  and the shared projects folder's (Settings' Local and Shared projects folders: `projects_folders`, setting
+  one waits for Allow) and every one opened from elsewhere. Each card is `where`: "shared" (under the shared
+  projects folder, a folder the user pushes and pulls with Git; the app never runs git) or "local", and
+  `copied_from` when it is a local copy of a shared one. Each card: name, type (`needs` when its extension is off), last opened, last changed, created, its folder,
   counts (notebooks, scripts, apps, tables), Git (`repository`, `branch` from .git/HEAD), `missing`.
 - `projects_sort(by)` (remembered): opened, name, type, changed, created, custom; `projects_sort(order=[...])`
   or `projects_sort(move=<folder>, step=-1|1)` for the custom order.
@@ -19,6 +21,15 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
 - `project_rename(path, name)` (not the open one), `project_remove_from_list(path)` (no file is touched;
   `to=<folder>` locates a moved one). Show in folder and Delete (to the system's trash) are the user's
   only: never yours.
+
+## Local and shared
+- `project_new(name, where="shared")` makes it in the shared projects folder (refused until it is set).
+- `project_share(path)`: a local project copied into the shared folder (never `.sab/data/`, nor its `.git`;
+  the original kept), then opened. Waits for the user's Allow.
+- `project_copy_local(path, name?)`: Make a local copy of a shared project (no rows; its project.json says
+  `copied_from`), then opened; a name taken there answers 409 with a free one. No Allow needed.
+- Opening or making a shared project whose connections only work on this machine says so once (the
+  portability rule): teammates and a Function App can't use them.
 
 ## Open, new, save, close
 - `project_new(name, type?, folder?)`: the folder made in the projects folder (or `folder`, or `path`: a

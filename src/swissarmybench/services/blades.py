@@ -138,6 +138,10 @@ class BladeService:
         # services/relationships.py Models.forget_connection). Each answers what it did, merged into the
         # delete's answer ({"relationships_removed": 40}).
         self.connection_removed: list[Callable[[str, str], Awaitable[dict[str, Any]]]] = []
+        # A blade saved, and a connection's tables listed (its Refresh succeeded): the shared catalog writes
+        # its file (services/shared_catalog.py). A listing that fails tells nobody.
+        self.blade_saved: list[Callable[[Blade], Awaitable[None]]] = []
+        self.tables_listed: list[Callable[[str], Awaitable[None]]] = []
         self._install_packages = install_packages
         # Swiss Army Bench's own Python (where Refresh runs), and the environment suggestions come from.
         self._python = python
@@ -437,6 +441,8 @@ class BladeService:
             self._blades.set_secrets(blade.name, body["secrets"])
         self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
         await self.ws.live.broadcast({"type": "blades_changed"})
+        for hook in self.blade_saved:
+            await hook(blade)
         if blade.web_call.get("api"):
             for told in self.web_call_saved:
                 await told(str(blade.web_call["api"]))
@@ -510,6 +516,8 @@ class BladeService:
         )
         self.ws.audit.write(who, "refresh_blade", blade.name)
         await self._catalogs.blade_refreshed()
+        for listed in self.tables_listed:
+            await listed(blade.name)
         return {"catalog": info.to_json(), "columns": answer["columns"], "rows": answer["rows"]}
 
     async def read(

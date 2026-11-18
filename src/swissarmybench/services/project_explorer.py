@@ -85,12 +85,25 @@ class ProjectExplorer:
         self._off = off  # an extension's project type that is not on: {type: {"id", "name"}}
 
     def folder(self) -> str:
-        """The projects folder: Settings' choice, else the default (~/Swiss Army Bench Projects)."""
+        """The local projects folder: Settings' choice, else the default (~/Swiss Army Bench Projects)."""
         return str(self._settings.read()["folder"] or self._default)
+
+    def shared_folder(self) -> str | None:
+        """The shared projects folder (a folder the user pushes and pulls with Git; none by default)."""
+        found = self._settings.read()["shared_folder"]
+        return str(found) if found else None
+
+    def where(self, path: str) -> str:
+        """A project folder's place: "shared" (under the shared projects folder) or "local"."""
+        return rules.where_of(path, self.shared_folder())
 
     def types(self) -> dict[str, Any]:
         """The project types New project can make, each explained for beginners; where New puts them."""
-        return {"types": rules.kinds(self._modes(), self._streamlit), "folder": self.folder()}
+        return {
+            "types": rules.kinds(self._modes(), self._streamlit),
+            "folder": self.folder(),
+            "shared_folder": self.shared_folder(),
+        }
 
     async def _changed(self) -> None:
         await self.ws.live.broadcast({"type": "projects_changed"})
@@ -99,9 +112,10 @@ class ProjectExplorer:
 
     def _cards(self) -> list[dict[str, Any]]:
         settings = self._settings.read()
-        folder = self.folder()
         hidden = set(settings["hidden"])
-        inside = [p for p in self._files.scan(folder) if p not in hidden]
+        shared = self.shared_folder()
+        scanned = [*self._files.scan(self.folder()), *(self._files.scan(shared) if shared else [])]
+        inside = [p for p in dict.fromkeys(scanned) if p not in hidden]
         recent = {str(r["path"]): r for r in self._recent.all()}
         paths = list(dict.fromkeys([*inside, *recent]))
         kinds = {k["type"]: k for k in rules.kinds(self._modes(), self._streamlit)}
@@ -112,7 +126,14 @@ class ProjectExplorer:
             said = recent.get(path)
             facts = self._files.facts(path) if self._files.is_folder(path) else None
             card = rules.card(
-                path, facts, kinds, off, float(said["opened"]) if said else None, current, path in inside
+                path,
+                facts,
+                kinds,
+                off,
+                float(said["opened"]) if said else None,
+                current,
+                path in inside,
+                rules.where_of(path, shared),
             )
             cards.append(card)
         return cards
@@ -128,12 +149,17 @@ class ProjectExplorer:
         try:
             cards = await asyncio.to_thread(self._cards)
             shown = rules.filtered(
-                rules.sorted_cards(cards, sort, settings["order"]), query.get("type") or None, query.get("q")
+                rules.sorted_cards(cards, sort, settings["order"]),
+                query.get("type") or None,
+                query.get("q"),
+                query.get("where") or None,
             )
         except rules.ExplorerError as error:
             raise ValueError(str(error)) from None
         return {
             "folder": self.folder(),
+            "local_folder": self.folder(),
+            "shared_folder": self.shared_folder(),
             "default_folder": self._default,
             "projects": shown,
             "count": len(cards),
@@ -184,10 +210,14 @@ class ProjectExplorer:
         return {"explained": settings["explained"]}
 
     async def set_folder(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """Settings' Projects folder: {"folder"} or {"default": true}. The agent's waits for the user's
-        Allow."""
+        """Settings' Local projects folder: {"folder"} or {"default": true}; the Shared projects folder:
+        {"which": "shared", "folder"} or {"which": "shared", "default": true} (none). The agent's waits for
+        the user's Allow."""
         if not isinstance(body, dict):
             raise ValueError('Send {"folder": the projects folder} or {"default": true}.')
+        which = body.get("which") or "local"
+        if which not in rules.WHERE:
+            raise ValueError('which is "local" or "shared".')
         settings = self._settings.read()
         if body.get("default") is True:
             chosen: str | None = None
@@ -200,16 +230,91 @@ class ProjectExplorer:
             except FileNotFoundError as error:
                 raise NotFound(str(error)) from None
         if who == "agent":
-            detail = "Make this the projects folder (New project puts new projects there):\n  " + (
-                chosen or self._default
-            )
-            if not await self._approvals.ask("Projects folder", "change the projects folder", detail):
+            if which == "shared":
+                detail = "Make this the shared projects folder (a folder you push and pull with Git):\n  " + (
+                    chosen or "none"
+                )
+            else:
+                detail = "Make this the local projects folder (New project puts new projects there):\n  " + (
+                    chosen or self._default
+                )
+            if not await self._approvals.ask(
+                "Projects folder", f"change the {which} projects folder", detail
+            ):
                 raise Refused("The user declined (or did not answer): the projects folder stays.")
-        settings["folder"] = chosen
+        settings["shared_folder" if which == "shared" else "folder"] = chosen
         self._settings.write(settings)
-        self.ws.audit.write(who, "projects_folder", None, default=chosen is None)
+        self.ws.audit.write(who, "projects_folder", None, which=which, default=chosen is None)
         await self._changed()
-        return {"folder": self.folder(), "default_folder": self._default}
+        return self.folders()
+
+    def folders(self) -> dict[str, Any]:
+        return {
+            "folder": self.folder(),
+            "local_folder": self.folder(),
+            "shared_folder": self.shared_folder(),
+            "default_folder": self._default,
+        }
+
+    # ===== Share, Make a local copy =====
+
+    async def share(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Share: {"path": a local project, "name"?, "discard"?}: copied into the shared projects folder (as
+        Copy project to does: .sab/data never, its .git left behind, the original kept), then the shared copy
+        opened. The agent's waits for the user's Allow."""
+        path = self._path(body)
+        shared = self.shared_folder()
+        if not shared:
+            raise ValueError("Set the shared projects folder in Settings first.")
+        if rules.is_under(path, shared):
+            raise ValueError(f"{_name(path)} is a shared project already.")
+        target = self._copy_target(shared, path, body, "the shared projects folder")
+        if who == "agent":
+            detail = f"Share the project (its rows stay here):\n  {path}\n  into {target}"
+            if not await self._approvals.ask(_name(path), "share the project", detail):
+                raise Refused("The user declined (or did not answer): the project was not shared.")
+        done = await self._projects.copy({"folder": path, "path": target, "data": False, "git": False}, who)
+        self.ws.audit.write(who, "project_share", done["copied"])
+        opened = await self._open_copy(done["copied"], body, who)
+        return {"shared": done["copied"], "from": path} | opened
+
+    async def copy_local(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Make a local copy: {"path": a shared project, "name"?, "discard"?}: copied into the local projects
+        folder (.sab/data never, the shared one untouched), its project.json saying where it came from
+        (copied_from: the shared project's folder name), then opened. A name taken there: Conflict with a free
+        one to send. Only adds a folder to the user's own local folder, as New project does: no Allow."""
+        path = self._path(body)
+        if not self._files.is_folder(path):
+            raise NotFound(f"{path} is not there.")
+        target = self._copy_target(self.folder(), path, body, "your local projects folder")
+        done = await self._projects.copy(
+            {"folder": path, "path": target, "data": False, "git": False, "copied_from": _name(path)}, who
+        )
+        self.ws.audit.write(who, "project_copy_local", done["copied"])
+        opened = await self._open_copy(done["copied"], body, who)
+        return {"copied": done["copied"], "from": path, "copied_from": _name(path)} | opened
+
+    def _copy_target(self, parent: str, path: str, body: Any, words: str) -> str:
+        raw = body.get("name") if isinstance(body, dict) else None
+        name = check_folder_name(str(raw)) if isinstance(raw, str) and raw.strip() else _name(path)
+        target = self._files.full(f"{parent.rstrip('/').rstrip(chr(92))}/{name}")
+        if self._files.is_folder(target):
+            free = next(
+                n
+                for n in (f"{name} {i}" for i in range(2, 1000))
+                if not self._files.is_folder(self._files.full(f"{parent.rstrip('/').rstrip(chr(92))}/{n}"))
+            )
+            raise Conflict(f'{name} is taken in {words}: send another name ("{free}" is free).')
+        return target
+
+    async def _open_copy(self, folder: str, body: Any, who: str) -> dict[str, Any]:
+        discard = isinstance(body, dict) and body.get("discard") is True
+        try:
+            state = await self._projects.open({"path": folder, "discard": discard}, who)
+        except Conflict as error:  # unsaved work open: the copy is made; opening it is the user's next step
+            return {"opened": False, "why": str(error)}
+        await self._changed()
+        return {"opened": True, "project": state.get("project")}
 
     # ===== one project =====
 
@@ -318,6 +423,10 @@ class ProjectExplorer:
         self.ws.audit.write(who, "project_delete", None)
         await self._changed()
         return {"deleted": path, "to": where}
+
+
+def _name(path: str) -> str:
+    return path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
 
 
 def _truthy(value: Any) -> bool:

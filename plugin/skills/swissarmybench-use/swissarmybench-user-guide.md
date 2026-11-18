@@ -161,9 +161,22 @@ terminal (it starts the app when it is not running).
   `swissarmybench open sales.sab` says so in one line; the installer takes away an earlier .sab
   registration.
 - A project saved by a newer version opens read-only and says so.
+- **Local and shared projects.** Settings has a **Local projects folder** and a **Shared projects folder** (a
+  folder you push and pull with Git, like the meta store). Each card says **Local** or **Shared**, and the
+  Project Explorer filters All / Local / Shared. **Share** (a local card's menu) copies the project into the
+  shared folder without its kept rows and opens it there; **Make a local copy** (a shared card's menu) copies it
+  into your local folder, says "Copied from <project>" on its card, and opens it. New project asks Local or
+  Shared. A shared project whose connections only work on your machine says so once when it opens.
+- **The meta store** (Settings, **Meta store folder**: your clone of the team's repository) holds the shared
+  catalog (`catalog/`: each connection's tables, columns, keys, relationships and the projects using them; never
+  a value). Your `git pull` brings a teammate's tables to the Data page ("From the shared catalog: not connected
+  here"). **Set up from the meta store** under it lists what this computer still needs: each key vault's
+  sign-in, each value to type once, each connection's status; **Move to a vault** for a password kept in your
+  keyring, so the next person needs nothing.
 - **The agent** does the same: `projects_list`, `projects_sort`, `project_types`, `project_new`,
   `project_open`, `project_save` (it waits for your Allow only when it would keep a table's rows),
-  `project_copy`, `project_rename`, `project_remove_from_list`, `projects_folder_set` (your Allow),
+  `project_copy`, `project_rename`, `project_remove_from_list`, `projects_folders` (your Allow),
+  `project_share` (your Allow), `project_copy_local`,
   `project_close`, `project_table_fix`, `project_autosave`, `project_documents`,
   `project_import`. Show in folder and Delete are yours only.
 

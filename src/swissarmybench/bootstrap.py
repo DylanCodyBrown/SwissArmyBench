@@ -49,6 +49,7 @@ from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
+from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
@@ -66,13 +67,19 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import blade_tables, python_connections
+from swissarmybench.domain import connection_tables as connection_table_rules
+from swissarmybench.domain import connection_usage as usage_rules
+from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
+from swissarmybench.domain import library_setup as setup_rules
+from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
+from swissarmybench.domain.project_explorer import local_only_words as explorer_rules_words
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
@@ -118,6 +125,7 @@ from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.library import Library
+from swissarmybench.services.library_setup import LibrarySetup
 from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
@@ -136,6 +144,7 @@ from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.session_log import Heard, SessionLog
+from swissarmybench.services.shared_catalog import Here, SharedCatalog
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.structures import Structures
@@ -210,6 +219,8 @@ class Services:
     kind_colours: KindColours
     connection_colours: ConnectionColours
     library: Library
+    library_setup: LibrarySetup
+    shared_catalog: SharedCatalog
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
@@ -579,6 +590,19 @@ def bootstrap(
         await variables.rescope()
         await live.broadcast({"type": "blades_changed"})
         await live.broadcast({"type": "connection_colours_changed"} | connection_colours.get())
+        if shared_ready:
+            shared_ready[0].load()  # the new folder's catalog/
+            await live.broadcast({"type": "catalog_changed", "from": "folder", "changed": 0})
+        if setup_ready:
+            setup_ready[0].forget()
+        counts = library_folder.counts()
+        said = setup_rules.setup_notice(counts["connections"], counts["vaults"])
+        if said:  # a team's meta store, pointed at: what this computer needs is on Settings' checklist
+            await live.broadcast({"type": "library_notice", "text": said})
+
+    setup_ready: list[LibrarySetup] = []  # set once built (below)
+
+    shared_ready: list[SharedCatalog] = []  # set once built (below)
 
     library = Library(ws, library_folder, blade_store, approvals, library_moved)
 
@@ -621,6 +645,7 @@ def bootstrap(
         },
     )
     explorer_ready.append(project_explorer)
+    sab_projects.shared_folder = project_explorer.shared_folder
     # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
     structures = Structures(
         ws,
@@ -697,6 +722,59 @@ def bootstrap(
     blades.connection_removed.append(
         lambda name, who: models.forget_connection(name, set(connection_swap.tables_of(name)), who)
     )
+
+    # The shared catalog (the owner, 2026-11-17): the library's catalog/<connection>.json, kept by what
+    # happens here and read again when the user's pulls change it. The app never runs git.
+    def connections_here() -> list[Here]:
+        found = []
+        for blade in blade_store.all():
+            if blade.web_call or connection_rules.connection_kind(blade.kind, blade.template) is None:
+                continue
+            kind = connection_table_rules.tables_kind(
+                blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
+            )
+            if kind is not None:  # never a key vault: it has no tables
+                found.append(Here(blade.name, kind, str(blade.template or "")))
+        return found
+
+    def project_use() -> tuple[str, set[str], list[tuple[str, str]]] | None:
+        project = sab_projects.state().get("project")
+        found = project_documents()
+        if not project or found is None:
+            return None
+        folder = str(project.get("folder") or "")
+        name = Path(folder).name if folder else str(project.get("name") or "")
+        names, texts = found
+        return name, names | {i.name for i in store.all()}, texts
+
+    shared_catalog = SharedCatalog(
+        ws,
+        CatalogFiles((lambda: library_folder.root) if audit_log else None, library_folder.ensure),
+        connections_here,
+        catalogs.listing_rows,
+        lambda: models.model,
+        today=lambda: datetime.now(UTC).date().isoformat(),
+        now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+        project=project_use,
+    )
+    shared_ready.append(shared_catalog)
+    shared_catalog.load()
+    library.catalog_info = shared_catalog.info
+    project_tables.shared = shared_catalog.model
+
+    async def connection_saved(blade: Any) -> None:
+        await shared_catalog.saved(blade.name)
+
+    blades.blade_saved.append(connection_saved)
+    blades.tables_listed.append(shared_catalog.listed)
+    blades.connection_removed.append(shared_catalog.removed)
+    models.listeners.append(shared_catalog.relationships)
+    sab_projects.saved.append(shared_catalog.project_used)
+
+    async def project_opened(folder: str, _extra: Any) -> None:
+        await shared_catalog.project_used(folder)
+
+    sab_projects.opened.append(project_opened)
     project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
     # The Variables page: this computer's variables (never a project's): the shareable file and the local
     # values; their values given to this server's environment, so what it runs and starts reads them.
@@ -730,6 +808,73 @@ def bootstrap(
         run_settings=script_runs,
         kernels=workbench.kernel_count,
     )
+
+    # Set up from the meta store: what this computer needs before the team's connections work.
+    library_setup = LibrarySetup(
+        ws,
+        blades,
+        blade_store.secret_status,
+        lambda: variables.listing()["variables"],
+        connections,
+    )
+    setup_ready.append(library_setup)
+
+    # Shared projects (the owner, 2026-11-18: "local projects and shared projects"): the connections a
+    # project's documents name, said once when a shared one's only work here, and on the checklist when not
+    # set up here.
+    def connections_named_in(folder: str) -> list[str]:
+        names = list(dict.fromkeys([h.name for h in connections_here()] + list(shared_catalog.catalogs())))
+        texts = []
+        for path in sorted(Path(folder).glob("*")):
+            if path.suffix.lower() in (".ipynb", ".py") and path.is_file():
+                try:
+                    texts.append((str(path), path.name, path.read_text(encoding="utf-8")))
+                except (OSError, UnicodeDecodeError):
+                    continue
+        found = []
+        for name in names:
+            for full, title, text in texts:
+                try:
+                    if usage_rules.document_references(full, title, text, name):
+                        found.append(name)
+                        break
+                except ValueError:
+                    continue
+        return found
+
+    async def shared_projects(not_working: set[str]) -> list[setup_rules.SharedProject]:
+        folder = project_explorer.shared_folder()
+        if not folder:
+            return []
+        here = {h.name.casefold() for h in connections_here()}
+        out = []
+        for path in await asyncio.to_thread(ExplorerFiles.scan, folder):
+            named = await asyncio.to_thread(connections_named_in, path)
+            missing = [n for n in named if n.casefold() not in here or n.casefold() in not_working]
+            out.append(setup_rules.SharedProject(Path(path).name, path, tuple(missing)))
+        return out
+
+    library_setup.shared_projects = shared_projects
+
+    async def shared_opened(folder: str, _extra: Any) -> None:
+        """A shared project opened (or made): its connections that only work on this machine, said once."""
+        if project_explorer.where(folder) != "shared":
+            return
+        local = 0
+        for name in await asyncio.to_thread(connections_named_in, folder):
+            try:
+                blade = blade_store.get(name)
+                status = blade_store.secret_status(blade)
+            except Exception:  # noqa: S112 (a teammate's connection not here: the checklist says so)
+                continue
+            sources = ["keyring" if status.get(s) else "" for s in blade.secrets]
+            local += bool(portability_rules.check(blade.code, blade.template, sources))
+        said = explorer_rules_words(local)
+        if said:
+            library.notice("project", said)
+            await live.broadcast({"type": "library_notice", "text": said})
+
+    sab_projects.opened.append(shared_opened)
 
     # The Data Explorer: one search over the connections and their catalogs, the open tables, the
     # variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
@@ -765,6 +910,12 @@ def bootstrap(
         return out
 
     explorer.register("grids", explorer_providers.grids_provider(open_tables))
+    explorer.register(
+        "shared",
+        explorer_providers.shared_catalog_provider(
+            lambda: list(shared_catalog.tables()), catalogs.loaded_names, shared_catalog.here_names
+        ),
+    )
     explorer.register(
         "variables", explorer_providers.variables_provider(lambda: variables.listing()["variables"])
     )
@@ -921,6 +1072,7 @@ def bootstrap(
         changes=lambda: live.changes,
         apis=api_explorer.listing,
         structures=structures.listing,
+        shared=lambda: shared_catalog.listing(),
     )
     claude = Claude(
         ws,
@@ -1031,6 +1183,8 @@ def bootstrap(
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),
         library=library,
+        library_setup=library_setup,
+        shared_catalog=shared_catalog,
         keys=KeyFinder(ws),
         compares=compares,
         tie_out=TieOut(compares),

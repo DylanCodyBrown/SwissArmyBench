@@ -9,7 +9,10 @@
  *             to…, Rename, Move left, Move right, Remove from list, Delete… (to the trash, on its typed name)
  *   [SORT]    Last opened, Name, Type, Last changed, Created (ascending or descending), or Custom: cards
  *             dragged (or moved left and right from their menu); remembered by the server
- *   [FILTER]  by type, and a search box (name, folder, notebook names)
+ *   [FILTER]  by type, All / Local / Shared, and a search box (name, folder, notebook names)
+ *   [WHERE]   each card Local or Shared (the owner, 2026-11-18: "local projects and shared projects"): Shared
+ *             when under Settings' Shared projects folder (pushed and pulled with Git; the app never runs
+ *             git); Share (a local one copied there, no rows) and Make a local copy (copied_from shown)
  *   [TYPES]   "What kind of project?": each type explained for beginners, with its picture and Create; put
  *             away once read (remembered), always back from New project's "?"
  *   [EMPTY]   no projects yet: the type cards large, "Create your first project"
@@ -36,12 +39,16 @@ export interface ProjectCard {
   in_folder: boolean;
   missing: boolean;
   needs?: { extension: string; name: string };
+  where?: "local" | "shared";
+  copied_from?: string;
   counts: { notebooks?: number; scripts?: number; apps?: number; tables?: number };
   git: { repository: boolean; branch: string | null } | null;
 }
 
 interface Listing {
   folder: string;
+  local_folder?: string;
+  shared_folder?: string | null;
   default_folder: string;
   projects: ProjectCard[];
   count: number;
@@ -63,6 +70,7 @@ let host: HTMLElement | null = null;
 let listing: Listing | null = null;
 let query = "";
 let kind = "";
+let where = "";
 let loading = 0;
 let opened: (state: ProjectState | null) => void = () => undefined;
 let extras: () => HTMLElement | null = () => null;
@@ -86,6 +94,7 @@ export async function refreshExplorer(): Promise<void> {
   const asked = ++loading;
   const params = new URLSearchParams();
   if (kind) params.set("type", kind);
+  if (where) params.set("where", where);
   if (query.trim()) params.set("q", query.trim());
   try {
     const read = await api<Listing>(`/projects/explorer${params.size ? `?${params.toString()}` : ""}`);
@@ -148,6 +157,18 @@ function header(read: Listing, empty: boolean): HTMLElement {
     kind = types.value;
     void refreshExplorer();
   });
+  const places = h(
+    "select",
+    { class: "explorer-where", "aria-label": "Local or shared" },
+    h("option", { value: "" }, "All"),
+    h("option", { value: "local" }, "Local"),
+    h("option", { value: "shared" }, "Shared"),
+  );
+  places.value = where;
+  places.addEventListener("change", () => {
+    where = places.value;
+    void refreshExplorer();
+  });
   const sort = h("select", { class: "explorer-sort", "aria-label": "Sort by" }, ...SORTS.map(([value, label]) => h("option", { value }, label)));
   sort.value = read.sort.by;
   sort.addEventListener("change", guard(() => api("/projects/sort", "POST", { by: sort.value, descending: sort.value === "name" || sort.value === "type" ? false : true }).then(() => refreshExplorer())));
@@ -167,7 +188,7 @@ function header(read: Listing, empty: boolean): HTMLElement {
       button("New project", () => create(), { icon: "plus", class: "start-action primary-action" }),
       button("Open project…", guard(() => openProject().then((s) => opened(s))), { icon: "folder", class: "start-action" }),
     ),
-    empty ? null : h("div", { class: "explorer-tools" }, search, types, h("label", { class: "explorer-sort-label" }, h("span", {}, "Sort"), sort), direction),
+    empty ? null : h("div", { class: "explorer-tools" }, search, places, types, h("label", { class: "explorer-sort-label" }, h("span", {}, "Sort"), sort), direction),
   );
 }
 
@@ -243,8 +264,15 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
     h(
       "div",
       { class: "explorer-card-body" },
-      h("div", { class: "explorer-card-title" }, h("h3", {}, c.name), c.open ? h("span", { class: "explorer-open-mark" }, "Open") : null),
+      h(
+        "div",
+        { class: "explorer-card-title" },
+        h("h3", {}, c.name),
+        h("span", { class: `explorer-where-mark where-${c.where ?? "local"}` }, c.where === "shared" ? "Shared" : "Local"),
+        c.open ? h("span", { class: "explorer-open-mark" }, "Open") : null,
+      ),
       typeLine,
+      c.copied_from ? h("p", { class: "hint explorer-copied" }, `Copied from ${c.copied_from}`) : null,
       ...meta,
       h(
         "p",
@@ -323,6 +351,11 @@ function menuButton(c: ProjectCard, read: Listing, openIt: () => void): HTMLElem
       item("Open", openIt),
       item("Show in folder", guard(() => api("/projects/show", "POST", { path: c.path }))),
       item("Copy project to…", guard(() => copyProject(c.path))),
+      ...(c.where === "shared"
+        ? [item("Make a local copy", guard(() => copyLocal(c)))]
+        : read.shared_folder
+          ? [item("Share", guard(() => share(c)))]
+          : []),
       item("Rename", guard(() => rename(c))),
       ...(at > 0 ? [item("Move left", () => move(-1))] : []),
       ...(at >= 0 && at < read.projects.length - 1 ? [item("Move right", () => move(1))] : []),
@@ -349,6 +382,30 @@ function menuButton(c: ProjectCard, read: Listing, openIt: () => void): HTMLElem
 document.addEventListener("click", () => {
   for (const menu of document.querySelectorAll<HTMLElement>(".explorer-menu")) menu.hidden = true;
 });
+
+/** Share and Make a local copy: the copy made (no rows), then opened; a name taken asks for another. */
+async function copyTo(c: ProjectCard, path: string, words: string): Promise<void> {
+  let name: string | undefined;
+  for (;;) {
+    try {
+      const done = await api<{ opened: boolean; why?: string; project?: ProjectState["project"] }>(path, "POST", { path: c.path, ...(name ? { name } : {}) });
+      toast(done.opened ? words : `${words}. ${done.why ?? ""}`.trim());
+      await refreshExplorer();
+      if (done.opened) opened(await api<ProjectState>("/project"));
+      return;
+    } catch (e) {
+      const said = (e as Error).message;
+      const free = /"([^"]+)" is free/.exec(said)?.[1];
+      if (!free) throw e;
+      const asked = prompt(`${said}\n\nName the copy:`, free)?.trim();
+      if (!asked) return;
+      name = asked;
+    }
+  }
+}
+
+const share = (c: ProjectCard): Promise<void> => copyTo(c, "/projects/share", `${c.name} is shared`);
+const copyLocal = (c: ProjectCard): Promise<void> => copyTo(c, "/projects/copy-local", `A local copy of ${c.name} is made`);
 
 async function rename(c: ProjectCard): Promise<void> {
   const name = prompt(`Rename ${c.name}`, c.name)?.trim();
@@ -383,13 +440,14 @@ async function install(extension: string): Promise<void> {
 
 export { baseName };
 
-/** Settings' Projects folder: where New project puts projects (the Project Explorer lists its projects). */
+/** Settings' Local projects folder (where New project puts projects) and Shared projects folder (none by
+ *  default: a folder pushed and pulled with Git, like the meta store). */
 export function projectsFolderSection(): HTMLElement {
   const body = h("div", { class: "projects-folder-settings" });
   const draw = async (): Promise<void> => {
-    let read: { folder: string; default_folder: string };
+    let read: { folder: string; default_folder: string; shared_folder: string | null };
     try {
-      read = await api<Listing>("/projects/explorer?q=");
+      read = await api<{ folder: string; default_folder: string; shared_folder: string | null }>("/projects/folder");
     } catch (e) {
       body.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
       return;
@@ -400,15 +458,28 @@ export function projectsFolderSection(): HTMLElement {
         (e: Error) => toast(e.message, "error"),
       );
     body.replaceChildren(
-      h("p", { class: "library-folder" }, h("code", { class: "mono" }, read.folder)),
+      h("h4", { class: "projects-folder-label" }, "Local projects folder"),
+      h("p", { class: "library-folder projects-local" }, h("code", { class: "mono" }, read.folder)),
       h(
         "div",
         { class: "row" },
-        button("Change…", () => void chooseFile({ title: "The projects folder", mode: "folder", start: read.folder }).then((f) => f && use({ folder: f })), { icon: "folder" }),
+        button("Change…", () => void chooseFile({ title: "The local projects folder", mode: "folder", start: read.folder }).then((f) => f && use({ folder: f })), { icon: "folder" }),
         read.folder === read.default_folder ? null : button("Default", () => use({ default: true }), { class: "ghost", title: read.default_folder }),
+      ),
+      h("h4", { class: "projects-folder-label" }, "Shared projects folder"),
+      h("p", { class: "hint" }, "A folder you push and pull with Git, like the meta store."),
+      h("p", { class: "library-folder projects-shared" }, read.shared_folder ? h("code", { class: "mono" }, read.shared_folder) : h("span", { class: "hint" }, "None")),
+      h(
+        "div",
+        { class: "row" },
+        button(read.shared_folder ? "Change…" : "Choose…", () => void chooseFile({ title: "The shared projects folder", mode: "folder", start: read.shared_folder ?? read.folder }).then((f) => f && use({ which: "shared", folder: f })), { icon: "folder" }),
+        read.shared_folder ? button("None", () => use({ which: "shared", default: true }), { class: "ghost" }) : null,
       ),
     );
   };
   void draw();
-  return h("fieldset", { class: "fieldset projects-folder-fieldset" }, h("legend", {}, icon("project"), "Projects folder"), body);
+  onNotice((n) => {
+    if (n.type === "projects_changed" && body.isConnected) void draw();
+  });
+  return h("fieldset", { class: "fieldset projects-folder-fieldset" }, h("legend", {}, icon("project"), "Projects folders"), body);
 }

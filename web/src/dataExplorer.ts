@@ -29,6 +29,7 @@ import { DROP_TYPE } from "./catalogRail";
 import { queryInNotebook } from "./connectionTree";
 import { type BrowseAnswer, mountBrowse } from "./dataBrowse";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
+import { openConnections } from "./connectionsWindow";
 import { tablePreview } from "./pythonConnectionForm";
 import { openStructures } from "./structuresPage";
 import type { Part } from "./structureTree";
@@ -54,7 +55,7 @@ export interface ExplorerResult {
   insert: { sql?: string; python?: string };
   sql?: string;
   type?: string;
-  source?: "catalog" | "grid";
+  source?: "catalog" | "grid" | "shared" | "api";
   grid?: string | null;
   dataset?: string;
   variable?: string;
@@ -443,6 +444,15 @@ export function mountExplorer(host: ExplorerHost): Explorer {
           { label: "Copy name", icon: "copy", run: () => copyText(r.name, r.name) },
         ];
       case "tables": {
+        if (r.source === "shared") {
+          // From the shared catalog (the meta store's catalog/): a teammate's table, before anything loads.
+          const sqlName = r.sql ?? r.name;
+          return [
+            ...(r.setup && r.connection ? [{ label: "Set up this connection", icon: "plug", run: () => void openConnections({ detail: r.connection! }) }] : []),
+            { label: "Copy SQL name", icon: "copy", title: sqlName, run: () => copyText(sqlName, sqlName) },
+            ...into,
+          ];
+        }
         const sql = r.source === "grid" ? String(r.variable ?? r.name) : (r.sql ?? r.name);
         const opens = r.source === "grid" || (r.connection && r.place);
         const query = r.source === "grid" ? String(r.variable ?? r.name) : (r.sql ?? null);
