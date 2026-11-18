@@ -168,6 +168,24 @@ export function canGoBack(): boolean {
   return entry().n > 0;
 }
 
+/** How deep this tab is in the app's history now (the tour keeps it to come back to). */
+export function historyDepth(): number {
+  return entry().n;
+}
+
+/** Back to the entry at `depth` (the tour's start: the entries it made on the way go), then `url` in
+ *  that entry's place when the page shows another address there (a table that arrived replaced it). */
+export function returnTo(depth: number, url: string): Promise<void> {
+  return enqueue(() => {
+    const now = entry();
+    if (now.n <= depth) return;
+    history.go(depth - now.n);
+    return moved();
+  }).then(() => {
+    if (here() !== normal(url)) visit(url, "replace");
+  });
+}
+
 /** The browser's Back, kept inside the app: at the first entry it does nothing. */
 export function back(): void {
   void enqueue(() => {

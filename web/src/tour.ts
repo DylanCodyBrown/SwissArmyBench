@@ -1,67 +1,266 @@
 /**
- * The tour: what every word in Swiss Army Bench means, for a first-time user, in as few words as
- * possible. Its button sits on the Start page only (the owner, 2026-11-16: "new here take a tour should
- * be on the project page and no where else"); until it has been opened once, a small "New here?" bubble
- * sits beside it (inline, so it never covers anything).
+ * The tour: what every place in Swiss Army Bench is for, for a first-time user. Its button sits on the
+ * Start page only (the owner, 2026-11-16: "new here take a tour should be on the project page and no where
+ * else"); until it has been opened once, a small "New here?" bubble sits beside it (inline, so it never
+ * covers anything).
  *
- *   [TOUR]            the Start page -> openTour()
- *   a card per word   lights up the real control (a spotlight), or sits in the middle when that
- *                     control isn't on screen (no grid open, another tab showing)
- *   the game          five "which word is this?" rounds, then a score drawn as opened blades
+ *   [TOUR]    the Start page -> openTour()
+ *   [GUIDED]  the owner, 2026-11-18: "the tutorial needs to move and highlight the item it is talking about,
+ *             so the tutorial might need to stage a couple tables in the grid then remove them. it will need
+ *             to navigate to pages as it goes and those descriptions could use a bit more detail". A card per
+ *             place, in the rail's order: the tour goes there with the rail's own moves (nav.ts runArea, the
+ *             grids' activateGrid and splitWith), waits a moment for the real control, scrolls it into view
+ *             and lights it up (a spotlight); a control that does not come sits the card in the middle with
+ *             "Not here right now." Back goes to the previous card's place. The Workbench and the blades
+ *             page are other pages: their cards light the rail's icon and say so.
+ *   [STAGED]  two small made-up tables (orders and customers sharing customer_id), pasted as the page's
+ *             Ctrl+V pastes (POST /datasets/{name}/paste), named so they never take an open table's name,
+ *             the orders sorted so Steps has one to show. Closing the tour at any point (Escape, Skip, the
+ *             last card) closes exactly those two (DELETE /datasets/{name}, as the Open list's close) and
+ *             goes back to where the tour started (nav.ts returnTo); the user's own tables stay as they were.
+ *   [GAME]    five "which word is this?" rounds from the cards' clues, then a score drawn as opened blades.
  *
- * Keys: Right or Enter = next, Left = back, Escape = close. Nothing is sent anywhere; the only thing
- * kept is "seen" in this browser (dom.remember).
+ * Keys: Right or Enter = next, Left = back, Escape = close (heard on the window while the tour is open, so
+ * a page that takes the focus does not take the keys). Nothing is kept but "seen" in this browser
+ * (dom.remember). A teaching aid of the page only: the agent has no command for it (docs/ideas.md).
  */
 
+import { api, token } from "./api";
 import { button, h, icon, recall, remember } from "./dom";
+import { here, historyDepth, layerShown, returnTo, runArea } from "./nav";
+import { activateGrid, contextOf, splitPair, splitWith, unsplit } from "./panes";
+
+/** Where a card takes the user: a rail's area, the tour's orders table, or the two side by side. */
+type Place = { area: string } | { grid: "orders" | "pair" };
 
 interface Stop {
   icon: string;
   word: string;
+  /** What it is, when you would use it, and how to reach it. */
   line: string;
-  /** A CSS selector for the control to light up; the first visible match wins. */
-  target?: string;
-  /** Where to find it, when the lit-up control has another name. Not in the game: it would give it away. */
-  where?: string;
-  /** A line of code, when the word is something you type. */
+  /** One line for the game: what it is, without its name. */
+  clue: string;
+  place?: Place;
+  /** CSS selectors for the control to light up, tried in order; the first visible match wins.
+   *  `{orders}` is the tour's orders grid. */
+  target?: readonly string[];
+  /** A line of code, when it is something you type. */
   code?: string;
+  /** Shown only when this says so (an extension's area). */
+  when?: () => boolean;
 }
 
-const BLADES_BUTTON = '.nav-rail [data-area="blades"]';
+const rail = (area: string): string => `.nav-rail [data-area="${area}"]`;
+const page = (key: string, selector: string): string => `.area-page[data-page="${key}"] ${selector}`;
+const railShown = (area: string) => (): boolean => {
+  const item = document.querySelector<HTMLElement>(rail(area));
+  return !!item && !item.hidden;
+};
 
 export const STOPS: readonly Stop[] = [
-  { icon: "star", word: "Hi!", line: "Your Python tables, live in the browser. A minute of words, then a game." },
-  { icon: "rows", word: "Grid", line: "A table you pushed from Python. One tab each.", target: ".tabs-row .tab-item:not(.tab-app)", code: "sab.push(orders)" },
-  { icon: "filter", word: "Ribbon", line: "Filter, sort, clean. Your data never changes.", target: ".ribbon" },
-  { icon: "steps", word: "Steps", line: "Every click is a step. Ctrl+Z undoes the last; hover the count to remove any one.", target: ".steps-strip" },
-  { icon: "sql", word: "Table cell", line: "Your steps as one DuckDB query, in the table's own read-only cell in the Workbench.", target: '.nav-rail [data-area="notebooks"]' },
-  { icon: "profile", word: "Profile", line: "A column at a glance: blanks, top values, spread.", target: '.ribbon [aria-label="Profile"]' },
-  { icon: "fit", word: "Analyze", line: "Odds, predictors, fit tests and outliers that hand off to each other.", target: '.ribbon [aria-label="Analyze"]' },
-  { icon: "fit", word: "Fit test", line: "Do a column's values spread as expected? Chi-square says.", where: "Analyze", target: '.ribbon [aria-label="Analyze"]' },
-  { icon: "outliers", word: "Outliers", line: "Values far from the rest, or seen too often or too rarely.", where: "Analyze", target: '.ribbon [aria-label="Analyze"]' },
-  { icon: "fit", word: "Regression", line: "How a number (or a yes/no) moves with others. Predict what-ifs.", where: "Analyze" , target: '.ribbon [aria-label="Analyze"]' },
-  { icon: "rows", word: "Time series", line: "A metric over time: trend, season, spikes, steps; then a forecast with its range.", where: "Analyze", target: '.ribbon [aria-label="Analyze"]' },
-  { icon: "columns", word: "Compare", line: "Drag a tab onto another, or right-click it: two tables, row by row.", target: ".tabs-row" },
-  { icon: "zoom", word: "Key Finder", line: "Finds the columns two tables share.", target: '.ribbon [aria-label="Key Finder"]' },
-  { icon: "crown", word: "Saved set", line: "Saved joins between tables. Run one to test it.", where: "Relationships", target: '.ribbon [aria-label="Relationships"]' },
-  { icon: "image", word: "Visualizations", line: "Charts, notes and diagrams on one board.", target: '.nav-rail [data-area="visualizations"]' },
-  { icon: "diagram", word: "ERD", line: "The keys and joins between your open tables, drawn.", target: '.nav-rail [data-area="erd"]' },
-  { icon: "key", word: "Blade", line: "Saved code that loads data: a database, a file.", where: "Blades and catalog", target: BLADES_BUTTON, code: 'conn = sab.blade("Warehouse")' },
-  { icon: "data", word: "Data", line: "Every table and column your connections reach. Browse it or search it.", target: '.nav-rail [data-area="data"]' },
-  { icon: "group", word: "Pack", line: "Blades and saved sets your team shares on GitHub.", where: "Blades and catalog, then Packs", target: BLADES_BUTTON },
-  { icon: "code", word: "Notebook", line: "Python and SQL cells, in a window of its own.", where: "Notebooks", target: '.nav-rail [data-area="notebooks"]' },
-  { icon: "agent", word: "Agent", line: "Your AI helper. Sees what you see, asks before it exports.", where: "Settings", target: '.nav-rail [data-area="settings"]' },
+  {
+    icon: "star",
+    word: "Hi!",
+    line: "Swiss Army Bench keeps your tables live beside DuckDB SQL, on one screen. This tour walks the rail on the left from top to bottom and takes you to each place as it goes. It has opened two small made-up tables to show things on; they close when the tour ends.",
+    clue: "",
+  },
+  {
+    icon: "plug",
+    word: "Connections",
+    line: "Where your data comes from: databases, files, Power BI, Dataverse, lakes or your own Python. Every connection lists its tables, and DuckDB SQL can name them by the connection. Click Connections on the rail, then Add connection.",
+    clue: "Where your data comes from: a database, a file, Power BI.",
+    place: { area: "connections" },
+    target: [page("connections", ".area-page-actions .btn.primary"), page("connections", ".area-page-head")],
+    code: "SELECT * FROM [Sales].orders",
+  },
+  {
+    icon: "apis",
+    word: "APIs",
+    line: "Web services your tables can come from. Add API reads an OpenAPI document, or a few calls you describe, and each call that returns a table can be queried like any other. Click APIs on the rail, then Add API.",
+    clue: "Web services, each call that returns a table queried like any other.",
+    place: { area: "apis" },
+    target: [page("apis", ".apis-add"), page("apis", ".area-page-head")],
+  },
+  {
+    icon: "variables",
+    word: "Variables",
+    line: "Names for the settings and passwords your code reads, such as WAREHOUSE_PASSWORD. A value can live on this computer, in the keyring or in a key vault, so nothing secret sits in a notebook. Click Variables on the rail; key vaults are added here too.",
+    clue: "Names for settings and passwords, the values kept out of your code.",
+    place: { area: "variables" },
+    target: [page("variables", ".variables-add"), page("variables", ".area-page-head")],
+  },
+  {
+    icon: "data",
+    word: "Data Catalog",
+    line: "Every table and column your connections reach, in one place. Type a few letters to search them all, or browse a connection's tree, then open a table as a grid. Click Data Catalog on the rail.",
+    clue: "Every table and column your connections reach. Browse it or search it.",
+    place: { area: "data" },
+    target: [page("data", ".ex-search"), page("data", ".area-page-head")],
+  },
+  {
+    icon: "rows",
+    word: "Grid",
+    line: "A table, live: pushed from Python, opened from a file, pasted, or read from a connection. Each one gets a tab along the top; this one is the tour's. Drag a tab to move it, or right-click it to rename, compare or close it.",
+    clue: "A table you pushed from Python. One tab each.",
+    place: { grid: "orders" },
+    target: ['.tabs-row .tab-item[data-grid="{orders}"]', ".tabs-row"],
+    code: "sab.push(orders)",
+  },
+  {
+    icon: "filter",
+    word: "Ribbon",
+    line: "Filter, sort, choose columns, group and clean, a click each. Your data never changes: every click adds a step on top of the original. The Column row under it acts on the columns you select.",
+    clue: "Filter, sort, clean. Your data never changes.",
+    place: { grid: "orders" },
+    target: ['.ribbon-group[aria-label^="Table tools"]', ".ribbon"],
+  },
+  {
+    icon: "steps",
+    word: "Steps",
+    line: "Every click is a step, in order, and together they make one DuckDB query. Ctrl+Z undoes the last one, and View steps lists them all to change or remove any one. The tour sorted its orders by amount, so there is one to see.",
+    clue: "Every click, in order, as one DuckDB query. Ctrl+Z undoes the last.",
+    place: { grid: "orders" },
+    target: [".steps-strip"],
+  },
+  {
+    icon: "profile",
+    word: "Profile",
+    line: "A column at a glance: how many are blank, the most common values, and how the numbers spread. Click Profile in the Table row for every column, or select a column and use Profile in the Column row.",
+    clue: "A column at a glance: blanks, top values, spread.",
+    place: { grid: "orders" },
+    target: ['.ribbon-group[aria-label^="Table tools"] [aria-label="Profile"]'],
+  },
+  {
+    icon: "fit",
+    word: "Analyze",
+    line: "Statistics on the table in front: odds, outliers, fit tests, regression, time series and forecasts. Each asks a few questions in a short form, and its results go to Visualizations or copy as Python. Click Analyze in the Table row.",
+    clue: "Odds, outliers, fit tests, regression and forecasts on the table in front.",
+    place: { grid: "orders" },
+    target: ['.ribbon [aria-label="Analyze"]'],
+  },
+  {
+    icon: "columns",
+    word: "Compare",
+    line: "Two tables side by side, matched row by row on the keys you pick. See what matches, what is on one side only and which values differ, then check that the totals tie out. Drag one tab onto another, or right-click a tab and choose Compare with.",
+    clue: "Two tables side by side, row by row.",
+    place: { grid: "pair" },
+    target: ['.ribbon-group[aria-label^="Compare tools"]', ".tabs-row"],
+  },
+  {
+    icon: "zoom",
+    word: "Key Finder",
+    line: "Finds the columns two tables share and how well they would join, such as customer_id here. Use it before a compare or a join when you are not sure which columns line up. Click Key Finder in the Table row; it opens in a window of its own.",
+    clue: "Finds the columns two tables share.",
+    place: { grid: "pair" },
+    target: ['.ribbon [aria-label="Key Finder"]'],
+  },
+  {
+    icon: "crown",
+    word: "Relationships",
+    line: "The joins between your tables, kept as a set you can save, share with your team and run to test. Click Relationships in the Table row to see the keys and joins in use.",
+    clue: "Saved joins between tables. Run one to test it.",
+    place: { grid: "pair" },
+    target: ['.ribbon [aria-label="Relationships"]'],
+  },
+  {
+    icon: "diagram",
+    word: "ERD",
+    line: "The keys and joins between your open tables, drawn as a diagram. Find relationships looks for them, or import a set you saved. Click ERD on the rail.",
+    clue: "The keys and joins between your open tables, drawn.",
+    place: { area: "erd" },
+    target: ["#erd-view .erd-diagram", "#erd-view .btn.primary", "#erd-view"],
+  },
+  {
+    icon: "structures",
+    word: "Structures",
+    line: "Nested data, such as JSON, YAML, XML and TOML, opened as a document. Walk its tree, pick and flatten parts with steps, then open the records as a grid. Click Structures on the rail, then New, Open or Paste.",
+    clue: "Nested data as a document: walk its tree, flatten it into a grid.",
+    place: { area: "structures" },
+    target: [page("structures", ".area-page-actions"), page("structures", ".area-page-head")],
+  },
+  {
+    icon: "blade",
+    word: "Blades",
+    line: "Saved Python that loads data, from a database query to a file reader, one file each. Run one from a notebook with sab.blade, or copy one from the starter pack. Click Blades on the rail; it opens the blades page.",
+    clue: "Saved code that loads data: a database, a file.",
+    target: [rail("blades")],
+    code: 'conn = sab.blade("Warehouse")',
+  },
+  {
+    icon: "notebook",
+    word: "Notebooks",
+    line: "Python, SQL and DAX cells on a live kernel, with every open table as a read-only cell holding its steps as DuckDB. Notebooks open in a window of their own, so code can sit on another screen. Click Notebooks on the rail.",
+    clue: "Python and SQL cells, in a window of its own.",
+    target: [rail("notebooks")],
+  },
+  {
+    icon: "code",
+    word: "Scripts",
+    line: "A plain Python file, run top to bottom, with its run settings and a history of its runs. Use one for work you repeat on a schedule. Click Scripts on the rail; they open in the Workbench window too.",
+    clue: "A plain Python file, run top to bottom, on a schedule if you like.",
+    target: [rail("scripts")],
+  },
+  {
+    icon: "page",
+    word: "Apps",
+    line: "A Streamlit app built from your notebook's cells, laid out on a canvas and played live in place. Export it to run on its own. Click Apps on the rail.",
+    clue: "A Streamlit app laid out on a canvas from your notebook's cells.",
+    target: [rail("apps")],
+    when: railShown("apps"),
+  },
+  {
+    icon: "image",
+    word: "Visualizations",
+    line: "Charts, notes, tables and diagrams on one board you arrange. Send any analysis result here, save boards as dashboards, or print the page. Click Visualizations on the rail.",
+    clue: "Charts, notes and diagrams on one board.",
+    place: { area: "visualizations" },
+    target: ["#ai-panel .add-step", "#ai-panel"],
+  },
+  {
+    icon: "session",
+    word: "Session",
+    line: "What happened this session, newest first: what you did and what your agent did. Each entry links to what it changed, and Follow the agent brings its work to the front as it happens. Click Session on the rail.",
+    clue: "What you and your agent did this session, newest first.",
+    place: { area: "session" },
+    target: [page("session", ".area-page-actions"), page("session", ".area-page-head")],
+  },
+  {
+    icon: "extensions",
+    word: "Extensions",
+    line: "Extra areas that plug into the same app: Streamlit apps, Accounting workbooks, Power Apps and more. One click installs or removes one. Click Extensions near the bottom of the rail.",
+    clue: "Extra areas that plug into the same app, one click to install.",
+    place: { area: "extensions" },
+    target: [page("extensions", ".extension-card"), page("extensions", ".area-page-head")],
+  },
+  {
+    icon: "cog",
+    word: "Settings",
+    line: "Your theme, the meta store folder your team shares, the projects folders, which panels show, and updates. Click Settings at the bottom of the rail.",
+    clue: "Your theme, folders, panels and updates.",
+    place: { area: "settings" },
+    target: [page("settings", "fieldset"), page("settings", ".area-page-head")],
+  },
+  {
+    icon: "agent",
+    word: "Agent",
+    line: "Your AI helper: whatever you can do here, it can do too, and it asks you before it exports or keeps rows. Launch Claude in the status bar starts it with this app's tools ready; its choices are here in Settings, under Claude.",
+    clue: "Your AI helper. Sees what you see, asks before it exports.",
+    place: { area: "settings" },
+    target: [page("settings", ".claude-fieldset"), page("settings", ".area-page-head")],
+  },
 ];
 
 const ROUNDS = 5;
 const SEEN = "tour.seen";
+/** How long a card waits for its control before it says it is not here. */
+const WAIT_MS = 2500;
 
 /** The Start page's Tour button, with the "New here?" bubble until the tour is opened once. */
 export function tourButton(): HTMLElement {
   const btn = button("Tour", () => openTour(), {
     icon: "help",
     class: "ribbon-btn tour-btn",
-    title: "What everything means: a one-minute tour",
+    title: "What everything means: a guided tour",
   });
   btn.setAttribute("aria-haspopup", "dialog");
   if (recall(SEEN)) return btn;
@@ -81,12 +280,13 @@ function markSeen(): void {
   document.querySelectorAll(".tour-new").forEach((b) => b.classList.remove("tour-new"));
 }
 
-/** The first visible element for a selector, or null (then the card sits in the middle). */
-function visible(selector: string | undefined): HTMLElement | null {
-  if (!selector) return null;
-  for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-    const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight) return el;
+/** The first visible element for any of `selectors`, in their order, or null. */
+function visible(selectors: readonly string[]): HTMLElement | null {
+  for (const selector of selectors) {
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return el;
+    }
   }
   return null;
 }
@@ -100,39 +300,152 @@ function shuffled<T>(items: readonly T[]): T[] {
   return out;
 }
 
+const pause = (ms: number): Promise<void> => new Promise((done) => window.setTimeout(done, ms));
+
+// ===== the staged tables =====
+
+interface Table {
+  name: string;
+  grid: string;
+}
+interface Staged {
+  orders: Table;
+  customers: Table;
+}
+
+const CUSTOMERS = ["Ada Fernwood", "Bo Calder", "Cy Marlow", "Dee Ashby", "Eli Brook", "Fay Linden", "Gus Harrow", "Hal Penrose", "Ivy Tamsin", "Jo Quill", "Kit Rowan", "Lu Merrin"];
+const CITIES = ["Northvale", "Easton Cove", "Westmere", "Southby"];
+const PRODUCTS = ["Anvil", "Bolt", "Cog", "Dowel"];
+
+/** Tab-separated text, as Excel copies it: the made-up customers and their orders. */
+function tsv(rows: (string | number)[][]): string {
+  return rows.map((r) => r.join("\t")).join("\n") + "\n";
+}
+const customersText = (): string => tsv([["customer_id", "name", "city"], ...CUSTOMERS.map((name, i) => [i + 1, name, CITIES[i % CITIES.length]!])]);
+const ordersText = (): string =>
+  tsv([
+    ["order_id", "customer_id", "product", "quantity", "amount", "order_date"],
+    ...Array.from({ length: 12 }, (_, i) => [1001 + i, ((i * 5) % 12) + 1, PRODUCTS[i % PRODUCTS.length]!, (i % 4) + 1, ((i * 37) % 90) + 12.5, `2026-0${(i % 9) + 1}-${String(10 + i).padStart(2, "0")}`]),
+  ]);
+
+/** A name no open table has: `base`, else base_2, base_3... */
+function freeName(base: string, taken: Set<string>): string {
+  let name = base;
+  for (let n = 2; taken.has(name); n += 1) name = `${base}_${n}`;
+  taken.add(name);
+  return name;
+}
+
+async function paste(name: string, text: string): Promise<Table> {
+  const response = await fetch(`/datasets/${encodeURIComponent(name)}/paste`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: text });
+  if (!response.ok) throw new Error(await response.text());
+  const shown = (await response.json()) as { grid: string; dataset: string };
+  return { name: shown.dataset, grid: shown.grid };
+}
+
+/** Open the tour's two tables (the orders sorted by amount, so Steps has one). Each table opened is
+ *  handed to `opened` at once, so a close while staging still closes it. */
+async function stage(opened: (t: Table) => void): Promise<Staged> {
+  const taken = new Set((await api<{ datasets: { name: string }[] }>("/datasets")).datasets.map((d) => d.name));
+  const customers = await paste(freeName("tour_customers", taken), customersText());
+  opened(customers);
+  const orders = await paste(freeName("tour_orders", taken), ordersText());
+  opened(orders);
+  await api(`/grids/${encodeURIComponent(orders.grid)}/steps`, "POST", { steps: [{ kind: "sort", params: { keys: [["amount", "desc"]] } }] });
+  return { orders, customers };
+}
+
+/** Close exactly the tables the tour opened. */
+async function unstage(tables: readonly Table[]): Promise<void> {
+  await Promise.all(tables.map((t) => api(`/datasets/${encodeURIComponent(t.name)}`, "DELETE").catch(() => undefined)));
+}
+
+/** Until `ready` holds (a tab that arrives by a notice), or `ms` passed. */
+async function until(ready: () => boolean, ms = WAIT_MS): Promise<boolean> {
+  for (const end = Date.now() + ms; Date.now() < end; await pause(80)) if (ready()) return true;
+  return ready();
+}
+
+/** The grids, the tour's orders in front (its customers beside it for `pair`). */
+async function toGrids(staged: Staged, pair: boolean): Promise<void> {
+  const workspace = document.querySelector<HTMLElement>(".workspace");
+  if (layerShown() || workspace?.dataset.view !== "grid") runArea("grids");
+  const { orders, customers } = staged;
+  if (!(await until(() => !!contextOf(orders.grid) && !!contextOf(customers.grid)))) return;
+  const split = splitPair();
+  const ours = !!split && split.some((c) => c.id === orders.grid) && split.some((c) => c.id === customers.grid);
+  if (pair) {
+    if (!ours) await splitWith(customers.grid, orders.grid, "right", true); // quiet: no key picker
+    await activateGrid(orders.grid);
+  } else if (ours) unsplit(orders.grid);
+  else await activateGrid(orders.grid);
+}
+
+// ===== the tour =====
+
 export function openTour(): void {
   markSeen();
   document.querySelector(".tour")?.remove();
+  const stops = STOPS.filter((s) => !s.when || s.when());
   const before = document.activeElement as HTMLElement | null;
+  const startUrl = here();
+  const startDepth = historyDepth();
   const spot = h("div", { class: "tour-spot", "aria-hidden": "true" });
-  const card = h("div", { class: "tour-card" });
+  const card = h("div", { class: "tour-card", "aria-live": "polite" });
   const root = h("div", { class: "tour", role: "dialog", "aria-modal": "true", "aria-label": "Tour" }, spot, card);
   let index = 0;
+  let serial = 0; // the card on show: a slower move for an earlier card is dropped
+  let closed = false;
   let place: () => void = () => undefined;
+  let focusing: HTMLElement | null = null;
+  const opened: Table[] = [];
+  const staging = stage((t) => {
+    if (closed) void unstage([t]);
+    else opened.push(t);
+  }).catch(() => null); // no tables (a refused paste): the cards that need them say "not here"
 
   const close = (): void => {
+    if (closed) return;
+    closed = true;
+    serial += 1;
     root.remove();
     window.removeEventListener("resize", onResize);
-    before?.focus();
+    window.removeEventListener("keydown", onKey, true);
+    window.clearInterval(follow);
+    const ours = [...opened];
+    // Back where the tour started first, so a closed table's tab never takes the user anywhere.
+    void returnTo(startDepth, startUrl)
+      .then(() => unstage(ours))
+      .then(() => {
+        if (before?.isConnected) before.focus();
+      });
   };
   const onResize = (): void => place();
-  window.addEventListener("resize", onResize);
-  root.addEventListener("keydown", (event) => {
+  const onKey = (event: KeyboardEvent): void => {
     if (event.key === "Escape") close();
-    else if (event.key === "ArrowRight" && index < STOPS.length) show(index + 1);
-    else if (event.key === "ArrowLeft" && index > 0 && index <= STOPS.length) show(index - 1);
+    else if (event.key === "ArrowRight" && index < stops.length) show(index + 1);
+    else if (event.key === "ArrowLeft" && index > 0 && index < stops.length) show(index - 1);
+    else if (event.key === "Enter" && !card.contains(event.target as Node) && focusing) focusing.click();
     else return;
     event.preventDefault();
-  });
+    event.stopPropagation();
+  };
+  window.addEventListener("resize", onResize);
+  window.addEventListener("keydown", onKey, true);
+  // The page under it settles (a grid draws, a page loads its list): the spotlight follows its control.
+  const follow = window.setInterval(() => place(), 300);
   // A click on the dimmed page closes nothing: an accidental click shouldn't lose your place.
 
   /** Light up `target` (or nothing) and put the card beside it, inside the window. */
-  const aim = (target: HTMLElement | null): void => {
+  const aim = (target: HTMLElement | null, selectors: readonly string[] = []): void => {
+    let el = target;
     place = () => {
+      if (el && !el.isConnected) el = visible(selectors); // the page drew it again
       const gutter = 16;
-      const width = Math.min(360, window.innerWidth - 2 * gutter);
+      const width = Math.min(380, window.innerWidth - 2 * gutter);
       card.style.width = `${width}px`;
-      if (!target) {
+      const r = el?.getBoundingClientRect();
+      if (!el || !r || r.width === 0) {
         root.classList.add("tour-dim");
         spot.hidden = true;
         card.style.left = `${(window.innerWidth - width) / 2}px`;
@@ -141,7 +454,6 @@ export function openTour(): void {
       }
       root.classList.remove("tour-dim");
       spot.hidden = false;
-      const r = target.getBoundingClientRect();
       const pad = 6;
       Object.assign(spot.style, {
         left: `${r.left - pad}px`,
@@ -150,11 +462,24 @@ export function openTour(): void {
         height: `${r.height + 2 * pad}px`,
       });
       const below = r.bottom + pad + 12;
-      const fitsBelow = below + card.offsetHeight + gutter <= window.innerHeight;
-      const top = fitsBelow ? below : Math.max(gutter, r.top - pad - 12 - card.offsetHeight);
-      const left = Math.min(Math.max(gutter, r.left + r.width / 2 - width / 2), window.innerWidth - width - gutter);
+      const above = r.top - pad - 12 - card.offsetHeight;
+      let top: number;
+      let left: number;
+      // A rail icon: the card beside it, so it never covers the icons under it.
+      if (el.closest(".nav-rail")) top = -1;
+      else if (below + card.offsetHeight + gutter <= window.innerHeight) top = below;
+      else if (above >= gutter) top = above;
+      else top = -1;
+      if (top >= 0) {
+        left = Math.min(Math.max(gutter, r.left + r.width / 2 - width / 2), window.innerWidth - width - gutter);
+      } else {
+        // A rail icon, or too tall for room above or below: beside it, on the side with room.
+        top = Math.min(Math.max(gutter, r.top + r.height / 2 - card.offsetHeight / 2), window.innerHeight - card.offsetHeight - gutter);
+        const right = r.right + pad + 12;
+        left = right + width + gutter <= window.innerWidth ? right : Math.max(gutter, r.left - pad - 12 - width);
+      }
       card.style.left = `${left}px`;
-      card.style.top = `${top}px`;
+      card.style.top = `${Math.max(gutter, top)}px`;
     };
     place();
   };
@@ -162,22 +487,36 @@ export function openTour(): void {
   const dots = (at: number): HTMLElement =>
     h(
       "div",
-      { class: "tour-dots", "aria-label": `${at + 1} of ${STOPS.length}` },
-      ...STOPS.map((_, i) => h("span", { class: `tour-dot ${i < at ? "done" : i === at ? "here" : ""}` })),
+      { class: "tour-dots", "aria-label": `${at + 1} of ${stops.length}` },
+      ...stops.map((_, i) => h("span", { class: `tour-dot ${i < at ? "done" : i === at ? "here" : ""}` })),
     );
+
+  /** Take the user to `stop`'s place: the rail's own move, or the tour's tables. */
+  const goTo = async (stop: Stop): Promise<void> => {
+    const to = stop.place;
+    if (!to) return;
+    if ("area" in to) {
+      runArea(to.area);
+      return;
+    }
+    const staged = await staging;
+    if (staged) await toGrids(staged, to.grid === "pair");
+  };
 
   const show = (at: number): void => {
     index = at;
-    if (at >= STOPS.length) return game();
-    const stop = STOPS[at] as Stop;
-    const last = at === STOPS.length - 1;
+    const mine = ++serial;
+    if (at >= stops.length) return game();
+    const stop = stops[at] as Stop;
+    const last = at === stops.length - 1;
     const next = button(last ? "Play" : "Next", () => show(at + 1), { icon: last ? "play" : "expand", class: "primary" });
+    const missing = h("p", { class: "tour-missing", hidden: true }, "Not here right now.");
     card.replaceChildren(
       h("div", { class: "tour-icon" }, icon(stop.icon)),
       h("h2", { class: "tour-word" }, stop.word),
       h("p", { class: "tour-line" }, stop.line),
-      stop.where ? h("p", { class: "tour-where" }, icon("expand"), stop.where) : "",
       stop.code ? h("code", { class: "tour-code" }, stop.code) : "",
+      missing,
       dots(at),
       h(
         "div",
@@ -187,19 +526,40 @@ export function openTour(): void {
         next,
       ),
     );
-    aim(visible(stop.target));
+    focusing = next;
     next.focus();
+    if (!stop.target) {
+      aim(null);
+      void goTo(stop);
+      return;
+    }
+    aim(null);
+    void (async () => {
+      await goTo(stop);
+      const staged = await staging;
+      const selectors = (stop.target ?? []).map((s) => s.replace("{orders}", staged?.orders.grid ?? ""));
+      await until(() => mine !== serial || !!visible(selectors));
+      if (mine !== serial) return;
+      const target = visible(selectors);
+      missing.hidden = !!target;
+      target?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      aim(target, selectors);
+      // A page that opened took the focus: the card has it again.
+      if (!card.contains(document.activeElement)) next.focus();
+    })();
   };
 
-  /** Five rounds of "which word is this?": the meaning, three words to pick from. */
+  /** Five rounds of "which word is this?": the clue, three words to pick from. */
   const game = (): void => {
-    const rounds = shuffled(STOPS.slice(1)).slice(0, ROUNDS);
+    const words = stops.filter((s) => s.clue);
+    const rounds = shuffled(words).slice(0, ROUNDS);
     let round = 0;
     let score = 0;
     const play = (): void => {
+      if (closed) return;
       if (round >= rounds.length) return finish();
       const answer = rounds[round] as Stop;
-      const others = shuffled(STOPS.slice(1).filter((s) => s !== answer)).slice(0, 2);
+      const others = shuffled(words.filter((s) => s !== answer)).slice(0, 2);
       const choices = shuffled([answer, ...others]);
       const buttons = choices.map((choice) =>
         h(
@@ -223,14 +583,16 @@ export function openTour(): void {
       );
       card.replaceChildren(
         h("p", { class: "tour-kicker" }, `Round ${round + 1} of ${rounds.length}`),
-        h("p", { class: "tour-clue" }, answer.line),
+        h("p", { class: "tour-clue" }, answer.clue),
         h("div", { class: "tour-choices" }, ...buttons),
         h("div", { class: "tour-actions" }, button("Skip", finish, { class: "ghost" })),
       );
       aim(null);
+      focusing = null;
       buttons[0]?.focus();
     };
     const finish = (): void => {
+      if (closed) return;
       const cheer = score === rounds.length ? "Sharp!" : score >= 3 ? "Nicely done." : "You'll pick it up fast.";
       const knife = h(
         "div",
@@ -247,6 +609,7 @@ export function openTour(): void {
         h("div", { class: "tour-actions" }, button("Again", () => show(0), { icon: "back", class: "ghost" }), done),
       );
       aim(null);
+      focusing = done;
       done.focus();
     };
     play();
