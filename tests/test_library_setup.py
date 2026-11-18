@@ -104,7 +104,7 @@ def test_a_new_persons_checklist_its_fixes_and_move_to_a_vault(tmp_path: Path) -
         )
         locked = vaults["Locked Vault"]
         assert locked["state"] == "sign_in" and locked["fix"]["label"] == "Sign in to Azure"
-        assert "az login" in locked["words"] and locked["gives"] == "Sign in to Azure gives 1 variable"
+        assert "az login" in locked["error"] and locked["gives"] == "Sign in to Azure gives 1 variable"
         values = {(v["kind"], v["name"]) for v in found["values"]}
         assert values == {("keyring", "SHOP_TOKEN"), ("local", "DATA_FOLDER"), ("password", "password")}
         states = {c["name"]: (c["state"], c["words"]) for c in found["connections"]}

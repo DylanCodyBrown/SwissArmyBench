@@ -99,7 +99,11 @@ class ProjectExplorer:
 
     def types(self) -> dict[str, Any]:
         """The project types New project can make, each explained for beginners; where New puts them."""
-        return {"types": rules.kinds(self._modes(), self._streamlit), "folder": self.folder()}
+        return {
+            "types": rules.kinds(self._modes(), self._streamlit),
+            "folder": self.folder(),
+            "shared_folder": self.shared_folder(),
+        }
 
     async def _changed(self) -> None:
         await self.ws.live.broadcast({"type": "projects_changed"})

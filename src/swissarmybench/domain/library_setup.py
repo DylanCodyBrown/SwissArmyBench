@@ -67,9 +67,8 @@ class Vault:
             if self.readable
             else "Not checked: it cannot list its secrets"
             if self.readable is None
-            else f"{self.sign_in()}: {self.error}"
-            if self.error
             else self.sign_in(),
+            "error": self.error,
             "fix": None
             if self.readable is not False
             else {

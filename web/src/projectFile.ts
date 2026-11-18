@@ -190,13 +190,15 @@ export async function newProject(preset?: ProjectType): Promise<ProjectState | n
 
 /** New project's dialog: resolves to what /project/new is sent, or null when closed. */
 async function chooseNewProject(preset?: ProjectType): Promise<Record<string, unknown> | null> {
-  const listed = await api<{ types: ProjectType[]; folder: string }>("/projects/types");
+  const listed = await api<{ types: ProjectType[]; folder: string; shared_folder?: string | null }>("/projects/types");
   const types = listed.types.length ? listed.types : await projectTypes();
   return new Promise((resolve) => {
     const { dialog, body, foot, close } = openDialog("New project", true);
     dialog.classList.add("new-project");
     let kind = preset ?? types[0];
     let folder: string | null = null;
+    // Local or Shared (the owner, 2026-11-18): which projects folder its folder goes in.
+    let place: "local" | "shared" = "local";
     let done = false;
     const name = h("input", { type: "text", class: "new-project-name", "aria-label": "Name", value: "", placeholder: "Name", maxlength: "60" });
     const where = h("span", { class: "new-project-where", title: listed.folder }, listed.folder);
@@ -237,10 +239,32 @@ async function chooseNewProject(preset?: ProjectType): Promise<Record<string, un
         where.title = picked;
       });
     }, { icon: "folder", class: "ghost" });
+    const places = h("div", { class: "new-project-places", role: "radiogroup", "aria-label": "Where" });
+    const drawPlaces = (): void => {
+      const pick = (value: "local" | "shared", label: string, at: string | null | undefined): HTMLElement => {
+        const b = h("button", { type: "button", role: "radio", class: "new-project-place", "aria-checked": String(place === value), "data-where": value }, label);
+        if (!at) b.setAttribute("disabled", "");
+        b.addEventListener("click", () => {
+          place = value;
+          folder = null;
+          where.textContent = at ?? "";
+          where.title = at ?? "";
+          drawPlaces();
+        });
+        return b;
+      };
+      places.replaceChildren(
+        pick("local", "Local", listed.folder),
+        pick("shared", "Shared", listed.shared_folder),
+        listed.shared_folder ? h("span", {}) : h("span", { class: "hint" }, "Set the shared projects folder in Settings"),
+      );
+    };
+    drawPlaces();
     body.append(
       h("label", { class: "field" }, h("span", {}, "Name"), name),
       h("div", { class: "field" }, h("span", {}, "Type"), kinds),
       explained,
+      h("div", { class: "field" }, h("span", {}, "Where"), places),
       h("div", { class: "new-project-folder" }, h("span", {}, "In"), where, other),
     );
     const finish = (value: Record<string, unknown> | null): void => {
@@ -255,7 +279,7 @@ async function chooseNewProject(preset?: ProjectType): Promise<Record<string, un
         name.focus();
         return;
       }
-      finish({ name: called, ...(folder ? { folder } : {}), ...(kind?.make ?? {}) });
+      finish({ name: called, ...(folder ? { folder } : place === "shared" ? { where: "shared" } : {}), ...(kind?.make ?? {}) });
     };
     name.addEventListener("keydown", (e) => {
       if (e.key === "Enter") create();

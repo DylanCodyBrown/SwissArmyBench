@@ -237,7 +237,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     return groups.map((g) => groupNode(c, g, tablesOf(g), open || groups.length === 1));
   };
 
-  const sectionNode = (kind: string, label: string, items: Node[]): Node => ({ key: `section/${kind}`, label, icon: { open: "grids", structures: "structures", apis: "apis", blades: "blade", variables: "variables", connections: "plug" }[kind] ?? "rows", kind: "section", note: String(items.length), children: items, open: true });
+  const sectionNode = (kind: string, label: string, items: Node[]): Node => ({ key: `section/${kind}`, label, icon: { open: "grids", structures: "structures", apis: "apis", blades: "blade", variables: "variables", connections: "plug", shared: "folder" }[kind] ?? "rows", kind: "section", note: String(items.length), children: items, open: true });
 
   // ----- drawing
   function visible(): HTMLElement[] {
@@ -401,6 +401,9 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       const cols = (r.children ?? []).filter((c) => c.kind === "columns").map((c) => ({ name: c.name, type: c.type ?? null }));
       clear(
         body,
+        r.source === "shared"
+          ? h("p", { class: "hint db-shared" }, r.here ? "From the shared catalog" : "From the shared catalog: not connected here", Array.isArray(r.used_by) && r.used_by.length ? ` · used by ${(r.used_by as string[]).join(", ")}` : "")
+          : null,
         r.sql ? h("section", {}, h("h3", {}, "SQL name"), h("code", { class: "db-sql" }, r.sql)) : null,
         cols.length ? h("section", {}, h("h3", {}, `Columns`, h("span", { class: "count" }, String(cols.length))), columnsTable(cols)) : null,
         r.insert.sql ? codeBlock("SQL cell", r.insert.sql) : null,
@@ -512,11 +515,11 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       return made;
     };
     const others: Record<string, BrowseResult[]> = {};
-    for (const r of of("tables")) if (!at(r)) (others.open ??= []).push(r);
+    for (const r of of("tables")) if (!at(r)) (others[r.source === "shared" ? "shared" : "open"] ??= []).push(r);
     for (const r of of("columns")) {
       const t = at(r);
       if (t) t.cols.push(r);
-      else (others[r.source === "api" ? "apis" : "open"] ??= []).push(r);
+      else (others[r.source === "api" ? "apis" : r.source === "shared" ? "shared" : "open"] ??= []).push(r);
     }
     const names = new Set([...byConnection.keys(), ...of("connections").map((r) => r.name)]);
     const connectionRoots: Node[] = [];
@@ -538,6 +541,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       ["apis", "APIs", [...of("apis"), ...(others.apis ?? [])]],
       ["variables", "Variables", of("variables")],
       ["blades", "Blades", of("blades")],
+      ["shared", "From the shared catalog", others.shared ?? []],
     ];
     roots = [
       ...connectionRoots,
