@@ -24,7 +24,7 @@
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
  * */
 import { betaSection } from "./betaNotes";
-import { extensionSettings } from "./extensionsPage";
+import { extensionSettings } from "./extensionPanel";
 import { updatesSection } from "./updates";
 import { librarySection } from "./library";
 import { projectsFolderSection } from "./projectExplorer";

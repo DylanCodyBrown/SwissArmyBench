@@ -22,21 +22,6 @@ import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 /** The page's name, in one place: the rail, the title. */
 export const EXTENSIONS = "Extensions";
 
-/** Settings' sections: each extension that is on and has a panel, drawn from what it answers. */
-export function extensionSettings(): HTMLElement {
-  const host = h("div", { class: "extension-settings" });
-  void api<Listing>("/extensions").then(
-    (got) =>
-      host.replaceChildren(
-        ...got.extensions
-          .filter((e) => e.panel && e.status === "installed")
-          .map((e) => h("fieldset", { class: "fieldset extension-settings-fieldset", "data-extension": e.id }, h("legend", {}, icon("extensions"), e.name), extensionPanel(e.panel!))),
-      ),
-    () => undefined,
-  );
-  return host;
-}
-
 type Status = "preinstalled" | "available" | "installed" | "coming";
 
 interface Extension {

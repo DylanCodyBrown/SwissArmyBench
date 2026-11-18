@@ -13,7 +13,7 @@
  * ROUTING: the panel's route (GET, POST)  ·  notice extension_panel_changed
  */
 import { api, onNotice } from "./api";
-import { button, h, toast } from "./dom";
+import { button, h, icon, toast } from "./dom";
 
 export interface PanelData {
   title?: string;
@@ -90,5 +90,20 @@ export function extensionPanel(route: string): HTMLElement {
   };
   mounted.add({ host, redraw: () => void load() });
   void load();
+  return host;
+}
+
+/** Settings' sections: each extension that is on and has a panel, drawn from what it answers. */
+export function extensionSettings(): HTMLElement {
+  const host = h("div", { class: "extension-settings" });
+  void api<{ extensions: { id: string; name: string; status: string; panel?: string }[] }>("/extensions").then(
+    (got) =>
+      host.replaceChildren(
+        ...got.extensions
+          .filter((e) => e.panel && e.status === "installed")
+          .map((e) => h("fieldset", { class: "fieldset extension-settings-fieldset", "data-extension": e.id }, h("legend", {}, icon("extensions"), e.name), extensionPanel(e.panel!))),
+      ),
+    () => undefined,
+  );
   return host;
 }
