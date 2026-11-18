@@ -372,7 +372,7 @@ def test_the_seams_wired_cards_portability_and_both_tables() -> None:
     """Seam B reads a connection card's "local" list; seam A joins the ERD's tables with the outline's own."""
     from swissarmybench.services.project_outline import BothTables, CardPortability
 
-    cards = [
+    cards: list[dict[str, Any]] = [
         {"name": "Shop", "local": []},
         {
             "name": "Desk",
