@@ -63,7 +63,7 @@ export type Area = "projects" | "grids" | "visualizations" | "erd" | "notebooks"
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
 const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () => Promise<boolean>; keys?: string }[] = [
   // The mark, first (the owner, 2026-11-18): Home, the Projects page.
-  { area: "projects", name: "Projects", icon: "mark", keys: "Alt+Home" },
+  { area: "projects", name: "Projects", icon: "project", keys: "Alt+Home" }, // drawn as the mark (nav.ts markIcon)
   // In the order of the work (the owner, 2026-11-17: "rearrange the rail to make since. In order of
   // workflow"): where the data comes from, getting and shaping it, web data, tools, building, presenting,
   // then the log.

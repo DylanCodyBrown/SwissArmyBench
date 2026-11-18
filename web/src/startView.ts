@@ -100,7 +100,8 @@ async function loadConnections(): Promise<void> {
 // ===== the Grids landing =====
 
 function draw(state: ProjectState): void {
-  if (host && viewingLanding()) drawLanding(state);
+  // Drawn whether or not it is in front (hidden behind the grids), so it never keeps a fix that is gone.
+  if (host) drawLanding(state);
 }
 
 /** The catalog page, on one connection's catalog (or all of them). */

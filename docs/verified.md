@@ -3322,3 +3322,30 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   comes back, the split does not).
 - **Sign in with GitHub (2026-11-18):** the owner registered the app (device flow on); its public client id is
   built in (extensions/git extension.py CLIENT_ID). The tests still run token-only unless they name one.
+
+## The mark on the rail, and Projects as a page of its own (2026-11-18, branch projects-page)
+
+- **Unit:** tests/test_navigation.py (`projects` the rail's first area from every window; `start` the old name for
+  it; the refusal lists `home, projects, connections, …`); tests/test_snapshots.py (area `projects`, and `start`
+  asking the page for it).
+- **In the browser (Chromium):** test_navigation_page.py (the mark is the rail's first item on the grid page, the
+  blades page and the Workbench and not in their top rows; a click shows Projects over the page under it, the point
+  at the page's middle is the Projects page's, the address `…&open=projects`, the title "Projects", the mark
+  current; Back takes it away; Alt+Home from Visualizations; `/workspace?view=start` lands on it, replaced; the
+  Workbench's mark, reached by the rail's Home key, brings the same home window forward showing Projects, and with
+  the home window closed opens one at `?open=projects`; app_navigate `home`, `projects`, `start`, `back`, `grids`);
+  test_rail_page.py (the order with the mark first, its red square, icons 24 px, items 34 to 46 px high, the arrow
+  keys and Home reach the mark, its tip says Alt+Home); test_sab_projects.py (the app starts on Projects with no
+  table and no project; a card opens the project's grids and Projects goes; the mark brings it back with the open
+  card marked; the grid page with no table and no project is the Grids landing with "No project is open." and its
+  Projects link; screenshots light and dark); test_tour.py (from Projects, its new Projects card lights the mark,
+  Escape and the game's end come back to Projects); the meta store, Source Control and file picker pages through
+  `?open=projects`.
+- **Found on the way:** a rail click made while the home page was still starting (Settings) was covered by the
+  Projects page opened a moment later; the start now opens Projects only while the grids' landing is still what is
+  shown. The landing is drawn while hidden too, so a fixed table's row never stays behind it (the swap test).
+- **Whole suite (Chromium):** 4417 passed, 46 skipped, 9 failed on the first run. Fixed after it: test_icons (the
+  rail's icon name), the keyboard test (the mark left the tab bar's Tab stops), the connection swap (the stale
+  landing row). Failed under load and passed alone: test_copilot_page's private project, test_streamlit_page (four,
+  one other when run as a file), test_table_cells_page's maker that stays put.
+- **Not checked:** the desktop app (Qt WebEngine) run by hand; a narrow window (420 px) with the smaller rail.

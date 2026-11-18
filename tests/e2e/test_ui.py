@@ -1103,13 +1103,11 @@ def test_forced_colors_mode(browser: Browser, orders_url: str) -> None:
 
 def test_keyboard_only_reaches_the_toolbar_and_grid(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
-    # The rail comes first, one stop (its current area, Grids); then the tab bar: the mark (Home, at the
-    # top left), then the tabs themselves.
+    # The rail comes first, one stop (its current area, Grids; the mark is the rail's first item since
+    # 2026-11-18, reached with the arrows); then the tab bar's tabs themselves.
     page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Grids"
     assert page.evaluate("document.activeElement.closest('.nav-rail') !== null")
-    page.keyboard.press("Tab")
-    assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Home"
     page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.getAttribute('role')") == "tab"
     outline = page.evaluate("getComputedStyle(document.activeElement).outlineStyle")
