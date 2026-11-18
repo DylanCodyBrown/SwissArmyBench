@@ -3205,3 +3205,21 @@ for the owner to try.
 - Not checked: real GitHub; Sign in with GitHub against github.com (no client id yet); Windows' and macOS'
   keyrings; a side-by-side comparison with VS Code (none runs here: the values come from VS Code's source).
 - The whole suite with Chromium (2026-11-18): 4321 passed, 50 skipped, 5 failed and 1 error under load. Alone: `test_extensions_page` failed for the catalog's fourth card (fixed: the test now counts four, Git among the available ones); `test_show_the_math`, `test_starters_page`'s DAX snippet, `test_streamlit_page`'s agent export, `test_workbench_page`'s export through the file chooser and its deleted-cell test passed when run alone (the export one twice): load-dependent, not this branch's.
+
+## 0.0.20 checked from the release (2026-11-18)
+
+Installed as a user would, in an empty home folder: `install.sh` from the v0.0.20 release (`--no-autostart
+--no-start`), then `swissarmybench start --background`. Release run 54: build and tests, the installers on Linux,
+macOS and Windows, the GitHub release (the base, five extension wheels, the installers, the .vsix) and PyPI all passed.
+- The server reports 0.0.20. The Extensions list: Streamlit installed (preinstalled), Accounting, Power Apps, GitHub
+  Copilot and Git available, all 0.0.20.
+- One-click Install of Git, then of GitHub Copilot, each through the helper and the restart: both installed.
+- With Git on: `/app/areas` lists Source Control; the rail shows its icon; the page opens with the token steps;
+  Sign in with GitHub is disabled with its reason (no OAuth client id yet). No page errors.
+- With Copilot on: its status answers (installed; the language server not yet installed; not signed in).
+- `/dialogs`: no system dialog here (no display), said plainly. Set up from the meta store: "Ready: 0 connections".
+  The shared catalog answers (empty). New project made; a pushed table and a "+" query table built; Export outline
+  wrote ARCHITECTURE.md into the project.
+- The footer: the same on the home page (version, rows, zoom, Beta).
+- Not checked here: a real GitHub sign-in, clone or push; a real Copilot sign-in or suggestion; Windows and macOS
+  by hand. A small fix for later: the disabled Sign in with GitHub button is drawn in full colour.
