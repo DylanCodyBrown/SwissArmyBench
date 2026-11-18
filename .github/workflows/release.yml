@@ -106,7 +106,13 @@ jobs:
           else
             grep -q '^Exec=' "$HOME/.local/share/applications/swissarmybench.desktop"
           fi
-          # The desktop app's Qt WebEngine imports in the installed tool (no window: no display here).
+          # The desktop app's Qt WebEngine imports in the installed tool (no window: no display here). A bare
+          # Linux runner lacks the graphics libraries every Linux desktop has (libEGL first): they come first.
+          if [ "$(uname -s)" = "Linux" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq libegl1 libgl1 libnss3 libxkbcommon0 libxkbcommon-x11-0 libfontconfig1 \
+              libdbus-1-3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxshmfence1 libgbm1 libasound2t64
+          fi
           "$(uv tool dir)/swissarmybench/bin/python" -c "import PySide6.QtWebEngineWidgets"
           "$HOME/.local/bin/swissarmybench" icon "$RUNNER_TEMP/sab.png" && test -s "$RUNNER_TEMP/sab.png"
       - name: Install with install.ps1
