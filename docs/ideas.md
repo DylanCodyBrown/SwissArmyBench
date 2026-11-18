@@ -5335,3 +5335,77 @@ then it does not (nothing here runs git, makes a network call or guesses git sta
 ### Open
 - Several meta stores at once (a personal one beside the team's) is the library plan's rule 5, not built.
 - Whether the app runs git (pull and push buttons) is the owner's open decision.
+
+
+## GitHub sync and the Source Control page: the Git extension (the owner, 2026-11-18; built, branch github-sync)
+
+The owner's words: "It would be neat if you were able to connect a local GitHub repo and push and pull and fork
+projects so you could work a shared project and clone it into a local project"; chosen: **"Built-in, signed in to
+GitHub"** (no Git needed on the computer: the app talks to GitHub's web API with the user's GitHub sign-in); "fork"
+is a local copy (Make a local copy, built with the shared catalog). Then: "add a simple indicator at the bottom that
+the project is out of sync"; "can we literally steal VS Code's panel for git with the graph and commit and show it
+with a diff navigator on a new rail icon that shows up when you install the git extension"; "literally clone to
+exactly no deviation" (VS Code is MIT: its code and look reused with its notice; Git Graph's code is not used).
+
+**Why no Git:** a teammate on a locked-down laptop, a Function App, a hosted page: none can be asked to install Git,
+and running a binary from the app is a second door to secure. GitHub's REST and Git Data APIs do everything the
+meta store and shared projects need: a tree read, blobs, a commit on a base tree, the ref moved fast-forward.
+
+**Built:**
+- `extensions/git` (swissarmybench-git), available in the Extensions catalog (one click: Install). Off, none of it runs:
+  no rail icon, no footer mark, no Settings section; its `github_`/`scm_` tools answer which extension they need.
+  The front end draws its area from the backend (GET /app/areas: `{area, name, icon, mark}`), so web/ never
+  names the extension (the plug-in page reads `/git/...` routes as the Code App page reads `/powerapps/...`).
+- Sign-in: a fine-grained personal access token pasted once (the steps on the page), or **Sign in with GitHub**
+  (the device flow) once the owner registers an OAuth App and fills `CLIENT_ID` in `extension.py` (empty: the
+  button says to use a token). The token is the keyring's `SwissArmyBench / github/token` only; the login is kept
+  in sync.json. Signing in and out are the user's (403 for the agent).
+- Each folder (meta store, shared projects) cloned (into an empty or new folder, which Settings then points at) or
+  connected (compared; nothing written: a file different on both sides comes as a conflict at the first Pull).
+  The link lives in the state folder's `sync.json`, keyed by the folder's path (repository, branch, the last
+  synced commit, each file's blob SHA: the three-way merge's base, the staged files, the conflicts): never in the
+  repository, so nothing of the app's own state is pushed.
+- Pull: theirs where only they changed; both changed: diff3 by lines (difflib), clean or a conflict (the local file
+  kept, `<name>.theirs` beside it, listed; resolved by deleting the .theirs); deleted there and unchanged here goes,
+  changed here stays (said). The shared catalog reads a pulled meta store at once.
+- Push (and Commit): blobs, a tree on the head's tree, a commit, the ref PATCHed with force false: GitHub moved,
+  Pull first (409); a conflict waiting, refused; a file that looks like it holds a secret (a keyring value of this
+  computer's, a token's shape, a password literal), refused and named. `.gitignore` (every level), `local/` at the
+  top, `.sab/data/` anywhere, `.git/` and `*.theirs` never go; a file over 50 MB is left out and said.
+- Status words: Not connected, Up to date, 3 changes to push, 2 behind: Pull, Conflicts: 2 (Not pulled yet: Pull
+  after Connect). GitHub is asked (the head, a compare) only on an action or when Settings, the Explorer or the page
+  asks, at most once a minute per folder; the footer reads the cached answer and the files here: no polling.
+- The footer's mark (`areaMarks.ts`, generic): "↑3 to push", "↓2 behind", "Conflicts: 2", amber, for the open
+  project's shared folder (its own files), else the meta store; nothing when up to date, not connected or no
+  project is open. Read again on `sync_changed` (Pull, Push, Commit, a save, an opened project).
+- The Source Control page: VS Code's Source Control view and Source Control Graph, from VS Code's source (scm.css,
+  scmHistory.ts's swimlanes, the git extension's menus, words, letters and colour keys; the Dark Modern and Light
+  Modern colours; codicons from Monaco's font): the repositories (the meta store; the shared projects scoped to the
+  open project), "Message (Ctrl+Enter to commit on "main")", ✓ Commit with Commit, Commit & Push, Commit & Sync,
+  Merge Changes / Staged Changes / Changes with counts, each file's icon, name, greyed folder and letter
+  (A M D U !), the inline actions (Open File, Discard Changes, Stage Changes / Unstage Changes), the menus (the
+  view's "..." with Commit, Changes, Pull, Push, Branch, Remote, Stash, Tags, Worktrees), View as Tree / List,
+  Discard's and smart commit's questions in VS Code's words, Sync Changes ↓N; the graph (lanes, the HEAD ring,
+  main and origin/main labels, Incoming Changes, a commit's hover, its files opened under it, Load More...);
+  Monaco's diff editor with VS Code's default diff options, F7 / Shift+F7, Inline View, the files beside it and
+  Previous/Next File. Settings' GitHub section; a shared card's Pull and Push and its words; Share asks "Push
+  <name> to GitHub now?".
+
+**Deviations from VS Code (each needs a local Git repository the GitHub-API approach does not have), shown disabled
+as VS Code shows a disabled command:** Commit (Amend) and its Staged/All forms, Commit (Signed Off) forms, Undo
+Last Commit, Abort Rebase; Sync (Rebase), Pull (Rebase), Pull from..., Push to..., Fetch (Prune), Fetch From All
+Remotes (in the "..." menu; the graph's Fetch button asks GitHub again); Merge..., Rebase Branch..., Create Branch
+From..., Rename Branch..., Delete Branch..., Delete Remote Branch..., Publish Branch...; Remote (Add, Remove);
+every Stash entry; Tags; Worktrees; Show Git Output; Checkout (Detached), Create Tag..., Cherry Pick and the three
+Compare entries on a graph row; Add to .gitignore and Reveal in File Explorer View on a file; staging part of a
+file (Stage Change in the diff). **Others, said plainly:** "Commit" goes straight to GitHub (no local commit, so
+no "Sync Changes ↑N" after it; Commit and Commit & Push do the same); Open File says where the file is (files
+are edited in their own editors); file icons are the codicon file glyph, not VS Code's Seti icon theme; the
+message box is a textarea, not a Monaco editor; the side bar's views are not resizable against each other (the
+sash between the side bar and the editor is); a commit's hover is the page's own, with the same facts. No
+side-by-side screenshot with VS Code itself: no VS Code or code-server runs here; the values were taken from VS
+Code's source (main branch, 2026-11-18).
+
+**Open:** the OAuth App's client id (the owner registers it: Settings shows Sign in with GitHub once filled in);
+GitHub's 100 MB push limit and LFS are not handled (50 MB is the API's per-file limit and the app's); a tree
+GitHub truncates (over 100,000 entries) is refused, said.

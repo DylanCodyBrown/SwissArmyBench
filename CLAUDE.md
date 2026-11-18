@@ -125,8 +125,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   project's scaffold, `.sab/data/` only on the user's tick), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
-  **GitHub sync (the owner, 2026-11-18) sends the meta store's and shared projects' files to GitHub on the user's
-  Clone, Pull and Push only; see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
+  **GitHub sync (the owner, 2026-11-18; the Git extension) sends the meta store's and shared projects' files to
+  GitHub on the user's Clone, Pull, Push and Commit only (`sync.json` in the state folder: links, never a file's
+  content or the token); see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
@@ -165,12 +166,27 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   the library's tangs/, a relationship set's old name, became relationship-sets/ once, 2026-11-17);
   an older project's own `.sab/blades` are copied in as it opens (the same skipped, a different one kept as
   `<name> from <project>`, said) and its next save leaves them out. The app never runs git: **GitHub sync is
-  to be built in instead (decided; branch github-sync, not yet merged) (the owner, 2026-11-18: "connect a local GitHub repo and push and pull and fork projects so you
-  could work a shared project and clone it into a local project"; chose "Built-in, signed in to GitHub")**: the meta
-  store and shared projects are cloned, pulled and pushed through GitHub's web API (api.github.com), signed in with
-  the user's GitHub account (the token in the keyring only, never a file, an answer or a log), and only on the
-  user's action (Clone, Pull, Push) or the agent's on the user's Allow; no Git installed is needed. A conflict is
-  shown, never forced. "Fork" means a local copy of a shared project (Make a local copy), not a GitHub fork.
+  built in instead, as the Git extension (the owner, 2026-11-18: "connect a local GitHub repo and push and pull and fork
+  projects so you could work a shared project and clone it into a local project"; chose "Built-in, signed in to
+  GitHub"; then "literally steal VS Code's panel for git with the graph and commit and show it with a diff navigator on
+  a new rail icon that shows up when you install the git extension" / "literally clone to exactly no deviation")**:
+  `extensions/git` (swissarmybench-git, available in the Extensions catalog; not installed, none of it runs). The meta
+  store and shared projects are cloned, connected, pulled and pushed through GitHub's web API (api.github.com),
+  signed in with the user's GitHub account (a fine-grained token pasted once, or Sign in with GitHub's device flow
+  once the app's OAuth client id is filled in; the token in the keyring only, never a file, an answer or a log;
+  signing in and out the user's only), and only on the user's action (Clone, Connect, Pull, Push, Commit, Discard,
+  Checkout) or the agent's on the user's Allow; no Git installed is needed. Each folder's link (repository,
+  branch, the last synced commit, each file's blob SHA as the merge base, the staged files, the conflicts) is the
+  state folder's `sync.json`, never in the repository. Pull merges by lines (diff3); a true conflict keeps the
+  local file and saves GitHub's beside it as `<name>.theirs`, shown, never forced; Push is fast-forward only,
+  refused while behind or when a file looks like it holds a secret; .gitignore's files, `local/`, `.sab/data/` and
+  files over 50 MB never go. GitHub is asked only on an action or when Settings, the Explorer or the Source
+  Control page asks, at most once a minute: never a background poll. Its **Source Control** page (a rail area the
+  backend names, GET /app/areas) is VS Code's Source Control view and graph (its CSS values, graph code, words,
+  menus, letters and codicons, MIT: THIRD_PARTY_NOTICES.md) with Monaco's diff editor; what needs a local Git
+  (stash, local commits, rebase, amend, hunks, tags, worktrees, remotes) shows disabled. The footer's mark says
+  when the open project (or the meta store) is out of sync. "Fork" means a local copy of a shared project (Make a
+  local copy), not a GitHub fork.
   **The meta store (the owner, 2026-11-17/18: "a shared meta store on GitHub" / "Meta store folder in
   settings"):** Settings calls the library folder the **Meta store folder** (a label; the code keeps `library`):
   the user's clone of the team's repository. Its `catalog/<connection>.json` is the **shared catalog** (names,
@@ -488,7 +504,8 @@ src/swissarmybench/
                          for the agent (workbench_complete, workbench_signature, workbench_problems)
     panels.py            the panels' switches: in memory, shared by every window (panels_changed)
     modes.py             project modes: the open project's type (.sab/project.json) to its mode (canvases,
-                         families, languages, cell kinds, tool group, export); GET /app/mode, app_mode
+                         families, languages, cell kinds, tool group, export); GET /app/mode, app_mode; the rail's
+                         areas the on extensions add (GET /app/areas: their RAIL, and the footer's mark route)
     navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
     kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
@@ -845,7 +862,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          made-up SQLite file), test_sql_server_real.py (a real SQL Server when
                          SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
-                         orders service, every sign-in it takes stood in for)
+                         orders service, every sign-in it takes stood in for), github_standin.py (GitHub's REST
+                         and Git Data APIs and the device flow over in-memory repositories of made-up files)
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
@@ -901,6 +919,34 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          this page's runner, in that Python (`python -I`), in a temporary folder
     server/routes_streamlit.py, routes_controllers.py  /streamlit/* (and the live pages, /streamlit/live/<key>/)
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
+extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
+                         project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
+                         page, through GitHub's web API (no Git on the computer)
+  src/swissarmybench_git/
+    extension.py         ID, NAME, ADDS, AREAS (github_, scm_), RAIL ({area: scm, mark: /git/mark}), CLIENT_ID (the
+                         device flow's OAuth app, empty until the owner registers it), SESSION_RULES; routes(services)
+                         its composition root (the folders from the library and the Project Explorer, Allow, the
+                         shared catalog read again after a pull); SWISSARMYBENCH_GITHUB_API/_WEB name a stand-in
+    commands.py          github_status, _repositories, _clone, _connect, _disconnect, _pull, _push; scm_changes,
+                         _stage, _discard, _commit, _sync, _history, _commit_files, _diff, _branches, _checkout
+    domain/sync.py       git's blob SHA, .gitignore's patterns and the app's own exclusions, a folder's link, a pull's
+                         plan, the line-based three-way merge (diff3 on difflib), a push's secrets, the words,
+                         VS Code's groups and letters (merge, index, workingTree: M A D U !), unified diff text
+    adapters/github.py    GitHubClient (urllib: user, repositories, refs, trees, blobs, compare, commits, branches, the
+                         Git Data API's writes, the device flow), GitHubToken (the keyring), SyncLinks (sync.json),
+                         SyncFolder (a folder's files walked, written atomically), known_secrets (the keyring's values)
+    services/sync.py     GitHubSync: sign-in (token, device flow; the user's only), status (remote at most once a
+                         minute), clone, connect, disconnect, pull, push (fast-forward, scoped to a project, named
+                         paths), the footer's mark
+    services/scm.py      SourceControl: the page's repositories and groups, stage, discard, commit, sync, history, a
+                         commit's files, the diff's two sides, branches, checkout and create
+    server/routes.py     /git/*
+web/src/scmPage.ts       (a plug-in) the Source Control page: VS Code's view (repositories, the message box, Commit and
+                         its menu, the groups, inline actions, menus, list or tree), the graph, Monaco's diff editor
+                         and the files beside it, the welcome and GitHub sign-in, Clone and Connect's quick picks;
+                         Settings' GitHub section; a shared card's Pull, Push and words; Share's "Push it to GitHub
+                         now?". scmGraph.ts the graph's swimlanes (ported from VS Code's scmHistory.ts, MIT)
+web/src/areaMarks.ts     the footer's marks an extension's area answers (GET /app/areas' mark route), generic
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
                          and an Open Swiss Army Bench button (starts the server when needed, opens its window)
 extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
