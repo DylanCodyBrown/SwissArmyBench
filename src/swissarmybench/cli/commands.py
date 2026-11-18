@@ -331,13 +331,12 @@ def build_from_query(a: dict[str, Any]) -> Any:
 
 @command(
     "tabs_new_connection_query",
-    "New table from a query run on a connection, in the connection's own SQL (the + tab's Query from). "
-    "Opens a grid on the result; the table remembers the connection and the query.",
+    "New table from a query run on a connection, in its own SQL. Run again reruns it there.",
     req("name", "Name of the new dataset."),
     req("connection", "The connection the query runs on (a database connection)."),
-    req("sql", "One read query in the connection's own SQL (DAX on a Power BI workspace)."),
-    opt("dataset", "A Power BI workspace's dataset the DAX runs on."),
-    opt("replace", "Rebuild a table an earlier connection query made (the tab's Run again).", "bool"),
+    req("sql", "One read query in the connection's SQL (DAX on Power BI)."),
+    opt("dataset", "The Power BI dataset the DAX runs on."),
+    opt("replace", "Rebuild a table this command made (Run again).", "bool"),
 )
 def build_from_connection_query(a: dict[str, Any]) -> Any:
     body: dict[str, Any] = {"connection": a["connection"], "sql": a["sql"]}
