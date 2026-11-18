@@ -182,7 +182,8 @@ def test_the_pyside6_wheels_are_the_servers_and_pinned() -> None:
 
 def test_install_sh_adds_the_launcher_and_uninstall_removes_it(tmp_path: Path) -> None:
     """install.sh with a made-up uv on PATH (Linux): the .desktop entry and the icon in ~/.local/share, the
-    old tray's sign-in entry taken away, nothing opened on a build machine; --uninstall removes the launcher."""
+    old tray's sign-in entry taken away, nothing opened on a build machine;
+    --uninstall removes the launcher."""
     import subprocess
 
     root = Path(__file__).resolve().parents[1]
@@ -201,8 +202,12 @@ def test_install_sh_adds_the_launcher_and_uninstall_removes_it(tmp_path: Path) -
     env = {"PATH": f"{bin_dir}{os.pathsep}/usr/bin{os.pathsep}/bin", "HOME": str(tmp_path), "CI": "1"}
 
     def run(*args: str) -> str:
-        done = subprocess.run(  # noqa: S603, S607 (sh, this checkout's installer)
-            ["sh", str(tmp_path / "install.sh"), *args], env=env, capture_output=True, text=True, check=False
+        done = subprocess.run(  # noqa: S603 (sh, this checkout's installer)
+            ["/bin/sh", str(tmp_path / "install.sh"), *args],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         assert done.returncode == 0, done.stderr
         return done.stdout
