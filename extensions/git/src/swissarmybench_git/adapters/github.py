@@ -68,9 +68,16 @@ class GitHubClient:
                 raw = answer.read(MAX_ANSWER_BYTES + 1)
         except urllib.error.HTTPError as error:
             try:
-                said = json.loads(error.read(65536) or b"{}").get("message") or ""
+                found = json.loads(error.read(65536) or b"{}")
             except (ValueError, AttributeError):
-                said = ""
+                found = {}
+            found = found if isinstance(found, dict) else {}
+            # The API says why in "message"; github.com/login's sign-in addresses in "error" and
+            # "error_description" (device_flow_disabled, incorrect_client_credentials): both read.
+            code = str(found.get("error") or "")
+            if code in SIGN_IN_WORDS:
+                raise GitHubError(error.code, SIGN_IN_WORDS[code]) from None
+            said = found.get("message") or found.get("error_description") or code
             raise GitHubError(error.code, _words(error.code, str(said))) from None
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             reason = getattr(error, "reason", error)
@@ -216,7 +223,11 @@ class GitHubClient:
             auth=False,
         )
         if "device_code" not in found:
-            raise GitHubError(0, str(found.get("error_description") or "GitHub did not start the sign-in."))
+            code = str(found.get("error") or "")
+            words = SIGN_IN_WORDS.get(code) or str(
+                found.get("error_description") or "GitHub did not start the sign-in."
+            )
+            raise GitHubError(0, words)
         return dict(found)
 
     def device_token(self, client_id: str, device_code: str) -> dict[str, Any]:
@@ -226,6 +237,19 @@ class GitHubClient:
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
         }
         return dict(self._send("POST", f"{self.web}/login/oauth/access_token", body, form=True, auth=False))
+
+
+# The device flow's refusals in plain words (the owner saw "GitHub answered 400", 2026-11-18).
+SIGN_IN_WORDS: dict[str, str] = {
+    "device_flow_disabled": (
+        "Sign in with GitHub is off for this app on GitHub: on the app's page in GitHub (Settings, Developer "
+        "settings, OAuth Apps), tick Enable Device Flow and click Update application. Or use a token."
+    ),
+    "incorrect_client_credentials": (
+        "GitHub does not know this app's Client ID: check it on the app's page in GitHub. Or use a token."
+    ),
+    "unauthorized_client": "GitHub does not let this app sign in this way. Use a token.",
+}
 
 
 def _words(status: int, said: str) -> str:

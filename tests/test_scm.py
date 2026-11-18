@@ -500,3 +500,50 @@ def test_off_the_door_says_which_extension(tmp_path: Path, monkeypatch: pytest.M
         off = client.get("/git", headers=AUTH)
         assert off.status_code in (404, 409) and "Git" in off.text
         assert ok(client.get("/app/areas", headers=AUTH))["areas"] == []
+
+
+def test_githubs_sign_in_refusals_are_said_in_plain_words() -> None:
+    """The owner saw only "GitHub answered 400" (2026-11-18): github.com/login says why in "error", not "message"."""
+    import http.server
+
+    from swissarmybench_git.adapters.github import GitHubClient, GitHubError
+
+    answers = [
+        (
+            400,
+            {"error": "device_flow_disabled", "error_description": "Device Flow must be explicitly enabled."},
+        ),
+        (404, {"error": "incorrect_client_credentials"}),
+        (400, {"error": "something_new", "error_description": "A made-up reason."}),
+        (200, {"error": "device_flow_disabled"}),
+    ]
+
+    class Refuses(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            status, body = answers.pop(0)
+            data = json.dumps(body).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *args: Any) -> None:
+            return
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Refuses)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        client = GitHubClient(base, base, None)
+        said = []
+        for _ in range(4):
+            with pytest.raises(GitHubError) as caught:
+                client.device_code("made-up-client-id")
+            said.append(str(caught.value))
+        assert "tick Enable Device Flow" in said[0]
+        assert "does not know this app's Client ID" in said[1]
+        assert "A made-up reason." in said[2]
+        assert "tick Enable Device Flow" in said[3]  # the same refusal on a 200 answer
+    finally:
+        server.shutdown()
