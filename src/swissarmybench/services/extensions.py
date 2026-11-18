@@ -89,6 +89,10 @@ class Extensions:
             "changing": self._changing,
         }
 
+    def changing(self) -> dict[str, str] | None:
+        """An Install or Remove handed to the helper (the app stops for it): what it is, else None."""
+        return self._changing
+
     def names(self) -> list[str]:
         """The extensions this install has, by name (the version mark's tooltip)."""
         return [str(e["name"]) for e in self.listing() if e["status"] in ("preinstalled", "installed")]

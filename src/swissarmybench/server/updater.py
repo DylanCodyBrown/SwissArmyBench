@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 WAIT_FOR_EXIT_SECONDS: float = 60.0
+END_GRACE_SECONDS: float = 6.0  # the tray's own poll is 5 s: it may still quit by itself
 WAIT_FOR_START_SECONDS: float = 90.0
 INSTALL_ATTEMPTS: int = 3
 INSTALL_TIMEOUT_SECONDS: float = 900.0
@@ -68,6 +69,8 @@ class Ops(Protocol):
     def stop_in(self, folder: str) -> int: ...
 
     def fetch(self, url: str, folder: str) -> str: ...
+
+    def end(self, pid: int) -> None: ...
 
 
 def _tail(text: str, lines: int = 12) -> str:
@@ -114,6 +117,16 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
     for pid in plan.get("wait_pids", []):
         if not waited(WAIT_FOR_EXIT_SECONDS, functools.partial(_gone, ops, int(pid))):
             ops.note(plan["note_file"], {"version": version, "reason": "The app did not stop."})
+            return "failed"
+    for pid in plan.get("end_pids", []):
+        # The tray: it quits by itself when it hears of the update in time; else it is ended here (the app
+        # started again below brings its own).
+        if waited(END_GRACE_SECONDS, functools.partial(_gone, ops, int(pid))):
+            continue
+        steps.append("end")
+        ops.end(int(pid))
+        if not waited(WAIT_FOR_EXIT_SECONDS, functools.partial(_gone, ops, int(pid))):
+            ops.note(plan["note_file"], {"version": version, "reason": "The tray icon did not stop."})
             return "failed"
     if plan.get("stop_in"):
         # Windows: any other program still running from the tool's folder (an editor's MCP server)
@@ -216,6 +229,24 @@ def detached(command: list[str], environ: dict[str, str] | None = None) -> subpr
 class SystemOps:
     def alive(self, pid: int) -> bool:
         return _alive(pid)
+
+    def end(self, pid: int) -> None:
+        """End a process (the tray) that is still running: TerminateProcess on Windows, SIGTERM elsewhere."""
+        if pid <= 0:
+            return
+        try:
+            if sys.platform == "win32":
+                kernel32 = ctypes.windll.kernel32
+                handle = kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
+                if handle:
+                    try:
+                        kernel32.TerminateProcess(handle, 1)
+                    finally:
+                        kernel32.CloseHandle(handle)
+            else:
+                os.kill(pid, 15)  # SIGTERM
+        except OSError:
+            return
 
     def run(self, command: list[str], environ: dict[str, str]) -> tuple[int, str]:
         flags = CREATE_NO_WINDOW if sys.platform == "win32" else 0
@@ -382,7 +413,8 @@ class Helper:
             uv=uv,
             tool_python=sys.executable,
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
-            wait_pids=[os.getpid(), tray],
+            wait_pids=[os.getpid()],
+            end_pids=[tray],
             info_file=str(self.info_file),
             note_file=str(self.note_file),
             # This very tool is the one replaced, wherever its folder is.
@@ -407,7 +439,8 @@ class Helper:
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
             wheels=wheels,
             before=before,
-            wait_pids=[os.getpid(), _tray_pid(self.info_file.with_name("tray.json"))],
+            wait_pids=[os.getpid()],
+            end_pids=[_tray_pid(self.info_file.with_name("tray.json"))],
             info_file=str(self.info_file),
             note_file=str(self.note_file),
             environ={"UV_TOOL_DIR": str(self.prefix.parent)},

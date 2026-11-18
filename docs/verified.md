@@ -3223,3 +3223,17 @@ macOS and Windows, the GitHub release (the base, five extension wheels, the inst
 - The footer: the same on the home page (version, rows, zoom, Beta).
 - Not checked here: a real GitHub sign-in, clone or push; a real Copilot sign-in or suggestion; Windows and macOS
   by hand. A small fix for later: the disabled Sign in with GitHub button is drawn in full colour.
+
+## An extension's Install with the tray running (2026-11-18)
+
+The owner's Windows: Install of Git and of GitHub Copilot failed with update_failed.json saying "The app did not
+stop." The helper waited for the server and the tray; the tray asks the server only every 5 s and the server stops
+0.5 s after handing over, so the tray never heard and stayed, and the helper gave up after 60 s. (Not seen on
+the release check here: no tray ran.) Fixed: the helper waits for the server, then gives the tray 6 s to quit and
+ends it itself (TerminateProcess on Windows, SIGTERM elsewhere); the app started again brings its own tray; and the
+tray's answer now says "updating" during an extension's Install or Remove too. Checked here for real: a build of
+the fix installed as a uv tool, started without a tray, a stand-in tray process (that never quits) written into
+tray.json, then Install Accounting: the helper ended the stand-in after about 9 s and Accounting installed, no
+failure note. Unit tests: the tray ended and the install going on, a tray that cannot be ended said. Not checked
+by hand on Windows: the fix reaches the owner only in the next version (the helper is a copy of the version
+running).

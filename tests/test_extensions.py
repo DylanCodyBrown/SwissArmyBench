@@ -333,3 +333,16 @@ def test_every_extension_package_is_on_the_bases_version() -> None:
         assert re.search(rf'__version__(: str)? = "{re.escape(base)}"', init), folder.name
         package = own["name"]
         assert package in {e.package for e in rules.CATALOG}, package
+
+
+def test_an_install_under_way_is_said_for_the_tray() -> None:
+    """Extensions.changing() is what the update service tells the tray (services/updates.py's tray())."""
+    fakes = Fakes()
+    extensions = made(fakes)
+    assert extensions.changing() is None
+
+    async def go() -> None:
+        await extensions.install({"id": "ledger"}, "user")
+
+    asyncio.run(go())
+    assert extensions.changing() == {"id": "ledger", "action": "install"}

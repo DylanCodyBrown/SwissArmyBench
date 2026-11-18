@@ -993,6 +993,7 @@ def bootstrap(
         stop=on_shutdown or (lambda: None),
         autostart=autostart,
         failed=take_failure_note(failure_note),
+        changing=extensions.changing,
     )
     # Launch Claude: Claude Code in the user's terminal, or Claude Desktop, found wherever it is installed.
     standin = settings.claude_standin

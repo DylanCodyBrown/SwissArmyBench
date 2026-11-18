@@ -297,6 +297,7 @@ def plan_change(
     note_file: str,
     environ: dict[str, str] | None = None,
     stop_in: str = "",
+    end_pids: list[int] | None = None,
 ) -> UpdatePlan:
     """Install or Remove: the base at this same version with `wheels`; on a failure, `before` again."""
     if not current:
@@ -314,6 +315,7 @@ def plan_change(
         note_file=note_file,
         environ=dict(environ or {}),
         stop_in=stop_in,
+        end_pids=tuple(pid for pid in end_pids or [] if pid > 0),
     )
 
 

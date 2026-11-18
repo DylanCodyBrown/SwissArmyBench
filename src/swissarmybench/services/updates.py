@@ -81,8 +81,12 @@ class Updates:
         failed: dict[str, Any] | None = None,
         every_seconds: float = rules.CHECK_EVERY_SECONDS,
         clock: Callable[[], float] = time.time,
+        changing: Callable[[], Any] = lambda: None,
     ) -> None:
         self.current = rules.parse_version(current)
+        # An extension's Install or Remove under way (services/extensions.py): the app stops for it as for
+        # an update, so the tray is told the same and quits (the helper waits for it; the new app starts one).
+        self._changing = changing
         self.feeds = feeds
         self._feed = feed
         self._switch = switch
@@ -134,7 +138,12 @@ class Updates:
     async def tray(self) -> dict[str, Any]:
         """What the tray's menu shows: the update, the open tables and the Workbench's documents."""
         work = await self._open_work()
-        return self.state() | {"tables": work.get("tables", []), "documents": work.get("documents", [])}
+        said = self.state() | {"tables": work.get("tables", []), "documents": work.get("documents", [])}
+        if not said["updating"] and self._changing():
+            # An extension being installed or removed: the helper waits for the tray to end, and a tray
+            # that stayed restarted the server it thought had crashed ("The app did not stop.", on Windows).
+            said["updating"] = str(self.current)
+        return said
 
     # ===== the switch and the check =====
 

@@ -256,6 +256,10 @@ class UpdatePlan:
     # terminal's sab) locks its files, so the helper stops every process whose program is inside it
     # before the install (never itself: it runs the base Python, outside that folder).
     stop_in: str = ""
+    # The tray's process: waited for a moment, then ended by the helper itself (the tray asks the server
+    # only every few seconds, so it can miss that an update or an extension's Install is under way and stay;
+    # the app the helper starts again brings its own tray). The owner's Windows: "The app did not stop."
+    end_pids: tuple[int, ...] = ()
 
     def steps(self) -> list[str]:
         return ["wait", *(["stop"] if self.stop_in else []), "install", "check", "start"]
@@ -273,6 +277,7 @@ class UpdatePlan:
             "note_file": self.note_file,
             "environ": dict(self.environ),
             "stop_in": self.stop_in,
+            "end_pids": list(self.end_pids),
             "steps": self.steps(),
         }
 
@@ -293,6 +298,7 @@ def plan_update(
     stop_in: str = "",
     wheels: tuple[str, ...] = (),
     restore_wheels: tuple[str, ...] = (),
+    end_pids: list[int] | None = None,
 ) -> UpdatePlan:
     """The plan for updating from `current` to `version`; `tool_python` is the app's own Python (the uv
     tool's), which runs the new version once it is installed. `stop_in` (Windows): the tool's folder,
@@ -314,6 +320,7 @@ def plan_update(
         note_file=note_file,
         environ=dict(environ or {}),
         stop_in=stop_in,
+        end_pids=tuple(pid for pid in end_pids or [] if pid > 0),
     )
 
 
