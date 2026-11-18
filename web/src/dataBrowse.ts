@@ -151,6 +151,9 @@ export interface Browse {
   select: (key: string) => void;
   /** Focus the tree: the selected item, else the first. */
   focus: () => void;
+  /** The open detail's buttons drawn again: what they offer changed (the Workbench's document in front came
+   *  or went, so Insert shows or goes) while the detail was open. */
+  actionsChanged: () => void;
 }
 
 export function mountBrowse(ctx: BrowseContext): Browse {
@@ -162,6 +165,8 @@ export function mountBrowse(ctx: BrowseContext): Browse {
   const columnsOf = new Map<string, Promise<TableDetail>>();
   let roots: Node[] = [];
   let selectedKey: string | null = null;
+  /** The open detail's buttons, drawn again (actionsChanged). */
+  let redrawActions: (() => void) | null = null;
   let searching = false;
 
   // ----- the nodes
@@ -385,7 +390,12 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     const under = h("div", { class: "ex-preview" });
     const own = ctx.actions(r, under);
     const head = h("header", { class: "db-detail-head" }, h("h2", {}, icon(node.icon), r.name), h("p", { class: "db-where" }, r.path.join(" › ")));
-    const actions = h("div", { class: "db-detail-actions" }, ...own.map((a, i) => button(a.label, () => void a.run(), { icon: a.icon, class: i === 0 ? "small primary" : "small line", title: a.title ?? a.label })));
+    const actions = h("div", { class: "db-detail-actions" });
+    const drawActions = (list: typeof own): void =>
+      clear(actions, ...list.map((a, i) => button(a.label, () => void a.run(), { icon: a.icon, class: i === 0 ? "small primary" : "small line", title: a.title ?? a.label })));
+    drawActions(own);
+    // A detail opened before the Workbench said what is in front (Insert's target) gets its buttons again then.
+    redrawActions = () => drawActions(ctx.actions(r, under));
     const body = h("div", { class: "db-detail-body" }, h("p", { class: "hint" }, "Loading…"));
     clear(detail, head, actions, under, body);
     const columnsTable = (rows: { name: string; type?: string | null; nullable?: unknown }[]): HTMLElement =>
@@ -551,6 +561,9 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     element,
     showBrowse,
     showSearch,
+    actionsChanged: () => {
+      if (!detail.hidden) redrawActions?.();
+    },
     focus: () => {
       const li = tree.querySelector<HTMLElement>("[role=treeitem].selected") ?? visible()[0];
       if (!li) return;

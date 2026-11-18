@@ -639,7 +639,10 @@ export function mountExplorer(host: ExplorerHost): Explorer {
         results.scrollTop = scroll;
       });
     },
-    refresh: () => void search(true),
+    refresh: () => {
+      browse?.actionsChanged();
+      void search(true);
+    },
     answer: () => last,
   };
 }
