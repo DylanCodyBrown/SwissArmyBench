@@ -3166,3 +3166,4 @@ for the owner to try.
   the Yours ↔ Theirs diff; smart commit's question; the page in Dark Modern.
 - Not checked: real GitHub; Sign in with GitHub against github.com (no client id yet); Windows' and macOS'
   keyrings; a side-by-side comparison with VS Code (none runs here: the values come from VS Code's source).
+- The whole suite with Chromium (2026-11-18): 4321 passed, 50 skipped, 5 failed and 1 error under load. Alone: `test_extensions_page` failed for the catalog's fourth card (fixed: the test now counts four, Git among the available ones); `test_show_the_math`, `test_starters_page`'s DAX snippet, `test_streamlit_page`'s agent export, `test_workbench_page`'s export through the file chooser and its deleted-cell test passed when run alone (the export one twice): load-dependent, not this branch's.
