@@ -25,6 +25,9 @@ CLOSE_GRACE_SECONDS: float = 2.0
 IDLE_SECONDS: float = 600.0
 # Requests that are the pages' own even with the token (the page trades the token for its cookie here).
 PAGE_PATHS: tuple[str, ...] = ("/session",)
+# Asking whether the server is there, or when it stops, is not work: the desktop app's own /health checks
+# (at its start and with each page it opens) kept the server up 10 minutes after the app closed.
+NOT_WORK_PATHS: tuple[str, ...] = ("/health", "/lifecycle")
 NOTICE_GONE = "The tray icon is gone: Swiss Army Bench now runs while it's open."
 
 
@@ -62,10 +65,18 @@ def stop_at(
     return at
 
 
+def from_a_page(sec_fetch_site: str | None) -> bool:
+    """A request one of the app's own pages made: the browser (Qt WebEngine too) marks it Sec-Fetch-Site
+    same-origin, which a page's script cannot change. The pages send the token as well (web/src/api.ts), so
+    without this every click in a window counted as a client and held the server 10 minutes after it closed.
+    The agent, VS Code and a Python push send no such header."""
+    return (sec_fetch_site or "").strip().lower() == "same-origin"
+
+
 def counts_as_client(path: str, by_token: bool) -> bool:
     """A request that keeps the server up for IDLE seconds: one with the token (the agent, VS Code, a push,
     a kernel), not the pages' cookie, and not the page trading its token for the cookie."""
-    return by_token and not any(path == p or path.startswith(p + "/") for p in PAGE_PATHS)
+    return by_token and not any(path == p or path.startswith(p + "/") for p in (*PAGE_PATHS, *NOT_WORK_PATHS))
 
 
 def state(life: Life, now: float, at: float | None) -> dict[str, Any]:

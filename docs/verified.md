@@ -3288,3 +3288,15 @@ sandbox as a normal user, the native Save dialog, the old Startup shortcut and t
 LaunchAgent); a Linux desktop with a window manager (activation, the menu entry's icon); dragging a cell between
 two windows (needs real mouse input: not driven off screen); the release workflow's three install jobs; Windows on
 ARM (no Qt WebEngine wheel: the browser should open; not tried).
+
+## 0.0.22 checked from the release, and 0.0.23's fix (2026-11-18)
+
+- **0.0.22 from its GitHub release** (install.sh into a temporary home, Xvfb): 1.2 GB, the `.desktop` launcher,
+  the app opened (server.json and desktop.json written), a stand-in tray ended and tray.json removed; a made-up
+  autostart entry that was not the tray's own command left alone.
+- **Found:** the server stayed up 10 minutes after the app closed. Two causes: the desktop app's `/health` checks,
+  and the pages' own fetches, which carry the token as a Bearer header (web/src/api.ts) and so counted as a
+  client's. Fixed: `/health` and `/lifecycle` are not work, and a request the browser marks
+  `Sec-Fetch-Site: same-origin` is a page's, not a client's (domain/lifecycle.py `from_a_page`; the guard).
+- **Checked for real** with a wheel of the fix: the app open, its home page loaded, `/lifecycle` said "a window is
+  open" and no client; the app ended, the server stopped 34 s later (the 30 s grace).

@@ -50,6 +50,8 @@ from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
+from swissarmybench.domain.lifecycle import from_a_page
+
 WEBSOCKET_SUBPROTOCOL: str = "swissarmybench"
 # What a client from before the rename offers (SwissArmyGrid's): still answered, for one release.
 OLD_WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
@@ -123,7 +125,8 @@ class LocalOnlyGuard:
         status: int | None = self._check(scope)
         if status is None and self._activity is not None and scope["type"] == "http":
             headers = Headers(scope=scope)
-            by_token = self._has_token(scope, headers)
+            # A page's own request is not a client's, though it carries the token too (domain/lifecycle.py).
+            by_token = self._has_token(scope, headers) and not from_a_page(headers.get("sec-fetch-site"))
             path: str = scope["path"]
             who = "the agent" if headers.get("x-actor") == "agent" else _who(path)
             self._activity(path, who, by_token, True)

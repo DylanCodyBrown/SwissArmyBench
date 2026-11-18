@@ -105,6 +105,19 @@ def test_the_pages_own_requests_and_cookie_ones_do_not_count() -> None:
     assert life.life.client_at is None
 
 
+def test_asking_whether_it_runs_or_when_it_stops_is_not_work() -> None:
+    """The desktop app checks /health with the token at its start and with each page it opens; counted as
+    work, they kept the server up 10 minutes after the app closed (seen on 0.0.22's release check)."""
+    clock, windows = Clock(), [0]
+    life, _ = made(clock, windows)
+    for path in ("/health", "/lifecycle", "/lifecycle/closed"):
+        life.request(path, "a client", by_token=True, started=True)
+        life.request(path, "a client", by_token=True, started=False)
+    assert life.life.client_at is None
+    life.request("/datasets", "the agent", by_token=True, started=True)  # real work still counts
+    assert life.life.client_at is not None
+
+
 def test_a_request_under_way_or_vscode_connected_is_busy() -> None:
     clock, windows = Clock(), [0]
     busy: list[str] = []
@@ -149,10 +162,25 @@ def test_the_route_reads_it_and_the_guard_reports_requests(tmp_path: Path) -> No
     with make_client(tmp_path) as client:
         said = client.get("/lifecycle", headers=AGENT).json()
         assert {"windows", "last_client", "busy", "held", "stops_in", "why", "rule"} <= set(said)
-        assert said["last_client"]["who"] == "the agent"  # this very request, with the token
+        assert said["last_client"] is None  # asking when it stops is not work
+        client.get("/datasets", headers=AGENT)  # real work, with the token
+        said = client.get("/lifecycle", headers=AGENT).json()
+        assert said["last_client"]["who"] == "the agent"
         closed = client.post("/lifecycle/closed", headers=AUTH)
         assert closed.status_code == 200
         assert client.get("/lifecycle").status_code == 401
+
+
+def test_a_pages_fetch_with_the_token_is_not_a_client(tmp_path: Path) -> None:
+    """The pages send the token as a Bearer header (web/src/api.ts): without the browser's Sec-Fetch-Site
+    mark every click held the server 10 minutes after the app closed (seen on 0.0.22's release check)."""
+    assert rules.from_a_page("same-origin") and rules.from_a_page(" Same-Origin ")
+    assert not any(rules.from_a_page(value) for value in (None, "cross-site", "none"))
+    with make_client(tmp_path) as client:
+        client.get("/datasets", headers={**AUTH, "Sec-Fetch-Site": "same-origin"})  # a window's fetch
+        assert client.get("/lifecycle", headers=AGENT).json()["last_client"] is None
+        client.get("/datasets", headers=AUTH)  # a Python push or VS Code: no such mark
+        assert client.get("/lifecycle", headers=AGENT).json()["last_client"] is not None
 
 
 def test_a_saved_project_is_saved_before_the_stop(tmp_path: Path) -> None:
