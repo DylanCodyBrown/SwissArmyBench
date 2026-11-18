@@ -385,8 +385,9 @@ prints page by page and exports to markdown with charts as pictures.
 
 **8.11 Getting around: the mark goes home, Back is the browser's.** One model on every page and window,
 in one module, so no screen invents its own.
-- **The mark goes home.** The top-left mark of every page and window is a link home, named "Home"; from
-  another window it brings the home window forward (a named window) rather than opening a second one.
+- **The mark goes home.** The red mark, the rail's first item on every page and window, opens Projects, the
+  home page (the owner, 2026-11-18: "Move this to the rail ... give this button its own page for projects");
+  from another window it brings the home window forward (a named window) rather than opening a second one.
   Alt+Home does the same.
 - **Views live in the address.** A tab, a form inside a dialog, a step of a wizard, an item of a library:
   each move the user makes pushes the browser's history with the view in the address (never a secret,
@@ -415,6 +416,22 @@ in one module, so no screen invents its own.
   kind's documents in the Workbench.
 - The owner (2026-11-16): "I've noticed there is no navigation in the app to get back to the home page or
   go back anywhere. No back buttons." And: "this app needs a navigation pane somehow" (a slim icon rail).
+
+**8.12 What is loading is gated, and says so where you look** (the owner, 2026-11-18: "some things say in tiny
+text loading and they don't gate the thing that is loading ... That's bad design"). One loading component on
+every page and window (web/src/loading.ts), never a page's own.
+- **Gate exactly what is loading:** while a panel, card, tree, form or canvas loads or refreshes, it is
+  covered and cannot be clicked or typed into (`inert`, `aria-busy`), so no click lands on stale or half-drawn
+  content and no work starts twice. Only that part: the rest of the window stays usable (8.5). The whole window
+  only when the whole window is what is loading.
+- **Say it where the eye is, readably:** a spinner and words over the gated part, at the body text's size (never
+  a hint's tiny text, never only a toast): what is happening and to what ("Loading Finance Captive's tables…",
+  "Connecting to Warehouse…"); after a few seconds, how long it has taken.
+- **A button that starts slow work is busy until it ends:** disabled, a small spinner inside it, its own words
+  ("Testing…"); a second click does nothing.
+- **Cancel where the work can stop.** An error stays in the gated part with the fix (9), not only in a toast.
+- **No flicker:** work that ends in a moment shows no cover; an empty area that is filling in keeps the
+  content's height, so nothing jumps.
 
 ## 9. Errors
 
@@ -629,6 +646,8 @@ Run this against every new screen or feature.
 10. Can it be used from the keyboard alone, and is every action in the palette?
 11. Can the agent do it through a command, in the same change?
 12. Do slow parts run in the background with a status word? Does anything appear or ask unasked?
+    While a part loads, is exactly that part gated (covered, not clickable) with readable words saying what
+    is loading, its button busy, a Cancel where the work can stop, and no flicker for quick work (8.12)?
 13. Do its results go to the dashboard, a table and code, and can its numbers be shown with the math?
 14. Does an error say what happened, where, and offer the fix? Does a disabled button say why?
 15. Does it write to disk without a click, show a password, or send anything off the computer? It must not.
