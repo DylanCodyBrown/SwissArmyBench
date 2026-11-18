@@ -138,10 +138,11 @@ def test_add_api_from_a_file_and_from_the_form(
     assert (made_at.parent / "openapi.json").is_file()
     assert standin.API_KEY not in dialog.inner_text()
     shot(page, "add-api-its-explorer.png")
-    # Not on the Connections page: its one line points to the APIs page.
+    # Not on the Connections page, and no line there pointing to the APIs page (the owner, 2026-11-18).
     page.locator(".nav-rail [data-area='connections']").click()
     connections = page.locator(".area-page[data-page='connections']")
-    expect(connections.locator(".connections-apis-link")).to_be_visible()
+    expect(connections).to_be_visible()
+    expect(connections.locator(".connections-apis-link")).to_have_count(0)
     expect(connections.locator(".connection-card[data-connection='Orders']")).to_have_count(0)
     # An API is not on the Connections page (the owner, 2026-11-17: "APIs are connections but they dont get
     # the connection treatment here"); its tables are in SQL all the same.

@@ -61,7 +61,7 @@ import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError } from "./missingPackages";
 import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
-import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
+import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
 
 interface Field {
@@ -686,8 +686,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
             }),
           )
         : h("p", { class: "empty-note" }, "No connections"),
-      // APIs are connections that do not get the connection treatment (the owner, 2026-11-17).
-      h("p", { class: "connections-apis-link muted" }, h("button", { type: "button", class: "link", onclick: () => runArea("apis") }, "APIs are on the APIs page")),
+      // APIs are not here (the owner, 2026-11-17); the line pointing to their page went: the rail has them
+      // beside Connections ("its not needed", 2026-11-18).
     );
   };
 
