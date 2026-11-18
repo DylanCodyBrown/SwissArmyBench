@@ -24,15 +24,33 @@ Without Python: the folder button beside + opens a file (CSV, Parquet, JSON, Arr
 
 **Rename a table** by double-clicking its tab (or F2 on the tab): type the new name and press Enter, or Escape to leave it. The new name holds everywhere: every tab on it, its steps, the relationship model and the SQL that names it from then on. A Python session that kept the old name current stops following it.
 
-## Tray and updates
+## Opening the app, and updates
 
-Swiss Army Bench starts itself when you sign in and stays running: the installer sets that up, starts it and opens its page once. Its icon sits in the system tray (on Linux, when the desktop has a tray). `swissarmybench start` in a terminal starts it by hand and opens the page; `swissarmybench open` opens the page of the one running.
+Swiss Army Bench is a desktop app: open **Swiss Army Bench** from the Start menu (Windows), Applications
+(macOS) or your applications menu (Linux), or type `swissarmybench` in a terminal. Each page opens in a
+window of its own; the Workbench, a pop-out and a steps or SQL window open as windows too, and each kind of
+window opens where you last left it. `swissarmybench open ~/sales` opens a project folder in it.
 
-- **Click** the icon to open the page. The address bar then shows just the page (`http://127.0.0.1:<port>/workspace`); a bookmark of it works while the app runs. After a restart, open it from the tray once more.
-- **Right-click** it for what is open (your tables and Workbench documents; a • marks unsaved changes; choose one to go to it), **Open the Workbench**, **Open the blades page**, **Restart**, **Start with Windows** (**Open at login** on a Mac or Linux; a tick when on) and **Stop and quit**. When the app is stopped, the menu has **Start**.
-- **It stays running:** only **Stop and quit**, `swissarmybench stop` or signing out stop it. If it stops by itself, the tray starts it again; after three times in five minutes the menu says **Swiss Army Bench stopped: Restart**. `swissarmybench autostart off` (or the tray's tick) stops it starting at sign-in.
-- **An update:** when a newer version is out, the icon gets a blue dot, its tooltip says "Update available: 0.0.2", and the menu starts with **Update to 0.0.2** and **What's new**. The status bars of the grid page and the Workbench show **Update available**, which offers the same.
-- **Update to X** asks first only if a notebook has unsaved changes or a kernel is running (nothing is saved for you). The app closes, installs the new version and opens again. If that fails, the old version opens again and the status bar says **Update failed**, with the reason.
+- **It runs while it is open.** The app starts its local server when it opens and stops it when you close its
+  last window. Nothing stays in the background: there is no tray icon and nothing starts when you sign in.
+  An open project with unsaved changes is saved first (as Autosave does); with Autosave off the server waits.
+  When your agent, VS Code or a Python session is still using it, the server stays up until ten minutes after
+  their last request.
+- **The browser too:** right-click a page's empty space and choose **Open in browser** (or Ctrl+Shift+B), or
+  run `swissarmybench open --browser`: the same app in a browser tab, on the same server.
+- **Links** to anything that is not the app open in your browser. **Downloads** ask where to save (the system's
+  Save dialog), then the window's bottom line shows the progress and **Show in folder**. **Print to PDF**
+  (Visualizations' button, or Ctrl+P) asks where to save the PDF.
+- **Keys:** F11 full screen, F12 the developer tools, Alt+Left and Alt+Right back and forward, F5 reload,
+  Ctrl+W closes the window (a page with unsaved work asks first).
+- **Install:** the installer adds the app to the Start menu (`-DesktopShortcut` adds one on the desktop too),
+  Applications or the applications menu, and opens it once. `install.sh --uninstall` (or `install.ps1
+  -Uninstall`) removes it; your projects and settings stay. The app needs about 650 MB more than the browser
+  version did (Qt WebEngine, Chromium inside).
+- **Upgrading from a version with the tray:** its icon and its start-at-sign-in entry are removed the first time
+  the new version starts, and the page says so once.
+- **An update:** when a newer version is out, the status bars of the grid page and the Workbench show **Update available**, with **Update to 0.0.2** and **What's new**.
+- **Update to X** asks first only if a notebook has unsaved changes or a kernel is running (nothing is saved for you). The app closes, installs the new version and opens again (its windows close and the new version's home window opens). If that fails, the old version opens again and the status bar says **Update failed**, with the reason.
 - **Settings, Updates, Check for updates** turns the check off. The check asks PyPI (then GitHub) which version is the latest; it is the only thing that leaves your computer, and it sends nothing about you or your data.
 
 ## Extensions

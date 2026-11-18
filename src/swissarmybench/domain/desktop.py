@@ -365,7 +365,7 @@ def read_message(line: bytes, key: str) -> dict[str, Any]:
     if not isinstance(said, dict) or not isinstance(said.get("key"), str):
         raise ShellError("Not a message.")
     if not hmac.compare_digest(said["key"].encode(), key.encode()):
-        raise ShellError("Not this shell's key.")
+        raise ShellError("Not this app's key.")
     if "open" in said:
         return {"open": page_of(said["open"])}
     if said.get("status") is True:
@@ -394,3 +394,66 @@ def window_title(title: str, app: str = "Swiss Army Bench") -> str:
     if not text or "://" in text or text.lower().startswith(("about:", "blob:", "data:")):
         return app
     return text[:200]
+
+
+# ===== the app's icon, as files (the launcher's: a Windows shortcut's .ico, a PNG) =====
+
+MARK_RED_RGB = (0xD5, 0x2B, 0x1E)
+_CROSS = ((42, 23), (58, 23), (58, 42), (77, 42), (77, 58), (58, 58), (58, 77), (42, 77), (42, 58), (23, 58))
+
+
+def _in_mark(x: float, y: float) -> tuple[int, int, int, int]:
+    """The mark's colour at (x, y) on a 100 x 100 square: a red rounded square (radius 20), a white cross."""
+    r = 20.0
+    cx = min(max(x, r), 100 - r)
+    cy = min(max(y, r), 100 - r)
+    if not (0 <= x <= 100 and 0 <= y <= 100) or (x - cx) ** 2 + (y - cy) ** 2 > r * r:
+        return (0, 0, 0, 0)
+    if (42 <= x <= 58 and 23 <= y <= 77) or (23 <= x <= 77 and 42 <= y <= 58):
+        return (255, 255, 255, 255)
+    return (*MARK_RED_RGB, 255)
+
+
+def icon_png(size: int) -> bytes:
+    """The mark as a PNG of `size` pixels (standard library only; 3 x 3 samples a pixel for its edges)."""
+    import struct
+    import zlib
+
+    rows = bytearray()
+    step = 100 / size
+    for j in range(size):
+        rows.append(0)
+        for i in range(size):
+            total = [0, 0, 0, 0]
+            for sy in (0.17, 0.5, 0.83):
+                for sx in (0.17, 0.5, 0.83):
+                    for k, v in enumerate(_in_mark((i + sx) * step, (j + sy) * step)):
+                        total[k] += v
+            alpha = total[3] // 9
+            rgb = [min(255, total[k] * 255 // total[3]) if total[3] else 0 for k in range(3)]
+            rows += bytes((*rgb, alpha))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    header = struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(bytes(rows), 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+def icon_ico(sizes: tuple[int, ...] = (16, 32, 48, 256)) -> bytes:
+    """A Windows .ico holding the mark at `sizes` (PNG images inside, as Windows Vista and later read)."""
+    import struct
+
+    images = [icon_png(n) for n in sizes]
+    out = struct.pack("<HHH", 0, 1, len(images))
+    offset = 6 + 16 * len(images)
+    for n, data in zip(sizes, images, strict=True):
+        side = 0 if n >= 256 else n
+        out += struct.pack("<BBBBHHII", side, side, 0, 0, 1, 32, len(data), offset)
+        offset += len(data)
+    return out + b"".join(images)

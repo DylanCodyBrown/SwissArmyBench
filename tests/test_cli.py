@@ -179,7 +179,8 @@ NOT_COMMANDS = {
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
     "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",
     "/library/notices": "the page's once-only notices, taken by it: library_info shows them to the agent",
-    "/updates/tray": "the tray's menu (tray plumbing): tabs_list and workbench_window documents say the same",
+    "/lifecycle/closed": "the desktop app's own word that its last window closed (app plumbing): "
+    "app_lifecycle reads the server's life",
     "/session": "the page's cookie (page plumbing): the agent keeps the Bearer token",
     "/project/layout": "a window reports its layout for the next save (page plumbing): project_save keeps it",
     "/claude/launch": "Launch Claude starts a process on the user's computer: the user's click only (an "

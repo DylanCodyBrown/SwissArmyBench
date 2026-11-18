@@ -178,3 +178,51 @@ def test_the_pyside6_wheels_are_the_servers_and_pinned() -> None:
         assert pinned in server
     assert not any(d.lower().startswith(("pystray", "pillow")) for d in server)
     assert not any("pyside" in d.lower() for d in project["dependencies"])  # the plain client: none
+
+
+def test_install_sh_adds_the_launcher_and_uninstall_removes_it(tmp_path: Path) -> None:
+    """install.sh with a made-up uv on PATH (Linux): the .desktop entry and the icon in ~/.local/share, the
+    old tray's sign-in entry taken away, nothing opened on a build machine; --uninstall removes the launcher."""
+    import subprocess
+
+    root = Path(__file__).resolve().parents[1]
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "uv.log"
+    (bin_dir / "uv").write_text(f'#!/bin/sh\necho "$@" >> "{log}"\n', encoding="utf-8")
+    (bin_dir / "uv").chmod(0o755)
+    script = (root / "installer" / "install.sh").read_text(encoding="utf-8").replace("__VERSION__", "9.9.9")
+    (tmp_path / "install.sh").write_text(script, encoding="utf-8")
+    wheel = tmp_path / "swissarmybench-9.9.9-py3-none-any.whl"
+    wheel.write_bytes(b"made up")
+    old = tmp_path / ".config" / "autostart" / "swissarmybench.desktop"
+    old.parent.mkdir(parents=True)
+    old.write_text("[Desktop Entry]\nExec=/x/python -m swissarmybench.server tray\n", encoding="utf-8")
+    env = {"PATH": f"{bin_dir}{os.pathsep}/usr/bin{os.pathsep}/bin", "HOME": str(tmp_path), "CI": "1"}
+
+    def run(*args: str) -> str:
+        done = subprocess.run(  # noqa: S603, S607 (sh, this checkout's installer)
+            ["sh", str(tmp_path / "install.sh"), *args], env=env, capture_output=True, text=True, check=False
+        )
+        assert done.returncode == 0, done.stderr
+        return done.stdout
+
+    said = run(str(wheel), "--no-autostart")  # the gone flag is still taken
+    entry = tmp_path / ".local" / "share" / "applications" / "swissarmybench.desktop"
+    icon = tmp_path / ".local" / "share" / "icons" / "hicolor" / "scalable" / "apps" / "swissarmybench.svg"
+    text = entry.read_text(encoding="utf-8")
+    assert "Name=Swiss Army Bench" in text and "Icon=swissarmybench" in text and "Exec=" in text
+    assert icon.read_text(encoding="utf-8").startswith("<svg") and not old.exists()
+    assert "Opening Swiss Army Bench" not in said  # a build machine: nothing opened
+    said = run("--uninstall")
+    assert not entry.exists() and not icon.exists() and "removed" in said
+    assert "tool uninstall swissarmybench" in log.read_text()
+
+
+def test_the_icon_command_writes_the_launchers_icon(tmp_path: Path) -> None:
+    assert command.write_icon(str(tmp_path / "a.ico")) == 0
+    data = (tmp_path / "a.ico").read_bytes()
+    assert data[:4] == b"\x00\x00\x01\x00" and b"\x89PNG" in data
+    assert command.write_icon(str(tmp_path / "a.png")) == 0
+    assert (tmp_path / "a.png").read_bytes()[:4] == b"\x89PNG"
+    assert command.write_icon(str(tmp_path / "a.gif")) == 2

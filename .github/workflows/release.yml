@@ -98,10 +98,17 @@ jobs:
       - name: Install with install.sh
         if: runner.os != 'Windows'
         run: |
-          sh dist/install.sh dist/swissarmybench-*.whl --no-autostart --no-start
+          sh dist/install.sh dist/swissarmybench-*.whl --no-start
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          # No sign-in entry left behind on the build machine.
-          "$HOME/.local/bin/swissarmybench" autostart status | grep -q ': off$'
+          # The launcher: a .desktop entry (Linux) or the .app (macOS); nothing opened on a build machine.
+          if [ "$(uname -s)" = "Darwin" ]; then
+            test -x "$HOME/Applications/Swiss Army Bench.app/Contents/MacOS/swissarmybench"
+          else
+            grep -q '^Exec=' "$HOME/.local/share/applications/swissarmybench.desktop"
+          fi
+          # The desktop app's Qt WebEngine imports in the installed tool (no window: no display here).
+          "$(uv tool dir)/swissarmybench/bin/python" -c "import PySide6.QtWebEngineWidgets"
+          "$HOME/.local/bin/swissarmybench" icon "$RUNNER_TEMP/sab.png" && test -s "$RUNNER_TEMP/sab.png"
       - name: Install with install.ps1
         if: runner.os == 'Windows'
         # Windows PowerShell 5.1, what a Windows user runs by default (pwsh treats a program's error stream
@@ -109,11 +116,13 @@ jobs:
         shell: powershell
         run: |
           $wheel = (Get-ChildItem dist/swissarmybench-*.whl).FullName
-          ./dist/install.ps1 $wheel -NoAutostart -NoStart
+          ./dist/install.ps1 $wheel -NoStart
           Add-Content $env:GITHUB_PATH (Join-Path $env:USERPROFILE ".local\bin")
-          # No Startup shortcut left behind on the build machine.
-          $status = & (Join-Path $env:USERPROFILE ".local\bin\swissarmybench.exe") autostart status
-          if ($status -notmatch ': off$') { throw "The installer left start at sign-in on: $status" }
+          # The Start menu shortcut, with the app's icon; no Startup entry (start at sign-in is gone).
+          $programs = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+          if (-not (Test-Path (Join-Path $programs "Swiss Army Bench.lnk"))) { throw "No Start menu shortcut." }
+          if (Test-Path (Join-Path $programs "Startup\Swiss Army Bench.lnk")) { throw "A Startup entry was left." }
+          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA "SwissArmyBench\swissarmybench.ico"))) { throw "No icon." }
       - uses: astral-sh/setup-uv@v6
       - name: Smoke test the installed server
         shell: bash

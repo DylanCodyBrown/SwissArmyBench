@@ -1,13 +1,24 @@
 # CLAUDE.md — Swiss Army Bench
 
-A local Python server (Starlette + uvicorn + in-memory DuckDB) that shows tabular data in live
-AG Grid pages, with steps, profiling, SQL, export, verified code generation, charts and an MCP
-door for agents. It runs only on the user's machine. This repository is the whole product: the Python
-package at the root, its page in `web/`, and the optional VS Code extension in `vscode-extension/`.
+A desktop app (PySide6: each page a window, drawn by Qt WebEngine) over a local Python server (Starlette +
+uvicorn + in-memory DuckDB) that lives while the app is open: tabular data in live AG Grid pages, with steps,
+profiling, SQL, export, verified code generation, charts and an MCP door for agents. The owner, 2026-11-18:
+"Change that to the primary install. It's not an extension it is the app framework now and it should have been
+since the start." The browser stays possible (`swissarmybench open --browser`), secondary. It runs only on the
+user's machine. This repository is the whole product: the Python package at the root, its page in `web/`, and
+the optional VS Code extension in `vscode-extension/`.
 
 One package, two installs (`python build.py` builds the wheel, page inside): the plain wheel is a
-standard-library-only push client for any Python environment; the `[server]` extra is the grid server,
-installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), started by `swissarmybench`.
+standard-library-only push client for any Python environment; the `[server]` extra is the app (the server and
+the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (`uv tool install
+"<wheel>[server]"`, the installers add a Start menu / Applications / applications-menu launcher), opened by
+`swissarmybench`.
+
+- **The server's life follows the app (the owner, 2026-11-18: "I wanted the server to simply run while the app
+  is active and shutdown when it's not"; the tray and start at sign-in removed "entirely"):** it stops 30 s after
+  the last window closes (at once when the desktop app closes), or 10 minutes after the last request of the
+  agent, VS Code or a Python session with no window open (services/lifecycle.py; `app_lifecycle`); an open
+  project is saved first (Autosave on) or the stop waits. No tray, no start at sign-in, no watchdog.
 
 - **Renamed (the owner, 2026-11-15):** SwissArmyGrid is now Swiss Army Bench: `swissarmybench`, alias `sab`.
   Write only the new names; the old ones are read for one release (`renamed.py`, README "Renamed from
@@ -75,8 +86,9 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   IPython kernel, [Plans/workbench-and-connections.plan.md](Plans/workbench-and-connections.plan.md)),
   Jupyter or Python in the terminal (marimo was built in, then stripped on the owner's call, 2026-11).
   **Rule: code always opens in its own browser window, never in the grid page** (the rail's Notebooks,
-  Scripts and Apps open it), so it can sit on another screen; saved workspaces; a tray icon; and a Power BI style
-  relationships view with autodetection. VS Code is optional.
+  Scripts and Apps open it), so it can sit on another screen; saved workspaces; the desktop app (PySide6 windows,
+  its pages in Qt WebEngine; built 2026-11-18, the browser secondary); and a Power BI style relationships view
+  with autodetection. VS Code is optional.
 - **The golden rule (the owner, 2026-11-14): every single thing the user can do, the agent can do
   too, through the MCP, with no prompts.** A new user action gets its command in `cli/commands.py`
   (so an MCP tool) in the same change. The only exceptions: the agent cannot answer its own approval
@@ -129,8 +141,10 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   GitHub on the user's Clone, Pull, Push and Commit only (`sync.json` in the state folder: links, never a file's
   content or the token); see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
-  itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
-  files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
+  itself; Settings' Check for updates turns it off (`update.json`). The desktop app's and updates' small state
+  files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
+  (its Qt WebEngine profile: cookies, local storage, cache; `windows.json`, each kind of window's place),
+  `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs.
@@ -391,13 +405,19 @@ src/swissarmybench/
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
-                         update's plan (uv tool install --force, each installed extension `--with`), the tray's menu
+                         update's plan (uv tool install --force, each installed extension `--with`)
     extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps, copilot available), statuses
                          (preinstalled, available, installed, coming), an entry point's description read loosely,
                          the wheel on this version's GitHub release, Install's and Remove's plan
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
+    desktop.py           the desktop app's rules: what loads inside (the app's origin) and what goes to the system's
+                         browser or is refused, named-window reuse (sab-home), each kind of window's place, pages
+                         named without the token, the app's command line, its channel's messages, the clipboard the
+                         one permission, window titles, the launcher's icon (PNG, .ico) made with the stdlib
+    lifecycle.py         the server's life: windows, the grace, the start grace, the app closed, the last client's
+                         ten minutes, busy, held; when it stops and why (app_lifecycle)
     claude.py            Launch Claude: Claude Code and Claude Desktop found loosely (registry, Store, Start menu,
                          bundles, .desktop files, PATH answers read), the official first; CLAUDE.md (a stable
                          header and `@context.md`), .mcp.json, the prompt hook (--folder); the user's terminal
@@ -514,7 +534,10 @@ src/swissarmybench/
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
-                         work would be lost; the agent's waits for Allow), start at sign-in
+                         work would be lost; the agent's waits for Allow)
+    lifecycle.py         the server's life: the windows counted, the clients' requests (from the guard), the stop
+                         (an open project saved first, or held), the desktop app's closed
+    desktop.py           desktop_status and desktop_open: the app's windows, a page opened in one
     extensions.py        the Extensions page: the cards, Install and Remove handed to the update's helper (the
                          agent's on Allow; Remove asks the user first; a development checkout says what to run)
     claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
@@ -586,7 +609,9 @@ src/swissarmybench/
     connection_colours.py colours.toml (the library's), written only when it changes
     claude.py            Launch Claude's files: claude/<project>/ (its context.md atomically, only when changed),
                          claude.json, a Desktop config (backup first)
-    updates.py           the release list's one GET, update.json, the helper's and the tray's notes
+    updates.py           the release list's one GET, update.json, the helper's notes
+    desktop.py           the desktop app's channel (127.0.0.1, a key, one JSON line each way), desktop.json, its
+                         windows.json
     extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
                          SWISSARMYBENCH_EXTENSIONS (tests and development only)
     projects.py          a project's folder: made, listed, its own files read and written, zipped
@@ -600,7 +625,7 @@ src/swissarmybench/
                          answer), records as an Arrow table for Open as grid
     variables.py         the Variables page's files (the library's variables.toml, shareable; local/variables.toml,
                          this computer's), the keyring (`variable/<NAME>`), the server's own environment
-    live_updates.py      the pages' and VS Code windows' sockets
+    live_updates.py      the pages' and VS Code windows' sockets (the app's windows counted for the server's life)
     folders.py           a folder's contents for the page's own picker (hidden ones on request), its places (Home,
                          Desktop, Documents, Downloads), New folder
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
@@ -621,18 +646,23 @@ src/swissarmybench/
                          shared_catalog). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
-    security.py          the guard: 127.0.0.1, the token, Host and Origin
+    security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
     beta_requests.py     the beta log at the door: slow requests by route pattern, errors with their route
     lifecycle.py, launcher.py, __main__.py   ports, single instance, clean exit; `swissarmybench`
-                         (start [--background], stop, status, open [folder], tray, autostart on|off|status)
-    tray.py              the tray icon (pystray, Pillow): its menu (domain/updates.py's model), the left
-                         click, the server started and watched (restarted 3 times in 5 minutes at most)
-    autostart.py         start at sign-in: a Startup shortcut (Windows), a LaunchAgent (macOS), an XDG
-                         autostart entry (Linux), each running the tray
+                         (the app; open [folder] [--browser], start [--background] [--no-window], stop,
+                         status, icon <file>; tray and autostart said gone)
+    desktop.py           the desktop app from outside (no Qt): can it run, open a page in it (started when none
+                         runs; else the browser), its status, `swissarmybench app`'s process (one at a time)
+    desktop_shell.py     the desktop app (PySide6): windows, the persistent profile, window.open, outside links to
+                         the browser, downloads, Print to PDF, permissions, keys, Open in browser, the server it
+                         starts and tells when its last window closed
+    legacy_tray.py       an older version's tray and start-at-sign-in entry, removed once (said once)
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
                          installs with uv, checks the version, starts the app, or the old one and a note;
                          Install and Remove an extension the same way (launch_change)
-    routes_updates.py    the update check, its switch, Update to X, the tray's menu, start at sign-in
+    routes_updates.py    the update check, its switch, Update to X
+    routes_lifecycle.py  GET /lifecycle (app_lifecycle), POST /lifecycle/closed (the app's)
+    routes_desktop.py    GET /desktop, POST /desktop/open (desktop_status, desktop_open)
     routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)
     dialog_runner.py     the system's file dialog in a short-lived child process: one at a time, ten minutes at
                          most, the start folder the nearest that is there; GET /dialogs says whether one opens
@@ -851,6 +881,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
+                         desktop_drive.py (the desktop app really run under Qt off screen: windows, downloads,
+                         Print to PDF, outside links, the server stopping with it; test_desktop_shell.py runs it),
                          copilot_standin.py (GitHub's Copilot Language Server stood in for: stdio LSP, a made-up
                          device flow and made-up suggestions),
                          test_architecture.py (the layers, the depth, the plain client),

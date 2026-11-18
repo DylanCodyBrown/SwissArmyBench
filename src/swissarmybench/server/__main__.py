@@ -97,9 +97,13 @@ def main() -> None:
         "command",
         nargs="?",
         default=None,
-        choices=["app", "start", "stop", "status", "open", "tray", "autostart"],
+        choices=["app", "start", "stop", "status", "open", "icon", "tray", "autostart"],
     )
-    parser.add_argument("switch", nargs="?", help="open: a project's folder; app: a page of the app.")
+    parser.add_argument(
+        "switch",
+        nargs="?",
+        help="open: a project's folder; app: a page of the app; icon: a .ico or .png file.",
+    )
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
     parser.add_argument(
         "--no-window", "--no-browser", dest="no_window", action="store_true", help="No window when it starts."
@@ -120,6 +124,8 @@ def main() -> None:
     if command in ("tray", "autostart"):
         print(GONE_WORDS)
         return
+    if command == "icon":
+        sys.exit(write_icon(args.switch))
     if command == "app":
         if args.browser or not desktop.can_run():
             sys.exit(0 if open_in_browser(path, args.switch) else 1)
@@ -167,6 +173,20 @@ def main() -> None:
     except (AlreadyStartingError, PortError) as error:
         print(error, file=sys.stderr)
         sys.exit(1)
+
+
+def write_icon(target: str | None) -> int:
+    """`swissarmybench icon <file>`: the app's icon for a launcher (the installers': a Windows shortcut's
+    .ico, a PNG elsewhere), by the file's suffix."""
+    from swissarmybench.domain import desktop as rules
+
+    if not target or not target.lower().endswith((".ico", ".png")):
+        print("swissarmybench icon <file.ico | file.png>", file=sys.stderr)
+        return 2
+    path = Path(target).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(rules.icon_ico() if path.suffix.lower() == ".ico" else rules.icon_png(256))
+    return 0
 
 
 def open_address(address: str, browser: bool = False) -> None:
