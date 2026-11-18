@@ -3173,3 +3173,35 @@ Checked here:
 NOT checked: a real completion, sign-in or sign-out with the real server (needs a GitHub Copilot plan), Monaco's
 Alt+] / Alt+[ cycling and Ctrl+Right partial accept in the browser (Monaco's own keys; the partial report is
 tested over HTTP), Windows and macOS, Edge, the extension's wheel built by build.py and installed from a release.
+
+
+## GitHub sync and the Source Control page, the Git extension (2026-11-18, branch github-sync)
+
+Checked here, against **GitHub stood in for on 127.0.0.1** (`tests/github_standin.py`: the device flow, the user,
+repositories, refs, commits (history and one commit's files), trees, blobs, compare, branches and the Git Data
+API's writes over in-memory repositories of made-up files). **Real GitHub (api.github.com, github.com/login) was
+not reached**: the request shapes follow GitHub's REST v3 documentation; the first real sign-in, clone and push are
+for the owner to try.
+
+- `tests/test_scm_rules.py` (8): git's blob SHA (`hello\n` = ce013625...), repository, branch and path checks,
+  .gitignore patterns at every level and the app's own exclusions, diff3 (clean, the same change, one side, a
+  conflict, inserts at one place, no base, not text), a pull's plan, secrets found, the words, VS Code's groups.
+- `tests/test_scm.py` (8): a token's sign-in (refused one, the agent's 403, the keyring only, never in an answer or
+  any file of the state folder), the device flow; clone (not signed in, not empty, the folder then the meta store's,
+  its connection the library's), the status words, pull (taken, merged, deleted, a conflict with .theirs, the blades
+  read again), push (behind refused, conflict refused, a secret refused and named, large files left out,
+  `.gitignore` and `local/` never sent, the commit's message); connect (nothing written, then a conflict); the
+  agent's clone, pull and push only on Allow; the Source Control routes (groups, stage, unstage, diff sides and
+  unified text, commit of the staged file, discard on Allow, history order and parents, refs, a commit's files and
+  diff, create a branch on GitHub, checkout refused when dirty, then checked out, sync); a shared project's scoped
+  push, the footer's mark (↑1, ↓1 behind, none), the rail's area as data; off: the door names the extension.
+- `tests/e2e/test_scm_page.py` (4, Chromium): the rail icon absent with the extension off; Settings' GitHub section
+  (sign in with a token, Clone a repository… through the quick picks and the page's folder picker, Up to date);
+  the Source Control page (M and U, the count, the placeholder, Stage Changes on hover, Staged Changes, Monaco's diff
+  editor, F7, Inline View, Ctrl+Enter commits, the graph's four rows, the HEAD ring, two labels, a commit's file
+  and its diff, Discard Changes' question and the file gone); the footer's mark appearing after a save and going
+  after Commit; a shared card's Pull leaving a conflict ("Conflicts: 1"), the page's Merge Changes with `!` and
+  the Yours ↔ Theirs diff; smart commit's question; the page in Dark Modern.
+- Not checked: real GitHub; Sign in with GitHub against github.com (no client id yet); Windows' and macOS'
+  keyrings; a side-by-side comparison with VS Code (none runs here: the values come from VS Code's source).
+- The whole suite with Chromium (2026-11-18): 4321 passed, 50 skipped, 5 failed and 1 error under load. Alone: `test_extensions_page` failed for the catalog's fourth card (fixed: the test now counts four, Git among the available ones); `test_show_the_math`, `test_starters_page`'s DAX snippet, `test_streamlit_page`'s agent export, `test_workbench_page`'s export through the file chooser and its deleted-cell test passed when run alone (the export one twice): load-dependent, not this branch's.

@@ -196,6 +196,7 @@ NOT_COMMANDS = {
     "/accounting/{}": "the Accounting extension is not on here: its door says so (extensions_install)",
     "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
     "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
+    "/git/{}": "the Git extension is not on here: its door says so (extensions_install)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }
@@ -660,7 +661,8 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # The shared catalog (2026-11-18) added three: catalog_shared, _table, _refresh. The meta store's setup
     # checklist added two (library_setup, its Move to a vault); local and shared projects two (project_share,
     # project_copy_local), projects_folder_set became projects_folders, project_new got `where`.
-    # 82,500 (2026-11-18): the Copilot extension's three tools and project_private, after trimming.
+    # 82,500 (2026-11-18): the Copilot extension's three tools and project_private, after trimming; the Git
+    # extension added app_mode's areas (its own github_ and scm_ tools count only where it is on).
     assert size < 82_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema

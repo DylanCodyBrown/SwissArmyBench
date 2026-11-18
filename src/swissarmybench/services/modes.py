@@ -9,6 +9,7 @@ time, from the open project; no project open: the base's.
   active   the open project's type and its mode; `needs`: the extension a project's type names that is not
            on here (the project opens with what the base can)
   modes    every type this app can make (the base's, then each on extension's): New project lists them
+  areas    the rail's areas the on extensions add (their RAIL), and the footer's mark each may answer
 """
 
 from __future__ import annotations
@@ -23,13 +24,20 @@ class Modes:
         modes: Callable[[], list[dict[str, Any]]],
         folder: Callable[[], str | None],
         type_of: Callable[[str | None], str],
+        areas: Callable[[], list[dict[str, Any]]] = list,
     ) -> None:
         self._modes = modes
+        self._areas = areas  # the rail's areas the on extensions add (each one's RAIL, as data)
         self._folder = folder  # the open project's folder (None: no project)
         self._type_of = type_of  # a project folder's type (.sab/project.json)
 
     def all(self) -> list[dict[str, Any]]:
         return self._modes()
+
+    def areas(self) -> list[dict[str, Any]]:
+        """The rail's areas the on extensions add: {area, name, icon, mark?: a route answering the footer's
+        mark ({"mark": null or {"words", "state", "title"}})}. The page draws them; it never names one."""
+        return self._areas()
 
     def active(self) -> dict[str, Any]:
         folder = self._folder()

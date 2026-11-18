@@ -3,6 +3,7 @@
 GET  /app/mode    the open project's type and its mode (canvases, families, languages, cell kinds, tools,
                   export); `needs`: the extension its type names that is not on here
 GET  /app/modes   every project type this app can make: the base's, then each on extension's
+GET  /app/areas   the rail's areas the on extensions add, each with the footer's mark route it may answer
 """
 
 from __future__ import annotations
@@ -22,4 +23,7 @@ def routes(modes: Modes) -> list[BaseRoute]:
     async def every(request: Request) -> Response:
         return json_response({"modes": modes.all()})
 
-    return [Route("/app/mode", active), Route("/app/modes", every)]
+    async def areas(request: Request) -> Response:
+        return json_response({"areas": modes.areas()})
+
+    return [Route("/app/mode", active), Route("/app/modes", every), Route("/app/areas", areas)]

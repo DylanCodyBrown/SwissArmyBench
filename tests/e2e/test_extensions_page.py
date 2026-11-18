@@ -66,7 +66,7 @@ def test_the_rail_has_extensions_above_settings_and_its_page_shows_each_kind(
     expect(streamlit.locator(".extension-version")).to_have_text(__version__)
     # Its own package, installed with every install: Remove is there (it asks first).
     expect(streamlit.get_by_role("button", name="Remove")).to_be_visible()
-    for available in ("accounting", "powerapps", "copilot"):
+    for available in ("accounting", "powerapps", "copilot", "git"):
         card = page.locator(f".extension-card[data-extension='{available}']")
         expect(card.locator(".extension-status")).to_have_text("Available")
         expect(card.locator(".extension-version")).to_have_text(__version__)
