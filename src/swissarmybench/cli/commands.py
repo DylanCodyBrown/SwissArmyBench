@@ -3656,11 +3656,34 @@ def library_info(a: dict[str, Any]) -> Any:
 
 @command(
     "library_set_folder",
-    "Point the library at another folder (a clone of a team's library) or back at the default; waits for Allow",
+    "Point the meta store (library) folder at a clone of the team's repository, or the default; waits for Allow",
     opt("folder", "The folder's whole path; none: the default (~/.swissarmybench/library)."),
 )
 def library_set_folder(a: dict[str, Any]) -> Any:
     return api.call("PUT", "/library", {"folder": a.get("folder")}, timeout=200)
+
+
+@command(
+    "library_setup",
+    "Set up from the meta store: vault sign-ins, values to type once, each connection's status, shared projects",
+    opt("check", "true: check every key vault again now.", "bool"),
+)
+def library_setup(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/library/setup?check=1" if a.get("check") else "/library/setup", timeout=120)
+
+
+@command(
+    "library_setup_move_to_vault",
+    "Move a connection's keyring password to a key vault's secret, so the next person needs nothing",
+    req("connection", "The connection."),
+    req("secret", 'Its password\'s name in the code (secret("...")).'),
+    req("vault", "The key vault."),
+    opt("vault_secret", "The secret's name in the vault (a new entry)."),
+    opt("env", "An entry the vault has already: its variable."),
+)
+def library_setup_move_to_vault(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("connection", "secret", "vault", "vault_secret", "env") if a.get(k)}
+    return api.call("POST", "/library/setup/move-to-vault", body)
 
 
 @command(
@@ -3822,6 +3845,7 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
     opt("name", "Its name (its folder's)."),
     opt("folder", "Where its folder goes (default: the projects folder)."),
     opt("path", "The project's own folder: new or empty."),
+    opt("where", "local (default) or shared: which projects folder its folder goes in."),
     opt("type", "bi (default) or an extension's (project_types lists them)."),
     opt("app", "true: a Streamlit app's canvas too.", "bool"),
     opt("notebooks", 'Notebooks to make: ["analysis"].', "json"),
@@ -3829,7 +3853,7 @@ def workbench_project_open(a: dict[str, Any]) -> Any:
     opt("discard", "true: let the open project's unsaved changes go.", "bool"),
 )
 def project_new(a: dict[str, Any]) -> Any:
-    keys = ("name", "folder", "path", "type", "app", "notebooks", "autosave", "discard")
+    keys = ("name", "folder", "where", "path", "type", "app", "notebooks", "autosave", "discard")
     return api.call("POST", "/project/new", {k: a[k] for k in keys if a.get(k) is not None})
 
 
@@ -3992,14 +4016,37 @@ def project_remove_from_list(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "projects_folder_set",
-    "Settings' Projects folder, where New project puts projects (waits for the user's Allow)",
-    opt("folder", "The folder."),
-    opt("default", "true: back to the default.", "bool"),
+    "projects_folders",
+    "Settings' Local and Shared projects folders: read both; set one (waits for the user's Allow)",
+    opt("which", "local (default) or shared."),
+    opt("folder", "The folder to set."),
+    opt("default", "true: local back to the default; shared: none.", "bool"),
 )
-def projects_folder_set(a: dict[str, Any]) -> Any:
+def projects_folders(a: dict[str, Any]) -> Any:
+    if not a.get("folder") and not a.get("default"):
+        return api.call("GET", "/projects/folder")
     body = {"default": True} if a.get("default") else {"folder": a.get("folder") or ""}
-    return api.call("POST", "/projects/folder", body)
+    return api.call("POST", "/projects/folder", body | {"which": a.get("which") or "local"})
+
+
+@command(
+    "project_share",
+    "Share a local project: copied into the shared projects folder (no rows), then opened; waits for Allow",
+    req("path", "The local project's folder."),
+    opt("name", "Its name there (when its own is taken)."),
+)
+def project_share(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/share", {k: a[k] for k in ("path", "name") if a.get(k)}, timeout=200)
+
+
+@command(
+    "project_copy_local",
+    "Make a local copy of a shared project (no rows; copied_from kept), then open it",
+    req("path", "The shared project's folder."),
+    opt("name", "Its name in the local folder (when its own is taken)."),
+)
+def project_copy_local(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/projects/copy-local", {k: a[k] for k in ("path", "name") if a.get(k)})
 
 
 @command(
@@ -4528,6 +4575,7 @@ OLD_NAMES: dict[str, str] = {
     "relationships_save_tang": "relationships_save_set",
     "relationships_export_tang": "relationships_export_set",
     "relationships_import_tang": "relationships_import_set",
+    "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
 }
 
 

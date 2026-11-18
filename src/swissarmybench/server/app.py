@@ -300,7 +300,7 @@ def create_app(
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
-            *routes_library.routes(ctx.library),
+            *routes_library.routes(ctx.library, ctx.library_setup),
             *routes_shared_catalog.routes(ctx.shared_catalog),
             *routes_connection_colours.routes(ctx.connection_colours),
             *routes_session_log.routes(ctx.session_log),

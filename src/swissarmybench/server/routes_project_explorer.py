@@ -1,11 +1,17 @@
 """The Project Explorer (services/project_explorer.py), the home page, for the page and the agent (the golden
 rule); Show in folder and Delete are the user's own (403 for the agent).
 
-GET  /projects/explorer     ?by=&descending=&type=&q=: every project as a card, sorted and filtered; the types
+GET  /projects/explorer     ?by=&descending=&type=&q=&where=: every project as a card (Local or Shared),
+                            sorted and filtered; the types; both projects folders
+GET  /projects/folder       the Local and Shared projects folders
 GET  /projects/types        the project types, each explained for beginners
 POST /projects/sort         {"by", "descending"?} | {"order": [folders]} | {"move": a folder, "by": -1 or 1}
 POST /projects/explained    {"explained": true}: the types' explanations put away (remembered)
-POST /projects/folder       {"folder"} | {"default": true}: Settings' Projects folder (the agent's on Allow)
+POST /projects/folder       {"which"?: "local" | "shared", "folder"} | {"default": true}: Settings' Local and
+                            Shared projects folders (the agent's on Allow)
+POST /projects/share        {"path", "name"?}: a local project copied into the shared folder (no rows), opened
+                            (the agent's on Allow)
+POST /projects/copy-local   {"path", "name"?}: Make a local copy of a shared project (no rows), opened
 POST /projects/rename       {"path", "name"}: a project's folder renamed
 POST /projects/remove       {"path"}: off the list (no file touched)
 POST /projects/locate       {"path", "to"}: a moved project found again
@@ -38,6 +44,9 @@ def routes(explorer: ProjectExplorer) -> list[BaseRoute]:
     async def listing(request: Request) -> Response:
         return json_response(await explorer.list(dict(request.query_params)))
 
+    async def folders(request: Request) -> Response:
+        return json_response(explorer.folders())
+
     async def types(request: Request) -> Response:
         return json_response(explorer.types())
 
@@ -55,6 +64,9 @@ def routes(explorer: ProjectExplorer) -> list[BaseRoute]:
         Route("/projects/sort", posted(explorer.sort), methods=["POST"]),
         Route("/projects/explained", posted(explorer.explained, False), methods=["POST"]),
         Route("/projects/folder", posted(explorer.set_folder), methods=["POST"]),
+        Route("/projects/folder", safely(folders), methods=["GET"]),
+        Route("/projects/share", posted(explorer.share), methods=["POST"]),
+        Route("/projects/copy-local", posted(explorer.copy_local), methods=["POST"]),
         Route("/projects/rename", posted(explorer.rename), methods=["POST"]),
         Route("/projects/remove", posted(explorer.remove), methods=["POST"]),
         Route("/projects/locate", posted(explorer.locate), methods=["POST"]),

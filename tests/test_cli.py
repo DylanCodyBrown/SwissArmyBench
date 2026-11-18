@@ -656,8 +656,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # relationships_delete, _update, _undo (the joins in use), _rename_set, _delete_set, and a saved set's
     # export in relationships_export_set; the ERD of the project's tables added relationships_scope and the
     # scope argument of erd_text and erd_draw (1,500 characters in all).
-    # The shared catalog (2026-11-18) added three: catalog_shared, _table, _refresh.
-    assert size < 81_000, f"the tool list is {size} characters"
+    # The shared catalog (2026-11-18) added three: catalog_shared, _table, _refresh. The meta store's setup
+    # checklist added two (library_setup, its Move to a vault); local and shared projects two (project_share,
+    # project_copy_local), projects_folder_set became projects_folders, project_new got `where`.
+    assert size < 82_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

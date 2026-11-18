@@ -301,7 +301,9 @@ def test_the_agents_commands(tmp_path: Path, client: TestClient) -> None:
         "project_rename",
         "project_remove_from_list",
         "project_copy",
-        "projects_folder_set",
+        "projects_folders",
+        "project_share",
+        "project_copy_local",
         "project_types",
     } <= names
     assert "project_import_sab" not in names  # the .sab conversion removed (2026-11-17)

@@ -285,9 +285,10 @@ class SabArchive:
         return str(target)
 
     @staticmethod
-    def copy_project(source: str, target: str, data: bool) -> str:
+    def copy_project(source: str, target: str, data: bool, git: bool = True, copied_from: str = "") -> str:
         """Copy project to: the whole folder into `target` (a new or empty folder), its .sab/data only when
-        `data`; environments and caches stay behind (they are this computer's)."""
+        `data`; environments and caches stay behind (they are this computer's). `git` False: its .git too
+        (Share and Make a local copy). `copied_from`: written into the copy's .sab/project.json."""
         root = Path(source).expanduser().resolve()
         into = Path(target).expanduser().resolve()
         if into == root or into.is_relative_to(root):
@@ -295,6 +296,8 @@ class SabArchive:
         if into.exists() and (not into.is_dir() or any(into.iterdir())):
             raise FileExistsError(f"{into} is not empty: pick a new or empty folder.")
         leave = {"__pycache__", ".venv", "venv", "node_modules", ".ipynb_checkpoints", ".mypy_cache"}
+        if not git:
+            leave.add(".git")
 
         def ignored(where: str, names: list[str]) -> set[str]:
             here = Path(where).resolve()
@@ -307,6 +310,16 @@ class SabArchive:
         if into.exists():
             into.rmdir()
         shutil.copytree(root, into, symlinks=True, ignore=ignored)
+        if copied_from:
+            manifest = into / APP_FOLDER / "project.json"
+            try:
+                raw = json.loads(manifest.read_text(encoding="utf-8")) if manifest.is_file() else {}
+            except (OSError, ValueError):
+                raw = {}
+            raw = (raw if isinstance(raw, dict) else {}) | {"copied_from": copied_from}
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            text = json.dumps(raw, indent=1, ensure_ascii=False, sort_keys=True, default=str) + "\n"
+            manifest.write_text(text, encoding="utf-8", newline="\n")
         return str(into)
 
 
