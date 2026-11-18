@@ -125,7 +125,8 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   project's scaffold, `.sab/data/` only on the user's tick), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
-  **One request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
+  **GitHub sync (the owner, 2026-11-18) sends the meta store's and shared projects' files to GitHub on the user's
+  Clone, Pull and Push only; see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; Settings' Check for updates turns it off (`update.json`). The tray's and updates' small state
   files: `tray.json` (its process id), `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
@@ -163,7 +164,13 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   tangs/) moved in once at start (the old files in `backup/before-library-<date>/`, said once on the page;
   the library's tangs/, a relationship set's old name, became relationship-sets/ once, 2026-11-17);
   an older project's own `.sab/blades` are copied in as it opens (the same skipped, a different one kept as
-  `<name> from <project>`, said) and its next save leaves them out. The app never runs git.
+  `<name> from <project>`, said) and its next save leaves them out. The app never runs git: **GitHub sync is
+  built in instead (the owner, 2026-11-18: "connect a local GitHub repo and push and pull and fork projects so you
+  could work a shared project and clone it into a local project"; chose "Built-in, signed in to GitHub")**: the meta
+  store and shared projects are cloned, pulled and pushed through GitHub's web API (api.github.com), signed in with
+  the user's GitHub account (the token in the keyring only, never a file, an answer or a log), and only on the
+  user's action (Clone, Pull, Push) or the agent's on the user's Allow; no Git installed is needed. A conflict is
+  shown, never forced. "Fork" means a local copy of a shared project (Make a local copy), not a GitHub fork.
 
 ## Layout
 
