@@ -137,8 +137,8 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     for i, name in enumerate(NAMES):
         expect(buttons.nth(i)).to_have_accessible_name(name)
     expect(current(page)).to_have_attribute("data-area", "grids")
-    # 48px, and nothing under it: the mark, the tabs and the grid's first column start right of it.
-    assert right_edge(page) <= 48.5
+    # 60px (the owner, 2026-11-18: larger), nothing under it: the mark, tabs and first column start right of it.
+    assert right_edge(page) <= 60.5
     for selector in (".tabbar > a.app-mark", ".tabs-row", ".ag-header-cell:visible"):
         assert left_of(page, selector) >= right_edge(page) - 0.5, selector
     # Settings sits at the bottom, apart from the others.

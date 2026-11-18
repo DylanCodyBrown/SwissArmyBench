@@ -9904,11 +9904,11 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 }
 
 /* ===== THE RAIL (rail.ts): the areas down the left of every page and window, as VS Code's Activity Bar.
-   48px, fixed; the page moves right by its width (nothing under it). The current area: a bar on the
+   60px, fixed (the owner, 2026-11-18: "the rail is too small ... and the icons can be a bit larger"); the page moves right by its width (nothing under it). The current area: a bar on the
    left edge and the icon brighter. Its name shows on hover and on keyboard focus. Settings' Panels can
    turn it off: then it is gone and the page takes the width back. The mark stays in the top rows. ===== */
 :root {
-  --rail-w: 48px;
+  --rail-w: 60px;
 }
 
 body.has-rail {
@@ -9930,7 +9930,7 @@ body.has-rail {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 6px 0;
+  padding: 8px 0;
   gap: 2px;
 }
 
@@ -9940,7 +9940,9 @@ body.has-rail {
   flex: none;
   place-items: center;
   width: 100%;
-  height: 42px;
+  /* 50px, a little less on a short window so every area still fits (no scrolling: the names pop out
+     to the right, and a scrolling rail would clip them). */
+  height: clamp(36px, calc((100vh - 40px) / 17), 50px);
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -9950,9 +9952,9 @@ body.has-rail {
 }
 
 .nav-rail-item .icon-svg {
-  width: 22px;
-  height: 22px;
-  stroke-width: 1.6;
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.5;
 }
 
 .nav-rail-item:hover,
@@ -9972,8 +9974,8 @@ body.has-rail {
 
 .nav-rail-item.current::before {
   position: absolute;
-  top: 7px;
-  bottom: 7px;
+  top: 9px;
+  bottom: 9px;
   left: 0;
   width: 3px;
   border-radius: 0 2px 2px 0;
@@ -10905,8 +10907,8 @@ body.sql-window dialog[open] textarea.code-input {
 /* The rail's Session icon: what the agent made that the user has not seen. */
 .nav-rail-count {
   position: absolute;
-  top: 5px;
-  right: 7px;
+  top: 6px;
+  right: 9px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
