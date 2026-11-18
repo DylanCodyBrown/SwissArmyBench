@@ -3237,3 +3237,11 @@ tray.json, then Install Accounting: the helper ended the stand-in after about 9 
 failure note. Unit tests: the tray ended and the install going on, a tray that cannot be ended said. Not checked
 by hand on Windows: the fix reaches the owner only in the next version (the helper is a copy of the version
 running).
+
+## 0.0.21 checked from the release (2026-11-18)
+
+Installed with the v0.0.21 release's install.sh into an empty home folder; the server reports 0.0.21. Started
+without a tray, a stand-in tray process that never quits written into tray.json (the owner's Windows case), then
+Install Git from the Extensions route: the helper ended the stand-in after about 9 s, Git installed at 0.0.21, no
+update_failed.json. Release run: build and tests, the installers on Linux, macOS and Windows, the release and PyPI.
+Not checked here: a real tray on Windows (the owner's machine).
