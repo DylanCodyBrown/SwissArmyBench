@@ -5490,3 +5490,71 @@ seems like it kills functionality"); Electron keeps everything (Chromium, as the
 installer per system; Tauri is small but has pywebview's gaps. The owner's call: "Just keep it as is". The app
 stays a local server with browser pages; a desktop shell remains possible later as a thin layer (Electron) over
 the same server and pages, with nothing rewritten.
+
+## The Desktop extension: the app in windows of its own (the owner, 2026-11-18; built, branch ext-desktop)
+
+**The owner's words:** after weighing pywebview ("seems like it kills functionality"), Electron, Tauri, a
+native Rust shell and a PWA: "I like the pyside6. Can we just build it side by side here as an optional install
+version?"
+
+**The options weighed.** pywebview draws with the system's own engine (WebView2 on Windows, WebKit on macOS,
+WebKitGTK on Linux): three engines, each with its own gaps (named windows, downloads, printing), the reason it
+"kills functionality". Electron and Tauri are a second toolchain (Node.js or Rust) and a second runtime beside
+the Python one, with an installer of their own. A PWA is still the browser's window and its rules. **PySide6
+with Qt WebEngine** is Chromium on every system (the engine the browser tests already run), installed with uv
+like everything else, driven from Python in the app's own package: window.open, downloads, printing,
+permissions and the profile are all in reach. The cost is its size (below).
+
+**Decisions.**
+- **An optional extension**, `swissarmybench-desktop` (extensions/desktop), available in the catalog, one-click
+  Install like the others, on the base's version. PySide6 is its own dependency, never the base's: pinned
+  `PySide6-Essentials==6.12.0`, `PySide6-Addons==6.12.0`, `PySide6-WebEngine==6.12.0.140` (released
+  2026-10-08). Since 6.12 Qt WebEngine is a wheel of its own (WebEngine needs Addons, Addons needs Essentials);
+  the `PySide6` meta-package would also bring `PySide6-Pdf`, which nothing uses. Installed size on Linux x86-64:
+  **668 MB** (PySide6 667 MB, shiboken6 0.8 MB). The Windows x64 wheels download as 82 + 41 + 132 MB. There is
+  no Qt WebEngine for Windows on ARM in 6.12 (its WebEngine wheel is empty): there the shell says it cannot run
+  and the browser opens as before.
+- **The browser version stays exactly as it was.** The front end (web/) did not change. The base reads three
+  hooks by name from any extension that is on (`extensions.hook`): `open_page(address)` (the launch's, `open`'s
+  and the tray's "open a page": True when it took it, else the browser), `run_tray(info, events)` (the base's
+  `swissarmybench tray`, so start at sign-in starts the shell), and `LAUNCHER` (`swissarmybench desktop`; the
+  catalog's `launcher` words make it a known command, and off it says "needs the Desktop extension").
+- **The shell is a process of its own**, like the tray: one QApplication, each page a QMainWindow with a
+  QWebEngineView, all on one persistent QWebEngineProfile in the state folder's `desktop/profile` (cookies,
+  local storage, cache). It takes the tray's lock and writes its pid into **tray.json** where the tray's goes,
+  so there is one icon: the base's `Tray` (its menu, the watchdog, Update, Start at sign-in, Stop and quit) is
+  drawn by QSystemTrayIcon instead of pystray, and the update's helper (`end_pids`) ends the shell as it ended
+  the tray. A pystray tray still running (from before Install) is ended by the shell.
+- **The channel:** the shell listens on 127.0.0.1 (a port the system picks) with a fresh key; both go in
+  tray.json (owner-only). One JSON line each way: `{"open": page}` or `{"status": true}`. The token never
+  travels on it or on the shell's command line: a page is its path and fragment without the token, and the
+  shell adds the running server's token from its connection file. A second shell hands its page to the first
+  and ends. Chosen over the live-updates socket because the CLI (`swissarmybench open`) and a shell that is
+  starting must reach it with no server running.
+- **window.open** is QWebEnginePage.createWindow: a new app window. Named windows (nav.ts's `sab-home`,
+  `swissarmybench-workbench`) are found by Chromium itself, as in a browser; a page's `focus()` of another
+  window raises it (a small script the shell adds to every page reports focus() and window.name on the console
+  channel; nothing in web/). The shell's own opens (the tray, the channel) reuse the window named `sab-home`
+  for the home page and a window showing the same page, raised, loaded again only when the fragment says more.
+- **Inside and outside:** only `http://127.0.0.1:<the server's port>` (and about:blank, about:srcdoc, a blob:
+  of that origin) loads inside. http, https and mailto elsewhere open in the system's browser
+  (QDesktopServices); a frame that loads one by itself is refused; data: only in a frame; file:, javascript:
+  and the rest refused. A window.open to elsewhere closes its empty window.
+- **Permissions:** the clipboard (JavascriptCanAccessClipboard, JavascriptCanPaste, ClipboardReadWrite) for the
+  app's origin only; every other permission denied; permissions are asked every time, never stored.
+- **Downloads:** the profile's downloadRequested asks with QFileDialog's Save dialog (the suggested name, in
+  Downloads), then the window's status line shows the progress and **Show in folder**. **Print to PDF:**
+  window.print() (Visualizations' Print to PDF) and Ctrl+P ask where, then QWebEnginePage.printToPdf.
+- **Keys** a browser had: F12 developer tools (a window of their own), F11 full screen, Alt+Left/Right back
+  and forward (the app's navigation relies on the browser's Back), F5 and Ctrl+R reload, Ctrl+W close.
+- **Places:** each kind of window (home, workbench, catalog, panel-steps, ...) remembers its size, place and
+  maximized state in `desktop/windows.json`; a remembered place is used only while enough of it is on a screen
+  now; else the size window.open asked for, else a default, centred and cascaded.
+- **Window titles** are the page's; never the address (Chromium's title before a page has one carries the
+  token in its fragment).
+- **File dialogs:** `/dialogs/choose` stays as it is. On Windows it already shows the system's IFileDialog
+  (Tk's), on macOS the system's own, on Linux zenity or kdialog: a QFileDialog would show the same dialogs, so
+  the shell does not answer it.
+- **The agent:** `desktop_status` (running, the tray icon, the windows: kind, title, page) and
+  `desktop_open(page)` (home, workbench, blades: the tray menu's opens). Everything else the agent did in the
+  pages (app_navigate, workbench_window) works unchanged.

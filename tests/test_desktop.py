@@ -4,6 +4,7 @@ opens the page and pystray draws the tray. No Qt here (tests/test_desktop_shell.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -192,3 +193,31 @@ def test_the_service_reads_windows_without_extra_fields() -> None:
     assert shell.opened == ["/catalog"] and audit.said == [("agent", "desktop_open", {"page": "blades"})]
     said = asyncio.run(service.status())
     assert said["qt"] == "6.12.0" and "name" not in said["windows"][0]
+
+
+def test_install_and_remove_carry_its_wheel_and_the_helper_ends_the_shell(tmp_path: Path) -> None:
+    """Install: the base at this version with its wheel (`--with`); Remove: without it. The update's helper
+    ends whatever holds tray.json's pid: the shell writes its own there."""
+    import os
+
+    from swissarmybench.server import updater
+    from swissarmybench_desktop.domain import windows as rules
+
+    wheels = catalog.kept_wheels(catalog.CATALOG, ["streamlit", "desktop"], "1.2.3")
+    assert wheels[-1].endswith("/v1.2.3/swissarmybench_desktop-1.2.3-py3-none-any.whl")
+    plan = catalog.plan_change(
+        current="1.2.3",
+        uv="uv",
+        tool_python="py",
+        python_version="3.12",
+        wheels=wheels,
+        before=wheels[:1],
+        wait_pids=[1],
+        info_file="i",
+        note_file="n",
+    )
+    assert any("swissarmybench_desktop" in part for part in plan.install)
+    assert not any("swissarmybench_desktop" in part for part in plan.restore)
+    tray_file = tmp_path / "tray.json"
+    tray_file.write_text(json.dumps(rules.record(os.getpid(), 5000, "k" * 43)), encoding="utf-8")
+    assert updater._tray_pid(tray_file) == os.getpid()
