@@ -5194,3 +5194,74 @@ app's dependency.
 ### Next
 - A real Azure SQL, a Fabric SQL endpoint and a Dataverse TDS endpoint with Entra tokens: not reachable here.
 - Fold mssql-python's `bulkcopy` (TDS bulk insert) into the Write starter for large appends.
+
+## The GitHub Copilot extension: Copilot's code completion in the Workbench (the owner, 2026-11-18; built, branch ext-copilot)
+
+The owner's words: "Wanted to GitHub Copilot repo code completion anyway". Chosen: **an extension, off until
+installed**: a "GitHub Copilot" card on the Extensions page (one click Install, then sign in to Copilot); not
+installed, nothing is sent; Settings has an On switch; Copilot is off for a project marked private.
+
+**What it is built on.** GitHub publishes the **Copilot Language Server** for editors other than its own (npm
+`@github/copilot-language-server`, repository github/copilot-language-server-release; read 2026-11-18 at 1.572.0).
+Its licence is **MIT**; its use is under **GitHub Copilot's terms** (the README links the "GitHub Terms for
+Additional Products and Features", GitHub Copilot section), and it needs a Copilot plan (Copilot Free counts).
+Integrating it into an editor is what it is published for, so nothing here works around anything. The protocol,
+followed as its README documents it: LSP (JSON-RPC 2.0 with Content-Length headers) over stdio (`--stdio`);
+`initialize` with `initializationOptions.editorInfo` and `editorPluginInfo`, then `initialized`, then
+`workspace/didChangeConfiguration` (and `workspace/configuration` answered); `textDocument/didOpen`, `didChange`
+(incremental) and `didClose`, and the custom `textDocument/didFocus`; `signIn` (device flow: `userCode`,
+`verificationUri`, the `github.copilot.finishDeviceFlow` command through `workspace/executeCommand`), `checkStatus`
+(not in the README; in the server's method table: OK, MaybeOK, NotSignedIn, NotAuthorized), `signOut`;
+`textDocument/inlineCompletion` with the README's additions (the version, `formattingOptions`), its items'
+`command` run with `workspace/executeCommand` after an accept, `textDocument/didShowCompletion` and
+`textDocument/didPartiallyAcceptCompletion` (the length from the item's start); `$/cancelRequest`. Its
+`initialize` answer also lists `notebookDocumentSync` (notebook "*"): a notebook is sent as a notebook.
+
+**Decisions.**
+- **Backend only**, as every extension (CLAUDE.md's front/back rule): `extensions/copilot/` (`swissarmybench-copilot`,
+  entry point `copilot`, on the base's version, its wheel on the release like the others; `available` in the
+  catalog). The language server is never a Python dependency: the extension's own **Install the language server**
+  runs `npm install --prefix <state>/copilot --ignore-scripts --save-exact @github/copilot-language-server@1.572.0`,
+  and Node.js (20.8+, found as the Power Apps extension finds it, with the same missing-tool answer) runs
+  `dist/language-server.js --stdio`. One server for the app, started when it is needed and on; it stops with the
+  app, and when switched off.
+- **The front end stays generic.** The modes carry `inline_completion` (each on extension's INLINE_COMPLETION: its
+  name, languages and routes, as data, like `cell_routes`); `lazy/codeEditor.ts` registers Monaco's inline
+  completions provider for Python and SQL and asks the declared route (debounce 250 ms; Monaco's cancellation aborts
+  the fetch and posts `cancel`, which sends `$/cancelRequest`); shown, accepted (Monaco's end of lifetime: accepted)
+  and partly accepted (Monaco's own count from the range's start, which is the server's) go back through `event`.
+  Ghost text, Tab takes it, Esc lets it go (the notebook's Escape waits while ghost text shows), Ctrl+Right a word,
+  Alt+] / Alt+[ cycle: Monaco's own keys, VS Code's. The status bar's "Completions: <name> · on/off" draws the
+  name the backend gives; a click toggles. Nothing in web/ names Copilot. The Extensions card and Settings draw the
+  extension's **panel** (GET /extensions lists its route): lines, switches, actions and a code with a page to open,
+  as data (extensionPanel.ts), so the device flow's code is shown by generic code too.
+- **The lazy editor is a bundle of its own** (esbuild without splitting): it cannot read modes.ts's state, so the
+  Workbench hands each editor an `inlineSource` (ask, tell) instead of the editor importing it.
+- **What is sent:** only the document being edited: a script's text, or a notebook's code cells (Python and SQL,
+  the user's: not the read-only table cells) as one notebook with the cell being edited asked in. Never outputs,
+  rows or variables' values. Addresses are made up (`file:///swissarmybench/<a key per window>/<file name>`); no
+  workspace folder is sent, so the server has none of the user's folders to read. At most 20 documents are held;
+  the oldest is closed for a new one.
+- **Nothing is sent** before the server is installed, while off (the server is not even started; turning it off
+  stops it), before sign-in, or for a project marked **private**: then not even a didOpen, and what was open is
+  closed. `private: true` lives in `.sab/project.json` (an unknown field the manifest keeps), set by the project
+  group's **Private** switch (POST /project/private; the agent's `project_private` waits for Allow).
+- **Sign-in** is the server's own device flow, the user's only (403 for the agent; the agent's panel answer leaves
+  the code out). The page opens github.com/login/device on the user's click, then the client runs
+  `finishDeviceFlow`; the server's `window/showDocument` for the same page is answered success without opening
+  anything (the client says it supports showDocument so the server does not open a browser itself). On success the
+  switch is on. "Signed in, no plan" (NotAuthorized) is said plainly.
+- **Telemetry off:** `telemetry.telemetryLevel: "off"` in the configuration (the server turns its telemetry on only
+  for "all"), in both the notification and the `workspace/configuration` answer. The accept command and the
+  shown/partial notifications are still sent, as the README asks (the server's own bookkeeping).
+- **No token anywhere of ours:** the server keeps its own sign-in (GitHub's apps.json in its folder); copilot.json
+  holds the switch and the login's name only; the server's stderr and `window/logMessage` are dropped, never
+  logged; audit entries carry names and states only.
+- **The agent:** `copilot_status` (installed, on, signed-in login, private, ready, the panel's words),
+  `copilot_toggle`, `copilot_install` (Allow). Completions are the editor's: the agent has its own model and
+  `workbench_complete`.
+
+**Open.** The real server answering completions was not seen (no Copilot plan here); `textDocument/copilotSuggest`
+(unified suggestions) and next edit suggestions are not used; GitHub Enterprise (`github-enterprise.uri`) and a
+proxy setting are not offered; the notebook's cell addresses are `<notebook>#cell-<n>` (not VS Code's
+vscode-notebook-cell scheme), which the server took in the stand-in only.

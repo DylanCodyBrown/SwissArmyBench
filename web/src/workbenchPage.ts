@@ -46,6 +46,7 @@
  *
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
+import { inlineStatus } from "./inlineCompletion";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
@@ -2076,7 +2077,7 @@ function relint(doc: Doc): void {
   doc.notebook?.relint();
 }
 // The app's one footer (appFooter.ts), the Workbench's own parts in its middle: the panes' switches on the right.
-mountAppFooter(layout.status, [explorerToggle, kernelHost, envHost, cursorHost, problemsButton], [consoleToggle, modeToggles, variablesToggle]);
+mountAppFooter(layout.status, [explorerToggle, kernelHost, envHost, cursorHost, problemsButton, inlineStatus()], [consoleToggle, modeToggles, variablesToggle]);
 
 function drawCursor(): void {
   const doc = current;

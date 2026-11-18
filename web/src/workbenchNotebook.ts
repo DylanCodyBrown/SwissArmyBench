@@ -54,6 +54,7 @@
  *
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
+import { inlineSource } from "./inlineCompletion";
 import { cellConnections, markConnections, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
 import { button, clear, h, icon, type MenuItem, showMenu, toast } from "./dom";
@@ -382,6 +383,8 @@ export function notebookView(
   const python = pythonCompleter(kernel, () => ({ connections: connections(), blades: blades(), codeNames: codeNames() }));
   const list = h("div", { class: "wb-cells", role: "list", "aria-label": "Cells" });
   const cells: Cell[] = [];
+  // This notebook's key for the ghost text's provider (inlineCompletion.ts): one a window, made up.
+  const inlineKey = `nb-${Math.random().toString(36).slice(2, 10)}`;
   let selected: Cell | null = null;
   const undos: Undo[] = [];
   let pendingD = 0; // the first D of D D, and when
@@ -1350,6 +1353,19 @@ export function notebookView(
         value: cell.source,
         theme: theme(),
         grow: true,
+        // Ghost text: this cell with the notebook's other code cells (their text only, never outputs).
+        inline: inlineSource(() => {
+          const coded = (c: Cell): boolean => (c.kind === "code" || c.kind === "sql") && c.role !== "transformations";
+          if (!coded(cell)) return null;
+          const name = (kernel.intel().path ?? "Untitled notebook.ipynb").split(/[\\/]/).pop() ?? "notebook.ipynb";
+          return {
+            key: inlineKey,
+            name,
+            kind: "notebook",
+            cells: cells.filter(coded).map((c) => ({ id: String(c.number), text: sourceOf(c), language: c.kind === "sql" ? "sql" : "python" })),
+            cell: String(cell.number),
+          };
+        }),
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
         placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : cell.kind === "typescript" ? "TypeScript" : cell.kind === "tsx" ? "TSX: export default function ..." : undefined,

@@ -40,6 +40,7 @@
  *          POST /workbench/tables/arrange {kind: "script", text, tables, move}: the text as it should
  *          be and where its cells are (the rules are the server's: domain/table_cells.py)
  */
+import { inlineSource } from "./inlineCompletion";
 import { cellConnections, colourOf, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
 import { h, toast } from "./dom";
@@ -217,6 +218,8 @@ export function scriptView(
   const editorHost = h("div", { class: "wb-script-editor" });
   let editor: CodeEditor | null = null;
   let text = initial;
+  // This script's key for the ghost text's provider (inlineCompletion.ts): one a window, made up.
+  const inlineKey = `sc-${Math.random().toString(36).slice(2, 10)}`;
 
   // ===== the Tables group: arranged by the server's rules, folded and drawn here =====
   let tableInfos: TableInfo[] = [];
@@ -792,6 +795,13 @@ export function scriptView(
       language: "python",
       value: initial,
       theme: theme(),
+      inline: inlineSource(() => ({
+        key: inlineKey,
+        name: (kernel.intel().path ?? "Untitled script.py").split(/[\\/]/).pop() ?? "script.py",
+        kind: "script",
+        language: "python",
+        text: editor?.value() ?? initial,
+      })),
       keys: { f5: () => void runFile(), ctrlEnter: () => void runSelection(), shiftEnter: () => void runSelection(), f1: hooks.help },
       complete: (text, offset) => intel.complete(text, offset).then((found) => found ?? python(text, offset)),
       intel: {

@@ -60,6 +60,8 @@ export interface OpenProject {
   unsaved_documents: string[];
   autosave: boolean;
   autosave_error: string | null;
+  /** Nothing of the project is sent out by an extension (ghost text's provider): .sab/project.json. */
+  private?: boolean;
 }
 
 export interface RecentProject {
@@ -272,6 +274,20 @@ export function autosaveSwitch(on: boolean, changed?: (on: boolean) => void): { 
   input.checked = on;
   if (changed) input.addEventListener("change", () => changed(input.checked));
   return { element: h("label", { class: "autosave-switch" }, input, h("span", {}, "Autosave")), input };
+}
+
+/** A Private switch: nothing of the project is sent out of this computer by an extension. */
+export function privateSwitch(on: boolean, changed: (on: boolean) => void): HTMLElement {
+  const input = h("input", { type: "checkbox", role: "switch", class: "switch-input", "aria-label": "Private" });
+  input.checked = on;
+  input.addEventListener("change", () => changed(input.checked));
+  return h("label", { class: "autosave-switch private-switch", title: "Nothing of this project is sent out of this computer by an extension" }, input, h("span", {}, "Private"));
+}
+
+/** Private on or off for the open project (kept in its .sab/project.json). */
+export async function setPrivate(on: boolean): Promise<ProjectState> {
+  await api("/project/private", "POST", { on });
+  return loadProject();
 }
 
 /** Autosave on or off for the open project (kept in its .sab/project.json). */

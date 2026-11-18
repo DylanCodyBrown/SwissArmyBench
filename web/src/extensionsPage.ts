@@ -16,10 +16,26 @@
 import { api, headers, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog } from "./dom";
+import { extensionPanel } from "./extensionPanel";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 
 /** The page's name, in one place: the rail, the title. */
 export const EXTENSIONS = "Extensions";
+
+/** Settings' sections: each extension that is on and has a panel, drawn from what it answers. */
+export function extensionSettings(): HTMLElement {
+  const host = h("div", { class: "extension-settings" });
+  void api<Listing>("/extensions").then(
+    (got) =>
+      host.replaceChildren(
+        ...got.extensions
+          .filter((e) => e.panel && e.status === "installed")
+          .map((e) => h("fieldset", { class: "fieldset extension-settings-fieldset", "data-extension": e.id }, h("legend", {}, icon("extensions"), e.name), extensionPanel(e.panel!))),
+      ),
+    () => undefined,
+  );
+  return host;
+}
 
 type Status = "preinstalled" | "available" | "installed" | "coming";
 
@@ -32,6 +48,8 @@ interface Extension {
   preinstalled?: boolean; // comes with every install (installed while its package is here)
   package: string;
   version: string | null;
+  /** Its own panel's route, while it is on here (extensionPanel.ts draws what it answers). */
+  panel?: string;
 }
 
 interface Listing {
@@ -155,6 +173,7 @@ function drawPage(): void {
       h("header", { class: "extension-head" }, h("span", { class: "extension-name" }, icon("extensions"), ext.name), status, version),
       h("p", { class: "extension-description" }, ext.description),
       ext.adds.length ? h("ul", { class: "extension-adds" }, ...ext.adds.map((a) => h("li", {}, a))) : null,
+      ext.panel && ext.status === "installed" ? extensionPanel(ext.panel) : null,
       foot,
     );
   };

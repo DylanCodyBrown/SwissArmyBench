@@ -7,6 +7,7 @@
  * and it lands where it was dropped; a blade's line lands on a line of its own (ownDrops).
  */
 import * as monaco from "monaco-editor";
+import type { InlineSource } from "../inlineCompletion";
 
 (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
   // TypeScript and TSX (a code app's files) have Monaco's own language service, in a worker of its own.
@@ -672,6 +673,66 @@ export interface CodeEditorOptions {
   /** The file's path in its project (a code app's src/App.tsx): its model's address, so TypeScript reads
    *  it as .ts or .tsx and resolves its imports. */
   path?: string;
+  /** Ghost text (inlineCompletion.ts's inlineSource): asked only where the mode declares a provider for
+   *  the language, over the document this editor edits. */
+  inline?: InlineSource;
+}
+
+// ===== ghost text: the declared provider's inline completions (inlineCompletion.ts) =====
+
+const inlines = new WeakMap<monaco.editor.ITextModel, InlineSource>();
+const inlineRegistered = new Set<string>();
+interface SabInline extends monaco.languages.InlineCompletion {
+  sabId: string;
+  sabLanguage: string;
+  sabSource: InlineSource;
+}
+/** Monaco's language id to the provider's (the same for Python and SQL). */
+const INLINE_LANGUAGES: Record<string, string> = { python: "python", sql: "sql" };
+
+function registerInline(language: string): void {
+  if (inlineRegistered.has(language) || !INLINE_LANGUAGES[language]) return;
+  inlineRegistered.add(language);
+  monaco.languages.registerInlineCompletionsProvider(language, {
+    debounceDelayMs: 250,
+    provideInlineCompletions: async (model, position, _context, token) => {
+      const source = inlines.get(model);
+      const lang = INLINE_LANGUAGES[model.getLanguageId()] ?? "";
+      if (!source || !lang || token.isCancellationRequested) return { items: [] };
+      const abort = new AbortController();
+      const listening = token.onCancellationRequested(() => abort.abort());
+      try {
+        const options = model.getOptions();
+        const asked = source.ask(lang, { line: position.lineNumber - 1, character: position.column - 1 }, { tabSize: options.tabSize, insertSpaces: options.insertSpaces }, abort.signal);
+        const found = asked ? await asked : [];
+        const items: SabInline[] = found.map((item) => {
+          const range = item.range
+            ? new monaco.Range(item.range.start.line + 1, item.range.start.character + 1, item.range.end.line + 1, item.range.end.character + 1)
+            : new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+          // The provider's text replaces its range; Monaco wants the replaced text as the text's beginning.
+          return { insertText: item.text, range, sabId: item.id, sabLanguage: lang, sabSource: source };
+        });
+        return { items, enableForwardStability: true };
+      } finally {
+        listening.dispose();
+      }
+    },
+    handleItemDidShow: (_completions, item) => {
+      const own = item as SabInline;
+      own.sabSource.tell(own.sabLanguage, own.sabId, "shown");
+    },
+    handlePartialAccept: (_completions, item, accepted) => {
+      // Monaco counts from the item's range start to the end of what was taken: the provider's own count.
+      const own = item as SabInline;
+      own.sabSource.tell(own.sabLanguage, own.sabId, "partial", accepted);
+    },
+    handleEndOfLifetime: (_completions, item, reason) => {
+      if (reason.kind !== monaco.languages.InlineCompletionEndOfLifeReasonKind.Accepted) return;
+      const own = item as SabInline;
+      own.sabSource.tell(own.sabLanguage, own.sabId, "accepted");
+    },
+    disposeInlineCompletions: () => undefined,
+  });
 }
 
 /** Beta mode's "Leave a note…" in the editor's own right-click menu. The page (betaNotes.ts, another
@@ -772,6 +833,8 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     fixedOverflowWidgets: true,
     placeholder: options.placeholder,
     readOnly: options.readOnly ?? false,
+    // Ghost text from the declared provider (Tab takes it, Esc lets it go, Alt+] and Alt+[ go through them).
+    inlineSuggest: { enabled: true, mode: "prefix" },
     // A read-only cell says nothing when typed in: its head says why.
     readOnlyMessage: { value: options.readOnlyMessage ?? "This cell follows the grid: change the table's steps there." },
   });
@@ -787,6 +850,10 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     size();
   }
   const model = editor.getModel();
+  if (model && options.inline && !options.readOnly) {
+    inlines.set(model, options.inline);
+    for (const language of Object.keys(INLINE_LANGUAGES)) registerInline(language);
+  }
   if (model && (options.complete || options.help || options.cellLinks || options.intel)) {
     completers.set(model, { complete: options.complete, help: options.help, intel: options.intel });
     for (const language of ["python", "sql", "msdax", "markdown", "html"]) register(language);
@@ -847,7 +914,8 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   if (keys.enter) editor.addCommand(monaco.KeyCode.Enter, keys.enter, `${own} && !suggestWidgetVisible`);
   if (keys.up) editor.addCommand(monaco.KeyCode.UpArrow, () => { if (!keys.up!()) editor.trigger("keyboard", "cursorUp", null); }, `${own} && !suggestWidgetVisible`);
   if (keys.down) editor.addCommand(monaco.KeyCode.DownArrow, () => { if (!keys.down!()) editor.trigger("keyboard", "cursorDown", null); }, `${own} && !suggestWidgetVisible`);
-  if (keys.escape) editor.addCommand(monaco.KeyCode.Escape, keys.escape, `${own} && !suggestWidgetVisible`);
+  // Escape lets a suggestion go first (a member list, ghost text), then it is the cell's.
+  if (keys.escape) editor.addCommand(monaco.KeyCode.Escape, keys.escape, `${own} && !suggestWidgetVisible && !inlineSuggestionVisible`);
 
   // A failed run's marks, gone as soon as the code is edited (they describe the code that ran).
   const lens = editor.createDecorationsCollection([]);
