@@ -26,6 +26,7 @@ const AREAS: Record<string, string> = {
   grid: ".panes",
   steps: ".steps-strip", // the panel opens in its own window; the grid page shows the strip
   visualizations: "#ai-panel",
+  projects: '.area-page[data-page="projects"]', // the Projects page (projectsPage.ts), while it is open
 };
 
 /** Register the listener. Called once per page, beside the other live-notice handlers. */

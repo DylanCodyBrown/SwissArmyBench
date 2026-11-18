@@ -91,10 +91,10 @@ def start_view(page: Page, server: dict[str, Any]) -> None:
     # moment is aborted (net::ERR_ABORTED), so wait for it to go quiet and try once more.
     page.wait_for_load_state("networkidle")
     try:
-        page.goto(url(server, "?view=start"))
+        page.goto(url(server, "?open=projects"))
     except PlaywrightError:
-        page.goto(url(server, "?view=start"))
-    expect(page.locator("#start-view")).to_be_visible(timeout=20000)
+        page.goto(url(server, "?open=projects"))
+    expect(page.locator('.area-page[data-page="projects"]')).to_be_visible(timeout=20000)
 
 
 def open_file(page: Page) -> None:
@@ -166,7 +166,7 @@ def test_the_page_picker_places_breadcrumb_filter_keys_and_recent(
         saved = json.loads((Path(server["tmp"]) / "state" / "dialogs.json").read_text(encoding="utf-8"))
         assert list(saved["recent"].values()) == [[str(reports)]]
         start_view(page, server)
-        page.locator("#start-view").get_by_role("button", name="Open project…").click()
+        page.locator('.area-page[data-page="projects"]').get_by_role("button", name="Open project…").click()
         expect(places.get_by_role("button", name="Home", exact=True)).to_be_visible()
         expect(places.get_by_role("button", name="Reports")).to_have_count(0)
         # New folder (a folder pick): named, made, and shown.
@@ -187,7 +187,9 @@ def test_the_picker_in_dark_and_at_phone_width(browser: Browser, server: dict[st
         page = workspace(browser, server, dark=dark, width=width)
         try:
             start_view(page, server)
-            page.locator("#start-view").get_by_role("button", name="Open project…").click()
+            page.locator('.area-page[data-page="projects"]').get_by_role(
+                "button", name="Open project…"
+            ).click()
             chooser = page.locator("dialog.file-chooser")
             chooser.get_by_role("textbox", name="Folder").fill(str(server["reports"]))
             chooser.get_by_role("textbox", name="Folder").press("Enter")
@@ -279,12 +281,12 @@ def test_a_dialog_that_cannot_open_falls_back_to_the_page_picker(
     stand_in(page.context, [{"unavailable": "The tk dialog ended with code 1: no display"}], asked)
     try:
         start_view(page, server)
-        page.locator("#start-view").get_by_role("button", name="Open project…").click()
+        page.locator('.area-page[data-page="projects"]').get_by_role("button", name="Open project…").click()
         expect(page.locator("dialog.file-chooser")).to_be_visible()
         assert len(asked) == 1
         page.locator("dialog.file-chooser").get_by_role("button", name="Cancel").click()
         # From then on the page's own, without asking again.
-        page.locator("#start-view").get_by_role("button", name="Open project…").click()
+        page.locator('.area-page[data-page="projects"]').get_by_role("button", name="Open project…").click()
         expect(page.locator("dialog.file-chooser")).to_be_visible()
         assert len(asked) == 1
     finally:

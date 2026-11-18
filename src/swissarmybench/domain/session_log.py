@@ -19,7 +19,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-# Where an entry's object lives: the rail's areas, and the project (the Start view's).
+# Where an entry's object lives: the rail's areas, and the project (the Projects page's).
 AREAS: tuple[str, ...] = (
     "grids",
     "visualizations",

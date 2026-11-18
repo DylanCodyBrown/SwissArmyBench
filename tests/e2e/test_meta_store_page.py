@@ -182,8 +182,8 @@ def test_local_and_shared_projects_and_a_local_copy(browser: Browser, own_server
     call(server, "POST", "/project/close", {"discard": True})
     call(server, "POST", "/project/new", {"name": "Q3 review"})
     call(server, "POST", "/project/close", {"discard": True})
-    page = open_page(browser, server, "?view=start")
-    start = page.locator("#start-view")
+    page = open_page(browser, server, "?open=projects")
+    start = page.locator('.area-page[data-page="projects"]')
     close = start.locator(".explorer-card", has_text="Cession close")
     expect(close.locator(".explorer-where-mark")).to_have_text("Shared", timeout=20000)
     expect(
@@ -208,7 +208,7 @@ def test_local_and_shared_projects_and_a_local_copy(browser: Browser, own_server
     local = Path(os.environ["SWISSARMYBENCH_PROJECTS_DIR"]) / "Cession close"
     assert json.loads((local / ".sab" / "project.json").read_text())["copied_from"] == "Cession close"
     call(server, "POST", "/project/close", {"discard": True})
-    page.goto(f"http://127.0.0.1:{server['port']}/workspace?view=start#token={server['token']}")
+    page.goto(f"http://127.0.0.1:{server['port']}/workspace?open=projects#token={server['token']}")
     mine = start.locator(".explorer-card", has=page.locator(".explorer-copied"))
     expect(mine).to_contain_text("Copied from Cession close", timeout=20000)
     expect(mine.locator(".explorer-where-mark")).to_have_text("Local")

@@ -1,10 +1,10 @@
 /**
  * The tour: what every place in Swiss Army Bench is for, for a first-time user. Its button sits on the
- * Start page only (the owner, 2026-11-16: "new here take a tour should be on the project page and no where
- * else"); until it has been opened once, a small "New here?" bubble sits beside it (inline, so it never
- * covers anything).
+ * Projects page only (projectsPage.ts; the owner, 2026-11-16: "new here take a tour should be on the project
+ * page and no where else"); until it has been opened once, a small "New here?" bubble sits beside it
+ * (inline, so it never covers anything).
  *
- *   [TOUR]    the Start page -> openTour()
+ *   [TOUR]    the Projects page (the rail's mark) -> openTour()
  *   [GUIDED]  the owner, 2026-11-18: "the tutorial needs to move and highlight the item it is talking about,
  *             so the tutorial might need to stage a couple tables in the grid then remove them. it will need
  *             to navigate to pages as it goes and those descriptions could use a bit more detail". A card per
@@ -63,6 +63,14 @@ export const STOPS: readonly Stop[] = [
     word: "Hi!",
     line: "Swiss Army Bench keeps your tables live beside DuckDB SQL, on one screen. This tour walks the rail on the left from top to bottom and takes you to each place as it goes. It has opened two small made-up tables to show things on; they close when the tour ends.",
     clue: "",
+  },
+  {
+    icon: "project",
+    word: "Projects",
+    line: "This page. A project is a folder: its notebooks, scripts and apps, and the tables it opens. New project starts one, a card opens one. The red mark at the top of the rail, or Alt+Home, brings you back here from anywhere.",
+    clue: "Every project as a card; the red mark at the top of the rail brings it back.",
+    place: { area: "projects" },
+    target: [rail("projects")],
   },
   {
     icon: "plug",
@@ -255,7 +263,7 @@ const SEEN = "tour.seen";
 /** How long a card waits for its control before it says it is not here. */
 const WAIT_MS = 2500;
 
-/** The Start page's Tour button, with the "New here?" bubble until the tour is opened once. */
+/** The Projects page's Tour button, with the "New here?" bubble until the tour is opened once. */
 export function tourButton(): HTMLElement {
   const btn = button("Tour", () => openTour(), {
     icon: "help",

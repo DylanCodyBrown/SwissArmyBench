@@ -1,6 +1,7 @@
 # ruff: noqa: F811
-"""The tour: offered on the Start page only (the owner, 2026-11-16: "new here take a tour should be on the
-project page and no where else"); guided since 2026-11-18 ("the tutorial needs to move and highlight the
+"""The tour: offered on the Projects page only (the rail's mark, 2026-11-18; the Start view before it; the
+owner, 2026-11-16: "new here take a tour should be on the project page and no where else"); guided since
+2026-11-18 ("the tutorial needs to move and highlight the
 item it is talking about, so the tutorial might need to stage a couple tables in the grid then remove them.
 it will need to navigate to pages as it goes"): each card goes to its place and lights up the real control,
 two made-up tables are staged and closed again, and the game still ends it."""
@@ -58,11 +59,11 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
     url = push_client.push(frame, name="tour_orders", new_grid=True)
     page = open_grid(browser, url, width=1440)
     try:
-        # Not in the Application row: Home (the Start page) has it.
+        # Not in the Application row: Home (the Projects page, the rail's mark) has it.
         expect(page.locator(".app-row .tour-btn")).to_have_count(0)
-        page.locator(".tabbar > a.app-mark").click()
-        expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
-        row = page.locator("#start-view")
+        page.locator('.nav-rail [data-area="projects"]').click()
+        row = page.locator('.area-page[data-page="projects"]')
+        expect(row).to_be_visible()
         bubble = row.locator(".tour-bubble")
         expect(bubble).to_contain_text("New here?")  # a first visit
         row.get_by_role("button", name="Tour", exact=True).click()
@@ -70,6 +71,10 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         expect(tour).to_contain_text("Hi!")
         expect(bubble).to_have_count(0)  # seen: gone for good
         expect(tour).to_have_class("tour tour-dim")  # the welcome card has nothing to point at
+        # Projects: this page, its mark on the rail lit up.
+        to_word(page, tour, "Projects")
+        expect(row).to_be_visible()
+        lights_up(tour, page.locator('.nav-rail [data-area="projects"]'))
 
         # Its two made-up tables arrive as tabs, beside the user's.
         tabs = page.locator(".tabs-row .tab-item")
@@ -112,10 +117,10 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         to_word(page, tour, "Agent")
         lights_up(tour, page.locator(".claude-fieldset"))
 
-        # Escape mid-tour: back to the Start page, the tour's tables closed and only those.
+        # Escape mid-tour: back to the Projects page, the tour's tables closed and only those.
         page.keyboard.press("Escape")
         expect(tour).to_have_count(0)
-        expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+        expect(row).to_be_visible()
         expect(page.locator('.area-page[data-page="settings"]:visible')).to_have_count(0)
         expect(tabs.filter(has_text="tour_")).to_have_count(1)
         expect(tabs.filter(has_text="tour_orders")).to_have_text("tour_orders")
@@ -125,11 +130,11 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         assert "tour_orders" in datasets(server)
         assert not datasets(server) & {"tour_orders_2", "tour_customers"}
 
-        # Again, to the end: the game, then the Start page with the tables gone.
+        # Again, to the end: the game, then the Projects page with the tables gone.
         page.reload()
-        expect(page.locator("#start-view .tour-btn")).to_be_visible()
-        expect(page.locator("#start-view .tour-bubble")).to_have_count(0)  # remembered in this browser
-        page.locator("#start-view").get_by_role("button", name="Tour", exact=True).click()
+        expect(row.locator(".tour-btn")).to_be_visible()
+        expect(row.locator(".tour-bubble")).to_have_count(0)  # remembered in this browser
+        row.get_by_role("button", name="Tour", exact=True).click()
         expect(tabs.filter(has_text="tour_customers")).to_have_count(1)
         to_word(page, tour, "Agent")
         tour.get_by_role("button", name="Play").click()
@@ -141,7 +146,7 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         expect(tour.locator(".tour-code")).to_contain_text("sab.push(df)")
         tour.get_by_role("button", name="Start").click()
         expect(tour).to_have_count(0)
-        expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+        expect(row).to_be_visible()
         expect(tabs.filter(has_text="tour_")).to_have_count(1)
         deadline = time.monotonic() + 5
         while datasets(server) & {"tour_orders_2", "tour_customers"} and time.monotonic() < deadline:

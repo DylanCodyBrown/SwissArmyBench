@@ -1,7 +1,7 @@
 /**
- * projectExplorer.ts: the home page, the Project Explorer (the owner, 2026-11-17: "Yes build it with projects
- * as folders" / "Make the project page sortable by card with explanations of project types for beginners").
- * It replaces the Start view (/workspace?view=start; Home brings it). [VIEW + WIRE]
+ * projectExplorer.ts: the Project Explorer (the owner, 2026-11-17: "Yes build it with projects as folders" /
+ * "Make the project page sortable by card with explanations of project types for beginners"), drawn on the
+ * Projects page (projectsPage.ts, open=projects: the rail's mark; the old Start view's place). [VIEW + WIRE]
  *
  *   [CARDS]   every project as a card: its name, its type (an extension's that is off: "needs the <Name>
  *             extension" with Install), last opened, last changed, its folder (shortened, whole on hover),
@@ -74,24 +74,28 @@ let kind = "";
 let where = "";
 let loading = 0;
 let opened: (state: ProjectState | null) => void = () => undefined;
-let extras: () => HTMLElement | null = () => null;
 
 const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
 
-/** Start drawing the Project Explorer into `element` (each page once). `afterOpen`: what the page does
- *  once a project opened (its Grids); `head`: the page's own pieces in the header (the tour). */
-export function mountExplorer(element: HTMLElement, afterOpen: (state: ProjectState | null) => void, head: () => HTMLElement | null): void {
-  host = element;
+/** The Project Explorer on this page (once). `afterOpen`: what the page does once a project opened (its
+ *  Grids). */
+export function mountExplorer(afterOpen: (state: ProjectState | null) => void): void {
   opened = afterOpen;
-  extras = head;
   onNotice((notice) => {
     if (notice.type === "projects_changed" || notice.type === "project_changed") void refreshExplorer();
   });
 }
 
-/** Read the projects again and draw them. */
+/** Draw the explorer into `element` (the Projects page's body, each time it opens), read again. */
+export function explorerInto(element: HTMLElement): void {
+  host = element;
+  if (listing) draw();
+  void refreshExplorer();
+}
+
+/** Read the projects again and draw them (only while the explorer is on show). */
 export async function refreshExplorer(): Promise<void> {
-  if (!host) return;
+  if (!host?.isConnected) return;
   const asked = ++loading;
   const params = new URLSearchParams();
   if (kind) params.set("type", kind);
@@ -106,12 +110,6 @@ export async function refreshExplorer(): Promise<void> {
     return;
   }
   draw();
-}
-
-/** The explorer's page as it stands (drawn again on each read). */
-export function drawExplorer(): void {
-  if (listing) draw();
-  else void refreshExplorer();
 }
 
 const short = (path: string): string => {
@@ -182,7 +180,6 @@ function header(read: Listing, empty: boolean): HTMLElement {
   return h(
     "section",
     { class: "start-section explorer-head", "aria-label": "Projects" },
-    h("div", { class: "start-head" }, h("h2", {}, "Projects"), extras()),
     h(
       "div",
       { class: "start-actions" },

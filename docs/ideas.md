@@ -5635,3 +5635,39 @@ descriptions could use a bit more detail". A front-end change on the owner's wor
   takes the focus does not take them); Enter outside the card is Next.
 - **The agent (golden rule), 2026-11-18:** the tour is a page-only teaching aid; no command, as nothing it does is
   work the agent would want (app_navigate and the table commands already do each move).
+
+## The mark on the rail, and Projects as a page of its own (the owner, 2026-11-18; built, branch projects-page)
+
+The owner, with a screenshot of the red "+" mark at the top-left of the grid page's tab row: "Move this to the rail
+also reduce icon size just a bit so more fit. and give this button its own page for projects dont share the grid as
+the home page". A front-end change on the owner's word.
+
+**Decisions.**
+- **The mark is the rail's first item** (rail.ts AREAS, area `projects`), above Connections, on every page and window
+  with the rail (the grid page, the area pages, the blades page, the Workbench, the Key Finder window). Its look is
+  kept (the red square, the white +, nav.ts `markIcon`), its tip says "Projects Alt+Home" (`aria-keyshortcuts`), and
+  it is the rail's first stop for the arrow keys and Home. It left the tab bar, the title bar, the blades page's top
+  and the Workbench's top row.
+- **Projects is a rail page over the home page** (projectsPage.ts with areaPage.ts, `open=projects`), the way
+  Settings, Connections and Session work: Back, Forward and a reload keep it, the mark is marked current while on it.
+  Only the home page registers it, so from another window the mark (and Alt+Home, and the rail's `projects` area)
+  brings the home window forward showing Projects (nav.ts goHome; a home window opened fresh loads
+  `/workspace?open=projects`). It holds the Project Explorer (its header lost its own "Projects" heading: the page's
+  heading is it) and the Tour with its "New here?" bubble in the heading row. Settings keeps the projects folders.
+- **The grid page is only the grids.** The Start view left panes.ts (no `start` AppView, no setEmptyView): with no
+  table the grid page shows the Grids landing, a project open or not; with no project it adds "No project is open."
+  and a link to Projects, and lists the connections either way.
+- **The app opens on Projects** when the home page starts at plain `/workspace` with no table and no project (as the
+  Start view did), replacing its first entry; a rail click made while the page was still starting wins. The desktop
+  app and `swissarmybench open` keep loading `/workspace` (domain/desktop.py HOME_PAGE unchanged), so both stay in
+  step; `swissarmybench open <folder>` opens the project and lands on its grids as before.
+- **Old addresses:** `/workspace?view=start` lands on Projects (replaced); app_navigate's `start` and app_snapshot's
+  `start` are old names for `projects` for one release (domain/navigation.py SAME, services/snapshots.py OLD_AREAS).
+- **Leaving Projects:** a project opened or made there leaves for its grids (pushed: Back returns); a table that
+  arrives (a push, the agent) makes Projects give way (replaced), as it took the Start view's place before. A project
+  the agent opens while Projects is on show, with no table, leaves the page as it is (its card marked open).
+- **The agent (golden rule):** app_navigate `projects` (and `home`) shows it; app_snapshot area `projects` draws it.
+  The Session page's project entries go to Projects.
+- **Smaller rail icons:** 24px (from 28), the item height clamp(34px, (100vh - 40px) / 19, 46px), the current bar
+  8px from each end, the Session count moved to sit on the smaller icon's corner; `--rail-w` stays 60px.
+- **The tour** starts from Projects and returns there; a new second card, Projects, lights the mark on the rail.

@@ -56,9 +56,11 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     first, second = two_tables
     page = home_page(browser, first)
     base = f"http://127.0.0.1:{server['port']}"
-    mark = page.locator(".tabbar > a.app-mark")
-    expect(mark).to_have_attribute("href", "/workspace")
-    expect(page.get_by_role("link", name="Home")).to_have_count(1)
+    # The mark is the rail's first item (the owner, 2026-11-18), no longer in the tab bar.
+    mark = page.locator(".nav-rail-item").first
+    expect(mark).to_have_attribute("data-area", "projects")
+    expect(mark.locator(".app-mark")).to_be_visible()
+    expect(page.locator(".tabbar .app-mark")).to_have_count(0)
     expect(page).to_have_url(f"{base}/g/{grid_of(first)}")
     expect(page).to_have_title("nav_visits")
 
@@ -102,15 +104,32 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     expect(page).to_have_url(f"{base}/workspace?view=erd")
     expect(page).to_have_title("ERD")
 
-    # The mark goes home: the Start view (projects, 2026-11-16); and Alt+Home from Visualizations.
+    # The mark goes home: the Projects page (2026-11-18), the grids under it; Back returns; Alt+Home too.
+    projects = page.locator('.area-page[data-page="projects"]')
     mark.click()
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
-    expect(page).to_have_url(re.compile(r"/workspace\?view=start$"))
-    expect(page).to_have_title("Start")
+    expect(projects).to_be_visible()
+    expect(projects.locator(".explorer-head")).to_be_visible()
+    # The grid page is not shown: Projects covers everything right of the rail.
+    assert (
+        page.evaluate("document.elementFromPoint(700, 430).closest('.area-page')?.dataset.page") == "projects"
+    )
+    expect(page).to_have_url(re.compile(r"/workspace\?view=erd&open=projects$"))
+    expect(page).to_have_title("Projects")
+    expect(mark).to_have_attribute("aria-current", "page")
+    page.go_back()
+    expect(projects).to_have_count(0)
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
     page.locator(".nav-rail [data-area='visualizations']").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     page.keyboard.press("Alt+Home")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+    expect(projects).to_be_visible()
+    page.locator(".nav-rail [data-area='grids']").click()
+    expect(projects).to_have_count(0)
+    # The old Start view's address lands on Projects, in its place in the history.
+    page.goto(f"{base}/workspace?view=start")
+    expect(projects).to_be_visible(timeout=20000)
+    expect(page).to_have_url(re.compile(r"\?open=projects$"))  # over the table in front
+    page.locator(".nav-rail [data-area='grids']").click()
     # A reload on a table keeps that table in front.
     page.locator(f".tab-item[data-grid='{grid_of(second)}']").click()
     expect(page).to_have_url(re.compile(grid_of(second)))
@@ -215,7 +234,9 @@ def test_the_blades_pages_views_are_in_the_address(browser: Browser, server: dic
     page.goto(url)
     detail = page.locator("#detail")
     expect(detail.locator("h2")).to_have_text("Blades", timeout=20000)
-    expect(page.locator(".cat-top > a.app-mark")).to_have_attribute("href", "/workspace")
+    # The mark is the rail's first item here too (2026-11-18), not the page's top row.
+    expect(page.locator(".nav-rail-item").first).to_have_attribute("data-area", "projects")
+    expect(page.locator(".cat-top .app-mark")).to_have_count(0)
     expect(page).to_have_title("Blades")
     detail.get_by_role("button", name="New blade").click()
     expect(page).to_have_url(re.compile(r"\?blade=$"))
@@ -239,15 +260,25 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     workbench = opened.value
     expect(workbench.locator(".wb-status, .wb-welcome").first).to_be_visible(timeout=20000)
     expect(workbench).to_have_title(re.compile(r"^Workbench"))
-    mark = workbench.locator(".wb-top > a.app-mark")
-    expect(mark).to_have_attribute("title", "Home (Alt+Home)")
+    # The mark: the rail's first item (2026-11-18), named Projects, Alt+Home its key; not in the top row.
+    mark = workbench.locator(".nav-rail-item").first
+    expect(mark).to_have_attribute("data-area", "projects")
+    expect(mark).to_have_attribute("aria-keyshortcuts", "Alt+Home")
+    expect(workbench.locator(".wb-top .app-mark")).to_have_count(0)
+    # The rail's arrow keys reach it: Home from the stop the Tab key lands on.
+    workbench.locator(".nav-rail-item[tabindex='0']").focus()
+    workbench.keyboard.press("Home")
+    expect(mark).to_be_focused()
     pages = len(page.context.pages)
     mark.click()
-    # The home window it found by its name: the same page, not a second one, and not reloaded.
-    page.wait_for_timeout(500)
+    # The home window it found by its name: the same page, not a second one, and not reloaded; showing
+    # Projects.
+    expect(page.locator('.area-page[data-page="projects"]')).to_be_visible()
     assert len(page.context.pages) == pages
     assert page.evaluate("window.__still_here") == 1
     assert page.evaluate("window.name") == "sab-home"
+    page.locator(".nav-rail [data-area='grids']").click()
+    expect(page.locator('.area-page[data-page="projects"]')).to_have_count(0)
     # The agent's nav.home does the same, through workbench_window.
     answer = call(server, "POST", "/workbench/window", {"command": "nav.home", "args": {}}, agent=True)
     assert "result" in answer
@@ -263,8 +294,8 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     with workbench.context.expect_page() as again:
         workbench.keyboard.press("Alt+Home")
     home = again.value
-    expect(home.locator(".tabbar > a.app-mark")).to_be_visible(timeout=20000)
-    assert home.url.endswith("/workspace") or "view=start" in home.url or "/g/" in home.url
+    expect(home.locator('.area-page[data-page="projects"]')).to_be_visible(timeout=20000)
+    assert home.url.endswith("?open=projects")  # over the table in front, if one is open
     workbench.context.close()
 
 
@@ -291,5 +322,16 @@ def test_the_agent_moves_the_home_window(
     call(server, "POST", "/navigate", {"to": f"grid:{grid_of(two_tables[1])}"}, agent=True)
     expect(page.locator(f".tab-item.active[data-grid='{grid_of(two_tables[1])}']")).to_be_visible()
     call(server, "POST", "/navigate", {"to": "home"}, agent=True)
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
+    projects = page.locator('.area-page[data-page="projects"]')
+    expect(projects).to_be_visible()
+    call(server, "POST", "/navigate", {"to": "grids"}, agent=True)
+    expect(projects).to_have_count(0)
+    # The Projects page by its name, and by the Start view's old one (2026-11-18).
+    call(server, "POST", "/navigate", {"to": "projects"}, agent=True)
+    expect(projects).to_be_visible()
+    expect(page).to_have_url(re.compile(r"open=projects"))
+    call(server, "POST", "/navigate", {"to": "back"}, agent=True)
+    expect(projects).to_have_count(0)
+    call(server, "POST", "/navigate", {"to": "start"}, agent=True)
+    expect(projects).to_be_visible()
     page.context.close()

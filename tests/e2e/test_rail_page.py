@@ -28,6 +28,7 @@ from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
 # In the order of the work (the owner, 2026-11-17).
 AREAS = [
+    "projects",  # the mark, first (the owner, 2026-11-18): the Projects page
     "connections",
     "apis",  # beside Connections (the owner, 2026-11-18)
     "variables",
@@ -45,6 +46,7 @@ AREAS = [
     "settings",
 ]
 NAMES = [
+    "Projects",
     "Connections",
     "APIs",
     "Variables",
@@ -137,10 +139,17 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     for i, name in enumerate(NAMES):
         expect(buttons.nth(i)).to_have_accessible_name(name)
     expect(current(page)).to_have_attribute("data-area", "grids")
-    # 60px (the owner, 2026-11-18: larger), nothing under it: the mark, tabs and first column follow it.
+    # 60px (the owner, 2026-11-18: larger), nothing under it: the tabs and first column follow it.
     assert right_edge(page) <= 60.5
-    for selector in (".tabbar > a.app-mark", ".tabs-row", ".ag-header-cell:visible"):
+    for selector in (".tabbar", ".tabs-row", ".ag-header-cell:visible"):
         assert left_of(page, selector) >= right_edge(page) - 0.5, selector
+    # The mark is the rail's first item, its red square kept; the icons 24px so more fit (2026-11-18).
+    expect(area(page, "projects").locator(".app-mark")).to_be_visible()
+    expect(page.locator(".tabbar .app-mark")).to_have_count(0)
+    icon = area(page, "connections").locator(".icon-svg").bounding_box()
+    assert icon and round(icon["width"]) == 24 and round(icon["height"]) == 24
+    item = area(page, "connections").bounding_box()
+    assert item and 34 <= item["height"] <= 46
     # Settings sits at the bottom, apart from the others.
     settings = area(page, "settings").bounding_box()
     connections = area(page, "connections").bounding_box()
@@ -219,14 +228,18 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     for _ in range(6):
         page.keyboard.press("ArrowUp")  # the ERD, the grids, Data, Variables, APIs, Connections
     expect(area(page, "connections")).to_be_focused()
+    page.keyboard.press("ArrowUp")  # the mark, the first (2026-11-18)
+    expect(area(page, "projects")).to_be_focused()
     page.keyboard.press("ArrowUp")  # past the first: round to Settings
     expect(area(page, "settings")).to_be_focused()
     page.keyboard.press("Home")
-    expect(area(page, "connections")).to_be_focused()
-    # Alt+Home is Home (the Start view, 2026-11-16), wherever the focus is; the rail marks no area there.
+    expect(area(page, "projects")).to_be_focused()
+    expect(area(page, "projects").locator(".nav-rail-tip")).to_contain_text("Alt+Home")
+    # Alt+Home is Home (the Projects page, 2026-11-18), wherever the focus is; the mark is the current one.
+    area(page, "erd").focus()
     page.keyboard.press("Alt+Home")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "start")
-    expect(current(page)).to_have_count(0)
+    expect(page.locator(".area-page[data-page='projects']")).to_be_visible()
+    expect(current(page)).to_have_attribute("data-area", "projects")
     # The tip on hover.
     page.evaluate("document.activeElement.blur()")
     area(page, "apps").hover()

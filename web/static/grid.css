@@ -9440,7 +9440,8 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   font-size: 15px;
 }
 
-/* ===== NAVIGATION (nav.ts): the mark goes home, Back is named for where it goes, the trail past one level ===== */
+/* ===== NAVIGATION (nav.ts): the mark goes home (the rail's first item: Projects), Back is named for where it
+   goes, the trail past one level ===== */
 .app-mark {
   display: grid;
   flex: none;
@@ -9458,26 +9459,11 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   fill: currentColor;
 }
 
-.app-mark:hover {
+/* On the rail (rail.ts): the mark keeps its look; hover and focus as any rail item, the current bar beside it. */
+.nav-rail-mark:hover .app-mark,
+.nav-rail-mark.current .app-mark {
   outline: 2px solid var(--border-strong);
   outline-offset: 1px;
-}
-
-/* On the home page the mark starts the tab bar, level with the tabs. */
-.tabbar > .app-mark {
-  align-self: center;
-  margin: 0 4px 6px 0;
-}
-
-/* The Workbench's top row and the blades page's: the mark first. */
-.wb-top > .app-mark,
-.cat-top > .app-mark {
-  margin-right: 6px;
-}
-
-.titlebar > .app-mark {
-  flex: none;
-  margin-right: 12px;
 }
 
 /* A window of one panel (the steps window): the mark, then whose it is. */
@@ -9538,7 +9524,7 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 }
 
 @media (forced-colors: active) {
-  .app-mark {
+  .nav-rail .app-mark {
     border: 1px solid CanvasText;
     forced-color-adjust: none;
     background: Canvas;
@@ -9546,7 +9532,7 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   }
 }
 
-/* ===== START (startView.ts): new and recent projects, the home page's Home ===== */
+/* ===== THE GRIDS LANDING (startView.ts): the grid page with no table open ===== */
 .start-view {
   display: none;
   grid-area: start;
@@ -9556,19 +9542,12 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   background: var(--bg);
 }
 
-.workspace[data-view="start"],
 .workspace[data-view="grids"] {
   grid-template-columns: 0 0 0 0 minmax(0, 1fr) !important;
   grid-template-rows: minmax(0, 1fr) !important;
   grid-template-areas: "steps center splitter panel start" !important;
 }
 
-.workspace[data-view="start"] .steps-panel,
-.workspace[data-view="start"] .center,
-.workspace[data-view="start"] .splitter,
-.workspace[data-view="start"] .ai-panel,
-.workspace[data-view="start"] .erd-view,
-.workspace[data-view="start"] .query-view,
 .workspace[data-view="grids"] .steps-panel,
 .workspace[data-view="grids"] .center,
 .workspace[data-view="grids"] .splitter,
@@ -9578,26 +9557,26 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   display: none !important;
 }
 
-.workspace[data-view="start"] .start-view,
 .workspace[data-view="grids"] .start-view {
   display: block;
 }
 
-/* The Start view's top: its heading, and the tour offered here only. */
-.start-head {
-  display: flex;
-  flex-wrap: wrap;
+/* With no project open: the way to one, the Projects page. */
+.landing-projects {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
+.landing-projects-link {
+  color: var(--accent);
+}
+
+/* The Projects page (projectsPage.ts): the tour in its heading row, the explorer under it. */
+.area-page-actions > .tour-slot,
+.area-page-actions > .tour-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-}
-
-.start-head h2 {
-  margin: 0;
-}
-
-.start-head > .tour-btn,
-.start-head > .tour-slot {
-  margin-left: auto;
+  gap: 8px;
 }
 
 /* The Grids landing: the ways to bring data in, the project's connections, the tables to fix. */
@@ -9908,7 +9887,7 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 /* ===== THE RAIL (rail.ts): the areas down the left of every page and window, as VS Code's Activity Bar.
    60px, fixed (the owner, 2026-11-18: "the rail is too small ... and the icons can be a bit larger"); the page moves right by its width (nothing under it). The current area: a bar on the
    left edge and the icon brighter. Its name shows on hover and on keyboard focus. Settings' Panels can
-   turn it off: then it is gone and the page takes the width back. The mark stays in the top rows. ===== */
+   turn it off: then it is gone and the page takes the width back. The mark is its first item. ===== */
 :root {
   --rail-w: 60px;
 }
@@ -9944,7 +9923,8 @@ body.has-rail {
   width: 100%;
   /* 50px, a little less on a short window so every area still fits (no scrolling: the names pop out
      to the right, and a scrolling rail would clip them). */
-  height: clamp(36px, calc((100vh - 40px) / 17), 50px);
+  /* Smaller since the mark joined (the owner, 2026-11-18: "reduce icon size just a bit so more fit"). */
+  height: clamp(34px, calc((100vh - 40px) / 19), 46px);
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -9954,8 +9934,8 @@ body.has-rail {
 }
 
 .nav-rail-item .icon-svg {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   stroke-width: 1.5;
 }
 
@@ -9976,8 +9956,8 @@ body.has-rail {
 
 .nav-rail-item.current::before {
   position: absolute;
-  top: 9px;
-  bottom: 9px;
+  top: 8px;
+  bottom: 8px;
   left: 0;
   width: 3px;
   border-radius: 0 2px 2px 0;
@@ -10897,8 +10877,8 @@ body.sql-window dialog[open] textarea.code-input {
 /* The rail's Session icon: what the agent made that the user has not seen. */
 .nav-rail-count {
   position: absolute;
-  top: 6px;
-  right: 9px;
+  top: 5px;
+  right: 11px; /* beside the 24px icon's top right corner */
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -13710,6 +13690,11 @@ dialog.find-data .dialog-body {
 .start-page.project-explorer-page {
   max-width: 1180px;
   gap: 22px;
+}
+
+/* On the Projects page the page's own body gives the room. */
+.projects-page > .start-page.project-explorer-page {
+  padding: 0 0 24px;
 }
 
 .explorer-head .start-actions {

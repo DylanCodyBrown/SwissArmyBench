@@ -3,11 +3,15 @@
  * to say it, this app needs a navigation pane somehow."; a slim icon rail, as VS Code's Activity Bar).
  * [SHARED]
  *
- *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids; the mark goes Home, the Start view), Visualizations, ERD, Notebooks,
+ *   [MARK]    the red mark first, above Connections (the owner, 2026-11-18: "Move this to the rail also reduce
+ *             icon size just a bit so more fit. and give this button its own page for projects"): the
+ *             Projects page (projectsPage.ts, open=projects, the home page's only); from another window it
+ *             brings the home window forward showing Projects (nav.ts goHome). Alt+Home is the same.
+ *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids, only the grids), Visualizations, ERD, Notebooks,
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, Session (what the agent made this
  *             session, a count of what is new on its icon: sessionPage.ts), and Extensions
  *             (extensionsPage.ts) and Settings pinned at the bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
- *             Scripts and Apps wear their kind colours. The mark stays in each page's top row.
+ *             Scripts and Apps wear their kind colours.
  *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
  *             rail should land on a page not open a form"): the grids, Visualizations, the ERD, a kind's
  *             landing page in the Workbench (workbenchLanding.ts), the blades page, the Connections page
@@ -27,7 +31,7 @@
  *   [CURRENT] the area the address names is marked (a bar on the left edge, the icon brighter) with
  *             aria-current="page"; it follows every move (onAddress), Back and Forward too.
  *   [KEYS]    one stop in the Tab order (a toolbar): the arrows move between the areas, Enter goes;
- *             Alt+Home is Home (the Start view) everywhere (nav.ts).
+ *             the mark is the first stop. Alt+Home is Home (Projects) everywhere (nav.ts).
  *   [ALWAYS]  No switch (the owner, 2026-11-16): the rail is the one way to the areas, so the top tabs and
  *             the Application row no longer repeat them.
  *   [AGENT]   app_navigate's areas run here (setAreaRunner), as a click would (new_window too).
@@ -40,7 +44,7 @@
 import { token } from "./api";
 import { h, icon, toast } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
-import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, setAreaRunner, visit, withParams } from "./nav";
+import { goHome, hasLayer, HOME_URL, layerShown, markIcon, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
 import { onUnseen } from "./sessionPage";
 import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
@@ -53,11 +57,13 @@ import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, t
 import { openMenu } from "./workbenchMenu";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 
-export type Area = "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
+export type Area = "projects" | "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
-const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () => Promise<boolean> }[] = [
+const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () => Promise<boolean>; keys?: string }[] = [
+  // The mark, first (the owner, 2026-11-18): Home, the Projects page.
+  { area: "projects", name: "Projects", icon: "mark", keys: "Alt+Home" },
   // In the order of the work (the owner, 2026-11-17: "rearrange the rail to make since. In order of
   // workflow"): where the data comes from, getting and shaping it, web data, tools, building, presenting,
   // then the log.
@@ -85,7 +91,7 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
-const LAYERS: readonly Area[] = ["settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "scm", "data"];
+const LAYERS: readonly Area[] = ["projects", "settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "scm", "data"];
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
 const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
@@ -105,13 +111,14 @@ function currentArea(url: URL): Area | null {
   const view = kind === "home" ? url.searchParams.get("view") : null;
   if (view === "visualizations" || view === "sandbox") return "visualizations";
   if (view === "erd" || view === "diagram") return "erd"; // the old words, one release
-  if (view === "start") return null; // Home (startView.ts): no area of the rail's
+  if (view === "start") return "projects"; // the old Start view's address (one release): Projects
   return "grids"; // the grids (and the steps and Key Finder windows, which are a grid's)
 }
 
 /** A home window opened for `area`: the area in its address. */
 function arrivalUrl(area: Area): string {
   if (area === "visualizations" || area === "erd") return `${HOME_URL}?view=${area}`;
+  if (area === "projects") return PROJECTS_URL;
   if (isLayer(area)) return `${HOME_URL}?open=${area}`;
   return HOME_URL;
 }
@@ -161,6 +168,12 @@ export function goArea(area: Area, newWindow = false): void {
     openLayer(area);
     return;
   }
+  // Projects is the home window's: another window brings it forward showing Projects (its Workbench kernels
+  // stay where they are).
+  if (area === "projects") {
+    goHome();
+    return;
+  }
   if (area === "blades" && kind === "catalog") {
     if (layerShown() || new URLSearchParams(location.search).get("open")) visit(withParams(LAYER_OFF)); // the page makes way
     return;
@@ -200,18 +213,18 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
     "button",
     {
       type: "button",
-      class: ["nav-rail-item", area.area === "extensions" ? "nav-rail-bottom" : "", area.kind ? `nav-rail-kind km-${area.kind}` : ""].filter(Boolean).join(" "),
+      class: ["nav-rail-item", area.area === "projects" ? "nav-rail-mark" : "", area.area === "extensions" ? "nav-rail-bottom" : "", area.kind ? `nav-rail-kind km-${area.kind}` : ""].filter(Boolean).join(" "),
       "data-area": area.area,
       "aria-label": area.name,
-      "aria-keyshortcuts": undefined,
+      "aria-keyshortcuts": area.keys,
       // Ctrl+click (Cmd+click): a new window, as a link's new tab.
       onclick: (e: MouseEvent) => goArea(area.area, e.ctrlKey || e.metaKey),
     },
-    icon(area.icon),
+    area.area === "projects" ? markIcon() : icon(area.icon),
     // The Session icon: what the agent made that the user has not seen yet (sessionPage.ts).
     area.area === "session" ? h("span", { class: "nav-rail-count", "aria-hidden": "true", hidden: true }) : null,
     // The name, on hover and on focus (a `title` would show the same words a second time).
-    h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name),
+    h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name, area.keys ? h("kbd", {}, area.keys) : null),
   );
   if (area.plugin) {
     element.hidden = true;
@@ -266,7 +279,7 @@ export function mountNavRail(page: PageKind): void {
   window.addEventListener("message", (e: MessageEvent) => {
     const said = e.data as { sab?: unknown; area?: unknown } | null;
     if (e.origin !== location.origin || said?.sab !== "area") return;
-    if (said.area === "home") goHome(); // another window's mark: Home (the Start view)
+    if (said.area === "home") goHome(); // another window's mark: Home (Projects)
     else if (isArea(said.area)) goArea(said.area);
   });
 }

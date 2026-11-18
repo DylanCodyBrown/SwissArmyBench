@@ -20,7 +20,7 @@ import { mountBeta } from "./betaNotes";
 import { installZoomInput } from "./zoom";
 import { mountAppFooter } from "./appFooter";
 import { button, clear, h } from "./dom";
-import { appMark, backButton, backTo, go, type Move, mountNav, setTitle, startNav } from "./nav";
+import { backButton, backTo, go, type Move, mountNav, setTitle, startNav } from "./nav";
 import { mountNavRail } from "./rail";
 import "./settingsWindow"; // the rail's Settings opens here too (open=settings)
 
@@ -110,7 +110,6 @@ async function showAddress(url: URL): Promise<void> {
 const opened = new URL(location.href);
 mountNav("catalog", { show: (url) => void showAddress(url) });
 mountNavRail("catalog"); // the grids, Visualizations and the ERD are the home window's
-document.querySelector(".cat-top")?.prepend(appMark());
 setTitle(PAGE);
 void rail
   .loadBlades()

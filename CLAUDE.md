@@ -724,13 +724,15 @@ src/swissarmybench/
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
                          nav.ts is getting around on every page and window (design principle 8.11): the mark
-                         (home; another window brings the home window, named sab-home, forward; Alt+Home),
+                         (the rail's first item: home, the Projects page; another window brings the home window,
+                         named sab-home, forward showing Projects; Alt+Home),
                          views in the address (go: pushed for the user's moves, replaced for the app's; Back
                          and Forward are the browser's), layers (a dialog with views of its own, open=<key>:
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window, in the order of
-                         the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18): Connections, APIs, Variables, Data, Grids, ERD, Structures,
+                         the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; the red mark first,
+                         Projects, and 24px icons so more fit, 2026-11-18): Projects, Connections, APIs, Variables, Data, Grids, ERD, Structures,
                          Blades, Notebooks, Scripts, Apps, Visualizations, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
@@ -740,7 +742,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          library.ts Settings' Meta store folder (the library folder, Change…,
                          Default, its counts, the shared catalog's counts, Set up from the meta store) and the
                          notices said once (the move, a team's meta store, a pull's catalog change); areaPage.ts is a page of the rail's over any page
-                         (Settings, Connections, Session: open=settings, open=connections, open=session); variablesPage.ts the Variables page (open=variables:
+                         (Settings, Connections, Session: open=settings, open=connections, open=session; Projects
+                         over the home page only, open=projects); projectsPage.ts the Projects page (the rail's
+                         mark, 2026-11-18: the Project Explorer and the tour; the app opens on it with no table and
+                         no project; /workspace?view=start lands on it; it makes way for a project opened there or
+                         a table that arrives); variablesPage.ts the Variables page (open=variables:
                          by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
@@ -765,7 +771,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          bladeAnalysis.ts analysis blades (your own analyses) in the Analyze menu;
                          sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
                          markdown export; cellMenu.ts the right-click menus on cells and headers;
-                         tour.ts is the first-time tour (on the Start page only: a card per
+                         tour.ts is the first-time tour (on the Projects page only: a card per
                          place in the rail's order that goes there and lights up the real control,
                          two made-up tables staged and closed again, back to where it started; then
                          a matching game; nav.ts returnTo);
@@ -850,15 +856,15 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          close; a table's fix; the ● mark; Export outline: ARCHITECTURE.md, then Download);
                          projectTypes.ts the types for
                          beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
-                         the home page's Project Explorer (cards marked Local or Shared, sort and dragged custom
+                         the Project Explorer, drawn on the Projects page (cards marked Local or Shared, sort and dragged custom
                          order, filters, the types strip, the empty state, a card's menu: Share, Make a local copy;
                          Settings' Local and Shared projects folders);
                          projectImport.ts the import dialog (documents, connections, blades: from another
                          project folder, a file, this computer);
-                         startView.ts the home page's Start view (/workspace?view=start: the Project Explorer,
-                         the tour: offered here only; Home brings it), the Grids
-                         landing (/workspace?view=grids: a project open, no table: Open a file, Paste,
-                         Query, its connections, its tables to fix), the project's group in the
+                         startView.ts the grid page's Grids landing (/workspace?view=grids: no table open, a
+                         project open or not: Open a file, Paste, Query, the connections, the project's tables to
+                         fix, and with no project a link to Projects; the Start view left for projectsPage.ts,
+                         2026-11-18), the project's group in the
                          Application row (Save, Copy to…, Close, Autosave) and the strip of tables to fix;
                          connectionColours.ts each connection's colour worn by whatever names it
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the

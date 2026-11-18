@@ -2142,7 +2142,7 @@ def cell_exclude(a: dict[str, Any]) -> Any:
     "app_snapshot",
     "A PNG of the app as the user sees it (your scroll, selection, splits and panels). Shows real cell "
     "values, and the user's browser tab must be visible.",
-    opt("area", "app (the whole window, default), ribbon, grid, steps or visualizations."),
+    opt("area", "app (the whole window, default), ribbon, grid, steps, visualizations or projects."),
     opt("scale", "1 (default) or 2 for a sharper picture.", "int"),
     opt("out", "Also save the PNG to this file path."),
     image=True,
@@ -4325,12 +4325,12 @@ def app_audit(a: dict[str, Any]) -> Any:
 
 @command(
     "app_navigate",
-    "Move a window as the user does: home (the mark: the Start view), back, forward, or a view",
+    "Move a window as the user does: home (the mark: the Projects page), back, forward, or a view",
     req(
         "to",
-        "the rail: data (browse tables), grids, visualizations, erd, notebooks, scripts, apps, blades, connections, "
-        "variables, session, settings; back, forward, add_connection, add_api; home: query, grid:<id>; catalog "
-        "(the blades page): blade:<name>, new_blade",
+        "the rail: projects (the mark), data (browse tables), grids, visualizations, erd, notebooks, scripts, "
+        "apps, blades, connections, variables, session, settings; back, forward, add_connection, add_api; home: "
+        "query, grid:<id>; catalog (the blades page): blade:<name>, new_blade",
     ),
     opt("window", "home (default), catalog or workbench."),
     opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),

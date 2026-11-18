@@ -72,7 +72,7 @@ import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, 
 import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
-import { appMark, back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
+import { back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
 import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
@@ -1842,7 +1842,7 @@ const topNew = button("New notebook", () => topStart(), { icon: "plus", class: "
 const topOpen = button("Open…", () => void open(), { icon: "folder", title: "Open a notebook, script or Streamlit app (Ctrl+O)" });
 const topMenu = menuButton(button("Workbench menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost", title: "More" }), "Workbench menu", () => topEntries(), { align: "right" });
 // The app's mark: the window's icon, drawn small, a link home (it brings the home window forward).
-top.append(appMark(), topProject, topName, saveButton, saveAsButton, topNew, topOpen, h("span", { class: "wb-grow" }), topMenu);
+top.append(topProject, topName, saveButton, saveAsButton, topNew, topOpen, h("span", { class: "wb-grow" }), topMenu);
 
 /** The kind the top bar's New makes: the landing's on show, else the document's in front (a data or app
  *  notebook makes a notebook), else the address's, else a notebook. */
@@ -3127,7 +3127,7 @@ const COMMANDS: Command[] = [
   { id: "data.addApi", group: "Data", title: "Add API…", run: () => addApi() },
   { id: "view.variablesRefresh", group: "View", title: "Read the variables again", when: isCode, whyNot: "no notebook or script is in front", run: () => variables.refresh().then(() => variables.snapshot()) },
   // Getting around (nav.ts): the mark's Home, and the browser's Back and Forward inside the app
-  { id: "nav.home", group: "Go", title: "Home: the grids' window", keys: "Alt+Home", run: () => goHome() },
+  { id: "nav.home", group: "Go", title: "Home: Projects, in the home window", keys: "Alt+Home", run: () => goHome() },
   { id: "nav.back", group: "Go", title: "Back", keys: "Alt+Left", when: canGoBack, whyNot: "nothing to go back to in this window", run: () => back() },
   { id: "nav.forward", group: "Go", title: "Forward", keys: "Alt+Right", run: () => forward() },
   // Help

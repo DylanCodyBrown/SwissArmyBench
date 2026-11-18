@@ -36,7 +36,7 @@ import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, closeDialogs, h, toast } from "./dom";
-import { appMark, HOME_URL, layerShown, mountNav, setTitle, startNav, visit, withParams } from "./nav";
+import { HOME_URL, layerShown, mountNav, openLayer, setTitle, startNav, visit, withParams } from "./nav";
 import { mountNavRail } from "./rail";
 import { renderKeyFinder } from "./keyFinder";
 import { mountBeta } from "./betaNotes";
@@ -52,8 +52,10 @@ import { pulse, setFollower, setGoer, type Entry, type Target } from "./sessionP
 import { highlightRelationships } from "./erdView";
 import { showInSandbox } from "./sandboxShow";
 import type { Move } from "./nav";
-import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, showStartView, viewingStart } from "./panes";
+import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, viewingLanding } from "./panes";
 import { mountStart } from "./startView";
+import { mountProjectsPage } from "./projectsPage";
+import { loadProject } from "./projectFile";
 import { mountRibbon, setStepsRow } from "./ribbon";
 import { installZoomInput } from "./zoom";
 
@@ -109,9 +111,11 @@ async function pasteAsDataset(text: string): Promise<void> {
 /** Route a live notice to the grid(s) it is about, active or not. */
 function onLiveNotice(notice: Notice): void {
   if (notice.type === "grid_shown" && notice.grid && !popout && !keysWindow) {
-    // A push or an agent opened a grid: it arrives as a tab and comes to the front (over the Start view).
+    // A push or an agent opened a grid: it arrives as a tab and comes to the front (over the Grids landing,
+    // and the Projects page makes way, as the Start view did).
     addGrid(notice.grid, notice.dataset ?? notice.grid);
-    if (viewingStart()) showGridView("replace");
+    if (viewingLanding()) showGridView("replace");
+    if (layerShown() === "projects") visit(withParams({ open: null, at: null, type: null, name: null }), "replace");
     void activateGrid(notice.grid);
   }
   if (notice.type === "grid_closed" && notice.grid) dropGrid(notice.grid);
@@ -233,10 +237,9 @@ async function startSingle(): Promise<void> {
     return;
   }
   if (keysWindow) {
-    // The Key Finder window: the finder alone, full width, titled for this grid; the mark goes home.
+    // The Key Finder window: the finder alone, full width, titled for this grid; the rail's mark goes home.
     setTitle("Key Finder", info.dataset);
     clear($("#grid-title"), `Possible Join Keys for ${info.dataset}`);
-    $(".titlebar").prepend(appMark());
     for (const selector of [".tabbar", ".ribbon", ".workspace", ".statusbar"]) $(selector).remove();
     const host = h("main", { class: "keys-window" });
     document.body.append(host);
@@ -255,6 +258,13 @@ async function startSingle(): Promise<void> {
   document.body.append(stepsHost);
   $(".workspace").remove();
   single.emit("info");
+}
+
+/** `url` as the Projects page's address (open=projects, no view), in this entry's place. */
+function projectsAddress(url: URL): void {
+  url.searchParams.delete("view");
+  url.searchParams.set("open", "projects");
+  history.replaceState(history.state, "", url.pathname + url.search);
 }
 
 async function start(): Promise<void> {
@@ -285,20 +295,21 @@ async function start(): Promise<void> {
   }
   // The address it was opened with (a reload, a bookmark): shown once the tables are back.
   const opened = new URL(location.href);
-  // The home page: its tabs and dialogs in the address; Home (the mark, Alt+Home) is the Start view.
+  // The old Start view (/workspace?view=start, one release) is the Projects page now: its address replaced.
+  if (opened.searchParams.get("view") === "start") projectsAddress(opened);
+  // The home page: its tabs and dialogs in the address; Home (the rail's mark, Alt+Home) is the Projects
+  // page over it (projectsPage.ts: the grid page is only the grids, the owner 2026-11-18).
   mountNav("home", {
     show: (url) => void showPlace(url),
     home: () => {
       closeDialogs();
-      // A page of the rail's over the grids (Settings, Connections) makes way for the Start view.
-      if (layerShown()) visit(withParams({ open: null, at: null, type: null, name: null, view: "start" }, HOME_URL));
-      else showStartView("push");
+      openLayer("projects"); // the page on show (Settings, Connections) makes way
     },
   });
-  mountNavRail("home"); // the areas down the left
+  mountProjectsPage();
+  mountNavRail("home"); // the areas down the left, the mark first
   setGoer((t) => goToTarget(t, "auto"));
   setFollower(follow);
-  $(".tabbar").prepend(appMark());
   const workspace = $(".workspace");
   // The grid has the whole page (plan decision 13): no Table Transformations panel and no SQL box here.
   // The ribbon adds steps; the strip under the title shows them, and opens the panel in a tab of its
@@ -382,12 +393,24 @@ async function start(): Promise<void> {
     if (again) void resyncGrids().catch(() => undefined);
   }, { workspace: "1" });
   await openGrids(gridId || openedWith.get("grid"));
+  // The app's start (/workspace and nothing more) with no table and no project: the Projects page, as the
+  // Start view was (the desktop app and `swissarmybench open` load /workspace: domain/desktop.py HOME_PAGE).
+  let startsOnProjects = false;
+  if (opened.pathname === "/workspace" && !opened.search && !gridList().length && !gridId && !openedWith.get("grid")) {
+    startsOnProjects = !(await loadProject().catch(() => null))?.project;
+  }
   // A compare this page was showing before a reload comes back with its split.
   await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();
   // The view the address named (Visualizations, the ERD, a table), then the dialog over it.
   await showPlace(opened);
   startNav(opened);
+  // Unless the user went somewhere meanwhile (a rail click while the page was starting): only the grids'
+  // landing, with no page over it, makes way for Projects, in its place in the history.
+  const now = new URL(location.href);
+  if (startsOnProjects && now.pathname === "/workspace" && !now.searchParams.get("open") && (now.searchParams.get("view") ?? "grids") === "grids") {
+    visit(withParams({ view: null, open: "projects", at: null, type: null, name: null }), "replace");
+  }
 
   document.addEventListener("paste", (e) => {
     // With nothing focused the target is the document itself, which has no closest().

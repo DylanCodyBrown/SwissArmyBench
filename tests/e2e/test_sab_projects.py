@@ -4,7 +4,8 @@ cards (a missing one with Remove from list), a reload keeps the view, Home bring
 picks a folder; Save clears the unsaved mark; saving the open work makes it a project and asks "Keep its
 rows" for a pasted table; New project from a beginner's type card, then its Grids; the sort and a dragged
 custom order kept after a reload; the empty state; no Open a .sab file… (the conversion removed);
-the tour is offered on the Start page only; a notebook imported from another project in the Workbench.
+the tour is offered on the Projects page only (the rail's mark, 2026-11-18); the grid page with no table is
+the Grids landing, a project open or not; a notebook imported from another project in the Workbench.
 Screenshots light and dark when SAB_SHOTS is set. Made-up data only."""
 
 from __future__ import annotations
@@ -106,9 +107,11 @@ def test_the_explorer_lists_projects_as_cards_and_opens_one(
     shutil.rmtree(gone)
     page = home(browser, server)
     workspace = page.locator(".workspace")
-    expect(workspace).to_have_attribute("data-view", "start", timeout=20000)
-    expect(page).to_have_url(re.compile(r"/workspace\?view=start$"))
-    start = page.locator("#start-view")
+    # The app starts on the Projects page (no table, no project), a page of its own over the grids'.
+    start = page.locator('.area-page[data-page="projects"]')
+    expect(start).to_be_visible(timeout=20000)
+    expect(page).to_have_url(re.compile(r"/workspace\?(view=grids&)?open=projects$"))
+    expect(page.locator('.nav-rail [data-area="projects"]')).to_have_attribute("aria-current", "page")
     expect(start.get_by_role("button", name="New project", exact=True)).to_be_visible()
     cards = start.locator(".explorer-card")
     expect(cards).to_have_count(4)
@@ -126,24 +129,25 @@ def test_the_explorer_lists_projects_as_cards_and_opens_one(
     shot(page, fresh, "project-explorer-light.png")
     # A reload keeps the view.
     page.reload()
-    expect(workspace).to_have_attribute("data-view", "start", timeout=20000)
+    expect(start).to_be_visible(timeout=20000)
     # A missing one goes from the list; the other opens: its table, with its step, comes to the front.
     missing.get_by_role("button", name="gone: more").click()
     missing.get_by_role("menuitem", name="Remove from list").click()
     expect(cards).to_have_count(3)
     start.locator(".explorer-card", has_text="Regional sales").locator("h3").click()
     expect(workspace).to_have_attribute("data-view", "grid", timeout=20000)
+    expect(start).to_have_count(0)  # Projects made way for the project's grids
     expect(page.locator(".tab-item[data-grid]")).to_have_count(1)
     expect(page.locator(".project-group .project-name")).to_have_text("Regional sales")
-    # Home (the mark) brings the Project Explorer back, the open one marked; Back goes to the table.
-    page.locator(".tabbar > a.app-mark").click()
-    expect(workspace).to_have_attribute("data-view", "start")
+    # Home (the rail's mark) brings the Projects page back, the open one marked; Back goes to the table.
+    page.locator('.nav-rail [data-area="projects"]').click()
     expect(start.locator(".explorer-card.is-open")).to_contain_text("Regional sales")
     page.go_back()
+    expect(start).to_have_count(0)
     expect(workspace).to_have_attribute("data-view", "grid")
     page.context.close()
-    dark = home(browser, server, "?view=start", dark=True)
-    expect(dark.locator("#start-view .explorer-card")).to_have_count(3, timeout=20000)
+    dark = home(browser, server, "?open=projects", dark=True)
+    expect(dark.locator('.area-page[data-page="projects"] .explorer-card')).to_have_count(3, timeout=20000)
     shot(dark, fresh, "project-explorer-dark.png")
     dark.context.close()
 
@@ -154,8 +158,8 @@ def test_sort_and_a_dragged_custom_order_are_kept_after_a_reload(
     for name in ("Alpha", "Beta", "Gamma"):
         call(server, "POST", "/project/new", {"name": name})
         call(server, "POST", "/project/close", {"discard": True})
-    page = home(browser, server, "?view=start")
-    start = page.locator("#start-view")
+    page = home(browser, server, "?open=projects")
+    start = page.locator('.area-page[data-page="projects"]')
     names = start.locator(".explorer-card h3")
     expect(names).to_have_count(3, timeout=20000)
     start.get_by_label("Sort by").select_option("name")
@@ -184,9 +188,9 @@ def test_sort_and_a_dragged_custom_order_are_kept_after_a_reload(
 def test_the_empty_state_and_new_project_from_a_beginners_type_card(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
-    page = home(browser, server, "?view=start")
+    page = home(browser, server, "?open=projects")
     workspace = page.locator(".workspace")
-    start = page.locator("#start-view")
+    start = page.locator('.area-page[data-page="projects"]')
     empty = start.locator(".explorer-empty")
     expect(empty).to_contain_text("Create your first project", timeout=20000)
     expect(empty.locator(".pt-card.large")).to_have_count(2)
@@ -226,8 +230,8 @@ def test_new_projects_folder_picker_opens_before_the_projects_folder_exists(
     """The projects folder is made by the first project: before that, Choose another folder… showed an empty
     list and an empty menu (no way to go anywhere). It shows the nearest folder above that does exist."""
     assert not projects_folder().exists()
-    page = home(browser, server, "?view=start")
-    page.locator("#start-view").get_by_role("button", name="New project").first.click()
+    page = home(browser, server, "?open=projects")
+    page.locator('.area-page[data-page="projects"]').get_by_role("button", name="New project").first.click()
     page.get_by_role("button", name="Choose another folder…").click()
     chooser = page.locator("dialog.file-chooser")
     expect(chooser.get_by_role("textbox", name="Folder")).not_to_have_value("", timeout=10000)
@@ -241,8 +245,8 @@ def test_open_project_picks_a_folder_and_save_clears_the_mark(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
     target = saved_project(server, fresh, "chooser")
-    page = home(browser, server, "?view=start")
-    page.locator("#start-view").get_by_role("button", name="Open project…").click()
+    page = home(browser, server, "?open=projects")
+    page.locator('.area-page[data-page="projects"]').get_by_role("button", name="Open project…").click()
     dialog = page.locator("dialog.file-chooser")
     where = dialog.get_by_role("textbox", name="Folder")
     where.fill(str(target))
@@ -266,8 +270,8 @@ def test_open_project_picks_a_folder_and_save_clears_the_mark(
 def test_saving_the_open_work_makes_a_project_and_asks_to_keep_a_pasted_tables_rows(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
-    page = home(browser, server, "?view=start")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "start", timeout=20000)
+    page = home(browser, server, "?open=projects")
+    expect(page.locator('.area-page[data-page="projects"]')).to_be_visible(timeout=20000)
     call(server, "POST", "/datasets/orders/load", {"path": str(fresh / "orders.csv")})
     request = f"http://127.0.0.1:{server['port']}/datasets/visits/paste"
     response = page.request.post(
@@ -277,6 +281,7 @@ def test_saving_the_open_work_makes_a_project_and_asks_to_keep_a_pasted_tables_r
     expect(page.locator(".tab-item[data-grid]")).to_have_count(2, timeout=20000)
     # No project yet: Ctrl+S makes the open work one (New project), then Save asks about the rows.
     page.locator(".tab-item[data-grid]").first.click()
+    page.locator('.nav-rail [data-area="grids"]').click()
     page.keyboard.press("Control+s")
     dialog = page.locator("dialog.new-project")
     dialog.get_by_label("Name").fill("kept")
@@ -300,20 +305,20 @@ def test_saving_the_open_work_makes_a_project_and_asks_to_keep_a_pasted_tables_r
     page.context.close()
 
 
-def test_the_start_view_offers_no_old_sab_file_import(browser: Browser, server: dict[str, Any]) -> None:
-    """The .sab conversion is removed (the owner, 2026-11-17): the Start view opens folders only."""
-    page = home(browser, server, "?view=start")
-    actions = page.locator("#start-view .start-actions")
+def test_the_projects_page_offers_no_old_sab_file_import(browser: Browser, server: dict[str, Any]) -> None:
+    """The .sab conversion is removed (the owner, 2026-11-17): the Projects page opens folders only."""
+    page = home(browser, server, "?open=projects")
+    actions = page.locator('.area-page[data-page="projects"] .start-actions')
     expect(actions.get_by_role("button", name="Open project…")).to_be_visible()
     expect(page.get_by_role("button", name="Open a .sab file…")).to_have_count(0)
     page.context.close()
 
 
-def test_the_tour_is_offered_on_the_start_page_only(
+def test_the_tour_is_offered_on_the_projects_page_only(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
-    page = home(browser, server, "?view=start")
-    expect(page.locator("#start-view .tour-btn")).to_be_visible(timeout=20000)
+    page = home(browser, server, "?open=projects")
+    expect(page.locator('.area-page[data-page="projects"] .tour-btn')).to_be_visible(timeout=20000)
     expect(page.locator(".app-row .tour-btn")).to_have_count(0)
     for path in ("/workbench", "/catalog"):
         other = page.context.new_page()
@@ -322,6 +327,50 @@ def test_the_tour_is_offered_on_the_start_page_only(
         expect(other.locator(".tour-btn, .tour-bubble")).to_have_count(0)
         other.close()
     page.context.close()
+
+
+def test_the_grid_page_with_no_table_is_the_grids_landing_and_the_mark_opens_projects(
+    browser: Browser, server: dict[str, Any], fresh: Path
+) -> None:
+    """The owner (2026-11-18): "give this button its own page for projects dont share the grid as the home
+    page". The grid page is only the grids: with no table and no project, its landing (and a link to
+    Projects); the mark, the rail's first item, opens Projects over it; Back returns."""
+    made_up_projects(server, fresh)
+    page = home(browser, server, "?view=grids")
+    landing = page.locator(".landing-page")
+    expect(landing).to_be_visible(timeout=20000)
+    expect(page.locator(".workspace")).to_have_attribute("data-view", "grids")
+    expect(landing.get_by_role("button", name="Open a file…")).to_be_visible()
+    expect(landing.locator(".landing-projects")).to_contain_text("No project is open.")
+    projects = page.locator('.area-page[data-page="projects"]')
+    expect(projects).to_have_count(0)
+    mark = page.locator(".nav-rail-item").first
+    expect(mark).to_have_attribute("data-area", "projects")
+    expect(page.locator(".nav-rail [aria-current='page']")).to_have_attribute("data-area", "grids")
+    mark.hover()
+    expect(mark.locator(".nav-rail-tip")).to_be_visible()
+    shot(page, fresh, "rail-mark-tip.png")
+    page.mouse.move(700, 500)
+    mark.click()
+    page.mouse.move(700, 500)
+    expect(projects.locator(".explorer-card")).to_have_count(3, timeout=20000)
+    expect(mark).to_have_attribute("aria-current", "page")
+    # The grid page is not shown: Projects covers everything right of the rail.
+    assert (
+        page.evaluate("document.elementFromPoint(700, 450).closest('.area-page')?.dataset.page") == "projects"
+    )
+    shot(page, fresh, "projects-page-light.png")
+    page.go_back()
+    expect(projects).to_have_count(0)
+    expect(landing).to_be_visible()
+    # The landing's link goes there too.
+    landing.get_by_role("link", name="Projects").click()
+    expect(projects).to_be_visible()
+    page.context.close()
+    dark = home(browser, server, "?open=projects", dark=True)
+    expect(dark.locator('.area-page[data-page="projects"] .explorer-card')).to_have_count(3, timeout=20000)
+    shot(dark, fresh, "projects-page-dark.png")
+    dark.context.close()
 
 
 def test_a_notebook_is_imported_from_another_project(

@@ -23,6 +23,9 @@ def test_each_window_names_the_places_it_has() -> None:
     # The old names, one release (2026-11-16: the Sandbox is Visualizations, the Diagram the ERD).
     assert rules.place("home", " sandbox ") == {"window": "home", "to": "visualizations"}
     assert rules.place("catalog", "diagram") == {"window": "catalog", "to": "erd"}
+    # The Start view is the Projects page (the owner, 2026-11-18): its old name, one release.
+    assert rules.place("home", "start") == {"window": "home", "to": "projects"}
+    assert rules.place("workbench", " start ") == {"window": "workbench", "to": "projects"}
     assert rules.place("home", "grid:g1") == {"window": "home", "to": "grid", "grid": "g1"}
     assert rules.place("home", "add_api") == {"window": "home", "to": "add_api"}
     # The blades page's catalog panel went (the owner, 2026-11-17): its views are no places.
@@ -47,6 +50,7 @@ def test_each_window_names_the_places_it_has() -> None:
 def test_every_rail_area_is_a_place_from_every_window() -> None:
     """The rail (2026-11-16): each area, in the rail's order, from each window, as a rail click goes."""
     assert rules.AREAS == (  # in the order of the work (the owner, 2026-11-17)
+        "projects",  # the mark, the rail's first item: the Projects page (2026-11-18)
         "connections",
         "variables",
         "data",  # the one place to browse tables (2026-11-17)
@@ -66,7 +70,8 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     for window in rules.WINDOWS:
         for area in rules.AREAS:
             assert area in rules.places(window)
-            # Grids is the home page's tabbed grids; home (the mark) is the Start view (2026-11-16).
+            # Grids is the home page's tabbed grids, only the grids; projects (the mark) and home are
+            # the Projects page (2026-11-18).
             assert rules.place(window, area) == {"window": window, "to": area}
         assert rules.place(window, " grids ") == {"window": window, "to": "grids"}
         assert rules.place(window, "home") == {"window": window, "to": "home"}
@@ -85,12 +90,12 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     ("window", "to", "words"),
     [
         ("tray", "home", "window is one of home, catalog, workbench"),
-        ("home", "", "to is where to go: home, connections, variables, data, grids, erd"),
+        ("home", "", "to is where to go: home, projects, connections, variables, data, grids, erd"),
         ("home", None, "to is where to go"),
         (
             "home",
             "kitchen",
-            "The home window cannot go to 'kitchen'. It can go to: home, connections, variables, data, grids",
+            "The home window cannot go to 'kitchen'. It can go to: home, projects, connections, variables",
         ),
         ("workbench", "query", "The workbench window cannot go to 'query'"),
         ("catalog", "grid:g1", "The catalog window cannot go to 'grid:g1'"),

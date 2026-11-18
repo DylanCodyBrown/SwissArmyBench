@@ -72,12 +72,21 @@ def test_the_agent_gets_the_picture_the_page_draws(client: TestClient) -> None:
     assert response.headers["x-snapshot-width"] == "30" and response.headers["x-snapshot-height"] == "20"
 
 
-def test_the_old_area_name_sandbox_asks_the_page_for_visualizations(client: TestClient) -> None:
-    """The Sandbox became Visualizations (2026-11-16): area "sandbox" works for one release."""
+@pytest.mark.parametrize(
+    ("asked", "area"),
+    [
+        # The Sandbox became Visualizations (2026-11-16): area "sandbox" works for one release.
+        ("sandbox", "visualizations"),
+        # The Projects page, the rail's mark (2026-11-18); the Start view's word for one release.
+        ("projects", "projects"),
+        ("start", "projects"),
+    ],
+)
+def test_an_area_and_its_old_name_ask_the_page_for_it(client: TestClient, asked: str, area: str) -> None:
     with client.websocket_connect("/ws?workspace=1", headers=PAGE) as page:
-        thread, result = ask_in_a_thread(client, {"area": "sandbox"})
+        thread, result = ask_in_a_thread(client, {"area": asked})
         request = page.receive_json()
-        assert request["area"] == "visualizations"
+        assert request["area"] == area
         client.post(
             f"/snapshots/{request['id']}", content=tiny_png(), headers=AUTH | {"Content-Type": "image/png"}
         )

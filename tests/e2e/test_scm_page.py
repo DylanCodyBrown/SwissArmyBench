@@ -253,7 +253,7 @@ def test_the_footer_mark_and_a_shared_card(
     hub.teammate(SHARED, {"Close/plan.md": b"alpha\ntheirs\n"})
     call(server, "GET", "/git?remote=1")
     call(server, "POST", "/project/close", {"discard": True})
-    page.goto(f"http://127.0.0.1:{server['port']}/workspace?view=start#token={server['token']}")
+    page.goto(f"http://127.0.0.1:{server['port']}/workspace?open=projects#token={server['token']}")
     card = page.locator('.explorer-card[aria-label="Close"]')
     expect(card.locator(".explorer-sync")).to_be_visible(timeout=20000)
     card.get_by_role("button", name="Close: more").click()

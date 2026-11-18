@@ -1,16 +1,13 @@
 /**
- * startView.ts: the home page's Start view and Grids landing, its project group in the Application row,
- * and the strip of tables that need a fix. [WIRE] (The owner, 2026-11-16: "The home page should show
- * recent projects and have a open option for projects"; "start a new project … have the user save a
- * project file … ask about autosave … we start in grids"; "new here take a tour should be on the project
- * page and no where else".)
+ * startView.ts: the grid page's Grids landing, its project group in the Application row, and the strip of
+ * tables that need a fix. [WIRE] (The owner, 2026-11-16: "start a new project … have the user save a project
+ * file … ask about autosave … we start in grids"; 2026-11-18: "give this button its own page for projects
+ * dont share the grid as the home page": the Start view left for the Projects page, projectsPage.ts.)
  *
- * ROUTING: [START]    /workspace?view=start: the Project Explorer (projectExplorer.ts: every project as a
- *                     card, sorted, the types explained), and the tour (only here). Shown with no project
- *                     open; the mark (Home) brings it back
- *          [GRIDS]    /workspace?view=grids: Grids with no table open while a project is: Open a file,
- *                     Paste, Query (the "+" tab), the project's connections (each its catalog) and the
- *                     catalog, and the project's tables that did not come back, each with its fix
+ * ROUTING: [GRIDS]    /workspace?view=grids: the grid page with no table open, a project open or not: Open a
+ *                     file, Paste, Query (the "+" tab), the connections (each its tables) and the catalog, the
+ *                     project's tables that did not come back, each with its fix; with no project, a link to
+ *                     Projects
  *          [PROJECT]  in the Application row, before Zoom: the project's name (● with unsaved changes),
  *                     Save (Ctrl+S), Copy to…, Close, the Autosave switch
  *          [FIXES]    a strip under the tabs, only while a table did not come back: its one click
@@ -18,12 +15,11 @@
  */
 import { api, onNotice, token } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
-import { visit, withParams } from "./nav";
-import { gridList, newQueryTab, onAgentView, setEmptyView, showGridsLanding, showStartView, viewingLanding, viewingStart } from "./panes";
+import { openLayer, PROJECTS_URL, visit, withParams } from "./nav";
+import { newQueryTab, onAgentView, viewingLanding } from "./panes";
 import { answerAsked, autosaveSwitch, closeProject, copyProject, exportOutline, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, privateSwitch, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, setPrivate } from "./projectFile";
-import { drawExplorer, mountExplorer, refreshExplorer } from "./projectExplorer";
+import { PROJECTS } from "./projectsPage";
 import { openFile } from "./openFile";
-import { tourButton } from "./tour";
 import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
 
 const WORKBENCH = "swissarmybench-workbench";
@@ -51,12 +47,6 @@ export async function openInWorkbench(path?: string): Promise<void> {
   window.open(`/workbench#${words.toString()}`, WORKBENCH)?.focus();
 }
 
-/** A project opened or started here: its Grids (its tables arrive as tabs; with none, the landing). */
-function showGrids(state: ProjectState | null): void {
-  if (!state?.project) return;
-  if (!gridList().length) showGridsLanding("push");
-}
-
 /** `home`: the page's tabs as a project keeps them (the order, the one in front), and putting them back
  *  when a project opens; `paste`: the clipboard's table, as Ctrl+V would. */
 export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: HTMLElement, home: { layout: () => Record<string, unknown>; restore: (layout: Record<string, unknown>) => void; paste: () => void }): void {
@@ -64,20 +54,14 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
   group = appGroup;
   strip = fixes;
   paste = home.paste;
-  // With no table open: the Grids landing while a project is open, else the Start view.
-  setEmptyView(() => (projectState().project ? "grids" : "start"));
-  mountExplorer(element, showGrids, () => tourButton());
   mountProject();
+  void loadConnections(); // the landing's connections, a project open or not
   onConnectionChange(() => {
     if (lastState) drawFixes(lastState);
   });
   onProject((state) => {
     drawGroup(state);
     drawFixes(state);
-    // The landing follows the project: Start with none, Grids with one (unless Start was asked for).
-    const asked = new URLSearchParams(location.search).get("view");
-    if (state.project && viewingStart() && !viewingLanding() && asked !== "start" && !gridList().length) showGridsLanding("replace");
-    else if (!state.project && viewingLanding()) showStartView("replace");
     draw(state);
     if (state.asked) void answerAsked().catch((e: Error) => toast(e.message, "error"));
     // A project opened (here, by the agent, a double-click): its tables arrived as tabs; the one in front
@@ -113,13 +97,10 @@ async function loadConnections(): Promise<void> {
   draw(projectState());
 }
 
-// ===== the Start view and the Grids landing (one host: the view in front says which) =====
+// ===== the Grids landing =====
 
 function draw(state: ProjectState): void {
-  if (!host) return;
-  if (viewingLanding()) return drawLanding(state);
-  drawExplorer();
-  void refreshExplorer();
+  if (host && viewingLanding()) drawLanding(state);
 }
 
 /** The catalog page, on one connection's catalog (or all of them). */
@@ -146,6 +127,22 @@ function drawLanding(state: ProjectState): void {
           button("Paste", () => paste(), { icon: "copy", class: "start-action", title: "Ctrl+V" }),
           button("Query", guard(() => newQueryTab("push")), { icon: "sql", class: "start-action" }),
         ),
+        // No project open: the way to one (the Projects page, the rail's mark).
+        state.project
+          ? null
+          : h("p", { class: "landing-projects" }, "No project is open. ", h(
+              "a",
+              {
+                href: PROJECTS_URL,
+                class: "landing-projects-link",
+                onclick: (e: MouseEvent) => {
+                  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+                  e.preventDefault();
+                  openLayer("projects");
+                },
+              },
+              PROJECTS,
+            )),
       ),
       h(
         "section",

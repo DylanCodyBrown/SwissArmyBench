@@ -2,9 +2,11 @@
  * nav.ts: getting around, the same on every page and window (the owner, 2026-11-16: "there is no
  * navigation in the app to get back to the home page or go back anywhere. No back buttons."). [SHARED]
  *
- *   [MARK]    every page's top-left mark: a link to /workspace named "Home". On the home page it shows the
- *             grids, closing what is over them; in any other window it brings the home window forward
- *             (the window named sab-home), or opens it. Alt+Home does the same everywhere.
+ *   [MARK]    the red mark, the rail's first item (rail.ts; the owner, 2026-11-18: "Move this to the rail ...
+ *             give this button its own page for projects dont share the grid as the home page"): Home is the
+ *             Projects page (projectsPage.ts, open=projects) on the home page; in any other window it brings
+ *             the home window forward (the window named sab-home) showing Projects, or opens it there.
+ *             Alt+Home does the same everywhere.
  *   [ADDRESS] a view the user moves to is in the address (go: history.pushState); a move the app makes by
  *             itself replaces the entry. Back and Forward are the browser's: popstate hands the address
  *             to the page (onPlace) and to the layers, the rail's pages over any page (Connections,
@@ -57,6 +59,8 @@ export type PageKind = "home" | "catalog" | "workbench" | "steps" | "keys";
 export const LAYER_PARAMS = ["open", "at", "type", "name"];
 export const HOME_WINDOW = "sab-home";
 export const HOME_URL = "/workspace";
+/** Home: the Projects page over the home page (projectsPage.ts). */
+export const PROJECTS_URL = `${HOME_URL}?open=projects`;
 
 const load = Math.random().toString(36).slice(2, 8);
 let serial = 0;
@@ -419,7 +423,7 @@ export function startNav(url: URL = new URL(location.href)): void {
   layer.open(url);
 }
 
-/** Home: the Start view, on the home page; any other window brings the home window forward, or opens it. */
+/** Home: the Projects page, on the home page; any other window brings the home window forward, or opens it. */
 export function goHome(): void {
   if (homeHere) {
     homeHere();
@@ -427,8 +431,8 @@ export function goHome(): void {
   }
   const found = homeWindow();
   if (!found) return;
-  if (found.fresh || found.win === window) found.win.location.href = HOME_URL;
-  // Home there (the Start view: what is over it closes), as its own mark does.
+  if (found.fresh || found.win === window) found.win.location.href = PROJECTS_URL;
+  // Home there (the Projects page), as its own mark does.
   else found.win.postMessage({ sab: "area", area: "home" }, location.origin);
   found.win.focus();
 }
@@ -471,27 +475,13 @@ export function namedWindow(name: string, blocked = "The browser blocked the new
   }
 }
 
-/** The mark: the window's icon, drawn small, a link home. */
-export function appMark(): HTMLAnchorElement {
+/** The mark: the window's icon (the red square with the white +), drawn small; the rail's first item. */
+export function markIcon(): HTMLElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 100 100");
   svg.setAttribute("aria-hidden", "true");
   svg.innerHTML = '<path d="M42 23h16v19h19v16H58v19H42V58H23V42h19z"/>';
-  return h(
-    "a",
-    {
-      class: "app-mark",
-      href: HOME_URL,
-      title: "Home (Alt+Home)",
-      "aria-label": "Home",
-      onclick: (e: MouseEvent) => {
-        if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return; // a new tab, as links do
-        e.preventDefault();
-        goHome();
-      },
-    },
-    svg,
-  );
+  return h("span", { class: "app-mark", "aria-hidden": "true" }, svg);
 }
 
 /** "← Connections": back to `url` (see backTo), named for where it goes. */
@@ -598,7 +588,7 @@ export function runArea(area: string): boolean {
 function agentMove(kind: PageKind, notice: Notice): void {
   const n = notice as NavNotice;
   if (n.type !== "navigate" || n.window !== kind) return;
-  if (n.to === "home") goHome(); // Home: the Start view (the rail's Grids is an area of its own)
+  if (n.to === "home") goHome(); // Home: the Projects page (the rail's Grids is an area of its own)
   else if (n.to === "back") back();
   else if (n.to === "forward") forward();
   else if (n.to && areaRunner?.(n.to, n.new_window === true)) return; // a rail's area, here or brought forward

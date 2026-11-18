@@ -255,8 +255,7 @@ export function goToTarget(t: Target | null): void {
     return;
   }
   if (t.place === "area" && t.area && !["grids", "visualizations", "erd"].includes(t.area)) {
-    if (t.area === "project") visit(withParams({ open: null, at: null, type: null, name: null, view: "start" }, HOME_URL));
-    else runArea(t.area);
+    runArea(t.area === "project" ? "projects" : t.area); // the project: the Projects page (projectsPage.ts)
     return;
   }
   // The home page's own: a grid, a table, a card, a relationship, its views.
