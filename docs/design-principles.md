@@ -450,6 +450,24 @@ the explanation on hover, the fixes on Ctrl+.
 
 **9.4 Nothing leaves the computer to explain an error.** The app writes the words itself.
 
+**9.5 Every error looks and reads the same, everywhere** (the owner, 2026-11-18: "Errors should be presented to
+users in one uniform way as much as possible"). One error component on every page and window
+(web/src/errorNote.ts), never a page's own red text; code errors keep the error panel (9.1), which is its
+fullest form.
+- **In place:** the error shows where the action happened (the form, the card, the gated part of 8.12, the cell),
+  not only in a toast. A toast only for work with no place on screen (something in the background), and that
+  toast is the same note, with Show to go to the place.
+- **The same parts, in the same order:** what happened, in one plain sentence; where (the connection, table,
+  file or cell, by name); the fix as buttons when there is one (Try again, Sign in, Install now, Open its
+  settings); the details (the source's own message, the code) folded behind Details, with Copy; Send to the
+  agent (9.3).
+- **One look:** the error token's colour with an icon and a word, never colour alone (6); the same size as the
+  body text. A warning ("Only works on your machine", 8.12's cancelled work) uses the same component in the
+  warning colour.
+- **One shape from the server:** every route's refusal carries the same fields (what happened, where, the fixes
+  it knows, the source's details), so a page draws an error without knowing which route it came from.
+- **It goes when it is fixed:** a retry that works clears it; it never lingers after the cause is gone.
+
 ## 10. The agent can do what the user can
 
 **10.1 Every user action is an agent tool, with no prompts.** A new user action gets its command in the
@@ -650,6 +668,8 @@ Run this against every new screen or feature.
     is loading, its button busy, a Cancel where the work can stop, and no flicker for quick work (8.12)?
 13. Do its results go to the dashboard, a table and code, and can its numbers be shown with the math?
 14. Does an error say what happened, where, and offer the fix? Does a disabled button say why?
+    Is it the one error component, in place where the action was (a toast only for background work), with
+    the details folded and a Copy and Send to the agent (9.5)?
 15. Does it write to disk without a click, show a password, or send anything off the computer? It must not.
 16. Tests first, made-up data in every test and screenshot, and what was checked or decided written down?
 17. Is it a new capability? Then it is a kit (13a): connection, cell type, runtime if any, blades, agent
