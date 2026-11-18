@@ -49,6 +49,7 @@ from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
+from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
     AuditLog,
     DashboardFiles,
@@ -66,6 +67,8 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import blade_tables, python_connections
+from swissarmybench.domain import connection_tables as connection_table_rules
+from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
@@ -135,6 +138,7 @@ from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.session_log import Heard, SessionLog
+from swissarmybench.services.shared_catalog import Here, SharedCatalog
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.structures import Structures
@@ -208,6 +212,7 @@ class Services:
     kind_colours: KindColours
     connection_colours: ConnectionColours
     library: Library
+    shared_catalog: SharedCatalog
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
@@ -577,6 +582,11 @@ def bootstrap(
         await variables.rescope()
         await live.broadcast({"type": "blades_changed"})
         await live.broadcast({"type": "connection_colours_changed"} | connection_colours.get())
+        if shared_ready:
+            shared_ready[0].load()  # the new folder's catalog/
+            await live.broadcast({"type": "catalog_changed", "from": "folder", "changed": 0})
+
+    shared_ready: list[SharedCatalog] = []  # set once built (below)
 
     library = Library(ws, library_folder, blade_store, approvals, library_moved)
 
@@ -695,6 +705,59 @@ def bootstrap(
     blades.connection_removed.append(
         lambda name, who: models.forget_connection(name, set(connection_swap.tables_of(name)), who)
     )
+
+    # The shared catalog (the owner, 2026-11-17): the library's catalog/<connection>.json, kept by what
+    # happens here and read again when the user's pulls change it. The app never runs git.
+    def connections_here() -> list[Here]:
+        found = []
+        for blade in blade_store.all():
+            if blade.web_call or connection_rules.connection_kind(blade.kind, blade.template) is None:
+                continue
+            kind = connection_table_rules.tables_kind(
+                blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
+            )
+            if kind is not None:  # never a key vault: it has no tables
+                found.append(Here(blade.name, kind, str(blade.template or "")))
+        return found
+
+    def project_use() -> tuple[str, set[str], list[tuple[str, str]]] | None:
+        project = sab_projects.state().get("project")
+        found = project_documents()
+        if not project or found is None:
+            return None
+        folder = str(project.get("folder") or "")
+        name = Path(folder).name if folder else str(project.get("name") or "")
+        names, texts = found
+        return name, names | {i.name for i in store.all()}, texts
+
+    shared_catalog = SharedCatalog(
+        ws,
+        CatalogFiles((lambda: library_folder.root) if audit_log else None, library_folder.ensure),
+        connections_here,
+        catalogs.listing_rows,
+        lambda: models.model,
+        today=lambda: datetime.now(UTC).date().isoformat(),
+        now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+        project=project_use,
+    )
+    shared_ready.append(shared_catalog)
+    shared_catalog.load()
+    library.catalog_info = shared_catalog.info
+    project_tables.shared = shared_catalog.model
+
+    async def connection_saved(blade: Any) -> None:
+        await shared_catalog.saved(blade.name)
+
+    blades.blade_saved.append(connection_saved)
+    blades.tables_listed.append(shared_catalog.listed)
+    blades.connection_removed.append(shared_catalog.removed)
+    models.listeners.append(shared_catalog.relationships)
+    sab_projects.saved.append(shared_catalog.project_used)
+
+    async def project_opened(folder: str, _extra: Any) -> None:
+        await shared_catalog.project_used(folder)
+
+    sab_projects.opened.append(project_opened)
     project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
     # The Variables page: this computer's variables (never a project's): the shareable file and the local
     # values; their values given to this server's environment, so what it runs and starts reads them.
@@ -763,6 +826,12 @@ def bootstrap(
         return out
 
     explorer.register("grids", explorer_providers.grids_provider(open_tables))
+    explorer.register(
+        "shared",
+        explorer_providers.shared_catalog_provider(
+            lambda: list(shared_catalog.tables()), catalogs.loaded_names, shared_catalog.here_names
+        ),
+    )
     explorer.register(
         "variables", explorer_providers.variables_provider(lambda: variables.listing()["variables"])
     )
@@ -919,6 +988,7 @@ def bootstrap(
         changes=lambda: live.changes,
         apis=api_explorer.listing,
         structures=structures.listing,
+        shared=lambda: shared_catalog.listing(),
     )
     claude = Claude(
         ws,
@@ -995,6 +1065,7 @@ def bootstrap(
         finder=Finder(ws, models),
         packs=Packs(ws, pack_files, blade_store, models.library_files),
         library=library,
+        shared_catalog=shared_catalog,
         keys=KeyFinder(ws),
         compares=compares,
         tie_out=TieOut(compares),

@@ -192,6 +192,8 @@ class SabProjects:
         # project has opened (its open structures come back): each a key of the manifest's own.
         self.manifest_extras: list[Callable[[], dict[str, Any]]] = []
         self.opened: list[Callable[[str, Mapping[str, Any]], Awaitable[None]]] = []
+        # A project saved (its folder): the shared catalog's used_by follows (services/shared_catalog.py).
+        self.saved: list[Callable[[str], Awaitable[None]]] = []
         self.on_opened: list[Callable[[str], None]] = []  # the Project Explorer's "last opened"
 
     # ===== what is open, and whether a save would change anything =====
@@ -747,6 +749,8 @@ class SabProjects:
             if who != AUTOSAVE:
                 self.ws.audit.write(who, "save_project", None, tables=len(tables), rows=len(rows_tables))
         await self._changed()
+        for told in self.saved:
+            await told(current.folder)
         return self.state() | {
             "saved": current.folder,
             "written": written,

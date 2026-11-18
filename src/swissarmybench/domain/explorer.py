@@ -374,6 +374,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
     ("structures", "Structures"),
     ("apis", "APIs"),
     ("blades", "Blades"),
+    ("shared", "From the shared catalog"),
 )
 # Which filter chips show each part of the browse (none pressed: every part).
 _SHOWN_BY: dict[str, frozenset[str]] = {
@@ -382,6 +383,7 @@ _SHOWN_BY: dict[str, frozenset[str]] = {
     "structures": frozenset({"structures"}),
     "apis": frozenset({"apis", "columns"}),
     "blades": frozenset({"blades"}),
+    "shared": frozenset({"tables", "columns"}),
 }
 # The connections whose relationships come in: a Power BI dataset's own, SQL Server's foreign keys.
 RELATIONSHIP_DIALECTS: frozenset[str] = frozenset({"powerbi", "sqlserver"})
@@ -468,7 +470,10 @@ def connection_node(
 
 
 def _nested(
-    parents: Sequence[Result], children: Sequence[Result], parent_of: Callable[[Result], Any]
+    parents: Sequence[Result],
+    children: Sequence[Result],
+    parent_of: Callable[[Result], Any],
+    key_of: Callable[[Result], Any] = lambda p: p.name,
 ) -> list[dict[str, Any]]:
     by: dict[str, list[dict[str, Any]]] = {}
     for c in children:
@@ -476,7 +481,7 @@ def _nested(
     out = []
     for p in parents:
         item = p.to_json()
-        item["children"] = by.get(p.name, [])
+        item["children"] = by.get(str(key_of(p)), [])
         out.append(item)
     return out
 
@@ -501,11 +506,19 @@ def browse_sections(results: Sequence[Result], query: Query) -> list[dict[str, A
     calls = [r for r in rs if r.kind == "apis"]
     call_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "api"]
     blades = [r for r in rs if r.kind == "blades" and blade_is_table(r.more)]
+    shared = [r for r in rs if r.kind == "tables" and r.more.get("source") == "shared"]
+    shared_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "shared"]
     items: dict[str, list[dict[str, Any]]] = {
         "open": _nested(sorted(grids, key=_by_name), grid_columns, lambda c: c.more.get("table")),
         "structures": _nested(sorted(docs, key=_by_name), paths, lambda c: c.path[0] if c.path else ""),
         "apis": _nested(sorted(calls, key=_by_name), call_columns, lambda c: c.more.get("table")),
         "blades": [r.to_json() for r in sorted(blades, key=_by_name)],
+        "shared": _nested(
+            sorted(shared, key=_by_name),
+            shared_columns,
+            lambda c: c.more.get("table"),
+            lambda p: p.more["key"],
+        ),
     }
     return [
         {"kind": kind, "label": label, "count": len(items[kind]), "items": items[kind]}

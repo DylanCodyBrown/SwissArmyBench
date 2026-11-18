@@ -1,0 +1,39 @@
+{
+  "connection": "Warehouse",
+  "format": 1,
+  "kind": "database",
+  "template": "postgres",
+  "tables": {
+    "sales.customers": {
+      "columns": [
+        {"key": "primary", "name": "id", "nullable": false, "type": "INTEGER"},
+        {"name": "region", "nullable": true, "type": "VARCHAR"}
+      ],
+      "database": "",
+      "kind": "table",
+      "name": "customers",
+      "primary_key": ["id"],
+      "relationships": [],
+      "schema": "sales",
+      "state": "present",
+      "used_by": ["Sales review"]
+    },
+    "sales.orders": {
+      "columns": [
+        {"key": "primary", "name": "id", "nullable": false, "type": "INTEGER"},
+        {"key": "foreign", "name": "customer_id", "nullable": true, "type": "INTEGER"},
+        {"name": "amount", "nullable": true, "type": "DECIMAL(12,2)"}
+      ],
+      "database": "",
+      "kind": "table",
+      "name": "orders",
+      "primary_key": ["id"],
+      "relationships": [
+        {"from": "orders", "from_columns": ["customer_id"], "kind": "many-to-one", "to": "customers", "to_columns": ["id"]}
+      ],
+      "schema": "sales",
+      "state": "present",
+      "used_by": ["Sales review"]
+    }
+  }
+}

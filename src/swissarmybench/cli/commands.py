@@ -3664,6 +3664,35 @@ def library_set_folder(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "catalog_shared",
+    "The shared catalog (the library's catalog/): each connection's tables, their state and the projects using them",
+    opt("search", "Words in a connection's or table's name."),
+)
+def catalog_shared(a: dict[str, Any]) -> Any:
+    query = f"?search={quote(str(a['search']))}" if a.get("search") else ""
+    return api.call("GET", "/shared-catalog" + query)
+
+
+@command(
+    "catalog_shared_table",
+    "One table of the shared catalog: its columns and types, primary key, relationships, used_by",
+    req("connection", "The connection's name."),
+    req("table", "The table's key (main.orders) or name."),
+)
+def catalog_shared_table(a: dict[str, Any]) -> Any:
+    query = f"connection={quote(str(a['connection']))}&table={quote(str(a['table']))}"
+    return api.call("GET", f"/shared-catalog/table?{query}")
+
+
+@command(
+    "catalog_shared_refresh",
+    "Read the library's catalog/ folder again now (what the user's git pull brought); the app never runs git",
+)
+def catalog_shared_refresh(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/shared-catalog/refresh")
+
+
+@command(
     "app_claude",
     "Which Claude Code and Claude Desktop this computer has (Launch Claude)",
     opt("refresh", "true: look for Claude again.", "bool"),

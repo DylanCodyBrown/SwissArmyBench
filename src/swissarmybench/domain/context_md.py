@@ -35,6 +35,7 @@ SECTIONS = (
     "Open tables",
     "Structures",
     "Relationships",
+    "Shared catalog",
     "Variables",
     "Documents",
     "Windows",
@@ -223,6 +224,16 @@ class RelationshipFacts:
 
 
 @dataclass(frozen=True)
+class SharedFacts:
+    """A connection in the shared catalog (the library's catalog/): its tables' names, whether it is here."""
+
+    connection: str
+    here: bool
+    tables: tuple[str, ...] = ()  # keys (main.orders), present ones
+    gone: int = 0
+
+
+@dataclass(frozen=True)
 class VariableFacts:
     name: str
     source: str  # in words: a key vault, the keyring, a plain value, this computer's environment, missing
@@ -246,6 +257,7 @@ class State:
     tables: tuple[TableFacts, ...] = ()
     structures: tuple[StructureFacts, ...] | None = None  # None: Structures is not in this build
     relationships: tuple[RelationshipFacts, ...] = ()
+    shared: tuple[SharedFacts, ...] | None = None  # None: no shared catalog in this build
     variables: tuple[VariableFacts, ...] = ()
     documents: tuple[DocumentFacts, ...] = ()
     windows: tuple[str, ...] = ()  # each window's line, in words (names as code)
@@ -388,6 +400,20 @@ def _relationships(s: State, trims: set[str]) -> list[str]:
     return _cut(out, "lists" in trims, "`relationships_current`")
 
 
+def _shared(s: State, trims: set[str]) -> list[str]:
+    if not s.shared:
+        return ["Nothing in the library's catalog/ yet (a connection's file comes with its listing)."]
+    out = []
+    for c in s.shared:
+        where = "" if c.here else " (not connected here: a teammate's, from the library)"
+        names = _cut([code(t) for t in c.tables], "lists" in trims, "`catalog_shared`")
+        listed = ", ".join(names[:MAX_CATALOG_TABLES])
+        more = f" and {len(c.tables) - MAX_CATALOG_TABLES} more" if len(c.tables) > MAX_CATALOG_TABLES else ""
+        gone = f"; {c.gone} gone" if c.gone else ""
+        out.append(f"- {code(c.connection)}{where}: {_plural(len(c.tables), 'table')}{gone}: {listed}{more}")
+    return [*out, "", "Each table's columns, keys, relationships and projects: `catalog_shared_table`."]
+
+
 def _variables(s: State, trims: set[str]) -> list[str]:
     if not s.variables:
         return ["None."]
@@ -457,6 +483,8 @@ def section_lines(name: str, s: State, trims: set[str]) -> list[str]:
         return _structures(s, trims)
     if name == "Relationships":
         return _relationships(s, trims)
+    if name == "Shared catalog":
+        return _shared(s, trims)
     if name == "Variables":
         return _variables(s, trims)
     if name == "Documents":
@@ -494,7 +522,11 @@ def _render(s: State, trims: set[str]) -> Rendered:
         parts.append("\n".join(f"> {n}" for n in notes) + "\n")
     digests: dict[str, str] = {}
     for name in SECTIONS:
-        if (name == "APIs" and s.apis is None) or (name == "Structures" and s.structures is None):
+        if (
+            (name == "APIs" and s.apis is None)
+            or (name == "Structures" and s.structures is None)
+            or (name == "Shared catalog" and s.shared is None)
+        ):
             continue
         body = "\n".join(section_lines(name, s, trims))
         digests[name] = _digest(body)

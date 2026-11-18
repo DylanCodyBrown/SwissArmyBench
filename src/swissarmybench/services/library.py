@@ -79,6 +79,8 @@ class Library:
         self._approvals = approvals
         self._moved = moved  # every store pointed at the new folder (bootstrap), the pages told
         self.notices: list[dict[str, str]] = []
+        # The shared catalog's counts (services/shared_catalog.py), set once it is built.
+        self.catalog_info: Callable[[], dict[str, Any]] | None = None
 
     # ===== what it is =====
 
@@ -96,6 +98,7 @@ class Library:
             ],
             "never": list(rules.NEVER),
             "notices": list(self.notices),
+            **({"catalog": self.catalog_info()} if self.catalog_info is not None else {}),
         }
 
     def take_notices(self) -> dict[str, Any]:

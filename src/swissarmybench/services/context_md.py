@@ -92,6 +92,7 @@ class ContextMd:
         changes: Callable[[], int],
         apis: Callable[[], dict[str, Any]] | None = None,
         structures: Callable[[], dict[str, Any]] | None = None,
+        shared: Callable[[], dict[str, Any]] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.ws = ws
@@ -112,6 +113,7 @@ class ContextMd:
         # Structures' ({"open": [{name, format, origin, steps: [{words}], type, count}]}); None: not built.
         self._apis = apis
         self._structures = structures
+        self._shared = shared  # the shared catalog's listing (services/shared_catalog.py); None: not built
         self._clock = clock
         self._lock = asyncio.Lock()
         self._looked: tuple[int, float] | None = None  # the notice count and time of the last look
@@ -216,6 +218,19 @@ class ContextMd:
             for a in listed
         )
 
+    def _shared_facts(self) -> tuple[rules.SharedFacts, ...] | None:
+        if self._shared is None:
+            return None
+        return tuple(
+            rules.SharedFacts(
+                str(c["connection"]),
+                bool(c.get("here")),
+                tuple(str(t["key"]) for t in c.get("tables_list") or [] if t.get("state") == "present"),
+                int(c.get("gone") or 0),
+            )
+            for c in self._shared().get("connections") or []
+        )
+
     def _structures_facts(self) -> tuple[rules.StructureFacts, ...] | None:
         if self._structures is None:
             return None
@@ -315,6 +330,7 @@ class ContextMd:
             tables=self._tables(),
             structures=self._structures_facts(),
             relationships=self._relationships_facts(),
+            shared=self._shared_facts(),
             variables=self._variables_facts(),
             documents=self._documents_facts(),
             windows=self._windows_lines(folder),
