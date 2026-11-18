@@ -3810,6 +3810,15 @@ def project_autosave(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "project_private",
+    "Mark the open project private: no extension sends its documents out (Copilot); the user's Allow",
+    req("on", "true or false.", "bool"),
+)
+def project_private(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/project/private", {"on": a["on"]})
+
+
+@command(
     "project_documents",
     "The open project's notebooks, scripts and apps",
     opt("kind", "notebook, script or app."),

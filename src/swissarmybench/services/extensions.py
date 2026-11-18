@@ -56,6 +56,7 @@ class Extensions:
         stop: Callable[[], None],
         catalog: tuple[Extension, ...] = rules.CATALOG,
         record: Record | None = None,
+        panels: dict[str, str] | None = None,
     ) -> None:
         self.current = current
         self.catalog = catalog
@@ -69,11 +70,17 @@ class Extensions:
         # extensions.json: the preinstalled ones the user removed (never brought back) and the bring-backs
         # tried, by version (never twice).
         self._record = record
+        # Each on extension's panel (its PANEL route): the card and Settings draw what it answers.
+        self.panels = dict(panels or {})
 
     # ===== reading =====
 
     def listing(self) -> list[dict[str, Any]]:
-        return rules.listed(self.catalog, self.found, self.current)
+        listed = rules.listed(self.catalog, self.found, self.current)
+        for entry in listed:
+            if entry["id"] in self.panels:
+                entry["panel"] = self.panels[entry["id"]]
+        return listed
 
     def state(self) -> dict[str, Any]:
         return {

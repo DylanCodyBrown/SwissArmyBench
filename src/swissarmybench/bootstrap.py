@@ -820,6 +820,11 @@ def bootstrap(
         live=live,
         stop=on_shutdown or (lambda: None),
         record=JsonFile(state_dir / "extensions.json" if audit_log else None),
+        panels={
+            str(getattr(m, "ID", "")).lower(): str(m.PANEL)
+            for m in on_extensions
+            if isinstance(getattr(m, "PANEL", None), str) and str(m.PANEL).startswith("/")
+        },
     )
     update_helper.kept = extensions.kept_wheels
     updates = Updates(

@@ -90,8 +90,8 @@ packages = ["src/swissarmybench", "src/swissarmygrid"]
 strict = true
 python_version = "3.12"
 # Each extension's own package (extensions/<id>/src) too.
-files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/powerapps/src", "extensions/streamlit/src"]
-mypy_path = "src:extensions/accounting/src:extensions/powerapps/src:extensions/streamlit/src"
+files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src"]
+mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src"
 
 [[tool.mypy.overrides]]
 # These ship no type information (Pillow does, but the tray reads it only where it is installed).
@@ -111,7 +111,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-src = ["src", "extensions/accounting/src", "extensions/powerapps/src", "extensions/streamlit/src", "tests"]
+src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]

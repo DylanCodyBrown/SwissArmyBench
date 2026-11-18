@@ -76,3 +76,14 @@ password.
   A development checkout answers 409 with what to run instead.
 - `app_autostart(on=...)`: start at sign-in (the tray, which starts the server and starts it again if it
   dies). The user's tray icon has the same switch.
+
+## GitHub Copilot (an extension, off until installed)
+- Installed from the Extensions page, it gives the Workbench's editors Copilot's ghost text. `copilot_status`
+  says whether its language server is installed, whether it is on, who is signed in, whether the open project
+  is private, and whether completions are being asked (`ready`). `copilot_toggle(on)` is its On switch;
+  `copilot_install` installs GitHub's language server with npm (waits for Allow). Signing in and out are the
+  user's own (GitHub's device flow on the Extensions page): never yours.
+- What it sends to GitHub: only the document being edited (a cell with the notebook's other code cells, or a
+  script), never outputs, rows or variables' values; nothing while off, before sign-in, or for a project
+  marked private (`project_private(on=true)`, which waits for Allow). Telemetry is off. Completions are the
+  editor's: you have your own model and `workbench_complete`.

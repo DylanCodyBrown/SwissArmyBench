@@ -61,6 +61,9 @@ BASE_MODE: dict[str, Any] = {
     # A route answering the project's files a person edits ({"files": [...]}), listed in the Workbench's
     # project files ("" for none: the base's own listing).
     "project_files": "",
+    # The editors' inline completion (ghost text): each on extension's INLINE_COMPLETION, in every mode, as
+    # data: {id, name, languages, complete, cancel, event, status, toggle} (routes the editor calls).
+    "inline_completion": [],
 }
 # A Streamlit app, for beginners: a base project with its app's canvas (until the Streamlit extension brings
 # its own project type, whose mode then says it). `make` is what New project sends for it.
@@ -156,14 +159,36 @@ def base_mode(on: list[ModuleType] | None = None) -> dict[str, Any]:
     return mode
 
 
+_INLINE_FIELDS = ("id", "name", "complete", "cancel", "event", "status", "toggle")
+
+
+def inline_completions(on: list[ModuleType]) -> list[dict[str, Any]]:
+    """The on extensions' inline completion providers (their INLINE_COMPLETION), read loosely: one with no
+    name or no complete route is left out. Not a project type's: every mode carries them."""
+    out: list[dict[str, Any]] = []
+    for module in on:
+        raw = getattr(module, "INLINE_COMPLETION", None)
+        if not isinstance(raw, dict) or not raw.get("name") or not raw.get("complete"):
+            continue
+        said: dict[str, Any] = {k: str(raw.get(k) or "") for k in _INLINE_FIELDS}
+        languages = raw.get("languages")
+        said["languages"] = [str(x) for x in languages] if isinstance(languages, list | tuple) else ["python"]
+        out.append(said)
+    return out
+
+
 def modes() -> list[dict[str, Any]]:
-    """Every project type's mode: the base's first, then each on extension's (its MODE)."""
+    """Every project type's mode: the base's first, then each on extension's (its MODE); each with the on
+    extensions' inline completion providers."""
     on = enabled()
     out = [base_mode(on)]
     for module in on:
         mode = _mode(getattr(module, "MODE", None))
         if mode is not None and mode["type"] not in {m["type"] for m in out}:
             out.append(mode)
+    providers = inline_completions(on)
+    for mode in out:
+        mode["inline_completion"] = [dict(p) for p in providers]
     return out
 
 

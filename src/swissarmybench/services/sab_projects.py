@@ -275,6 +275,7 @@ class SabProjects:
                 "unsaved_documents": current.unsaved,
                 "autosave": current.autosave,
                 "autosave_error": current.autosave_error,
+                "private": self.private(),
             }
         return {
             "project": project,
@@ -923,6 +924,50 @@ class SabProjects:
                 current.unsaved = now
                 await self._changed()
         return {"kept": True}
+
+    # ===== private (the owner, 2026-11-18: "Copilot is off for a project marked private") =====
+
+    def private(self) -> bool:
+        """Is the open project marked private (.sab/project.json `private: true`)? Then nothing of it is sent
+        out of this computer by an extension (GitHub Copilot's completions)."""
+        current = self.current
+        return bool(current and current.manifest and current.manifest.extra.get("private") is True)
+
+    async def set_private(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Private on or off: {"on": true}. Kept in .sab/project.json at once. The agent's waits for Allow."""
+        if not isinstance(body, dict) or not isinstance(body.get("on"), bool):
+            raise ValueError('Send {"on": true} or {"on": false}.')
+        current = self._need()
+        if current.read_only:
+            raise Refused(current.read_only)
+        on = body["on"]
+        words = f"Mark the project {current.name} {'private' if on else 'not private'}"
+        if (
+            who == "agent"
+            and on != self.private()
+            and not await self._approvals.ask(current.name, "private", words)
+        ):
+            raise Refused("The user declined: the project's private switch was not changed.")
+        manifest = current.manifest or Manifest(
+            name=current.name, app_version=self._version, autosave=current.autosave
+        )
+        extra = {k: v for k, v in manifest.extra.items() if k != "private"} | (
+            {"private": True} if on else {}
+        )
+        manifest = replace(manifest, extra=extra)
+        try:
+            await asyncio.to_thread(
+                self._archive.write_state,
+                current.folder,
+                rules.MANIFEST_PATH,
+                rules.write_manifest(manifest).encode("utf-8"),
+            )
+        except OSError as error:
+            raise Conflict(f"The switch could not be kept in {current.folder}: {error}") from None
+        current.manifest = manifest
+        self.ws.audit.write(who, "project_private", None, on=on)
+        await self._changed()
+        return self.state()
 
     # ===== autosave =====
 

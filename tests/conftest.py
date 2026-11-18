@@ -37,6 +37,10 @@ from swissarmybench.settings import Settings  # noqa: E402
 ACCOUNTING_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "accounting" / "src")
 if ACCOUNTING_SRC not in sys.path:
     sys.path.insert(0, ACCOUNTING_SRC)
+# The GitHub Copilot extension, the same way (tests/test_copilot*.py turn it on).
+COPILOT_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "copilot" / "src")
+if COPILOT_SRC not in sys.path:
+    sys.path.insert(0, COPILOT_SRC)
 # The Power Apps extension, the same way (tests/test_powerapps*.py turn it on).
 POWERAPPS_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src")
 if POWERAPPS_SRC not in sys.path:

@@ -5,6 +5,7 @@ GET  /project               the open project (its unsaved mark, tables that need
 POST /project/new           {"name", "folder"?, "path"?, "type"?, "app"?, "notebooks"?, "autosave"?,
                             "discard"?}: a new project folder, scaffolded, opened, its .sab/ written
 POST /project/autosave      {"on"}: autosave on or off (kept in .sab/project.json)
+POST /project/private       {"on"}: nothing of the project sent out by an extension (the agent's on Allow)
 POST /project/open          {"path", "make"?, "discard"?, "ask"?} | {"cancel": true}: a project's folder
 POST /project/save          {"keep_rows"?}: .sab/ written (no project open: {"path"} makes the work one)
 POST /project/copy          {"path", "data"?, "folder"?}: Copy project to (a new or empty folder)
@@ -57,6 +58,9 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
     async def autosave(request: Request) -> Response:
         return json_response(await projects.set_autosave(await read_json(request), actor(request)))
 
+    async def private(request: Request) -> Response:
+        return json_response(await projects.set_private(await read_json(request), actor(request)))
+
     async def fix(request: Request) -> Response:
         return json_response(await projects.fix(await read_json(request), actor(request)))
 
@@ -75,6 +79,7 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
         Route("/project/copy", safely(copy), methods=["POST"]),
         Route("/project/fix", safely(fix), methods=["POST"]),
         Route("/project/autosave", safely(autosave), methods=["POST"]),
+        Route("/project/private", safely(private), methods=["POST"]),
         Route("/project/layout", safely(layout), methods=["POST"]),
         Route("/project/recent/remove", safely(forget), methods=["POST"]),
     ]
