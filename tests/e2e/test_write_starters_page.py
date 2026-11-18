@@ -122,20 +122,15 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     workbench.close()
 
 
-def test_the_connections_page_says_writes_or_read_only(
+def test_a_connections_detail_says_what_it_writes(
     browser: Browser, server: dict[str, Any], shop: Path
 ) -> None:
     page = browser.new_context(viewport={"width": 1300, "height": 900}, device_scale_factor=2).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workspace?open=connections#token={server['token']}")
     shop_card = page.locator(".connection-card", has_text="Shop")
-    expect(shop_card.locator(".connection-writes")).to_have_text("Writes", timeout=20000)
-    assert (shop_card.locator(".connection-writes").get_attribute("title") or "").startswith(
-        "Writes: SQLite append"
-    )
-    planning = page.locator(".connection-card", has_text="Planning").locator(".connection-writes")
-    expect(planning).to_have_text("Read-only")
-    assert "opens the file read-only" in (planning.get_attribute("title") or "")
-    shot(page, "5-connections-writes-or-read-only")
+    expect(shop_card).to_be_visible(timeout=20000)
+    # No Writes or Read-only tag on the cards (the owner, 2026-11-18: "we dont need that"); the detail says.
+    expect(page.locator(".connection-card .connection-writes")).to_have_count(0)
     shop_card.click()
     detail = page.locator(".connection-config")
     expect(detail.locator("dt", has_text="Writes")).to_be_visible(timeout=20000)

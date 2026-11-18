@@ -227,12 +227,6 @@ interface Writes {
   words: string;
 }
 
-/** A small label on a card: Writes, or Read-only (the starters or the reason on hover). */
-function writesLabel(w: Writes | null | undefined): HTMLElement | null {
-  if (!w) return null;
-  return h("span", { class: `connection-writes ${w.writable ? "writable" : "read-only"}`, title: w.words }, w.writable ? "Writes" : "Read-only");
-}
-
 /** A connection's writes in its detail: each Write starter (its name: the Blades page has it), or why not. */
 function writesTerm(w: Writes | null | undefined): HTMLElement[] {
   if (!w) return [];
@@ -662,7 +656,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           },
           h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon(connectionIcon(c.template, c.connection))),
           h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, c.type ? plain(c.type) : { database: "Database", file: "File", vault: "Key vault", python: "Python" }[c.connection])),
-          h("span", { class: "connection-card-marks" }, statusPill(c), writesLabel(c.writes)),
+          h("span", { class: "connection-card-marks" }, statusPill(c)),
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
           c.about?.length ? h("span", { class: "connection-card-about" }, c.about[0]) : null,
           c.local?.length ? h("span", { class: "connection-card-local", title: c.local.map((n) => n.words).join("\n") }, icon("warning"), c.local[0]!.words) : null,

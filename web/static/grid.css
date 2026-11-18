@@ -10385,18 +10385,6 @@ body.has-rail .area-page {
   min-width: 0;
 }
 
-.connection-writes {
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.connection-writes.read-only {
-  padding: 0 6px;
-  border: 1px dashed var(--border);
-  border-radius: 4px;
-}
-
 /* ----- a connection's detail ----- */
 .connection-detail-top {
   display: flex;

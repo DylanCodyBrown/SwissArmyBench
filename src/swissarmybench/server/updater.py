@@ -411,7 +411,7 @@ class Helper:
 
         try:
             return own_packages(installed_here(self.prefix))
-        except Exception:  # noqa: BLE001 - never stop an update for this: it only keeps extras
+        except Exception:  # never stop an update for this: it only keeps extras
             return []
 
     def installable(self) -> bool:

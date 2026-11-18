@@ -344,7 +344,7 @@ _REQUIREMENT_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 
 
 def package_key(name: str) -> str:
-    """A distribution's name as packaging compares them (PEP 503): azure_identity, Azure.Identity: azure-identity."""
+    """A distribution's name as packaging compares them (PEP 503): Azure.Identity reads azure-identity."""
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
