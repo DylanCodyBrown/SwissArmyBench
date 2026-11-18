@@ -29,9 +29,9 @@ ADDS = [
     "Monaco's diff editor for every change and commit",
     "The footer's mark when the open project is out of sync",
 ]
-# The OAuth App's client id for Sign in with GitHub (the device flow): the owner registers the app on GitHub
-# and fills it in. Empty: Use a token only (Settings says so).
-CLIENT_ID = ""
+# The OAuth App's client id for Sign in with GitHub (the device flow): the owner registered the app on GitHub and
+# filled it in (2026-11-18). Empty: Use a token only (Settings says so).
+CLIENT_ID = "Ov23liqU3fkSNKrLtfQ7"  # public: a device flow needs no client secret
 API = "https://api.github.com"
 WEB = "https://github.com"
 # Its commands' areas (cli/commands.py AREAS: the prefix, then what it works on).

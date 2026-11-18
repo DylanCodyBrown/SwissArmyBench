@@ -18,6 +18,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from swissarmybench import extensions
+from swissarmybench_git import extension as git_extension
 from swissarmybench_git.domain import sync as rules
 from tests.conftest import AGENT, AUTH, make_client
 from tests.fake_keyring import MemoryKeyring, memory_keyring
@@ -38,6 +39,8 @@ def hub(monkeypatch: pytest.MonkeyPatch) -> Iterator[GitHubStandin]:
         monkeypatch.setenv("SWISSARMYBENCH_GITHUB_API", standin.url)
         monkeypatch.setenv("SWISSARMYBENCH_GITHUB_WEB", standin.url)
         monkeypatch.delenv("SWISSARMYBENCH_GITHUB_CLIENT_ID", raising=False)
+        # A token only, unless a test names a client id (the real one is the owner's registered app's).
+        monkeypatch.setattr(git_extension, "CLIENT_ID", "")
         yield standin
 
 

@@ -3320,3 +3320,5 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
 - **Not checked:** a narrow window (420px) with the guided moves; the desktop app (Qt WebEngine) run; a user who had
   two tables side by side when the tour started gets one side replaced by the tour's while it runs (the address
   comes back, the split does not).
+- **Sign in with GitHub (2026-11-18):** the owner registered the app (device flow on); its public client id is
+  built in (extensions/git extension.py CLIENT_ID). The tests still run token-only unless they name one.
