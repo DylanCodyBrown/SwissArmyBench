@@ -184,9 +184,9 @@ class Updates:
     # ===== start at sign-in =====
 
     async def install(self, body: Any, who: str) -> dict[str, Any]:
-        """Update to the offered version: {"version"?, "confirmed"?}. The user's, with unsaved work or a
-        running kernel, first answers {"confirm": {...}} (sent again with "confirmed": true); the
-        agent's waits for the user's Allow."""
+        """Update to the offered version: {"version"?, "confirmed"?}. The user's always first answers
+        {"confirm": {...}} (the restart warned of, with what would be lost; sent again with "confirmed": true:
+        the owner, 2026-11-18); the agent's waits for the user's Allow."""
         body = body if isinstance(body, dict) else {}
         if self._updating:
             raise Conflict(f"Updating to {self._updating} already.")
@@ -204,7 +204,7 @@ class Updates:
                 version, "update the app to", rules.update_question(version, at_risk)
             ):
                 raise Refused(f"The user declined (or did not answer): the app was not updated to {version}.")
-        elif (at_risk["unsaved"] or at_risk["kernels"]) and body.get("confirmed") is not True:
+        elif body.get("confirmed") is not True:
             return {"confirm": at_risk, "version": version}
         self._helper.launch(version, offer.source)
         self._updating = version

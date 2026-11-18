@@ -12,20 +12,20 @@ import { areaMarks } from "./areaMarks";
 import { betaMark } from "./betaNotes";
 import { launchButton } from "./claudeLaunch";
 import { h } from "./dom";
-import { updateMark, versionMark } from "./updates";
+import { mountUpdateCorner, versionMark } from "./updates";
 import { zoomControl } from "./zoom";
 
 /** Fill `host` with the app's footer: its common parts around the page's own `items` (and `end`, on the right,
  *  before the common right side: what belongs to the page but reads as a status, a meter or "live"). */
 export function mountAppFooter(host: HTMLElement, items: Node[] = [], end: Node[] = []): void {
   host.classList.add("statusbar", "app-footer");
+  mountUpdateCorner(); // the update button, top right (updates.ts)
   host.replaceChildren(
     versionMark(),
     ...items,
     h("span", { class: "grow" }),
     ...end,
     areaMarks(),
-    updateMark(),
     zoomControl(),
     betaMark(),
     launchButton(),

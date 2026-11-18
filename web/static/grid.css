@@ -8219,31 +8219,43 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   display: none;
 }
 
-/* An update (updates.ts): a quiet green mark in the status bar, only while there is one (red if it failed). */
-.update-mark {
-  flex: 0 0 auto;
-  height: 20px;
-  padding: 0 8px;
+/* An update (updates.ts): a button in the window's top-right corner, only while there is one (red if it failed). */
+.update-corner {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px solid var(--ok);
   border-radius: 999px;
-  background: transparent;
-  color: var(--ok);
+  background: var(--ok);
+  color: var(--bg);
   font: inherit;
-  font-size: max(0.85em, 11.5px);
-  line-height: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
   cursor: pointer;
 }
 
-.update-mark[hidden] {
+.update-corner .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.update-corner[hidden] {
   display: none;
 }
 
-.update-mark:disabled {
+.update-corner:disabled {
   cursor: default;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
-.update-mark.failed {
+.update-corner.failed {
   border-color: var(--error);
   background: var(--error-soft);
   color: var(--error);

@@ -5582,3 +5582,12 @@ the profile are all in reach. Its cost is its size.
   icon is gone: Swiss Army Bench now runs while it's open."
 - The agent: `app_lifecycle` (windows, last client, busy, held, seconds left, why), `desktop_status`,
   `desktop_open(page)`.
+
+## The update button, top right (the owner, 2026-11-18)
+
+"can the app pop up an update button in the top right when an update is available then warn that it will
+restart once updated". Built: **Update available** sits in every window's top-right corner (fixed, green, only
+while an update exists; red "Update failed" with the reason), and leaves the status bar. A click always warns
+first: "Swiss Army Bench closes, installs X and opens again by itself", with What's new, and lists unsaved
+documents and running kernels when there are any (Update and restart). The server's POST /updates/install now
+always answers the user's first ask with {"confirm": ...}; the agent's still waits for the user's Allow.

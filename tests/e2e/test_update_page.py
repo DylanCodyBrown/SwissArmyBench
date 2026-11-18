@@ -84,41 +84,48 @@ def shot(page: Page, name: str, **kwargs: Any) -> None:
         page.screenshot(path=str(Path(SHOTS) / name), **kwargs)
 
 
-def test_the_status_bars_say_update_available_and_its_menu_updates(
+def test_the_top_right_button_warns_of_the_restart_then_updates(
     browser: Browser, server: dict[str, Any], release_list: StandIn
 ) -> None:
+    """The owner (2026-11-18): "pop up an update button in the top right when an update is available then warn
+    that it will restart once updated"."""
     release_list.answer = pypi(__version__, "9.9.9")
     assert call(server, "POST", "/updates/check")["version"] == "9.9.9"
     page = grid_page(browser, server)
     try:
-        mark = page.locator(".statusbar .update-mark")
-        expect(mark).to_have_text("Update available")
-        expect(mark).to_have_attribute("title", "Update to 9.9.9")
-        shot(page, "update-statusbar.png", clip={"x": 700, "y": 780, "width": 700, "height": 40})
-        mark.click()
-        menu = page.locator(".menu")
-        expect(menu.get_by_role("menuitem", name="Update to 9.9.9")).to_be_visible()
-        expect(menu.get_by_role("menuitem", name="What's new")).to_be_visible()
-        shot(page, "update-menu.png", clip={"x": 700, "y": 640, "width": 700, "height": 180})
+        corner = page.locator(".update-corner")
+        expect(corner).to_have_text("Update available")
+        expect(corner).to_have_attribute("title", "Update to 9.9.9")
+        box = corner.bounding_box()
+        size = page.viewport_size
+        assert box is not None and size is not None
+        assert box["y"] < 40 and box["x"] + box["width"] > size["width"] - 40  # the top-right corner
+        assert page.locator(".statusbar .update-mark").count() == 0  # moved out of the status bar
+        shot(page, "update-corner.png", clip={"x": size["width"] - 420, "y": 0, "width": 420, "height": 60})
+        corner.click()
+        dialog = page.get_by_role("dialog")
+        expect(dialog.locator(".update-restart")).to_contain_text("installs 9.9.9 and opens again")
+        expect(dialog.get_by_role("button", name="What's new")).to_be_visible()
+        shot(page, "update-warning.png", full_page=False)
+        dialog.get_by_role("button", name="Cancel").click()
+        assert call(server, "GET", "/updates")["updating"] is None  # Cancel: nothing happened
+        corner.click()
         # This copy runs from source, not a uv tool: the update says so and nothing stops.
-        menu.get_by_role("menuitem", name="Update to 9.9.9").click()
+        page.get_by_role("dialog").get_by_role("button", name="Update and restart").click()
         expect(page.locator(".toast", has_text="not installed with uv")).to_be_visible()
         assert call(server, "GET", "/updates")["updating"] is None
 
-        # The Workbench's status bar says the same.
+        # The Workbench window has it too, in its own top-right corner.
         workbench = page.context.new_page()
         workbench.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
-        expect(workbench.locator(".wb-status .update-mark")).to_have_text("Update available")
-        shot(
-            workbench, "update-workbench-statusbar.png", clip={"x": 600, "y": 780, "width": 800, "height": 40}
-        )
+        expect(workbench.locator(".update-corner")).to_have_text("Update available")
 
-        # The same version on the list: the marks go, live, and nothing says "up to date".
+        # The same version on the list: the buttons go, live, and nothing says "up to date".
         release_list.answer = pypi(__version__)
         call(server, "POST", "/updates/check")
-        expect(mark).to_be_hidden()
-        expect(workbench.locator(".wb-status .update-mark")).to_be_hidden()
-        assert "up to date" not in page.locator(".statusbar").inner_text().lower()
+        expect(corner).to_be_hidden()
+        expect(workbench.locator(".update-corner")).to_be_hidden()
+        assert "up to date" not in page.locator("body").inner_text().lower()
         workbench.close()
     finally:
         page.context.close()
@@ -132,7 +139,7 @@ def test_settings_check_for_updates_turns_it_off_and_on(
     call(server, "POST", "/updates/check")
     page = grid_page(browser, server)
     try:
-        mark = page.locator(".statusbar .update-mark")
+        mark = page.locator(".update-corner")
         expect(mark).to_be_visible()
         page.locator(".nav-rail [data-area='settings']").click()
         switch = page.get_by_label("Check every six hours")
@@ -165,9 +172,12 @@ def test_settings_check_for_updates_checks_and_starts_the_update(
         check.click()
         expect(page.locator(".toast", has_text="is the newest version")).to_be_visible()
         assert release_list.requests  # asked, though the switch is off
-        # A newer one: the same click starts the update (this copy runs from source, so it says so).
+        # A newer one: the same click starts the update, after the restart's warning (2026-11-18); this copy
+        # runs from source, so it says so.
         release_list.answer = pypi(__version__, "9.9.9")
         check.click()
+        warning = page.get_by_role("dialog", name="Update to 9.9.9")
+        warning.get_by_role("button", name="Update and restart").click()
         expect(page.locator(".toast", has_text="not installed with uv")).to_be_visible()
     finally:
         call(server, "PUT", "/updates", {"check": True})

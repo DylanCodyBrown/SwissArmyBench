@@ -359,7 +359,7 @@ def test_update_hands_the_version_to_the_helper_and_stops_the_app(stand_in: Stan
     updates, helper, told, stopped = ready(stand_in)
 
     async def go() -> dict[str, Any]:
-        said = await updates.install({"version": "0.0.2"}, "user")
+        said = await updates.install({"version": "0.0.2", "confirmed": True}, "user")
         await asyncio.sleep(0.7)
         return said
 
@@ -370,7 +370,15 @@ def test_update_hands_the_version_to_the_helper_and_stops_the_app(stand_in: Stan
         asyncio.run(updates.install({}, "user"))
 
 
-def test_update_asks_first_only_when_something_would_be_lost(stand_in: StandIn) -> None:
+def test_the_users_update_always_warns_of_the_restart_first(stand_in: StandIn) -> None:
+    """The owner (2026-11-18): "warn that it will restart once updated": asked even with nothing at risk."""
+    updates, helper, _, _ = ready(stand_in)
+    asked = asyncio.run(updates.install({"version": "0.0.2"}, "user"))
+    assert asked == {"confirm": {"unsaved": [], "kernels": 0}, "version": "0.0.2"}
+    assert helper.launched == []
+
+
+def test_update_asks_first_and_lists_what_would_be_lost(stand_in: StandIn) -> None:
     work = {"tables": [], "documents": [], "unsaved": ["sales.ipynb"], "kernels": 1}
     updates, helper, _, _ = ready(stand_in, work=work)
     asked = asyncio.run(updates.install({"version": "0.0.2"}, "user"))

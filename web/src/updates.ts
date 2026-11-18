@@ -6,9 +6,9 @@
  * Workbench's status bars show the same, quietly, and only while there is one (principle 7.9: never "up to
  * date"). The check is the server's (services/updates.py): the one request that leaves the computer.
  *
- *   [UPDATE MARK]  "Update available" while a newer release exists: Update to X, What's new
+ *   [UPDATE CORNER] "Update available" in the window's top-right corner while a newer release exists
  *   [FAILED MARK]  the last update's failure, said once, with its reason
- *   [UPDATE]       asks only when something would be lost (unsaved documents, running kernels), then the
+ *   [UPDATE]       always warns of the restart first (and what would be lost: unsaved documents, kernels), then the
  *                  app stops, installs the version and starts again; this page's link ends with it
  *   [SETTINGS]     Check for updates, kept across restarts
  *
@@ -92,26 +92,29 @@ export function versionMark(): HTMLElement {
   return mark;
 }
 
-/** The status bar's quiet mark: only while an update exists (or the last one failed). */
-export function updateMark(): HTMLElement {
-  const mark = h("button", { type: "button", class: "update-mark", hidden: true }) as HTMLButtonElement;
+/** The update button in the window's top-right corner (the owner, 2026-11-18: "pop up an update button in the
+ *  top right when an update is available then warn that it will restart once updated"): only while an update
+ *  exists (or the last one failed); one per window, put there by the footer. A click warns of the restart first. */
+export function mountUpdateCorner(): void {
+  if (document.querySelector(".update-corner")) return;
+  const mark = h("button", { type: "button", class: "update-corner", hidden: true }) as HTMLButtonElement;
   const draw = (): void => {
     const s = state;
     mark.classList.toggle("failed", !!s?.failed && !s.available);
     if (s?.updating) {
       mark.hidden = false;
-      mark.textContent = `Updating to ${s.updating}…`;
       mark.disabled = true;
-      mark.title = "";
+      mark.replaceChildren(`Updating to ${s.updating}…`);
+      mark.title = "Swiss Army Bench opens again by itself";
     } else if (s?.available && s.version) {
       mark.hidden = false;
       mark.disabled = false;
-      mark.textContent = "Update available";
+      mark.replaceChildren(icon("export"), " Update available");
       mark.title = `Update to ${s.version}`;
     } else if (s?.failed) {
       mark.hidden = false;
       mark.disabled = false;
-      mark.textContent = "Update failed";
+      mark.replaceChildren("Update failed");
       mark.title = s.failed.reason;
     } else {
       mark.hidden = true;
@@ -120,20 +123,13 @@ export function updateMark(): HTMLElement {
   mark.addEventListener("click", () => {
     const s = state;
     if (!s) return;
-    if (!s.available && s.failed) {
-      showFailure(s.failed);
-      return;
-    }
-    const box = mark.getBoundingClientRect();
-    showMenu(box.left, box.top - 8, `Update to ${s.version}`, [
-      ["export", `Update to ${s.version}`, () => void startUpdate()],
-      ["link", "What's new", () => whatsNew()],
-    ]);
+    if (!s.available && s.failed) showFailure(s.failed);
+    else void startUpdate();
   });
+  document.body.append(mark);
   onUpdates(draw);
   void loadUpdates().then(draw);
   draw();
-  return mark;
 }
 
 function showFailure(failed: { version: string; reason: string }): void {
@@ -166,15 +162,19 @@ export async function startUpdate(confirmed = false): Promise<void> {
 }
 
 function askFirst(version: string, risk: AtRisk): void {
+  const name = state?.name ?? "Swiss Army Bench";
   const { body, foot, close } = openDialog(`Update to ${version}`);
-  if (risk.unsaved.length) body.append(h("p", {}, "Unsaved changes are lost:"), h("ul", { class: "update-unsaved" }, ...risk.unsaved.map((name) => h("li", {}, name))));
+  body.append(h("p", { class: "update-restart" }, `${name} closes, installs ${version} and opens again by itself. It takes about a minute.`));
+  if (risk.unsaved.length) body.append(h("p", {}, "Unsaved changes are lost:"), h("ul", { class: "update-unsaved" }, ...risk.unsaved.map((n) => h("li", {}, n))));
   if (risk.kernels) body.append(h("p", {}, `${risk.kernels} running kernel${risk.kernels === 1 ? " stops" : "s stop"}.`));
+  const lost = risk.unsaved.length > 0 || risk.kernels > 0;
   foot.append(
+    ...(state?.url ? [button("What's new", () => whatsNew(), { class: "link" }), h("span", { class: "grow" })] : []),
     button("Cancel", close),
-    button(`Update to ${version}`, () => {
+    button("Update and restart", () => {
       close();
       void startUpdate(true);
-    }, { class: "danger" }),
+    }, { class: lost ? "danger" : "primary" }),
   );
 }
 
