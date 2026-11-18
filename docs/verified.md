@@ -3300,3 +3300,7 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   `Sec-Fetch-Site: same-origin` is a page's, not a client's (domain/lifecycle.py `from_a_page`; the guard).
 - **Checked for real** with a wheel of the fix: the app open, its home page loaded, `/lifecycle` said "a window is
   open" and no client; the app ended, the server stopped 34 s later (the 30 s grace).
+- **0.0.23 from its GitHub release** (install.sh and the wheel downloaded, a temporary home, Xvfb): version 0.0.23;
+  the app open, `/lifecycle` said "a window is open" and no client; one request with the token and no browser
+  mark counted as a client; the app ended, the server still up 60 s later (held by that request) and stopped
+  595 s after the close, 10 minutes after the request.
