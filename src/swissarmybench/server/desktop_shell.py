@@ -1,6 +1,6 @@
-"""The Desktop shell: the app's pages in windows of their own (PySide6, Qt WebEngine: Chromium), with the tray
-icon's job in the same process (one icon, not two). server/launch.py starts it; domain/windows.py has its
-rules.
+"""The desktop app: Swiss Army Bench's pages in windows of their own (PySide6, Qt WebEngine: Chromium), over
+the local server it starts and owns (the owner, 2026-11-18: "It's not an extension it is the app framework
+now and it should have been since the start"). server/desktop.py starts it; domain/desktop.py has its rules.
 
 One QApplication; each page a QMainWindow holding a QWebEngineView, every view on one persistent profile in
 the state folder's desktop/profile (cookies: the sab_<port> cookie the token buys; localStorage; the cache).
@@ -12,9 +12,11 @@ the state folder's desktop/profile (cookies: the sab_<port> cookie the token buy
   window.print()     Print to PDF: a Save dialog, then QWebEnginePage.printToPdf
   permissions        the clipboard for the app's own origin; nothing else to anyone
   keys               F12 the developer tools (a window of their own), F11 full screen, Alt+Left/Right back and
-                     forward, F5 and Ctrl+R reload, Ctrl+P print, Ctrl+W close the window
-  the tray           the base's Tray (server/tray.py: its menu, the watchdog, Update, Start at sign-in,
-                     Quit) drawn by QSystemTrayIcon instead of pystray
+                     forward, F5 and Ctrl+R reload, Ctrl+P print, Ctrl+W close the window, Ctrl+Shift+B the
+                     page in the browser (also on the right-click menu: Open in browser)
+  the server's life  no server running: it is started (`swissarmybench start --no-window`); the last window
+                     closed: the server is told (POST /lifecycle/closed, services/lifecycle.py) and the app
+                     ends. A window asks its page first (beforeunload: unsaved work says so).
 
 Nothing here holds the token but the addresses the windows load (read from the server's connection file
 each time a page is opened); the channel's messages and the command line carry pages without it.
@@ -22,11 +24,11 @@ each time a page is opened); the channel's messages and the command line carry p
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import sys
 import threading
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -55,20 +57,14 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QLabel,
     QMainWindow,
-    QMenu,
-    QMessageBox,
     QPushButton,
-    QSystemTrayIcon,
     QWidget,
 )
 
-from swissarmybench.domain.updates import tooltip
-from swissarmybench.server.autostart import Autostart
-from swissarmybench.server.lifecycle import read_info
-from swissarmybench.server.tray import POLL_SECONDS, Server, Tray, server_command
+from swissarmybench.adapters.desktop import JsonState, Listener, RecordFile, new_key
+from swissarmybench.domain import desktop as rules
+from swissarmybench.server.lifecycle import read_info, running_server
 from swissarmybench.server.updater import detached
-from swissarmybench_desktop.adapters.channel import JsonState, Listener, RecordFile, new_key
-from swissarmybench_desktop.domain import windows as rules
 
 APP_NAME = "Swiss Army Bench"
 # The pages' console line the shell's script writes: a focus() (raise this window) or the window's name.
@@ -95,7 +91,8 @@ OpenOutside = Callable[[QUrl], object]
 
 
 def draw_mark(size: int = 64, dot: bool = False) -> QPixmap:
-    """The app's mark (the pages' icon, the tray's): a red rounded square, a white cross; the update's dot."""
+    """The app's mark (the pages' icon, the windows', the launcher's): a red rounded square, a white cross;
+    `dot`: the update's dot."""
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
@@ -137,12 +134,10 @@ def downloads_folder() -> str:
 
 
 class Bridge(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyproject)
-    """Calls from other threads (the channel, the tray's poll) handed to the window thread."""
+    """Calls from other threads (the channel) handed to the window thread."""
 
     open_page = Signal(str)  # a page of the app, no token
-    open_address = Signal(str)  # a full address (the tray's)
-    tray_changed = Signal()
-    say = Signal(str)
+    open_address = Signal(str)  # a full address
     quit = Signal()
 
 
@@ -202,7 +197,8 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
         self.fresh = True  # nothing of the app shown yet (a window.open's about:blank)
         self.requested: tuple[int, int] | None = None
         self.placed = False
-        self.raised = 0  # how often it was brought forward (a page's focus(), the tray's Open)
+        self.agreed = False  # the page agreed to close (or was never asked: nothing of it shown)
+        self.raised = 0  # how often it was brought forward (a page's focus(), a page opened again)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowIcon(shell.icon)
         self.setWindowTitle(APP_NAME)
@@ -210,11 +206,15 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
         self.page = Page(shell, self)
         self.view.setPage(self.page)
         self.setCentralWidget(self.view)
+        # The right-click menu where the page has none of its own: Back, Forward, Reload, ... and Open in
+        # browser (the browser stays possible).
+        self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.view.customContextMenuRequested.connect(self._menu)
         self.devtools: QMainWindow | None = None
         page = self.page
         page.titleChanged.connect(lambda title: self.setWindowTitle(rules.window_title(title)))
         page.urlChanged.connect(self._url_changed)
-        page.windowCloseRequested.connect(self.close)
+        page.windowCloseRequested.connect(self._page_agreed)
         page.geometryChangeRequested.connect(self._geometry_asked)
         page.fullScreenRequested.connect(self._full_screen)
         page.permissionRequested.connect(self._permission)
@@ -244,6 +244,7 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
             ("Ctrl+R", lambda: page.triggerAction(QWebEnginePage.WebAction.Reload)),
             ("Ctrl+P", lambda: shell.print_page(self)),
             ("Ctrl+W", self.close),
+            ("Ctrl+Shift+B", lambda: shell.open_in_browser(self)),
         ):
             QShortcut(QKeySequence(keys), self, activated=action)
 
@@ -309,12 +310,29 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
             )
             self.shell.remember(self.kind, saved)
 
+    def _page_agreed(self) -> None:
+        self.agreed = True
+        self.close()
+
     def closeEvent(self, event: Any) -> None:
+        # The page is asked first (its beforeunload: a Workbench with unsaved work says so); it answers with
+        # windowCloseRequested, which closes the window for good.
+        if not (self.agreed or self.fresh or self.shell.closing):
+            event.ignore()
+            self.page.triggerAction(QWebEnginePage.WebAction.RequestClose)
+            return
         self.remember()
         if self.devtools is not None:
             self.devtools.close()
         self.shell.closed(self)
         super().closeEvent(event)
+
+    def _menu(self, at: Any) -> None:
+        menu = self.view.createStandardContextMenu()
+        menu.addSeparator()
+        menu.addAction("Open in browser", lambda: self.shell.open_in_browser(self))
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        menu.popup(self.view.mapToGlobal(at))
 
     # ----- full screen, developer tools, permissions -----
 
@@ -412,7 +430,7 @@ class AppWindow(QMainWindow):  # type: ignore[misc]  # Qt's classes are Any to m
 
 
 class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyproject)
-    """The app's windows, the tray icon and the channel, in one QApplication."""
+    """The app's windows and its channel, in one QApplication."""
 
     def __init__(
         self,
@@ -421,8 +439,7 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
         *,
         save_dialog: AskSave = ask_save,
         open_outside: OpenOutside = QDesktopServices.openUrl,
-        tray: Tray | None = None,
-        events_file: Path | None = None,
+        start_server: Callable[[], object] | None = None,
     ) -> None:
         super().__init__()
         self.app = app
@@ -446,17 +463,9 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
         self.bridge.open_page.connect(self.open_page)
         self.bridge.open_address.connect(self.open_address)
         self.profile = self._profile()
-        self.tray = tray or Tray(
-            Server(info_file),
-            Autostart(),
-            open_url=lambda address: self.bridge.open_address.emit(str(address)),
-            start_server=lambda: detached(server_command()),
-            confirm=self._confirm,
-            events_file=events_file,
-        )
-        self.tray.stop_tray = self.bridge.quit.emit
+        self.start_server = start_server or (lambda: detached(server_command()))
         self.bridge.quit.connect(self.quit)
-        self.icon_shown: QSystemTrayIcon | None = None
+        self.closing = False
         self._wait_timer = QTimer(self)
         self._wait_timer.timeout.connect(self._server_up)
         self._waited = 0
@@ -503,20 +512,54 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
         port = info.get("port") if info else None
         return port if isinstance(port, int) else 0
 
-    def _confirm(self, title: str, text: str) -> bool:
-        answer = QMessageBox.question(None, title, text)
-        return bool(answer == QMessageBox.StandardButton.Yes)
+    def server_running(self) -> bool:
+        return running_server(self.info_file) is not None
+
+    def ensure_server(self) -> None:
+        """The server, when none is running (the app owns its life: it stops once the app closes)."""
+        if not self.server_running():
+            self.start_server()
+
+    def tell_server_closed(self) -> None:
+        """The app's last window closed: the server stops as soon as nothing else holds it."""
+        info = read_info(self.info_file)
+        if info is None:
+            return
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['port']}/lifecycle/closed",
+            data=b"{}",
+            method="POST",
+            headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+        )
+        try:
+            # The app's own server, on 127.0.0.1, at the port its connection file names.
+            with urllib.request.urlopen(request, timeout=3) as answer:  # noqa: S310
+                answer.read()
+        except OSError:
+            pass
+
+    def open_in_browser(self, window: AppWindow) -> None:
+        """The window's page in the system's browser (the browser stays possible: Open in browser)."""
+        info = read_info(self.info_file)
+        if info is None:
+            return
+        address = window.page.url().toString()
+        try:
+            page = rules.page_of(address) if rules.is_ours(address, int(info["port"])) else rules.HOME_PAGE
+        except rules.ShellError:
+            page = rules.HOME_PAGE
+        self.open_outside(QUrl(rules.address_of(page, int(info["port"]), str(info["token"]))))
 
     # ----- opening pages -----
 
     def open_page(self, page: str) -> None:
         """A page of the app (no token): its address made from the running server's connection file. The
-        server not running yet: it is started (the tray's way), and the page opens once it answers."""
+        server not running yet: it is started, and the page opens once it answers."""
         info = read_info(self.info_file)
-        if info is None or not self.tray.server.running():
+        if info is None or not self.server_running():
             self._waiting.append(page)
             if not self._wait_timer.isActive():
-                self.tray.ensure_server()
+                self.ensure_server()
                 self._waited = 0
                 self._wait_timer.start(300)
             return
@@ -525,7 +568,7 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
 
     def _server_up(self) -> None:
         self._waited += 300
-        if self.tray.server.running():
+        if self.server_running():
             self._wait_timer.stop()
             waiting, self._waiting = self._waiting, []
             for page in waiting:
@@ -533,7 +576,7 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
         elif self._waited >= SERVER_WAIT_MS:
             self._wait_timer.stop()
             self._waiting.clear()
-            self.notify("Swiss Army Bench did not start.")
+            print("Swiss Army Bench did not start.", file=sys.stderr)
 
     def open_address(self, address: str) -> AppWindow | None:
         """A full address: the app's page goes to its window (raised, loaded when it says more), or a new
@@ -568,6 +611,10 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
     def closed(self, window: AppWindow) -> None:
         self.windows.pop(window.ident, None)
         self.changed()
+        if not self.windows and not self.closing and not window.fresh:
+            # The app's last window closed: the server stops as soon as nothing else holds it; the app ends.
+            self.tell_server_closed()
+            QTimer.singleShot(0, self.app.quit)
 
     def outside(self, url: QUrl) -> None:
         """An address that is not the app's: the system's browser opens it (http, https, mailto only)."""
@@ -599,7 +646,7 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
     def status(self) -> dict[str, Any]:
         with self._lock:
             windows = list(self._snapshot)
-        return {"running": True, "pid": os.getpid(), "windows": windows, "tray": self.icon_shown is not None}
+        return {"running": True, "pid": os.getpid(), "windows": windows}
 
     def heard(self, said: dict[str, Any]) -> dict[str, Any]:
         """The channel's message (on its thread): open a page, or what is open."""
@@ -649,82 +696,17 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
         if chosen:
             window.print_to(chosen if chosen.lower().endswith(".pdf") else f"{chosen}.pdf")
 
-    # ----- the tray icon -----
-
-    def show_tray(self) -> bool:
-        """The tray icon (Tray's menu, drawn by Qt), where the system has a tray."""
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            return False
-        icon = QSystemTrayIcon(self.icon, self)
-        menu = QMenu()
-        menu.aboutToShow.connect(lambda: self._fill(menu))
-        icon.setContextMenu(menu)
-        icon.activated.connect(self._clicked)
-        icon.setToolTip(tooltip(self.tray.state))
-        icon.show()
-        self.icon_shown = icon
-        self._menu = menu
-        self.tray.said = self.bridge.say.emit
-        self.bridge.say.connect(self.notify)
-        self.bridge.tray_changed.connect(self._draw)
-        return True
-
-    def _clicked(self, reason: QSystemTrayIcon.ActivationReason) -> None:
-        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
-            self.tray.act("open")
-
-    def _fill(self, menu: QMenu) -> None:
-        menu.clear()
-        for entry in self.tray.menu():
-            if entry.separator:
-                menu.addSeparator()
-                continue
-            action = menu.addAction(entry.text)
-            action.setEnabled(entry.enabled)
-            if entry.checked is not None:
-                action.setCheckable(True)
-                action.setChecked(entry.checked)
-            if entry.default:
-                font = action.font()
-                font.setBold(True)
-                action.setFont(font)
-            action.triggered.connect(lambda _=False, which=entry.id: self._act(which))
-
-    def _act(self, which: str) -> None:
-        # Stopping, restarting and starting the server wait on it: off the window thread.
-        if which.split(":", 1)[0] in ("restart", "start", "quit"):
-            threading.Thread(target=self.tray.act, args=(which,), daemon=True).start()
-        else:
-            self.tray.act(which)
-
-    def _draw(self) -> None:
-        if self.icon_shown is not None:
-            self.icon_shown.setIcon(QIcon(draw_mark(64, dot=bool(self.tray.state.update))))
-            self.icon_shown.setToolTip(tooltip(self.tray.state))
-
-    def notify(self, text: str) -> None:
-        if self.icon_shown is not None:
-            self.icon_shown.showMessage(APP_NAME, text[:250], self.icon)
-
-    def poll(self) -> None:
-        """The tray's look at the server (its menu, the watchdog, an update under way), off the window thread."""
-
-        def look() -> None:
-            with contextlib.suppress(Exception):
-                self.tray.refresh()
-            self.bridge.tray_changed.emit()
-
-        threading.Thread(target=look, daemon=True).start()
-
     # ----- the end -----
 
     def quit(self) -> None:
+        self.closing = True
         for window in list(self.windows.values()):
             window.close()
         self.app.quit()
 
     def shutdown(self) -> None:
         """Every window closed and its page gone before the profile (Qt WebEngine asks that order)."""
+        self.closing = True
         for window in list(self.windows.values()):
             window.close()
         QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -733,40 +715,36 @@ class Shell(QObject):  # type: ignore[misc]  # Qt's classes are Any to mypy (pyp
 
 
 def serve(shell: Shell, record: RecordFile) -> Listener:
-    """The shell's channel, its port and a fresh key in tray.json (with the shell's process id)."""
+    """The shell's channel, its port and a fresh key in desktop.json (with the app's process id)."""
     key = new_key()
     listener = Listener(key, shell.heard)
     record.write(rules.record(os.getpid(), listener.port, key))
     return listener
 
 
-def run(lock: Any, tray_mode: bool, page: str | None, info_file: Path, events_file: Path | None) -> int:
-    """The shell, until Quit (or an update): the channel, the tray icon, the first window."""
-    os.environ.setdefault("QTWEBENGINE_DIALOG_SET", "QtWebEngine")  # the profile's own dialogs, Qt's
+def server_command(python: str = sys.executable) -> list[str]:
+    """The server the app starts: `swissarmybench start --no-window` (the app shows the windows itself)."""
+    path = Path(python)
+    if path.name.lower() == "pythonw.exe" and (path.parent / "python.exe").is_file():
+        python = str(path.parent / "python.exe")  # the server writes to a console nobody sees: no window
+    return [python, "-m", "swissarmybench.server", "start", "--no-window"]
+
+
+def run(lock: Any, page: str | None, info_file: Path) -> int:
+    """The app, until its last window closes: the channel, the server, the first window."""
+    os.environ.setdefault("QTWEBENGINE_DIALOG_SET", "QtWebEngine")
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("Swiss Army Bench")
     QApplication.setDesktopFileName("swissarmybench")
     found = QApplication.instance()
     app = found if isinstance(found, QApplication) else QApplication(sys.argv[:1])
-    record = RecordFile(info_file.with_name("tray.json"))
-    shell = Shell(app, info_file, events_file=events_file)
+    record = RecordFile(info_file.with_name(rules.RECORD))
+    shell = Shell(app, info_file)
     listener = serve(shell, record)
-    has_tray = shell.show_tray()
-    # Closing the last window leaves the shell in the tray (as closing the browser leaves the server); with
-    # no tray to come back from, it ends with its last window.
-    app.setQuitOnLastWindowClosed(not has_tray)
-    shell.tray.ensure_server()
-    timer = QTimer()
-    timer.timeout.connect(shell.poll)
-    timer.start(int(POLL_SECONDS * 1000))
-    shell.poll()
-    if not tray_mode or page:
-        shell.open_page(page or rules.HOME_PAGE)
-    elif not has_tray:
-        listener.close()
-        record.remove(os.getpid())
-        lock.release()
-        return 0  # no tray to show and no window asked for: the server is started, nothing else to do
+    # The last window closed: the server is told (it stops once nothing else holds it), and the app ends
+    # (Shell.closed). Not Qt's own last-window rule: the developer tools are windows too.
+    app.setQuitOnLastWindowClosed(False)
+    shell.open_page(page or rules.HOME_PAGE)
     try:
         return int(app.exec())
     finally:

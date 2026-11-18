@@ -49,6 +49,8 @@ class LiveUpdates:
         self._openers: list[WebSocket] = []
         # When the last VS Code window left (from the start, until the first one arrives).
         self._openers_left_at: float = monotonic()
+        # The app's windows (pages: not VS Code's openers, not the agent's event socket): the server's life.
+        self._pages: set[WebSocket] = set()
         # Counted at every notice: context.md (services/context_md.py) looks again only after one.
         self.changes = 0
 
@@ -61,9 +63,12 @@ class LiveUpdates:
         workbench: bool = False,
         window: str | None = None,
         catalog: bool = False,
+        page: bool = True,
     ) -> None:
         self.changes += 1  # a window opened: context.md's Windows
         self._sockets.add(websocket)
+        if page and not opener:
+            self._pages.add(websocket)
         if catalog and not workbench:  # the Workbench reads catalogs too, but is a window of its own
             self._catalogs.add(websocket)
         if workbench:
@@ -81,6 +86,7 @@ class LiveUpdates:
     def discard(self, websocket: WebSocket) -> None:
         self.changes += 1
         self._sockets.discard(websocket)
+        self._pages.discard(websocket)
         self._grid_of.pop(websocket, None)
         self._window_of.pop(websocket, None)
         self._workspaces.discard(websocket)
@@ -101,6 +107,14 @@ class LiveUpdates:
         if websocket in self._workbenches:
             self._workbenches.remove(websocket)
             self._workbenches.append(websocket)
+
+    def windows(self) -> int:
+        """How many of the app's windows are connected (the desktop app's, a browser's tabs)."""
+        return len(self._pages)
+
+    def openers(self) -> int:
+        """How many VS Code windows are connected."""
+        return len(self._openers)
 
     def openers_gone_for(self) -> float:
         """Seconds since the last VS Code window left (0 while one is connected)."""

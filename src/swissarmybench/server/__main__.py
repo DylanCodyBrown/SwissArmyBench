@@ -1,25 +1,27 @@
-"""The `swissarmybench` command: start, stop or check the local server.
+"""The `swissarmybench` command: the desktop app, and its local server.
 
-    uv run swissarmybench                 start (reuses the last port when it is free)
-    uv run swissarmybench --port 8790     start on exactly this port, or fail clearly
-    uv run swissarmybench status          is one running, and where
-    uv run swissarmybench open            open the running app's page in the browser
-    uv run swissarmybench open ~/sales    open a project folder (starting the app when it is not running)
-    uv run swissarmybench stop            ask the running one to shut down
-    uv run swissarmybench tray            the tray icon (`start` starts it too, unless --no-tray)
-    uv run swissarmybench autostart on    start at sign-in (the tray, which starts the server); off, status
-    uv run swissarmybench start --background   detached, no console, returns at once
-    uv run swissarmybench desktop         the app in windows of its own (the Desktop extension)
+    swissarmybench                        open the app (the desktop app; it starts the server it owns)
+    swissarmybench open                   the same; with the app open, its home window comes forward
+    swissarmybench open ~/sales           open a project folder in the app (starting it when it is not open)
+    swissarmybench open --browser         the app in the browser instead (a tab; the same server)
+    swissarmybench start                  the server in this console, then the app's window (--no-window not)
+    swissarmybench start --background     the server detached, no console, returns at once
+    swissarmybench --port 8790 start      on exactly this port, or fail clearly
+    swissarmybench status                 is one running, and where
+    swissarmybench stop                   ask the running one to shut down
 
-Started by hand, it opens the app's page in the default browser once it listens (--no-browser not to;
-an extension that opens pages in its own windows, the Desktop extension, opens it there instead),
-and prints the page's full address. The token is in the address's fragment (#token=...), which a
-browser never sends over the network.
+Swiss Army Bench is a desktop app (the owner, 2026-11-18: "We should just package this as the desktop app
+pyside6"; "It's not an extension it is the app framework now and it should have been since the start"):
+PySide6 windows with the pages in Qt WebEngine (server/desktop_shell.py). Where the app cannot run (no
+display, no Qt WebEngine) the browser opens instead. The token is in the address's fragment (#token=...),
+which is never sent over the network.
 
-A server started here, by the tray or at sign-in never stops on its own: only Stop and quit,
-`swissarmybench stop` or signing out stop it, and the tray starts it again if it dies. VS Code's
-extension runs this command with SWISSARMYBENCH_STARTED_BY=vscode; a server it started stops once no
-VS Code window has been connected for VSCODE_GONE_SECONDS.
+The server runs while the app is open (the owner, 2026-11-18: "I wanted the server to simply run while the
+app is active and shutdown when it's not"): services/lifecycle.py stops it 30 seconds after the last window
+closes (at once when the desktop app closes), or 10 minutes after the last request of the agent, VS Code or
+a Python session with still no window open. There is no tray and no start at sign-in any more: `tray` and
+`autostart` (and --no-tray) are accepted for one release and say so. VS Code's extension runs this command
+with SWISSARMYBENCH_STARTED_BY=vscode: the server only, no window.
 
 Start-up order matters (server/lifecycle.py): take the instance lock, refuse if a healthy server
 is already running, bind and listen, write the connection file, serve, delete the file on every
@@ -36,19 +38,18 @@ import secrets
 import sys
 import threading
 import time
+import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from types import FrameType
 
 import uvicorn
 
-from swissarmybench import __version__, extensions
-from swissarmybench.adapters.live_updates import LiveUpdates
+from swissarmybench import __version__
 from swissarmybench.adapters.state_files import info_file_path, remove_info_file, write_info_file
-from swissarmybench.domain.extensions import launcher_words, needs_words
 from swissarmybench.renamed import env, move_state_folder
+from swissarmybench.server import desktop
 from swissarmybench.server.app import create_app
-from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.lifecycle import (
     AlreadyRunningError,
     AlreadyStartingError,
@@ -65,12 +66,13 @@ from swissarmybench.server.lifecycle import (
     page_address as page_address,
 )
 from swissarmybench.server.routes_processes import QuietHeartbeats
-from swissarmybench.server.tray import open_address, server_command, start_tray
 from swissarmybench.server.updater import detached
 from swissarmybench.settings import Settings
 
-# Long enough to ride out a window reload (the extension reconnects within a few seconds).
-VSCODE_GONE_SECONDS: float = 30.0
+GONE_WORDS: str = (
+    "There is no tray icon and no start at sign-in any more: Swiss Army Bench runs while it's open "
+    "(swissarmybench opens it)."
+)
 
 
 class _Server(uvicorn.Server):
@@ -90,64 +92,58 @@ class _Server(uvicorn.Server):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Swiss Army Bench server on localhost.")
+    parser = argparse.ArgumentParser(description="Swiss Army Bench: the desktop app and its local server.")
     parser.add_argument(
         "command",
         nargs="?",
-        default="start",
-        # The extensions' words (`desktop`) too: off, the word says which extension it needs.
-        choices=["start", "stop", "status", "open", "tray", "autostart", *launcher_words()],
+        default=None,
+        choices=["app", "start", "stop", "status", "open", "tray", "autostart"],
     )
-    parser.add_argument(
-        "switch",
-        nargs="?",
-        help="autostart: on, off or status; open: a project's folder.",
-    )
+    parser.add_argument("switch", nargs="?", help="open: a project's folder; app: a page of the app.")
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
-    parser.add_argument("--no-browser", action="store_true", help="Do not open the page when it starts.")
-    parser.add_argument("--no-tray", action="store_true", help="Start without the tray icon.")
+    parser.add_argument(
+        "--no-window", "--no-browser", dest="no_window", action="store_true", help="No window when it starts."
+    )
+    parser.add_argument("--browser", action="store_true", help="open: in the browser instead of the app.")
+    parser.add_argument("--no-tray", action="store_true", help=argparse.SUPPRESS)  # gone; one release
     parser.add_argument(
         "--background", action="store_true", help="Start detached, with no console, and return at once."
     )
     args = parser.parse_args()
     path = info_file_path()
+    # No command: the app. With a server's options (--port, --no-window, --background: the older
+    # `swissarmybench --port N`), or from VS Code's extension, the server, as before.
+    server_only = args.port is not None or args.no_window or args.background
+    vscode = env("SWISSARMYBENCH_STARTED_BY", "") == "vscode"
+    command = args.command or ("start" if server_only or vscode else "app")
 
-    if args.command == "autostart" and args.switch not in (None, "on", "off", "status"):
-        parser.error("autostart takes on, off or status.")
-    if args.command == "open" and args.switch:
-        sys.exit(open_project(args.switch, path))
-    if args.command == "open":
-        if not open_page(path):
-            print("Swiss Army Bench is not running. Start it with: swissarmybench start")
-            sys.exit(1)
+    if command in ("tray", "autostart"):
+        print(GONE_WORDS)
         return
-    if args.command in launcher_words():
-        launchers = [getattr(m, "LAUNCHER", None) for m in extensions.enabled()]
-        run = next((x[args.command] for x in launchers if isinstance(x, dict) and args.command in x), None)
-        if not callable(run):
-            print(needs_words(args.command), file=sys.stderr)
-            sys.exit(1)
-        sys.exit(run())
-    if args.command == "tray":
-        from swissarmybench.server.tray import run_tray
-
-        # An extension's own tray icon (the Desktop extension's shell), else pystray's.
-        own = extensions.hook("run_tray")
-        sys.exit((own if callable(own) else run_tray)(path, Settings().state_dir / "server_events.json"))
-    if args.command == "autostart":
-        sys.exit(autostart(args.switch or "status"))
-    if args.command == "start" and args.background:
-        start_in_background(args.port, browser=not args.no_browser, tray=not args.no_tray)
+    if command == "app":
+        if args.browser or not desktop.can_run():
+            sys.exit(0 if open_in_browser(path, args.switch) else 1)
+        sys.exit(desktop.main(args.switch, path))
+    if command == "open" and args.switch:
+        sys.exit(open_project(args.switch, path, browser=args.browser))
+    if command == "open":
+        if args.browser:
+            sys.exit(0 if open_in_browser(path) else 1)
+        if desktop.can_run():
+            sys.exit(desktop.main(None, path))
+        sys.exit(0 if open_in_browser(path) else 1)
+    if command == "start" and args.background:
+        start_in_background(args.port, window=not args.no_window)
         return
 
-    if args.command == "status":
+    if command == "status":
         info = running_server(path)
         if info is None:
             print("Swiss Army Bench is not running.")
             sys.exit(1)
         print(f"Running on http://127.0.0.1:{info['port']} (process {info.get('pid')}).")
         return
-    if args.command == "stop":
+    if command == "stop":
         if not request_stop(path):
             print("Swiss Army Bench is not running.")
             return
@@ -160,19 +156,43 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        start(args.port, browser=not args.no_browser, tray=not args.no_tray)
+        start(args.port, window=not args.no_window)
     except AlreadyRunningError as error:
-        if not args.no_tray and env("SWISSARMYBENCH_TRAY", "1") != "0":
-            start_tray()  # its tray, if it has none (a second one ends at once)
-        # Already running: open its page, which is what someone starting it again wants.
-        if not args.no_browser and env("SWISSARMYBENCH_NO_BROWSER", "") != "1" and open_page(path):
-            print("Swiss Army Bench is already running: its page is open in your browser.")
+        # Already running: show the app, which is what someone starting it again wants.
+        if not args.no_window and env("SWISSARMYBENCH_NO_BROWSER", "") != "1" and open_page(path):
+            print("Swiss Army Bench is already running: its window is in front.")
             return
         print(error, file=sys.stderr)
         sys.exit(1)
     except (AlreadyStartingError, PortError) as error:
         print(error, file=sys.stderr)
         sys.exit(1)
+
+
+def open_address(address: str, browser: bool = False) -> None:
+    """A page of the app: in the desktop app (started when it is not open), or the browser where the app
+    cannot run or when asked for."""
+    if not browser and desktop.open_page(address):
+        return
+    webbrowser.open(address)
+
+
+def open_in_browser(path: Path, page: str | None = None) -> bool:
+    """`swissarmybench open --browser`: the app in a browser tab, the server started first when needed."""
+    info = running_server(path)
+    if info is None:
+        start_in_background(None, window=False)
+        deadline = time.monotonic() + 30
+        while info is None and time.monotonic() < deadline:
+            time.sleep(0.3)
+            info = running_server(path)
+    if info is None:
+        print("Swiss Army Bench did not start.", file=sys.stderr)
+        return False
+    address = page_address(info, page or "/workspace")
+    print(address)
+    webbrowser.open(address)
+    return True
 
 
 def open_page(path: Path | None = None) -> bool:
@@ -189,7 +209,7 @@ def open_page(path: Path | None = None) -> bool:
 OLD_SAB_FILE: str = "{name}: this version opens project folders only."
 
 
-def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
+def open_project(target: str, path: Path, wait_seconds: float = 30.0, browser: bool = False) -> int:
     """`swissarmybench open <a project's folder>`: the app started in the background when it is not
     running, the project opened in it (the page asks first when unsaved work would be lost), and the home
     window shown when none is open. An old single-file project (.sab) is answered in one line, and nothing
@@ -203,7 +223,7 @@ def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
         return 1
     info = running_server(path)
     if info is None:
-        start_in_background(None, browser=False)
+        start_in_background(None, window=False)
         deadline = time.monotonic() + wait_seconds
         while info is None and time.monotonic() < deadline:
             time.sleep(0.3)
@@ -220,33 +240,33 @@ def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
         print(f"{file.name} could not be opened: {error}", file=sys.stderr)
         return 1
     if not (isinstance(answer, dict) and answer.get("page")):
-        open_address(page_address(info))  # no home window is open: one, showing the project
+        open_address(page_address(info), browser)  # no home window is open: one, showing the project
     print(f"Opened {file.name}." if not (isinstance(answer, dict) and answer.get("asked")) else
           f"{file.name}: the app asks about the unsaved work open now.")  # fmt: skip
     return 0
 
 
-def start_in_background(port: int | None, browser: bool = True, tray: bool = True) -> None:
+def server_command(port: int | None = None, window: bool = False) -> list[str]:
+    """`swissarmybench start` as a detached process runs it (`start --background`, `open`)."""
+    python = Path(sys.executable)
+    if python.name.lower() == "pythonw.exe" and (python.parent / "python.exe").is_file():
+        python = python.parent / "python.exe"
+    command = [str(python), "-m", "swissarmybench.server", "start"]
+    if port is not None:
+        command += ["--port", str(port)]
+    if not window:
+        command.append("--no-window")
+    return command
+
+
+def start_in_background(port: int | None, window: bool = True) -> None:
     """`swissarmybench start --background`: the server detached, with no console window, outliving this
-    command, which returns at once. The tray and the sign-in entry start the server this way."""
-    detached(server_command(port, browser, tray))
+    command, which returns at once."""
+    detached(server_command(port, window))
     print("Swiss Army Bench is starting in the background.")
 
 
-def autostart(switch: str) -> int:
-    """`swissarmybench autostart on|off|status`: start at sign-in (server/autostart.py)."""
-    entry = Autostart()
-    try:
-        if switch in ("on", "off"):
-            entry.set(switch == "on")
-    except OSError as error:
-        print(error, file=sys.stderr)
-        return 1
-    print(f"{entry.label}: {'on' if entry.status() else 'off'}")
-    return 0
-
-
-def start(port: int | None, browser: bool = True, tray: bool = True) -> None:
+def start(port: int | None, window: bool = True) -> None:
     # Swiss Army Bench was SwissArmyGrid: its state folder moves on the first start (renamed.py).
     moved = move_state_folder(in_use=lambda old_info: running_server(old_info) is not None)
     if moved:
@@ -307,32 +327,14 @@ def start(port: int | None, browser: bool = True, tray: bool = True) -> None:
     print(f"Swiss Army Bench {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
     address = page_address({"port": actual_port, "token": token})
     print(f"Open it: {address}")
-    if browser and started_by != "vscode" and env("SWISSARMYBENCH_NO_BROWSER", "") != "1":
-        # The socket already listens: a browser that asks now waits for the server's first answer.
+    if window and started_by != "vscode" and env("SWISSARMYBENCH_NO_BROWSER", "") != "1":
+        # The socket already listens: the app's window (or a browser) asks now and waits for the answer.
         threading.Timer(0.5, open_address, args=(address,)).start()
-    # The tray, as its own process (Windows and macOS; Linux on a desktop), unless --no-tray or VS Code
-    # started this server (it has its own status bar item); SWISSARMYBENCH_TRAY=0 for tests.
-    if tray and started_by != "vscode" and env("SWISSARMYBENCH_TRAY", "1") != "0":
-        start_tray()
-    if started_by == "vscode":
-        live: LiveUpdates = app.state.ctx.live
-        threading.Thread(
-            target=end_with_vscode, args=(live, stop_soon), name="sab-vscode", daemon=True
-        ).start()
     try:
         server.run(sockets=[listener])
     finally:
         remove_info_file(path, token)
         lock.release()
-
-
-def end_with_vscode(live: LiveUpdates, stop: Callable[[], None]) -> None:
-    """A server VS Code started ends with VS Code: once no window has been connected for
-    VSCODE_GONE_SECONDS (from the start, too, should the extension never connect)."""
-    while live.openers_gone_for() < VSCODE_GONE_SECONDS:
-        time.sleep(2)
-    print(f"No VS Code window for {VSCODE_GONE_SECONDS:.0f} seconds; stopping.")
-    stop()
 
 
 if __name__ == "__main__":

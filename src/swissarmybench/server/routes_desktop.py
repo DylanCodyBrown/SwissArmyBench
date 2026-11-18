@@ -13,7 +13,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, error_response, json_response, read_json
-from swissarmybench_desktop.services.desktop import Desktop
+from swissarmybench.services.desktop import Desktop
 
 Handler = Callable[[Request], Awaitable[Response]]
 

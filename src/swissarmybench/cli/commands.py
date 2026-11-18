@@ -3639,14 +3639,25 @@ def extensions_remove(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "app_autostart",
-    "Start at sign-in (the tray, which starts the app): on or off; `on` sets it",
-    opt("on", "true or false; none: read it.", "bool"),
+    "app_lifecycle",
+    "When the server stops: windows open, the last client, busy, held, seconds left (it lives while the app is open)",
 )
-def app_autostart(a: dict[str, Any]) -> Any:
-    if a.get("on") is not None:
-        return api.call("PUT", "/autostart", {"on": a["on"]})
-    return api.call("GET", "/autostart")
+def app_lifecycle(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/lifecycle")
+
+
+@command("desktop_status", "The desktop app: running, its windows (kind, title, page)")
+def desktop_status(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/desktop")
+
+
+@command(
+    "desktop_open",
+    "Open a page in a desktop app window (the app started if needed)",
+    opt("page", "home (default), workbench or blades."),
+)
+def desktop_open(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/desktop/open", {"page": a.get("page") or "home"})
 
 
 @command(
@@ -4563,6 +4574,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("compare", "Compare (two grids side by side)"),
     ("visualizations", "Visualizations: cards, dashboards, themes"),
     ("app", "The page itself: snapshots"),
+    ("desktop", "The desktop app: its windows, a page opened in one"),
     ("extensions", "Extensions: what plugs into the base (Streamlit, Accounting, Power Apps)"),
     ("agent", "What only the agent has: the table in front, the inbox, approvals, live events"),
 )
@@ -4609,6 +4621,13 @@ OLD_NAMES: dict[str, str] = {
 OLD_ARGS: dict[tuple[str, str], str] = {
     ("relationships_check", "tang"): "set",
     ("packs_add", "tangs"): "sets",
+}
+
+
+# Commands that went, one release: an old call says why instead of "unknown".
+GONE_NAMES: dict[str, str] = {
+    "app_autostart": "app_autostart went (2026-11-18): there is no tray and no start at sign-in any more; the "
+    "server runs while the app is open (app_lifecycle says when it stops).",
 }
 
 
@@ -4690,6 +4709,8 @@ def execute_result(name: str, raw: dict[str, Any] | None = None) -> str | ImageR
     is touched."""
     name = current_name(name)
     cmd = REGISTRY.get(name)
+    if cmd is None and name in GONE_NAMES:
+        raise CommandError(GONE_NAMES[name])
     if cmd is None:
         import difflib  # only a mistyped name needs it
 
@@ -4752,6 +4773,7 @@ _add_extensions()
 
 
 __all__ = [
+    "GONE_NAMES",
     "OLD_NAMES",
     "REGISTRY",
     "Command",

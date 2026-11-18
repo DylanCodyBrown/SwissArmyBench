@@ -42,8 +42,6 @@ class Extension:
     project_type: str = ""  # the project type it adds (the Project Explorer: "needs the <name> extension")
     # Its agent commands' names start with one of these: called while it is off, a plain answer names it.
     tools: tuple[str, ...] = ()
-    # `swissarmybench <word>` commands it adds (the launcher): while it is off, the word names it.
-    launcher: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -111,32 +109,7 @@ CATALOG: tuple[Extension, ...] = (
         "swissarmybench-git",
         tools=("github_", "scm_"),
     ),
-    Extension(
-        "desktop",
-        "Desktop",
-        "Swiss Army Bench in app windows of its own instead of browser tabs.",
-        ("Each page in an app window", "Downloads and Print to PDF", "One tray icon"),
-        "available",
-        "swissarmybench-desktop",
-        tools=("desktop_",),
-        launcher=("desktop",),
-    ),
 )
-
-
-def launcher_words(catalog: tuple[Extension, ...] = CATALOG) -> list[str]:
-    """Every `swissarmybench <word>` an extension of the catalog adds."""
-    return [word for e in catalog for word in e.launcher]
-
-
-def needs_words(word: str, catalog: tuple[Extension, ...] = CATALOG) -> str:
-    """What `swissarmybench <word>` says while its extension is off."""
-    ext = next((e for e in catalog if word in e.launcher), None)
-    name = ext.name if ext else word
-    return (
-        f"swissarmybench {word} needs the {name} extension: install it from the app's Extensions page "
-        "(swissarmybench open, then Extensions on the rail)."
-    )
 
 
 def owner_of(command: str, catalog: tuple[Extension, ...] = CATALOG) -> Extension | None:

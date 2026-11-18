@@ -4,7 +4,7 @@ The check is the one request that leaves the computer, by the owner's call (2026
 every six hours, PyPI's JSON for `swissarmybench`, then GitHub's latest release if PyPI cannot be read.
 Nothing is sent but that request. With the switch off, nothing is sent at all.
 
-"Update to X" (the tray, a page's status bar, the agent): it asks first only when something would be
+"Update to X" (a page's status bar, the agent): it asks first only when something would be
 lost (a notebook's unsaved changes, a running kernel), and the agent's always waits for the user's
 Allow (it restarts the app). It saves nothing for the user. The helper (server/updater.py) waits for the
 app to stop, installs with uv, and starts the new version; this server stops right after handing over.
@@ -38,23 +38,13 @@ class UpdateSwitch(Protocol):
     def write(self, on: bool) -> None: ...
 
 
-class Autostart(Protocol):
-    """Start at sign-in (server/autostart.py): the tray when the user signs in."""
-
-    def status(self) -> bool: ...
-
-    def set(self, on: bool) -> bool: ...
-
-    def to_json(self) -> dict[str, object]: ...
-
-
 class UpdateHelper(Protocol):
     """Starts the helper that installs `version` once this server has stopped (server/updater.py)."""
 
     def launch(self, version: str, source: str) -> None: ...
 
 
-# What is open, for the tray's menu and for the question before an update:
+# What is open, for the question before an update:
 # {"tables": [{"grid", "name"}], "documents": [{"key", "title", "unsaved"}], "unsaved": [titles],
 #  "kernels": n}
 OpenWork = Callable[[], Awaitable[dict[str, Any]]]
@@ -77,7 +67,6 @@ class Updates:
         audit: Audit,
         live: Notifier,
         stop: Callable[[], None],
-        autostart: Autostart | None = None,
         failed: dict[str, Any] | None = None,
         every_seconds: float = rules.CHECK_EVERY_SECONDS,
         clock: Callable[[], float] = time.time,
@@ -85,7 +74,7 @@ class Updates:
     ) -> None:
         self.current = rules.parse_version(current)
         # An extension's Install or Remove under way (services/extensions.py): the app stops for it as for
-        # an update, so the tray is told the same and quits (the helper waits for it; the new app starts one).
+        # an update, and the desktop app is ended by the helper (the new version's app starts again).
         self._changing = changing
         self.feeds = feeds
         self._feed = feed
@@ -96,7 +85,6 @@ class Updates:
         self._audit = audit
         self._live = live
         self._stop = stop
-        self._autostart = autostart
         self._every = every_seconds
         self._clock = clock
         self._offer: Release | None = None
@@ -134,16 +122,6 @@ class Updates:
 
     async def open_work(self) -> dict[str, Any]:
         return await self._open_work()
-
-    async def tray(self) -> dict[str, Any]:
-        """What the tray's menu shows: the update, the open tables and the Workbench's documents."""
-        work = await self._open_work()
-        said = self.state() | {"tables": work.get("tables", []), "documents": work.get("documents", [])}
-        if not said["updating"] and self._changing():
-            # An extension being installed or removed: the helper waits for the tray to end, and a tray
-            # that stayed restarted the server it thought had crashed ("The app did not stop.", on Windows).
-            said["updating"] = str(self.current)
-        return said
 
     # ===== the switch and the check =====
 
@@ -204,26 +182,6 @@ class Updates:
         await self._live.broadcast({"type": "update_changed", **self.state()})
 
     # ===== start at sign-in =====
-
-    def autostart(self) -> dict[str, Any]:
-        if self._autostart is None:
-            raise Conflict("Start at sign-in is not available here.")
-        return dict(self._autostart.to_json())
-
-    def set_autostart(self, body: Any, who: str) -> dict[str, Any]:
-        on = body.get("on") if isinstance(body, dict) else None
-        if not isinstance(on, bool):
-            raise ValueError('Send {"on": true} or {"on": false}.')
-        if self._autostart is None:
-            raise Conflict("Start at sign-in is not available here.")
-        try:
-            self._autostart.set(on)
-        except OSError as error:
-            raise Conflict(str(error)) from None
-        self._audit.write(who, "autostart", None, on=on)
-        return self.autostart()
-
-    # ===== Update to X =====
 
     async def install(self, body: Any, who: str) -> dict[str, Any]:
         """Update to the offered version: {"version"?, "confirmed"?}. The user's, with unsaved work or a

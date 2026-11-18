@@ -1,9 +1,9 @@
-"""The shell's channel: how the server, `swissarmybench open` and a second shell tell the running shell to open
-a page (domain/windows.py's messages). Standard library only.
+"""The desktop app's channel: how the server, `swissarmybench open` and a second start of the app tell the
+running app to open a page (domain/desktop.py's messages). Standard library only.
 
-The shell listens on 127.0.0.1, on a port the system picks, and writes the port and a fresh key into
-tray.json beside the server's connection file (where the tray's process id goes: the update's helper ends
-the shell by it). A message is one line of JSON carrying the key; the answer is one line of JSON. Nothing
+The app listens on 127.0.0.1, on a port the system picks, and writes the port and a fresh key into
+desktop.json beside the server's connection file, with its process id (the update's helper ends the app by
+it). A message is one line of JSON carrying the key; the answer is one line of JSON. Nothing
 but 127.0.0.1 is ever listened on; the key is made at each start and lives in that file only.
 """
 
@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from swissarmybench_desktop.domain import windows as rules
+from swissarmybench.domain import desktop as rules
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
 ANSWER_SECONDS = 10.0
@@ -85,8 +85,8 @@ def ask(port: int, key: str, said: dict[str, Any], timeout: float = ANSWER_SECON
 
 
 class RecordFile:
-    """tray.json: the shell's process id and channel (written atomically; owner-only where the system has
-    modes), or the pystray tray's process id."""
+    """desktop.json: the app's process id and channel (written atomically; owner-only where the system has
+    modes)."""
 
     def __init__(self, path: Path) -> None:
         self.path = path

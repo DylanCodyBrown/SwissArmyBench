@@ -1,8 +1,10 @@
-"""The Desktop shell's rules (standard library only, no I/O): what loads inside the app's windows and what
+"""The desktop app's rules (standard library only, no I/O): what loads inside the app's windows and what
 goes to the system's browser, which window an address reuses, where a window goes and how big it is, the
-shell's command line, its channel's messages and the one permission it grants.
+app's command line, its channel's messages and the one permission it grants.
 
-The shell is a Qt WebEngine (Chromium) window per page of the app. Only the app's own origin,
+Swiss Army Bench is a desktop app (the owner, 2026-11-18: "It's not an extension it is the app framework
+now and it should have been since the start"): PySide6, a Qt WebEngine (Chromium) window per page of the
+app, over the local server it starts (server/desktop_shell.py). Only the app's own origin,
 http://127.0.0.1:<the server's port>, is ever shown inside: a link or a window.open to anywhere else opens
 in the system browser, and a frame that would load from elsewhere is refused. The token never travels on a
 command line or the channel: a page is named by its path (and its fragment without the token), and the
@@ -15,7 +17,6 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit
 
 HOST = "127.0.0.1"
 INSIDE, OUTSIDE, REFUSE = "inside", "outside", "refuse"
@@ -24,7 +25,7 @@ OUTSIDE_SCHEMES: tuple[str, ...] = ("http", "https", "mailto")
 # The home window's name (web/src/nav.ts's HOME_WINDOW): other windows find it by this name.
 HOME_WINDOW = "sab-home"
 HOME_PAGE = "/workspace"
-# A page of the app the agent or the tray opens by a word (desktop_open; the tray's menu).
+# A page of the app the agent opens by a word (desktop_open).
 PAGES: dict[str, str] = {"home": "/workspace", "workbench": "/workbench", "blades": "/catalog"}
 # Window sizes when nothing is remembered and the page asked for none.
 DEFAULT_SIZES: dict[str, tuple[int, int]] = {
@@ -41,6 +42,55 @@ MAX_MESSAGE = 64 * 1024
 MAX_PAGE = 4096
 MAX_KINDS = 60
 _KIND = re.compile(r"^[a-z0-9][a-z0-9:_-]{0,59}$")
+
+
+# ===== addresses, read here (the domain does no I/O and keeps to its own parsing) =====
+
+
+@dataclass(frozen=True)
+class _Parts:
+    scheme: str
+    hostname: str | None
+    port: int | None
+    path: str
+    query: str
+    fragment: str
+
+
+def urlsplit(url: str) -> _Parts:
+    """An address's parts: scheme://host:port/path?query#fragment (what urllib.parse.urlsplit gives, for the
+    addresses the app makes). ValueError for a port that is not a number."""
+    rest, _, fragment = url.partition("#")
+    rest, _, query = rest.partition("?")
+    scheme, sep, after = rest.partition(":")
+    if not sep or not scheme.replace("+", "").replace("-", "").replace(".", "").isalnum():
+        return _Parts("", None, None, rest, query, fragment)
+    if not after.startswith("//"):
+        return _Parts(scheme.lower(), None, None, after, query, fragment)
+    authority, slash, path = after[2:].partition("/")
+    host, colon, port_text = authority.rpartition("@")[2].partition(":")
+    port = None
+    if colon:
+        if not port_text.isdigit():
+            raise ValueError(f"{port_text!r} is not a port.")
+        port = int(port_text)
+    return _Parts(scheme.lower(), host.lower() or None, port, slash + path, query, fragment)
+
+
+def parse_qsl(text: str, keep_blank_values: bool = True) -> list[tuple[str, str]]:
+    """`a=1&b=2` as pairs, as written (the app's words and tokens need no decoding)."""
+    pairs: list[tuple[str, str]] = []
+    for part in text.split("&"):
+        if not part:
+            continue
+        key, _, value = part.partition("=")
+        if value or keep_blank_values:
+            pairs.append((key, value))
+    return pairs
+
+
+def urlencode(pairs: list[tuple[str, str]]) -> str:
+    return "&".join(f"{k}={v}" for k, v in pairs)
 
 
 class ShellError(ValueError):
@@ -82,7 +132,7 @@ def decide(url: str, port: int, *, main_frame: bool = True, clicked: bool = Fals
 
 
 def grant(permission: str, origin: str, port: int) -> bool:
-    """The one permission the shell grants: the clipboard, to the app's own origin. Nothing else, to no one."""
+    """The one permission the app grants: the clipboard, to its own origin. Nothing else, to no one."""
     return permission == "clipboard" and is_ours(origin, port)
 
 
@@ -263,14 +313,17 @@ def place(
 # ===== the shell's record, command line and channel =====
 
 
+RECORD = "desktop.json"  # beside the server's connection file: the app's pid and channel
+
+
 def record(pid: int, port: int, key: str) -> dict[str, Any]:
-    """tray.json while the shell runs: its process id where the tray's goes (the update's helper ends it
-    by it), and its channel."""
+    """desktop.json while the app runs: its process id (the update's helper ends it by it) and its
+    channel."""
     return {"pid": pid, "shell": {"port": port, "key": key}}
 
 
 def read_record(data: Any) -> tuple[int, int, str] | None:
-    """tray.json's shell: (pid, port, key); None for the pystray tray's record, or none."""
+    """desktop.json read: (pid, port, key); None when it is not one."""
     if not isinstance(data, dict) or not isinstance(data.get("shell"), dict):
         return None
     pid, shell = _int(data.get("pid")), data["shell"]
@@ -280,31 +333,18 @@ def read_record(data: Any) -> tuple[int, int, str] | None:
     return pid, port, key
 
 
-def shell_command(python: str, page: str | None = None, tray: bool = False) -> list[str]:
-    """The shell as a process of its own: `python -m swissarmybench_desktop [--tray] [page]` (a page of
-    the app with no token in it)."""
-    command = [python, "-m", "swissarmybench_desktop"]
-    if tray:
-        command.append("--tray")
+def shell_command(python: str, page: str | None = None) -> list[str]:
+    """The app as a process of its own: `python -m swissarmybench.server app [page]` (a page of the app,
+    with no token in it)."""
+    command = [python, "-m", "swissarmybench.server", "app"]
     if page:
         command.append(page_of(page))
     return command
 
 
-def read_arguments(argv: list[str]) -> tuple[bool, str | None]:
-    """The shell's arguments: --tray (no window at the start) and an optional page."""
-    tray = False
-    page: str | None = None
-    for word in argv:
-        if word == "--tray":
-            tray = True
-        elif word.startswith("-"):
-            raise ShellError(f"{word}: the shell takes --tray and a page.")
-        elif page is None:
-            page = page_of(word)
-        else:
-            raise ShellError("One page at a time.")
-    return tray, page
+def read_page(word: str | None) -> str | None:
+    """The app's argument: a page of the app (no token), or none (the home page)."""
+    return page_of(word) if word else None
 
 
 def message(key: str, said: dict[str, Any]) -> bytes:

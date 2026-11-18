@@ -60,13 +60,13 @@ def test_the_rail_has_extensions_above_settings_and_its_page_shows_each_kind(
     page.locator(".nav-rail [data-area='extensions']").click()
     expect(page).to_have_url(re.compile("open=extensions"))
     cards = page.locator(".extension-card")
-    expect(cards).to_have_count(6, timeout=10000)  # Streamlit, Accounting, Power Apps, Copilot, Git, Desktop
+    expect(cards).to_have_count(5, timeout=10000)  # Streamlit, Accounting, Power Apps, GitHub Copilot, Git
     streamlit = page.locator(".extension-card[data-extension='streamlit']")
     expect(streamlit.locator(".extension-status")).to_have_text("Preinstalled")
     expect(streamlit.locator(".extension-version")).to_have_text(__version__)
     # Its own package, installed with every install: Remove is there (it asks first).
     expect(streamlit.get_by_role("button", name="Remove")).to_be_visible()
-    for available in ("accounting", "powerapps", "copilot", "git", "desktop"):
+    for available in ("accounting", "powerapps", "copilot", "git"):
         card = page.locator(f".extension-card[data-extension='{available}']")
         expect(card.locator(".extension-status")).to_have_text("Available")
         expect(card.locator(".extension-version")).to_have_text(__version__)

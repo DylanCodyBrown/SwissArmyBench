@@ -1,12 +1,12 @@
-"""The Desktop extension's use cases, for the user's tray and the agent alike (the golden rule): what the shell
-shows (desktop_status) and a page opened in it (desktop_open: the tray menu's Open, Workbench, Blades)."""
+"""The desktop app, for the agent (the golden rule): what it shows (desktop_status) and a page opened in a
+window of its own (desktop_open: home, the Workbench, the blades page), started if needed."""
 
 from __future__ import annotations
 
 import asyncio
 from typing import Any, Protocol
 
-from swissarmybench_desktop.domain import windows as rules
+from swissarmybench.domain import desktop as rules
 
 
 class ShellPort(Protocol):
@@ -33,9 +33,8 @@ class Desktop:
             if isinstance(w, dict)
         ]
         return {
-            "name": "Desktop",
+            "name": "Swiss Army Bench",
             "running": said.get("running") is True,
-            "tray": said.get("tray") is True,
             "windows": windows,
             "qt": self._qt,
         }
@@ -46,7 +45,7 @@ class Desktop:
         page = rules.page_for(word if isinstance(word, str) else "")
         if not await asyncio.to_thread(self._shell.open, page):
             raise rules.ShellError(
-                "The Desktop app cannot open here: it needs Qt WebEngine and a desktop to show its windows on."
+                "The desktop app cannot open here: it needs Qt WebEngine and a desktop to show windows on."
             )
         self._audit.write(who, "desktop_open", page=word)
         return {"opened": word}

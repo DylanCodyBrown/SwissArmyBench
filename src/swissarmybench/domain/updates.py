@@ -1,11 +1,11 @@
-"""Updates and the tray: versions compared as PEP 440 says, what the release lists hold, which release is
-offered, the tray's menu as data, and the update's plan (the helper's steps and its command lines).
+"""Updates: versions compared as PEP 440 says, what the release lists hold, which release is offered, and
+the update's plan (the helper's steps and its command lines).
 
 The check (services/updates.py) is the one request that leaves the computer, by the owner's call
 (2026-11-16): PyPI's JSON for `swissarmybench`, falling back to GitHub's latest release. It sends
 nothing but that request. A pre-release is offered only to someone already on one.
 
-Standard library only, no I/O: the service fetches, the tray draws, the helper runs (server/updater.py).
+Standard library only, no I/O: the service fetches, the page asks, the helper runs (server/updater.py).
 """
 
 from __future__ import annotations
@@ -20,9 +20,6 @@ PYPI_URL: str = f"https://pypi.org/pypi/{PACKAGE}/json"
 GITHUB_URL: str = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 FEEDS: tuple[str, ...] = (PYPI_URL, GITHUB_URL)
 CHECK_EVERY_SECONDS: float = 6 * 3600
-
-# The tray's menu lists at most this many tables and documents each; the rest is one "N more" item.
-MENU_MAX_ITEMS: int = 12
 
 
 class UpdateError(ValueError):
@@ -239,7 +236,7 @@ def install_command(
 @dataclass(frozen=True)
 class UpdatePlan:
     """What the helper does, in order: wait for the app's processes to end, install, check the version,
-    start the app (which starts the tray and opens the page). On a failure: start the old version again
+    start the app (the desktop app, which starts its server). On a failure: start the old version again
     (reinstalled first if it no longer starts) and leave a note that says why."""
 
     version: str
@@ -256,9 +253,8 @@ class UpdatePlan:
     # terminal's sab) locks its files, so the helper stops every process whose program is inside it
     # before the install (never itself: it runs the base Python, outside that folder).
     stop_in: str = ""
-    # The tray's process: waited for a moment, then ended by the helper itself (the tray asks the server
-    # only every few seconds, so it can miss that an update or an extension's Install is under way and stay;
-    # the app the helper starts again brings its own tray). The owner's Windows: "The app did not stop."
+    # The desktop app's process (desktop.json): waited for a moment, then ended by the helper itself; the
+    # helper's start step starts the new version's app again.
     end_pids: tuple[int, ...] = ()
 
     def steps(self) -> list[str]:
@@ -325,7 +321,7 @@ def plan_update(
 
 
 def update_question(version: str, at_risk: dict[str, Any]) -> str:
-    """The question before an update that would lose something (the tray's box, the agent's Allow)."""
+    """The question before an update that would lose something (the page's question, the agent's Allow)."""
     lines = [f"The app stops, installs {version} and starts again. Nothing is saved for you."]
     unsaved = [str(name) for name in at_risk.get("unsaved", [])]
     if unsaved:
@@ -334,87 +330,3 @@ def update_question(version: str, at_risk: dict[str, Any]) -> str:
     if kernels:
         lines.append(f"{kernels} running kernel{'s stop' if kernels != 1 else ' stops'}.")
     return "\n".join(lines)
-
-
-# ===== the tray's menu =====
-
-
-@dataclass(frozen=True)
-class MenuItem:
-    """One line of the tray's menu: `id` names its action ("-" a separator); `checked` None: no check."""
-
-    id: str
-    text: str = ""
-    checked: bool | None = None
-    enabled: bool = True
-    default: bool = False
-
-    @property
-    def separator(self) -> bool:
-        return self.id == "-"
-
-
-SEPARATOR = MenuItem("-")
-
-
-@dataclass(frozen=True)
-class TrayState:
-    running: bool
-    update: str | None = None  # the version offered
-    tables: tuple[tuple[str, str], ...] = ()  # (grid id, its table's name)
-    documents: tuple[tuple[str, str, bool], ...] = ()  # (key, title, unsaved changes)
-    startup: bool | None = None  # start at sign-in: None where there is no such thing
-    startup_label: str = "Start with Windows"  # "Open at login" on macOS and Linux
-    gave_up: bool = False  # the server died RESTARTS times in a row: the tray stopped starting it
-    failed: str | None = None  # the last update's failure, said once
-
-
-def tooltip(state: TrayState) -> str:
-    if not state.running:
-        return "Swiss Army Bench: stopped"
-    if state.update:
-        return f"Update available: {state.update}"
-    return "Swiss Army Bench"
-
-
-def _listed(prefix: str, entries: list[tuple[str, str]], more_id: str) -> list[MenuItem]:
-    shown = [MenuItem(f"{prefix}:{key}", text) for key, text in entries[:MENU_MAX_ITEMS]]
-    if len(entries) > MENU_MAX_ITEMS:
-        shown.append(MenuItem(more_id, f"{len(entries) - MENU_MAX_ITEMS} more…"))
-    return shown
-
-
-def tray_menu(state: TrayState) -> list[MenuItem]:
-    """The right-click menu, top to bottom. An update comes first; then what is open (tables, the
-    Workbench's documents); then the pages; then the app itself."""
-    items: list[MenuItem] = []
-    if state.running and state.update:
-        items += [
-            MenuItem("update", f"Update to {state.update}"),
-            MenuItem("whats_new", "What's new"),
-            SEPARATOR,
-        ]
-    if state.running:
-        items.append(MenuItem("open", "Open", default=True))
-        tables = _listed("table", list(state.tables), "open")
-        documents = _listed(
-            "document",
-            [(key, f"{title} •" if unsaved else title) for key, title, unsaved in state.documents],
-            "workbench",
-        )
-        if tables or documents:
-            items += [SEPARATOR, *tables, *([SEPARATOR] if tables and documents else []), *documents]
-        items += [
-            SEPARATOR,
-            MenuItem("workbench", "Open the Workbench"),
-            MenuItem("blades", "Open the blades page"),
-        ]
-        items += [SEPARATOR, MenuItem("restart", "Restart")]
-    elif state.gave_up:
-        items += [MenuItem("start", "Swiss Army Bench stopped: Restart", default=True), SEPARATOR]
-    else:
-        items += [MenuItem("start", "Start", default=True), SEPARATOR]
-    if state.startup is not None:
-        items.append(MenuItem("startup", state.startup_label, checked=state.startup))
-    items.append(MenuItem("quit", "Stop and quit" if state.running else "Quit"))
-    return items

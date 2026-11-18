@@ -33,9 +33,13 @@ server = [
     # The copy check runs the user's copied code exactly, `.df()` included, and the pandas copy option
     # is a pandas program: without pandas beside the server neither can be verified.
     "pandas>=2.2",
-    # The tray icon (`swissarmybench tray`; the plan's decision 6): pystray shows it, Pillow paints it.
-    "pillow>=11",
-    "pystray>=0.19.5",
+    # The desktop app (the owner, 2026-11-18: "We should just package this as the desktop app pyside6"):
+    # Qt for Python with Qt WebEngine (Chromium), LGPLv3, pinned together. Since 6.12 Qt WebEngine is a wheel
+    # of its own (WebEngine needs Addons, Addons needs Essentials); the PySide6 meta-package would add
+    # PySide6-Pdf, which nothing uses. It replaced the tray's pystray and Pillow.
+    "PySide6-Essentials==6.12.0",
+    "PySide6-Addons==6.12.0",
+    "PySide6-WebEngine==6.12.0.140",
     "sqlglot>=30.24.0",
     "starlette>=0.46",
     "uvicorn>=0.34",
@@ -90,12 +94,12 @@ packages = ["src/swissarmybench", "src/swissarmygrid"]
 strict = true
 python_version = "3.12"
 # Each extension's own package (extensions/<id>/src) too.
-files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/desktop/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src"]
-mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/desktop/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src"
+files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src"]
+mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src"
 
 [[tool.mypy.overrides]]
-# These ship no type information (Pillow does, but the tray reads it only where it is installed).
-module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*", "pystray", "pystray.*", "PIL", "PIL.*"]
+# These ship no type information.
+module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -118,7 +122,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/desktop/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "tests"]
+src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
@@ -183,7 +187,6 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "extensions/accounting/src/swissarmybench_accounting/service.py" = ["S608", "E501"]
 "extensions/accounting/src/swissarmybench_accounting/extension.py" = ["E501"]
 "extensions/git/src/**" = ["E501"]
-"extensions/desktop/src/**" = ["E501"]
 "tests/test_scm*.py" = ["E501"]
 "tests/github_standin.py" = ["E501"]
 "tests/test_accounting_*.py" = ["E501", "S603", "S608"]

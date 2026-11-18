@@ -437,8 +437,9 @@ def test_the_routes_read_switch_and_refuse_without_an_update(tmp_path: Path) -> 
         assert client.post("/updates/check", headers=AUTH).json()["check"] is False
         refused = client.post("/updates/install", json={}, headers=AGENT)
         assert refused.status_code == 409 and "No update" in refused.text
-        tray = client.get("/updates/tray", headers=AUTH).json()
-        assert tray["tables"] == [] and tray["documents"] == []
+        # The tray is gone (2026-11-18): its route and start at sign-in's with it.
+        assert client.get("/updates/tray", headers=AUTH).status_code == 404
+        assert client.get("/autostart", headers=AUTH).status_code == 404
         assert client.get("/updates").status_code == 401  # the token, as on every route
 
 
@@ -451,16 +452,3 @@ def test_the_app_is_named_swiss_army_bench(tmp_path: Path) -> None:
     with make_client(tmp_path, update_feeds=()) as client:
         said = client.get("/updates", headers=AUTH).json()
         assert said["name"] == "Swiss Army Bench" and "Streamlit" in said["extensions"]
-
-
-def test_the_tray_quits_while_an_extension_is_installed_or_removed() -> None:
-    """An extension's Install or Remove stops the app as an update does, and the helper waits for the tray to
-    end: the tray's answer says "updating" then, so it quits (on the owner's Windows it stayed, restarted the
-    server it took for crashed, and the helper gave up: "The app did not stop.")."""
-    changing: dict[str, Any] = {}
-    updates = service((), current="0.0.20", changing=lambda: changing or None)[0]
-    assert asyncio.run(updates.tray())["updating"] is None
-    changing.update({"id": "git", "action": "install"})
-    assert asyncio.run(updates.tray())["updating"] == "0.0.20"
-    # The pages' own state is unchanged: only the tray needs to know.
-    assert updates.state()["updating"] is None

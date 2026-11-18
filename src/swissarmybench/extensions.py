@@ -11,9 +11,6 @@ installed ones here; nothing else in the shared code names one.
   enabled()         the on ones' modules, in id order
   modes()           every project type's mode, as data: the base's (BI) and each on extension's MODE
   mode_of(type)     a project type's mode (an unknown or missing type: the base's)
-  hook(name)        the first on extension's attribute `name`: what it offers the launcher and the tray
-                    (open_page: "open a page" in its own window; run_tray: its own tray icon; LAUNCHER:
-                    `swissarmybench <word>` commands), read by name, never by which extension it is
 
 A mode is the working set a project type sets (Plans/editions.plan.md, "Project modes"): the canvas kinds,
 the blade and function families shown first, the languages, the extra cell kinds, the agent's tool group
@@ -216,13 +213,3 @@ def mode_of(project_type: str | None) -> dict[str, Any]:
     """A project type's mode; the base's for no project, or a type whose extension is not on."""
     found = modes()
     return next((m for m in found if m["type"] == project_type), found[0])
-
-
-def hook(name: str, on: list[ModuleType] | None = None) -> Any | None:
-    """The first on extension's attribute `name` (in id order), or None: the launcher's and the tray's hooks
-    (open_page, run_tray, LAUNCHER)."""
-    for module in enabled() if on is None else on:
-        found = getattr(module, name, None)
-        if found is not None:
-            return found
-    return None

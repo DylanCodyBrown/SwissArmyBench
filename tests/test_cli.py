@@ -197,7 +197,6 @@ NOT_COMMANDS = {
     "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
     "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
     "/git/{}": "the Git extension is not on here: its door says so (extensions_install)",
-    "/desktop/{}": "the Desktop extension is not on here: its door says so (extensions_install)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }

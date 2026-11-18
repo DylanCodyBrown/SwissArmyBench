@@ -2,7 +2,7 @@
 drawing off screen): the shell starts the server, loads the home page, window.open makes a second window
 and a named one is reused and raised, an Export's download lands where the Save dialog (stood in) says,
 Print to PDF writes a PDF, an outside link goes to the system's browser (stood in), the clipboard works,
-the windows' places are remembered, the channel opens a page, the tray's menu is drawn, and Quit stops it all.
+the windows' places are remembered, the channel opens a page, and closing every window stops the server.
 
     python tests/desktop_drive.py <folder> [<screenshots folder>]
 
@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QEvent
-from PySide6.QtWidgets import QApplication, QMenu
+from PySide6.QtWidgets import QApplication
 
+from swissarmybench.adapters.desktop import RecordFile, ask
+from swissarmybench.domain import desktop as rules
+from swissarmybench.server import desktop_shell as shell_module
 from swissarmybench.server.lifecycle import read_info, running_server
-from swissarmybench_desktop.adapters.channel import RecordFile, ask
-from swissarmybench_desktop.domain import windows as rules
-from swissarmybench_desktop.server import shell as shell_module
 
 ORDERS = "order_id\tregion\tamount\n1\tNorth\t120.50\n2\tSouth\t80.00\n3\tEast\t42.25\n4\tWest\t310.75\n"
 
@@ -48,7 +48,15 @@ def main(folder: Path, shots: Path | None) -> int:
     shell = shell_module.Shell(
         app, info_file, save_dialog=save_dialog, open_outside=lambda url: outside.append(url.toString())
     )
-    record = RecordFile(info_file.with_name("tray.json"))
+    record = RecordFile(info_file.with_name(rules.RECORD))
+    closed_told = [0]
+    tell = shell.tell_server_closed
+
+    def told() -> None:
+        closed_told[0] += 1
+        tell()
+
+    shell.tell_server_closed = told  # type: ignore[method-assign]
     listener = shell_module.serve(shell, record)
 
     def wait(check: Callable[[], Any], seconds: float = 30.0, what: str = "") -> Any:
@@ -162,7 +170,7 @@ def main(folder: Path, shots: Path | None) -> int:
         js(home, "location.href = 'https://example.com/elsewhere'; true")
         wait(lambda: "https://example.com/elsewhere" in outside, 15, "outside navigation")
         wait(lambda: True, 0.5)
-        results["outside"] = outside
+        results["outside"] = list(outside)
         results["home_still_ours"] = rules.is_ours(home.page.url().toString(), shell.port)
         results["windows_after_outside"] = len(shell.windows)
 
@@ -229,29 +237,30 @@ def main(folder: Path, shots: Path | None) -> int:
         screen = QApplication.primaryScreen().availableGeometry()
         results["screen"] = [screen.width(), screen.height()]
 
-        # 11. The tray's menu (QSystemTrayIcon cannot show off screen: the menu it would show is drawn).
-        shell.tray.refresh()
-        menu = QMenu()
-        shell._fill(menu)
-        results["tray_menu"] = [a.text() for a in menu.actions() if a.text()]
-        if shots is not None:
-            menu.adjustSize()
-            menu.grab().save(str(shots / "desktop-tray-menu.png"))
-        results["tray_available_here"] = shell.show_tray()
+        # 11. The right-click menu's Open in browser (the browser stays possible), and a page opened again:
+        # its window raised, not a new one.
         before = len(shell.windows)
-        shell.tray.act("blades")
+        shell.open_in_browser(catalog)
+        results["open_in_browser"] = outside[-1].split("#", 1)[0]
+        results["open_in_browser_has_token"] = "#token=" in outside[-1]
+        found = record.shell()
+        assert found is not None
+        ask(found[1], found[2], {"open": "/catalog"})
         wait(lambda: True, 1.0)
-        results["tray_blades_reused_catalog"] = len(shell.windows) == before and catalog.raised > 0
+        results["catalog_reused"] = len(shell.windows) == before and catalog.raised > 0
         results["profile_folder"] = sorted(
             p.name for p in (info_file.parent / "desktop" / "profile").iterdir()
         )
         shot(catalog, "desktop-catalog-window.png")
 
-        # 12. Quit: the server stopped, the windows closed.
-        shell.tray.act("quit")
-        wait(lambda: running_server(info_file) is None, 30, "the server stopped")
-        results["quit_stopped_server"] = True
-        results["windows_after_quit"] = len(shell.windows)
+        # 12. Every window closed (each page asked first): the app tells the server, which stops.
+        for window in list(shell.windows.values()):
+            window.close()
+        wait(lambda: not shell.windows, 30, "the windows closed")
+        results["told_server_closed"] = closed_told[0]
+        wait(lambda: read_info(info_file) is None, 60, "the server stopped")  # no request: it would count
+        results["closing_stopped_server"] = True
+        results["windows_after_close"] = len(shell.windows)
     except Exception:
         results["error"] = traceback.format_exc()
         results["windows_then"] = [

@@ -3,7 +3,7 @@ shell starts. Skipped where PySide6's Qt WebEngine is not installed
 (the Desktop extension's own dependency, never the base's). Made-up data only.
 
 tests/desktop_drive.py drives the windows themselves; the second test runs the shell as its own process
-(`python -m swissarmybench_desktop`), as `swissarmybench desktop` does, and talks to it as the server does.
+(`python -m swissarmybench.server app`), as `swissarmybench` does, and talks to it as the server does.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(
 def environment(folder: Path) -> dict[str, str]:
     (folder / "home").mkdir(parents=True, exist_ok=True)
     (folder / "state").mkdir(parents=True, exist_ok=True)
-    paths = [str(ROOT / "extensions" / "desktop" / "src"), str(ROOT / "extensions" / "streamlit" / "src")]
+    paths = [str(ROOT / "extensions" / "streamlit" / "src")]
     return os.environ | {
         "HOME": str(folder / "home"),
         "USERPROFILE": str(folder / "home"),
@@ -46,7 +46,11 @@ def environment(folder: Path) -> dict[str, str]:
         "SWISSARMYBENCH_WORKBENCH_DIR": str(folder / "home" / "SwissArmyBench"),
         "SWISSARMYBENCH_PROJECTS_DIR": str(folder / "home" / "Projects"),
         "SWISSARMYBENCH_UPDATE_FEED": "none",
-        "SWISSARMYBENCH_EXTENSIONS": "streamlit,desktop",
+        "SWISSARMYBENCH_EXTENSIONS": "streamlit",
+        # The server's life, short: it stops 2 s after the app's last window, 3 s after a client's request.
+        "SWISSARMYBENCH_LIFE_GRACE": "2",
+        "SWISSARMYBENCH_LIFE_IDLE": "3",
+        "SWISSARMYBENCH_LIFE_START_GRACE": "60",
         "QT_QPA_PLATFORM": os.environ.get("SAB_TEST_QPA", "offscreen"),
         # Chromium's sandbox needs a user that is not root (a container runs tests as root).
         "QTWEBENGINE_CHROMIUM_FLAGS": "--no-sandbox",
@@ -101,20 +105,21 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
         50,
         min(900, sw),
     )
-    # The tray's menu as Qt draws it; its Open the blades page raised the blades window, no new one.
-    assert said["tray_menu"][0] == "Open" and "Stop and quit" in said["tray_menu"]
-    assert "Open the Workbench" in said["tray_menu"] and said["tray_blades_reused_catalog"]
+    # Open in browser: the page in the system's browser (stood in), with the token as the launch has it.
+    assert said["open_in_browser"].endswith("/catalog") and said["open_in_browser_has_token"]
+    assert said["catalog_reused"]
     # The profile in the state folder: cookies and local storage kept there.
     assert {"Cookies", "Local Storage"} <= set(said["profile_folder"])
-    # Quit (the tray's Stop and quit): the server stopped, every window closed.
-    assert said["quit_stopped_server"] and said["windows_after_quit"] == 0
+    # Every window closed: the app told the server, and the server stopped.
+    assert said["told_server_closed"] == 1
+    assert said["closing_stopped_server"] and said["windows_after_close"] == 0
 
 
-def test_the_shell_process_one_at_a_time_and_told_by_the_server(tmp_path: Path) -> None:
+def test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows_it(tmp_path: Path) -> None:
     env = environment(tmp_path)
     info = tmp_path / "state" / "server.json"
     first = subprocess.Popen(
-        [sys.executable, "-m", "swissarmybench_desktop"],
+        [sys.executable, "-m", "swissarmybench.server", "app"],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -122,8 +127,8 @@ def test_the_shell_process_one_at_a_time_and_told_by_the_server(tmp_path: Path) 
     old = {k: os.environ.get(k) for k in ("SWISSARMYBENCH_INFO", "QT_QPA_PLATFORM")}
     os.environ.update({"SWISSARMYBENCH_INFO": str(info), "QT_QPA_PLATFORM": env["QT_QPA_PLATFORM"]})
     try:
+        from swissarmybench.server import desktop as launch
         from swissarmybench.server.lifecycle import page_address, running_server
-        from swissarmybench_desktop.server import launch
 
         def wait(check: Any, seconds: float = 90.0) -> Any:
             deadline = time.monotonic() + seconds
@@ -139,18 +144,29 @@ def test_the_shell_process_one_at_a_time_and_told_by_the_server(tmp_path: Path) 
             lambda: [w for w in launch.status(info)["windows"] if w["kind"] == "home" and w["title"]]
         )
         assert "token" not in json.dumps(windows)
-        shell = launch.running_shell(info)
+        shell = launch.running_app(info)
         assert shell is not None and shell[0] == first.pid
-        # A second shell hands its page to the first and ends.
+        # A second start of the app hands its page to the first and ends.
         second = subprocess.run(
-            [sys.executable, "-m", "swissarmybench_desktop", "/catalog"], env=env, timeout=60, check=False
+            [sys.executable, "-m", "swissarmybench.server", "app", "/catalog"],
+            env=env,
+            timeout=60,
+            check=False,
         )
         assert second.returncode == 0
         wait(lambda: "catalog" in {w["kind"] for w in launch.status(info)["windows"]})
-        # The server's "open a page" (the launch, `swissarmybench open`, the tray's Open) goes to the shell.
+        # The server's "open a page" (the launch, `swissarmybench open`, desktop_open) goes to the app.
         assert launch.open_page(page_address(server, "/workbench"), info)
         wait(lambda: "workbench" in {w["kind"] for w in launch.status(info)["windows"]})
         assert first.poll() is None
+        # The app ends (its windows with it): the server follows, once its grace is over (no request here
+        # asks it anything meanwhile: the connection file is only read).
+        if first.poll() is None:
+            first.terminate()
+            first.wait(30)
+        from swissarmybench.server.lifecycle import read_info as connection
+
+        wait(lambda: connection(info) is None, 60)
     finally:
         from swissarmybench.server.lifecycle import read_info, request_stop
 

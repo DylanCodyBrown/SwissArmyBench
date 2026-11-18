@@ -12,6 +12,7 @@ from __future__ import annotations
 import ctypes
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -85,6 +86,18 @@ def _claude_standin() -> Path | None:
     return Path(override) if override else None
 
 
+def _seconds(name: str, default: float) -> Callable[[], float]:
+    """A lifecycle time: SWISSARMYBENCH_LIFE_<NAME> overrides it in seconds (tests, a real run)."""
+
+    def read() -> float:
+        try:
+            return float(env(f"SWISSARMYBENCH_LIFE_{name}", str(default)))
+        except ValueError:
+            return default
+
+    return read
+
+
 def _update_feeds() -> tuple[str, ...]:
     """Where the update check asks (PyPI, then GitHub). SWISSARMYBENCH_UPDATE_FEED names one address
     instead (a stand-in on 127.0.0.1 in tests), or "none": the check never asks anything."""
@@ -141,9 +154,16 @@ class Settings:
     # The update check (services/updates.py): the one request that leaves the computer, at start and every
     # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
     update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)
-    # Start at sign-in (server/autostart.py) writes its entry under this home folder instead of the user's
-    # own (tests); None: the user's.
-    autostart_home: Path | None = None
+    # The older versions' start-at-sign-in entries are looked for (and removed, once) under this home folder
+    # instead of the user's own (tests); None: the user's (server/legacy_tray.py).
+    legacy_home: Path | None = None
+    # The server's life follows the app's windows (services/lifecycle.py; the owner, 2026-11-18): it stops
+    # this long after the last window closed (a reload must not end it), this long after its start when no
+    # window came, and this long after the last request of a client that is not a page (the agent, VS Code,
+    # a Python session), whichever is later.
+    life_grace_seconds: float = field(default_factory=_seconds("GRACE", 30.0))
+    life_start_grace_seconds: float = field(default_factory=_seconds("START_GRACE", 120.0))
+    life_idle_seconds: float = field(default_factory=_seconds("IDLE", 600.0))
     # Launch Claude (services/claude.py): a stand-in for finding and starting Claude (tests); None: the real
     # ones.
     claude_standin: Path | None = field(default_factory=_claude_standin)

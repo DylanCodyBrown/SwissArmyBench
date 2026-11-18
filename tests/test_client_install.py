@@ -182,8 +182,6 @@ def test_the_window_last_in_front_opens_the_workspace() -> None:
 
 
 def test_the_server_counts_how_long_vscode_has_been_gone(monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmybench.server.__main__ import end_with_vscode
-
     clock = [100.0]
     monkeypatch.setattr(live_updates, "monotonic", lambda: clock[0])
     live = LiveUpdates()  # just started: no window yet
@@ -196,11 +194,8 @@ def test_the_server_counts_how_long_vscode_has_been_gone(monkeypatch: pytest.Mon
     live.discard(window)  # the last VS Code window closed
     clock[0] = 505.0
     assert live.openers_gone_for() == 5.0
-    # Gone long enough: a server VS Code started stops itself.
-    stopped: list[bool] = []
-    clock[0] = 1000.0
-    end_with_vscode(live, lambda: stopped.append(True))
-    assert stopped == [True]
+    # VS Code's windows are not the app's: the server's life (services/lifecycle.py) counts them as busy.
+    assert live.windows() == 0 and live.openers() == 0
 
 
 def test_a_push_while_a_workspace_is_open_counts_as_shown(client: TestClient) -> None:

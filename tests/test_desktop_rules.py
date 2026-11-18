@@ -1,6 +1,6 @@
-"""The Desktop extension's rules (extensions/desktop: domain/windows.py), its channel and its launcher: what
-loads inside the shell and what goes to the system's browser, named-window reuse, the remembered places, the
-shell's command line and messages. No Qt here (tests/test_desktop_shell.py runs the real shell)."""
+"""The desktop app's rules (domain/desktop.py), its channel and its launcher (server/desktop.py): what loads
+inside the app and what goes to the system's browser, named-window reuse, the remembered places, the app's
+command line and messages. No Qt here (tests/test_desktop_shell.py runs the real app)."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from typing import Any
 
 import pytest
 
-from swissarmybench_desktop.adapters import channel
-from swissarmybench_desktop.domain import windows as rules
-from swissarmybench_desktop.server import launch
+from swissarmybench.adapters import desktop as channel
+from swissarmybench.domain import desktop as rules
+from swissarmybench.server import desktop as launch
 
 PORT = 8790
 OURS = f"http://127.0.0.1:{PORT}"
@@ -164,27 +164,25 @@ def test_windows_json_is_read_loosely_and_written_sorted() -> None:
 # ===== the command line, the record and the messages =====
 
 
-def test_the_shells_command_line_never_carries_the_token() -> None:
-    assert rules.shell_command("py") == ["py", "-m", "swissarmybench_desktop"]
-    assert rules.shell_command("py", f"{OURS}/workspace#token=secret&grid=2", tray=False) == [
+def test_the_apps_command_line_never_carries_the_token() -> None:
+    assert rules.shell_command("py") == ["py", "-m", "swissarmybench.server", "app"]
+    assert rules.shell_command("py", f"{OURS}/workspace#token=secret&grid=2") == [
         "py",
         "-m",
-        "swissarmybench_desktop",
+        "swissarmybench.server",
+        "app",
         "/workspace#grid=2",
     ]
-    assert rules.shell_command("py", tray=True) == ["py", "-m", "swissarmybench_desktop", "--tray"]
-    assert rules.read_arguments([]) == (False, None)
-    assert rules.read_arguments(["--tray"]) == (True, None)
-    assert rules.read_arguments(["/workbench"]) == (False, "/workbench")
-    for bad in (["--port", "1"], ["/a", "/b"], ["https://example.com"]):
+    assert rules.read_page(None) is None and rules.read_page("/workbench") == "/workbench"
+    for bad in ("https://example.com", "//x", "x" * 5000):
         with pytest.raises(rules.ShellError):
-            rules.read_arguments(bad)
+            rules.read_page(bad)
 
 
 def test_the_record_and_the_messages() -> None:
     said = rules.record(42, 5000, "k" * 43)
     assert said["pid"] == 42 and rules.read_record(said) == (42, 5000, "k" * 43)
-    assert rules.read_record({"pid": 42}) is None  # the pystray tray's record
+    assert rules.read_record({"pid": 42}) is None  # an older tray's record
     assert rules.read_record({"pid": 42, "shell": {"port": 0, "key": "k" * 43}}) is None
     assert rules.read_record({"pid": 42, "shell": {"port": 5000, "key": "short"}}) is None
     key = "k" * 43
@@ -238,8 +236,8 @@ def test_the_channel_answers_only_its_key_on_127_0_0_1() -> None:
         channel.ask(listener.port, key, {"status": True}, timeout=1.0)
 
 
-def test_the_record_file_is_the_owners_only_and_removed_only_by_its_shell(tmp_path: Path) -> None:
-    record = channel.RecordFile(tmp_path / "tray.json")
+def test_the_record_file_is_the_owners_only_and_removed_only_by_its_app(tmp_path: Path) -> None:
+    record = channel.RecordFile(tmp_path / rules.RECORD)
     record.write(rules.record(42, 5000, "k" * 43))
     assert record.shell() == (42, 5000, "k" * 43)
     if sys.platform != "win32":
@@ -258,7 +256,7 @@ def test_the_record_file_is_the_owners_only_and_removed_only_by_its_shell(tmp_pa
 # ===== the launcher: open a page, start the shell =====
 
 
-def test_open_page_sends_to_the_running_shell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_open_page_sends_to_the_running_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     info = tmp_path / "server.json"
     heard: list[dict[str, Any]] = []
     key = channel.new_key()
@@ -270,9 +268,9 @@ def test_open_page_sends_to_the_running_shell(tmp_path: Path, monkeypatch: pytes
     listener = channel.Listener(key, answer)
     monkeypatch.setattr(launch, "can_run", lambda: True)
     started: list[Any] = []
-    monkeypatch.setattr(launch, "start_shell", lambda page, tray=False: started.append(page))
+    monkeypatch.setattr(launch, "start_app", started.append)
     try:
-        channel.RecordFile(tmp_path / "tray.json").write(rules.record(os.getpid(), listener.port, key))
+        channel.RecordFile(tmp_path / rules.RECORD).write(rules.record(os.getpid(), listener.port, key))
         assert launch.open_page(f"{OURS}/workspace#token=secret&grid=2", info)
         assert heard == [{"open": "/workspace#grid=2"}] and started == []
         assert launch.status(info) == {"running": True, "windows": [{"kind": "home"}]}
@@ -280,48 +278,59 @@ def test_open_page_sends_to_the_running_shell(tmp_path: Path, monkeypatch: pytes
         listener.close()
 
 
-def test_open_page_starts_the_shell_when_none_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_open_page_starts_the_app_when_none_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     info = tmp_path / "server.json"
     monkeypatch.setattr(launch, "can_run", lambda: True)
     started: list[Any] = []
-    monkeypatch.setattr(launch, "start_shell", lambda page, tray=False: started.append(page))
+    monkeypatch.setattr(launch, "start_app", started.append)
     assert launch.open_page(f"{OURS}/workspace#token=secret", info)
     assert started == ["/workspace"]
     # A stale record (its process gone): started all the same.
-    channel.RecordFile(tmp_path / "tray.json").write(rules.record(2**22 + 7, 1, "k" * 43))
+    channel.RecordFile(tmp_path / rules.RECORD).write(rules.record(2**22 + 7, 1, "k" * 43))
     assert launch.open_page(f"{OURS}/catalog#token=secret", info)
     assert started == ["/workspace", "/catalog"]
     assert launch.status(info) == {"running": False, "windows": []}
 
 
-def test_open_page_says_no_where_the_shell_cannot_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_open_page_says_no_where_the_app_cannot_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(launch, "can_run", lambda: False)
     assert not launch.open_page(f"{OURS}/workspace#token=s", tmp_path / "server.json")
     monkeypatch.setattr(launch, "can_run", lambda: True)
     assert not launch.open_page("https://example.com", tmp_path / "server.json")
 
 
-def test_a_pystray_tray_holding_the_lock_gives_way_to_the_shell(
+def test_an_app_starting_gets_the_page_once_its_channel_is_up(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With the lock held by the old tray (tray.json: its pid, no shell), open_page starts the shell, which
-    ends that tray and takes its place (one icon)."""
+    """The app's lock held (it is starting) and no channel yet: open_page waits for it, then sends."""
     from swissarmybench.server.lifecycle import InstanceLock
 
     info = tmp_path / "server.json"
-    held = InstanceLock(tmp_path / "tray.json")
+    held = InstanceLock(tmp_path / rules.RECORD)
+    heard: list[dict[str, Any]] = []
+
+    def answer(said: dict[str, Any]) -> dict[str, Any]:
+        heard.append(said)
+        return {"ok": True}
+
+    key = channel.new_key()
+    listener = channel.Listener(key, answer)
+    monkeypatch.setattr(launch, "can_run", lambda: True)
+    started: list[Any] = []
+    monkeypatch.setattr(launch, "start_app", started.append)
     try:
-        (tmp_path / "tray.json").write_text(json.dumps({"pid": os.getppid()}), encoding="utf-8")
-        monkeypatch.setattr(launch, "can_run", lambda: True)
-        started: list[Any] = []
-        monkeypatch.setattr(launch, "start_shell", lambda page, tray=False: started.append(page))
-        assert launch.old_tray(info) == os.getppid()
-        assert launch.open_page(f"{OURS}/workspace#token=s", info)
-        assert started == ["/workspace"]
+        timer = threading.Timer(
+            0.6,
+            lambda: channel.RecordFile(tmp_path / rules.RECORD).write(
+                rules.record(os.getpid(), listener.port, key)
+            ),
+        )
+        timer.start()
+        assert launch.open_page(f"{OURS}/workspace#token=s&grid=1", info)
+        assert heard == [{"open": "/workspace#grid=1"}] and started == []
     finally:
         held.release()
+        listener.close()
 
 
 def test_has_display() -> None:

@@ -74,6 +74,7 @@ from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
+from swissarmybench.domain import lifecycle as lifecycle_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain.blades import Blade, env_settings
@@ -84,12 +85,13 @@ from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner, dialog_runner, file_manager
-from swissarmybench.server.autostart import Autostart
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
 from swissarmybench.server.claude_finder import Starter as ClaudeStarter
+from swissarmybench.server.desktop import SystemShell, qt_version
 from swissarmybench.server.kernels import Launcher
+from swissarmybench.server.legacy_tray import remove_old_tray
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.text_process import run_text
@@ -114,6 +116,7 @@ from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.context_md import ContextMd
 from swissarmybench.services.data_export import DataExport
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
+from swissarmybench.services.desktop import Desktop
 from swissarmybench.services.explorer import BrowseSources, Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.extensions import Extensions
@@ -126,6 +129,7 @@ from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.library import Library
 from swissarmybench.services.library_setup import LibrarySetup
+from swissarmybench.services.lifecycle import Lifecycle
 from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
@@ -225,6 +229,8 @@ class Services:
     beta: BetaLog
     updates: Updates
     extensions: Extensions
+    lifecycle: Lifecycle
+    desktop: Desktop
     claude: Claude
     context_md: ContextMd
     live: LiveUpdates
@@ -954,11 +960,13 @@ def bootstrap(
             "kernels": workbench.kernel_count(),
         }
 
-    # Start at sign-in: the user's own entry, or one under a test's home folder.
-    home = settings.autostart_home
-    autostart = (
-        Autostart(home=home, environ={"APPDATA": str(home / "AppData" / "Roaming")}) if home else Autostart()
-    )
+    # The tray and start at sign-in are gone (the owner, 2026-11-18): what an older version left, removed
+    # once, and said once in the page.
+    home = settings.legacy_home
+    if audit_log and remove_old_tray(
+        state_dir, home, environ={"APPDATA": str(home / "AppData" / "Roaming")} if home else None
+    ):
+        library.notice("computer", lifecycle_rules.NOTICE_GONE)
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
     failure_note = state_dir / "update_failed.json" if audit_log else None
     # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
@@ -991,7 +999,6 @@ def bootstrap(
         audit=ws.audit,
         live=live,
         stop=on_shutdown or (lambda: None),
-        autostart=autostart,
         failed=take_failure_note(failure_note),
         changing=extensions.changing,
     )
@@ -1152,6 +1159,30 @@ def bootstrap(
         is_folder,
     )
 
+    # The server's life follows the app's windows (services/lifecycle.py): before it stops, the open
+    # project's unsaved changes are saved as Autosave does; with Autosave off, the stop waits.
+    async def before_stop() -> str:
+        current = sab_projects.current
+        if current is None or not sab_projects.dirty():
+            return ""
+        if not current.autosave:
+            return "the open project has unsaved changes and Autosave is off"
+        try:
+            await sab_projects.save({}, "autosave")
+        except Exception as error:
+            return f"the open project could not be saved: {error}"
+        return ""
+
+    lifecycle = Lifecycle(
+        windows=live.windows,
+        busy=lambda: ["a VS Code window"] if live.openers() else [],
+        before_stop=before_stop,
+        stop=on_shutdown,
+        grace=settings.life_grace_seconds,
+        idle=settings.life_idle_seconds,
+        start_grace=settings.life_start_grace_seconds,
+    )
+
     return Services(
         settings=settings,
         ws=ws,
@@ -1219,6 +1250,8 @@ def bootstrap(
         beta=beta,
         updates=updates,
         extensions=extensions,
+        lifecycle=lifecycle,
+        desktop=Desktop(SystemShell(info_file_path()), ws.audit, qt_version()),
         claude=claude,
         context_md=context_md,
         lineage=Lineage(

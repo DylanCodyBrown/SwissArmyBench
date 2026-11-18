@@ -1,32 +1,27 @@
-"""The Desktop extension in the app: listed, its door and agent commands, and the base's hooks it uses
-(the launcher's `swissarmybench desktop`, "open a page", the tray). Off, the base is as it was: the browser
-opens the page and pystray draws the tray. No Qt here (tests/test_desktop_shell.py runs the real shell)."""
+"""Swiss Army Bench as a desktop app (the owner, 2026-11-18): the `swissarmybench` command opens the app (the
+browser where it cannot run, or when asked), the agent's desktop_ tools, the update's helper ending the app,
+and the tray and start at sign-in gone. No Qt here (tests/test_desktop_shell.py runs the real app)."""
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from swissarmybench import extensions
-from swissarmybench.domain import extensions as catalog
-from swissarmybench.server import tray as tray_module
-from swissarmybench.server.autostart import Autostart
-from swissarmybench_desktop import extension as desktop
-from swissarmybench_desktop.services.desktop import Desktop
+from swissarmybench.cli import commands
+from swissarmybench.server import __main__ as command
+from swissarmybench.server import desktop
+from swissarmybench.services.desktop import Desktop
 from tests.conftest import AGENT, AUTH, make_client
 
 
-def noted(into: list[Any], value: Any, answer: Any) -> Any:
-    into.append(value)
-    return answer
-
-
 class Shell:
-    """The shell as the service sees it, stood in for."""
+    """The app as the service sees it, stood in for."""
 
     def __init__(self, can: bool = True) -> None:
         self.can = can
@@ -34,7 +29,7 @@ class Shell:
 
     def status(self) -> dict[str, Any]:
         windows = [{"kind": "home", "title": "Orders", "page": "/workspace", "name": "sab-home"}]
-        return {"running": bool(self.opened), "tray": True, "windows": windows if self.opened else []}
+        return {"running": bool(self.opened), "windows": windows if self.opened else []}
 
     def open(self, page: str) -> bool:
         if self.can:
@@ -42,143 +37,110 @@ class Shell:
         return self.can
 
 
-@pytest.fixture
-def switched_on(monkeypatch: pytest.MonkeyPatch) -> Shell:
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,desktop")
-    shell = Shell()
-    monkeypatch.setattr(desktop, "SystemShell", lambda info_file: shell)
-    return shell
+def noted(into: list[Any], value: Any, answer: Any) -> Any:
+    into.append(value)
+    return answer
 
 
-def test_it_is_in_the_catalog_one_click_away() -> None:
-    listed = {e["id"]: e for e in catalog.listed(catalog.CATALOG, {}, "1.2.3")}
-    assert listed["desktop"]["status"] == "available"
-    assert listed["desktop"]["package"] == "swissarmybench-desktop"
-    owner = catalog.owner_of("desktop_open")
-    assert owner is not None and owner.id == "desktop"
-    assert catalog.launcher_words() == ["desktop"]
-    assert "Desktop extension" in catalog.needs_words("desktop")
-    found = catalog.describe("desktop", desktop.describe)
-    assert found is not None and found.id == "desktop" and found.name == "Desktop" and found.adds
+def run_main(monkeypatch: pytest.MonkeyPatch, *argv: str) -> int:
+    monkeypatch.setattr(sys, "argv", ["swissarmybench", *argv])
+    try:
+        command.main()
+    except SystemExit as stopped:
+        return int(stopped.code or 0)
+    return 0
 
 
-def test_off_swissarmybench_desktop_names_the_extension(
+def test_swissarmybench_opens_the_app_and_open_browser_opens_a_tab(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(tmp_path / "server.json"))
+    monkeypatch.delenv("SWISSARMYBENCH_STARTED_BY", raising=False)
+    ran: list[Any] = []
+    monkeypatch.setattr(desktop, "can_run", lambda: True)
+    monkeypatch.setattr(desktop, "main", lambda page=None, info=None: noted(ran, ("app", page), 0))
+    monkeypatch.setattr(
+        command, "open_in_browser", lambda path, page=None: noted(ran, ("browser", page), True)
+    )
+    assert run_main(monkeypatch) == 0 and ran == [("app", None)]
+    assert run_main(monkeypatch, "open") == 0 and ran[-1] == ("app", None)
+    assert run_main(monkeypatch, "open", "--browser") == 0 and ran[-1] == ("browser", None)
+    assert run_main(monkeypatch, "app", "/workbench") == 0 and ran[-1] == ("app", "/workbench")
+    # Where the app cannot run (no display, no Qt WebEngine): the browser instead.
+    monkeypatch.setattr(desktop, "can_run", lambda: False)
+    assert run_main(monkeypatch) == 0 and ran[-1] == ("browser", None)
+
+
+def test_the_server_only_invocations_stay_the_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    """VS Code's extension (no command, SWISSARMYBENCH_STARTED_BY=vscode) and the older `swissarmybench
+    --port N` or `--no-browser` start the server, not the app."""
+    started: list[Any] = []
+    monkeypatch.setattr(command, "start", lambda port, window=True: started.append((port, window)))
+    monkeypatch.setenv("SWISSARMYBENCH_STARTED_BY", "vscode")
+    assert run_main(monkeypatch) == 0 and started == [(None, True)]
+    monkeypatch.delenv("SWISSARMYBENCH_STARTED_BY")
+    assert run_main(monkeypatch, "--port", "8790") == 0 and started[-1] == (8790, True)
+    assert run_main(monkeypatch, "--no-browser") == 0 and started[-1] == (None, False)
+    assert run_main(monkeypatch, "start", "--no-window") == 0 and started[-1] == (None, False)
+
+
+def test_the_tray_and_start_at_sign_in_are_said_gone(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from swissarmybench.server import __main__ as command
-
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,-desktop")
-    monkeypatch.setattr(sys, "argv", ["swissarmybench", "desktop"])
-    with pytest.raises(SystemExit) as stopped:
-        command.main()
-    assert stopped.value.code == 1
-    assert "needs the Desktop extension" in capsys.readouterr().err
-
-
-def test_on_swissarmybench_desktop_runs_the_shell(monkeypatch: pytest.MonkeyPatch) -> None:
-    from swissarmybench.server import __main__ as command
-
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,desktop")
-    ran: list[str] = []
-    monkeypatch.setattr(desktop, "LAUNCHER", {"desktop": lambda: noted(ran, "shell", 0)})
-    monkeypatch.setattr(sys, "argv", ["swissarmybench", "desktop"])
-    with pytest.raises(SystemExit) as stopped:
-        command.main()
-    assert stopped.value.code == 0 and ran == ["shell"]
+    for old in (("tray",), ("autostart", "on"), ("autostart", "off")):
+        assert run_main(monkeypatch, *old) == 0
+        assert "no tray icon and no start at sign-in" in capsys.readouterr().out
+    # --no-tray, from older scripts, is still taken (and does nothing).
+    started: list[Any] = []
+    monkeypatch.setattr(command, "start", lambda port, window=True: started.append(window))
+    assert run_main(monkeypatch, "start", "--no-tray") == 0 and started == [True]
+    # The agent's old app_autostart says it went.
+    with pytest.raises(commands.CommandError, match="no tray and no start at sign-in"):
+        commands.execute_result("app_autostart", {})
+    assert "app_autostart" not in commands.REGISTRY and "app_lifecycle" in commands.REGISTRY
 
 
-def test_on_the_tray_command_is_the_shells(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from swissarmybench.server import __main__ as command
-
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,desktop")
-    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(tmp_path / "server.json"))
-    asked: list[Any] = []
-    monkeypatch.setattr(desktop, "run_tray", lambda info, events=None: noted(asked, info, 0))
-    monkeypatch.setattr(sys, "argv", ["swissarmybench", "tray"])
-    with pytest.raises(SystemExit) as stopped:
-        command.main()
-    assert stopped.value.code == 0 and asked == [tmp_path / "server.json"]
-    # The base reads the hook by its name, never the extension's.
-    assert extensions.hook("run_tray") is not None and extensions.hook("nothing_by_this_name") is None
-    assert tray_module.tray_available("linux", {"DISPLAY": ":0"}, own_tray=True)
-    assert not tray_module.tray_available("linux", {}, own_tray=True)
-
-
-def test_on_a_page_opens_in_the_shell_off_in_the_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_open_address_goes_to_the_app_else_the_browser(monkeypatch: pytest.MonkeyPatch) -> None:
     browsed: list[str] = []
     monkeypatch.setattr("webbrowser.open", browsed.append)
-    shelled: list[str] = []
-    monkeypatch.setattr(desktop, "open_page", lambda address: noted(shelled, address, True))
+    shown: list[str] = []
+    monkeypatch.setattr(desktop, "open_page", lambda address, info=None: noted(shown, address, True))
     address = "http://127.0.0.1:8790/workspace#token=t"
-    # Off (the base as it was): the default browser.
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,-desktop")
-    tray_module.open_address(address)
-    assert browsed == [address] and shelled == []
-    # On: the shell.
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,desktop")
-    tray_module.open_address(address)
-    assert shelled == [address] and browsed == [address]
-    # On, but the shell cannot run here (no Qt, no display): the browser after all.
-    monkeypatch.setattr(desktop, "open_page", lambda address: False)
-    tray_module.open_address(address)
+    command.open_address(address)
+    assert shown == [address] and browsed == []
+    command.open_address(address, browser=True)
+    assert browsed == [address]
+    monkeypatch.setattr(desktop, "open_page", lambda address, info=None: False)
+    command.open_address(address)
     assert browsed == [address, address]
-    # The tray's Open goes the same way.
-    monkeypatch.setattr(desktop, "open_page", lambda address: noted(shelled, address, True))
-
-    class Server:
-        def page(self, path: str = "/workspace", extra: str = "") -> str:
-            return address + extra
-
-        def running(self) -> bool:
-            return True
-
-    tray = tray_module.Tray(Server(), Autostart(home=Path("/nonexistent")))  # type: ignore[arg-type]
-    tray.act("open")
-    assert shelled[-1] == address
 
 
-def test_the_door_and_the_agents_commands(switched_on: Shell, tmp_path: Path) -> None:
+def test_the_door_and_the_agents_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    shell = Shell()
+    monkeypatch.setattr("swissarmybench.bootstrap.SystemShell", lambda info_file: shell)
     with make_client(tmp_path) as client:
         said = client.get("/desktop", headers=AGENT).json()
-        assert said["name"] == "Desktop" and said["running"] is False and said["windows"] == []
+        assert said["name"] == "Swiss Army Bench" and said["running"] is False and said["windows"] == []
         opened = client.post("/desktop/open", headers=AGENT, json={"page": "workbench"})
         assert opened.status_code == 200 and opened.json() == {"opened": "workbench"}
-        assert switched_on.opened == ["/workbench"]
+        assert shell.opened == ["/workbench"]
         assert client.post("/desktop/open", headers=AUTH, json={}).json() == {"opened": "home"}
         said = client.get("/desktop", headers=AUTH).json()
-        assert said["running"] is True and said["windows"] == [
-            {"kind": "home", "title": "Orders", "page": "/workspace"}
-        ]
+        assert said["running"] is True
+        assert said["windows"] == [{"kind": "home", "title": "Orders", "page": "/workspace"}]
         assert client.post("/desktop/open", headers=AGENT, json={"page": "settings"}).status_code == 400
         assert client.get("/desktop").status_code == 401  # the token, as on every route
-        log = client.get("/session-log", headers=AUTH)
-        assert log.status_code == 200 and "Opened workbench in the Desktop app" in log.text
+    assert {"desktop_status", "desktop_open"} <= set(commands.REGISTRY)
 
 
-def test_where_the_shell_cannot_run_open_says_so(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,desktop")
-    monkeypatch.setattr(desktop, "SystemShell", lambda info_file: Shell(can=False))
+def test_where_the_app_cannot_run_open_says_so(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("swissarmybench.bootstrap.SystemShell", lambda info_file: Shell(can=False))
     with make_client(tmp_path) as client:
         refused = client.post("/desktop/open", headers=AGENT, json={"page": "home"})
         assert refused.status_code == 400 and "Qt WebEngine" in refused.text
 
 
-def test_off_its_door_names_it(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv(extensions.VARIABLE, "streamlit,-desktop")
-    with make_client(tmp_path) as client:
-        said = client.get("/desktop/open", headers=AGENT)
-        assert said.status_code in (404, 409) and "Desktop" in said.text
-
-
-def test_the_commands_are_registered_with_its_tool_prefix() -> None:
-    names = set(desktop.commands())
-    assert names == {"desktop_status", "desktop_open"}
-    assert all(catalog.owner_of(n) is not None for n in names)
-
-
-def test_the_service_reads_windows_without_extra_fields() -> None:
-    import asyncio
-
+def test_the_service_keeps_only_what_the_agent_reads() -> None:
     class Audit:
         def __init__(self) -> None:
             self.said: list[Any] = []
@@ -195,29 +157,24 @@ def test_the_service_reads_windows_without_extra_fields() -> None:
     assert said["qt"] == "6.12.0" and "name" not in said["windows"][0]
 
 
-def test_install_and_remove_carry_its_wheel_and_the_helper_ends_the_shell(tmp_path: Path) -> None:
-    """Install: the base at this version with its wheel (`--with`); Remove: without it. The update's helper
-    ends whatever holds tray.json's pid: the shell writes its own there."""
-    import os
-
+def test_the_update_helper_ends_the_app_by_desktop_json(tmp_path: Path) -> None:
+    from swissarmybench.domain import desktop as rules
     from swissarmybench.server import updater
-    from swissarmybench_desktop.domain import windows as rules
 
-    wheels = catalog.kept_wheels(catalog.CATALOG, ["streamlit", "desktop"], "1.2.3")
-    assert wheels[-1].endswith("/v1.2.3/swissarmybench_desktop-1.2.3-py3-none-any.whl")
-    plan = catalog.plan_change(
-        current="1.2.3",
-        uv="uv",
-        tool_python="py",
-        python_version="3.12",
-        wheels=wheels,
-        before=wheels[:1],
-        wait_pids=[1],
-        info_file="i",
-        note_file="n",
-    )
-    assert any("swissarmybench_desktop" in part for part in plan.install)
-    assert not any("swissarmybench_desktop" in part for part in plan.restore)
-    tray_file = tmp_path / "tray.json"
-    tray_file.write_text(json.dumps(rules.record(os.getpid(), 5000, "k" * 43)), encoding="utf-8")
-    assert updater._tray_pid(tray_file) == os.getpid()
+    record = tmp_path / rules.RECORD
+    record.write_text(json.dumps(rules.record(os.getpid(), 5000, "k" * 43)), encoding="utf-8")
+    assert updater._app_pid(record) == os.getpid()
+    record.write_text(json.dumps(rules.record(2**22 + 7, 5000, "k" * 43)), encoding="utf-8")
+    assert updater._app_pid(record) == 0  # gone: nothing to end
+
+
+def test_the_pyside6_wheels_are_the_servers_and_pinned() -> None:
+    import tomllib
+
+    root = Path(__file__).resolve().parents[1]
+    project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
+    server = project["optional-dependencies"]["server"]
+    for pinned in ("PySide6-Essentials==6.12.0", "PySide6-Addons==6.12.0", "PySide6-WebEngine==6.12.0.140"):
+        assert pinned in server
+    assert not any(d.lower().startswith(("pystray", "pillow")) for d in server)
+    assert not any("pyside" in d.lower() for d in project["dependencies"])  # the plain client: none
