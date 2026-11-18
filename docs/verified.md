@@ -3104,6 +3104,9 @@ Really ran (this container, Linux, Chromium for the browser tests):
   the Project Explorer's marks and filter, New project's Where, Make a local copy opened and its card's
   "Copied from". Screenshots looked at.
 - ruff check, ruff format --check, mypy, npm run typecheck and npm run build: clean.
+- The whole suite with Chromium: 4286 passed, 50 skipped, 3 failed (34 min, another agent's suite on the same
+  machine). test_file_picker_page's system-dialog test asked for "The projects folder" (now "The local projects
+  folder": fixed); its page-picker test (net::ERR_ABORTED on goto) and test_ui's repush test pass alone (5 passed).
 
 Stood in for, or not checked:
 - A real Azure Key Vault sign-in: the locked vault is made-up code that raises Azure's words. A real teammate's

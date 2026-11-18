@@ -247,12 +247,14 @@ def test_the_system_dialog_is_used_and_the_page_picker_never_shows(
         page.get_by_role("button", name="Open file…").first.click()
         expect(page.locator(".toast", has_text="A file dialog is already open")).to_be_visible()
         assert page.locator(".tab-item[data-grid]").count() == tabs
-        # Settings' Projects folder: a folder pick, the path sent on.
+        # Settings' Local projects folder: a folder pick, the path sent on.
         page.locator('.nav-rail [data-area="settings"]').click()
         projects = page.locator(".projects-folder-fieldset")
-        projects.get_by_role("button", name="Change…").click()
-        expect(projects.locator("code")).to_have_text(str(server["home"] / "Documents"), timeout=10000)
-        assert asked[-1]["mode"] == "folder" and asked[-1]["title"] == "The projects folder"
+        projects.get_by_role("button", name="Change…").first.click()
+        expect(projects.locator(".projects-local code")).to_have_text(
+            str(server["home"] / "Documents"), timeout=10000
+        )
+        assert asked[-1]["mode"] == "folder" and asked[-1]["title"] == "The local projects folder"
         assert page.evaluate("window.__pickerShown") is False
     finally:
         page.context.close()
