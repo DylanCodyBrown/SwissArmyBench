@@ -730,7 +730,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window, in the order of
-                         the work (the owner, 2026-11-17): Connections, Variables, Data, Grids, ERD, APIs, Structures,
+                         the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18): Connections, APIs, Variables, Data, Grids, ERD, Structures,
                          Blades, Notebooks, Scripts, Apps, Visualizations, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always

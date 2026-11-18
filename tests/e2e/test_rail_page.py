@@ -29,11 +29,11 @@ from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 # In the order of the work (the owner, 2026-11-17).
 AREAS = [
     "connections",
+    "apis",  # beside Connections (the owner, 2026-11-18)
     "variables",
     "data",  # after Variables: the one place to browse tables (the owner, 2026-11-17)
     "grids",
     "erd",
-    "apis",
     "structures",
     "blades",
     "notebooks",
@@ -46,11 +46,11 @@ AREAS = [
 ]
 NAMES = [
     "Connections",
+    "APIs",
     "Variables",
     "Data Catalog",
     "Grids",
     "ERD",
-    "APIs",
     "Structures",
     "Blades",
     "Notebooks",
@@ -215,9 +215,9 @@ def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
     expect(current(page)).to_have_attribute("data-area", "erd")
     area(page, "erd").focus()
     page.keyboard.press("ArrowDown")
-    expect(area(page, "apis")).to_be_focused()
-    for _ in range(5):
-        page.keyboard.press("ArrowUp")  # the ERD, the grids, Data, Variables, Connections
+    expect(area(page, "structures")).to_be_focused()
+    for _ in range(6):
+        page.keyboard.press("ArrowUp")  # the ERD, the grids, Data, Variables, APIs, Connections
     expect(area(page, "connections")).to_be_focused()
     page.keyboard.press("ArrowUp")  # past the first: round to Settings
     expect(area(page, "settings")).to_be_focused()

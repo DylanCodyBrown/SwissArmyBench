@@ -62,11 +62,12 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   // workflow"): where the data comes from, getting and shaping it, web data, tools, building, presenting,
   // then the log.
   { area: "connections", name: "Connections", icon: "plug" },
+  // The library's APIs, their explorer (apisPage.ts): beside Connections (the owner, 2026-11-18).
+  { area: "apis", name: APIS, icon: "apis" },
   { area: "variables", name: "Variables", icon: "variables" }, // this computer's variables (variablesPage.ts)
   { area: "data", name: DATA, icon: "data" }, // the one place to browse and find tables (dataPage.ts)
   { area: "grids", name: "Grids", icon: "grids" },
   { area: "erd", name: "ERD", icon: "diagram" },
-  { area: "apis", name: APIS, icon: "apis" }, // the library's APIs, their explorer (apisPage.ts)
   { area: "structures", name: STRUCTURES, icon: "structures" }, // nested data as documents (structuresPage.ts)
   { area: "blades", name: "Blades", icon: "blade" },
   // An extension's area: its plug-in says whether it is on here (hidden until it says so).
