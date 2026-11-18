@@ -1,0 +1,276 @@
+"""The Desktop shell, really run (tests/test_desktop_shell.py starts this in a process of its own, with Qt
+drawing off screen): the shell starts the server, loads the home page, window.open makes a second window
+and a named one is reused and raised, an Export's download lands where the Save dialog (stood in) says,
+Print to PDF writes a PDF, an outside link goes to the system's browser (stood in), the clipboard works,
+the windows' places are remembered, the channel opens a page, the tray's menu is drawn, and Quit stops it all.
+
+    python tests/desktop_drive.py <folder> [<screenshots folder>]
+
+Made-up data only. Writes <folder>/result.json: each check's name and what it saw.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+import traceback
+import urllib.request
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QApplication, QMenu
+
+from swissarmybench.server.lifecycle import read_info, running_server
+from swissarmybench_desktop.adapters.channel import RecordFile, ask
+from swissarmybench_desktop.domain import windows as rules
+from swissarmybench_desktop.server import shell as shell_module
+
+ORDERS = "order_id\tregion\tamount\n1\tNorth\t120.50\n2\tSouth\t80.00\n3\tEast\t42.25\n4\tWest\t310.75\n"
+
+
+def main(folder: Path, shots: Path | None) -> int:
+    results: dict[str, Any] = {}
+    info_file = Path(os.environ["SWISSARMYBENCH_INFO"])
+    saved_to = folder / "saved"
+    saved_to.mkdir(parents=True, exist_ok=True)
+    asked: list[tuple[str, str]] = []
+    outside: list[str] = []
+
+    def save_dialog(parent: Any, title: str, start: str, filters: str) -> str:
+        asked.append((title, Path(start).name))
+        return str(saved_to / Path(start).name)
+
+    app = QApplication(sys.argv[:1])
+    shell = shell_module.Shell(
+        app, info_file, save_dialog=save_dialog, open_outside=lambda url: outside.append(url.toString())
+    )
+    record = RecordFile(info_file.with_name("tray.json"))
+    listener = shell_module.serve(shell, record)
+
+    def wait(check: Callable[[], Any], seconds: float = 30.0, what: str = "") -> Any:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            app.processEvents()
+            got = check()
+            if got:
+                return got
+            time.sleep(0.02)
+        raise TimeoutError(what or "waited too long")
+
+    def js(window: Any, code: str, seconds: float = 15.0) -> Any:
+        box: list[Any] = []
+        window.page.runJavaScript(code, 0, lambda value: box.append(value))
+        wait(lambda: box, seconds, f"script: {code[:60]}")
+        return box[0]
+
+    def loaded(window: Any) -> bool:
+        return bool(js(window, "document.readyState === 'complete' && !!document.querySelector('.nav-rail')"))
+
+    def shot(window: Any, name: str) -> None:
+        if shots is not None:
+            wait(lambda: True, 0.5)
+            window.grab().save(str(shots / name))
+
+    def call(method: str, route: str, body: bytes | None = None) -> Any:
+        info = read_info(info_file) or {}
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{info['port']}{route}",
+            data=body,
+            method=method,
+            headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "text/csv"},
+        )
+        with urllib.request.urlopen(request, timeout=30) as answer:  # noqa: S310 (127.0.0.1)
+            return json.loads(answer.read() or b"null")
+
+    try:
+        # 1. No server yet: the shell starts it, then opens the home page with the token, as the browser.
+        assert running_server(info_file) is None
+        started = time.monotonic()
+        shell.open_page(rules.HOME_PAGE)
+        home = wait(lambda: next(iter(shell.windows.values()), None), 60, "the first window")
+        wait(lambda: running_server(info_file), 60, "the server")
+        results["server_started_by_shell"] = True
+        wait(lambda: rules.is_ours(home.page.url().toString(), shell.port) and loaded(home), 60, "home page")
+        results["home_loaded_seconds"] = round(time.monotonic() - started, 1)
+        results["home_kind"] = home.kind
+        results["home_name"] = wait(lambda: home.name, 10, "home window's name")
+        results["home_title"] = home.windowTitle()
+        results["cookie_page_without_token"] = "token=" not in home.page.url().toString()
+
+        # 2. A made-up table, pasted; its grid shown in the home window.
+        pasted = call("POST", "/datasets/orders/paste", ORDERS.encode())
+        grid = pasted.get("grid") or pasted.get("grid_id") or pasted.get("id")
+        results["grid"] = grid
+        wait(lambda: js(home, "document.body.innerText.includes('North')"), 30, "the grid's rows")
+        shot(home, "desktop-home-window.png")
+
+        # 3. window.open: a second app window (the Workbench); the same name again reuses it.
+        js(home, "window.open('/workbench', 'swissarmybench-workbench'); true")
+        wb = wait(lambda: next((w for w in shell.windows.values() if w.kind == "workbench"), None), 30, "wb")
+        wait(lambda: loaded(wb), 60, "the Workbench page")
+        results["window_open_made_window"] = len(shell.windows)
+        results["workbench_title"] = wb.windowTitle()
+        js(home, "window.open('/workbench', 'swissarmybench-workbench'); true")
+        wait(lambda: True, 1.0)
+        results["named_window_reused"] = len(shell.windows)
+        # The Workbench brings the home window forward by its name (nav.ts: window.open("", "sab-home"))
+        before = home.raised
+        js(wb, "(() => { const w = window.open('', 'sab-home'); w.focus(); return w === window; })()")
+        wait(lambda: home.raised > before, 10, "the home window raised")
+        results["home_raised_by_name"] = home.raised - before
+        results["windows_after_focus"] = len(shell.windows)
+        shot(wb, "desktop-workbench-window.png")
+
+        # 4. An Export's download (the export dialog's own way: the route's file as a blob, saved by a link).
+        js(
+            home,
+            "fetch('/grids/" + str(grid) + "/export?format=csv').then(r => r.blob()).then(b => {"
+            " const a = document.createElement('a'); a.href = URL.createObjectURL(b);"
+            " a.download = 'orders.csv';"
+            " document.body.append(a); a.click(); a.remove(); }); true",
+        )
+        path = wait(lambda: shell.downloaded, 30, "the download")[0]
+        results["download_dialog"] = asked[-1]
+        results["download_path_name"] = Path(path).name
+        results["download_text"] = Path(path).read_text(encoding="utf-8-sig")[:200]
+        results["download_status"] = home._status_label.text()
+        results["download_show_in_folder"] = not home._status_button.isHidden()
+        shot(home, "desktop-download-saved.png")
+
+        # 5. Print to PDF: the page's window.print() (Visualizations' Print to PDF calls it).
+        js(home, "setTimeout(() => window.print(), 10); true")
+        pdf = wait(lambda: shell.printed, 60, "the PDF")[0]
+        results["print_dialog"] = asked[-1]
+        results["pdf_head"] = Path(pdf).read_bytes()[:5].decode("latin-1")
+        results["pdf_size"] = Path(pdf).stat().st_size
+
+        # 6. Outside addresses: the system's browser, never inside the shell.
+        count = len(shell.windows)
+        js(
+            home,
+            "const a = document.createElement('a'); a.href = 'https://example.com/release-notes';"
+            " a.target = '_blank'; document.body.append(a); a.click(); a.remove(); true",
+        )
+        wait(lambda: "https://example.com/release-notes" in outside, 15, "outside link (new window)")
+        wait(lambda: len(shell.windows) == count, 10, "the empty window closed")
+        js(home, "window.open('https://example.com/device', '_blank', 'noopener'); true")
+        wait(lambda: "https://example.com/device" in outside, 15, "outside window.open")
+        js(home, "location.href = 'https://example.com/elsewhere'; true")
+        wait(lambda: "https://example.com/elsewhere" in outside, 15, "outside navigation")
+        wait(lambda: True, 0.5)
+        results["outside"] = outside
+        results["home_still_ours"] = rules.is_ours(home.page.url().toString(), shell.port)
+        results["windows_after_outside"] = len(shell.windows)
+
+        # 7. The clipboard, granted to the app's own origin (the page needs the focus to use it).
+        home.bring_forward()
+        proxy = home.view.focusProxy() or home.view
+        proxy.clearFocus()
+        wait(lambda: True, 0.2)
+        proxy.setFocus()
+        wait(lambda: True, 0.3)
+        results["focus"] = [
+            QApplication.activeWindow() is home,
+            type(QApplication.focusWidget()).__name__,
+            js(home, "document.hasFocus()"),
+        ]
+        js(
+            home,
+            "window.__clip = 'pending'; navigator.clipboard.writeText('North,120.50')"
+            ".then(() => navigator.clipboard.readText()).then(t => window.__clip = t)"
+            ".catch(e => window.__clip = 'error: ' + e); true",
+        )
+        results["clipboard"] = wait(
+            lambda: (lambda v: v if v != "pending" else None)(js(home, "window.__clip"))
+        )
+
+        # 8. The developer tools, a window of their own (F12).
+        home.toggle_devtools()
+        results["devtools_window"] = home.devtools is not None and home.devtools.isVisible()
+        home.toggle_devtools()
+
+        # 9. The channel: what is open, and a page opened (as `swissarmybench open` and the server do).
+        found = record.shell()
+        assert found is not None
+        status = ask(found[1], found[2], {"status": True})
+        results["status_windows"] = sorted(w["kind"] for w in status["windows"])
+        results["status_has_no_token"] = "token" not in json.dumps(status)
+        ask(found[1], found[2], {"open": "/catalog"})
+        catalog = wait(
+            lambda: next((w for w in shell.windows.values() if w.kind == "catalog"), None), 30, "cat"
+        )
+        results["channel_opened"] = catalog.kind
+        results["bad_key"] = ask(found[1], "x" * 43, {"status": True})
+
+        # 10. Places remembered by kind: the Workbench closed somewhere, opened there again.
+        wb.setGeometry(40, 50, 900, 640)
+        wait(lambda: True, 0.3)
+        wb.close()
+        wait(lambda: wb.ident not in shell.windows, 10, "the Workbench closed")
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)  # app.exec() does this by itself
+        wait(lambda: True, 1.5)  # Chromium lets go of the closed window's name a moment later
+        places = json.loads((info_file.parent / "desktop" / "windows.json").read_text(encoding="utf-8"))
+        results["remembered"] = places.get("workbench")
+        results["reopen_said"] = js(
+            home,
+            "(() => { const w = window.open('/workbench', 'swissarmybench-workbench');"
+            " return w === null ? 'null' : (w.closed ? 'closed' : 'open'); })()",
+        )
+        again = wait(
+            lambda: next((w for w in shell.windows.values() if w.kind == "workbench"), None), 30, "wb2"
+        )
+        wait(lambda: again.placed, 10, "placed")
+        g = again.geometry()
+        results["reopened_at"] = [g.x(), g.y(), g.width(), g.height()]
+        screen = QApplication.primaryScreen().availableGeometry()
+        results["screen"] = [screen.width(), screen.height()]
+
+        # 11. The tray's menu (QSystemTrayIcon cannot show off screen: the menu it would show is drawn).
+        shell.tray.refresh()
+        menu = QMenu()
+        shell._fill(menu)
+        results["tray_menu"] = [a.text() for a in menu.actions() if a.text()]
+        if shots is not None:
+            menu.adjustSize()
+            menu.grab().save(str(shots / "desktop-tray-menu.png"))
+        results["tray_available_here"] = shell.show_tray()
+        before = len(shell.windows)
+        shell.tray.act("blades")
+        wait(lambda: True, 1.0)
+        results["tray_blades_reused_catalog"] = len(shell.windows) == before and catalog.raised > 0
+        results["profile_folder"] = sorted(
+            p.name for p in (info_file.parent / "desktop" / "profile").iterdir()
+        )
+        shot(catalog, "desktop-catalog-window.png")
+
+        # 12. Quit: the server stopped, the windows closed.
+        shell.tray.act("quit")
+        wait(lambda: running_server(info_file) is None, 30, "the server stopped")
+        results["quit_stopped_server"] = True
+        results["windows_after_quit"] = len(shell.windows)
+    except Exception:
+        results["error"] = traceback.format_exc()
+        results["windows_then"] = [
+            (w.kind, w.page.url().toString()[:60], w.isVisible()) for w in shell.windows.values()
+        ]
+        results["outside_so_far"] = outside
+        with_info = read_info(info_file)
+        if with_info:
+            try:
+                call("POST", "/shutdown")
+            except OSError:
+                pass
+    finally:
+        shell.shutdown()
+        listener.close()
+        record.remove(os.getpid())
+        (folder / "result.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    return 0 if "error" not in results else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(Path(sys.argv[1]), Path(sys.argv[2]) if len(sys.argv) > 2 else None))

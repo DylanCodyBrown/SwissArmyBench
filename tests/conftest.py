@@ -50,6 +50,11 @@ SCM_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "git" / "src"
 if SCM_SRC not in sys.path:
     sys.path.insert(0, SCM_SRC)
 
+# The Desktop extension, the same way (tests/test_desktop*.py turn it on; its Qt run needs PySide6).
+DESKTOP_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "desktop" / "src")
+if DESKTOP_SRC not in sys.path:
+    sys.path.insert(0, DESKTOP_SRC)
+
 # A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
 os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")
 # Nor a system file dialog (domain/file_dialogs.py): the page's own picker, on every system a test runs on.

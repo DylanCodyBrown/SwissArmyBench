@@ -9,8 +9,10 @@
     uv run swissarmybench tray            the tray icon (`start` starts it too, unless --no-tray)
     uv run swissarmybench autostart on    start at sign-in (the tray, which starts the server); off, status
     uv run swissarmybench start --background   detached, no console, returns at once
+    uv run swissarmybench desktop         the app in windows of its own (the Desktop extension)
 
-Started by hand, it opens the app's page in the default browser once it listens (--no-browser not to),
+Started by hand, it opens the app's page in the default browser once it listens (--no-browser not to;
+an extension that opens pages in its own windows, the Desktop extension, opens it there instead),
 and prints the page's full address. The token is in the address's fragment (#token=...), which a
 browser never sends over the network.
 
@@ -34,16 +36,16 @@ import secrets
 import sys
 import threading
 import time
-import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from types import FrameType
 
 import uvicorn
 
-from swissarmybench import __version__
+from swissarmybench import __version__, extensions
 from swissarmybench.adapters.live_updates import LiveUpdates
 from swissarmybench.adapters.state_files import info_file_path, remove_info_file, write_info_file
+from swissarmybench.domain.extensions import launcher_words, needs_words
 from swissarmybench.renamed import env, move_state_folder
 from swissarmybench.server.app import create_app
 from swissarmybench.server.autostart import Autostart
@@ -63,7 +65,7 @@ from swissarmybench.server.lifecycle import (
     page_address as page_address,
 )
 from swissarmybench.server.routes_processes import QuietHeartbeats
-from swissarmybench.server.tray import server_command, start_tray
+from swissarmybench.server.tray import open_address, server_command, start_tray
 from swissarmybench.server.updater import detached
 from swissarmybench.settings import Settings
 
@@ -93,7 +95,8 @@ def main() -> None:
         "command",
         nargs="?",
         default="start",
-        choices=["start", "stop", "status", "open", "tray", "autostart"],
+        # The extensions' words (`desktop`) too: off, the word says which extension it needs.
+        choices=["start", "stop", "status", "open", "tray", "autostart", *launcher_words()],
     )
     parser.add_argument(
         "switch",
@@ -118,10 +121,19 @@ def main() -> None:
             print("Swiss Army Bench is not running. Start it with: swissarmybench start")
             sys.exit(1)
         return
+    if args.command in launcher_words():
+        launchers = [getattr(m, "LAUNCHER", None) for m in extensions.enabled()]
+        run = next((x[args.command] for x in launchers if isinstance(x, dict) and args.command in x), None)
+        if not callable(run):
+            print(needs_words(args.command), file=sys.stderr)
+            sys.exit(1)
+        sys.exit(run())
     if args.command == "tray":
         from swissarmybench.server.tray import run_tray
 
-        sys.exit(run_tray(path, Settings().state_dir / "server_events.json"))
+        # An extension's own tray icon (the Desktop extension's shell), else pystray's.
+        own = extensions.hook("run_tray")
+        sys.exit((own if callable(own) else run_tray)(path, Settings().state_dir / "server_events.json"))
     if args.command == "autostart":
         sys.exit(autostart(args.switch or "status"))
     if args.command == "start" and args.background:
@@ -170,7 +182,7 @@ def open_page(path: Path | None = None) -> bool:
         return False
     address = page_address(info)
     print(address)
-    webbrowser.open(address)
+    open_address(address)
     return True
 
 
@@ -208,7 +220,7 @@ def open_project(target: str, path: Path, wait_seconds: float = 30.0) -> int:
         print(f"{file.name} could not be opened: {error}", file=sys.stderr)
         return 1
     if not (isinstance(answer, dict) and answer.get("page")):
-        webbrowser.open(page_address(info))  # no home window is open: one, showing the project
+        open_address(page_address(info))  # no home window is open: one, showing the project
     print(f"Opened {file.name}." if not (isinstance(answer, dict) and answer.get("asked")) else
           f"{file.name}: the app asks about the unsaved work open now.")  # fmt: skip
     return 0
@@ -297,7 +309,7 @@ def start(port: int | None, browser: bool = True, tray: bool = True) -> None:
     print(f"Open it: {address}")
     if browser and started_by != "vscode" and env("SWISSARMYBENCH_NO_BROWSER", "") != "1":
         # The socket already listens: a browser that asks now waits for the server's first answer.
-        threading.Timer(0.5, webbrowser.open, args=(address,)).start()
+        threading.Timer(0.5, open_address, args=(address,)).start()
     # The tray, as its own process (Windows and macOS; Linux on a desktop), unless --no-tray or VS Code
     # started this server (it has its own status bar item); SWISSARMYBENCH_TRAY=0 for tests.
     if tray and started_by != "vscode" and env("SWISSARMYBENCH_TRAY", "1") != "0":

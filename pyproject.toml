@@ -90,13 +90,20 @@ packages = ["src/swissarmybench", "src/swissarmygrid"]
 strict = true
 python_version = "3.12"
 # Each extension's own package (extensions/<id>/src) too.
-files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src"]
-mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src"
+files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/desktop/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src"]
+mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/desktop/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src"
 
 [[tool.mypy.overrides]]
 # These ship no type information (Pillow does, but the tray reads it only where it is installed).
 module = ["pyarrow", "pyarrow.*", "xlsxwriter", "xlsxwriter.*", "openpyxl", "openpyxl.*", "pystray", "pystray.*", "PIL", "PIL.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Qt for Python: the Desktop extension's own dependency, installed only with it. Read as Any everywhere,
+# so the check is the same with it installed or not.
+module = ["PySide6", "PySide6.*", "shiboken6", "shiboken6.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 # The Write starters' drivers: imported by the functions for the notebook's own environment, not the app's.
@@ -111,7 +118,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "tests"]
+src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/desktop/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
@@ -176,6 +183,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "extensions/accounting/src/swissarmybench_accounting/service.py" = ["S608", "E501"]
 "extensions/accounting/src/swissarmybench_accounting/extension.py" = ["E501"]
 "extensions/git/src/**" = ["E501"]
+"extensions/desktop/src/**" = ["E501"]
 "tests/test_scm*.py" = ["E501"]
 "tests/github_standin.py" = ["E501"]
 "tests/test_accounting_*.py" = ["E501", "S603", "S608"]

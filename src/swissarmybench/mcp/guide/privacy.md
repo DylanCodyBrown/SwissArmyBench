@@ -87,3 +87,12 @@ password.
   script), never outputs, rows or variables' values; nothing while off, before sign-in, or for a project
   marked private (`project_private(on=true)`, which waits for Allow). Telemetry is off. Completions are the
   editor's: you have your own model and `workbench_complete`.
+
+## Desktop (an extension, off until installed)
+- Installed from the Extensions page, the app opens in windows of its own (Qt WebEngine) instead of browser
+  tabs; removed, it opens in the browser again. The pages are the same: every tool works as before.
+- `desktop_status`: whether the Desktop app runs, its tray icon, its windows (kind, title, page; never a
+  token). `desktop_open(page="home"|"workbench"|"blades")` opens that page in its own window (started if
+  needed), as the tray's menu does; then `app_navigate` moves it.
+- Only the app's own address loads inside; any other link opens in the user's browser. Downloads ask where to
+  save with the system's dialog; `table_export` stays the way to write a file yourself.

@@ -17,7 +17,9 @@ removes its connection file, so it is not started again. During an update the tr
 new version starts its own.
 
 pystray draws the icon and Pillow paints it (the plan's decision 6; the [server] extra only). Where no
-tray can show (Linux with no desktop), `swissarmybench tray` still starts the server, then ends.
+tray can show (Linux with no desktop), `swissarmybench tray` still starts the server, then ends. An
+extension that is on may bring its own icon (its `run_tray` hook: the Desktop extension's shell draws this
+same menu with Qt) and its own way to open a page (`open_page`: open_address asks it before the browser).
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from swissarmybench import extensions
 from swissarmybench.domain.updates import MenuItem, TrayState, tooltip, tray_menu, update_question
 from swissarmybench.server.autostart import Autostart, run_hidden
 from swissarmybench.server.lifecycle import (
@@ -60,11 +63,16 @@ DOT_BLUE: tuple[int, int, int, int] = (0x25, 0x63, 0xEB, 255)
 # ===== where a tray can show, and how its processes start =====
 
 
-def tray_available(platform: str = sys.platform, environ: dict[str, str] | None = None) -> bool:
-    """Windows and macOS always have one; Linux only on a desktop (a display) with pystray and Pillow."""
+def tray_available(
+    platform: str = sys.platform, environ: dict[str, str] | None = None, own_tray: bool | None = None
+) -> bool:
+    """Windows and macOS always have one; Linux only on a desktop (a display) with pystray and Pillow, or an
+    extension's own tray (its run_tray hook)."""
     import importlib.util
 
-    if any(importlib.util.find_spec(name) is None for name in ("pystray", "PIL")):
+    if own_tray is None:
+        own_tray = extensions.hook("run_tray") is not None
+    if not own_tray and any(importlib.util.find_spec(name) is None for name in ("pystray", "PIL")):
         return False
     if platform in ("win32", "darwin"):
         return True
@@ -106,6 +114,18 @@ def start_tray() -> bool:
     except OSError:
         return False
     return True
+
+
+def open_address(address: str, browser: Callable[[str], object] | None = None) -> None:
+    """A page of the app opened: by an extension that is on and opens pages in its own window (its
+    open_page hook says True), else in the default browser."""
+    opener = extensions.hook("open_page")
+    try:
+        if callable(opener) and opener(address):
+            return
+    except Exception:  # noqa: S110 (the browser, whatever the extension does)
+        pass
+    (browser or webbrowser.open)(address)
 
 
 # ===== the icon =====
@@ -294,7 +314,7 @@ class Tray:
         self,
         server: Server,
         startup: Autostart,
-        open_url: Callable[[str], object] = webbrowser.open,
+        open_url: Callable[[str], object] = open_address,
         start_server: Callable[[], object] | None = None,
         confirm: Callable[[str, str], bool] = ask,
         watchdog: Watchdog | None = None,

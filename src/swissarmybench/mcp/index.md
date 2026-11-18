@@ -15,7 +15,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 ## Tools by prefix
 | Prefix | Area | Key tools |
 |---|---|---|
-| `tabs_` | tab bar, + query tab | `tabs_list`, `tabs_new_query` |
+| `tabs_` | tab bar, + tab | `tabs_list`, `tabs_new_query` |
 | `datasets_` | tables: file, paste, Python | `datasets_load`, `datasets_paste` |
 | `table_` | ribbon, Table row | `table_filter`, `table_export`, `table_swap_connection` |
 | `column_` | ribbon, Column row | `column_keep`, `column_rename`, `column_outliers` |
@@ -25,7 +25,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `visualizations_` | cards, dashboards | `visualizations_add`, `visualizations_formats` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
 | `compare_` | two grids, tie-out | `compare_create` |
-| `connections_`, `variables_` | databases, files, Power BI, Dataverse, Python; variables | `connections_list`, `variables_list` |
+| `connections_`, `variables_` | databases, files, Power BI, Dataverse; variables | `connections_list`, `variables_list` |
 | `library_` | meta store (Git), setup | `library_setup`, `catalog_shared` |
 | `apis_` | APIs: operations, calls | `apis_search`, `apis_call`, `apis_save_call` |
 | `structures_` | JSON, YAML, XML, TOML; steps, lineage | `structures_open`, `structures_show` |
@@ -33,12 +33,12 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
 | `streamlit_` | Streamlit (preinstalled extension) | `streamlit_block_place`, `streamlit_test` |
-| `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |
+| `project_`, `projects_` | project folders, home page | `project_new`, `projects_list` |
 | `files_`, `app_`, `extensions_` | files; the page, mode, extensions | `app_context`, `app_mode`, `extensions_list` |
 | `agent_` | yours only | `agent_context`, `agent_events`, `agent_approvals` |
 
-Installed extensions: Accounting (`workbook_`, `template_`, `statements_`), Power Apps (`powerapps_`),
-Copilot (`copilot_`), Git (`github_`, `scm_`); else a call names it.
+Extensions, installed: Accounting (`workbook_`, `template_`, `statements_`), Power Apps
+(`powerapps_`), Copilot (`copilot_`), Git (`github_`, `scm_`), Desktop (`desktop_`); else a call says.
 No prefix: `guide`, `commands`, `health`.
 
 ## Rules
