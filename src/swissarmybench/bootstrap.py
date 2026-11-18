@@ -1092,6 +1092,7 @@ def bootstrap(
         extension_modules.modes,
         lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
         projects.type_of,
+        extension_modules.areas,
     )
 
     def saved_dashboards() -> list[dict[str, Any]]:

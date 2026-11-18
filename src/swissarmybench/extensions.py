@@ -167,6 +167,23 @@ def modes() -> list[dict[str, Any]]:
     return out
 
 
+_AREA_FIELDS = ("area", "name", "icon", "mark")
+
+
+def areas() -> list[dict[str, Any]]:
+    """The rail's areas the on extensions add (each one's RAIL: {area, name, icon, mark?}), as data."""
+    out: list[dict[str, Any]] = []
+    for module in enabled():
+        for raw in getattr(module, "RAIL", ()) or ():
+            if (
+                isinstance(raw, dict)
+                and isinstance(raw.get("area"), str)
+                and raw["area"] not in {a["area"] for a in out}
+            ):
+                out.append({k: str(raw.get(k) or "") for k in _AREA_FIELDS})
+    return out
+
+
 def mode_of(project_type: str | None) -> dict[str, Any]:
     """A project type's mode; the base's for no project, or a type whose extension is not on."""
     found = modes()

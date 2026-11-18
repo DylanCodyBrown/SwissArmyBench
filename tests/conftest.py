@@ -41,6 +41,10 @@ if ACCOUNTING_SRC not in sys.path:
 POWERAPPS_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src")
 if POWERAPPS_SRC not in sys.path:
     sys.path.insert(0, POWERAPPS_SRC)
+# The Git extension, the same way (tests/test_scm*.py turn it on).
+SCM_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "git" / "src")
+if SCM_SRC not in sys.path:
+    sys.path.insert(0, SCM_SRC)
 
 # A server a test starts never opens a browser window (`swissarmybench start` does, by hand).
 os.environ.setdefault("SWISSARMYBENCH_NO_BROWSER", "1")

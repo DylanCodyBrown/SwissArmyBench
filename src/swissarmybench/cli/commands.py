@@ -3455,8 +3455,11 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
     "The open project's mode: its type and working set (canvases, blade families, languages, cell kinds, "
     "your tool group, the export); every with all: each type this app can make",
     opt("all", "true: every project type this app can make (New project's list).", "bool"),
+    opt("areas", "true: the rail's areas the on extensions add.", "bool"),
 )
 def app_mode(a: dict[str, Any]) -> Any:
+    if a.get("areas"):
+        return api.call("GET", "/app/areas")
     return api.call("GET", "/app/modes" if a.get("all") else "/app/mode")
 
 

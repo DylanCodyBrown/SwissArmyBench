@@ -86,6 +86,20 @@ CATALOG: tuple[Extension, ...] = (
         project_type="codeapp",
         tools=("powerapps_",),
     ),
+    Extension(
+        "git",
+        "Git",
+        "GitHub sync for the meta store and shared projects, and a Source Control page with a commit graph.",
+        (
+            "Sign in to GitHub",
+            "Clone, connect, pull and push",
+            "The Source Control page and its graph",
+            "Diffs",
+        ),
+        "available",
+        "swissarmybench-git",
+        tools=("github_", "scm_"),
+    ),
 )
 
 

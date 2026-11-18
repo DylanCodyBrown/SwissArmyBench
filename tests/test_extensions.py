@@ -32,13 +32,18 @@ CATALOG = (*rules.CATALOG, LEDGER)
 # ===== the catalog and discovery =====
 
 
-def test_the_base_catalog_has_streamlit_preinstalled_and_two_available() -> None:
+def test_the_base_catalog_has_streamlit_preinstalled_and_three_available() -> None:
     listed = {e["id"]: e for e in rules.listed(rules.CATALOG, {}, "1.2.3")}
-    assert list(listed) == ["streamlit", "accounting", "powerapps"]
+    assert list(listed) == ["streamlit", "accounting", "powerapps", "git"]
     # Preinstalled, its package not here (removed, or an install without it): available, one click away.
     assert listed["streamlit"]["status"] == "available" and listed["streamlit"]["preinstalled"] is True
     assert listed["streamlit"]["version"] == "1.2.3" and listed["accounting"]["preinstalled"] is False
-    assert listed["accounting"]["status"] == listed["powerapps"]["status"] == "available"
+    assert (
+        listed["accounting"]["status"]
+        == listed["powerapps"]["status"]
+        == listed["git"]["status"]
+        == "available"
+    )
     assert listed["powerapps"]["version"] == "1.2.3" and listed["accounting"]["description"]
     assert all(e["status"] in rules.STATUSES for e in listed.values())
 
@@ -297,7 +302,12 @@ def test_the_routes_list_and_refuse_in_a_development_checkout(tmp_path: Path) ->
     with make_client(tmp_path, update_feeds=()) as client:
         said = client.get("/extensions", headers=AUTH).json()
         # The Streamlit extension is on here (tests/conftest.py), as it is in every install.
-        assert [e["status"] for e in said["extensions"]] == ["installed", "available", "available"]
+        assert [e["status"] for e in said["extensions"]] == [
+            "installed",
+            "available",
+            "available",
+            "available",
+        ]
         assert said["installable"] is False and said["changing"] is None
         refused = client.post("/extensions/install", headers=AGENT, json={"id": "accounting"})
         assert refused.status_code == 409 and "development checkout" in refused.text
@@ -314,7 +324,7 @@ def test_every_extension_package_is_on_the_bases_version() -> None:
     root = Path(__file__).resolve().parents[1]
     base = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
     folders = sorted(p.parent for p in (root / "extensions").glob("*/pyproject.toml"))
-    assert [f.name for f in folders] == ["accounting", "powerapps", "streamlit"]
+    assert [f.name for f in folders] == ["accounting", "git", "powerapps", "streamlit"]
     for folder in folders:
         own = tomllib.loads((folder / "pyproject.toml").read_text())["project"]
         assert own["version"] == base, folder.name
