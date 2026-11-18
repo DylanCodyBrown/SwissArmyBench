@@ -65,12 +65,6 @@ jobs:
           uv run --no-sync ruff format --check .
           uv run --no-sync mypy
           npm run typecheck --prefix web
-      - name: The desktop app's system libraries (Qt WebEngine offscreen; its tests skip without them)
-        continue-on-error: true
-        run: >-
-          sudo apt-get update -qq && sudo apt-get install -y -qq libegl1 libgl1 libnss3 libxkbcommon0
-          libxkbcommon-x11-0 libfontconfig1 libdbus-1-3 libxcomposite1 libxdamage1 libxrandr2 libxtst6
-          libxshmfence1 libgbm1 libasound2t64
       - name: Tests (the browser tests need Edge and run on a desktop before tagging)
         run: uv run --no-sync pytest -q --ignore=tests/e2e
       - name: Extension tests

@@ -44,7 +44,14 @@ def _webengine_starts() -> str:
     return ""
 
 
-_WHY_NOT = _webengine_starts()
+_WHY_NOT = (
+    # A CI runner has no graphics: Qt WebEngine falls back to software rendering and the home page did not
+    # load in a minute on GitHub's (release run 57). These real-app tests run on a desktop before tagging, as
+    # the browser tests do; SWISSARMYBENCH_DESKTOP_TEST=1 runs them anywhere.
+    "on a CI runner (no graphics): run on a desktop, or set SWISSARMYBENCH_DESKTOP_TEST=1"
+    if os.environ.get("CI") and not os.environ.get("SWISSARMYBENCH_DESKTOP_TEST")
+    else _webengine_starts()
+)
 pytestmark = pytest.mark.skipif(bool(_WHY_NOT), reason=_WHY_NOT or "runs")
 
 
