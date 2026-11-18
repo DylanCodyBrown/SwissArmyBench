@@ -194,10 +194,19 @@ def run_copied_chart(code: str, frame: Any) -> tuple[Any, list[tuple[str, tuple[
             return Recorder(f"{self.name}()")
 
         def __getattr__(self, attribute: str) -> Recorder:
+            if attribute.startswith("__"):  # Python's own names (__wrapped__ ...): not altair's
+                raise AttributeError(attribute)
             return Recorder(f"{self.name}.{attribute}")
 
+    def module_attribute(attribute: str) -> Recorder:
+        # PySide6's import hook (loaded by the desktop tests) inspects modules as they import: a stand-in
+        # that answered __wrapped__ and the like sent inspect.unwrap round in a loop.
+        if attribute.startswith("__"):
+            raise AttributeError(attribute)
+        return Recorder(f"alt.{attribute}")
+
     fake = types.ModuleType("altair")
-    fake.__getattr__ = lambda attribute: Recorder(f"alt.{attribute}")  # type: ignore[method-assign]
+    fake.__getattr__ = module_attribute  # type: ignore[method-assign]
     with patch.dict(sys.modules, {"altair": fake}):
         namespace: dict[str, Any] = {}
         exec(compile(code, "<copied>", "exec"), namespace)  # noqa: S102 (code this package generated)

@@ -369,3 +369,15 @@ def test_a_windows_title_never_shows_an_address() -> None:
         rules.window_title("") == "Swiss Army Bench"
         and rules.window_title("about:blank") == "Swiss Army Bench"
     )
+    # Chromium's first title while a page loads: the address with no scheme, the token in its fragment
+    # (seen in the app's window list, which the agent reads: desktop_status).
+    for loading in (
+        "127.0.0.1:41607/workspace#token=secret",
+        "localhost:41607/workbench",
+        "[::1]:41607/workspace",
+        "app.example:8080/x",
+        "Orders#token=secret",
+    ):
+        assert rules.window_title(loading) == "Swiss Army Bench", loading
+    assert rules.window_title("Orders: 3 rows") == "Orders: 3 rows"
+    assert rules.window_title("Sales 2026") == "Sales 2026"

@@ -22,16 +22,30 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _has_webengine() -> bool:
+def _webengine_starts() -> str:
+    """ "" when Qt WebEngine can start here (offscreen); else why not. Installed is not enough: a machine
+    without the system libraries it needs (libEGL, NSS, xcb: a bare CI runner) fails at import."""
     try:
-        return importlib.util.find_spec("PySide6.QtWebEngineWidgets") is not None
+        if importlib.util.find_spec("PySide6.QtWebEngineWidgets") is None:
+            return "PySide6 with Qt WebEngine is not installed here"
     except (ImportError, ValueError):
-        return False
+        return "PySide6 with Qt WebEngine is not installed here"
+    probe = "from PySide6.QtWebEngineWidgets import QWebEngineView"
+    env = os.environ | {"QT_QPA_PLATFORM": "offscreen", "QTWEBENGINE_CHROMIUM_FLAGS": "--no-sandbox"}
+    try:
+        done = subprocess.run(  # noqa: S603 (this Python)
+            [sys.executable, "-c", probe], capture_output=True, text=True, timeout=60, env=env, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return f"Qt WebEngine could not start here: {error}"
+    if done.returncode != 0:
+        last = (done.stderr.strip().splitlines() or ["(no message)"])[-1]
+        return f"Qt WebEngine cannot start here (its system libraries are missing?): {last[:200]}"
+    return ""
 
 
-pytestmark = pytest.mark.skipif(
-    not _has_webengine(), reason="PySide6 with Qt WebEngine is not installed here"
-)
+_WHY_NOT = _webengine_starts()
+pytestmark = pytest.mark.skipif(bool(_WHY_NOT), reason=_WHY_NOT or "runs")
 
 
 def environment(folder: Path) -> dict[str, str]:

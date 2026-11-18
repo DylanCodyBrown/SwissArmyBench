@@ -387,11 +387,22 @@ def pdf_name(title: str) -> str:
     return f"{stem if stem != 'download' else 'Swiss Army Bench'}.pdf"
 
 
+# host:port/... with no scheme: what Chromium shows as a page's title before the page names itself.
+_BARE_ADDRESS = re.compile(r"^[\w.\-\[\]:]+:\d+(/|$)")
+
+
 def window_title(title: str, app: str = "Swiss Army Bench") -> str:
     """A window's title: the page's own. Before a page has one, Chromium gives its address (with the token in
     its fragment): never shown, the app's name instead."""
     text = (title or "").strip()
-    if not text or "://" in text or text.lower().startswith(("about:", "blob:", "data:")):
+    lowered = text.lower()
+    if (
+        not text
+        or "://" in text
+        or "token=" in lowered
+        or lowered.startswith(("about:", "blob:", "data:", "127.0.0.1", "localhost", "[::1]"))
+        or _BARE_ADDRESS.match(text) is not None  # Chromium's first title: the address with no scheme
+    ):
         return app
     return text[:200]
 
