@@ -40,7 +40,7 @@ Swiss Army Bench starts itself when you sign in and stays running: the installer
 **Extensions** (the puzzle piece at the bottom of the rail, above Settings) lists what plugs into Swiss Army Bench, one card each: its name, what it is for, what it adds, its status and version.
 
 - **Preinstalled:** Streamlit comes with every install, as an extension of its own (the Apps area, the Streamlit canvas, App mode, the Streamlit, Components, Controllers and Text and layout starters). Its card says **Preinstalled**, with **Remove**: without it the app is the base alone (no Apps area, no Streamlit canvas, a Streamlit app's file says which extension opens it), and **Install** brings it back. It never comes back by itself once you removed it.
-- **Available:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices) and Power Apps (code apps).
+- **Available:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices), Power Apps (code apps) and GitHub Copilot (Copilot's code completion in the Workbench).
 - **Available:** **Install**, one click. The app closes, installs the extension for this same version and opens again in a window of its own; the card shows each stage while it works. If it fails, the app opens as it was and the status bar says why.
 - **Installed:** **Remove** (asked first), the same way.
 - Updates keep your installed extensions. A copy run from a source checkout (not the installer's) says what to run instead and changes nothing.
@@ -1600,6 +1600,17 @@ With the Power Apps extension installed, the rail has a **Code App** page: Power
 - **Runs:** every `pa`, `pac` and `npm` run this session, with its output as it came. The Session page lists them too.
 - **Code apps switched off:** an environment's administrator turns them on (Power Platform admin center: the environment's Settings, Product, Features, Power Apps code apps); the app says so when a command is refused for it.
 - **The agent** does all of this with its `powerapps_` tools; its Push, its custom connector and its installs wait for your Allow.
+
+## GitHub Copilot (an extension)
+
+With the GitHub Copilot extension installed, the Workbench's notebook cells (Python and SQL) and scripts show GitHub Copilot's suggestions as grey ghost text as you type. It is off until you install it and sign in; nothing is sent before.
+
+- **Install:** the Extensions page's **Install** on the GitHub Copilot card (the app restarts), then **Install the language server** on the same card: GitHub's Copilot Language Server, pinned, goes into the app's own folder with npm. It needs **Node.js 20.8 or later** (the card says the command to install it when it is missing).
+- **Sign in:** **Sign in to GitHub** shows a code. **Copy** it, then **Open github.com/login/device**, enter the code there and allow it. The card then says **Signed in as** your login and Copilot is **On**. You need a **GitHub Copilot plan** (Copilot Free counts); signed in without one, the card says so. The sign-in is the language server's own: the app never sees or keeps the token. **Sign out** on the same card.
+- **Using it:** **Tab** takes the suggestion, **Esc** lets it go (a second Esc leaves the cell as before), **Ctrl+Right** takes one word, **Alt+]** and **Alt+[** go through the suggestions when there are several. The Workbench's status bar says **Completions: GitHub Copilot · on**; a click turns it off or on (Settings has the same **On** switch).
+- **What is sent to GitHub:** only the document you are editing: a cell with the notebook's other code cells, or a script. Never outputs, tables' rows or variables' values. Telemetry is switched off.
+- **Private projects:** the project's **Private** switch (in the Application row, beside Autosave; kept in `.sab/project.json`) stops it for that project: nothing of it is sent, and the status bar says **private**.
+- **The agent** reads the status with `copilot_status` and switches it with `copilot_toggle`; its install of the language server waits for your Allow. Signing in and out are yours only.
 
 ## Code to your Python
 

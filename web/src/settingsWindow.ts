@@ -18,11 +18,13 @@
  *          [SESSION]              Follow the agent (kept across restarts; the user's switch) -> sessionPage.ts
  *          [LIBRARY]              the library folder: where, Change…, Default, what is in it -> library.ts
  *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
+ *          [EXTENSIONS]           each on extension's own panel (its switches, sign-in) -> extensionPanel.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts
  *          [CONNECT AN AGENT]     Copy -> copyMcpPrompt()  (a prompt that installs the MCP in any agent)
  * */
 import { betaSection } from "./betaNotes";
+import { extensionSettings } from "./extensionPanel";
 import { updatesSection } from "./updates";
 import { librarySection } from "./library";
 import { projectsFolderSection } from "./projectExplorer";
@@ -166,6 +168,7 @@ function drawSettings(): void {
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.
     h("fieldset", { class: "fieldset follow-fieldset" }, h("legend", {}, icon("session"), "Session"), followSwitch()),
     updatesSection(),
+    extensionSettings(),
     claudeSection(),
     betaSection(),
     h(

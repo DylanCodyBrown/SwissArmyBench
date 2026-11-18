@@ -195,6 +195,7 @@ NOT_COMMANDS = {
     "/connections/{}/used": "a Workbench kernel's count of a call (plumbing): connections_usage reads it",
     "/accounting/{}": "the Accounting extension is not on here: its door says so (extensions_install)",
     "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
+    "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }

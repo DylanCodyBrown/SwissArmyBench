@@ -835,7 +835,8 @@ Swiss Army Bench is the base; **extensions** plug into it (Plans/editions.plan.m
 **Extensions** page lists them: **Streamlit** is preinstalled (its own package, `swissarmybench-streamlit`:
 the installers put it in beside the base, every update keeps it, and an update from a version that had it
 built in installs it once at its first start); **Accounting** (an Excel workbook from a Python automation,
-statements and invoices) and **Power Apps** (code apps) are available. Streamlit can be removed like any
+statements and invoices), **Power Apps** (code apps) and **GitHub Copilot** (Copilot's ghost text in the
+Workbench's cells and scripts) are available. Streamlit can be removed like any
 other (Remove asks first, and it is never brought back by itself); without it the app is the BI base: no Apps
 area and no Streamlit canvas, and its agent tools say which extension they need. An available extension installs with one click: the app stops, the update's
 helper runs `uv tool install --force "swissarmybench[server]==<this version>" --with <the extension's

@@ -20,7 +20,7 @@ import { api, onNotice, token } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { visit, withParams } from "./nav";
 import { gridList, newQueryTab, onAgentView, setEmptyView, showGridsLanding, showStartView, viewingLanding, viewingStart } from "./panes";
-import { answerAsked, autosaveSwitch, closeProject, copyProject, exportOutline, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave } from "./projectFile";
+import { answerAsked, autosaveSwitch, closeProject, copyProject, exportOutline, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, privateSwitch, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, setPrivate } from "./projectFile";
 import { drawExplorer, mountExplorer, refreshExplorer } from "./projectExplorer";
 import { openFile } from "./openFile";
 import { tourButton } from "./tour";
@@ -186,6 +186,7 @@ function drawGroup(state: ProjectState): void {
     button("Export outline", guard(() => exportOutline()), { icon: "outline", class: "ribbon-btn", title: "ARCHITECTURE.md: the project for someone joining it" }),
     button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
     autosave.element,
+    privateSwitch(project.private === true, (on) => void setPrivate(on).catch((e: Error) => toast(e.message, "error"))),
   );
 }
 

@@ -86,6 +86,15 @@ CATALOG: tuple[Extension, ...] = (
         project_type="codeapp",
         tools=("powerapps_",),
     ),
+    Extension(
+        "copilot",
+        "GitHub Copilot",
+        "GitHub Copilot's code completion in the Workbench's notebook cells and scripts.",
+        ("Ghost text in cells and scripts", "Sign in with GitHub", "Off for a private project"),
+        "available",
+        "swissarmybench-copilot",
+        tools=("copilot_",),
+    ),
 )
 
 

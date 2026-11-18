@@ -3135,3 +3135,41 @@ Stood in for, or not checked:
   push and pull: a copied folder and a file written into catalog/ stand in for `git pull`.
 - The 3-second watch loop itself is not timed in a test (Refresh, the same code, is); Windows paths only by the
   rules' test (C:\\Team vs c:/team).
+
+## The GitHub Copilot extension (2026-11-18, branch ext-copilot)
+
+Checked here:
+- **The real Copilot Language Server, without a sign-in:** `npm install @github/copilot-language-server@1.572.0`
+  from the registry into a scratch folder (7 packages: the server, its linux-x64 platform packages);
+  `node dist/language-server.js --version` printed `1.572.0` (Node 22.23.4). Then the extension's own client code
+  (domain/lsp.py's framing and messages) over `--stdio`, with a scratch HOME: `initialize` answered serverInfo
+  "GitHub Copilot Language Server" 1.572.0 and capabilities executeCommandProvider, inlineCompletionProvider,
+  notebookDocumentSync (notebook "*"), textDocumentSync (openClose, change 2: incremental), workspace; after
+  `initialized` it asked `workspace/configuration` (answered telemetry off) and sent `didChangeStatus` "You are
+  not signed into GitHub."; `checkStatus` {localChecksOnly} answered `{"status": "NotSignedIn"}`; `shutdown`
+  answered null and `exit` ended it with code 0. Its package is MIT; its README points at GitHub Copilot's terms.
+- Everything else against tests/copilot_standin.py (a stdio LSP server written from the README's messages, sharing
+  no code with the client): tests/test_copilot_rules.py (framing in pieces and together, Content-Type read past,
+  bad headers refused, UTF-16 positions, incremental changes, the documents mirrored as text documents and as a
+  notebook with structure and text changes, the oldest closed, items read with their commands kept server-side,
+  account and device-flow answers, Node.js's version and missing answer, the pinned install's command line) and
+  tests/test_copilot.py (off: a 404 naming the extension and no provider in the modes; on: the provider in every
+  mode and the panel route in the listing; before sign-in nothing is started; the device flow and the
+  showDocument answer; sign-in/out the user's (403 for the agent, no code in the agent's panel); no plan said;
+  a script opened, changed and completed with didFocus first; a notebook cell with its other code cells; shown,
+  partial and accepted told back; a completion cancelled by $/cancelRequest; Off stops the server and sends
+  nothing; a private project closes what was open and sends no didOpen or completion, and comes back when not
+  private; the agent's private switch waits for Allow; the install's npm command line into the state folder and
+  the agent's install waiting for Allow (a fake npm); Node.js missing is the missing-tool answer; no code, token,
+  the server's log or a document's text in any answer, copilot.json or the audit log; the agent's three commands;
+  the server ended with shutdown and exit when the app stops).
+- In Chromium (tests/e2e/test_copilot_page.py, the stand-in behind a real server): ghost text in a notebook cell,
+  Tab takes it and the accept command reaches the server; a SQL cell's ghost text, Esc lets it go; a script's
+  two-line ghost text, Tab takes it; the status bar's "Completions: GitHub Copilot · on/off" and its click (nothing
+  asked while off); the project group's Private switch writes `.sab/project.json` and the status bar says private
+  and nothing is sent; the Extensions card's Sign in, the code, Open github.com/login/device (routed in the test:
+  nothing leaves), signed in, On; Settings' panel and its On switch. Screenshots in scratchpad b/shots-copilot.
+
+NOT checked: a real completion, sign-in or sign-out with the real server (needs a GitHub Copilot plan), Monaco's
+Alt+] / Alt+[ cycling and Ctrl+Right partial accept in the browser (Monaco's own keys; the partial report is
+tested over HTTP), Windows and macOS, Edge, the extension's wheel built by build.py and installed from a release.

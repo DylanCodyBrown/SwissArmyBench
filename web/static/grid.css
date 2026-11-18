@@ -14680,3 +14680,44 @@ dialog.new-project .dialog-body {
 .setup-fix select {
   min-width: 12em;
 }
+
+/* ===== an extension's own panel (extensionPanel.ts): on its card and in Settings ===== */
+.extension-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.extension-panel-line {
+  margin: 0;
+}
+.extension-panel-line.tone-ok {
+  color: var(--ok);
+}
+.extension-panel-line.tone-warn {
+  color: var(--warn);
+}
+.extension-panel-line.tone-error {
+  color: var(--error);
+}
+.extension-panel-controls,
+.extension-panel-code,
+.extension-panel-busy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.extension-panel-usercode {
+  font-size: 18px;
+  letter-spacing: 2px;
+  user-select: all;
+}
+.extension-settings {
+  display: contents;
+}
+/* The editors' ghost text provider in the Workbench's status bar (inlineCompletion.ts). */
+.inline-status[data-ready="false"] {
+  color: var(--muted);
+}

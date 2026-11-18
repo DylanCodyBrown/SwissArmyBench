@@ -55,7 +55,7 @@ installed once per machine as a uv tool (`uv tool install "<wheel>[server]"`), s
   Read "edition" in this rule as "extension": its code is backend and manifest only. **Today (the owner,
   2026-11-17: "It's not an edition now it's the streamlit extension. Preinstalled"):** the app is **Swiss Army
   Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
-  Extensions page lists the extensions (Streamlit preinstalled; Accounting and Power Apps available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
+  Extensions page lists the extensions (Streamlit preinstalled; Accounting, Power Apps and GitHub Copilot available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
 - **A blade's code is edited in its file, never in the app (the owner, 2026-11-17: "the code box is read
   only though blades can only be edited in the folder not from the app").** The blade screen shows the code
@@ -376,7 +376,7 @@ src/swissarmybench/
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
                          update's plan (uv tool install --force, each installed extension `--with`), the tray's menu
-    extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps available), statuses
+    extensions.py        extensions: the catalog (streamlit preinstalled; accounting, powerapps, copilot available), statuses
                          (preinstalled, available, installed, coming), an entry point's description read loosely,
                          the wheel on this version's GitHub release, Install's and Remove's plan
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
@@ -834,6 +834,8 @@ web/static/              index.html, grid.css (all theme tokens), build/ (gitign
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
+                         copilot_standin.py (GitHub's Copilot Language Server stood in for: stdio LSP, a made-up
+                         device flow and made-up suggestions),
                          test_architecture.py (the layers, the depth, the plain client),
                          lake_standins.py (Entra, the ADLS Gen2 DFS API over a made-up lake, OneLake, and Graph
                          for a made-up SharePoint site, all on 127.0.0.1),
@@ -943,6 +945,33 @@ extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; en
     adapters/environment_api.py  a connector's definition from the connectivity service (pac's token, in memory)
     server/routes.py     /powerapps/* and the dev server's live pages (/powerapps/live/<key>/, the live proxy)
     starters/            TypeScript and React snippet starters (families TypeScript, React, Connectors)
+extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; entry point copilot =
+                         swissarmybench_copilot.extension; no project type): Copilot's ghost text in the Workbench's
+                         editors through GitHub's Copilot Language Server (npm @github/copilot-language-server,
+                         MIT, pinned; installed by the extension into the state folder's copilot/, run by Node.js
+                         20.8+); off until installed and signed in; nothing sent for a project marked private
+  src/swissarmybench_copilot/
+    extension.py         ID, NAME, ADDS, INLINE_COMPLETION (the editors' routes, as data), PANEL (its card's and
+                         Settings' panel route), AREAS, SESSION_RULES, routes, stop, commands
+    commands.py          copilot_status, copilot_toggle, copilot_install (Allow); sign-in is the user's only
+    domain/lsp.py        the protocol: Content-Length framing, initialize, telemetry off, UTF-16 positions,
+                         incremental changes, inline completion's parameters and items, signIn/checkStatus read
+    domain/documents.py  the documents mirrored into the server: a script as a text document, a notebook as a
+                         notebook of its code cells (made-up file:///swissarmybench/<key>/ addresses)
+    domain/tools.py      Node.js and npm (the Power Apps extension's install commands and missing answer), the
+                         pinned npm install
+    adapters/language_server.py  the server as a child process (stdio; its logs dropped), the install, the
+                         stand-in (SWISSARMYBENCH_COPILOT_STANDIN: tests/copilot_standin.py)
+    services/copilot.py  one server per app: start, sign in (device flow), the On switch, private projects,
+                         complete, cancel, shown/accepted/partial, the panel as data
+    server/routes.py     /copilot/*
+web/src/inlineCompletion.ts ghost text from the provider the mode declares (`inline_completion`: its routes): the
+                         ask (cancelled with Monaco's token), the shown/accepted/partial report, the status bar's
+                         "Completions: <name> · on/off" (a click toggles); lazy/codeEditor.ts registers Monaco's
+                         inline completions provider for Python and SQL (an editor's `inline: inlineSource(...)`)
+web/src/extensionPanel.ts an extension's panel drawn from its data (lines, switches, actions, a code and a page to
+                         open): on its Extensions card and in Settings; projectFile.ts privateSwitch (the project
+                         group's Private: POST /project/private)
 web/src/codeAppPage.ts   (a plug-in) the rail's Code App page: tools, sign-in, project, connectors (the APIs
                          explorer's look), Run live's pane, Push, custom connectors, runs; shown while on
 web/src/routedCells.ts   a cell another kernel runs, by the routes the mode declares (MODE cell_routes): a run's

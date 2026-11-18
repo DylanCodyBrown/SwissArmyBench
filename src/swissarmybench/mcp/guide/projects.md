@@ -35,6 +35,8 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
 - `project_new(name, type?, folder?)`: the folder made in the projects folder (or `folder`, or `path`: a
   new or empty folder), scaffolded (data.ipynb with the open tables, data.py, .gitignore, README.md, the
   type's own files) and opened; `.sab/` is written at once. Autosave is on unless `autosave=false`.
+- `project_private(on)` (waits for Allow): kept in .sab/project.json; a private project's documents are never
+  sent out by an extension (GitHub Copilot's completions). `project_recent` says `private`.
 - `project_open(path)`: a project's folder. A plain folder answers `not_a_project`: `make=true` makes it
   one around its files, never writing over one. With unsaved changes open it is refused: save first, or
   `discard=true` when the user said to let them go.

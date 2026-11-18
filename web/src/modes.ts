@@ -39,6 +39,20 @@ export interface Mode {
   cell_routes?: Record<string, CellRoute>;
   /** A route answering the project's files a person edits ({files}): listed with the project's own. */
   project_files?: string;
+  /** The editors' ghost text: each provider an extension that is on offers (inlineCompletion.ts). */
+  inline_completion?: InlineProvider[];
+}
+
+/** An inline completion provider, as the backend declares it: its name, languages and routes. */
+export interface InlineProvider {
+  id: string;
+  name: string;
+  languages: string[];
+  complete: string;
+  cancel: string;
+  event: string;
+  status: string;
+  toggle: string;
 }
 
 export interface ActiveMode {
