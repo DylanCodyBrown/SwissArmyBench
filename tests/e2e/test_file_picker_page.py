@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Route, expect
+from playwright.sync_api import Error as PlaywrightError
 
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
@@ -86,7 +87,13 @@ def workspace(browser: Browser, server: dict[str, Any], dark: bool = False, widt
 
 
 def start_view(page: Page, server: dict[str, Any]) -> None:
-    page.goto(url(server, "?view=start"))
+    # The page may still be settling its own address (a table just opened); a load that lands on that
+    # moment is aborted (net::ERR_ABORTED), so wait for it to go quiet and try once more.
+    page.wait_for_load_state("networkidle")
+    try:
+        page.goto(url(server, "?view=start"))
+    except PlaywrightError:
+        page.goto(url(server, "?view=start"))
     expect(page.locator("#start-view")).to_be_visible(timeout=20000)
 
 
