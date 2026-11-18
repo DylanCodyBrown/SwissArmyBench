@@ -550,6 +550,26 @@ found in the code; secrets travel as names only.
 the app can open and check, kept in folders or a Git repository the team already uses.
 - The owner (2026-11-13): "if I discover a relationship my coworkers have no way of knowing"
 
+**12.7 `${NAME}` puts a variable anywhere a value is typed** (the owner, 2026-11-18: "everything in a connection
+should have the option for a env variable ... a reserved char that allows us to use env variable almost
+anywhere in the app", like SSRS's expressions). Every connection field, an API's address and headers, a blade's
+settings, a path, Run settings, a project setting and a SQL query take `${NAME}`, mixed with text
+(`https://${TENANT}.sharepoint.com/sites/${SITE}`), with a default (`${PORT:-5432}`).
+- **One box, not pickers** (the owner: "The drop downs were for the connections ... they take up space when a ${
+  could be used"): a field is one text box holding a value or `${NAME}`; no "from" drop-down, no vault and entry
+  drop-downs beside it. Where NAME's value comes from (the keyring, a vault's entry, the environment, a plain
+  value) is set once, on the Variables page, for every place that uses it. Typing `${` offers the variables; the
+  field shows what it resolves to here (a secret never).
+- **A `$` is never touched by accident:** only `${` + a name (a letter or `_`, then letters, digits, `_`) + `}`
+  is a reference; `pa$$word`, `Sheet1$`, `[Orders$]` and `${not a name}` stay as typed; `$${NAME}` is a literal
+  `${NAME}`, shown as such. Only typed text is read: a value that came from a variable (a password holding
+  `${X}`) is used exactly as stored, and nothing is expanded twice.
+- **SQL:** a reference outside quoted strings and comments is sent as a bound parameter, never pasted into the
+  query's text, so a value cannot change what the query does.
+- **Resolved on each computer, at use:** the library, a shared project and the meta store hold `${NAME}`, never
+  its value; an export writes `os.environ["NAME"]`, which a Function App's settings give (12.3, the portability
+  rule). A variable not set here is one error (9.5): "NAME is not set on this computer", with Set it.
+
 ## 13. Engineering rules that shape the product
 
 - **Typed code, strict checks:** type hints everywhere; strict type checking and a linter before each
