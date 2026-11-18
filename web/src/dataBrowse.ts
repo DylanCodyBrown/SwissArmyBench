@@ -151,6 +151,8 @@ export interface Browse {
   select: (key: string) => void;
   /** Focus the tree: the selected item, else the first. */
   focus: () => void;
+  /** The selected table's detail drawn again (its actions follow what changed: the Workbench's front document). */
+  redetail: () => void;
 }
 
 export function mountBrowse(ctx: BrowseContext): Browse {
@@ -557,6 +559,11 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       const node = (li as HTMLElement & { node?: Node }).node;
       if (node) select(node);
       li.focus();
+    },
+    redetail: () => {
+      const li = selectedKey ? tree.querySelector<HTMLElement>(`[data-key="${CSS.escape(selectedKey)}"]`) : null;
+      const node = li ? (li as HTMLElement & { node?: Node }).node : undefined;
+      if (node && node.kind === "table" && node.result && !detail.hidden) void showDetail(node.result, node);
     },
     select: (key) => {
       const li = tree.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);

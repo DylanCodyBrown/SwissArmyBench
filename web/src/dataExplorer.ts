@@ -639,7 +639,8 @@ export function mountExplorer(host: ExplorerHost): Explorer {
         results.scrollTop = scroll;
       });
     },
-    refresh: () => void search(true),
+    // The tree and, in browse, the open table's detail (Insert follows the Workbench's front document).
+    refresh: () => void search(true).then(() => browse?.redetail()),
     answer: () => last,
   };
 }
