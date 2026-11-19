@@ -4,10 +4,10 @@ Each grid page holds one WebSocket. On a push the server sends
 {"type": "dataset_updated", "dataset": "orders", "version": 4} to all of them, and each page
 refetches only if the dataset is its own. Like a SignalR hub with one broadcast method.
 
-Swiss Army Bench lives in VS Code: each VS Code window's extension holds one more socket, as an
-opener (/ws?opener=1). When a push finds nothing on screen, the server asks the window the user
-was last in to show the workspace, so no caller ever opens a browser of its own. The openers are
-also how a server VS Code started knows VS Code has closed (`openers_gone_for`).
+When a push (or the agent's open_grid) finds nothing on screen, the grid is shown: a VS Code window's
+extension (it holds one more socket, as an opener: /ws?opener=1) is asked first, the one the user was last
+in; with none, the desktop app opens the workspace (`fallback`, set by the running server: the browser where
+the app cannot run). No caller ever opens a window of its own.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+from collections.abc import Callable
 from time import monotonic
 from typing import Any
 
@@ -47,12 +48,13 @@ class LiveUpdates:
         self._catalogs: set[WebSocket] = set()
         # The VS Code windows, the one the user was last in at the end.
         self._openers: list[WebSocket] = []
-        # When the last VS Code window left (from the start, until the first one arrives).
-        self._openers_left_at: float = monotonic()
         # The app's windows (pages: not VS Code's openers, not the agent's event socket): the server's life.
         self._pages: set[WebSocket] = set()
         # Counted at every notice: context.md (services/context_md.py) looks again only after one.
         self.changes = 0
+        # With no VS Code window to ask: the address shown elsewhere (the desktop app, else the browser);
+        # True when it was. The running server sets it (server/__main__.py); none in tests.
+        self.fallback: Callable[[str], bool] | None = None
 
     def add(
         self,
@@ -95,8 +97,6 @@ class LiveUpdates:
             self._workbenches.remove(websocket)
         if websocket in self._openers:
             self._openers.remove(websocket)
-            if not self._openers:
-                self._openers_left_at = monotonic()
 
     def focus(self, websocket: WebSocket) -> None:
         """A VS Code window came to the front: it shows the next grid that needs a window. A Workbench
@@ -115,10 +115,6 @@ class LiveUpdates:
     def openers(self) -> int:
         """How many VS Code windows are connected."""
         return len(self._openers)
-
-    def openers_gone_for(self) -> float:
-        """Seconds since the last VS Code window left (0 while one is connected)."""
-        return 0.0 if self._openers else monotonic() - self._openers_left_at
 
     def watching(self, grid: str) -> bool:
         """True when an open page shows this grid."""
@@ -174,15 +170,21 @@ class LiveUpdates:
         return False
 
     async def ask_opener(self, url: str) -> bool:
-        """Have the VS Code window the user was last in show `url` (the workspace). False when no
-        window is connected: the grid then waits until the next push or open finds one."""
+        """Have `url` (the workspace) shown: the VS Code window the user was last in, else the desktop app
+        (`fallback`: the browser where the app cannot run). False when nothing could show it: the grid
+        then waits until the next push or open finds a window."""
         for websocket in reversed(list(self._openers)):
             try:
                 await websocket.send_json({"type": "open_workspace", "url": url})
                 return True
             except Exception:
                 self.discard(websocket)  # a window closed mid-send: try the one before it
-        return False
+        if self.fallback is None:
+            return False
+        try:
+            return bool(await asyncio.to_thread(self.fallback, url))
+        except Exception:
+            return False
 
     async def dataset_updated(self, dataset: str, version: int) -> None:
         await self.broadcast({"type": "dataset_updated", "dataset": dataset, "version": version})

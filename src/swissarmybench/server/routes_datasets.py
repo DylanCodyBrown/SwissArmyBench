@@ -10,6 +10,8 @@
   POST   /datasets/{name}/drop?filename=&sheet=   a file dropped on the page: its bytes, read in memory
   POST   /files/dropped-sheets?filename=          a dropped workbook's sheet names (its bytes)
   POST   /datasets/{name}/paste         tab-separated text copied from Excel
+  POST   /grids/reopen                  Ctrl+Shift+T: the last closed tab again, its steps kept (tabs_reopen)
+  POST   /datasets/{name}/reload        {"not_now"?} its file changed on disk: read again (tabs_reload)
   POST   /datasets/{name}/query         {"sql": "SELECT ...", "replace": bool} the "+" tab's table
 
 A push reuses the dataset's first grid (that grid hot-reloads in place) unless new_grid=1.
@@ -163,6 +165,20 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    async def reload(request: Request) -> Response:
+        try:
+            body = await read_json(request) if (await request.body()) else {}
+            not_now = isinstance(body, dict) and body.get("not_now") is True
+            return json_response(await datasets.reload(request.path_params["name"], actor(request), not_now))
+        except Exception as error:
+            return error_response(error)
+
+    async def reopen(request: Request) -> Response:
+        try:
+            return json_response(await datasets.reopen(actor(request)))
+        except Exception as error:
+            return error_response(error)
+
     async def rename(request: Request) -> Response:
         try:
             body = await read_json(request)
@@ -196,6 +212,8 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
         Route("/datasets/{name}/load", load, methods=["POST"]),
         Route("/datasets/{name}/paste", paste, methods=["POST"]),
         Route("/datasets/{name}/rename", rename, methods=["POST"]),
+        Route("/grids/reopen", reopen, methods=["POST"]),
+        Route("/datasets/{name}/reload", reload, methods=["POST"]),
         Route("/datasets/{name}/query", build_from_query, methods=["POST"]),
         Route("/files/sheets", sheets, methods=["POST"]),
         Route("/datasets/{name}/drop", drop, methods=["POST"]),

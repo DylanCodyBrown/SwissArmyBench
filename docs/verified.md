@@ -3368,3 +3368,43 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
 - **Contrast:** --busy-spin against --raised and --busy-track in all four themes (test_contrast.py).
 - **Not checked:** the desktop app (Qt WebEngine) by hand; a screen reader's reading of the progressbar's name;
   Cancel against a real slow route (no route has a server-side cancel yet).
+
+## Desktop quick wins and desktop enhancements (2026-11-18, branch desktop-wins)
+
+- **Startup time:** `python -X importtime -c "import swissarmybench.server.__main__"`, warm: 0.54-0.56 s cumulative
+  before, 0.13 s after; a process importing it (five runs): 0.60-0.66 s before, 0.16-0.19 s after.
+- **Unit:** tests/test_client_install.py (no VS Code window: the fallback shows the workspace; VS Code asked first;
+  a failing fallback is False), tests/test_desktop.py (`show`: the app, else the browser; `stop` quits the app over
+  a real channel, then the server), tests/test_desktop_rules.py (`{"quit": true}`), tests/test_updater.py (the
+  helper asks the app to quit before any kill; it ends one that does not quit; SystemOps.quit speaks a real
+  channel).
+- **The real app under Xvfb** (tests/test_desktop_shell.py with SAB_TEST_QPA=xcb and xvfb-run, Chromium's sandbox
+  off): one window from the start (Starting…, then the home page in it); Print to PDF with a Save dialog that takes
+  2 s: the PDF is Letter landscape (792 x 612) and the page's afterprint came while its print layout was still on;
+  the app process quit over its channel exits 0 with windows.json holding home, catalog and workbench.
+  Before the fix the same probe gave an A4 PDF (594.96 x 840.96) and no afterprint.
+- **A push with only the server running** (no window, no VS Code; Xvfb): the push answered in 0.36 s and the
+  desktop app opened on the grid ("Grid"); `quit_app` then ended it.
+- **VS Code extension:** `npm run typecheck`, `npm test` (17 passing: the Open command line, pythonw.exe on
+  Windows, the old tool's module, no Chrome and no chromePath). The button was not clicked in a real VS Code.
+- **Part B, unit:** tests/test_desktop_wins.py (the closed tabs kept and which comes back, the last twenty; POST
+  /grids/reopen and `tabs_reopen` for a closed tab and a closed file, steps kept; the file watch said once,
+  `changed_on_disk`, Reload in place with the step kept and `tabs_reload`, Not now, a second change; a file's
+  kind and table name; the channel's `{"file"}` takes a full path only; file_page against the server (the
+  origin the file, a second open beside the first, a notebook's `/workbench?file=`); `swissarmybench open
+  <file>` to the app and with --browser; hand_file starting the app; the installers' Open with text),
+  tests/test_desktop.py (install.sh on Linux: `open %f`, MimeType, the blade MIME package, removed by
+  --uninstall).
+- **Part B, the real app (Xvfb and off screen):** a file handed over the channel and one dropped on the home
+  window (a QDropEvent with the file's URL) both open as tables whose origin is their file; Ctrl+Tab moves the
+  front tab, Ctrl+W closes it and the window stays, Ctrl+Shift+T brings it back; in the Workbench F5 leaves the
+  page (no reload) and Ctrl+W with no document closes its window.
+- **Part B, in the browser (Chromium):** tests/e2e/test_desktop_keys_page.py: in a browser Ctrl+Tab moves nothing;
+  with `sabApp` stood in, Ctrl+Tab and Ctrl+Shift+Tab, Ctrl+W (a tab, the draft, then the window), Ctrl+Shift+T
+  with the step back, Ctrl+T's draft, the palette's Ctrl+Shift+T; a file changed on disk shows the dot and the
+  bar, Reload reads it again with the step kept, Not now keeps it.
+- **Not checked:** the Windows registry and the macOS bundle (their text only); a real Finder or Explorer Open
+  with; a drop from a real file manager (a synthesized QDropEvent here); drag out (not built).
+- **Whole suite (Chromium; three other agents' suites running on the same machine):** 4446 passed, 46 skipped,
+  3 failed; all three passed alone: test_copilot_page's private project, test_table_cells_page's maker that
+  stays put, test_table_cells_live's cell run twice in a real kernel.

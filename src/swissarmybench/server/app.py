@@ -44,7 +44,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
   routes_script_runs.py    a script's run settings, Run as scheduled and its run history
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
-  routes_updates.py        the update check, its Settings switch, Update to X, the tray's menu
+  routes_updates.py        the update check, its Settings switch, Update to X
   routes_extensions.py     the Extensions page: the catalog, Install and Remove (the updater's helper)
   routes_claude.py         Launch Claude: Claude Code in a terminal, or Claude Desktop (the user's only)
   streamlit_proxy.py       live pages passed through under their own secret (the extensions' Streamlit and dev
@@ -251,12 +251,14 @@ def create_app(
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
+        watch = asyncio.create_task(ctx.file_watch.run_forever())  # a table's file changed on disk
         # The server's life follows the app's windows (services/lifecycle.py): only a server that can stop.
         life = asyncio.create_task(ctx.lifecycle.run_forever()) if on_shutdown is not None else None
         yield
         if life is not None:
             life.cancel()
         shared.cancel()
+        watch.cancel()
         context_md.cancel()
         autosave.cancel()
         pruner.cancel()

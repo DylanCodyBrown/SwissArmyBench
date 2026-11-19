@@ -31,6 +31,7 @@
  *          [PREVIEW BANNER] per pane -> state.setPreview(null)
  *          [EMPTY STATE]    -> read-only, when no grid is open
  */
+import { changedOnDisk, drawDiskBar, onFileChanged } from "./fileChanged";
 import { api, onNotice, token, useGrid } from "./api";
 import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { createGridView, setActiveView, type GridView } from "./gridView";
@@ -77,6 +78,11 @@ export function showGridView(how: Move = "auto"): void {
  *  are a page of their own: projectsPage.ts). */
 export function showGridsLanding(how: Move = "auto"): void {
   setView("grids", how);
+}
+
+/** What the page shows: a grid, the query draft, Visualizations, the ERD or the Grids landing. */
+export function currentView(): AppView {
+  return view;
 }
 
 /** The Grids landing: a table that arrives takes its place. */
@@ -420,6 +426,14 @@ onConnectionColours(() => {
 onNotice((notice) => {
   if (notice.type === "table_connection" || notice.type === "dataset_updated" || notice.type === "dataset_renamed" || notice.type === "project_changed") refreshSources();
 });
+// A table's file changed on disk (fileChanged.ts): its tab's mark and its pane's bar.
+onFileChanged(() => {
+  for (const ctx of contexts.values()) {
+    const slot = ctx.pane?.querySelector<HTMLElement>(".disk-slot");
+    if (slot) drawDiskBar(slot, ctx.dataset);
+  }
+  if (order.length) render();
+});
 
 const collapsedGroups = new Set<string>(((): string[] => {
   try {
@@ -522,12 +536,15 @@ function ensurePane(ctx: Context): HTMLElement {
     h("span", { class: "spacer" }),
     button("Close this side", () => unsplit(split?.find((g) => g !== ctx.id) ?? ctx.id), { icon: "close", class: "ghost small" }),
   );
-  // queryTab.ts draws a built table's query tray here: its base data, above everything else.
+  // fileChanged.ts: its file changed on disk (Reload, Not now), above everything else.
+  const diskSlot = h("div", { class: "disk-slot" });
+  drawDiskBar(diskSlot, ctx.dataset);
+  // queryTab.ts draws a built table's query tray here: its base data.
   const querySlot = h("div", { class: "query-slot" });
   const slot = h("div", { class: "preview-slot" });
   // compare.ts draws the cross-compare banner ("Showing 2 rows with key 42 · Clear") here.
   const compareSlot = h("div", { class: "compare-slot" });
-  ctx.pane = h("section", { class: "pane", "data-grid": ctx.id, hidden: true }, head, querySlot, slot, compareSlot, host);
+  ctx.pane = h("section", { class: "pane", "data-grid": ctx.id, hidden: true }, head, diskSlot, querySlot, slot, compareSlot, host);
   ctx.pane.addEventListener("pointerdown", () => { if (activeId !== ctx.id) void activateGrid(ctx.id); }, true);
   panesHost.append(ctx.pane);
   const view = createGridView(host, ctx.state);
@@ -820,6 +837,7 @@ function tabFor(id: string): HTMLElement {
     },
     inSplit ? h("span", { class: "split-mark", "aria-label": "side by side" }, "◫") : null,
     h("span", { class: "tab-label", title: "Double-click to rename the table" }, label(id)),
+    changedOnDisk(contexts.get(id)!.dataset) ? h("span", { class: "tab-changed", title: "Changed on disk", "aria-label": "Changed on disk" }) : null,
     closeButton(id, selected),
   );
   const connection = sources.get(contexts.get(id)!.dataset)?.connection;

@@ -10,8 +10,10 @@
 #
 # Swiss Army Bench is a desktop app (PySide6; its pages in Qt WebEngine) over a local server that runs while it
 # is open. The installer adds a Start menu shortcut with the app's icon (the tool's pythonw.exe: no console
-# window), takes away what an earlier version left (a .sab registration, the tray's Startup shortcut), and
-# opens the app once at the end: never on a build machine (CI set). -NoAutostart (the tray's, gone) is taken.
+# window), registers it for this user (HKCU) to open .csv, .parquet, .xlsx, .ipynb and .py files (Open with,
+# never the default: a .blade.py is a .py to Windows), takes away what an earlier version left (a .sab
+# registration, the tray's Startup shortcut), and opens the app once at the end: never on a build machine (CI
+# set). -NoAutostart (the tray's, gone) is taken.
 param([string]$Wheel = "", [switch]$NoStart, [switch]$NoAutostart, [switch]$DesktopShortcut, [switch]$Uninstall)
 
 $ErrorActionPreference = "Stop"
@@ -46,12 +48,35 @@ $StartShortcut = Join-Path $Programs "Swiss Army Bench.lnk"
 $DesktopLink = Join-Path ([Environment]::GetFolderPath("Desktop")) "Swiss Army Bench.lnk"
 $OldStartup = Join-Path $Programs "Startup\Swiss Army Bench.lnk"  # the tray's start at sign-in, gone
 $IconFile = Join-Path $env:LOCALAPPDATA "SwissArmyBench\swissarmybench.ico"
+# Open with, for this user only (HKCU): the app is offered for these files, never made their default.
+$Classes = "HKCU:\Software\Classes"
+$FileProgId = "SwissArmyBench.File"
+$OpenWithTypes = @(".csv", ".parquet", ".xlsx", ".ipynb", ".py")
+function UnregisterOpenWith {
+    foreach ($ext in $OpenWithTypes) {
+        $key = "$Classes\$ext\OpenWithProgids"
+        if (Test-Path $key) { Remove-ItemProperty -Path $key -Name $FileProgId -ErrorAction SilentlyContinue }
+    }
+    if (Test-Path "$Classes\$FileProgId") { Remove-Item -Path "$Classes\$FileProgId" -Recurse -Force }
+}
+function RegisterOpenWith([string]$Pythonw) {
+    New-Item -Path "$Classes\$FileProgId" -Value "Swiss Army Bench" -Force | Out-Null
+    $command = "`"$Pythonw`" -m swissarmybench.server open `"%1`""
+    New-Item -Path "$Classes\$FileProgId\shell\open\command" -Value $command -Force | Out-Null
+    if (Test-Path $IconFile) { New-Item -Path "$Classes\$FileProgId\DefaultIcon" -Value "$IconFile,0" -Force | Out-Null }
+    foreach ($ext in $OpenWithTypes) {
+        $key = "$Classes\$ext\OpenWithProgids"
+        if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+        New-ItemProperty -Path $key -Name $FileProgId -Value "" -PropertyType String -Force | Out-Null
+    }
+}
 
 if ($Uninstall) {
     foreach ($link in @($StartShortcut, $DesktopLink, $OldStartup)) {
         if (Test-Path $link) { Remove-Item -Force $link }
     }
     if (Test-Path $IconFile) { Remove-Item -Force $IconFile }
+    try { UnregisterOpenWith } catch { }
     if (Get-Command swissarmybench -ErrorAction SilentlyContinue) { Quiet { swissarmybench stop } }
     if (Get-Command uv -ErrorAction SilentlyContinue) { Quiet { uv tool uninstall swissarmybench } }
     Write-Host "Swiss Army Bench is removed (its shortcuts and its tool). Your projects and .swissarmybench are kept."
@@ -113,8 +138,9 @@ if ((ListTools) -match '^swissarmygrid ') {
 }
 
 # 4. The server, as a uv tool in its own environment. Windows will not replace files a running program has
-#    open, so whatever runs from the installed copy stops first: the server (asked politely), its tray, and
-#    any agent tool (MCP) server an editor started from it.
+#    open, so whatever runs from the installed copy stops first: the app and its server (`swissarmybench stop`
+#    quits the app over its channel, each window's place kept, then stops the server), and any agent tool
+#    (MCP) server an editor started from it.
 function ToolDir {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -208,6 +234,8 @@ if ($Pythonw -and (Test-Path $Pythonw)) {
         $s.Save()
     }
     Write-Host "Swiss Army Bench is in the Start menu."
+    try { RegisterOpenWith $Pythonw; Write-Host "Open with: Swiss Army Bench, for .csv, .parquet, .xlsx, .ipynb and .py files." }
+    catch { Write-Host "Open with could not be registered: $_" }
     # 7. Open the app once (not on a build machine).
     if (-not $NoStart -and -not $BuildMachine) {
         Start-Process -FilePath $Pythonw -ArgumentList "-m", "swissarmybench.server", "app"

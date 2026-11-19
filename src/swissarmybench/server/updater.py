@@ -6,7 +6,8 @@ The running app cannot replace its own files (on Windows a running program's fil
     the server: plan (domain/updates.py) -> this file and the plan copied to a temporary folder ->
                 started with the base Python (outside the uv tool's environment, which uv replaces),
                 detached and with no window -> the server stops
-    the helper: wait for the server to end, end the desktop app -> uv tool install --force ->
+    the helper: wait for the server to end, the desktop app asked to quit (its channel: each window's place
+                kept), ended when it does not -> uv tool install --force ->
                 the installed version checked -> the app started again (the new version's window)
     on a failure: a note of why (update_failed.json, which the next server reads and shows), then the
                 old version started again, reinstalled first when it no longer starts
@@ -23,6 +24,7 @@ import functools
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -33,7 +35,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 WAIT_FOR_EXIT_SECONDS: float = 60.0
-END_GRACE_SECONDS: float = 3.0  # the app may close by itself first (its server stopped)
+END_GRACE_SECONDS: float = 5.0  # the app asked to quit closes its windows first (their places kept)
 WAIT_FOR_START_SECONDS: float = 90.0
 INSTALL_ATTEMPTS: int = 3
 INSTALL_TIMEOUT_SECONDS: float = 900.0
@@ -71,6 +73,8 @@ class Ops(Protocol):
     def fetch(self, url: str, folder: str) -> str: ...
 
     def end(self, pid: int) -> None: ...
+
+    def quit(self, record: str) -> bool: ...
 
 
 def _tail(text: str, lines: int = 12) -> str:
@@ -119,7 +123,14 @@ def run(plan: dict[str, Any], ops: Ops, done: list[str] | None = None) -> str:
             ops.note(plan["note_file"], {"version": version, "reason": "The app did not stop."})
             return "failed"
     for pid in plan.get("end_pids", []):
-        # The desktop app (desktop.json): ended here; the app started again below is the new version's.
+        # The desktop app (desktop.json): asked to quit over its channel (every window closed without asking
+        # its page: the update warned in the page first; each window's place kept), ended when it does not.
+        # The app started again below is the new version's.
+        if _gone(ops, int(pid)):
+            continue
+        if plan.get("info_file"):
+            steps.append("quit")
+            ops.quit(str(Path(str(plan["info_file"])).with_name("desktop.json")))
         if waited(END_GRACE_SECONDS, functools.partial(_gone, ops, int(pid))):
             continue
         steps.append("end")
@@ -246,6 +257,25 @@ class SystemOps:
                 os.kill(pid, 15)  # SIGTERM
         except OSError:
             return
+
+    def quit(self, record: str) -> bool:
+        """The desktop app asked to quit over its channel (desktop.json: 127.0.0.1, its port and key; one line
+        of JSON each way, as adapters/desktop.py has it). True when it said it would."""
+        try:
+            said = json.loads(Path(record).read_text(encoding="utf-8"))
+            port, key = int(said["shell"]["port"]), str(said["shell"]["key"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=5) as connection:
+                connection.sendall((json.dumps({"key": key, "quit": True}) + "\n").encode("utf-8"))
+                answer = connection.makefile("rb").readline(65536)
+        except OSError:
+            return False
+        try:
+            return bool(json.loads(answer.decode("utf-8") or "null") == {"ok": True})
+        except (UnicodeDecodeError, ValueError):
+            return False
 
     def run(self, command: list[str], environ: dict[str, str]) -> tuple[int, str]:
         flags = CREATE_NO_WINDOW if sys.platform == "win32" else 0

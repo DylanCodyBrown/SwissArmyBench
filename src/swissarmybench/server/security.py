@@ -18,14 +18,14 @@ request and either short-circuits with a status code or passes it on. Two checks
    cookie `sab_<port>`: HttpOnly (the page's script cannot read it), SameSite=Strict (the browser
    sends it on no request another site starts), Path=/, no Secure (plain http on 127.0.0.1). Its
    value is not the token but a separate random secret made at each start and kept in memory only:
-   a restart ends it, and the page then needs the token again, which `start`, `open` and the tray
+   a restart ends it, and the page then needs the token again, which `start`, `open` and the app
    give. The cookie counts only with the Host and Origin checks above, and on an unsafe method
    (POST, PUT, PATCH, DELETE) only with our own Origin header present (defence in depth beside
    SameSite). The websocket takes it too. The agent, the push client and VS Code keep the Bearer
    token from the connection file.
 
 A page asked for in the browser (GET, Accept: text/html) with no token and no valid cookie gets a
-plain page that says how to open the app (its tray icon, `swissarmybench open`), not the 401 text.
+plain page that says how to open the app (its launcher, `swissarmybench open`), not the 401 text.
 
 A notebook's live Streamlit pages (/streamlit/live/<app>-<secret>/..., server/streamlit_proxy.py)
 skip the token check too, for any method and for their websocket: a frame's address cannot carry a
@@ -66,7 +66,7 @@ SIGNED_OUT_PAGE: str = (
     "<!doctype html><html><head><meta charset='utf-8'><title>Swiss Army Bench</title>"
     "<style>body{font:15px system-ui,sans-serif;margin:48px;color:#1c2228;background:#eef1f4}"
     "@media(prefers-color-scheme:dark){body{color:#e6e9ec;background:#1c2228}}code{font-size:14px}</style>"
-    "</head><body><p>Open Swiss Army Bench from its tray icon, or run <code>swissarmybench open</code>.</p>"
+    "</head><body><p>Open Swiss Army Bench from its launcher, or run <code>swissarmybench open</code>.</p>"
     "</body></html>"
 )
 UNSAFE_METHODS: frozenset[str] = frozenset({"POST", "PUT", "PATCH", "DELETE"})

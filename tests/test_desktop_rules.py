@@ -189,9 +189,11 @@ def test_the_record_and_the_messages() -> None:
     line = rules.message(key, {"open": f"{OURS}/workspace#token=secret"})
     assert rules.read_message(line, key) == {"open": "/workspace"}
     assert rules.read_message(rules.message(key, {"status": True}), key) == {"status": True}
+    # `swissarmybench stop` and an update's helper: the app quits cleanly.
+    assert rules.read_message(rules.message(key, {"quit": True}), key) == {"quit": True}
     for bad in (
         rules.message("x" * 43, {"status": True}),  # another key
-        rules.message(key, {"quit": True}),
+        rules.message(key, {"quit": "yes"}),  # only {"quit": true}
         b"not json\n",
         b"[1]\n",
         b"x" * (rules.MAX_MESSAGE + 1),

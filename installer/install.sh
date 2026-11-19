@@ -11,9 +11,11 @@
 #
 # Swiss Army Bench is a desktop app (PySide6; its pages in Qt WebEngine) over a local server that runs while
 # it is open. The installer adds a launcher with the app's icon (Linux: a .desktop entry in
-# ~/.local/share/applications; macOS: "Swiss Army Bench.app" in ~/Applications), takes away what an earlier
-# version left (a .sab registration, the tray's start-at-sign-in entry), and opens the app once at the end:
-# never on a build machine (CI set) or with no display. --no-autostart (the tray's, gone) is still taken.
+# ~/.local/share/applications; macOS: "Swiss Army Bench.app" in ~/Applications), registers it for this user
+# to open .csv, .parquet, .xlsx, .ipynb and .blade.py files (Open with; the default only for .blade.py), takes
+# away what an earlier version left (a .sab registration, the tray's start-at-sign-in entry), and opens the app
+# once at the end: never on a build machine (CI set) or with no display. --no-autostart (the tray's, gone) is
+# still taken.
 set -eu
 
 wheel_arg=""
@@ -42,6 +44,9 @@ DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
 DESKTOP_ENTRY="$DATA/applications/swissarmybench.desktop"
 ICON="$DATA/icons/hicolor/scalable/apps/swissarmybench.svg"
 MAC_APP="$HOME/Applications/Swiss Army Bench.app"
+# Open with (Linux): the file types the app opens; a blade's own type (*.blade.py), whose default it is.
+MIME_FILE="$DATA/mime/packages/swissarmybench-files.xml"
+MIME_TYPES="text/csv;application/vnd.apache.parquet;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/x-ipynb+json;application/x-swissarmybench-blade;inode/directory;"
 
 # What an older version's tray left: its start-at-sign-in entry (only when it is the tray's).
 remove_old_tray() {
@@ -55,7 +60,8 @@ remove_old_tray() {
 }
 
 remove_launcher() {
-  rm -f "$DESKTOP_ENTRY" "$ICON"
+  rm -f "$DESKTOP_ENTRY" "$ICON" "$MIME_FILE"
+  update-mime-database "$DATA/mime" >/dev/null 2>&1 || true
   update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
   rm -rf "$MAC_APP"
 }
@@ -147,6 +153,23 @@ case "$(uname -s)" in
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSUIElement</key><false/>
+  <key>CFBundleDocumentTypes</key><array>
+    <dict><key>CFBundleTypeName</key><string>Table</string><key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>CFBundleTypeExtensions</key><array><string>csv</string><string>parquet</string><string>xlsx</string></array></dict>
+    <dict><key>CFBundleTypeName</key><string>Notebook</string><key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>CFBundleTypeExtensions</key><array><string>ipynb</string></array></dict>
+    <dict><key>CFBundleTypeName</key><string>Blade</string><key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>LSItemContentTypes</key><array><string>com.swissarmybench.blade</string></array></dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key><array>
+    <dict><key>UTTypeIdentifier</key><string>com.swissarmybench.blade</string>
+      <key>UTTypeDescription</key><string>Swiss Army Bench blade</string>
+      <key>UTTypeConformsTo</key><array><string>public.python-script</string></array>
+      <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>blade.py</string></array></dict></dict>
+  </array>
 </dict></plist>
 PLIST
     printf '#!/bin/sh\nexec "%s" "$@"\n' "$exe" > "$MAC_APP/Contents/MacOS/swissarmybench"
@@ -163,13 +186,37 @@ SVG
 Type=Application
 Name=Swiss Army Bench
 Comment=Your data in live grids, notebooks and SQL
-Exec="$exe"
+Exec="$exe" open %f
 Icon=swissarmybench
 Terminal=false
 Categories=Development;Science;
 StartupWMClass=swissarmybench
+MimeType=$MIME_TYPES
 ENTRY
+    # Open with: the types it opens, for this user; the app is the default only for a blade (*.blade.py).
+    mkdir -p "$(dirname "$MIME_FILE")"
+    cat > "$MIME_FILE" <<'MIME'
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-swissarmybench-blade">
+    <comment>Swiss Army Bench blade</comment>
+    <sub-class-of type="text/x-python"/>
+    <glob pattern="*.blade.py" weight="60"/>
+  </mime-type>
+  <mime-type type="application/vnd.apache.parquet">
+    <comment>Parquet table</comment>
+    <glob pattern="*.parquet"/>
+  </mime-type>
+  <mime-type type="application/x-ipynb+json">
+    <comment>Jupyter notebook</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.ipynb"/>
+  </mime-type>
+</mime-info>
+MIME
+    update-mime-database "$DATA/mime" >/dev/null 2>&1 || true
     update-desktop-database "$DATA/applications" >/dev/null 2>&1 || true
+    xdg-mime default swissarmybench.desktop application/x-swissarmybench-blade >/dev/null 2>&1 || true
     say "The app is in your applications menu: Swiss Army Bench."
     ;;
 esac
@@ -178,6 +225,7 @@ say ""
 say "Swiss Army Bench $VERSION is installed."
 say "  Open it:               swissarmybench   (or Swiss Army Bench in your applications)"
 say "  In the browser:        swissarmybench open --browser"
+say "  A file in it:          swissarmybench open orders.csv   (or Open with: Swiss Army Bench)"
 say "  The Python client:     uv pip install \"$WHEEL\"   (in any project's environment)"
 say "  Then, in Python:       import swissarmybench as sab; sab.push(df)"
 say "  Remove it:             sh install.sh --uninstall"

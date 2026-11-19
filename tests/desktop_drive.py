@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -21,7 +22,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QUrl
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from swissarmybench.adapters.desktop import RecordFile, ask
@@ -42,6 +45,8 @@ def main(folder: Path, shots: Path | None) -> int:
 
     def save_dialog(parent: Any, title: str, start: str, filters: str) -> str:
         asked.append((title, Path(start).name))
+        if title == "Print to PDF":
+            time.sleep(2.0)  # the user choosing a name: longer than a browser page's own 1.5 s wait
         return str(saved_to / Path(start).name)
 
     app = QApplication(sys.argv[:1])
@@ -104,6 +109,8 @@ def main(folder: Path, shots: Path | None) -> int:
         results["server_started_by_shell"] = True
         wait(lambda: rules.is_ours(home.page.url().toString(), shell.port) and loaded(home), 60, "home page")
         results["home_loaded_seconds"] = round(time.monotonic() - started, 1)
+        # One window from the start: it said Starting… while the server came up, then showed the page.
+        results["windows_at_start"] = len(shell.windows)
         results["home_kind"] = home.kind
         results["home_name"] = wait(lambda: home.name, 10, "home window's name")
         results["home_title"] = home.windowTitle()
@@ -149,12 +156,35 @@ def main(folder: Path, shots: Path | None) -> int:
         results["download_show_in_folder"] = not home._status_button.isHidden()
         shot(home, "desktop-download-saved.png")
 
-        # 5. Print to PDF: the page's window.print() (Visualizations' Print to PDF calls it).
-        js(home, "setTimeout(() => window.print(), 10); true")
+        # 5. Print to PDF: the page's window.print() (Visualizations' Print to PDF calls it, its paper's
+        # @page size set and its print layout on until afterprint): the shell fires afterprint once the PDF
+        # is written.
+        results["page_knows_the_app"] = js(home, "typeof window.sabApp === 'object' && window.sabApp.app")
+        js(
+            home,
+            "window.__after = []; const st = document.createElement('style'); st.id = 'drive-page';"
+            " st.textContent = '@page { size: 11in 8.5in; margin: 0; }'; document.head.append(st);"
+            " document.body.classList.add('drive-printing');"
+            " window.addEventListener('afterprint', () => window.__after.push("
+            "document.body.classList.contains('drive-printing')), { once: true });"
+            " setTimeout(() => window.print(), 10); true",
+        )
         pdf = wait(lambda: shell.printed, 60, "the PDF")[0]
         results["print_dialog"] = asked[-1]
         results["pdf_head"] = Path(pdf).read_bytes()[:5].decode("latin-1")
         results["pdf_size"] = Path(pdf).stat().st_size
+        boxes = re.findall(rb"/MediaBox\s*\[([^\]]*)\]", Path(pdf).read_bytes())
+        results["pdf_mediabox"] = boxes[0].decode().split() if boxes else []
+        results["afterprint"] = wait(
+            lambda: (
+                js(home, "JSON.stringify(window.__after)") != "[]"
+                and js(home, "JSON.stringify(window.__after)")
+            ),
+            10,
+            "afterprint",
+        )
+        js(home, "document.getElementById('drive-page').remove();"
+           " document.body.classList.remove('drive-printing'); true")  # fmt: skip
 
         # 6. Outside addresses: the system's browser, never inside the shell.
         count = len(shell.windows)
@@ -252,6 +282,68 @@ def main(folder: Path, shots: Path | None) -> int:
             p.name for p in (info_file.parent / "desktop" / "profile").iterdir()
         )
         shot(catalog, "desktop-catalog-window.png")
+
+        # 11b. Files: one handed over the channel (`swissarmybench open <file>`), one dropped from the system
+        # on the home window: each read by its real path (its origin the file).
+        def tables() -> dict[str, Any]:
+            return {g["dataset"]: g for g in call("GET", "/grids")["grids"]}
+
+        def tab_count() -> int:
+            return int(js(home, "document.querySelectorAll('.tab-item[data-grid]').length"))
+
+        regions = folder / "regions.csv"
+        regions.write_text("region,manager\nNorth,Avery\nSouth,Blake\n", encoding="utf-8")
+        found = record.shell()
+        assert found is not None
+        results["file_answer"] = ask(found[1], found[2], {"file": str(regions)})
+        wait(lambda: "regions" in tables(), 30, "the file handed over the channel")
+        wait(lambda: js(home, "!!document.querySelector('.tab-item[title=\"regions\"]')"), 30, "its tab")
+        results["file_origin"] = tables()["regions"]["origin"]["kind"]
+        dropped = folder / "drop_me.csv"
+        dropped.write_text("sku,qty\nA-1,3\nB-2,5\n", encoding="utf-8")
+        target = home.view.focusProxy() or home.view
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(str(dropped))])
+        action = Qt.DropAction.CopyAction
+        button, none = Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+        enter = QDragEnterEvent(QPoint(60, 60), action, mime, button, none)
+        QApplication.sendEvent(target, enter)
+        results["drop_accepted"] = enter.isAccepted()
+        QApplication.sendEvent(target, QDropEvent(QPointF(60, 60), action, mime, button, none))
+        wait(lambda: "drop_me" in tables(), 30, "the dropped file")
+        results["drop_origin"] = tables()["drop_me"]["origin"]["kind"]
+        results["opened_files"] = [Path(p).name for p in shell.opened_files]
+
+        # 11c. The browser's keys are the app's: Ctrl+Tab goes round the tabs, Ctrl+W closes the one in front
+        # (not the window), Ctrl+Shift+T brings it back with its steps.
+        home.bring_forward()
+        target.setFocus()
+        wait(lambda: tab_count() >= 3, 15, "three tabs")
+        before = tab_count()
+        front = js(home, "document.querySelector('.tab-item.active')?.title")
+        ctrl, shift = Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.ShiftModifier
+        QTest.keyClick(target, Qt.Key.Key_Tab, ctrl)
+        wait(lambda: js(home, "document.querySelector('.tab-item.active')?.title") != front, 10, "Ctrl+Tab")
+        results["ctrl_tab_moved"] = True
+        QTest.keyClick(target, Qt.Key.Key_W, ctrl)
+        wait(lambda: tab_count() == before - 1, 10, "Ctrl+W closed a tab")
+        results["ctrl_w_closed_tab"] = True
+        results["ctrl_w_kept_window"] = home.ident in shell.windows and home.isVisible()
+        QTest.keyClick(target, Qt.Key.Key_T, ctrl | shift)
+        wait(lambda: tab_count() == before, 15, "Ctrl+Shift+T reopened it")
+        results["ctrl_shift_t_reopened"] = True
+        # The Workbench's F5 is its own (run), never a reload; Ctrl+W with no document closes its window.
+        wb_target = again.view.focusProxy() or again.view
+        again.bring_forward()
+        wb_target.setFocus()
+        wait(lambda: loaded(again), 60, "the Workbench again")
+        js(again, "window.__kept = 7; true")
+        QTest.keyClick(wb_target, Qt.Key.Key_F5)
+        wait(lambda: True, 1.5)
+        results["workbench_f5_kept_page"] = js(again, "window.__kept === 7")
+        QTest.keyClick(wb_target, Qt.Key.Key_W, ctrl)
+        wait(lambda: again.ident not in shell.windows, 15, "Ctrl+W closed the Workbench window")
+        results["ctrl_w_closed_empty_window"] = True
 
         # 12. Every window closed (each page asked first): the app tells the server, which stops.
         for window in list(shell.windows.values()):

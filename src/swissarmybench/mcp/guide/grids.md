@@ -14,6 +14,11 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
   tables; `datasets_open_from_python` asks one to send a table.
 - `connections_open_table` opens a database's, file's or Power BI table (topic connections).
 - `datasets_rename`, `datasets_close`, `tabs_create_grid`, `tabs_close_grid`, `tabs_cancel`.
+- `tabs_reopen`: the last closed tab again (the user's Ctrl+Shift+T), its steps kept; a closed table is read
+  again from its file.
+- A table read from a file is watched: `datasets_list` says `changed_on_disk` when its file changed since.
+  `tabs_reload` reads it again in place (its grids and steps kept); `not_now=true` keeps it as it is. Nothing
+  reloads by itself.
 
 ## Reading
 - `tabs_get`: columns, every step with its index and id, settings, the view's row count.

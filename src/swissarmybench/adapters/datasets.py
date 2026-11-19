@@ -383,6 +383,15 @@ def _from_bytes(data: bytes, filename: str) -> _Source:
     return _Source(name, suffix, len(data), lambda: io.BytesIO(data))
 
 
+def file_stamp(path_text: str) -> tuple[int, int] | None:
+    """A file's size and modification time (ns), as services/file_watch.py compares them; None: it is gone."""
+    try:
+        found = os.stat(path_text)
+    except (OSError, ValueError):
+        return None
+    return found.st_size, found.st_mtime_ns
+
+
 def load_file(path_text: str, max_bytes: int, sheet: str | None = None) -> tuple[pa.Table, str]:
     """Read a CSV, TSV, Parquet, JSON-lines, Arrow or Excel file. Returns (table, source kind).
     `sheet`: which sheet of a workbook (needed when it has more than one)."""

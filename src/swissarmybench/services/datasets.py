@@ -69,6 +69,9 @@ class DatasetService:
         self.stored: list[Callable[[str, str], Awaitable[None]]] = []
         # A query's tables named through a connection, read first (services/connection_tables.py).
         self.connection_sql: ConnectionSql | None = None
+        # A table read from a file that changed on disk since (services/file_watch.py), and its Not now.
+        self.changed_on_disk: Callable[[str], bool] = lambda name: False
+        self.not_now: Callable[[str, str], Awaitable[dict[str, Any]]] | None = None
 
     # ===== the server itself =====
 
@@ -92,6 +95,8 @@ class DatasetService:
             "size": mib(info.nbytes),
             "source_kind": info.source_kind,
             "grids": [g.id for g in self.ws.grids.for_dataset(info.name)],
+            # Its file changed on disk since it was read (services/file_watch.py): Reload or Not now.
+            "changed_on_disk": self.changed_on_disk(info.name),
         }
 
     def listing(self) -> dict[str, Any]:
@@ -100,15 +105,71 @@ class DatasetService:
     async def close(self, name: str, who: str) -> dict[str, Any] | None:
         """Close a dataset and its grids, freeing its memory. None when there is no such dataset."""
         ws = self.ws
+        info = ws.store.get(name)
         if not await ws.workers.run(INTERACTIVE, ws.store.close, name):
             return None
         ws.views.forget_dataset(name)
+        origin = self.origins.get(name)
         for grid in ws.grids.for_dataset(name):
+            # Ctrl+Shift+T: the tab comes back, the table read again from its file when it came from one.
+            ws.grids.remember_closed(grid, info.serial if info else -1, *(_file_of(origin) or (None, None)))
             ws.grids.close(grid.id)
         self.origins.forget(name)
         await ws.live.broadcast({"type": "dataset_closed", "dataset": name})
         ws.audit.write(who, "close", name)
         return {"closed": name, "budget": ws.budget()}
+
+    async def reload(self, name: str, who: str, not_now: bool = False) -> dict[str, Any]:
+        """Reload (tabs_reload): the table read again from its file, in place: its grids and their steps kept.
+        `not_now`: kept as it is (said again when the file changes again)."""
+        if not_now:
+            if self.not_now is None:
+                raise NotFound("Files are not watched here.")
+            return await self.not_now(name, who)
+        origin = self.origins.get(name)
+        found = _file_of(origin)
+        if self.ws.store.get(name) is None or found is None:
+            raise NotFound(f"No table named {name!r} read from a file is open.")
+        result = await self.load_file(name, found[0], found[1], False, who)
+        return result | {"reloaded": name}
+
+    async def reopen(self, who: str) -> dict[str, Any]:
+        """Ctrl+Shift+T (tabs_reopen): the last closed tab again, its steps and settings with it: a new grid
+        on its table while that is open, else the table read again from its file (this session's memory)."""
+        ws = self.ws
+
+        def serial_of(name: str) -> int | None:
+            info = ws.store.get(name)
+            return info.serial if info is not None else None
+
+        tab = ws.grids.take_closed(serial_of)
+        if tab is None:
+            raise NotFound("No closed table to reopen.")
+        if ws.store.get(tab.dataset) is not None:
+            grid = ws.grids.create(tab.dataset, list(tab.steps), tab.settings)
+            await ws.live.broadcast({"type": "grid_shown", "grid": grid.id, "dataset": tab.dataset})
+            shown = ws.live.shown_or_opening(grid.id) or await ws.live.ask_opener(
+                ws.addresses.workspace(grid)
+            )
+        else:
+            loaded = await self.load_file(tab.dataset, tab.path or "", tab.sheet, True, who)
+            found = ws.grids.get(str(loaded["grid"]))
+            if found is None:
+                raise NotFound("The table was read again, but its tab closed meanwhile.")
+            grid = found
+            grid.steps = list(tab.steps)
+            grid.settings = tab.settings
+            ws.views.forget_dataset(tab.dataset)
+            await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
+            shown = bool(loaded.get("watched"))
+        ws.audit.write(who, "reopen", tab.dataset, grid=grid.id, steps=len(tab.steps))
+        return {
+            "grid": grid.id,
+            "dataset": tab.dataset,
+            "steps": len(tab.steps),
+            "grid_url": ws.addresses.grid(grid, with_token=who != "agent"),
+            "shown": shown,
+        }
 
     async def rename(self, name: str, to: Any, who: str) -> dict[str, Any]:
         """Call a table by another name everywhere: its grids (steps and settings kept), the model's
@@ -207,7 +268,8 @@ class DatasetService:
             ws.audit.write(
                 who, "push", name, rows=info.row_count, source_kind=info.source_kind, bytes=info.nbytes
             )
-            # Nothing shows it yet: VS Code opens the workspace (its window the user was last in).
+            # Nothing shows it yet: VS Code opens the workspace (its window the user was last in), else the
+            # desktop app (the browser where the app cannot run).
             watched = ws.live.shown_or_opening(grid.id) or await ws.live.ask_opener(
                 ws.addresses.workspace(grid)
             )
@@ -220,7 +282,7 @@ class DatasetService:
             "dataset": name,
             "version": info.version,
             # Whether the grid is on screen, about to be (a window an earlier push had opened), or
-            # being opened by VS Code now. False only when no VS Code window is connected.
+            # being opened now (VS Code, else the desktop app or the browser). False when nothing could.
             "watched": watched,
         }
 
@@ -468,3 +530,8 @@ class ConnectionTables:
 
     async def read_file(self, path: str, sheet: str | None) -> Any:
         return await self._datasets.read_file(path, sheet)
+
+
+def _file_of(origin: Origin) -> tuple[str, str | None] | None:
+    """The file a table was read from (its path and sheet), when it was read from one on disk."""
+    return (origin.path, origin.sheet) if origin.kind == "file" and origin.path else None

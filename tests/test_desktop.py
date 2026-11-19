@@ -115,6 +115,52 @@ def test_open_address_goes_to_the_app_else_the_browser(monkeypatch: pytest.Monke
     assert browsed == [address, address]
 
 
+def test_a_grid_nothing_shows_opens_in_the_app_else_the_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The running server's fallback (LiveUpdates.fallback) for a push or open_grid with no VS Code window."""
+    browsed: list[str] = []
+    monkeypatch.setattr("webbrowser.open", lambda address: noted(browsed, address, True))
+    shown: list[str] = []
+    monkeypatch.setattr(desktop, "open_page", lambda address, info=None: noted(shown, address, True))
+    address = "http://127.0.0.1:8790/workspace#token=t&grid=g1"
+    assert desktop.show(address) is True and shown == [address] and browsed == []
+    monkeypatch.setattr(desktop, "open_page", lambda address, info=None: False)  # the app cannot run here
+    assert desktop.show(address) is True and browsed == [address]
+
+
+def test_stop_quits_the_app_over_its_channel_then_the_server(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from swissarmybench.adapters.desktop import Listener, new_key
+    from swissarmybench.domain import desktop as rules
+
+    info = tmp_path / "server.json"
+    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+    heard: list[dict[str, Any]] = []
+    key = new_key()
+
+    def handle(said: dict[str, Any]) -> dict[str, Any]:
+        heard.append(said)
+        return {"ok": True}
+
+    listener = Listener(key, handle)
+    try:
+        # A live process stands in for the app: it "ends" once the quit was heard.
+        (tmp_path / "desktop.json").write_text(
+            json.dumps(rules.record(os.getpid(), listener.port, key)), encoding="utf-8"
+        )
+        monkeypatch.setattr(desktop, "process_alive", lambda pid: not heard)
+        stopped: list[Path] = []
+        monkeypatch.setattr(command, "request_stop", lambda path: noted(stopped, path, False))
+        assert run_main(monkeypatch, "stop") == 0
+        assert heard == [{"quit": True}] and stopped == [info]
+        assert "Stopped." in capsys.readouterr().out
+        # No app running: only the server is asked.
+        (tmp_path / "desktop.json").unlink()
+        assert desktop.quit_app(info) is False
+    finally:
+        listener.close()
+
+
 def test_the_door_and_the_agents_commands(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     shell = Shell()
     monkeypatch.setattr("swissarmybench.bootstrap.SystemShell", lambda info_file: shell)
@@ -219,8 +265,14 @@ def test_install_sh_adds_the_launcher_and_uninstall_removes_it(tmp_path: Path) -
     assert "Name=Swiss Army Bench" in text and "Icon=swissarmybench" in text and "Exec=" in text
     assert icon.read_text(encoding="utf-8").startswith("<svg") and not old.exists()
     assert "Opening Swiss Army Bench" not in said  # a build machine: nothing opened
+    # Open with: `swissarmybench open <file>` for the types it opens; a blade's own type (*.blade.py).
+    assert "open %f" in text and "MimeType=text/csv;" in text
+    for kind in ("application/vnd.apache.parquet", "spreadsheetml.sheet", "application/x-ipynb+json"):
+        assert kind in text
+    mime = tmp_path / ".local" / "share" / "mime" / "packages" / "swissarmybench-files.xml"
+    assert '<glob pattern="*.blade.py" weight="60"/>' in mime.read_text(encoding="utf-8")
     said = run("--uninstall")
-    assert not entry.exists() and not icon.exists() and "removed" in said
+    assert not entry.exists() and not icon.exists() and not mime.exists() and "removed" in said
     assert "tool uninstall swissarmybench" in log.read_text()
 
 

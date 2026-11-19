@@ -5721,3 +5721,88 @@ and they don't gate the thing that is loading." Made design principles 8.12 (loa
   page, a kernel's "starting…"), and the Source Control page (VS Code's own look, cloned exactly).
 - **The agent:** unaffected; no new user action, so no new command (no Cancel route was added: no slow route has a
   server-side cancel yet; `onCancel` is there for the first one).
+
+## Desktop quick wins and desktop enhancements (the owner, 2026-11-18: "Agreed"; built, branch desktop-wins)
+
+The survey of the desktop app (read only) listed small fixes; each was checked before it was changed.
+
+### Part A: the small fixes
+
+- **Startup:** server/__main__.py imported uvicorn and the whole app (create_app: bootstrap, every route) at its top,
+  which the app's own process (launcher -> __main__.main -> the desktop shell) never uses. Both, and the heartbeat
+  filter, now load inside `start()` (uvicorn's Server subclass is made there too). `import
+  swissarmybench.server.__main__`: 0.56-0.60 s before, 0.13 s after (importtime, warm); a process that imports it,
+  0.60-0.66 s before, 0.16-0.19 s after. What is left is adapters/state_files.py importing domain/relationships
+  (sqlglot, about 0.1 s) for `info_file_path`: left as it is (shared file).
+- **A push or open_grid with nothing to show it:** only VS Code's openers were asked, so with only the app (or a
+  Workbench window) open nothing showed it. LiveUpdates.ask_opener now falls back to `fallback`, set by the running
+  server (`start`, unless SWISSARMYBENCH_NO_BROWSER=1, which the tests set): server/desktop.py `show` opens the
+  workspace on the grid in the desktop app (started when it is not open), else the browser. The push client's words
+  no longer say the app lives in VS Code.
+- **Tray leftovers removed:** `take_server_events` and server_events.json (nothing writes it since the tray went),
+  SWISSARMYBENCH_TRAY in the updater's test, the Bridge's unused open_address, AppWindow.popup, LiveUpdates'
+  test-only openers_gone_for. Words fixed: the signed-out page ("from its launcher"), app_navigate's home notice,
+  routes_desktop, app.py, bootstrap's open_work, services/updates.py, updates.ts, install.ps1.
+- **A clean quit over the app's channel:** `{"quit": true}` closes every window without asking its page, keeps
+  each window's place (windows.json), tells the server closed and ends the app. `swissarmybench stop` quits the app
+  first, then stops the server (the installers already run it); the update's helper asks the app to quit before it
+  would end it (SystemOps.quit, standard library: it speaks the channel itself), and ends it only when it is still
+  there 5 s later. **Unsaved work:** an update already warned in the page (updates.ts: the restart and what would be
+  lost) and `stop` is the user's own word in a terminal, so both quit with closing set: no page is asked.
+- **No blocking on the window thread:** the shell trusts the server that answered once (its process id and token,
+  while that process lives and the connection file names it): opening a page makes no request. Finding the server
+  and starting it runs on a thread of its own that tells the window thread when it answered (the 300 ms timer and
+  its 2 s health checks went). Closing the last window posts /lifecycle/closed from a thread (2 s limit; the
+  process waits for it at its end; server/lifecycle.py post_json, not a copy). The first window shows at once with
+  a plain "Starting…" page while the server comes up, and the first page loads into it.
+- **VS Code's button opened Chrome:** it now runs `<the uv tool's python> -m swissarmybench.server open` (the app,
+  else the browser), pythonw.exe on Windows; core/chrome.ts and the `chromePath` setting are gone (nothing else
+  used them). Should that command not start, the button falls back to the server and the default browser.
+- **Print to PDF in Visualizations was real:** Qt's window.print() returns at once while the Save dialog is up and
+  fires no afterprint, so the page's 1.5 s fallback took its print layout and its `@page` size away before
+  printToPdf ran: the PDF came out A4 (594.96 x 840.96 pt) with the whole page in it. Now the shell fires
+  `afterprint` once the PDF is written (or the dialog is cancelled), the page waits for it in the app (`sabApp`
+  marks the app; the browser keeps its 1.5 s), and Chromium takes the page's `@page` size: Letter landscape comes
+  out 792 x 612 pt.
+
+### Part B: desktop enhancements
+
+- **The browser's keys are the app's (in the app only).** The shell's script puts `window.sabApp` on every page
+  (desktopApp.ts reads it); in a browser the keys stay the browser's. Grid page: Ctrl+W closes the tab in front
+  (a table's, the query draft; on Visualizations or the ERD the grids come back), and the window once no tab is
+  left; Ctrl+T and Ctrl+N a new query tab; Ctrl+Tab and Ctrl+Shift+Tab go round the tables; Ctrl+Shift+T reopens
+  the last closed tab. Workbench: Ctrl+W the document in front (the window when none), Ctrl+T and Ctrl+N a new
+  notebook (decided: the Workbench has no query tab, a new notebook is its new tab), Ctrl+Tab and Ctrl+Shift+Tab
+  the documents, Ctrl+Shift+T the last closed table (in the home window). They are commands of the pages'
+  registries (gridCommands.ts `tabs.closeTab`, `tabs.next`, `tabs.previous`, `tabs.reopen`; the Workbench's
+  `file.closeTab`, `tabs.reopen`), so the palette shows their keys and the agent's workbench_window runs them.
+  **F5, Ctrl+R and Ctrl+W are the page's first now:** the shell's own shortcuts took F5 before the Workbench
+  could (its F5 runs); the shell's script reloads or closes only when the page left the key alone.
+- **Ctrl+Shift+T reopens what the session knows:** closing a grid (or its table) remembers its table (by name
+  and the store's serial, so another table of that name is never taken for it), steps and settings, and the
+  file it was read from; the newest that can come back does: a new grid on the table while it is open, else the
+  table read again from its file. The last twenty, in memory only. The agent: `tabs_reopen`.
+- **Open with:** the installers register the app for this user only: Linux a .desktop `MimeType` (text/csv,
+  Parquet, xlsx, ipynb, folders) and a shared-mime-info package with a blade's own type (`*.blade.py`), the
+  default only for that type (`xdg-mime default`); macOS the bundle's document types (Alternate for csv,
+  parquet, xlsx, ipynb; Owner for an exported `com.swissarmybench.blade` UTI, and QFileOpenEvent handled by the
+  app's QApplication); Windows HKCU `SwissArmyBench.File` and each extension's `OpenWithProgids` (never the
+  default; a .blade.py is a .py to Windows, so .py is offered). `--uninstall` / `-Uninstall` removes them.
+- **`swissarmybench open <file>`** hands the file to the running app over its channel (`{"file": path}`; the
+  app started first when none runs: one app, never a second). The app (server/desktop.py file_page, off its
+  window thread) asks the server: a table loads by its path under its file's name (never replacing an open
+  table: `_2`), a notebook opens in the Workbench window that is open (workbench_window `file.open`), else a
+  Workbench window at `/workbench?file=<path>` opens it; a blade of the library opens on the blades page,
+  another .blade.py in the Workbench; a folder as a project (as before). Where the app cannot run (or
+  `--browser`) the server reads it and the browser shows it.
+- **Drag and drop in:** a file dropped from the system on a window is opened by its real path (a filter on each
+  window's view and the child that draws the page), so a table's origin is the file and a project reads it
+  again; the browser keeps its upload. **Drag out (a tab dropped as a CSV) was not built:** Qt WebEngine hands a
+  page's drag to Qt only as its MIME data, so it would need the page to start a native QDrag through the shell
+  with a temporary file and its removal; not small, left for later.
+- **Files that refresh themselves:** services/file_watch.py stats each file-read table's file every 3 s (the
+  server, so the browser sees it too), stamped by the table's version when it was read; a change is said once
+  (`file_changed`), `datasets_list` carries `changed_on_disk`. The tab shows a dot and the pane a bar: Changed on
+  disk, Reload (POST /datasets/{name}/reload: read again in place, its grids and steps kept), Not now (the stamp
+  taken as it is now: said again only on the next change). Never reloaded by itself; a file that is gone is not
+  said. The agent: `tabs_reload` (`not_now`).

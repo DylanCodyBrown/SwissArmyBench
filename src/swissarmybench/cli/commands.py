@@ -555,6 +555,24 @@ def close_grid(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "tabs_reopen",
+    "Reopen the last closed tab (Ctrl+Shift+T), its steps kept: a closed table is read again from its file.",
+)
+def reopen_grid(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/grids/reopen")
+
+
+@command(
+    "tabs_reload",
+    "A table whose file changed on disk (datasets_list: changed_on_disk): Reload it, its steps kept.",
+    req("dataset", "The table."),
+    opt("not_now", "Not now: keep it as it is (said again when the file changes again).", "bool"),
+)
+def reload_dataset(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/datasets/{_q(a['dataset'])}/reload", {"not_now": bool(a.get("not_now"))})
+
+
+@command(
     "row_count",
     "The view's row count (and the dataset's total). `upto` counts the table entering that step.",
     req("grid", "Grid id."),
