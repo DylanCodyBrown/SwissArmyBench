@@ -43,7 +43,14 @@ TEXT_PAIRS = [
     ("agent", "bg"),
     ("agent", "agent-soft"),
 ]
-UI_PAIRS = [("border-strong", "bg"), ("focus", "bg"), ("focus", "surface"), ("accent", "accent-soft")]
+UI_PAIRS = [
+    ("border-strong", "bg"),
+    ("focus", "bg"),
+    ("focus", "surface"),
+    ("accent", "accent-soft"),
+    ("busy-spin", "raised"),  # the loading state's spinner (loading.ts, 2026-11-18)
+    ("busy-spin", "busy-track"),
+]
 CATEGORY_PAIRS = [(f"cat-{i}", "bg") for i in range(1, 9)]
 
 

@@ -56,6 +56,8 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
+import { errorNote } from "./errorNote";
+import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError } from "./missingPackages";
@@ -617,11 +619,11 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     listActions(true);
     listShowing = () => (body.isConnected ? void showList() : (listShowing = null));
     // Drawn again as catalogs load: only the newest draw paints (never twice, never over a view opened
-    // meanwhile), and "Loading…" shows only the first time (no flicker).
+    // meanwhile), and the placeholder shows only the first time (no flicker).
     const mine = ++drawing;
     if (!body.querySelector(".connection-cards, .empty-note")) {
       clear(foot);
-      clear(body, h("p", { class: "hint" }, "Loading…"));
+      clear(body, loadingBlock("Loading the connections…"));
     }
     let found: Card[];
     try {
@@ -694,7 +696,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     setHeading(name);
     listActions(false);
     clear(foot);
-    clear(body, h("p", { class: "hint" }, "Loading…"));
+    clear(body, loadingBlock(`Loading ${name}…`));
     let usage: Usage;
     let listed: Connection | undefined;
     try {
@@ -718,22 +720,20 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       "div",
       { class: "connection-detail-tools", role: "toolbar", "aria-label": "Connection" },
       swatch ? h("span", { class: "connection-colour" }, swatch, "Colour") : null,
-      c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", () => void openConnection(name), { icon: "rows", class: "primary" }) : null,
+      c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", busyClick("Opening…", () => openConnection(name)), { icon: "rows", class: "primary" }) : null,
       readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
-      button("Test", () => void testSaved(name, c && (c.connection === "python" || readsByCode(c.dialect)) ? tested : undefined).then(() => (c?.dialect === "sqlserver" ? showDetail(name) : refreshCalls())), { icon: "play" }),
+      button("Test", busyClick("Testing…", () => testSaved(name, tested, Boolean(c && (c.connection === "python" || readsByCode(c.dialect)))).then(() => (c?.dialect === "sqlserver" ? showDetail(name) : refreshCalls()))), { icon: "play" }),
       // SQL Server's foreign keys into the ERD, as a Power BI dataset's relationships.
-      c?.dialect === "sqlserver" && c.connection === "database" ? button("Import relationships", () => void importRelationships(name), { icon: "diagram" }) : null,
+      c?.dialect === "sqlserver" && c.connection === "database" ? button("Import relationships", busyClick("Reading…", () => importRelationships(name)), { icon: "diagram" }) : null,
       dataverseSwitch(c, () => void showDetail(name)),
       // The app's earlier SQL Server code (pyodbc and an ODBC driver): made again on mssql-python, its settings kept.
       usage.update_driver && !readOnly
-        ? button("Update to the new driver", () => {
-            void api(`/connections/${path}/update-driver`, "POST").then(() => {
-              toast(`${name} now uses mssql-python: no ODBC driver.`);
-              void showDetail(name);
-            }, (e: Error) => toast(errorText(e), "error"));
-          }, { icon: "import", class: "primary" })
+        ? button("Update to the new driver", busyClick("Updating…", () => api(`/connections/${path}/update-driver`, "POST").then(() => {
+            toast(`${name} now uses mssql-python: no ODBC driver.`);
+            void showDetail(name);
+          }, (e: Error) => tested.replaceChildren(errorNote(e)))), { icon: "import", class: "primary" })
         : null,
-      c?.has_catalog ? button("Refresh catalog", () => void refresh(name).then(() => void showDetail(name)), { icon: "import" }) : null,
+      c?.has_catalog ? button("Refresh catalog", busyClick("Refreshing…", () => refresh(name, tested).then(() => void showDetail(name))), { icon: "import" }) : null,
       config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
       readOnly
         ? null
@@ -809,25 +809,26 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     );
   };
 
-  const testSaved = async (name: string, under?: HTMLElement): Promise<void> => {
-    toast(`Testing ${name}…`);
+  /** A saved connection's Test: its rows under the tools when it reads them by code (`rows`); a failure there. */
+  const testSaved = async (name: string, under: HTMLElement, rows: boolean): Promise<void> => {
+    under.replaceChildren();
     try {
       const r = await api<{ type?: string; found?: string; variables?: string[] } & PythonTested>(`/blades/${encodeURIComponent(name)}/test`, "POST");
       toast(`${name} works: ${worked(r)}.`);
-      under?.replaceChildren(...(r.preview ? tablePreview(r.preview) : []));
+      if (rows) under.replaceChildren(...(r.preview ? tablePreview(r.preview) : []));
     } catch (e) {
-      toast(errorText(e), "error");
+      under.replaceChildren(errorNote(e));
     }
   };
 
-  const refresh = async (name: string): Promise<void> => {
-    toast(`Refreshing ${name}…`);
+  const refresh = async (name: string, said: HTMLElement): Promise<void> => {
+    said.replaceChildren();
     try {
       const r = await api<{ catalog: { tables: number; columns: number } }>(`/blades/${encodeURIComponent(name)}/refresh`, "POST");
       toast(`${name}: ${r.catalog.tables} tables, ${r.catalog.columns} columns`);
       void showList();
     } catch (e) {
-      toast(errorText(e), "error");
+      said.replaceChildren(errorNote(e));
     }
   };
 
@@ -855,7 +856,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     listShowing = null;
     drawing++; // a list draw still on its way paints nothing now
     clear(foot);
-    clear(body, h("p", { class: "hint" }, "Loading…"));
+    clear(body, loadingBlock("Loading the connection types…"));
     let offered: Form[];
     try {
       offered = await types();
@@ -882,7 +883,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
   const showFormOf = async (id: string): Promise<void> => {
     leave(`form|${id}|`);
     clear(foot);
-    clear(body, h("p", { class: "hint" }, "Loading…"));
+    clear(body, loadingBlock("Loading the form…"));
     try {
       const type = (await types()).find((t) => t.id === id);
       if (!type) throw new Error(`There is no connection type called ${id}.`);
@@ -1355,7 +1356,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       promptForError(e, { then: again });
     };
     const test = async (): Promise<void> => {
-      result.replaceChildren(h("p", { class: "hint" }, isVault ? "Reading…" : "Connecting…"));
+      result.replaceChildren();
       try {
         const r = await api<{ type?: string; found?: string; variables?: string[]; name?: string; preview?: Preview; preview_error?: string }>("/connections/test", "POST", { ...sent(), secrets: typed() });
         // Tested before it was named: the file's own name, as the server used it.
@@ -1478,8 +1479,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     );
     foot.append(
       what.then ? button("Back", () => void showTypes(what.then), { icon: "back" }) : backButton(backTo.label, backTo.url),
-      button(isVault ? "Test" : "Test connection", () => void test(), { icon: "play" }),
-      button("Save", () => void save(), { icon: "save", class: "primary" }),
+      // The form is gated while it tests or saves (loading.ts): nothing typed meanwhile is lost to a redraw.
+      button(isVault ? "Test" : "Test connection", busyClick("Testing…", () => busy(body, isVault ? `Reading ${name.value.trim() || plain(form.label)}…` : `Connecting to ${name.value.trim() || plain(form.label)}…`, test())), { icon: "play" }),
+      button("Save", busyClick("Saving…", () => busy(body, `Saving ${name.value.trim() || plain(form.label)}…`, save())), { icon: "save", class: "primary" }),
     );
     name.focus();
     name.select();

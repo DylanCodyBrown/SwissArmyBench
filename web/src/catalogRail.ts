@@ -19,6 +19,7 @@ import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, s
 import { activeMode, familyShown, familyWords, onMode, whenMode } from "./modes";
 import type { Move } from "./nav";
 import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
+import { busyClick } from "./loading";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -228,7 +229,7 @@ export function schemaDetails(label: string, catalog: string, dialect: string, s
     h("p", { class: "hint" }, `Dataset in ${catalog} · DAX`),
     note
       ? h("p", { class: "status-error", role: "alert" }, note)
-      : h("div", { class: "row-actions" }, button("Import its relationships", () => void importRelationships(catalog, schema), { icon: "import", class: "primary" })),
+      : h("div", { class: "row-actions" }, button("Import its relationships", busyClick("Reading…", () => importRelationships(catalog, schema)), { icon: "import", class: "primary" })),
   ];
 }
 
@@ -260,7 +261,7 @@ export function tableDetails(view: TableView): HTMLElement[] {
     h(
       "div",
       { class: "row-actions" },
-      button("Open as grid", () => void openTableAsGrid(view.catalog, { schema: view.schema, table: view.table, database: view.database }, dax), { icon: "rows", class: "primary" }),
+      button("Open as grid", busyClick("Opening…", () => openTableAsGrid(view.catalog, { schema: view.schema, table: view.table, database: view.database }, dax)), { icon: "rows", class: "primary" }),
       button("Copy the name", () => copy(view.name, "the name"), { icon: "copy" }),
       button(`Copy the ${first}`, () => copy(view.select, `the ${first}`), { icon: own ? "code" : "sql" }),
     ),
@@ -614,7 +615,7 @@ export function mountRail(host: RailHost): Rail {
     const blade = current ? blades.find((b) => b.name.toLowerCase() === current?.name.toLowerCase() && b.has_catalog) : undefined;
     clear(
       catalogActions,
-      blade ? button("Refresh", () => void refresh(blade.name), { icon: "play", iconOnly: true, class: "ghost", title: `Refresh ${blade.name}` }) : null,
+      blade ? button("Refresh", busyClick("Refreshing…", () => refresh(blade.name)), { icon: "play", iconOnly: true, class: "ghost", title: `Refresh ${blade.name}` }) : null,
       current
         ? button("Remove this catalog", () => {
             const target = current;

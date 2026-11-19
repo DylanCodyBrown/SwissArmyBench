@@ -13,6 +13,7 @@
 import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busyClick } from "./loading";
 
 export type ImportKind = "documents" | "connections" | "blades";
 
@@ -52,7 +53,7 @@ export function openImport(kind: ImportKind): Promise<Imported | null> {
     let offered: Offered | null = null;
     const ticks: { name: string; box: HTMLInputElement }[] = [];
     const list = h("div", { class: "import-choices" });
-    const go = button("Import", () => void finish(), { icon: "import", class: "primary" });
+    const go = button("Import", busyClick("Importing…", () => finish()), { icon: "import", class: "primary" });
     go.disabled = true;
     const end = (value: Imported | null): void => {
       if (done) return;

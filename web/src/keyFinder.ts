@@ -23,6 +23,8 @@ import { mdTable, type SandboxCard } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
 import { api, grid, gridId, token } from "./api";
 import { button, clear, formatCount, h, icon, toast } from "./dom";
+import { errorNote } from "./errorNote";
+import { busy, busyButton, loadingBlock } from "./loading";
 import { isKnownPair, loadRelationships } from "./relationships";
 
 interface Pair {
@@ -130,11 +132,11 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
     const options = { trim: trim.checked, ignore_case: ignoreCase.checked, max_length: Math.floor(Number(maxLength.value) || 128) };
     const target = picker.value;
     const mine = ++asked;
-    clear(status, "Comparing…");
     status.className = "hint";
-    clear(results);
+    const against = target === "*" ? "every other open grid" : (picker.selectedOptions[0]?.textContent ?? "the other grid");
     try {
-      const result = await api<Result>(`${grid}/key-finder`, "POST", { target, options });
+      // The Key Finder is gated while it compares (loading.ts): its last answer is not clicked meanwhile.
+      const result = await busy(body, `Comparing with ${against}…`, api<Result>(`${grid}/key-finder`, "POST", { target, options }), { errorIn: false });
       if (mine !== asked) return; // a newer search is under way
       last = { result, options, target };
       showAll = false;
@@ -142,8 +144,8 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
       draw();
     } catch (e) {
       if (mine !== asked) return;
-      status.textContent = (e as Error).message;
-      status.className = "status-error";
+      clear(status);
+      clear(results, errorNote(e, { where: against }));
     }
   };
 
@@ -210,7 +212,10 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
     const self = pair.target_grid === gridId;
     // The row's own actions (the owner's decision 20), which leave the row's click alone.
     const act = (label: string, iconName: string, run: () => Promise<void>, why: string | false): HTMLButtonElement => {
-      const b = button(label, (e) => { e.stopPropagation(); void run(); }, { icon: iconName, class: "small", title: why || label });
+      const b = button(label, (e) => {
+        e.stopPropagation();
+        void busyButton(e.currentTarget as HTMLButtonElement, () => run()).catch(() => undefined);
+      }, { icon: iconName, class: "small", title: why || label });
       b.disabled = Boolean(why);
       b.addEventListener("keydown", (e) => e.stopPropagation());
       return b;
@@ -351,7 +356,7 @@ function bar(share: number): HTMLElement {
 }
 
 async function showSample(pair: Pair, slot: HTMLElement): Promise<void> {
-  clear(slot, h("span", { class: "hint" }, "Loading values…"));
+  clear(slot, loadingBlock(`Reading the values of ${pair.source_column} and ${pair.target_column}…`, { height: "60px" }));
   try {
     const sample = await api<Sample>(`${grid}/key-finder/sample`, "POST", {
       target: pair.target_grid,

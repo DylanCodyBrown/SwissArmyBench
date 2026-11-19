@@ -15,6 +15,7 @@ import { button, clear, h, markStaleOnChange, openDialog, toast } from "./dom";
 import { type Context } from "./panes";
 import { saveBlob } from "./profileView";
 import { sentToast } from "./sandboxShow";
+import { busyClick, loadingBlock } from "./loading";
 
 interface Choice {
   name: string;
@@ -191,7 +192,7 @@ export async function openTieOut(cmp: CompareInfo, pair: [Context, Context]): Pr
   };
 
   const run = async (): Promise<void> => {
-    clear(results, h("p", { class: "hint" }, "Totalling…"));
+    clear(results, loadingBlock("Totalling both sides…"));
     clear(actions);
     try {
       draw(await api<Report>(`/compares/${cmp.compare}/tie-out`, "POST", sent()));
@@ -202,7 +203,7 @@ export async function openTieOut(cmp: CompareInfo, pair: [Context, Context]): Pr
 
   body.append(
     h("div", { class: "tie-out-choices" }, list("Group by", groupTicks), list("Totals", measureTicks)),
-    h("div", { class: "analysis-controls" }, h("label", { class: "analysis-field" }, h("span", {}, "Ties within"), tolerance), kind, button("Tie out", () => void run(), { icon: "play", class: "primary" })),
+    h("div", { class: "analysis-controls" }, h("label", { class: "analysis-field" }, h("span", {}, "Ties within"), tolerance), kind, button("Tie out", busyClick("Totalling…", run), { icon: "play", class: "primary" })),
     results,
   );
   markStaleOnChange(body, results);

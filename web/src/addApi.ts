@@ -23,6 +23,7 @@ import { api, errorText } from "./api";
 import { promptForError } from "./missingPackages";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busy, busyClick, loadingBlock } from "./loading";
 import { backButton } from "./nav";
 
 interface Setting {
@@ -131,7 +132,7 @@ export function showAddApi(host: AddApiHost): void {
   const { body, foot } = host;
   const status = h("div", { class: "connection-result add-api-preview", role: "status" });
   const failed = (e: unknown): void => void status.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
-  clear(body, h("p", { class: "hint" }, "Loading…"));
+  clear(body, loadingBlock("Loading the form…"));
   clear(foot);
   (choices ??= api<Choices>("/apis/choices")).then(
     (found) => draw(found),
@@ -219,7 +220,7 @@ export function showAddApi(host: AddApiHost): void {
       drawFind();
       later();
     });
-    const find = button("Find its OpenAPI", () => void findDocument(), { icon: "zoom" });
+    const find = button("Find its OpenAPI", busyClick("Looking…", () => findDocument()), { icon: "zoom" });
     const drawFind = (): void => {
       const chosen = found.presets.find((p) => p.id === preset.value);
       find.hidden = !chosen?.spec_paths.length || !/^https?:\/\/[^<>]+$/.test(baseUrl.value.trim());
@@ -228,7 +229,7 @@ export function showAddApi(host: AddApiHost): void {
       const chosen = found.presets.find((p) => p.id === preset.value);
       const root = /^(https?:\/\/[^/]+)/.exec(baseUrl.value.trim())?.[1];
       if (!chosen || !root) return;
-      status.replaceChildren(h("p", { class: "hint" }, "Looking…"));
+      status.replaceChildren(loadingBlock(`Looking for ${root}'s OpenAPI document…`, { height: "48px" }));
       for (const path of chosen.spec_paths) {
         try {
           await api<Plan>("/apis/preview", "POST", { spec_url: root + path });
@@ -377,7 +378,7 @@ export function showAddApi(host: AddApiHost): void {
         );
       };
       const out = h("div", { class: "add-api-try", role: "status" });
-      const tryButton = button("Try it", () => void tryCard(), { icon: "play" });
+      const tryButton = button("Try it", busyClick("Trying…", () => tryCard()), { icon: "play" });
       const drawTry = (): void => {
         const asked = placeholders(where.value).length > 0 || namesOf(params.value).some((n) => needed.has(n.name));
         const why = verb.value !== "GET" ? "Only a GET is tried" : !isTable.checked ? "Tick Read as a table to try it" : asked ? "It needs a value for a parameter" : !where.value.trim() ? "Give it a path" : "";
@@ -487,7 +488,7 @@ export function showAddApi(host: AddApiHost): void {
         status.replaceChildren();
         return null;
       }
-      status.replaceChildren(h("p", { class: "hint" }, "Reading…"));
+      status.replaceChildren(loadingBlock("Reading the API…", { height: "48px" }));
       try {
         const got = await api<Plan>("/apis/preview", "POST", body);
         if (mine !== asked) return null;
@@ -517,7 +518,7 @@ export function showAddApi(host: AddApiHost): void {
     };
     // Try it: an operation's first rows (by its place among the endpoints, or by its name), written nowhere.
     const tryOperation = async (which: number | string, out: HTMLElement): Promise<void> => {
-      out.replaceChildren(h("p", { class: "hint" }, "Trying…"));
+      out.replaceChildren(loadingBlock(typeof which === "string" ? `Trying ${which}…` : "Trying it…", { height: "48px" }));
       window.clearTimeout(waiting);
       const fresh = await preview();
       const body = sent();
@@ -547,7 +548,7 @@ export function showAddApi(host: AddApiHost): void {
             h("span", { class: "hint" }, `${o.name}()`),
             o.readable ? h("span", { class: "badge" }, "Table") : null,
             p.changes?.added.includes(o.name) ? h("span", { class: "badge" }, "New") : p.changes?.changed.includes(o.name) ? h("span", { class: "badge" }, "Changed") : null,
-            o.readable && mode === "document" ? button(`Try ${o.name}`, () => void tryOperation(o.name, documentTry), { icon: "play", iconOnly: true, class: "ghost add-api-op-try", title: "Try it" }) : null,
+            o.readable && mode === "document" ? button(`Try ${o.name}`, busyClick("Trying…", () => tryOperation(o.name, documentTry)), { icon: "play", iconOnly: true, class: "ghost add-api-op-try", title: "Try it" }) : null,
           ),
         ),
         ...(p.changes?.removed ?? []).map((n) => h("li", { class: "removed" }, h("span", { class: "hint" }, `${n}()`), h("span", { class: "badge" }, "Removed"))),
@@ -571,7 +572,8 @@ export function showAddApi(host: AddApiHost): void {
     };
 
     // ===== Add =====
-    const add = button("Add", () => void save(), { icon: "plus", class: "primary" });
+    // Adding writes its files: the form is gated until it is done (loading.ts).
+    const add = button("Add", busyClick("Adding…", () => busy(body, `Adding ${name.value.trim() || "the API"}…`, save())), { icon: "plus", class: "primary" });
     add.disabled = true;
     const save = async (): Promise<void> => {
       const body = sent();

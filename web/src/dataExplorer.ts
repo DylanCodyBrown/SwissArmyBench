@@ -30,6 +30,7 @@ import { queryInNotebook } from "./connectionTree";
 import { type BrowseAnswer, mountBrowse } from "./dataBrowse";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { openConnections } from "./connectionsWindow";
+import { busyButton, busyClick, loadingBlock } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
 import { openStructures } from "./structuresPage";
 import type { Part } from "./structureTree";
@@ -398,7 +399,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
 
   const preview = async (r: ExplorerResult, under: HTMLElement): Promise<void> => {
     if (under.childElementCount) return clear(under);
-    clear(under, h("p", { class: "hint" }, "Loading…"));
+    clear(under, loadingBlock(`Reading ${r.name}…`, { height: "80px" }));
     try {
       const got =
         r.source === "grid" && r.grid
@@ -419,10 +420,12 @@ export function mountExplorer(host: ExplorerHost): Explorer {
     }
   };
 
-  const loadCatalog = async (connection: string): Promise<void> => {
+  /** A catalog loads in the background (8.5): the list is drawn again, its offer saying so in place
+   *  (loading.ts) until the catalog's notice redraws it with its tables. */
+  const loadCatalog = async (connection: string, under?: HTMLElement): Promise<void> => {
     try {
       await api(`/connections/${encodeURIComponent(connection)}/catalog`, "POST");
-      toast(`Loading ${connection}'s catalog…`);
+      if (under) clear(under, loadingBlock(`Loading ${connection}'s catalog…`, { height: "48px" }));
       void search(true);
     } catch (e) {
       toast(errorText(e), "error");
@@ -440,7 +443,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
             drawChips();
             searchNow();
           } },
-          ...(r.loaded === false ? [{ label: "Load its catalog", icon: "import", run: () => loadCatalog(r.name) }] : []),
+          ...(r.loaded === false ? [{ label: "Load its catalog", icon: "import", run: () => loadCatalog(r.name, under) }] : []),
           { label: "Copy name", icon: "copy", run: () => copyText(r.name, r.name) },
         ];
       case "tables": {
@@ -527,7 +530,10 @@ export function mountExplorer(host: ExplorerHost): Explorer {
         h("span", { class: "ex-actions" }, ...own.map((a) => button(a.label, (e) => {
           e.stopPropagation();
           select(r.key);
-          void a.run();
+          const pressed = e.currentTarget;
+          const running = a.run();
+          // Slow work (Open as grid, Preview) keeps its button busy until it ends (loading.ts).
+          if (running && pressed instanceof HTMLButtonElement) void busyButton(pressed, running).catch(() => undefined);
         }, { icon: a.icon, iconOnly: true, class: "ghost small", title: a.title ?? a.label }))),
       ),
       where || r.detail ? h("div", { class: "ex-where" }, where ? h("span", { class: "ex-path" }, where) : null, r.detail ? h("span", { class: "ex-detail" }, r.detail) : null) : null,
@@ -551,8 +557,8 @@ export function mountExplorer(host: ExplorerHost): Explorer {
         h(
           "div",
           { class: "ex-offer", "data-connections": o.connection },
-          h("span", {}, icon("plug"), o.state === "loading" ? `${o.connection}: loading its catalog…` : o.state === "failed" ? `${o.connection}: its catalog did not load${o.error ? ` (${o.error})` : ""}` : `${o.connection}: its tables are not searched yet`),
-          o.state === "loading" ? null : button("Load its catalog", () => void loadCatalog(o.connection), { icon: "import", class: "small line" }),
+          o.state === "loading" ? loadingBlock(`Loading ${o.connection}'s catalog…`, { inline: true }) : h("span", {}, icon("plug"), o.state === "failed" ? `${o.connection}: its catalog did not load${o.error ? ` (${o.error})` : ""}` : `${o.connection}: its tables are not searched yet`),
+          o.state === "loading" ? null : button("Load its catalog", busyClick("Loading…", () => loadCatalog(o.connection)), { icon: "import", class: "small line" }),
         ),
       ),
     );

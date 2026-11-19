@@ -14,6 +14,7 @@
  */
 import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
+import { busyClick, loadingBlock } from "./loading";
 import type { Kernel } from "./workbenchKernel";
 
 export interface Snapshot {
@@ -46,7 +47,7 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
       "div",
       { class: "wb-vars-head" },
       h("h2", {}, "Variables"),
-      button("Refresh", () => void refresh(), { icon: "back", iconOnly: true, class: "ghost" }),
+      button("Refresh", busyClick("Reading…", () => refresh()), { icon: "back", iconOnly: true, class: "ghost" }),
       button("Hide Variables", onClose, { icon: "close", iconOnly: true, class: "ghost" }),
     ),
     filter,
@@ -84,11 +85,11 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
       return;
     }
     if (!last) {
-      clear(body, h("p", { class: "hint" }, "Reading…"));
+      clear(body, loadingBlock("Reading the variables…"));
       return;
     }
     if (last.busy) {
-      clear(body, h("p", { class: "hint" }, "Running…"));
+      clear(body, loadingBlock("Running: the variables follow when it ends…"));
       return;
     }
     const wanted = filter.value.trim().toLowerCase();

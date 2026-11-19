@@ -19,6 +19,7 @@
  */
 import { api, errorText } from "./api";
 import { button, clear, h, toast } from "./dom";
+import { busy, busyClick } from "./loading";
 import { type Missing, promptForError, promptInstall, reminder } from "./missingPackages";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { backButton } from "./nav";
@@ -346,7 +347,7 @@ export function showPythonForm(host: PythonFormHost): void {
     };
   };
   const test = async (): Promise<void> => {
-    result.replaceChildren(h("p", { class: "hint" }, "Connecting…"));
+    result.replaceChildren();
     try {
       await readVariables(); // the boxes as they are now
       const r = await api<PythonTested & { type?: string }>("/connections/test", "POST", { ...sent(), name: name.value.trim() || "Untitled" });
@@ -391,8 +392,9 @@ export function showPythonForm(host: PythonFormHost): void {
   clear(foot);
   foot.append(
     backButton(host.backTo.label, host.backTo.url),
-    button("Test connection", () => void test(), { icon: "play" }),
-    button("Save", () => void save(), { icon: "save", class: "primary" }),
+    // The form is gated while it tests or saves (loading.ts).
+    button("Test connection", busyClick("Testing…", () => busy(body, `Connecting to ${name.value.trim() || "the connection"}…`, test())), { icon: "play" }),
+    button("Save", busyClick("Saving…", () => busy(body, `Saving ${name.value.trim() || "the connection"}…`, save())), { icon: "save", class: "primary" }),
   );
   drawVariables();
   void readVaults().then(drawVariables);

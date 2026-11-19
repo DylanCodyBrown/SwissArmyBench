@@ -25,6 +25,7 @@ import { api, ApiError, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busy, busyClick, loadingBlock } from "./loading";
 import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mountTree, nodeAt, type Part, pathText, type TextView, type Tree, type Value } from "./structureTree";
@@ -321,7 +322,7 @@ function drawPage(): void {
       );
       if (isRecords(node)) bar.append(button("Flatten", () => void step({ op: "flatten", path: where }), { icon: "rows", title: "Nested objects as dotted keys" }));
       if (isRecords(node) || (Array.isArray(node) && node.length)) {
-        bar.append(button("Open as grid", () => void act("/grid", "POST", { path: where }).then(() => toast("Opened as a grid")), { icon: "grids", class: "structures-to-grid" }));
+        bar.append(button("Open as grid", busyClick("Opening…", () => act("/grid", "POST", { path: where }).then(() => toast("Opened as a grid"))), { icon: "grids", class: "structures-to-grid" }));
       }
       if (doc.origin.kind === "api" && doc.origin.api && doc.origin.operation) {
         bar.append(button("Return as table…", () => void returnAsTable(where), { icon: "table", title: "Save its web call with Return as table on (its API's table in SQL)" }));
@@ -409,7 +410,7 @@ function drawPage(): void {
       button("Undo", () => void act("/undo"), { icon: "undo", iconOnly: true }),
       button("Redo", () => void act("/redo"), { icon: "redo", iconOnly: true }),
     );
-    if (current.origin.kind === "api") toolbar.append(button("Run again", () => void act("/run-again"), { icon: "play", title: "The same call, the steps kept" }));
+    if (current.origin.kind === "api") toolbar.append(button("Run again", () => void busy(main, `Calling ${current.origin.operation ?? current.name} again…`, act("/run-again")), { icon: "play", title: "The same call, the steps kept" }));
     toolbar.append(
       button("Lineage", () => void lineage(), { icon: "lineage" }),
       button("Save", () => void (current.path ? act("/save") : saveAs()), { icon: "save", class: current.dirty ? "primary" : "" }),
@@ -510,6 +511,6 @@ function drawPage(): void {
     reload = null;
     text?.dispose();
   });
-  main.append(h("p", { class: "hint" }, "Loading…"));
+  main.append(loadingBlock(`Loading ${STRUCTURES.toLowerCase()}…`));
   void load();
 }

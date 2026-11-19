@@ -31,6 +31,7 @@ import { button, clear, formatCount, h, icon, toast } from "./dom";
 import { contextOf, currentDraft, finishDraft, gridList, onAgentView, onPaneCreated, onPaneDropped, renameDraft, viewingQuery, type Context } from "./panes";
 import { effectiveTheme, gridTheme, onThemeChange } from "./theme";
 import type { SqlEditor } from "./lazy/codeEditor";
+import { markBusy } from "./loading";
 
 /** What POST /datasets/{name}/query answers. */
 interface Built {
@@ -282,6 +283,7 @@ async function createTray(initial: string, onRun: () => void, firstStatus: strin
   const editorHost = h("div", { class: "sql-editor" });
   const status = h("span", { class: "sql-status", role: "status" }, firstStatus);
   const run = button("Run", onRun, { icon: "play", class: "run", title: "Run (Ctrl+Enter)" });
+  let restoreRun = (): void => undefined;
   const toggle = button("Hide the query", () => setOpen(element.dataset.open !== "true"), { icon: "up", iconOnly: true, class: "ghost" });
   toggle.setAttribute("aria-expanded", "true");
   const setOpen = (open: boolean): void => {
@@ -303,9 +305,12 @@ async function createTray(initial: string, onRun: () => void, firstStatus: strin
       status.className = error ? "sql-status error" : "sql-status";
     },
     busy: (on) => {
-      run.disabled = on;
+      // The Run button is busy while the query runs (loading.ts); its result or error follows in the status.
+      restoreRun();
+      restoreRun = () => undefined;
       if (on) {
-        status.textContent = "Running…";
+        restoreRun = markBusy(run, "Running…");
+        status.textContent = "";
         status.className = "sql-status";
       }
     },

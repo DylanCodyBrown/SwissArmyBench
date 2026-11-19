@@ -36,6 +36,7 @@ import { agentApi, api, ApiError } from "./api";
 import { history, pageTabs, resizeGrip } from "./canvasKit";
 import { button, clear, h, icon, showMenu, toast } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
+import { busy as gate, markBusy } from "./loading";
 import { type PromptOptions, promptInstall } from "./missingPackages";
 import { effectiveTheme } from "./theme";
 import { FRAME_SANDBOX } from "./workbenchHtml";
@@ -244,9 +245,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     if (page && state?.pages.some((p) => p.id === page)) pageId = page;
     busy = true;
     draw();
+    const name = current()?.name ?? "the page";
     try {
-      await host.settle(); // the linked cells as they are typed, saved or not
-      const ran = await call("/run", "POST");
+      // The canvas is gated while Play starts (loading.ts): no block moves under a page being started.
+      const ran = await gate(mode === "live" ? live : board, `Starting ${name}…`, (async () => {
+        await host.settle(); // the linked cells as they are typed, saved or not
+        return call("/run", "POST");
+      })(), { errorIn: false });
       if (ran.problem?.kind === "failed") toast(problemText(ran.problem), "error");
       // Streamlit missing from the app's Python: the prompt in the user's face; installed, Play again.
       if (ran.problem?.kind === "missing") void promptInstall(ran.problem, installing(() => void play(page)));
@@ -326,10 +331,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     if (testing || !target) return null;
     testing = target;
     draw();
+    const name = state?.pages.find((p) => p.id === target)?.name ?? "the page";
     try {
-      await host.settle(); // the linked cells as they are typed, saved or not
-      await ensure();
-      const done = await api<TestResult>(`${base()}/pages/${encodeURIComponent(target)}/test`, "POST");
+      const done = await gate(mode === "live" ? live : board, `Testing ${name}…`, (async () => {
+        await host.settle(); // the linked cells as they are typed, saved or not
+        await ensure();
+        return api<TestResult>(`${base()}/pages/${encodeURIComponent(target)}/test`, "POST");
+      })(), { errorIn: false });
       if ("problem" in done && done.problem && typeof done.problem === "object") {
         if (done.problem.kind === "missing") void promptInstall(done.problem, installing(() => void test(target)));
         else toast(problemText(done.problem), "error");
@@ -436,19 +444,21 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     // the page shows runs it again; it says so when the page is out of date.
     const stale = mode === "live" && !!page?.out_of_date;
     const editButton = button("Edit", () => edit(), { icon: "edit", class: "cv-edit", title: "The blocks", pressed: mode === "edit" && !busy });
-    const playButton = button(busy ? "Starting…" : stale ? "Out of date · Play" : "Play", () => void play(), {
+    const playButton = button(stale ? "Out of date · Play" : "Play", () => void play(), {
       icon: "play",
       class: stale ? "cv-play cv-stale" : "cv-play",
       title: stale ? "A linked cell, a table it reads or the layout changed: Play shows it" : mode === "live" ? "Play again: the page from the linked cells as they are now" : "Play: run the page from the linked cells as they are now",
       pressed: mode === "live" || busy,
     });
     playButton.disabled = busy || !page;
+    if (busy) markBusy(playButton, "Starting…");
     const modes = h("span", { class: "cv-mode", role: "group", "aria-label": "Edit or play" }, editButton, playButton);
     const exportButton = button("Export…", () => void exportApp().catch((e: Error) => toast(e.message, "error")), { icon: "export", class: "cv-export", title: "Export an app that runs alone: app.py, its pages, the data as Parquet" });
     const saveAsButton = button("Save as zip…", () => void saveAs().catch((e: Error) => toast(e.message, "error")), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
     exportButton.disabled = saveAsButton.disabled = !pages.length;
-    const testButton = button(testing ? "Testing…" : "Test this page", () => void test(), { icon: "check", class: "cv-test", title: "Run the page with each filter's values (Streamlit's own test runner)" });
+    const testButton = button("Test this page", () => void test(), { icon: "check", class: "cv-test", title: "Run the page with each filter's values (Streamlit's own test runner)" });
     testButton.disabled = !!testing || busy || !page?.blocks.length;
+    if (testing) markBusy(testButton, "Testing…");
     clear(top, tabs);
     clear(tools, modes, testButton, ...(mode === "live" ? previewTools() : editTools()), exportButton, saveAsButton);
   }

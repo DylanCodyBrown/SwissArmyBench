@@ -24,6 +24,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { openReference } from "./connectionsWindow";
 import { button, h, icon, recall, remember, toast } from "./dom";
 import { dismissDialog, go, homeWindow, HOME_URL, layerOpened, layerShown, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
+import { loadingBlock } from "./loading";
 
 export interface Target {
   place: "grid" | "dataset" | "card" | "relationship" | "connection" | "blade" | "cell" | "document" | "area";
@@ -353,7 +354,7 @@ function drawSession(): void {
       }),
     );
     const kept = entries.filter((e) => now === "both" || e.actor === now);
-    if (!loaded) list.replaceChildren(h("li", { class: "hint" }, "Loading…"));
+    if (!loaded) list.replaceChildren(h("li", {}, loadingBlock("Loading this session…")));
     else if (!kept.length) list.replaceChildren(h("li", { class: "empty-note" }, now === "user" ? "Nothing yet." : "Nothing from the agent yet."));
     else list.replaceChildren(...kept.map(entryRow));
     setUnseen(0);
