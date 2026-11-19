@@ -73,8 +73,18 @@ export class Kernel {
     for (const l of this.listeners) l();
   }
 
-  async ensure(): Promise<string> {
-    if (this.id) return this.id;
+  private pending: Promise<string> | null = null;
+
+  /** The kernel's id, started when there is none; two asking while it starts share the one start. */
+  ensure(): Promise<string> {
+    if (this.id) return Promise.resolve(this.id);
+    this.pending ??= this.start().finally(() => {
+      this.pending = null;
+    });
+    return this.pending;
+  }
+
+  private async start(): Promise<string> {
     this.set("starting");
     try {
       const started = await api<{ kernel: string; python: string; vaults?: { set: string[]; problems: string[] } }>("/workbench/kernels", "POST", { python: this.chosenPython(), path: this.path(), window: WINDOW_ID });

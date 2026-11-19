@@ -33,7 +33,7 @@
  */
 import { changedOnDisk, drawDiskBar, onFileChanged } from "./fileChanged";
 import { api, onNotice, token, useGrid } from "./api";
-import { button, clear, h, icon, recall, remember, showMenu, type MenuItem } from "./dom";
+import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
 import { openMenuButton } from "./openMenu";
@@ -704,8 +704,16 @@ export function unsplit(keep: string): void {
 }
 
 export async function closeGrid(id: string): Promise<void> {
+  const name = contexts.get(id)?.dataset;
   try {
     await api(`/grids/${encodeURIComponent(id)}`, "DELETE");
+    // Undo is Ctrl+Shift+T's reopen (tabs_reopen): its tab comes back by the server's grid_shown.
+    if (name) {
+      toast(`Closed ${name}`, "info", {
+        label: "Undo",
+        run: () => void api("/grids/reopen", "POST").catch((e: unknown) => errorHere(e)),
+      });
+    }
   } catch (e) {
     // Already closed on the server (a restart, an agent): just drop the tab.
     if ((e as { status?: number }).status !== 404) errorHere(e);

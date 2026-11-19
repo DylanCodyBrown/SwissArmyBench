@@ -105,7 +105,13 @@ The page has these parts:
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
 - **Status bar.** The row count and the selection summary. The memory meter shows only once the data is past 80% of its budget (click it for the Tables list, which always has the numbers), and "not live: push again" only when the page has lost the server.
-- **Every action by name.** Ctrl+Shift+P opens the command palette: type a few letters of any button, menu entry or tab, and press Enter. A command that cannot run now is greyed, and says why.
+- **Every action by name.** Ctrl+Shift+P opens the command palette: type a few letters of any button, menu entry or tab, and press Enter. The table's commands come first, and the ones you used lately before all of them. A command that cannot run now is greyed, and says why in its row.
+- **Keyboard shortcuts.** Press **?** (or Ctrl+/) anywhere outside a text box: every command that has keys, by group, with a box to find one. In the Workbench too (outside an editor, where Ctrl+/ comments a line).
+- **Filter by ticking values.** Filter (on the Table row, a header's menu or the Column row) starts on the selected column and lists its values, most common first, each with how many rows hold it. Type to search them, tick the ones to keep, and Add step. "is one of" is the starting condition for text and numbers; the others are a click away.
+- **A column at a glance.** Rest the pointer on a header: a card shows its type, blanks, distinct values, range, mean and a small histogram (or its most common values).
+- **The status bar's numbers** follow the column's scale (a whole-number Sum has no decimals; an Average two). An id column (order_id, CustomerKey) is counted, never summed or averaged.
+- **Undo after a removal.** Closing a tab, removing a column, removing a step or clearing the steps says so at the bottom with **Undo**.
+- **Copy with headers, Copy as Markdown.** A cell's right-click menu copies the selection (or the one cell) with its column names first, or as a Markdown table for a chat, a pull request or a note.
 
 ### Getting around
 
@@ -674,7 +680,11 @@ their own, run in an IPython kernel on this computer.
   your agent with your next message to it, through the plugin's prompt hook; the agent can also read it
   any time with its `agent_inbox` tool. Nothing is written to disk.
 - **Every command by name:** Ctrl+Shift+P opens the palette. F1 on a name shows its help in a card over
-  the source (Escape puts it away). Ctrl+1 to Ctrl+3 (and F6) move between the panes.
+  the source (Escape puts it away). Ctrl+1 to Ctrl+3 (and F6) move between the panes. **?** (outside an
+  editor) lists every shortcut.
+- **How long a run took:** beside a cell's count, "Running… 3 s" while it runs and then the time it took.
+  The first run starts Python: the cell says **Starting Python…** until it is up. A cell that has run keeps
+  its Name box showing, so naming it is one click.
 - **After a reload** the open documents, their unsaved text and the groups come back (kept in the
   window, not on disk).
 - **Every cell has a number that never changes:** `#7` in a notebook cell's head (beside the run count

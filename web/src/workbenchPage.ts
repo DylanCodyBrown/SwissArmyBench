@@ -58,7 +58,7 @@ import { closeWindow, inApp } from "./desktopApp";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
 import { effectiveTheme } from "./theme";
-import { allCommands, answerAgent, type Command, openPalette, registerCommands, runCommand, setAgentHooks } from "./workbenchCommands";
+import { allCommands, answerAgent, type Command, mountShortcutKeys, openPalette, openShortcuts, registerCommands, runCommand, setAgentHooks } from "./workbenchCommands";
 import { following, pulse, userBusy } from "./sessionPage";
 import { consoleView, type ConsoleView } from "./workbenchConsole";
 import { forgetCatalogs, listDatasets, pythonCompleter, setDialects } from "./workbenchCompletion";
@@ -3269,10 +3269,12 @@ const COMMANDS: Command[] = [
   { id: "nav.back", group: "Go", title: "Back", keys: "Alt+Left", when: canGoBack, whyNot: "nothing to go back to in this window", run: () => back() },
   { id: "nav.forward", group: "Go", title: "Forward", keys: "Alt+Right", run: () => forward() },
   // Help
+  { id: "help.shortcuts", group: "Help", title: "Keyboard shortcuts", keys: "?", run: () => openShortcuts() },
   { id: "help.atCursor", group: "Help", title: "Help on the name at the cursor", keys: "F1", when: isCode, whyNot: "no notebook or script is in front", run: () => showHelp() },
   { id: "commands", agentOnly: true, group: "Help", title: "Every command and its arguments", run: () => allCommands().map((c) => ({ id: c.id, title: c.title, group: c.group, keys: c.keys ?? null, args: c.args ?? null, available: c.when ? c.when() : true })) },
 ];
 registerCommands(COMMANDS);
+mountShortcutKeys(); // ? and Ctrl+/ (outside an editor): the keyboard shortcuts
 registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
 registerCommands(updateCommands()); // Update to X, What's new
 registerCommands(claudeCommands()); // Launch Claude (Claude Code, Claude Desktop)

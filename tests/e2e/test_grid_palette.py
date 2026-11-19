@@ -68,7 +68,9 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
               for (const row of document.querySelectorAll('.ribbon .ribbon-group')) {
                 const group = row.querySelector('.ribbon-caption strong').textContent.trim();
                 for (const b of row.querySelectorAll('button'))
-                  if (shown(b) && b.getAttribute('aria-haspopup') !== 'menu') found.push([group, name(b)]);
+                  // The Transformations row is the steps strip: its buttons are listed once, as Steps.
+                  if (shown(b) && b.getAttribute('aria-haspopup') !== 'menu' && !b.closest('.steps-strip'))
+                    found.push([group, name(b)]);
               }
               for (const b of document.querySelectorAll('.steps-strip button'))
                 if (shown(b) && !b.classList.contains('steps-count')) found.push(['Steps', name(b)]);
@@ -76,7 +78,9 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
               return found;
             }"""
         )
-        assert len(on_page) >= 35  # the tour left the Application row for the Start page (2026-11-16)
+        # The tour left the Application row for the Start page (2026-11-16); the steps strip's buttons are
+        # counted once, as Steps (2026-11-19).
+        assert len(on_page) >= 30
         missing = [pair for pair in on_page if (pair[0], pair[1]) not in titles]
         assert not missing, f"buttons with no command: {missing}"
         assert ("Application", "Not now") not in titles  # the tour bubble's dismiss is not a command

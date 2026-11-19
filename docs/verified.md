@@ -3857,3 +3857,30 @@ Not checked:
   tests/e2e/test_launch_page.py is not in this branch (another builder's file was collected): not judged.
 - **Not checked:** the desktop app's windows with the wider rail; Edge; a table of many columns that only just
   fits (the filling stops past the window).
+
+## Everyday comforts (2026-11-19, branch feel-b)
+- **Python (tests/test_everyday_comforts.py):** id_like over 15 names and types (camelCase, separators,
+  "paid", "valid", "monkey" not ids; a DOUBLE never one); display_digits for integers, DECIMAL scales and
+  floats; selection stats leaving ids out of Sum and Average and still counting them; a column's values most
+  common first with blanks counted apart, search in any case with `%` as plain text, limit and `more`, the
+  view entering a step (`upto`), refusals (an unknown column names the view's columns, no column, no token);
+  the agent's column_values; markdown_table's escaping, alignment and line breaks; a selection exported as
+  `format=md`. tests/test_sql_step_and_selection.py's Sum over every number cell now leaves the id out (520,
+  not 575).
+- **Browser (tests/e2e/test_everyday_comforts_page.py, Chromium):** Filter on the selected column with "is
+  one of", four values with counts, search narrowing, two ticked, the step keeping 20 of 60 rows; ? and
+  Ctrl+/ opening the shortcuts, the find box, Escape; the palette's first group the table's, Undo listed once
+  with its reason in the row, the command just run first next time; Remove from a header's menu and Undo,
+  Close a tab and Undo reopening it; the header card's range and 20 bars, a text column's most common value,
+  an id column's status bar with no Sum, a price's Sum to two places; Copy as Markdown and Copy with headers
+  of a 2 x 2 block read back from the clipboard; a notebook cell gated with "Starting Python…", "Running…
+  N s", then "N.N s", its Name box showing. tests/e2e/test_grid_palette.py follows the steps strip listed once;
+  test_ui's cell menu and test_beta_notes_page's Filter (now "is one of" first: it picks "equals") follow too.
+- **Whole suite (Chromium, one process):** 4,783 passed, 46 skipped, 20 failed in 68 minutes. Run again alone, 12
+  passed; the two this work caused were fixed (test_ui's cell menu, test_beta_notes_page's Filter). Of the rest,
+  each also run against the starting commit (ae75e14) in a copy of its own: test_variable_refs_page's two and
+  test_workbench_page's key vault fail there too; test_workbench_groups' drag test and test_panels_page pass and
+  fail by turns on both (flaky under load).
+- **Not checked:** Edge and the desktop app (Chromium here); the shortcuts sheet with the Workbench's Jupyter
+  command mode keys in a long session; the header card on a 100-column table's horizontal scroll; values of
+  DECIMAL and TIMESTAMP columns ticked in the checklist (they go through JSON as the profile's top values do).

@@ -32,6 +32,7 @@ import { openRelationships } from "./relationshipsDialog";
 import { state } from "./state";
 import { connectionLabel, onConnectionChange, openConnectionChooser } from "./swapConnection";
 import { editStep } from "./stepForms";
+import { undoToast } from "./stepsStrip";
 import { matchingSummary, openTextMatching } from "./textMatching";
 import { gridZoom, onThemeChange, stepZoom } from "./theme";
 import { errorHere } from "./errorNote";
@@ -144,7 +145,8 @@ function render(): void {
       "Table",
       "",
       tool(`Matching: ${matchingSummary()}`, "case", () => openTextMatching(), { title: "How text compares" }),
-      tool("Filter", "filter", () => editStep("filter")),
+      // On the selected column (or the active cell's), when there is one.
+      tool("Filter", "filter", () => editStep("filter", undefined, cols[0] ? { column: cols[0] } : {})),
       tool("Sort", "sortup", () => editStep("sort")),
       tool("Choose columns", "columns", () => editStep("columns")),
       tool("Rename", "rename", () => editStep("rename")),
@@ -280,7 +282,16 @@ export async function keepColumns(keep: string[]): Promise<void> {
     errorHere("That would remove every column.");
     return;
   }
-  await state.addStep({ kind: "columns", params: { keep } }).catch((e: Error) => errorHere(e));
+  const grid = state;
+  const gone = viewColumns().map((c) => c.name).filter((n) => !keep.includes(n));
+  try {
+    await grid.addStep({ kind: "columns", params: { keep } });
+  } catch (e) {
+    errorHere(e);
+    return;
+  }
+  // Columns taken away: said, with Undo (the step's own undo, on this grid).
+  if (gone.length) undoToast(gone.length === 1 ? `Removed the column ${gone[0]}` : `Removed ${gone.length} columns`, grid);
 }
 
 /** Keep (or exclude) rows whose value in the column is one of the selected cells' values. */

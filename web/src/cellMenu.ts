@@ -2,7 +2,8 @@
  * cellMenu.ts: the grid's right-click menus (Plans/sandbox-report.plan.md, S4). gridView.ts says where
  * the click was; this says what can be done there.
  *
- *   [CELL]    Send value to Analyze, Send the row to Analyze, Keep these, Exclude these, View value, Copy
+ *   [CELL]    Send value to Analyze, Send the row to Analyze, Keep these, Exclude these, View value, Copy, Copy
+ *             with headers, Copy as Markdown (the selection, or the cell under its column's name)
  *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Analyze, Distinct values to
  *             Analyze, Profile. The analyses themselves are the Analyze page's (the owner, 2026-11-19)
  */
@@ -49,6 +50,8 @@ export function cellCommands(): [string, () => void][] {
   return [
     ["View value", () => viewCell()],
     ["Copy", () => void copySelection()],
+    ["Copy with headers", () => void copySelection("headers")],
+    ["Copy as Markdown", () => void copySelection("markdown")],
     ["Keep these", () => void filterByCells(true)],
     ["Exclude these", () => void filterByCells(false)],
     ["Send value to Analyze", sendValue],
@@ -67,6 +70,8 @@ export function mountContextMenus(): void {
       "-",
       ["eye", "View value", () => viewCell()],
       ["copy", "Copy", () => void copySelection()],
+      ["copy", "Copy with headers", () => void copySelection("headers")],
+      ["copy", "Copy as Markdown", () => void copySelection("markdown")],
     ]);
   });
   onHeaderMenu((column, event) => {

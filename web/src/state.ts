@@ -29,6 +29,10 @@ export interface SelectionSummary {
   mean: number | null;
   min: number | null;
   max: number | null;
+  /** The identifier columns (order_id, CustomerKey): counted, never summed or averaged. */
+  id_like?: string[];
+  /** Digits after the point for Sum and Average: the columns' scale. */
+  digits?: { sum: number; mean: number };
 }
 type Listener = () => void;
 

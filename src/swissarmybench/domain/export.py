@@ -16,6 +16,7 @@ FORMULA_STARTS: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
 FORMATS: dict[str, tuple[str, str]] = {
     "csv": (".csv", "text/csv"),
     "txt": (".txt", "text/plain"),
+    "md": (".md", "text/markdown"),
     "xlsx": (".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     "parquet": (".parquet", "application/vnd.apache.parquet"),
 }
@@ -104,3 +105,25 @@ class Provenance:
 
 def neutralize(text: str) -> str:
     return "'" + text if text.startswith(FORMULA_STARTS) else text
+
+
+def _markdown_cell(text: str) -> str:
+    """One cell's text inside a pipe table: a pipe escaped, a line break kept as <br>."""
+    return (
+        text.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("\r\n", "<br>")
+        .replace("\n", "<br>")
+        .replace("\r", "<br>")
+    )
+
+
+def markdown_table(names: list[str], rows: list[list[str]], numeric: list[bool]) -> str:
+    """Rows as a Markdown pipe table (Copy as Markdown): the header, the rule (number columns
+    right-aligned), a line a row. Cells are the text the delimited export writes."""
+    lines = [
+        "| " + " | ".join(_markdown_cell(n) for n in names) + " |",
+        "| " + " | ".join("---:" if right else "---" for right in numeric) + " |",
+    ]
+    lines += ["| " + " | ".join(_markdown_cell(cell) for cell in row) + " |" for row in rows]
+    return "\n".join(lines) + "\n"

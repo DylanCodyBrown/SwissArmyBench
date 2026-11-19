@@ -40,6 +40,7 @@ import { button, formatCount, h, icon, isDateType, isNumericType, toast } from "
 import { onRelationshipsChange, primaryKey } from "./relationships";
 import { GridSelection } from "./selection";
 import type { PageState } from "./state";
+import { hideHeaderCard, hoverHeader } from "./headerCard";
 import { gridRowHeight, gridTheme, gridZoom, headerProfiles, onHeaderProfilesChange, onThemeChange, setHeaderProfiles } from "./theme";
 import { openValueViewer } from "./valueViewer";
 import { errorHere, errorNote } from "./errorNote";
@@ -62,13 +63,16 @@ const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2
 
 /** One grid's view: what createGridView returns. The page holds one per open grid; the panels
  * talk to the active one through the functions at the end of this file. */
+/** How a copy is written: plain (Excel's: a block of cells without its header row), with headers, or as Markdown. */
+export type CopyStyle = "plain" | "headers" | "markdown";
+
 export interface GridView {
   state: PageState;
   selection: GridSelection;
   host: HTMLElement;
   refresh: () => void;
   syncHeaderSort: () => void;
-  copySelection: () => Promise<void>;
+  copySelection: (style?: CopyStyle) => Promise<void>;
   focusedCell: () => { row: number; column: string } | null;
   cellValue: (row: number, column: string) => Promise<unknown>;
   selectedValues: (column: string, cap?: number) => unknown[];
@@ -166,8 +170,11 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         "div",
         {
           class: "sab-header",
-          title: `${name} (${info?.type ?? ""})`,
+          // The name and type are the hover card's (headerCard.ts), with the column's numbers: no tooltip too.
+          "aria-label": `${name} (${info?.type ?? ""})`,
+          onmouseleave: () => hideHeaderCard(),
           onmousedown: (event: MouseEvent) => {
+            hideHeaderCard();
             if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
             event.preventDefault();
             // preventDefault also kept the focus where it was (often the page itself), so Ctrl+C,
@@ -176,8 +183,9 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
             selection.selectColumns(name, event.shiftKey ? "extend" : event.ctrlKey || event.metaKey ? "add" : "replace");
             dragging = "columns";
           },
-          onmouseenter: () => {
+          onmouseenter: (event: MouseEvent) => {
             if (dragging === "columns") selection.selectColumns(name, "extend");
+            else hoverHeader(this.gui, name, state, event.buttons);
           },
           // Double-click the name: rename it there (Enter keeps, Escape leaves it; a click away keeps).
           ondblclick: (event: MouseEvent) => {
@@ -593,6 +601,9 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         const column = event.column.getColId();
         if (!cellMenu || [MARKER, FILLER, ROWNUM].includes(column) || event.rowIndex == null) return;
         if (!selection.hasCell(event.rowIndex, column)) selection.selectCells(event.rowIndex, column, false);
+        // A pointer press, as a left one is: the focus moving must not collapse the selection to this cell
+        // (onCellFocused), or Copy as Markdown on a block would copy one cell.
+        lastPointerDown = Date.now();
         gridApi?.setFocusedCell(event.rowIndex, column);
         const mouse = event.event as MouseEvent | null;
         cellMenu({ row: event.rowIndex, column, data: (event.data ?? {}) as Record<string, unknown>, x: mouse?.clientX ?? 0, y: mouse?.clientY ?? 0 });
@@ -868,39 +879,48 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     mean: number | null;
     min: number | null;
     max: number | null;
+    id_like?: string[];
+    digits?: { sum: number; mean: number };
   }
 
   /** Ctrl+C: the selection as tab-separated text, built by the server, so rows that were never
    * loaded copy too. Whole rows, columns and select-all bring the header row; a block of cells
    * copies just the cells, as Excel does. */
-  async function copySelection(): Promise<void> {
-    const descriptor = selection.descriptor();
+  async function copySelection(style: CopyStyle = "plain"): Promise<void> {
+    let descriptor = selection.descriptor();
     if (!descriptor) {
       const cell = focusedCell();
       if (!cell) return;
-      const value = await cellValue(cell.row, cell.column);
-      await writeClipboard(Promise.resolve(value === null || value === undefined ? "" : String(value)), "Copied the cell.");
-      return;
+      if (style === "plain") {
+        const value = await cellValue(cell.row, cell.column);
+        await writeClipboard(Promise.resolve(value === null || value === undefined ? "" : String(value)), "Copied the cell.");
+        return;
+      }
+      // With headers or as Markdown: the one cell under its column's name.
+      descriptor = { rows: [[cell.row, cell.row]], columns: [cell.column] };
     }
-    const rows = selection.rowCount(shownTotal);
+    const rows = selection.kind === "none" ? 1 : selection.rowCount(shownTotal);
     if (rows > COPY_CAP) {
       errorHere(`Too many rows to copy (up to ${formatCount(COPY_CAP)}).`);
       return;
     }
+    // Plain: Excel's way (a block of cells without its header row); With headers: always the names
+    // first; Markdown: a pipe table (feel-b, 2026-11-19).
     const text = download(
       `${grid}/export${query({
         scope: "selection",
         selection: JSON.stringify(descriptor),
-        format: "txt",
+        format: style === "markdown" ? "md" : "txt",
         delimiter: "tab",
-        header: selection.kind === "cells" ? "0" : "1",
+        header: style === "plain" && selection.kind === "cells" ? "0" : "1",
         provenance: "0",
         neutralize_formulas: "0",
         line_ending: "windows",
       })}`,
     ).then(({ blob }) => blob.text());
     const cells = descriptor.columns ? descriptor.columns.length : columns.length;
-    await writeClipboard(text, `Copied ${formatCount(rows)} row${rows === 1 ? "" : "s"} × ${formatCount(cells)} column${cells === 1 ? "" : "s"}.`);
+    const what = style === "markdown" ? " as Markdown" : style === "headers" ? " with headers" : "";
+    await writeClipboard(text, `Copied ${formatCount(rows)} row${rows === 1 ? "" : "s"} × ${formatCount(cells)} column${cells === 1 ? "" : "s"}${what}.`);
   }
 
   async function writeClipboard(text: Promise<string>, done: string): Promise<void> {
@@ -1175,7 +1195,7 @@ export function setActiveView(view: GridView): void {
   selection = view.selection;
 }
 
-export const copySelection = (): Promise<void> => (active ? active.copySelection() : Promise.resolve());
+export const copySelection = (style: CopyStyle = "plain"): Promise<void> => (active ? active.copySelection(style) : Promise.resolve());
 export const focusedCell = (): { row: number; column: string } | null => active?.focusedCell() ?? null;
 export const cellValue = (row: number, column: string): Promise<unknown> => (active ? active.cellValue(row, column) : Promise.resolve(undefined));
 export const selectedValues = (column: string, cap?: number): unknown[] => active?.selectedValues(column, cap) ?? [];

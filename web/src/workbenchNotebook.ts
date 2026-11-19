@@ -58,6 +58,7 @@ import { inlineSource } from "./inlineCompletion";
 import { cellConnections, markConnections, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
 import { button, clear, h, icon, type MenuItem, showMenu, toast } from "./dom";
+import { busy } from "./loading";
 import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
 import { draggedSnippet, type FilledSnippet, fillSnippet, pickSnippet, refusal, SNIPPET_CELL, SNIPPET_DRAG, type SnippetLanguage } from "./starters";
@@ -225,6 +226,39 @@ const usesForm = (kind: CellKind): UsesForm => (kind === "sql" || kind === "dax"
 /** A cell that runs on a source picked in its head: SQL on a connection, DAX on a dataset. */
 const hasSource = (kind: CellKind): kind is "sql" | "dax" => kind === "sql" || kind === "dax";
 const empty = (kind: CellKind = "code", connection: string | null = null): CellData => ({ kind, source: "", connection, outputs: [], execution_count: null });
+
+/** How long a run took, as its head says it: "320 ms", "4.2 s", "2 min 5 s". */
+function runTime(ms: number): string {
+  if (ms < 1000) return `${Math.max(1, Math.round(ms))} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+/** A run's time beside its count (feel-b, 2026-11-19): "Running… 3 s" once it has taken a second, then the
+ *  time it took. The returned function ends it. The cell keeps its head's name box shown from then on. */
+function timeRun(cell: { count: HTMLElement; element: HTMLElement }): () => void {
+  let label = cell.count.parentElement?.querySelector<HTMLElement>(":scope > .wb-elapsed") ?? null;
+  if (!label) {
+    label = h("span", { class: "wb-elapsed", role: "status" });
+    cell.count.after(label);
+  }
+  const shown = label;
+  const started = performance.now();
+  shown.textContent = "";
+  shown.classList.add("running");
+  const timer = window.setInterval(() => {
+    const ms = performance.now() - started;
+    if (ms >= 1000) shown.textContent = `Running… ${Math.floor(ms / 1000)} s`;
+  }, 250);
+  return () => {
+    window.clearInterval(timer);
+    shown.classList.remove("running");
+    shown.textContent = runTime(performance.now() - started);
+    shown.title = `Ran at ${new Date().toLocaleTimeString()}`;
+    cell.element.classList.add("has-run");
+  };
+}
 
 export interface NotebookView {
   element: HTMLElement;
@@ -737,6 +771,18 @@ export function notebookView(
     cell.element.classList.remove("output-hidden");
     cell.count.textContent = "[*]";
     cell.element.classList.add("running");
+    // The first run starts Python (seconds): the cell is gated with words until it is up (8.12).
+    if (kernel.state === "off" || kernel.state === "starting") {
+      try {
+        await busy(cell.element, "Starting Python…", kernel.ensure(), { errorIn: false });
+      } catch (e) {
+        cell.element.classList.remove("running");
+        cell.count.textContent = "[!]";
+        cell.area.notice((e as Error).message, "error");
+        return false;
+      }
+    }
+    const ended = timeRun(cell);
     try {
       const ranCode = cell.source;
       const done = await runInto(kernel, { code: cell.source, kind: hasSource(cell.kind) ? cell.kind : "code", connection: cell.connection }, cell.area);
@@ -752,6 +798,7 @@ export function notebookView(
       void checkApproval(cell);
       return done.ok;
     } finally {
+      ended();
       cell.element.classList.remove("running");
     }
   };
@@ -765,6 +812,7 @@ export function notebookView(
     cell.element.classList.remove("output-hidden");
     cell.count.textContent = "[*]";
     cell.element.classList.add("running");
+    const ended = timeRun(cell);
     try {
       const ranCode = cell.source;
       const body = { path: kernel.intel().path, kind: cell.kind === "sql" ? "sql" : "typescript", code: cell.source, cell: cell.number };
@@ -786,6 +834,7 @@ export function notebookView(
       void checkApproval(cell);
       return done.ok;
     } finally {
+      ended();
       cell.element.classList.remove("running");
     }
   };
@@ -865,6 +914,7 @@ export function notebookView(
     cell.area.set([]);
     cell.count.textContent = "[*]";
     cell.element.classList.add("running");
+    const ended = timeRun(cell);
     try {
       const done = await runInto(kernel, { code, kind: "table", table: variable }, cell.area);
       cell.execution_count = done.execution_count;
@@ -877,6 +927,7 @@ export function notebookView(
       void checkApproval(cell);
       return done.ok;
     } finally {
+      ended();
       cell.element.classList.remove("running");
     }
   };

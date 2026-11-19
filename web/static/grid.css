@@ -5922,9 +5922,11 @@ dialog.file-chooser {
 .wb-tabs {
   position: relative;
   display: flex;
+  flex: 0 1 auto;
   align-items: flex-end;
   gap: 2px;
-  min-width: 0;
+  /* The tabs always keep room for at least one (their own strip scrolls past that). */
+  min-width: min(200px, 40%);
   height: 100%;
   overflow-x: auto;
   scrollbar-width: none;
@@ -6102,9 +6104,15 @@ dialog.file-chooser {
 
 .wb-gcontrols {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
   align-self: center;
   gap: 6px;
+  /* Many controls (a canvas's Launch, Builds, the analyzer) in a narrow group, or beside the rail's names: they
+     scroll sideways in their own space and never cover the tabs (2026-11-19). */
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .wb-gcontrols .btn {
@@ -18180,4 +18188,243 @@ body:has(> .tour) > .context-menu {
   padding: 10px 12px;
   border-left: 3px solid var(--warn);
   background: var(--warn-soft);
+}
+
+/* ===== everyday comforts (feel-b, 2026-11-19) ===== */
+
+/* The filter's checklist: a column's values with their counts (stepForms.ts valuesChecklist). */
+.filter-values-field {
+  grid-column: 1 / -1;
+}
+
+.filter-values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(420px, 80vw);
+}
+
+.filter-values-all {
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.filter-values-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.filter-value {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.filter-value:hover {
+  background: var(--row-hover);
+}
+
+.filter-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-value-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-values-none {
+  padding: 8px;
+}
+
+/* The palette: why a command cannot run now, in its row. */
+.wb-palette-item {
+  grid-template-columns: 90px 1fr auto auto;
+}
+
+.wb-palette-why {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-style: italic;
+  text-align: right;
+}
+
+/* Keyboard shortcuts (? and Ctrl+/): the commands that have keys, by group. */
+.wb-palette.shortcuts {
+  width: min(860px, 94vw);
+  max-height: 80vh;
+  margin-top: 6vh;
+}
+
+.shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 0 16px;
+}
+
+.shortcuts-head h2 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.shortcuts-head button {
+  padding: 2px 8px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 1.3em;
+  cursor: pointer;
+}
+
+.shortcuts-groups {
+  columns: 2 300px;
+  column-gap: 24px;
+  padding: 0 16px 14px;
+  overflow: auto;
+}
+
+.shortcuts-group {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+
+.shortcuts-group h3 {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shortcuts-group dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.shortcuts-group dt {
+  display: flex;
+  gap: 3px;
+}
+
+.shortcuts-group dd {
+  margin: 0;
+}
+
+.shortcuts-group kbd {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 0.82em;
+  white-space: nowrap;
+}
+
+/* A column's numbers on hovering its header (headerCard.ts). */
+.header-card {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 240px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+  font-size: 0.86em;
+  pointer-events: none;
+}
+
+.header-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.header-card-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-card-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header-card-line span {
+  color: var(--muted);
+}
+
+.header-card-line strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.header-card-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 36px;
+  margin-top: 6px;
+}
+
+.header-card-bars span {
+  flex: 1;
+  border-radius: 1px 1px 0 0;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.header-card-top {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.header-card-top li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header-card-top li span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A notebook cell's run time beside its count; its name box stays once it has run. */
+.wb-elapsed {
+  color: var(--muted);
+  font-size: 0.82em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wb-elapsed.running {
+  color: var(--accent);
+}
+
+.wb-cell.has-run .wb-cell-name.unnamed:not(:focus) {
+  opacity: 0.6;
 }
