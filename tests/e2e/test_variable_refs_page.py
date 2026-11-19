@@ -165,6 +165,7 @@ def test_a_connection_made_of_references_tests_saves_and_opens_a_table(
     expect(listed).to_be_visible()
     listed.get_by_role("option", name="WAREHOUSE_PASSWORD This computer's keyring").click()
     expect(password).to_have_value(PASSWORD)
+    expect(password).to_have_attribute("type", "text")  # a reference reads as text, never as dots
     expect(box.locator(".variable-preview")).to_have_text("••••••••")
     shot(page, "variable-refs-preview-light")
     assert postgres["password"] not in page.content()

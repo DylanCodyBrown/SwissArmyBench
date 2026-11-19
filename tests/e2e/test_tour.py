@@ -20,7 +20,6 @@ from playwright.sync_api import Browser, Locator, Page, expect
 from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
 
-
 SHOTS = os.environ.get("SWISSARMYBENCH_TOUR_SHOTS")
 
 

@@ -144,6 +144,8 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
     input.setSelectionRange(at, at);
     close();
     input.focus();
+    // As typed: the form hears the new text (a password box shows a reference as text), then that it is done.
+    input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     void preview();
   };
