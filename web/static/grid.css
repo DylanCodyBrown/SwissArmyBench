@@ -17668,3 +17668,5 @@ body:has(> .tour) > .context-menu {
 .extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
 .extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+.gates-first { padding: 20px 24px; max-width: 560px; border-radius: 8px; }
+.gates-first .dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }

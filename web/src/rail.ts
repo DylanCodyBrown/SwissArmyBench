@@ -278,8 +278,6 @@ export function mountNavRail(page: PageKind): void {
       toolbar.insertBefore(made, before);
     }
     draw(new URL(location.href));
-    const named = new URL(location.href).searchParams.get("open");
-    if (named && DATA_AREAS.has(named) && hasLayer(named)) openLayer(named); // its address, opened now
   });
   // A project type's gates: its closed areas hidden here; an address that names one says so in one line.
   onGates(() => {

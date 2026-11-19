@@ -188,6 +188,7 @@ def routes(services: Any) -> list[Any]:
         live_files.windows,
     )
     project.live = live
+    _standins(project, live)
     services.powerbi_live = live  # tests hand it a fake
     services.app_registrations.query_hints = project.query_hints
     services.powerbi_project = project  # tests hand it a fake reader
@@ -204,3 +205,21 @@ async def stop(services: Any) -> None:
     live = getattr(services, "powerbi_live", None)
     if live is not None:
         live.stop()
+
+
+def _standins(project: Any, live: Any) -> None:
+    """Tests and screenshots only: SWISSARMYBENCH_PBIX_STANDIN names a module whose `reader` stands in for
+    pbixray,
+    SWISSARMYBENCH_PBI_DESKTOP_STANDIN one whose `instances` and `FakeDesktop` stand in for a running Power BI
+    Desktop (a server started in its own process has no other way to be handed them)."""
+    import importlib
+    import os
+
+    named = os.environ.get("SWISSARMYBENCH_PBIX_STANDIN")
+    if named:
+        project.reader = importlib.import_module(named).reader
+    named = os.environ.get("SWISSARMYBENCH_PBI_DESKTOP_STANDIN")
+    if named:
+        module = importlib.import_module(named)
+        running = module.FakeDesktop()
+        live._discover, live._opener, live._windows = module.instances, lambda port: running, lambda: True

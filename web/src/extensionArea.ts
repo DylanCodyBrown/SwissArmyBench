@@ -8,7 +8,7 @@
 import { api } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { extensionPanel } from "./extensionPanel";
-import { dismissDialog, registerLayer, setOverTitle } from "./nav";
+import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 
 export interface PanelArea {
   area: string;
@@ -18,6 +18,8 @@ export interface PanelArea {
 }
 
 let found: Promise<PanelArea[]> | null = null;
+// The address the page was opened at (nav may take an area it does not know yet out of it while it starts).
+const ASKED = new URLSearchParams(location.search).get("open");
 
 /** The areas with a page drawn from data, each registered as a layer (open=<area>) once. */
 export function panelAreas(): Promise<PanelArea[]> {
@@ -49,4 +51,9 @@ function register(area: PanelArea): void {
       if (shown) dismissDialog(shown);
     },
   });
+  // Its address (open=<area>) named before the area was known: opened now.
+  if ((ASKED === area.area || new URLSearchParams(location.search).get("open") === area.area) && !shown) {
+    layerOpened(area.area);
+    draw();
+  }
 }

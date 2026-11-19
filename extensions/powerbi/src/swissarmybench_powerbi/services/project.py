@@ -212,7 +212,7 @@ class PowerBIProject:
         await asyncio.to_thread(
             self.files.write_text, str(Path(folder) / rules.STATE_PATH), rules.write_state(state)
         )
-        await base.sab_projects.set_setting(SOURCE_KEY, state["source"], who)
+        await base.sab_projects.set_setting(SOURCE_KEY, "published", who)
         # 5. relationships into the model and the ERD
         joins = pf.relationships_for_model(plan_.model)
         if joins:
@@ -328,7 +328,7 @@ class PowerBIProject:
     def source(self) -> dict[str, Any]:
         """Which source In Power BI reads: the project's choice, and what answers it now."""
         state = self._state()
-        chosen = str(self.base.sab_projects.setting(SOURCE_KEY) or state.get("source") or "published")
+        chosen = str(self.base.sab_projects.setting(SOURCE_KEY) or "published")  # the file: only a fallback
         effective, note = self._effective(state, chosen)
         model = (state.get("dataset") or {}).get("dataset") or Path(str(state.get("target", ""))).stem
         return {
@@ -385,7 +385,7 @@ class PowerBIProject:
         return self.source() | {"reloaded": reloaded}
 
     async def _read_in_power_bi(self, state: Mapping[str, Any], table: str, who: str) -> Any:
-        chosen = str(self.base.sab_projects.setting(SOURCE_KEY) or state.get("source") or "published")
+        chosen = str(self.base.sab_projects.setting(SOURCE_KEY) or "published")
         effective, _ = self._effective(state, chosen)
         name = rules.grid_names(table)[1]
         if effective == "published":
