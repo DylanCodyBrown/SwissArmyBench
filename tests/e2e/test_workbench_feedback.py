@@ -89,7 +89,8 @@ def test_new_and_open_sit_in_the_top_bar_on_every_landing_and_beside_a_document(
     top = page.locator(".wb-top")
     # The landing is its cards only: no panel of its own.
     expect(landing.locator(".wb-landing-panel")).to_have_count(0)
-    expect(landing.get_by_role("button", name="New script")).to_have_count(0)
+    # Its New script is the empty state's, only while there is none (feel-c, 2026-11-19); the bar's stays.
+    expect(landing.locator(":not(.empty-state) > .btn", has_text="New script")).to_have_count(0)
     # New and Open… beside Save and Save as….
     labels = top.locator(".btn").evaluate_all(
         "els => els.filter(e => !e.hidden).map(e => e.textContent.trim())"

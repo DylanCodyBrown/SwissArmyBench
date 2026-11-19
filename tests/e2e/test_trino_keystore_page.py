@@ -37,7 +37,9 @@ def test_the_keystore_sign_in_maps_its_path_to_a_variable_and_signs_in(
     page = open_grid(browser, orders_url, width=1400, height=1300, device_scale_factor=2)
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.locator(".area-page[data-page='connections']").get_by_role(
+        "button", name="Add connection"
+    ).first.click()
     page.locator(".connection-type", has_text="Trino").click()
     sign_in = dialog.get_by_role("combobox", name="Sign in")
     expect(sign_in.locator("option")).to_have_text(["Username and password", "Client certificate (keystore)"])

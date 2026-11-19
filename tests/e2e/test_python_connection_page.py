@@ -66,7 +66,9 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
 
     # Add connection: its own group, and a form of three code boxes.
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.locator(".area-page[data-page='connections']").get_by_role(
+        "button", name="Add connection"
+    ).first.click()
     expect(dialog.locator("h3", has_text="Your own code")).to_be_visible()
     page.locator(".connection-type", has_text="Python (your own code)").click()
     boxes = dialog.locator(".python-box")

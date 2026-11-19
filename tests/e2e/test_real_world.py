@@ -220,7 +220,7 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
     """Connections, Add connection, a database's form filled in, Test, Save, back to the grids."""
     dialog = page.locator(".area-page[data-page='connections']")
     act.click(page.locator(".nav-rail [data-area='connections']"))
-    act.click(page.get_by_role("button", name="Add connection"))
+    act.click(page.get_by_role("button", name="Add connection").first)
     act.click(page.locator(".connection-type", has_text=kind))
     act.fill(dialog.get_by_label("Name", exact=True), name)
     act.fill(dialog.get_by_label("Server", exact=True), where["host"])
@@ -867,7 +867,7 @@ def add_finance(act: Actions, page: Page) -> None:
 
     dialog = page.locator(".area-page[data-page='connections']")
     act.click(page.locator(".nav-rail [data-area='connections']"))
-    act.click(page.get_by_role("button", name="Add connection"))
+    act.click(page.get_by_role("button", name="Add connection").first)
     act.click(page.locator(".connection-type", has_text="Power BI workspace"))
     act.fill(dialog.get_by_role("textbox", name="Name"), "Finance")
     act.fill(dialog.get_by_role("textbox", name="Workspace id"), made_up.WORKSPACE)

@@ -41,7 +41,9 @@ def connections(browser: Browser, url: str) -> tuple[Page, Any]:
 
 def test_sql_server_signs_in_every_way_with_its_options_folded(browser: Browser, orders_url: str) -> None:
     page, dialog = connections(browser, orders_url)
-    page.get_by_role("button", name="Add connection").click()
+    page.locator(".area-page[data-page='connections']").get_by_role(
+        "button", name="Add connection"
+    ).first.click()
     page.locator(".connection-type", has_text="SQL Server").first.click()
     not_now(page)
     sign_in = dialog.get_by_role("combobox", name="Sign in")
@@ -187,7 +189,9 @@ def test_an_odbc_connection_says_it_works_only_here_and_an_older_one_updates_to_
         shot(page, "connections-local-detail")
         # The form for the kind: its note before anything is typed.
         page.get_by_role("button", name="Back to Connections").first.click()
-        page.get_by_role("button", name="Add connection").click()
+        page.locator(".area-page[data-page='connections']").get_by_role(
+            "button", name="Add connection"
+        ).first.click()
         dialog.locator(".connection-type", has_text="Any ODBC data source").first.click()
         not_now(page)
         expect(dialog.locator(".form-local")).to_contain_text("it needs an ODBC driver installed")
